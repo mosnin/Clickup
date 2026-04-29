@@ -59,12 +59,33 @@ export const tree = query({
         )
         .collect();
 
+      const docs = await ctx.db
+        .query("docs")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "space").eq("parentId", space._id),
+        )
+        .collect();
+
+      const whiteboards = await ctx.db
+        .query("whiteboards")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "space").eq("parentId", space._id),
+        )
+        .collect();
+
       return {
         _id: space._id,
         name: space.name,
         color: space.color,
         folders: folderNodes,
         lists: directLists.sort((a, b) => a.position - b.position),
+        docs: docs.sort((a, b) => b.updatedAt - a.updatedAt).map((d) => ({
+          _id: d._id,
+          title: d.title,
+        })),
+        whiteboards: whiteboards
+          .sort((a, b) => b.updatedAt - a.updatedAt)
+          .map((w) => ({ _id: w._id, title: w.title })),
       };
     }
 

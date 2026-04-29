@@ -1,11 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
-import { ChevronDown, ChevronRight, Inbox, Menu, Plus, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  Inbox,
+  LayoutGrid,
+  Menu,
+  Plus,
+  X,
+} from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
@@ -259,9 +268,12 @@ function SpaceBranch({
   onNavigate: () => void;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [expanded, setExpanded] = useState(true);
   const createFolder = useMutation(api.folders.create);
   const createList = useMutation(api.lists.create);
+  const createDoc = useMutation(api.docs.create);
+  const createWhiteboard = useMutation(api.whiteboards.create);
 
   async function onAddFolder() {
     const name = window.prompt("Folder name");
@@ -272,6 +284,28 @@ function SpaceBranch({
     const name = window.prompt("List name");
     if (!name) return;
     await createList({ name, parentType: "space", parentId: space._id });
+  }
+  async function onAddDoc() {
+    const title = window.prompt("Doc title", "Untitled");
+    if (title === null) return;
+    const docId = await createDoc({
+      parentType: "space",
+      parentId: space._id,
+      title,
+    });
+    onNavigate();
+    router.push(`/dashboard/d/${docId}`);
+  }
+  async function onAddWhiteboard() {
+    const title = window.prompt("Whiteboard title", "Untitled board");
+    if (title === null) return;
+    const wbId = await createWhiteboard({
+      parentType: "space",
+      parentId: space._id,
+      title,
+    });
+    onNavigate();
+    router.push(`/dashboard/wb/${wbId}`);
   }
 
   const dot = useMemo(
@@ -332,18 +366,52 @@ function SpaceBranch({
               />
             </li>
           ))}
-          <li>
-            <button
-              type="button"
-              onClick={onAddList}
-              className="flex w-full items-center gap-1 rounded-2xl px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <Plus className="h-3 w-3" /> Add list
-            </button>
+          {space.docs.map((doc) => (
+            <li key={doc._id}>
+              <DocLink
+                docId={doc._id}
+                title={doc.title}
+                active={pathname === `/dashboard/d/${doc._id}`}
+                onNavigate={onNavigate}
+              />
+            </li>
+          ))}
+          {space.whiteboards.map((wb) => (
+            <li key={wb._id}>
+              <WhiteboardLink
+                whiteboardId={wb._id}
+                title={wb.title}
+                active={pathname === `/dashboard/wb/${wb._id}`}
+                onNavigate={onNavigate}
+              />
+            </li>
+          ))}
+          <li className="mt-1 flex flex-wrap gap-1">
+            <AddButton onClick={onAddList}>list</AddButton>
+            <AddButton onClick={onAddDoc}>doc</AddButton>
+            <AddButton onClick={onAddWhiteboard}>board</AddButton>
           </li>
         </ul>
       )}
     </div>
+  );
+}
+
+function AddButton({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1 rounded-2xl px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+    >
+      <Plus className="h-3 w-3" /> {children}
+    </button>
   );
 }
 
@@ -437,6 +505,62 @@ function ListLink({
     >
       <span aria-hidden>›</span>
       <span className="truncate">{name}</span>
+    </Link>
+  );
+}
+
+function DocLink({
+  docId,
+  title,
+  active,
+  onNavigate,
+}: {
+  docId: Id<"docs">;
+  title: string;
+  active: boolean;
+  onNavigate: () => void;
+}) {
+  return (
+    <Link
+      href={`/dashboard/d/${docId}`}
+      onClick={onNavigate}
+      className={cn(
+        "flex items-center gap-2 rounded-2xl px-2 py-1 text-sm transition-colors",
+        active
+          ? "bg-muted text-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <FileText className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+      <span className="truncate">{title}</span>
+    </Link>
+  );
+}
+
+function WhiteboardLink({
+  whiteboardId,
+  title,
+  active,
+  onNavigate,
+}: {
+  whiteboardId: Id<"whiteboards">;
+  title: string;
+  active: boolean;
+  onNavigate: () => void;
+}) {
+  return (
+    <Link
+      href={`/dashboard/wb/${whiteboardId}`}
+      onClick={onNavigate}
+      className={cn(
+        "flex items-center gap-2 rounded-2xl px-2 py-1 text-sm transition-colors",
+        active
+          ? "bg-muted text-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <LayoutGrid className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+      <span className="truncate">{title}</span>
     </Link>
   );
 }

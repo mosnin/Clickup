@@ -119,6 +119,36 @@ export async function requireTaskAccess(
   return { task, list, space, identity };
 }
 
+// Confirms the caller can read/write a doc or whiteboard whose parent
+// is one of "user" (personal), "workspace", or "space". Used by both
+// docs.ts and whiteboards.ts.
+export async function requireDocLikeParentAccess(
+  ctx: QueryCtx | MutationCtx,
+  parentType: "user" | "workspace" | "space",
+  parentId: string,
+): Promise<{ identity: Identity }> {
+  const identity = await requireIdentity(ctx);
+  if (parentType === "user") {
+    if (parentId !== identity.subject) throw new Error("Forbidden");
+    return { identity };
+  }
+  if (parentType === "workspace") {
+    const workspaceId = parentId as Id<"workspaces">;
+    const workspace = await ctx.db.get(workspaceId);
+    if (!workspace) throw new Error("Workspace not found");
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_user_and_workspace", (q) =>
+        q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
+      )
+      .unique();
+    if (!membership) throw new Error("Forbidden");
+    return { identity };
+  }
+  await requireSpaceAccess(ctx, parentId as Id<"spaces">);
+  return { identity };
+}
+
 // Confirms the caller can read/write a message addressed at the given
 // parent, regardless of which kind of parent it is (task, space, or
 // workspace). Returns the workspace context when applicable so callers

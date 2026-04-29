@@ -217,4 +217,36 @@ export default defineSchema({
   })
     .index("by_user", ["mentionedClerkId"])
     .index("by_message", ["messageId"]),
+
+  // Rich-text documents. Belong to a workspace, a space, or a personal
+  // user (same `parentType` discriminant pattern as spaces). `content`
+  // is Tiptap/ProseMirror JSON.
+  docs: defineTable({
+    parentType: v.union(
+      v.literal("user"),
+      v.literal("workspace"),
+      v.literal("space"),
+    ),
+    parentId: v.string(),
+    title: v.string(),
+    content: v.any(),
+    createdByClerkId: v.string(),
+    updatedAt: v.number(),
+    createdAt: v.number(),
+  }).index("by_parent", ["parentType", "parentId"]),
+
+  // Whiteboards backed by tldraw. `snapshot` is the tldraw store snapshot.
+  whiteboards: defineTable({
+    parentType: v.union(
+      v.literal("user"),
+      v.literal("workspace"),
+      v.literal("space"),
+    ),
+    parentId: v.string(),
+    title: v.string(),
+    snapshot: v.optional(v.any()),
+    createdByClerkId: v.string(),
+    updatedAt: v.number(),
+    createdAt: v.number(),
+  }).index("by_parent", ["parentType", "parentId"]),
 });

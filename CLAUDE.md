@@ -25,8 +25,8 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 .
 ├── convex/                       # Convex backend — typechecked separately by Convex CLI
 │   ├── _generated/               # checked in (CLI overwrites on `convex dev`/`deploy`)
-│   ├── _authz.ts                 # shared auth helpers (require*Access, requireMessageParentAccess)
-│   ├── schema.ts                 # users, workspaces, memberships, spaces, folders, lists, listStatuses, customFields, taskFieldValues, tasks, messages, mentions
+│   ├── _authz.ts                 # shared auth helpers (require*Access, requireMessageParentAccess, requireDocLikeParentAccess)
+│   ├── schema.ts                 # users, workspaces, memberships, spaces, folders, lists, listStatuses, customFields, taskFieldValues, tasks, messages, mentions, docs, whiteboards
 │   ├── auth.config.ts            # Clerk JWT integration
 │   ├── http.ts                   # Clerk webhook -> internal mutations
 │   ├── sidebar.ts                # single tree query that powers the sidebar
@@ -40,7 +40,9 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   ├── taskFieldValues.ts        # sparse value rows keyed by (task, field)
 │   ├── tasks.ts                  # task CRUD; statusId-based; toggleComplete helper
 │   ├── messages.ts               # comments + chat (polymorphic parent: task | space | workspace)
-│   └── mentions.ts               # unread mention queries + markRead/markAllRead
+│   ├── mentions.ts               # unread mention queries + markRead/markAllRead
+│   ├── docs.ts                   # rich-text docs (Tiptap JSON in `content`)
+│   └── whiteboards.ts            # tldraw boards (snapshot in `snapshot`)
 ├── public/
 │   ├── manifest.webmanifest
 │   ├── icon.svg / icon-maskable.svg
@@ -70,6 +72,8 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   │       ├── personal/page.tsx # user's personal space view
 │   │       ├── inbox/            # @mention inbox with unread counter
 │   │       ├── w/[workspaceId]/  # team workspace view + Chat tab
+│   │       ├── d/[docId]/        # full-page Tiptap doc editor
+│   │       ├── wb/[whiteboardId]/# full-page tldraw whiteboard
 │   │       └── l/[listId]/       # list page with view tabs (List/Board/Calendar/Gantt)
 │   │           ├── list-page.tsx # client wrapper that picks the active view
 │   │           ├── view-tabs.tsx # tab nav driven by ?view= search param
@@ -131,6 +135,8 @@ User (personal) ──┘
 - `taskFieldValues` — sparse value rows keyed by `(taskId, fieldId)`. The four optional `*Value` columns hold the typed primitive; dropdown stores its option id in `textValue`.
 - `messages` — comments and chat in a single table. Polymorphic parent (`parentType: "task" | "space" | "workspace"`, `parentId: string`). `parentMessageId` makes a message a reply. `assigneeClerkId` + `resolvedAt` model "assigned comments". Mention tokens live inline in `body` as `@[Name](clerkId)`.
 - `mentions` — one row per mention. `parentType`/`parentId` are denormalized from the message so the inbox query is O(unread) without resolving each message's parent.
+- `docs` — rich-text documents. Polymorphic parent (`user | workspace | space`). `content` holds Tiptap/ProseMirror JSON.
+- `whiteboards` — tldraw-backed boards with the same parent shape. `snapshot` holds the tldraw store snapshot.
 
 **Authorization** is centralized in `convex/_authz.ts`. Every read/write resolves up the hierarchy (task → list → folder?/space → workspace?/user) and calls `canAccessSpace` to confirm either personal ownership or workspace membership. Use `requireListAccess`/`requireSpaceAccess`/`requireFolderAccess` rather than re-rolling checks in each function.
 
@@ -190,8 +196,8 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - **Phase 1:** Hierarchy + tasks v1 — Spaces/Folders/Lists/Tasks, sidebar tree, list view with task CRUD, real Convex queries replacing mock data, onboarding wired.
 - **Phase 2:** Custom fields + per-list custom statuses, list settings page.
 - **Phase 3:** Views — List/Board/Calendar/Gantt selectable via tabs (`?view=` query param). Board uses @dnd-kit; Calendar and Gantt are hand-rolled with date-fns.
-- **Phase 4 (current):** Threaded task comments + workspace chat, @mentions with inline picker, assigned comments, /dashboard/inbox with unread badge in the sidebar. Realtime is automatic via Convex `useQuery` subscriptions.
-- **Phase 5:** Docs (Tiptap/Lexical) + Whiteboards (tldraw).
+- **Phase 4:** Threaded task comments + workspace chat, @mentions with inline picker, assigned comments, /dashboard/inbox with unread badge in the sidebar. Realtime is automatic via Convex `useQuery` subscriptions.
+- **Phase 5 (current):** Rich-text docs (Tiptap, debounced save) and tldraw whiteboards (dynamic-imported, debounced save). Both attach to user/workspace/space and appear in the sidebar tree alongside lists.
 - **Phase 6:** Time tracking + Goals + Dashboards/widgets.
 - **Phase 7:** Automations + recurring tasks.
 - **Phase 8:** Email integration + Clips (screen recording).
@@ -209,3 +215,5 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - Calendar and Gantt are read-only — no drag-to-reschedule. Edit a task's date from the task detail page or List view.
 - Inbox doesn't yet deep-link from a task mention back to its list page (would require a task → list resolver query). Workspace chat mentions deep-link correctly.
 - Mentions don't trigger email yet — Resend is wired but no notification flow has been built.
+- Docs and whiteboards save with last-write-wins (debounced). No CRDT collab yet; concurrent editors can clobber each other's changes.
+- tldraw is loaded with `next/dynamic` (`ssr: false`) so it only ships on the whiteboard route. Its license requires keeping the watermark unless you have a commercial license — we currently keep the default watermark.
