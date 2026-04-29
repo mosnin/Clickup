@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { useAction } from "convex/react";
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
@@ -15,10 +16,12 @@ import {
   List,
   ListOrdered,
   Quote,
+  Sparkles,
   Strikethrough,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const SAVE_DEBOUNCE_MS = 800;
@@ -137,6 +140,80 @@ export function DocEditor({ docId }: { docId: string }) {
       <div className="rounded-3xl border border-border bg-background p-6">
         <EditorContent editor={editor} />
       </div>
+      <AiWriterRow editor={editor} />
+    </div>
+  );
+}
+
+function AiWriterRow({
+  editor,
+}: {
+  editor: ReturnType<typeof useEditor>;
+}) {
+  const writerContinue = useAction(api.ai.writerContinue);
+  const [pending, setPending] = useState(false);
+
+  if (!editor) return null;
+
+  async function continueWithAi() {
+    if (!editor || pending) return;
+    setPending(true);
+    try {
+      const context = editor.getText().slice(-3000);
+      const text = await writerContinue({
+        prompt:
+          "Continue the document with the next paragraph. Stay on topic.",
+        context,
+      });
+      if (text.trim()) {
+        editor.commands.focus("end");
+        editor.commands.insertContent("\n\n" + text.trim());
+      }
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function summarize() {
+    if (!editor || pending) return;
+    setPending(true);
+    try {
+      const context = editor.getText().slice(0, 6000);
+      const text = await writerContinue({
+        prompt:
+          "Summarize this document in 3 bullet points. Output the bullets as a markdown list.",
+        context,
+      });
+      if (text.trim()) {
+        editor.commands.focus("end");
+        editor.commands.insertContent("\n\n## Summary\n\n" + text.trim());
+      }
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={continueWithAi}
+        disabled={pending}
+      >
+        <Sparkles className="h-3.5 w-3.5" />
+        {pending ? "Writing…" : "Continue with AI"}
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={summarize}
+        disabled={pending}
+      >
+        Summarize
+      </Button>
     </div>
   );
 }

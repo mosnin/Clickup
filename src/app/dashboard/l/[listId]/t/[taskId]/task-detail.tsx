@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft } from "lucide-react";
+import { useAction, useMutation, useQuery } from "convex/react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -92,9 +92,11 @@ function TaskEditor({
   const update = useMutation(api.tasks.update);
   const setValue = useMutation(api.taskFieldValues.set);
   const clearValue = useMutation(api.taskFieldValues.clear);
+  const taskAutofill = useAction(api.ai.taskAutofill);
 
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
+  const [aiPending, setAiPending] = useState(false);
 
   useEffect(() => setTitle(task.title), [task.title]);
   useEffect(() => setDescription(task.description ?? ""), [task.description]);
@@ -269,9 +271,35 @@ function TaskEditor({
       )}
 
       <div>
-        <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Description
-        </label>
+        <div className="mb-1 flex items-center justify-between">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Description
+          </label>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={aiPending || !task.title.trim()}
+            onClick={async () => {
+              setAiPending(true);
+              try {
+                const res = await taskAutofill({ title: task.title });
+                if (res.description) {
+                  const next = description
+                    ? description + "\n\n" + res.description
+                    : res.description;
+                  setDescription(next);
+                  await update({ taskId: task._id, description: next });
+                }
+              } finally {
+                setAiPending(false);
+              }
+            }}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {aiPending ? "Drafting…" : "Draft with AI"}
+          </Button>
+        </div>
         <textarea
           rows={8}
           value={description}

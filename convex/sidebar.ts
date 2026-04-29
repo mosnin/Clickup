@@ -120,6 +120,9 @@ export const tree = query({
     return {
       personal: personalSpace ? await buildSpaceNode(personalSpace) : null,
       workspaces: workspaceNodes,
+      // The current user's Clerk subject ID — handy for client code that
+      // needs to address the personal scope (e.g. AI Brain search).
+      currentClerkId: subject,
     };
   },
 });

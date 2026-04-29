@@ -13,6 +13,7 @@ import type {
   FunctionReference,
 } from "convex/server";
 import type * as _authz from "../_authz.js";
+import type * as ai from "../ai.js";
 import type * as clips from "../clips.js";
 import type * as customFields from "../customFields.js";
 import type * as docs from "../docs.js";
@@ -37,6 +38,7 @@ import type * as workspaces from "../workspaces.js";
 
 declare const fullApi: ApiFromModules<{
   _authz: typeof _authz;
+  ai: typeof ai;
   clips: typeof clips;
   customFields: typeof customFields;
   docs: typeof docs;

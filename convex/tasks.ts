@@ -205,6 +205,8 @@ export const create = mutation({
       );
     }
 
+    await ctx.scheduler.runAfter(0, internal.ai.indexTask, { taskId });
+
     return taskId;
   },
 });
@@ -286,6 +288,12 @@ export const update = mutation({
         await applyAutomations(ctx, updated, "status_changed_to_complete");
         await spawnRecurringInstance(ctx, updated);
       }
+    }
+
+    if (args.title !== undefined || args.description !== undefined) {
+      await ctx.scheduler.runAfter(0, internal.ai.indexTask, {
+        taskId: args.taskId,
+      });
     }
   },
 });
@@ -381,5 +389,9 @@ export const remove = mutation({
     for (const v of values) await ctx.db.delete(v._id);
 
     await ctx.db.delete(taskId);
+    await ctx.scheduler.runAfter(0, internal.ai.dropEmbeddings, {
+      parentType: "task",
+      parentId: taskId,
+    });
   },
 });

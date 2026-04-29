@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { requireDocLikeParentAccess, requireIdentity } from "./_authz";
 
 const parentTypeValidator = v.union(
@@ -57,7 +58,7 @@ export const create = mutation({
       parentId,
     );
     const now = Date.now();
-    return await ctx.db.insert("docs", {
+    const docId = await ctx.db.insert("docs", {
       parentType,
       parentId,
       title: title?.trim() || "Untitled",
@@ -66,6 +67,8 @@ export const create = mutation({
       updatedAt: now,
       createdAt: now,
     });
+    await ctx.scheduler.runAfter(0, internal.ai.indexDocument, { docId });
+    return docId;
   },
 });
 
@@ -88,6 +91,7 @@ export const updateContent = mutation({
     if (!doc) throw new Error("Doc not found");
     await requireDocLikeParentAccess(ctx, doc.parentType, doc.parentId);
     await ctx.db.patch(docId, { content, updatedAt: Date.now() });
+    await ctx.scheduler.runAfter(0, internal.ai.indexDocument, { docId });
   },
 });
 
@@ -99,5 +103,9 @@ export const remove = mutation({
     if (!doc) return;
     await requireDocLikeParentAccess(ctx, doc.parentType, doc.parentId);
     await ctx.db.delete(docId);
+    await ctx.scheduler.runAfter(0, internal.ai.dropEmbeddings, {
+      parentType: "doc",
+      parentId: docId,
+    });
   },
 });

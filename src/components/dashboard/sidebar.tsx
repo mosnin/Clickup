@@ -13,6 +13,7 @@ import {
   LayoutGrid,
   Menu,
   Plus,
+  Sparkles,
   X,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -81,6 +82,7 @@ export function DashboardSidebar() {
 
         <nav className="flex-1 overflow-y-auto p-3">
           <RunningTimerChip />
+          <BrainLink onNavigate={() => setMobileOpen(false)} />
           <InboxLink onNavigate={() => setMobileOpen(false)} />
           {tree === undefined ? (
             <SidebarLoading />
@@ -102,6 +104,26 @@ export function DashboardSidebar() {
         </div>
       </aside>
     </>
+  );
+}
+
+function BrainLink({ onNavigate }: { onNavigate: () => void }) {
+  const pathname = usePathname();
+  const active = pathname === "/dashboard/brain";
+  return (
+    <Link
+      href="/dashboard/brain"
+      onClick={onNavigate}
+      className={cn(
+        "mb-1 flex items-center gap-2 rounded-2xl px-2 py-1.5 text-sm transition-colors",
+        active
+          ? "bg-muted text-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <Sparkles className="h-4 w-4" />
+      <span>Brain</span>
+    </Link>
   );
 }
 

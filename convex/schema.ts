@@ -315,6 +315,28 @@ export default defineSchema({
     .index("by_user", ["userClerkId"])
     .index("by_user_started", ["userClerkId", "startedAt"]),
 
+  // Vector embeddings indexed for semantic search ("Brain"). Each row
+  // points at a primary entity (doc or task) and carries the OpenAI
+  // text-embedding-3-small vector (1536 dims). `scopeType`/`scopeId`
+  // mirror the visibility rules (a personal-space task scopes to the
+  // owning user; a workspace task scopes to its workspace) so vector
+  // search filters never leak across boundaries.
+  embeddings: defineTable({
+    parentType: v.union(v.literal("doc"), v.literal("task")),
+    parentId: v.string(),
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    textPreview: v.string(),
+    embedding: v.array(v.float64()),
+    updatedAt: v.number(),
+  })
+    .index("by_parent", ["parentType", "parentId"])
+    .vectorIndex("by_embedding", {
+      vectorField: "embedding",
+      dimensions: 1536,
+      filterFields: ["scopeType", "scopeId"],
+    }),
+
   // Short screen+voice recordings ("Clips") attached to a task.
   // Bytes live in Convex file storage; we keep a metadata row per clip
   // pointing at the storage id so we can list/delete clips and look up
