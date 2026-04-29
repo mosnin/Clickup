@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { useToast } from "@/components/dashboard/toast";
 import { cn } from "@/lib/utils";
+import { MobileTaskList } from "./mobile-task-list";
 
 function truncate(s: string, n: number): string {
   return s.length <= n ? s : s.slice(0, n - 1) + "…";
@@ -36,7 +37,21 @@ export function ListView({
   fields: Doc<"customFields">[];
 }) {
   return (
-    <div className="overflow-x-auto rounded-3xl border border-border bg-background">
+    <>
+      {/* Mobile: swipeable cards. Phones don't get useful columns
+          past Title anyway, and swipe-to-complete / swipe-to-delete
+          beats pecking at a 4 px checkbox. */}
+      <div className="block sm:hidden">
+        <MobileTaskList
+          listId={listId}
+          tasks={tasks}
+          statuses={statuses}
+        />
+        <NewTaskRow listId={listId} />
+      </div>
+
+      {/* Desktop: existing table with custom-field columns. */}
+      <div className="hidden overflow-x-auto rounded-3xl border border-border bg-background sm:block">
       <table className="w-full text-sm">
         <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
           <tr>
@@ -80,7 +95,8 @@ export function ListView({
         </tbody>
       </table>
       <NewTaskRow listId={listId} />
-    </div>
+      </div>
+    </>
   );
 }
 

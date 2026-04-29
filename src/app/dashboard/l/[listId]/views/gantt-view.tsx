@@ -74,7 +74,14 @@ export function GanttView({
   const today = startOfDay(new Date());
 
   return (
-    <div className="overflow-x-auto rounded-3xl border border-border bg-background">
+    <>
+      {/* Mobile: Gantt is desktop-only. A horizontal timeline with
+          fixed day columns on a 4-inch screen is theatre, not utility.
+          We surface the same data as a vertical schedule with each
+          task's date range and status. */}
+      <MobileGantt tasks={datedTasks} listId={listId} statuses={statuses} />
+
+      <div className="hidden overflow-x-auto rounded-3xl border border-border bg-background sm:block">
       <div style={{ minWidth: 240 + totalWidth }}>
         <div className="flex border-b border-border">
           <div className="w-60 flex-shrink-0 border-r border-border bg-muted/40 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -159,6 +166,60 @@ export function GanttView({
           );
         })}
       </div>
+      </div>
+    </>
+  );
+}
+
+function MobileGantt({
+  tasks,
+  listId,
+  statuses,
+}: {
+  tasks: Doc<"tasks">[];
+  listId: Id<"lists">;
+  statuses: Doc<"listStatuses">[];
+}) {
+  return (
+    <div className="block space-y-2 sm:hidden">
+      <p className="rounded-2xl bg-muted/40 p-3 text-xs text-muted-foreground">
+        Gantt is best with a wider screen. Here&apos;s the same data as a
+        vertical schedule.
+      </p>
+      <ul className="space-y-2">
+        {tasks.map((task) => {
+          const status = statuses.find((s) => s._id === task.statusId);
+          const start = task.startDate ?? task.dueDate ?? Date.now();
+          const end = task.dueDate ?? task.startDate ?? Date.now();
+          return (
+            <li
+              key={task._id}
+              className="rounded-3xl border border-border bg-background p-3"
+            >
+              <Link
+                href={`/dashboard/l/${listId}/t/${task._id}`}
+                className="flex items-start gap-3"
+              >
+                <span
+                  aria-hidden
+                  className="mt-1 inline-block h-2 w-2 flex-shrink-0 rounded-full"
+                  style={{ backgroundColor: status?.color ?? "#6366f1" }}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{task.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {format(new Date(start), "MMM d")}
+                    {start !== end && (
+                      <> – {format(new Date(end), "MMM d")}</>
+                    )}
+                    {status && <> · {status.name}</>}
+                  </p>
+                </div>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

@@ -125,7 +125,12 @@ export function CalendarView({
           </div>
         </header>
 
-        <div className="overflow-hidden rounded-3xl border border-border bg-background">
+        {/* Mobile: vertical schedule. A 7-column month grid is unreadable
+            on a phone — replace it with a date-grouped list of upcoming
+            tasks. Desktop drops back to the grid below. */}
+        <MobileSchedule tasks={tasks} listId={listId} />
+
+        <div className="hidden overflow-hidden rounded-3xl border border-border bg-background sm:block">
           <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs uppercase tracking-wider text-muted-foreground">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
               <div key={d} className="py-2">
@@ -161,19 +166,126 @@ export function CalendarView({
           </div>
         </div>
 
-        <UndatedDrop>
-          {undated.length > 0 && (
-            <ul className="mt-2 flex flex-wrap gap-2">
-              {undated.map((t) => (
+        {/* Desktop-only undated drop zone. On mobile MobileSchedule
+            already lists undated tasks and there's no drag-to-clear. */}
+        <div className="hidden sm:block">
+          <UndatedDrop>
+            {undated.length > 0 && (
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {undated.map((t) => (
+                  <li key={t._id}>
+                    <DraggablePill task={t} listId={listId} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </UndatedDrop>
+        </div>
+      </div>
+    </DndContext>
+  );
+}
+
+function MobileSchedule({
+  tasks,
+  listId,
+}: {
+  tasks: Doc<"tasks">[];
+  listId: Id<"lists">;
+}) {
+  // Group dated tasks by yyyy-MM-dd, sorted ascending. Anything past
+  // returns near the top so a Monday morning user sees what's overdue.
+  const dated = tasks.filter((t) => t.dueDate).sort((a, b) =>
+    (a.dueDate ?? 0) - (b.dueDate ?? 0),
+  );
+  const undated = tasks.filter((t) => !t.dueDate);
+
+  if (dated.length === 0 && undated.length === 0) {
+    return (
+      <div className="block rounded-3xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground sm:hidden">
+        No dated tasks. Add a due date in the task editor to see it here.
+      </div>
+    );
+  }
+
+  const groups = new Map<string, Doc<"tasks">[]>();
+  for (const t of dated) {
+    const d = new Date(t.dueDate!);
+    const key = format(d, "yyyy-MM-dd");
+    const arr = groups.get(key);
+    if (arr) arr.push(t);
+    else groups.set(key, [t]);
+  }
+
+  const today = new Date();
+  const todayKey = format(today, "yyyy-MM-dd");
+
+  return (
+    <div className="block space-y-3 sm:hidden">
+      {Array.from(groups.entries()).map(([key, taskList]) => {
+        const date = new Date(key + "T00:00:00");
+        const isPast = key < todayKey;
+        const isToday = key === todayKey;
+        return (
+          <section
+            key={key}
+            className="rounded-3xl border border-border bg-background p-3"
+          >
+            <h3
+              className={cn(
+                "text-xs font-semibold uppercase tracking-wider",
+                isPast && "text-red-700",
+                isToday && "text-brand-700",
+                !isPast && !isToday && "text-muted-foreground",
+              )}
+            >
+              {isToday ? "Today" : format(date, "EEEE, MMM d")}
+              {isPast && " · overdue"}
+            </h3>
+            <ul className="mt-2 space-y-1">
+              {taskList.map((t) => (
                 <li key={t._id}>
-                  <DraggablePill task={t} listId={listId} />
+                  <Link
+                    href={`/dashboard/l/${listId}/t/${t._id}`}
+                    className="flex items-center gap-2 rounded-2xl px-2 py-1.5 text-sm hover:bg-muted"
+                  >
+                    {t.priority && (
+                      <span
+                        aria-hidden
+                        className="inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full"
+                        style={{
+                          backgroundColor: PRIORITY_COLOR[t.priority],
+                        }}
+                      />
+                    )}
+                    <span className="truncate">{t.title}</span>
+                  </Link>
                 </li>
               ))}
             </ul>
-          )}
-        </UndatedDrop>
-      </div>
-    </DndContext>
+          </section>
+        );
+      })}
+      {undated.length > 0 && (
+        <section className="rounded-3xl border border-dashed border-border p-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            No due date
+          </h3>
+          <ul className="mt-2 space-y-1">
+            {undated.slice(0, 12).map((t) => (
+              <li key={t._id}>
+                <Link
+                  href={`/dashboard/l/${listId}/t/${t._id}`}
+                  className="block truncate rounded-2xl px-2 py-1.5 text-sm hover:bg-muted"
+                >
+                  {t.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
   );
 }
 
