@@ -20,6 +20,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { RunningTimerChip } from "@/components/dashboard/running-timer-chip";
+import { TemplatePicker } from "@/components/dashboard/template-picker";
 
 type SidebarTree = NonNullable<ReturnType<typeof useTreeQuery>>;
 type SpaceNode = SidebarTree["workspaces"][number]["spaces"][number];
@@ -294,6 +295,7 @@ function SpaceBranch({
   const pathname = usePathname();
   const router = useRouter();
   const [expanded, setExpanded] = useState(true);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const createFolder = useMutation(api.folders.create);
   const createList = useMutation(api.lists.create);
   const createDoc = useMutation(api.docs.create);
@@ -412,11 +414,24 @@ function SpaceBranch({
           ))}
           <li className="mt-1 flex flex-wrap gap-1">
             <AddButton onClick={onAddList}>list</AddButton>
+            <AddButton onClick={() => setTemplateOpen(true)}>
+              from template
+            </AddButton>
             <AddButton onClick={onAddDoc}>doc</AddButton>
             <AddButton onClick={onAddWhiteboard}>board</AddButton>
           </li>
         </ul>
       )}
+      <TemplatePicker
+        open={templateOpen}
+        parent={{ kind: "space", spaceId: space._id }}
+        onClose={() => setTemplateOpen(false)}
+        onCreated={(listId) => {
+          setTemplateOpen(false);
+          onNavigate();
+          router.push(`/dashboard/l/${listId}`);
+        }}
+      />
     </div>
   );
 }

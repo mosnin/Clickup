@@ -180,6 +180,23 @@ export default defineSchema({
     .index("by_list_and_status", ["listId", "statusId"])
     .index("by_parent_task", ["parentTaskId"]),
 
+  // External integrations attached to a workspace. Each kind stores its
+  // own credential shape inside `config` (e.g. { webhookUrl } for Slack).
+  // We deliberately keep this simple — one row per (workspace, kind) —
+  // and read it inline from notification flows.
+  integrations: defineTable({
+    workspaceId: v.id("workspaces"),
+    kind: v.literal("slack"),
+    enabled: v.boolean(),
+    config: v.object({
+      webhookUrl: v.string(),
+    }),
+    createdByClerkId: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_workspace_and_kind", ["workspaceId", "kind"]),
+
   // Per-list automation rules. Triggered inside tasks.create and
   // tasks.update — kept simple and event-driven (no scheduled jobs yet).
   // Each rule is a single (trigger, action) pair; users compose multiple

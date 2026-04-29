@@ -92,3 +92,31 @@ export const sendAssignmentEmail = internalAction({
     }
   },
 });
+
+// Outbound Slack post via incoming webhook. Webhook URL is read from the
+// integration row by tasks.ts and passed in here, so this action stays
+// independent of the data model.
+export const postSlack = internalAction({
+  args: {
+    webhookUrl: v.string(),
+    text: v.string(),
+  },
+  handler: async (_, args) => {
+    try {
+      const res = await fetch(args.webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: args.text }),
+      });
+      if (!res.ok) {
+        console.warn(
+          "[notifications] postSlack failed:",
+          res.status,
+          await res.text(),
+        );
+      }
+    } catch (err) {
+      console.warn("[notifications] postSlack error:", err);
+    }
+  },
+});

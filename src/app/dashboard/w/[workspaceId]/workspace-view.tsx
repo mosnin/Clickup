@@ -8,15 +8,19 @@ import type { Id } from "@convex/_generated/dataModel";
 import { Comments } from "@/components/dashboard/comments";
 import { GoalsPanel } from "@/components/dashboard/goals-panel";
 import { ReportsPanel } from "@/components/dashboard/reports-panel";
+import { TeamHub } from "@/components/dashboard/team-hub";
+import { WorkspaceSettings } from "@/components/dashboard/workspace-settings";
 import { cn } from "@/lib/utils";
 
-type Tab = "overview" | "chat" | "goals" | "reports";
+type Tab = "overview" | "team" | "chat" | "goals" | "reports" | "settings";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
+  { key: "team", label: "Team" },
   { key: "chat", label: "Chat" },
   { key: "goals", label: "Goals" },
   { key: "reports", label: "Reports" },
+  { key: "settings", label: "Settings" },
 ];
 
 export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
@@ -24,7 +28,15 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
   const searchParams = useSearchParams();
   const tab: Tab = (() => {
     const raw = searchParams.get("tab");
-    if (raw === "chat" || raw === "goals" || raw === "reports") return raw;
+    if (
+      raw === "chat" ||
+      raw === "goals" ||
+      raw === "reports" ||
+      raw === "team" ||
+      raw === "settings"
+    ) {
+      return raw;
+    }
     return "overview";
   })();
 
@@ -133,6 +145,10 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
             </ul>
           </section>
         )
+      ) : tab === "team" ? (
+        <section>
+          <TeamHub workspaceId={workspace._id as Id<"workspaces">} />
+        </section>
       ) : tab === "chat" ? (
         <section>
           <Comments
@@ -148,9 +164,15 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
             parentId={workspace._id as Id<"workspaces">}
           />
         </section>
-      ) : (
+      ) : tab === "reports" ? (
         <section>
           <ReportsPanel
+            workspaceId={workspace._id as Id<"workspaces">}
+          />
+        </section>
+      ) : (
+        <section>
+          <WorkspaceSettings
             workspaceId={workspace._id as Id<"workspaces">}
           />
         </section>

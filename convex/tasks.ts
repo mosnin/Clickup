@@ -7,8 +7,10 @@ import { requireListAccess, requireTaskAccess } from "./_authz";
 import { applyAutomations } from "./listAutomations";
 
 // For a given list of clerk IDs that have just been added as assignees on
-// `task`, schedule an assignment email to each one (skipping the actor).
-async function scheduleAssignmentEmails(
+// `task`, schedule an assignment email to each one (skipping the actor)
+// and a single Slack post if the workspace has an enabled Slack
+// integration.
+async function scheduleAssignmentNotifications(
   ctx: MutationCtx,
   task: Doc<"tasks">,
   newClerkIds: string[],
@@ -20,6 +22,8 @@ async function scheduleAssignmentEmails(
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", actorClerkId))
     .unique();
   const actorName = actor?.name ?? actor?.email ?? "Someone";
+
+  const recipientNames: string[] = [];
   for (const cid of newClerkIds) {
     if (cid === actorClerkId) continue;
     const recipient = await ctx.db
@@ -27,6 +31,7 @@ async function scheduleAssignmentEmails(
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", cid))
       .unique();
     if (!recipient?.email) continue;
+    recipientNames.push(recipient.name ?? recipient.email);
     await ctx.scheduler.runAfter(
       0,
       internal.notifications.sendAssignmentEmail,
@@ -38,6 +43,33 @@ async function scheduleAssignmentEmails(
       },
     );
   }
+
+  // Slack: resolve workspace from task → list → space → workspaceId.
+  const list = await ctx.db.get(task.listId);
+  if (!list) return;
+  let space;
+  if (list.parentType === "space") {
+    space = await ctx.db.get(list.parentId as import("./_generated/dataModel").Id<"spaces">);
+  } else {
+    const folder = await ctx.db.get(
+      list.parentId as import("./_generated/dataModel").Id<"folders">,
+    );
+    if (folder) space = await ctx.db.get(folder.spaceId);
+  }
+  if (!space || space.parentType !== "workspace") return;
+  const workspaceId = space.parentId as import("./_generated/dataModel").Id<"workspaces">;
+  const slack = await ctx.db
+    .query("integrations")
+    .withIndex("by_workspace_and_kind", (q) =>
+      q.eq("workspaceId", workspaceId).eq("kind", "slack"),
+    )
+    .unique();
+  if (!slack || !slack.enabled || recipientNames.length === 0) return;
+  const text = `${actorName} assigned *${task.title}* to ${recipientNames.join(", ")}.`;
+  await ctx.scheduler.runAfter(0, internal.notifications.postSlack, {
+    webhookUrl: slack.config.webhookUrl,
+    text,
+  });
 }
 
 const recurrenceValidator = v.union(
@@ -197,7 +229,7 @@ export const create = mutation({
     if (created) {
       await applyAutomations(ctx, created, "task_created");
       const finalTask = (await ctx.db.get(taskId))!;
-      await scheduleAssignmentEmails(
+      await scheduleAssignmentNotifications(
         ctx,
         finalTask,
         finalTask.assigneeClerkIds,
@@ -273,7 +305,7 @@ export const update = mutation({
       const updated = await ctx.db.get(args.taskId);
       if (updated) {
         const { identity } = await requireTaskAccess(ctx, args.taskId);
-        await scheduleAssignmentEmails(
+        await scheduleAssignmentNotifications(
           ctx,
           updated,
           newlyAssigned,
