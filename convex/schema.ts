@@ -363,6 +363,26 @@ export default defineSchema({
     .index("by_user", ["userClerkId"])
     .index("by_user_started", ["userClerkId", "startedAt"]),
 
+  // Presence: who is currently looking at what. Heartbeat from the
+  // client every 10s while a tab is focused on a given entity. Reads
+  // filter by lastSeenAt > now - 30s. A 5-minute cron sweeps the stale
+  // rows so this never grows unbounded.
+  presence: defineTable({
+    userClerkId: v.string(),
+    focusType: v.union(
+      v.literal("task"),
+      v.literal("doc"),
+      v.literal("list"),
+      v.literal("workspace"),
+      v.literal("space"),
+    ),
+    focusId: v.string(),
+    typing: v.optional(v.boolean()),
+    lastSeenAt: v.number(),
+  })
+    .index("by_focus", ["focusType", "focusId", "lastSeenAt"])
+    .index("by_user_focus", ["userClerkId", "focusType", "focusId"]),
+
   // Vector embeddings indexed for semantic search ("Brain"). Each row
   // points at a primary entity (doc, task, or message) and carries the
   // OpenAI text-embedding-3-small vector (1536 dims). `scopeType` /

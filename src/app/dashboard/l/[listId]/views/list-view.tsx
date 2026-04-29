@@ -9,6 +9,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { useToast } from "@/components/dashboard/toast";
+import { useRecentlyChanged } from "@/lib/use-recently-changed";
 import { cn } from "@/lib/utils";
 import { MobileTaskList } from "./mobile-task-list";
 
@@ -36,6 +37,17 @@ export function ListView({
   statuses: Doc<"listStatuses">[];
   fields: Doc<"customFields">[];
 }) {
+  // "Just changed" highlight: any task whose status / due date / title
+  // moves under another teammate's cursor flashes for ~1.6s. The version
+  // string concatenates the fields that move so we don't get false
+  // positives from unrelated patches.
+  const recentIds = useRecentlyChanged(
+    tasks,
+    (t) => t._id,
+    (t) =>
+      `${t.statusId}|${t.completedAt ?? ""}|${t.title}|${t.dueDate ?? ""}|${t.priority ?? ""}`,
+  );
+
   return (
     <>
       {/* Mobile: swipeable cards. Phones don't get useful columns
@@ -46,6 +58,7 @@ export function ListView({
           listId={listId}
           tasks={tasks}
           statuses={statuses}
+          recentIds={recentIds}
         />
         <NewTaskRow listId={listId} />
       </div>
@@ -90,6 +103,7 @@ export function ListView({
               listId={listId}
               statuses={statuses}
               fields={fields}
+              isRecent={recentIds.has(task._id)}
             />
           ))}
         </tbody>
@@ -105,11 +119,13 @@ function TaskRow({
   listId,
   statuses,
   fields,
+  isRecent,
 }: {
   task: Doc<"tasks">;
   listId: Id<"lists">;
   statuses: Doc<"listStatuses">[];
   fields: Doc<"customFields">[];
+  isRecent: boolean;
 }) {
   const update = useMutation(api.tasks.update);
   const toggleComplete = useMutation(api.tasks.toggleComplete);
@@ -133,7 +149,12 @@ function TaskRow({
     status?.category === "complete" || status?.category === "closed";
 
   return (
-    <tr className="border-b border-border last:border-0 align-middle">
+    <tr
+      className={cn(
+        "border-b border-border align-middle transition-colors duration-700 last:border-0",
+        isRecent && "bg-brand-50",
+      )}
+    >
       <td className="px-3 py-2">
         <button
           type="button"

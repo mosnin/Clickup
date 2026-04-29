@@ -31,10 +31,12 @@ export function MobileTaskList({
   listId,
   tasks,
   statuses,
+  recentIds,
 }: {
   listId: Id<"lists">;
   tasks: Doc<"tasks">[];
   statuses: Doc<"listStatuses">[];
+  recentIds?: Set<string>;
 }) {
   if (tasks.length === 0) {
     return (
@@ -47,7 +49,12 @@ export function MobileTaskList({
     <ul className="space-y-2">
       {tasks.map((task) => (
         <li key={task._id}>
-          <SwipeableTaskCard task={task} listId={listId} statuses={statuses} />
+          <SwipeableTaskCard
+            task={task}
+            listId={listId}
+            statuses={statuses}
+            isRecent={recentIds?.has(task._id) ?? false}
+          />
         </li>
       ))}
     </ul>
@@ -58,10 +65,12 @@ function SwipeableTaskCard({
   task,
   listId,
   statuses,
+  isRecent,
 }: {
   task: Doc<"tasks">;
   listId: Id<"lists">;
   statuses: Doc<"listStatuses">[];
+  isRecent: boolean;
 }) {
   const toggleComplete = useMutation(api.tasks.toggleComplete);
   const remove = useMutation(api.tasks.remove);
@@ -91,7 +100,12 @@ function SwipeableTaskCard({
   const showRightAction = dx < -8;
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-border bg-background">
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-3xl border border-border bg-background transition-colors duration-700",
+        isRecent && "bg-brand-50",
+      )}
+    >
       {/* Action backdrops — visible behind the row as it slides. */}
       <div
         aria-hidden

@@ -22,6 +22,8 @@ import {
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { PresenceStack } from "@/components/dashboard/presence-stack";
+import { usePresence } from "@/lib/use-presence";
 import { cn } from "@/lib/utils";
 
 const SAVE_DEBOUNCE_MS = 800;
@@ -32,6 +34,7 @@ export function DocEditor({ docId }: { docId: string }) {
   const updateContent = useMutation(api.docs.updateContent);
   const rename = useMutation(api.docs.rename);
   const remove = useMutation(api.docs.remove);
+  const viewers = usePresence({ focusType: "doc", focusId: id });
 
   const [title, setTitle] = useState("");
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -103,7 +106,8 @@ export function DocEditor({ docId }: { docId: string }) {
         >
           <ArrowLeft className="h-4 w-4" /> Dashboard
         </Link>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <PresenceStack viewers={viewers} size={6} />
           {savedAt && <span>Saved {timeAgo(savedAt)}</span>}
           <button
             type="button"

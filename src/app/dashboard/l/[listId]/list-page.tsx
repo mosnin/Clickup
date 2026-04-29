@@ -6,6 +6,8 @@ import { useQuery } from "convex/react";
 import { Settings } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { PresenceStack } from "@/components/dashboard/presence-stack";
+import { usePresence } from "@/lib/use-presence";
 import { ViewTabs, type ViewKey, isViewKey } from "./view-tabs";
 import { ListView } from "./views/list-view";
 import { BoardView } from "./views/board-view";
@@ -41,6 +43,12 @@ export function ListPage({
   const view: ViewKey = isViewKey(initialView)
     ? initialView
     : (savedView ?? "list");
+
+  const viewers = usePresence({
+    focusType: "list",
+    focusId: id,
+    enabled: list !== null && list !== undefined,
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -88,12 +96,15 @@ export function ListPage({
             {topLevelTasks.length} task{topLevelTasks.length === 1 ? "" : "s"}
           </p>
         </div>
-        <Link
-          href={`/dashboard/l/${list._id}/settings`}
-          className="inline-flex h-9 items-center gap-1 rounded-full border border-border bg-background px-3 text-sm hover:bg-muted"
-        >
-          <Settings className="h-4 w-4" /> Settings
-        </Link>
+        <div className="flex items-center gap-3">
+          <PresenceStack viewers={viewers} />
+          <Link
+            href={`/dashboard/l/${list._id}/settings`}
+            className="inline-flex h-9 items-center gap-1 rounded-full border border-border bg-background px-3 text-sm hover:bg-muted"
+          >
+            <Settings className="h-4 w-4" /> Settings
+          </Link>
+        </div>
       </header>
 
       <ViewTabs listId={list._id} active={view} />

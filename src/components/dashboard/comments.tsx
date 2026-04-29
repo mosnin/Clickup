@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { CheckCircle2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -33,6 +33,13 @@ export function Comments({
     parentType,
     parentId,
   });
+  // Typing indicator: subscribe up here (with the other queries) so the
+  // hook is called unconditionally — `useQuery` can't sit after an
+  // early return.
+  const presenceList = useQuery(api.presence.listForFocus, {
+    focusType: parentType,
+    focusId: parentId,
+  });
 
   if (messages === undefined || members === undefined) {
     return (
@@ -60,6 +67,7 @@ export function Comments({
     arr.sort((a, b) => a.createdAt - b.createdAt);
 
   const memberByClerkId = new Map(members.map((u) => [u.clerkId, u]));
+  const typingViewers = (presenceList ?? []).filter((v) => v.typing);
 
   return (
     <div className="space-y-4">
@@ -82,6 +90,14 @@ export function Comments({
           </li>
         ))}
       </ul>
+
+      {typingViewers.length > 0 && (
+        <p className="text-xs italic text-muted-foreground">
+          {typingViewers.length === 1
+            ? `${typingViewers[0].name} is typing…`
+            : `${typingViewers.length} people are typing…`}
+        </p>
+      )}
 
       <Composer
         parentType={parentType}
@@ -408,6 +424,33 @@ function Composer({
 
   const create = useMutation(api.messages.create);
   const update = useMutation(api.messages.update);
+  const heartbeat = useMutation(api.presence.heartbeat);
+
+  // Pulse `typing=true` on each input event, then debounce a `false`
+  // pulse so the indicator turns off if the user stops typing without
+  // sending. The page-level heartbeat in the parent screen leaves the
+  // typing flag alone (heartbeat with typing=undefined).
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function pulseTyping(typing: boolean) {
+    heartbeat({ focusType: parentType, focusId: parentId, typing });
+  }
+  function onUserTyped() {
+    pulseTyping(true);
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => pulseTyping(false), 2500);
+  }
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      // Best-effort: clear the typing flag on unmount.
+      heartbeat({
+        focusType: parentType,
+        focusId: parentId,
+        typing: false,
+      }).catch(() => {});
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = useMemo(() => {
     if (!popover) return [];
@@ -420,6 +463,7 @@ function Composer({
   }, [popover, members]);
 
   function onChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    onUserTyped();
     const value = e.target.value;
     setBody(value);
     const caret = e.target.selectionStart ?? value.length;

@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { Clips } from "@/components/dashboard/clips";
 import { Comments } from "@/components/dashboard/comments";
+import { PresenceStack } from "@/components/dashboard/presence-stack";
 import { TimeTracker } from "@/components/dashboard/time-tracker";
+import { usePresence } from "@/lib/use-presence";
 
 type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
 type TaskRecurrence = NonNullable<Doc<"tasks">["recurrence"]>;
@@ -101,6 +103,11 @@ function TaskEditor({
   useEffect(() => setTitle(task.title), [task.title]);
   useEffect(() => setDescription(task.description ?? ""), [task.description]);
 
+  const viewers = usePresence({
+    focusType: "task",
+    focusId: task._id,
+  });
+
   const valuesByField = useMemo(() => {
     const map = new Map<string, Doc<"taskFieldValues">>();
     for (const v of values) map.set(v.fieldId, v);
@@ -109,13 +116,15 @@ function TaskEditor({
 
   return (
     <div className="space-y-6">
-      <Link
-        href={`/dashboard/l/${listId}`}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> {listName}
-      </Link>
-
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href={`/dashboard/l/${listId}`}
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" /> {listName}
+        </Link>
+        <PresenceStack viewers={viewers} />
+      </div>
       <div>
         <input
           type="text"

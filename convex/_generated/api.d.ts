@@ -29,6 +29,7 @@ import type * as lists from "../lists.js";
 import type * as mentions from "../mentions.js";
 import type * as messages from "../messages.js";
 import type * as notifications from "../notifications.js";
+import type * as presence from "../presence.js";
 import type * as reports from "../reports.js";
 import type * as search from "../search.js";
 import type * as sidebar from "../sidebar.js";
@@ -61,6 +62,7 @@ declare const fullApi: ApiFromModules<{
   mentions: typeof mentions;
   messages: typeof messages;
   notifications: typeof notifications;
+  presence: typeof presence;
   reports: typeof reports;
   search: typeof search;
   sidebar: typeof sidebar;
