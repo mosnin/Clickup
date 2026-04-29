@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { EnsureUser } from "@/components/dashboard/ensure-user";
 import { CommandPaletteProvider } from "@/components/dashboard/command-palette";
+import { FirstRunDialog } from "@/components/dashboard/first-run-dialog";
 import { KeyboardShortcuts } from "@/components/dashboard/keyboard-shortcuts";
 import { ToastProvider } from "@/components/dashboard/toast";
 
@@ -26,6 +27,7 @@ export default async function DashboardLayout({
             </div>
           </main>
           <KeyboardShortcuts />
+          <FirstRunDialog />
         </div>
       </CommandPaletteProvider>
     </ToastProvider>

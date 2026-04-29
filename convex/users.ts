@@ -99,6 +99,40 @@ export const ensureCurrent = mutation({
   },
 });
 
+// Marks the user as onboarded. Wizard calls this last so the
+// dashboard's first-run dialog can decide whether to show.
+export const completeOnboarding = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) return;
+    if (user.onboardedAt) return;
+    await ctx.db.patch(user._id, { onboardedAt: Date.now() });
+  },
+});
+
+// Resolves the caller's personal space — used by the onboarding wizard
+// to know where to drop a starter template.
+export const personalSpaceId = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const space = await ctx.db
+      .query("spaces")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", "user").eq("parentId", identity.subject),
+      )
+      .unique();
+    return space?._id ?? null;
+  },
+});
+
 export const current = query({
   args: {},
   handler: async (ctx) => {

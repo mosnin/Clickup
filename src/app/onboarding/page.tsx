@@ -16,11 +16,10 @@ export default async function OnboardingPage() {
     <div className="mx-auto flex min-h-dvh max-w-xl flex-col justify-center px-4 py-12">
       <header className="mb-8">
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Hey {firstName}. Set your pace.
+          Hey {firstName}. Find your pace.
         </h1>
         <p className="mt-2 text-muted-foreground">
-          Name a team workspace, or skip to your personal space and come back
-          to this later.
+          Three small choices and you&apos;re working. Each one is skippable.
         </p>
       </header>
       <OnboardingForm />
