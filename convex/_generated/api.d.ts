@@ -15,6 +15,7 @@ import type {
 import type * as _authz from "../_authz.js";
 import type * as ai from "../ai.js";
 import type * as clips from "../clips.js";
+import type * as crons from "../crons.js";
 import type * as customFields from "../customFields.js";
 import type * as docs from "../docs.js";
 import type * as folders from "../folders.js";
@@ -36,6 +37,7 @@ import type * as tasks from "../tasks.js";
 import type * as team from "../team.js";
 import type * as templates from "../templates.js";
 import type * as timeEntries from "../timeEntries.js";
+import type * as trash from "../trash.js";
 import type * as users from "../users.js";
 import type * as whiteboards from "../whiteboards.js";
 import type * as workspaces from "../workspaces.js";
@@ -44,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   _authz: typeof _authz;
   ai: typeof ai;
   clips: typeof clips;
+  crons: typeof crons;
   customFields: typeof customFields;
   docs: typeof docs;
   folders: typeof folders;
@@ -65,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   team: typeof team;
   templates: typeof templates;
   timeEntries: typeof timeEntries;
+  trash: typeof trash;
   users: typeof users;
   whiteboards: typeof whiteboards;
   workspaces: typeof workspaces;

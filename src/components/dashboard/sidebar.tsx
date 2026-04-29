@@ -14,6 +14,7 @@ import {
   Menu,
   Plus,
   Sparkles,
+  Trash2,
   X,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -84,6 +85,7 @@ export function DashboardSidebar() {
           <SearchButton onNavigate={() => setMobileOpen(false)} />
           <BrainLink onNavigate={() => setMobileOpen(false)} />
           <InboxLink onNavigate={() => setMobileOpen(false)} />
+          <TrashLink onNavigate={() => setMobileOpen(false)} />
           {tree === undefined ? (
             <SidebarLoading />
           ) : tree === null ? (
@@ -147,6 +149,26 @@ function BrainLink({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
+function TrashLink({ onNavigate }: { onNavigate: () => void }) {
+  const pathname = usePathname();
+  const active = pathname === "/dashboard/trash";
+  return (
+    <Link
+      href="/dashboard/trash"
+      onClick={onNavigate}
+      className={cn(
+        "mb-3 flex items-center gap-2 rounded-2xl px-2 py-1.5 text-sm transition-colors",
+        active
+          ? "bg-muted text-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <Trash2 className="h-4 w-4" />
+      <span>Trash</span>
+    </Link>
+  );
+}
+
 function InboxLink({ onNavigate }: { onNavigate: () => void }) {
   const pathname = usePathname();
   const unread = useQuery(api.mentions.unreadCountForCurrent, {});
@@ -157,7 +179,7 @@ function InboxLink({ onNavigate }: { onNavigate: () => void }) {
       href="/dashboard/inbox"
       onClick={onNavigate}
       className={cn(
-        "mb-3 flex items-center gap-2 rounded-2xl px-2 py-1.5 text-sm transition-colors",
+        "mb-1 flex items-center gap-2 rounded-2xl px-2 py-1.5 text-sm transition-colors",
         active
           ? "bg-muted text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",

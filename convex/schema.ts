@@ -70,6 +70,10 @@ export default defineSchema({
     spaceId: v.id("spaces"),
     position: v.number(),
     createdAt: v.number(),
+    // Soft-delete: when set, the folder + everything beneath are hidden
+    // from queries but kept around for the trash window. Cleared by
+    // restore; permanently removed by the daily purge cron after 30d.
+    deletedAt: v.optional(v.number()),
   })
     .index("by_space", ["spaceId"]),
 
@@ -80,6 +84,7 @@ export default defineSchema({
     parentId: v.string(),
     position: v.number(),
     createdAt: v.number(),
+    deletedAt: v.optional(v.number()),
   })
     .index("by_parent", ["parentType", "parentId"]),
 
@@ -175,6 +180,7 @@ export default defineSchema({
     position: v.number(),
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
+    deletedAt: v.optional(v.number()),
   })
     .index("by_list", ["listId"])
     .index("by_list_and_status", ["listId", "statusId"])
@@ -297,6 +303,7 @@ export default defineSchema({
     createdByClerkId: v.string(),
     updatedAt: v.number(),
     createdAt: v.number(),
+    deletedAt: v.optional(v.number()),
   }).index("by_parent", ["parentType", "parentId"]),
 
   // Whiteboards backed by tldraw. `snapshot` is the tldraw store snapshot.
@@ -312,6 +319,7 @@ export default defineSchema({
     createdByClerkId: v.string(),
     updatedAt: v.number(),
     createdAt: v.number(),
+    deletedAt: v.optional(v.number()),
   }).index("by_parent", ["parentType", "parentId"]),
 
   // One row per time-tracked interval. `endedAt` undefined means the

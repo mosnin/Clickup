@@ -8,7 +8,12 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
+import { useToast } from "@/components/dashboard/toast";
 import { cn } from "@/lib/utils";
+
+function truncate(s: string, n: number): string {
+  return s.length <= n ? s : s.slice(0, n - 1) + "…";
+}
 
 type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
 
@@ -93,8 +98,10 @@ function TaskRow({
   const update = useMutation(api.tasks.update);
   const toggleComplete = useMutation(api.tasks.toggleComplete);
   const remove = useMutation(api.tasks.remove);
+  const restore = useMutation(api.tasks.restore);
   const setValue = useMutation(api.taskFieldValues.set);
   const clearValue = useMutation(api.taskFieldValues.clear);
+  const toast = useToast();
 
   const values = useQuery(api.taskFieldValues.listForTask, {
     taskId: task._id,
@@ -230,10 +237,12 @@ function TaskRow({
         <button
           type="button"
           aria-label="Delete task"
-          onClick={() => {
-            if (window.confirm("Delete this task?")) {
-              remove({ taskId: task._id });
-            }
+          onClick={async () => {
+            await remove({ taskId: task._id });
+            toast.showUndo({
+              label: `Deleted "${truncate(task.title, 32)}"`,
+              onUndo: () => restore({ taskId: task._id }),
+            });
           }}
           className="text-xs text-muted-foreground hover:text-foreground"
         >

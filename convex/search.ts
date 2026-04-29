@@ -66,18 +66,22 @@ export const palette = query({
     const allSpaces = [...personalSpaces, ...workspaceSpaces];
 
     // Lists (direct under spaces + under folders) and docs/whiteboards
-    // attached to those spaces.
+    // attached to those spaces. Filter trashed entities at every level.
     for (const space of allSpaces) {
-      const directLists = await ctx.db
-        .query("lists")
-        .withIndex("by_parent", (qq) =>
-          qq.eq("parentType", "space").eq("parentId", space._id),
-        )
-        .collect();
-      const folders = await ctx.db
-        .query("folders")
-        .withIndex("by_space", (qq) => qq.eq("spaceId", space._id))
-        .collect();
+      const directLists = (
+        await ctx.db
+          .query("lists")
+          .withIndex("by_parent", (qq) =>
+            qq.eq("parentType", "space").eq("parentId", space._id),
+          )
+          .collect()
+      ).filter((l) => !l.deletedAt);
+      const folders = (
+        await ctx.db
+          .query("folders")
+          .withIndex("by_space", (qq) => qq.eq("spaceId", space._id))
+          .collect()
+      ).filter((f) => !f.deletedAt);
       const folderListsArr = await Promise.all(
         folders.map((f) =>
           ctx.db
@@ -88,17 +92,22 @@ export const palette = query({
             .collect(),
         ),
       );
-      const allLists = [...directLists, ...folderListsArr.flat()];
+      const allLists = [
+        ...directLists,
+        ...folderListsArr.flat().filter((l) => !l.deletedAt),
+      ];
 
       for (const list of allLists) {
         const r = rankFor(list.name);
         if (r >= 0) {
           hits.push({ kind: "list", id: list._id, name: list.name, rank: r });
         }
-        const tasks = await ctx.db
-          .query("tasks")
-          .withIndex("by_list", (qq) => qq.eq("listId", list._id))
-          .collect();
+        const tasks = (
+          await ctx.db
+            .query("tasks")
+            .withIndex("by_list", (qq) => qq.eq("listId", list._id))
+            .collect()
+        ).filter((t) => !t.deletedAt);
         for (const t of tasks) {
           const tr = rankFor(t.title);
           if (tr >= 0) {
@@ -113,22 +122,26 @@ export const palette = query({
         }
       }
 
-      const docs = await ctx.db
-        .query("docs")
-        .withIndex("by_parent", (qq) =>
-          qq.eq("parentType", "space").eq("parentId", space._id),
-        )
-        .collect();
+      const docs = (
+        await ctx.db
+          .query("docs")
+          .withIndex("by_parent", (qq) =>
+            qq.eq("parentType", "space").eq("parentId", space._id),
+          )
+          .collect()
+      ).filter((d) => !d.deletedAt);
       for (const d of docs) {
         const r = rankFor(d.title);
         if (r >= 0) hits.push({ kind: "doc", id: d._id, title: d.title, rank: r });
       }
-      const whiteboards = await ctx.db
-        .query("whiteboards")
-        .withIndex("by_parent", (qq) =>
-          qq.eq("parentType", "space").eq("parentId", space._id),
-        )
-        .collect();
+      const whiteboards = (
+        await ctx.db
+          .query("whiteboards")
+          .withIndex("by_parent", (qq) =>
+            qq.eq("parentType", "space").eq("parentId", space._id),
+          )
+          .collect()
+      ).filter((w) => !w.deletedAt);
       for (const w of whiteboards) {
         const r = rankFor(w.title);
         if (r >= 0) {
@@ -144,22 +157,26 @@ export const palette = query({
 
     // Workspace-level docs / whiteboards
     for (const wsId of workspaceIds) {
-      const docs = await ctx.db
-        .query("docs")
-        .withIndex("by_parent", (qq) =>
-          qq.eq("parentType", "workspace").eq("parentId", wsId),
-        )
-        .collect();
+      const docs = (
+        await ctx.db
+          .query("docs")
+          .withIndex("by_parent", (qq) =>
+            qq.eq("parentType", "workspace").eq("parentId", wsId),
+          )
+          .collect()
+      ).filter((d) => !d.deletedAt);
       for (const d of docs) {
         const r = rankFor(d.title);
         if (r >= 0) hits.push({ kind: "doc", id: d._id, title: d.title, rank: r });
       }
-      const wbs = await ctx.db
-        .query("whiteboards")
-        .withIndex("by_parent", (qq) =>
-          qq.eq("parentType", "workspace").eq("parentId", wsId),
-        )
-        .collect();
+      const wbs = (
+        await ctx.db
+          .query("whiteboards")
+          .withIndex("by_parent", (qq) =>
+            qq.eq("parentType", "workspace").eq("parentId", wsId),
+          )
+          .collect()
+      ).filter((w) => !w.deletedAt);
       for (const w of wbs) {
         const r = rankFor(w.title);
         if (r >= 0) {

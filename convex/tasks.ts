@@ -153,11 +153,12 @@ export const listForList = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
     const list = await ctx.db.get(listId);
-    if (!list) return [];
-    return await ctx.db
+    if (!list || list.deletedAt) return [];
+    const tasks = await ctx.db
       .query("tasks")
       .withIndex("by_list", (q) => q.eq("listId", listId))
       .collect();
+    return tasks.filter((t) => !t.deletedAt);
   },
 });
 
@@ -166,7 +167,9 @@ export const get = query({
   handler: async (ctx, { taskId }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    return await ctx.db.get(taskId);
+    const task = await ctx.db.get(taskId);
+    if (!task || task.deletedAt) return null;
+    return task;
   },
 });
 
@@ -179,7 +182,7 @@ export const resolveLocation = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
     const task = await ctx.db.get(taskId);
-    if (!task) return null;
+    if (!task || task.deletedAt) return null;
     return {
       listId: task.listId,
       title: task.title,
@@ -411,36 +414,96 @@ export const reorder = mutation({
   },
 });
 
+// Soft-delete: stamp deletedAt on this task and every subtask. The row
+// stays in the table — queries filter it out, and a 30-day cron purges
+// it for real. Restore reverses it.
 export const remove = mutation({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, { taskId }) => {
     const task = await ctx.db.get(taskId);
-    if (!task) return;
+    if (!task || task.deletedAt) return;
     await requireTaskAccess(ctx, taskId);
-
-    const subtasks = await ctx.db
-      .query("tasks")
-      .withIndex("by_parent_task", (q) => q.eq("parentTaskId", taskId))
-      .collect();
-    for (const s of subtasks) {
-      const sValues = await ctx.db
-        .query("taskFieldValues")
-        .withIndex("by_task", (q) => q.eq("taskId", s._id))
-        .collect();
-      for (const v of sValues) await ctx.db.delete(v._id);
-      await ctx.db.delete(s._id);
-    }
-
-    const values = await ctx.db
-      .query("taskFieldValues")
-      .withIndex("by_task", (q) => q.eq("taskId", taskId))
-      .collect();
-    for (const v of values) await ctx.db.delete(v._id);
-
-    await ctx.db.delete(taskId);
+    await softDeleteTaskTree(ctx, taskId, Date.now());
+    // Drop the embedding right away — the task is invisible to search
+    // until restored, and re-indexing on restore is cheap.
     await ctx.scheduler.runAfter(0, internal.ai.dropEmbeddings, {
       parentType: "task",
       parentId: taskId,
     });
   },
 });
+
+export async function softDeleteTaskTree(
+  ctx: MutationCtx,
+  taskId: import("./_generated/dataModel").Id<"tasks">,
+  ts: number,
+): Promise<void> {
+  const task = await ctx.db.get(taskId);
+  if (!task || task.deletedAt) return;
+  const subtasks = await ctx.db
+    .query("tasks")
+    .withIndex("by_parent_task", (q) => q.eq("parentTaskId", taskId))
+    .collect();
+  for (const s of subtasks) {
+    if (!s.deletedAt) await ctx.db.patch(s._id, { deletedAt: ts });
+  }
+  await ctx.db.patch(taskId, { deletedAt: ts });
+}
+
+export const restore = mutation({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const task = await ctx.db.get(taskId);
+    if (!task || !task.deletedAt) return;
+    await requireTaskAccess(ctx, taskId);
+    const ts = task.deletedAt;
+    await ctx.db.patch(taskId, { deletedAt: undefined });
+    // Restore subtasks that were soft-deleted at the same instant
+    // (i.e. as part of the same delete).
+    const subtasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_parent_task", (q) => q.eq("parentTaskId", taskId))
+      .collect();
+    for (const s of subtasks) {
+      if (s.deletedAt === ts) await ctx.db.patch(s._id, { deletedAt: undefined });
+    }
+    await ctx.scheduler.runAfter(0, internal.ai.indexTask, { taskId });
+  },
+});
+
+// Hard-delete: actually remove the task (and its values + subtasks).
+// Called by the user's "Permanently delete" button in trash and by the
+// daily purge cron after 30 days.
+export const purge = mutation({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const task = await ctx.db.get(taskId);
+    if (!task) return;
+    await requireTaskAccess(ctx, taskId);
+    await purgeTaskTree(ctx, taskId);
+  },
+});
+
+export async function purgeTaskTree(
+  ctx: MutationCtx,
+  taskId: import("./_generated/dataModel").Id<"tasks">,
+): Promise<void> {
+  const subtasks = await ctx.db
+    .query("tasks")
+    .withIndex("by_parent_task", (q) => q.eq("parentTaskId", taskId))
+    .collect();
+  for (const s of subtasks) {
+    const sValues = await ctx.db
+      .query("taskFieldValues")
+      .withIndex("by_task", (q) => q.eq("taskId", s._id))
+      .collect();
+    for (const v of sValues) await ctx.db.delete(v._id);
+    await ctx.db.delete(s._id);
+  }
+  const values = await ctx.db
+    .query("taskFieldValues")
+    .withIndex("by_task", (q) => q.eq("taskId", taskId))
+    .collect();
+  for (const v of values) await ctx.db.delete(v._id);
+  await ctx.db.delete(taskId);
+}

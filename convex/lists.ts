@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import {
   canAccessSpace,
@@ -8,6 +9,7 @@ import {
   requireSpaceAccess,
 } from "./_authz";
 import { seedDefaultStatuses } from "./listStatuses";
+import { purgeTaskTree, softDeleteTaskTree } from "./tasks";
 
 const parentTypeValidator = v.union(
   v.literal("space"),
@@ -19,12 +21,13 @@ export const listForParent = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
-    return await ctx.db
+    const lists = await ctx.db
       .query("lists")
       .withIndex("by_parent", (q) =>
         q.eq("parentType", args.parentType).eq("parentId", args.parentId),
       )
       .collect();
+    return lists.filter((l) => !l.deletedAt);
   },
 });
 
@@ -34,7 +37,7 @@ export const get = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
     const list = await ctx.db.get(listId);
-    if (!list) return null;
+    if (!list || list.deletedAt) return null;
     let space;
     if (list.parentType === "space") {
       space = await ctx.db.get(list.parentId as Id<"spaces">);
@@ -60,7 +63,7 @@ export const membersForList = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
     const list = await ctx.db.get(listId);
-    if (!list) return [];
+    if (!list || list.deletedAt) return [];
     let space;
     if (list.parentType === "space") {
       space = await ctx.db.get(list.parentId as Id<"spaces">);
@@ -139,45 +142,91 @@ export const rename = mutation({
   },
 });
 
+// Soft-delete the list and stamp every child task with the same
+// deletedAt timestamp. Statuses, fields, and automations stay attached
+// to the list — they're invisible while the list is in trash, and
+// restored automatically when the list is.
 export const remove = mutation({
   args: { listId: v.id("lists") },
   handler: async (ctx, { listId }) => {
     const { list } = await requireListAccess(ctx, listId);
-
-    // Cascade everything that hangs off this list:
-    //   tasks → taskFieldValues → also remove the task row
-    //   listStatuses, customFields → drop directly
-    const tasks = await ctx.db
-      .query("tasks")
-      .withIndex("by_list", (q) => q.eq("listId", list._id))
-      .collect();
-    for (const t of tasks) {
-      const values = await ctx.db
-        .query("taskFieldValues")
-        .withIndex("by_task", (q) => q.eq("taskId", t._id))
-        .collect();
-      for (const v of values) await ctx.db.delete(v._id);
-      await ctx.db.delete(t._id);
-    }
-
-    const statuses = await ctx.db
-      .query("listStatuses")
-      .withIndex("by_list", (q) => q.eq("listId", list._id))
-      .collect();
-    for (const s of statuses) await ctx.db.delete(s._id);
-
-    const fields = await ctx.db
-      .query("customFields")
-      .withIndex("by_list", (q) => q.eq("listId", list._id))
-      .collect();
-    for (const f of fields) await ctx.db.delete(f._id);
-
-    const automations = await ctx.db
-      .query("listAutomations")
-      .withIndex("by_list", (q) => q.eq("listId", list._id))
-      .collect();
-    for (const a of automations) await ctx.db.delete(a._id);
-
-    await ctx.db.delete(list._id);
+    if (list.deletedAt) return;
+    await softDeleteList(ctx, listId, Date.now());
   },
 });
+
+export async function softDeleteList(
+  ctx: MutationCtx,
+  listId: Id<"lists">,
+  ts: number,
+): Promise<void> {
+  const list = await ctx.db.get(listId);
+  if (!list || list.deletedAt) return;
+  const tasks = await ctx.db
+    .query("tasks")
+    .withIndex("by_list", (q) => q.eq("listId", listId))
+    .collect();
+  for (const t of tasks) {
+    if (!t.deletedAt) await softDeleteTaskTree(ctx, t._id, ts);
+  }
+  await ctx.db.patch(listId, { deletedAt: ts });
+}
+
+export const restore = mutation({
+  args: { listId: v.id("lists") },
+  handler: async (ctx, { listId }) => {
+    const list = await ctx.db.get(listId);
+    if (!list || !list.deletedAt) return;
+    await requireListAccess(ctx, listId);
+    const ts = list.deletedAt;
+    await ctx.db.patch(listId, { deletedAt: undefined });
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_list", (q) => q.eq("listId", listId))
+      .collect();
+    for (const t of tasks) {
+      if (t.deletedAt === ts) await ctx.db.patch(t._id, { deletedAt: undefined });
+    }
+  },
+});
+
+export const purge = mutation({
+  args: { listId: v.id("lists") },
+  handler: async (ctx, { listId }) => {
+    const list = await ctx.db.get(listId);
+    if (!list) return;
+    await requireListAccess(ctx, listId);
+    await purgeList(ctx, listId);
+  },
+});
+
+export async function purgeList(
+  ctx: MutationCtx,
+  listId: Id<"lists">,
+): Promise<void> {
+  const tasks = await ctx.db
+    .query("tasks")
+    .withIndex("by_list", (q) => q.eq("listId", listId))
+    .collect();
+  for (const t of tasks) await purgeTaskTree(ctx, t._id);
+
+  const statuses = await ctx.db
+    .query("listStatuses")
+    .withIndex("by_list", (q) => q.eq("listId", listId))
+    .collect();
+  for (const s of statuses) await ctx.db.delete(s._id);
+
+  const fields = await ctx.db
+    .query("customFields")
+    .withIndex("by_list", (q) => q.eq("listId", listId))
+    .collect();
+  for (const f of fields) await ctx.db.delete(f._id);
+
+  const automations = await ctx.db
+    .query("listAutomations")
+    .withIndex("by_list", (q) => q.eq("listId", listId))
+    .collect();
+  for (const a of automations) await ctx.db.delete(a._id);
+
+  await ctx.db.delete(listId);
+}

@@ -25,7 +25,9 @@ export const listForParent = query({
         q.eq("parentType", parentType).eq("parentId", parentId),
       )
       .collect();
-    return docs.sort((a, b) => b.updatedAt - a.updatedAt);
+    return docs
+      .filter((d) => !d.deletedAt)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
   },
 });
 
@@ -35,7 +37,7 @@ export const get = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
     const doc = await ctx.db.get(docId);
-    if (!doc) return null;
+    if (!doc || doc.deletedAt) return null;
     try {
       await requireDocLikeParentAccess(ctx, doc.parentType, doc.parentId);
     } catch {
@@ -95,10 +97,37 @@ export const updateContent = mutation({
   },
 });
 
+// Soft-delete the doc. Embedding gets dropped immediately so search
+// doesn't surface it; restore re-indexes.
 export const remove = mutation({
   args: { docId: v.id("docs") },
   handler: async (ctx, { docId }) => {
     await requireIdentity(ctx);
+    const doc = await ctx.db.get(docId);
+    if (!doc || doc.deletedAt) return;
+    await requireDocLikeParentAccess(ctx, doc.parentType, doc.parentId);
+    await ctx.db.patch(docId, { deletedAt: Date.now() });
+    await ctx.scheduler.runAfter(0, internal.ai.dropEmbeddings, {
+      parentType: "doc",
+      parentId: docId,
+    });
+  },
+});
+
+export const restore = mutation({
+  args: { docId: v.id("docs") },
+  handler: async (ctx, { docId }) => {
+    const doc = await ctx.db.get(docId);
+    if (!doc || !doc.deletedAt) return;
+    await requireDocLikeParentAccess(ctx, doc.parentType, doc.parentId);
+    await ctx.db.patch(docId, { deletedAt: undefined });
+    await ctx.scheduler.runAfter(0, internal.ai.indexDocument, { docId });
+  },
+});
+
+export const purge = mutation({
+  args: { docId: v.id("docs") },
+  handler: async (ctx, { docId }) => {
     const doc = await ctx.db.get(docId);
     if (!doc) return;
     await requireDocLikeParentAccess(ctx, doc.parentType, doc.parentId);

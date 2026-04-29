@@ -29,21 +29,25 @@ export const tree = query({
     );
 
     async function buildSpaceNode(space: Doc<"spaces">) {
-      const folders = await ctx.db
-        .query("folders")
-        .withIndex("by_space", (q) => q.eq("spaceId", space._id))
-        .collect();
+      const folders = (
+        await ctx.db
+          .query("folders")
+          .withIndex("by_space", (q) => q.eq("spaceId", space._id))
+          .collect()
+      ).filter((f) => !f.deletedAt);
 
       const folderNodes = await Promise.all(
         folders
           .sort((a, b) => a.position - b.position)
           .map(async (folder) => {
-            const lists = await ctx.db
-              .query("lists")
-              .withIndex("by_parent", (q) =>
-                q.eq("parentType", "folder").eq("parentId", folder._id),
-              )
-              .collect();
+            const lists = (
+              await ctx.db
+                .query("lists")
+                .withIndex("by_parent", (q) =>
+                  q.eq("parentType", "folder").eq("parentId", folder._id),
+                )
+                .collect()
+            ).filter((l) => !l.deletedAt);
             return {
               _id: folder._id,
               name: folder.name,
@@ -52,26 +56,32 @@ export const tree = query({
           }),
       );
 
-      const directLists = await ctx.db
-        .query("lists")
-        .withIndex("by_parent", (q) =>
-          q.eq("parentType", "space").eq("parentId", space._id),
-        )
-        .collect();
+      const directLists = (
+        await ctx.db
+          .query("lists")
+          .withIndex("by_parent", (q) =>
+            q.eq("parentType", "space").eq("parentId", space._id),
+          )
+          .collect()
+      ).filter((l) => !l.deletedAt);
 
-      const docs = await ctx.db
-        .query("docs")
-        .withIndex("by_parent", (q) =>
-          q.eq("parentType", "space").eq("parentId", space._id),
-        )
-        .collect();
+      const docs = (
+        await ctx.db
+          .query("docs")
+          .withIndex("by_parent", (q) =>
+            q.eq("parentType", "space").eq("parentId", space._id),
+          )
+          .collect()
+      ).filter((d) => !d.deletedAt);
 
-      const whiteboards = await ctx.db
-        .query("whiteboards")
-        .withIndex("by_parent", (q) =>
-          q.eq("parentType", "space").eq("parentId", space._id),
-        )
-        .collect();
+      const whiteboards = (
+        await ctx.db
+          .query("whiteboards")
+          .withIndex("by_parent", (q) =>
+            q.eq("parentType", "space").eq("parentId", space._id),
+          )
+          .collect()
+      ).filter((w) => !w.deletedAt);
 
       return {
         _id: space._id,
