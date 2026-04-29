@@ -1,7 +1,30 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { requireIdentity, requireMessageParentAccess } from "./_authz";
+
+async function describeMessageContext(
+  ctx: MutationCtx,
+  msg: Pick<Doc<"messages">, "parentType" | "parentId" | "body">,
+): Promise<string> {
+  if (msg.parentType === "task") {
+    const task = await ctx.db.get(msg.parentId as Id<"tasks">);
+    return task ? `task "${task.title}"` : "a task";
+  }
+  if (msg.parentType === "workspace") {
+    const ws = await ctx.db.get(msg.parentId as Id<"workspaces">);
+    return ws ? `the ${ws.name} workspace chat` : "a workspace chat";
+  }
+  return "a space";
+}
+
+function snippetFromBody(body: string): string {
+  const stripped = body.replace(/@\[([^\]]+)\]\([^)]+\)/g, "@$1");
+  const trimmed = stripped.trim();
+  return trimmed.length > 240 ? trimmed.slice(0, 240) + "…" : trimmed;
+}
 
 const parentTypeValidator = v.union(
   v.literal("task"),
@@ -112,8 +135,23 @@ export const create = mutation({
       createdAt: Date.now(),
     });
 
+    // Author info, used to populate the email "from" line.
+    const author = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    const authorName = author?.name ?? author?.email ?? "Someone";
+    const contextLabel = await describeMessageContext(ctx, {
+      parentType: args.parentType,
+      parentId: args.parentId,
+      body: args.body,
+    });
+    const snippet = snippetFromBody(args.body);
+
     // Create mention rows. Validate that every mentioned user can actually
-    // see this context — silently drop the rest.
+    // see this context — silently drop the rest. For each surviving
+    // mention, schedule an outbound email if the user has an address on
+    // file.
     const mentionIds = Array.from(new Set(args.mentionClerkIds ?? []));
     for (const clerkId of mentionIds) {
       if (workspaceId === null) {
@@ -136,6 +174,24 @@ export const create = mutation({
         parentId: args.parentId,
         createdAt: Date.now(),
       });
+
+      const recipient = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+        .unique();
+      if (recipient?.email) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.notifications.sendMentionEmail,
+          {
+            toEmail: recipient.email,
+            toName: recipient.name,
+            fromName: authorName,
+            snippet,
+            contextLabel,
+          },
+        );
+      }
     }
 
     return messageId;

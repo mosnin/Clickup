@@ -13,6 +13,7 @@ import type {
   FunctionReference,
 } from "convex/server";
 import type * as _authz from "../_authz.js";
+import type * as clips from "../clips.js";
 import type * as customFields from "../customFields.js";
 import type * as docs from "../docs.js";
 import type * as folders from "../folders.js";
@@ -23,6 +24,7 @@ import type * as listStatuses from "../listStatuses.js";
 import type * as lists from "../lists.js";
 import type * as mentions from "../mentions.js";
 import type * as messages from "../messages.js";
+import type * as notifications from "../notifications.js";
 import type * as reports from "../reports.js";
 import type * as sidebar from "../sidebar.js";
 import type * as spaces from "../spaces.js";
@@ -35,6 +37,7 @@ import type * as workspaces from "../workspaces.js";
 
 declare const fullApi: ApiFromModules<{
   _authz: typeof _authz;
+  clips: typeof clips;
   customFields: typeof customFields;
   docs: typeof docs;
   folders: typeof folders;
@@ -45,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   lists: typeof lists;
   mentions: typeof mentions;
   messages: typeof messages;
+  notifications: typeof notifications;
   reports: typeof reports;
   sidebar: typeof sidebar;
   spaces: typeof spaces;

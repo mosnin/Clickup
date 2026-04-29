@@ -315,6 +315,21 @@ export default defineSchema({
     .index("by_user", ["userClerkId"])
     .index("by_user_started", ["userClerkId", "startedAt"]),
 
+  // Short screen+voice recordings ("Clips") attached to a task.
+  // Bytes live in Convex file storage; we keep a metadata row per clip
+  // pointing at the storage id so we can list/delete clips and look up
+  // the playback URL via ctx.storage.getUrl.
+  clips: defineTable({
+    parentType: v.literal("task"),
+    parentId: v.string(),
+    authorClerkId: v.string(),
+    storageId: v.id("_storage"),
+    durationMs: v.optional(v.number()),
+    mimeType: v.optional(v.string()),
+    sizeBytes: v.optional(v.number()),
+    createdAt: v.number(),
+  }).index("by_parent", ["parentType", "parentId"]),
+
   // Goals support three target shapes — numerical, money, and
   // true/false. The wire shape is the same for all three: a target
   // and current value plus an optional unit (e.g. "USD" for money).

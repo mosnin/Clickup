@@ -2,8 +2,43 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { requireListAccess, requireTaskAccess } from "./_authz";
 import { applyAutomations } from "./listAutomations";
+
+// For a given list of clerk IDs that have just been added as assignees on
+// `task`, schedule an assignment email to each one (skipping the actor).
+async function scheduleAssignmentEmails(
+  ctx: MutationCtx,
+  task: Doc<"tasks">,
+  newClerkIds: string[],
+  actorClerkId: string,
+): Promise<void> {
+  if (newClerkIds.length === 0) return;
+  const actor = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", actorClerkId))
+    .unique();
+  const actorName = actor?.name ?? actor?.email ?? "Someone";
+  for (const cid of newClerkIds) {
+    if (cid === actorClerkId) continue;
+    const recipient = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", cid))
+      .unique();
+    if (!recipient?.email) continue;
+    await ctx.scheduler.runAfter(
+      0,
+      internal.notifications.sendAssignmentEmail,
+      {
+        toEmail: recipient.email,
+        toName: recipient.name,
+        fromName: actorName,
+        taskTitle: task.title,
+      },
+    );
+  }
+}
 
 const recurrenceValidator = v.union(
   v.literal("daily"),
@@ -159,7 +194,16 @@ export const create = mutation({
     });
 
     const created = await ctx.db.get(taskId);
-    if (created) await applyAutomations(ctx, created, "task_created");
+    if (created) {
+      await applyAutomations(ctx, created, "task_created");
+      const finalTask = (await ctx.db.get(taskId))!;
+      await scheduleAssignmentEmails(
+        ctx,
+        finalTask,
+        finalTask.assigneeClerkIds,
+        identity.subject,
+      );
+    }
 
     return taskId;
   },
@@ -210,14 +254,31 @@ export const update = mutation({
     if (args.dueDate !== undefined) {
       patch.dueDate = args.dueDate ?? undefined;
     }
+    let newlyAssigned: string[] = [];
     if (args.assigneeClerkIds !== undefined) {
       patch.assigneeClerkIds = args.assigneeClerkIds;
+      newlyAssigned = args.assigneeClerkIds.filter(
+        (cid) => !task.assigneeClerkIds.includes(cid),
+      );
     }
     if (args.recurrence !== undefined) {
       patch.recurrence = args.recurrence ?? undefined;
     }
 
     await ctx.db.patch(args.taskId, patch);
+
+    if (newlyAssigned.length > 0) {
+      const updated = await ctx.db.get(args.taskId);
+      if (updated) {
+        const { identity } = await requireTaskAccess(ctx, args.taskId);
+        await scheduleAssignmentEmails(
+          ctx,
+          updated,
+          newlyAssigned,
+          identity.subject,
+        );
+      }
+    }
 
     if (!wasComplete && willBeComplete) {
       const updated = await ctx.db.get(args.taskId);

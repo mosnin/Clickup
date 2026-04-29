@@ -8,6 +8,7 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
+import { Clips } from "@/components/dashboard/clips";
 import { Comments } from "@/components/dashboard/comments";
 import { TimeTracker } from "@/components/dashboard/time-tracker";
 
@@ -290,6 +291,13 @@ function TaskEditor({
           Time
         </h2>
         <TimeTracker taskId={task._id} />
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Clips
+        </h2>
+        <Clips taskId={task._id} />
       </section>
 
       <section>

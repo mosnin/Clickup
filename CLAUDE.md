@@ -46,7 +46,9 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   ├── timeEntries.ts            # time tracking (start/stop, runningForCurrent)
 │   ├── goals.ts                  # OKRs/goals with number/money/boolean targets
 │   ├── reports.ts                # workspaceSummary aggregation for the Reports tab
-│   └── listAutomations.ts        # per-list trigger/action rules + applyAutomations() called from tasks.create / tasks.update
+│   ├── listAutomations.ts        # per-list trigger/action rules + applyAutomations() called from tasks.create / tasks.update
+│   ├── notifications.ts          # internalActions: sendMentionEmail, sendAssignmentEmail (Resend, Node runtime)
+│   └── clips.ts                  # screen recordings: generateUploadUrl + metadata rows pointing at Convex file storage
 ├── public/
 │   ├── manifest.webmanifest
 │   ├── icon.svg / icon-maskable.svg
@@ -145,6 +147,7 @@ User (personal) ──┘
 - `goals` — `targetType` is `number | money | boolean`. All three share the same `targetValue` / `currentValue` columns; boolean goals always target 1 and the UI renders a checkbox.
 - `listAutomations` — per-list rules with one `trigger` (`task_created` | `status_changed_to_complete`) and one `action` (assign user / set priority / set status / set due in N days). Evaluated inline in `tasks.create` and `tasks.update` so all patches stay inside one transaction.
 - `tasks.recurrence` — optional `daily | weekly | monthly`. When a task transitions into a complete-category status, `tasks.update` spawns a fresh task on the same list with its dates advanced.
+- `clips` — screen-recording metadata. `storageId` references Convex file storage (`Id<"_storage">`); the bytes live there, not in the table. Author owns delete.
 
 **Authorization** is centralized in `convex/_authz.ts`. Every read/write resolves up the hierarchy (task → list → folder?/space → workspace?/user) and calls `canAccessSpace` to confirm either personal ownership or workspace membership. Use `requireListAccess`/`requireSpaceAccess`/`requireFolderAccess` rather than re-rolling checks in each function.
 
@@ -207,8 +210,8 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - **Phase 4:** Threaded task comments + workspace chat, @mentions with inline picker, assigned comments, /dashboard/inbox with unread badge in the sidebar. Realtime is automatic via Convex `useQuery` subscriptions.
 - **Phase 5:** Rich-text docs (Tiptap, debounced save) and tldraw whiteboards (dynamic-imported, debounced save). Both attach to user/workspace/space and appear in the sidebar tree alongside lists.
 - **Phase 6:** Time tracking with a live timer (sidebar chip + per-task tracker, only one running per user), Goals (number/money/boolean) on workspaces, and a Reports tab per workspace with fixed widgets (open tasks, completed-this-week, time-tracked-this-week, goal progress, workload by assignee).
-- **Phase 7 (current):** Recurring tasks (daily/weekly/monthly, regenerated on completion) and a minimal list-automation engine (trigger + action rules evaluated inside `tasks.create` / `tasks.update`).
-- **Phase 8:** Email integration + Clips (screen recording).
+- **Phase 7:** Recurring tasks (daily/weekly/monthly, regenerated on completion) and a minimal list-automation engine (trigger + action rules evaluated inside `tasks.create` / `tasks.update`).
+- **Phase 8 (current):** Outbound email notifications via Resend (mentions and task assignments, scheduled via `ctx.scheduler.runAfter` so they don't block the originating mutation) and Clips (browser screen+mic recording uploaded to Convex file storage, played back in the task detail).
 - **Phase 9:** AI (Brain) — knowledge search, task auto-fill, summaries, writer.
 - **Phase 10:** Templates + 3rd-party integrations + Teams Hub.
 - **Phase 11:** Offline-first PWA polish + native app wrappers.
@@ -231,3 +234,5 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - Automations are evaluated event-driven only — no scheduled (time-based) triggers like "every Monday at 9am" yet. Use Convex crons for that when needed.
 - Automation actions are primitives that call `db.patch` directly. They don't re-enter `tasks.update`, so a `set_status` action that points at a complete-category status won't re-fire `status_changed_to_complete` automations or recurrence in the same call.
 - The `assign_user` automation accepts a Clerk user ID; the list-settings UI uses a free-text input rather than a member picker. Add member-aware UI alongside Phase 10 (Teams Hub).
+- Email send actions (`notifications.ts`) read `RESEND_API_KEY` and `RESEND_FROM_EMAIL` at invocation time. Without those env vars set on the Convex deployment, the action logs and no-ops — no mutation rollback. Inbound email (turning replies into comments) is not built yet.
+- Clips use the browser's `getDisplayMedia` + `MediaRecorder`. Browser support varies: Safari handles screen capture but not always with mic; Firefox/Chrome/Edge are fine. The recorder picks the first supported `mimeType` from a small candidate list (vp9 → vp8 → webm → mp4).
