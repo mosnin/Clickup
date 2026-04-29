@@ -1,6 +1,77 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 import { requireListAccess, requireTaskAccess } from "./_authz";
+import { applyAutomations } from "./listAutomations";
+
+const recurrenceValidator = v.union(
+  v.literal("daily"),
+  v.literal("weekly"),
+  v.literal("monthly"),
+);
+
+function addRecurrence(ts: number, recurrence: "daily" | "weekly" | "monthly"): number {
+  const d = new Date(ts);
+  switch (recurrence) {
+    case "daily":
+      d.setUTCDate(d.getUTCDate() + 1);
+      break;
+    case "weekly":
+      d.setUTCDate(d.getUTCDate() + 7);
+      break;
+    case "monthly":
+      d.setUTCMonth(d.getUTCMonth() + 1);
+      break;
+  }
+  return d.getTime();
+}
+
+// When a recurring task is moved into a complete-category status, spawn
+// the next instance on the same list with its dates advanced. The new
+// task is open, retains the same priority/assignees/recurrence/etc., and
+// is appended at the bottom of the list.
+async function spawnRecurringInstance(
+  ctx: MutationCtx,
+  completedTask: Doc<"tasks">,
+): Promise<void> {
+  if (!completedTask.recurrence) return;
+
+  const statuses = await ctx.db
+    .query("listStatuses")
+    .withIndex("by_list", (q) => q.eq("listId", completedTask.listId))
+    .collect();
+  const sorted = [...statuses].sort((a, b) => a.position - b.position);
+  const openStatus = sorted.find((s) => s.category === "open") ?? sorted[0];
+  if (!openStatus) return;
+
+  const baseDue = completedTask.dueDate ?? Date.now();
+  const newDue = addRecurrence(baseDue, completedTask.recurrence);
+  const newStart = completedTask.startDate
+    ? addRecurrence(completedTask.startDate, completedTask.recurrence)
+    : undefined;
+
+  const siblings = await ctx.db
+    .query("tasks")
+    .withIndex("by_list", (q) => q.eq("listId", completedTask.listId))
+    .collect();
+
+  await ctx.db.insert("tasks", {
+    listId: completedTask.listId,
+    title: completedTask.title,
+    description: completedTask.description,
+    statusId: openStatus._id,
+    priority: completedTask.priority,
+    startDate: newStart,
+    dueDate: newDue,
+    assigneeClerkIds: completedTask.assigneeClerkIds,
+    parentTaskId: completedTask.parentTaskId,
+    recurrence: completedTask.recurrence,
+    createdByClerkId: completedTask.createdByClerkId,
+    position: siblings.length,
+    createdAt: Date.now(),
+  });
+}
 
 const priorityValidator = v.union(
   v.literal("urgent"),
@@ -43,6 +114,7 @@ export const create = mutation({
     dueDate: v.optional(v.number()),
     assigneeClerkIds: v.optional(v.array(v.string())),
     parentTaskId: v.optional(v.id("tasks")),
+    recurrence: v.optional(recurrenceValidator),
   },
   handler: async (ctx, args) => {
     const { identity } = await requireListAccess(ctx, args.listId);
@@ -70,7 +142,7 @@ export const create = mutation({
       .withIndex("by_list", (q) => q.eq("listId", args.listId))
       .collect();
 
-    return await ctx.db.insert("tasks", {
+    const taskId = await ctx.db.insert("tasks", {
       listId: args.listId,
       title: args.title,
       description: args.description,
@@ -80,10 +152,16 @@ export const create = mutation({
       dueDate: args.dueDate,
       assigneeClerkIds: args.assigneeClerkIds ?? [],
       parentTaskId: args.parentTaskId,
+      recurrence: args.recurrence,
       createdByClerkId: identity.subject,
       position: siblings.length,
       createdAt: Date.now(),
     });
+
+    const created = await ctx.db.get(taskId);
+    if (created) await applyAutomations(ctx, created, "task_created");
+
+    return taskId;
   },
 });
 
@@ -97,23 +175,33 @@ export const update = mutation({
     startDate: v.optional(v.union(v.number(), v.null())),
     dueDate: v.optional(v.union(v.number(), v.null())),
     assigneeClerkIds: v.optional(v.array(v.string())),
+    recurrence: v.optional(v.union(recurrenceValidator, v.null())),
   },
   handler: async (ctx, args) => {
     const { task } = await requireTaskAccess(ctx, args.taskId);
+
+    // Detect "transition into complete" before applying the patch so we
+    // can run automations + spawn the recurring instance afterwards.
+    const oldStatus = await ctx.db.get(task.statusId);
+    const wasComplete =
+      oldStatus?.category === "complete" || oldStatus?.category === "closed";
+
+    let willBeComplete = wasComplete;
+    if (args.statusId !== undefined && args.statusId !== task.statusId) {
+      const newStatus = await ctx.db.get(args.statusId);
+      if (!newStatus || newStatus.listId !== task.listId) {
+        throw new Error("statusId must belong to the same list");
+      }
+      willBeComplete =
+        newStatus.category === "complete" || newStatus.category === "closed";
+    }
 
     const patch: Record<string, unknown> = {};
     if (args.title !== undefined) patch.title = args.title;
     if (args.description !== undefined) patch.description = args.description;
     if (args.statusId !== undefined) {
-      const status = await ctx.db.get(args.statusId);
-      if (!status || status.listId !== task.listId) {
-        throw new Error("statusId must belong to the same list");
-      }
       patch.statusId = args.statusId;
-      patch.completedAt =
-        status.category === "complete" || status.category === "closed"
-          ? Date.now()
-          : undefined;
+      patch.completedAt = willBeComplete ? Date.now() : undefined;
     }
     if (args.priority !== undefined) patch.priority = args.priority;
     if (args.startDate !== undefined) {
@@ -125,8 +213,19 @@ export const update = mutation({
     if (args.assigneeClerkIds !== undefined) {
       patch.assigneeClerkIds = args.assigneeClerkIds;
     }
+    if (args.recurrence !== undefined) {
+      patch.recurrence = args.recurrence ?? undefined;
+    }
 
     await ctx.db.patch(args.taskId, patch);
+
+    if (!wasComplete && willBeComplete) {
+      const updated = await ctx.db.get(args.taskId);
+      if (updated) {
+        await applyAutomations(ctx, updated, "status_changed_to_complete");
+        await spawnRecurringInstance(ctx, updated);
+      }
+    }
   },
 });
 

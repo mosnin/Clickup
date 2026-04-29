@@ -161,6 +161,16 @@ export default defineSchema({
     dueDate: v.optional(v.number()),
     assigneeClerkIds: v.array(v.string()),
     parentTaskId: v.optional(v.id("tasks")),
+    // When set, completing this task spawns a fresh task on the same list
+    // with its dates advanced by the chosen interval. The new task copies
+    // the same recurrence so the cycle continues.
+    recurrence: v.optional(
+      v.union(
+        v.literal("daily"),
+        v.literal("weekly"),
+        v.literal("monthly"),
+      ),
+    ),
     createdByClerkId: v.string(),
     position: v.number(),
     createdAt: v.number(),
@@ -169,6 +179,43 @@ export default defineSchema({
     .index("by_list", ["listId"])
     .index("by_list_and_status", ["listId", "statusId"])
     .index("by_parent_task", ["parentTaskId"]),
+
+  // Per-list automation rules. Triggered inside tasks.create and
+  // tasks.update — kept simple and event-driven (no scheduled jobs yet).
+  // Each rule is a single (trigger, action) pair; users compose multiple
+  // rules to model anything more complex.
+  listAutomations: defineTable({
+    listId: v.id("lists"),
+    trigger: v.union(
+      v.literal("task_created"),
+      v.literal("status_changed_to_complete"),
+    ),
+    action: v.union(
+      v.object({
+        kind: v.literal("assign_user"),
+        clerkId: v.string(),
+      }),
+      v.object({
+        kind: v.literal("set_priority"),
+        priority: v.union(
+          v.literal("urgent"),
+          v.literal("high"),
+          v.literal("normal"),
+          v.literal("low"),
+        ),
+      }),
+      v.object({
+        kind: v.literal("set_status"),
+        statusId: v.id("listStatuses"),
+      }),
+      v.object({
+        kind: v.literal("set_due_in_days"),
+        days: v.number(),
+      }),
+    ),
+    enabled: v.boolean(),
+    createdAt: v.number(),
+  }).index("by_list", ["listId"]),
 
   // Threaded messages used both for task comments and Space/Workspace chat.
   // The parent is polymorphic so the same composer + renderer powers all

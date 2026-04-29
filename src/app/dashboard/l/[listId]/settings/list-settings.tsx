@@ -31,8 +31,16 @@ export function ListSettings({ listId }: { listId: string }) {
   const list = useQuery(api.lists.get, { listId: id });
   const statuses = useQuery(api.listStatuses.listForList, { listId: id });
   const fields = useQuery(api.customFields.listForList, { listId: id });
+  const automations = useQuery(api.listAutomations.listForList, {
+    listId: id,
+  });
 
-  if (list === undefined || statuses === undefined || fields === undefined) {
+  if (
+    list === undefined ||
+    statuses === undefined ||
+    fields === undefined ||
+    automations === undefined
+  ) {
     return <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />;
   }
   if (list === null) {
@@ -60,6 +68,11 @@ export function ListSettings({ listId }: { listId: string }) {
 
       <StatusesSection listId={list._id} statuses={statuses} />
       <FieldsSection listId={list._id} fields={fields} />
+      <AutomationsSection
+        listId={list._id}
+        automations={automations}
+        statuses={statuses}
+      />
     </div>
   );
 }
@@ -548,6 +561,272 @@ function CreateFieldForm({
       </select>
       <Button type="submit" size="sm" disabled={!name.trim() || pending}>
         <Plus className="h-4 w-4" /> Add field
+      </Button>
+    </form>
+  );
+}
+
+type AutomationDoc = Doc<"listAutomations">;
+type Trigger = AutomationDoc["trigger"];
+type ActionKind = AutomationDoc["action"]["kind"];
+
+const TRIGGER_LABEL: Record<Trigger, string> = {
+  task_created: "When a task is created",
+  status_changed_to_complete: "When a task is marked complete",
+};
+
+const ACTION_LABEL: Record<ActionKind, string> = {
+  assign_user: "Assign to user",
+  set_priority: "Set priority",
+  set_status: "Move to status",
+  set_due_in_days: "Set due date in N days",
+};
+
+function AutomationsSection({
+  listId,
+  automations,
+  statuses,
+}: {
+  listId: Id<"lists">;
+  automations: AutomationDoc[];
+  statuses: Doc<"listStatuses">[];
+}) {
+  const create = useMutation(api.listAutomations.create);
+  const update = useMutation(api.listAutomations.update);
+  const remove = useMutation(api.listAutomations.remove);
+
+  return (
+    <section>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Automations
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Trigger an action automatically when something happens to a task in
+        this list.
+      </p>
+
+      <ul className="mt-4 space-y-2">
+        {automations.length === 0 && (
+          <li className="rounded-3xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+            No automations yet.
+          </li>
+        )}
+        {automations.map((automation) => (
+          <AutomationRow
+            key={automation._id}
+            automation={automation}
+            statuses={statuses}
+            onChange={(patch) =>
+              update({ automationId: automation._id, ...patch })
+            }
+            onDelete={() => remove({ automationId: automation._id })}
+          />
+        ))}
+      </ul>
+
+      <CreateAutomationForm
+        statuses={statuses}
+        onSubmit={(trigger, action) => create({ listId, trigger, action })}
+      />
+    </section>
+  );
+}
+
+function AutomationRow({
+  automation,
+  statuses,
+  onChange,
+  onDelete,
+}: {
+  automation: AutomationDoc;
+  statuses: Doc<"listStatuses">[];
+  onChange: (patch: {
+    trigger?: Trigger;
+    action?: AutomationDoc["action"];
+    enabled?: boolean;
+  }) => Promise<unknown>;
+  onDelete: () => Promise<unknown>;
+}) {
+  return (
+    <li
+      className={
+        automation.enabled
+          ? "rounded-3xl border border-border bg-background p-3"
+          : "rounded-3xl border border-border bg-muted/30 p-3 opacity-60"
+      }
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <input
+          type="checkbox"
+          checked={automation.enabled}
+          onChange={(e) => onChange({ enabled: e.currentTarget.checked })}
+          aria-label="Enabled"
+        />
+        <select
+          value={automation.trigger}
+          onChange={(e) =>
+            onChange({ trigger: e.currentTarget.value as Trigger })
+          }
+          className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+        >
+          {(Object.keys(TRIGGER_LABEL) as Trigger[]).map((t) => (
+            <option key={t} value={t}>
+              {TRIGGER_LABEL[t]}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-muted-foreground">→</span>
+        <ActionEditor
+          action={automation.action}
+          statuses={statuses}
+          onChange={(action) => onChange({ action })}
+        />
+        <button
+          type="button"
+          aria-label="Delete automation"
+          onClick={() => {
+            if (window.confirm("Delete this automation?")) onDelete();
+          }}
+          className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    </li>
+  );
+}
+
+function ActionEditor({
+  action,
+  statuses,
+  onChange,
+}: {
+  action: AutomationDoc["action"];
+  statuses: Doc<"listStatuses">[];
+  onChange: (action: AutomationDoc["action"]) => Promise<unknown>;
+}) {
+  // Switching action kind resets the payload to a sensible default for
+  // the new kind, so we never store mismatched fields.
+  function setKind(kind: ActionKind) {
+    if (kind === action.kind) return;
+    if (kind === "assign_user") onChange({ kind, clerkId: "" });
+    else if (kind === "set_priority") onChange({ kind, priority: "normal" });
+    else if (kind === "set_status") {
+      const first = statuses[0];
+      if (first) onChange({ kind, statusId: first._id });
+    } else if (kind === "set_due_in_days") onChange({ kind, days: 7 });
+  }
+
+  return (
+    <div className="flex flex-1 flex-wrap items-center gap-2">
+      <select
+        value={action.kind}
+        onChange={(e) => setKind(e.currentTarget.value as ActionKind)}
+        className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+      >
+        {(Object.keys(ACTION_LABEL) as ActionKind[]).map((k) => (
+          <option key={k} value={k}>
+            {ACTION_LABEL[k]}
+          </option>
+        ))}
+      </select>
+      {action.kind === "assign_user" && (
+        <input
+          type="text"
+          value={action.clerkId}
+          onChange={(e) =>
+            onChange({ kind: "assign_user", clerkId: e.currentTarget.value })
+          }
+          placeholder="Clerk user ID"
+          className="w-48 rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+        />
+      )}
+      {action.kind === "set_priority" && (
+        <select
+          value={action.priority}
+          onChange={(e) =>
+            onChange({
+              kind: "set_priority",
+              priority: e.currentTarget.value as "urgent" | "high" | "normal" | "low",
+            })
+          }
+          className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+        >
+          {["urgent", "high", "normal", "low"].map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+      )}
+      {action.kind === "set_status" && (
+        <select
+          value={action.statusId}
+          onChange={(e) =>
+            onChange({
+              kind: "set_status",
+              statusId: e.currentTarget.value as Id<"listStatuses">,
+            })
+          }
+          className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+        >
+          {statuses.map((s) => (
+            <option key={s._id} value={s._id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      )}
+      {action.kind === "set_due_in_days" && (
+        <input
+          type="number"
+          value={action.days}
+          onChange={(e) =>
+            onChange({
+              kind: "set_due_in_days",
+              days: Number(e.currentTarget.value) || 0,
+            })
+          }
+          className="w-20 rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+        />
+      )}
+    </div>
+  );
+}
+
+function CreateAutomationForm({
+  statuses,
+  onSubmit,
+}: {
+  statuses: Doc<"listStatuses">[];
+  onSubmit: (
+    trigger: Trigger,
+    action: AutomationDoc["action"],
+  ) => Promise<unknown>;
+}) {
+  const [pending, setPending] = useState(false);
+
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setPending(true);
+        try {
+          const firstStatus = statuses[0];
+          await onSubmit(
+            "task_created",
+            firstStatus
+              ? { kind: "set_status", statusId: firstStatus._id }
+              : { kind: "set_priority", priority: "normal" },
+          );
+        } finally {
+          setPending(false);
+        }
+      }}
+      className="mt-3 flex justify-center"
+    >
+      <Button type="submit" size="sm" variant="outline" disabled={pending}>
+        <Plus className="h-4 w-4" /> Add automation
       </Button>
     </form>
   );

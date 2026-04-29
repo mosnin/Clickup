@@ -12,8 +12,14 @@ import { Comments } from "@/components/dashboard/comments";
 import { TimeTracker } from "@/components/dashboard/time-tracker";
 
 type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
+type TaskRecurrence = NonNullable<Doc<"tasks">["recurrence"]>;
 
 const PRIORITY_OPTIONS: TaskPriority[] = ["urgent", "high", "normal", "low"];
+const RECURRENCE_LABEL: Record<TaskRecurrence, string> = {
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
+};
 
 export function TaskDetail({
   listId,
@@ -200,6 +206,34 @@ function TaskEditor({
             }}
             className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
           />
+        </Field>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Recurrence">
+          <select
+            value={task.recurrence ?? ""}
+            onChange={(e) => {
+              const v = e.currentTarget.value;
+              update({
+                taskId: task._id,
+                recurrence: (v || null) as TaskRecurrence | null,
+              });
+            }}
+            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          >
+            <option value="">No recurrence</option>
+            {(Object.keys(RECURRENCE_LABEL) as TaskRecurrence[]).map((r) => (
+              <option key={r} value={r}>
+                {RECURRENCE_LABEL[r]}
+              </option>
+            ))}
+          </select>
+          {task.recurrence && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              When you complete this task, a new {RECURRENCE_LABEL[task.recurrence].toLowerCase()} instance is created automatically.
+            </p>
+          )}
         </Field>
       </div>
 

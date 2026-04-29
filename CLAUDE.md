@@ -45,7 +45,8 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   ├── whiteboards.ts            # tldraw boards (snapshot in `snapshot`)
 │   ├── timeEntries.ts            # time tracking (start/stop, runningForCurrent)
 │   ├── goals.ts                  # OKRs/goals with number/money/boolean targets
-│   └── reports.ts                # workspaceSummary aggregation for the Reports tab
+│   ├── reports.ts                # workspaceSummary aggregation for the Reports tab
+│   └── listAutomations.ts        # per-list trigger/action rules + applyAutomations() called from tasks.create / tasks.update
 ├── public/
 │   ├── manifest.webmanifest
 │   ├── icon.svg / icon-maskable.svg
@@ -142,6 +143,8 @@ User (personal) ──┘
 - `whiteboards` — tldraw-backed boards with the same parent shape. `snapshot` holds the tldraw store snapshot.
 - `timeEntries` — one row per time-tracked interval. `endedAt` undefined means the timer is currently running. Convex doesn't index `undefined` cleanly, so the running-entry lookup walks recent entries by user; the working set per user is tiny (typically 0 or 1).
 - `goals` — `targetType` is `number | money | boolean`. All three share the same `targetValue` / `currentValue` columns; boolean goals always target 1 and the UI renders a checkbox.
+- `listAutomations` — per-list rules with one `trigger` (`task_created` | `status_changed_to_complete`) and one `action` (assign user / set priority / set status / set due in N days). Evaluated inline in `tasks.create` and `tasks.update` so all patches stay inside one transaction.
+- `tasks.recurrence` — optional `daily | weekly | monthly`. When a task transitions into a complete-category status, `tasks.update` spawns a fresh task on the same list with its dates advanced.
 
 **Authorization** is centralized in `convex/_authz.ts`. Every read/write resolves up the hierarchy (task → list → folder?/space → workspace?/user) and calls `canAccessSpace` to confirm either personal ownership or workspace membership. Use `requireListAccess`/`requireSpaceAccess`/`requireFolderAccess` rather than re-rolling checks in each function.
 
@@ -203,8 +206,8 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - **Phase 3:** Views — List/Board/Calendar/Gantt selectable via tabs (`?view=` query param). Board uses @dnd-kit; Calendar and Gantt are hand-rolled with date-fns.
 - **Phase 4:** Threaded task comments + workspace chat, @mentions with inline picker, assigned comments, /dashboard/inbox with unread badge in the sidebar. Realtime is automatic via Convex `useQuery` subscriptions.
 - **Phase 5:** Rich-text docs (Tiptap, debounced save) and tldraw whiteboards (dynamic-imported, debounced save). Both attach to user/workspace/space and appear in the sidebar tree alongside lists.
-- **Phase 6 (current):** Time tracking with a live timer (sidebar chip + per-task tracker, only one running per user), Goals (number/money/boolean) on workspaces, and a Reports tab per workspace with fixed widgets (open tasks, completed-this-week, time-tracked-this-week, goal progress, workload by assignee).
-- **Phase 7:** Automations + recurring tasks.
+- **Phase 6:** Time tracking with a live timer (sidebar chip + per-task tracker, only one running per user), Goals (number/money/boolean) on workspaces, and a Reports tab per workspace with fixed widgets (open tasks, completed-this-week, time-tracked-this-week, goal progress, workload by assignee).
+- **Phase 7 (current):** Recurring tasks (daily/weekly/monthly, regenerated on completion) and a minimal list-automation engine (trigger + action rules evaluated inside `tasks.create` / `tasks.update`).
 - **Phase 8:** Email integration + Clips (screen recording).
 - **Phase 9:** AI (Brain) — knowledge search, task auto-fill, summaries, writer.
 - **Phase 10:** Templates + 3rd-party integrations + Teams Hub.
@@ -225,3 +228,6 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - The Reports query (`reports.workspaceSummary`) walks the workspace tree (spaces → folders → lists → tasks) and joins time entries per task. It's O(tasks + entries) and fine at the sizes we target; needs cursors/pagination once any workspace grows beyond a few thousand tasks.
 - Goals don't auto-update from tasks yet — progress is logged manually. Auto-rollup ("complete X tasks in list Y") is a follow-up.
 - Reports widget layout is fixed; users can't add/remove/rearrange widgets yet.
+- Automations are evaluated event-driven only — no scheduled (time-based) triggers like "every Monday at 9am" yet. Use Convex crons for that when needed.
+- Automation actions are primitives that call `db.patch` directly. They don't re-enter `tasks.update`, so a `set_status` action that points at a complete-category status won't re-fire `status_changed_to_complete` automations or recurrence in the same call.
+- The `assign_user` automation accepts a Clerk user ID; the list-settings UI uses a free-text input rather than a member picker. Add member-aware UI alongside Phase 10 (Teams Hub).

@@ -125,6 +125,12 @@ export const remove = mutation({
       .collect();
     for (const f of fields) await ctx.db.delete(f._id);
 
+    const automations = await ctx.db
+      .query("listAutomations")
+      .withIndex("by_list", (q) => q.eq("listId", list._id))
+      .collect();
+    for (const a of automations) await ctx.db.delete(a._id);
+
     await ctx.db.delete(list._id);
   },
 });

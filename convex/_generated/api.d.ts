@@ -18,6 +18,7 @@ import type * as docs from "../docs.js";
 import type * as folders from "../folders.js";
 import type * as goals from "../goals.js";
 import type * as http from "../http.js";
+import type * as listAutomations from "../listAutomations.js";
 import type * as listStatuses from "../listStatuses.js";
 import type * as lists from "../lists.js";
 import type * as mentions from "../mentions.js";
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   folders: typeof folders;
   goals: typeof goals;
   http: typeof http;
+  listAutomations: typeof listAutomations;
   listStatuses: typeof listStatuses;
   lists: typeof lists;
   mentions: typeof mentions;
