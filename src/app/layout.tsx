@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import { RegisterServiceWorker } from "@/components/register-service-worker";
+import { OfflineIndicator } from "@/components/offline-indicator";
 
 export const metadata: Metadata = {
   title: {
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-dvh bg-background text-foreground antialiased">
         <Providers>{children}</Providers>
+        <OfflineIndicator />
         <RegisterServiceWorker />
       </body>
     </html>

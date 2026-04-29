@@ -17,7 +17,8 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 | Auth bridge  | `convex/react-clerk` (`ConvexProviderWithClerk`)            |
 | Email        | Resend (`src/lib/resend.ts`) — no flows wired yet           |
 | Hosting      | Vercel (Next.js) + Convex's managed deployment              |
-| PWA          | Plain `manifest.webmanifest` + `public/sw.js` (no library)  |
+| PWA          | `manifest.webmanifest` + Serwist-generated service worker   |
+| Native       | Capacitor wrapper (iOS + Android, remote-web-app pattern)   |
 
 ## Directory layout
 
@@ -196,6 +197,26 @@ When bringing up a fresh checkout:
 - Required env vars: every entry in `.env.example`. `CONVEX_DEPLOY_KEY` only needs to exist on Vercel (not local).
 - For preview deployments to share a Convex backend with prod, add `npx convex deploy` to a Vercel build hook or use `npx convex env` to manage per-environment values.
 
+## Native apps (Capacitor)
+
+`capacitor.config.ts` wraps the live web app — Capacitor renders the production URL inside a thin native shell, so Convex realtime + Clerk session work the same as on web and you can ship updates without an app-store review for every change.
+
+Bootstrap once per platform:
+
+```bash
+npx cap add ios       # requires Xcode on macOS
+npx cap add android   # requires Android Studio
+```
+
+After every code change you want in the native app:
+
+```bash
+npx cap sync          # copies web assets + plugin metadata
+npx cap open ios      # or `open android`
+```
+
+Set `CAP_SERVER_URL` (or edit `capacitor.config.ts`) to your real production URL before publishing to the stores. The generated `ios/` and `android/` directories are gitignored by default — commit them once the team has converged on a config.
+
 ## Things AI assistants should not do
 
 - **Don't manually edit `convex/_generated/`** — the Convex CLI overwrites these files. The committed versions are stubs that survive between dev runs; further hand-edits will be lost on the next `convex dev`/`deploy`.
@@ -219,14 +240,15 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - **Phase 7:** Recurring tasks (daily/weekly/monthly, regenerated on completion) and a minimal list-automation engine (trigger + action rules evaluated inside `tasks.create` / `tasks.update`).
 - **Phase 8:** Outbound email notifications via Resend (mentions and task assignments, scheduled via `ctx.scheduler.runAfter` so they don't block the originating mutation) and Clips (browser screen+mic recording uploaded to Convex file storage, played back in the task detail).
 - **Phase 9:** AI Brain on the OpenAI API — semantic search over docs + tasks (`text-embedding-3-small` vectors, RAG via `gpt-4o-mini`), AI writer (continue/summarize) inside docs, and one-click task description draft.
-- **Phase 10 (current):** List templates (Software sprint / Marketing campaign / Personal to-do / Sales pipeline — each seeds list + statuses + custom fields + sample tasks in one transaction), Slack integration (incoming-webhook posts on task assignment), Teams Hub (per-member workload, week stats, currently-running timer) + new workspace Settings tab.
-- **Phase 11:** Offline-first PWA polish + native app wrappers.
+- **Phase 10:** List templates (Software sprint / Marketing campaign / Personal to-do / Sales pipeline — each seeds list + statuses + custom fields + sample tasks in one transaction), Slack integration (incoming-webhook posts on task assignment), Teams Hub (per-member workload, week stats, currently-running timer) + new workspace Settings tab.
+- **Phase 11 (current):** Offline-first PWA polish via `@serwist/next` (Workbox-style precache + runtime caching, navigation preload, network-first navigation with offline fallback) and a `capacitor.config.ts` for iOS/Android wrapping using the remote-web-app pattern. Live offline indicator surfaces queued mutations.
 
 ## Known limitations (not bugs)
 
 - The committed `convex/_generated/` is a hand-rolled stub. Until you run `npx convex dev`, `useQuery`/`useMutation` calls return without strict argument checking on individual functions. Once the CLI overwrites it, full type safety kicks in.
 - Resend has no email flows wired — the wrapper exists but no template/sender code is built.
-- PWA icons are SVG-only; some Android variants prefer PNGs.
+- PWA icons are SVG-only; some Android variants prefer PNGs. Convert and add `/public/icon-192.png`, `/public/icon-512.png` for full coverage.
+- Serwist's runtime caching uses the default policy (network-first navigation, stale-while-revalidate for static). Convex's WebSocket bypasses fetch entirely so live queries resume the moment the network returns; queued mutations are replayed by the Convex client on reconnect.
 - Status column reorder is wired in Convex (`listStatuses.reorder`) but no drag-and-drop UI yet for status columns themselves; tasks within columns ARE draggable via Board view.
 - No saved-view configs yet (filter/sort/group selections don't persist). View choice is in the URL via `?view=`, but other settings reset on reload.
 - Calendar and Gantt are read-only — no drag-to-reschedule. Edit a task's date from the task detail page or List view.

@@ -1,3 +1,12 @@
+import withSerwistInit from "@serwist/next";
+
+const withSerwist = withSerwistInit({
+  swSrc: "src/app/sw.ts",
+  swDest: "public/sw.js",
+  cacheOnNavigation: true,
+  reloadOnOnline: true,
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -7,17 +16,6 @@ const nextConfig = {
       { protocol: "https", hostname: "images.clerk.dev" },
     ],
   },
-  async headers() {
-    return [
-      {
-        source: "/sw.js",
-        headers: [
-          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
-          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
-        ],
-      },
-    ];
-  },
 };
 
-export default nextConfig;
+export default withSerwist(nextConfig);
