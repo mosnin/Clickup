@@ -1,10 +1,26 @@
-import type { Metadata } from "next";
-import { mockPersonalSpaces } from "@/lib/mock-data";
+"use client";
 
-export const metadata: Metadata = { title: "Personal" };
+import Link from "next/link";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 
 export default function PersonalPage() {
-  const space = mockPersonalSpaces[0];
+  const tree = useQuery(api.sidebar.tree, {});
+
+  if (tree === undefined) {
+    return <Skeleton />;
+  }
+  if (tree === null || !tree.personal) {
+    return (
+      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+        Setting up your personal space…
+      </div>
+    );
+  }
+
+  const { personal } = tree;
+  const directLists = personal.lists;
+
   return (
     <div className="space-y-6">
       <header>
@@ -12,21 +28,93 @@ export default function PersonalPage() {
           <span
             aria-hidden
             className="inline-block h-3 w-3 rounded-full"
-            style={{ backgroundColor: space.color }}
+            style={{ backgroundColor: personal.color ?? "#6366f1" }}
           />
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            {space.name}
+            {personal.name}
           </h1>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Just for you. Nothing in here is shared with anyone.
+          Just for you. Nothing in here is shared.
         </p>
       </header>
 
-      <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-10 text-center">
-        <p className="text-sm text-muted-foreground">
-          Lists, tasks, and docs will live here once Convex queries are wired up.
-        </p>
+      {personal.folders.length === 0 && directLists.length === 0 ? (
+        <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-10 text-center">
+          <p className="text-sm text-muted-foreground">
+            No lists yet. Use the <span className="font-medium">+</span> next to{" "}
+            <span className="font-medium">{personal.name}</span> in the sidebar
+            to add a list or folder.
+          </p>
+        </div>
+      ) : (
+        <>
+          {personal.folders.map((folder) => (
+            <section key={folder._id}>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                {folder.name}
+              </h2>
+              <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {folder.lists.map((list) => (
+                  <ListCard key={list._id} list={list} />
+                ))}
+              </ul>
+            </section>
+          ))}
+
+          {directLists.length > 0 && (
+            <section>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                Lists
+              </h2>
+              <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {directLists.map((list) => (
+                  <ListCard key={list._id} list={list} />
+                ))}
+              </ul>
+            </section>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ListCard({
+  list,
+}: {
+  list: { _id: string; name: string; color?: string };
+}) {
+  return (
+    <li>
+      <Link
+        href={`/dashboard/l/${list._id}`}
+        className="block rounded-3xl border border-border bg-background p-5 transition-colors hover:border-brand-500"
+      >
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className="inline-block h-2 w-2 rounded-full"
+            style={{ backgroundColor: list.color ?? "#6366f1" }}
+          />
+          <span className="font-medium">{list.name}</span>
+        </div>
+      </Link>
+    </li>
+  );
+}
+
+function Skeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="h-24 animate-pulse rounded-3xl border border-border bg-muted/40"
+          />
+        ))}
       </div>
     </div>
   );

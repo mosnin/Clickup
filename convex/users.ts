@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 
 // Called by the Clerk webhook (user.created / user.updated).
 export const upsertFromClerk = internalMutation({
@@ -37,6 +37,7 @@ export const upsertFromClerk = internalMutation({
       color: "#6366f1",
       parentType: "user",
       parentId: args.clerkId,
+      position: 0,
       createdAt: Date.now(),
     });
 
@@ -55,6 +56,49 @@ export const deleteFromClerk = internalMutation({
   },
 });
 
+// Idempotent client-callable bootstrap. The Clerk webhook is the canonical
+// source of user records, but this mutation lets the dashboard self-heal
+// when a user lands before the webhook has fired (e.g. local dev without
+// public webhook delivery).
+export const ensureCurrent = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const existing = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+
+    if (!existing) {
+      await ctx.db.insert("users", {
+        clerkId: identity.subject,
+        email: identity.email ?? "",
+        name: identity.name,
+        imageUrl: identity.pictureUrl,
+      });
+    }
+
+    const personal = await ctx.db
+      .query("spaces")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", "user").eq("parentId", identity.subject),
+      )
+      .unique();
+    if (!personal) {
+      await ctx.db.insert("spaces", {
+        name: "Personal",
+        color: "#6366f1",
+        parentType: "user",
+        parentId: identity.subject,
+        position: 0,
+        createdAt: Date.now(),
+      });
+    }
+  },
+});
+
 export const current = query({
   args: {},
   handler: async (ctx) => {
@@ -64,5 +108,22 @@ export const current = query({
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .unique();
+  },
+});
+
+export const listByClerkIds = query({
+  args: { clerkIds: v.array(v.string()) },
+  handler: async (ctx, { clerkIds }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const results = await Promise.all(
+      clerkIds.map((id) =>
+        ctx.db
+          .query("users")
+          .withIndex("by_clerk_id", (q) => q.eq("clerkId", id))
+          .unique(),
+      ),
+    );
+    return results.filter((u): u is NonNullable<typeof u> => u !== null);
   },
 });

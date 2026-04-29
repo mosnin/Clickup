@@ -1,7 +1,19 @@
+"use client";
+
 import Link from "next/link";
-import { mockPersonalSpaces, mockTeamWorkspaces } from "@/lib/mock-data";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 
 export default function DashboardHome() {
+  const tree = useQuery(api.sidebar.tree, {});
+
+  if (tree === undefined) {
+    return <DashboardSkeleton />;
+  }
+  if (tree === null) {
+    return null;
+  }
+
   return (
     <div className="space-y-10">
       <header>
@@ -18,8 +30,8 @@ export default function DashboardHome() {
           Personal
         </h2>
         <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-          {mockPersonalSpaces.map((space) => (
-            <li key={space.id}>
+          {tree.personal ? (
+            <li>
               <Link
                 href="/dashboard/personal"
                 className="block rounded-3xl border border-border bg-background p-5 transition-colors hover:border-brand-500"
@@ -28,16 +40,25 @@ export default function DashboardHome() {
                   <span
                     aria-hidden
                     className="inline-block h-3 w-3 rounded-full"
-                    style={{ backgroundColor: space.color }}
+                    style={{ backgroundColor: tree.personal.color ?? "#6366f1" }}
                   />
-                  <span className="font-medium">{space.name}</span>
+                  <span className="font-medium">{tree.personal.name}</span>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Your private space — only you can see what&apos;s in here.
+                  {tree.personal.lists.length +
+                    tree.personal.folders.reduce(
+                      (n, f) => n + f.lists.length,
+                      0,
+                    )}{" "}
+                  lists · {tree.personal.folders.length} folders
                 </p>
               </Link>
             </li>
-          ))}
+          ) : (
+            <li className="rounded-3xl border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground">
+              Setting up your personal space…
+            </li>
+          )}
         </ul>
       </section>
 
@@ -54,10 +75,22 @@ export default function DashboardHome() {
           </Link>
         </div>
         <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-          {mockTeamWorkspaces.map((ws) => (
-            <li key={ws.id}>
+          {tree.workspaces.length === 0 && (
+            <li className="rounded-3xl border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground sm:col-span-2">
+              You&apos;re not in any team workspaces yet.{" "}
               <Link
-                href={`/dashboard/w/${ws.id}`}
+                href="/onboarding"
+                className="font-medium text-brand-600 hover:underline"
+              >
+                Create one
+              </Link>
+              .
+            </li>
+          )}
+          {tree.workspaces.map((ws) => (
+            <li key={ws._id}>
+              <Link
+                href={`/dashboard/w/${ws._id}`}
                 className="block rounded-3xl border border-border bg-background p-5 transition-colors hover:border-brand-500"
               >
                 <div className="flex items-center justify-between">
@@ -74,6 +107,22 @@ export default function DashboardHome() {
           ))}
         </ul>
       </section>
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
+      <div className="grid gap-3 sm:grid-cols-2">
+        {[0, 1].map((i) => (
+          <div
+            key={i}
+            className="h-24 animate-pulse rounded-3xl border border-border bg-muted/40"
+          />
+        ))}
+      </div>
     </div>
   );
 }

@@ -2,23 +2,29 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
 import { Button } from "@/components/ui/button";
 
 export function OnboardingForm() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const createWorkspace = useMutation(api.workspaces.create);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setPending(true);
-
-    // TODO(convex): replace with `useMutation(api.workspaces.create)` once
-    // `npx convex dev` has been run and the generated client is available.
-    // For now, just bounce to the dashboard so the flow is exercisable.
-    await new Promise((r) => setTimeout(r, 300));
-
-    router.push("/dashboard");
+    setError(null);
+    try {
+      const workspaceId = await createWorkspace({ name: name.trim() });
+      router.push(`/dashboard/w/${workspaceId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create workspace");
+      setPending(false);
+    }
   }
 
   function skip() {
@@ -45,6 +51,12 @@ export function OnboardingForm() {
           You can invite teammates after creating the workspace.
         </span>
       </label>
+
+      {error && (
+        <p className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </p>
+      )}
 
       <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
         <Button type="button" variant="ghost" onClick={skip} disabled={pending}>

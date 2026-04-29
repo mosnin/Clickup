@@ -5,16 +5,23 @@ import { v } from "convex/values";
 //
 // Identity model:
 //   - Clerk owns auth. We mirror users into `users` via the Clerk webhook
-//     (see app/api/webhooks/clerk/route.ts) so server functions can
-//     reference internal user records by Clerk subject ID.
+//     (see convex/http.ts) so server functions can reference internal user
+//     records by Clerk subject ID.
 //
-// Workspace model:
-//   - Every user has exactly one personal space (created at first login).
-//   - Users can additionally belong to many team `workspaces`. Membership
-//     is tracked in `memberships` so we can query by either side.
-//   - `spaces` are top-level containers and belong to either a user
-//     (parentType: "user") or a workspace (parentType: "workspace").
-//     This mirrors ClickUp's "Spaces" inside a Workspace.
+// Hierarchy (matches ClickUp):
+//   Workspace (team) ─┐
+//                     ├─ Space ─ Folder? ─ List ─ Task ─ Subtask
+//   User (personal) ──┘
+//
+//   - Every user has exactly one personal Space (created on the first
+//     `user.created` webhook).
+//   - Team Workspaces hold many Spaces, one membership row per user.
+//   - `lists` and `spaces` use a discriminated parent (parentType+parentId)
+//     because Convex doesn't support union-of-Id field types.
+//
+// Authorization is enforced inside each query/mutation via the helpers in
+// convex/_authz.ts — every read/write that touches a list/task/folder/space
+// resolves up the chain to a workspace+membership or a personal-space owner.
 export default defineSchema({
   users: defineTable({
     clerkId: v.string(),
@@ -57,7 +64,59 @@ export default defineSchema({
     // For parentType "workspace", parentId is the Convex workspace ID
     // serialized as a string (Convex doesn't support union over Id types).
     parentId: v.string(),
+    position: v.number(),
     createdAt: v.number(),
   })
     .index("by_parent", ["parentType", "parentId"]),
+
+  folders: defineTable({
+    name: v.string(),
+    spaceId: v.id("spaces"),
+    position: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_space", ["spaceId"]),
+
+  lists: defineTable({
+    name: v.string(),
+    color: v.optional(v.string()),
+    // Lists can sit directly under a Space, or be grouped inside a Folder.
+    parentType: v.union(v.literal("space"), v.literal("folder")),
+    parentId: v.string(), // Id<"spaces"> or Id<"folders"> serialized
+    position: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_parent", ["parentType", "parentId"]),
+
+  tasks: defineTable({
+    listId: v.id("lists"),
+    title: v.string(),
+    description: v.optional(v.string()),
+    status: v.union(
+      v.literal("open"),
+      v.literal("in_progress"),
+      v.literal("complete"),
+      v.literal("closed"),
+    ),
+    priority: v.optional(
+      v.union(
+        v.literal("urgent"),
+        v.literal("high"),
+        v.literal("normal"),
+        v.literal("low"),
+      ),
+    ),
+    dueDate: v.optional(v.number()),
+    assigneeClerkIds: v.array(v.string()),
+    // Subtasks: a task whose parentTaskId points at another task in the
+    // same list. Top-level tasks have parentTaskId undefined.
+    parentTaskId: v.optional(v.id("tasks")),
+    createdByClerkId: v.string(),
+    position: v.number(),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_list", ["listId"])
+    .index("by_list_and_status", ["listId", "status"])
+    .index("by_parent_task", ["parentTaskId"]),
 });

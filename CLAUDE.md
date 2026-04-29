@@ -24,12 +24,18 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 ```
 .
 ├── convex/                       # Convex backend — typechecked separately by Convex CLI
-│   ├── schema.ts                 # users, workspaces, memberships, spaces
+│   ├── _generated/               # checked in (CLI overwrites on `convex dev`/`deploy`)
+│   ├── _authz.ts                 # shared auth helpers (require*Access)
+│   ├── schema.ts                 # users, workspaces, memberships, spaces, folders, lists, tasks
 │   ├── auth.config.ts            # Clerk JWT integration
 │   ├── http.ts                   # Clerk webhook -> internal mutations
-│   ├── users.ts                  # internal upsert/delete + `current` query
+│   ├── sidebar.ts                # single tree query that powers the sidebar
+│   ├── users.ts                  # webhook upsert/delete, ensureCurrent, current
 │   ├── workspaces.ts             # create + listForCurrentUser
-│   └── spaces.ts                 # personal/workspace space CRUD
+│   ├── spaces.ts                 # personal/workspace space CRUD
+│   ├── folders.ts                # folder CRUD inside a space
+│   ├── lists.ts                  # list CRUD under space or folder
+│   └── tasks.ts                  # task CRUD with subtask support
 ├── public/
 │   ├── manifest.webmanifest
 │   ├── icon.svg / icon-maskable.svg
@@ -54,20 +60,22 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   │   │   ├── page.tsx
 │   │   │   └── onboarding-form.tsx
 │   │   └── dashboard/            # logged-in app shell
-│   │       ├── layout.tsx        # sidebar + main; auth-guarded
+│   │       ├── layout.tsx        # sidebar + main; auth-guarded; renders <EnsureUser />
 │   │       ├── page.tsx          # overview
-│   │       ├── personal/page.tsx
-│   │       └── w/[workspaceId]/page.tsx
+│   │       ├── personal/page.tsx # user's personal space view
+│   │       ├── w/[workspaceId]/  # team workspace view (server + client)
+│   │       └── l/[listId]/       # list view with task table + create form
+│   │           └── t/[taskId]/   # full-page task editor
 │   ├── components/
 │   │   ├── ui/button.tsx         # shadcn-style primitive (cva + Tailwind)
 │   │   ├── marketing/pill-header.tsx
 │   │   ├── marketing/pill-footer.tsx
-│   │   ├── dashboard/sidebar.tsx # responsive: drawer on mobile, fixed on md+
+│   │   ├── dashboard/sidebar.tsx # tree of personal+team workspaces; drawer on mobile
+│   │   ├── dashboard/ensure-user.tsx # idempotent client bootstrap of user row
 │   │   └── register-service-worker.tsx
 │   └── lib/
 │       ├── utils.ts              # cn(): clsx + tailwind-merge
-│       ├── resend.ts             # lazy Resend client (server-only)
-│       └── mock-data.ts          # placeholder personal/team data — REMOVE once Convex queries are wired
+│       └── resend.ts             # lazy Resend client (server-only)
 └── …config files (next, tsconfig, eslint, postcss, .env.example)
 ```
 
@@ -87,16 +95,24 @@ You need **two terminals** in dev: one for `npx convex dev`, one for `npm run de
 
 ## Data model (Convex)
 
-- `users` — mirrored from Clerk via the webhook in `convex/http.ts`. Indexed by `clerkId`.
+```
+Workspace (team) ─┐
+                  ├─ Space ─ Folder? ─ List ─ Task ─ Subtask
+User (personal) ──┘
+```
+
+- `users` — mirrored from Clerk via the webhook in `convex/http.ts`, with a fallback `users.ensureCurrent` mutation for environments where webhooks aren't reachable. Indexed by `clerkId`.
 - `workspaces` — team workspaces. `ownerClerkId` is the creator.
-- `memberships` — many-to-many between users and workspaces. Roles: `owner`, `admin`, `member`. Always check membership before returning workspace data.
-- `spaces` — top-level containers. `parentType: "user" | "workspace"`. A user's personal space is auto-created on first webhook sync with `parentType: "user"`, `parentId: <clerkId>`.
+- `memberships` — many-to-many between users and workspaces. Roles: `owner`, `admin`, `member`.
+- `spaces` — top-level containers. `parentType: "user" | "workspace"`. A user's personal space is auto-created on first webhook sync (or first `ensureCurrent`) with `parentType: "user"`, `parentId: <clerkId>`.
+- `folders` — optional grouping inside a space.
+- `lists` — `parentType: "space" | "folder"` discriminated parent.
+- `tasks` — belong to a list. `status` is one of `open | in_progress | complete | closed`. `parentTaskId` makes a task a subtask of another.
 
-**Authorization rules** (enforce in every Convex function):
+**Authorization** is centralized in `convex/_authz.ts`. Every read/write resolves up the hierarchy (task → list → folder?/space → workspace?/user) and calls `canAccessSpace` to confirm either personal ownership or workspace membership. Use `requireListAccess`/`requireSpaceAccess`/`requireFolderAccess` rather than re-rolling checks in each function.
 
-- Any query/mutation that touches a workspace must verify the caller has a matching `memberships` row.
-- Personal-space mutations may only be performed when `parentId === identity.subject`.
-- The Clerk webhook is the only legitimate caller of `users.upsertFromClerk` / `users.deleteFromClerk` — keep these as `internalMutation`.
+- Public mutations: anything end-user invokable (`workspaces.create`, `tasks.update`, etc.).
+- Internal mutations: `users.upsertFromClerk`, `users.deleteFromClerk` — only callable from `convex/http.ts`. Never expose them.
 
 ## Conventions
 
@@ -107,7 +123,7 @@ You need **two terminals** in dev: one for `npx convex dev`, one for `npm run de
 - **Pill aesthetic.** Buttons use `rounded-full`. Header/footer cards use `rounded-3xl` or `rounded-[2rem]`. Keep the rhythm consistent.
 - **Responsive.** Mobile-first; use `md:`/`lg:` for desktop. Test at 360px, 768px, and 1280px before merging UI changes. Sidebar uses a drawer pattern below `md`.
 - **Apostrophes in JSX.** Escape as `&apos;` — `react/no-unescaped-entities` is enforced by `next lint`.
-- **Convex imports.** From the Next.js tree, use `convex/react` and `convex/react-clerk` (runtime). Generated types under `convex/_generated/` are gitignored; they appear after `npx convex dev` runs and can then be imported (e.g. `import { api } from "../../../convex/_generated/api"`).
+- **Convex imports.** From the Next.js tree, use `convex/react` and `convex/react-clerk` (runtime). Typed `api`/`Doc`/`Id` come from `convex/_generated/`, imported via the `@convex/*` path alias (e.g. `import { api } from "@convex/_generated/api"`). The `_generated/` files are checked in as hand-rolled stubs so a fresh checkout typechecks; `npx convex dev` and `npx convex deploy` overwrite them with the real generated content.
 
 ## Environment variables
 
@@ -136,17 +152,32 @@ When bringing up a fresh checkout:
 
 ## Things AI assistants should not do
 
-- **Don't commit anything to `convex/_generated/`** — it's regenerated by the Convex CLI.
+- **Don't manually edit `convex/_generated/`** — the Convex CLI overwrites these files. The committed versions are stubs that survive between dev runs; further hand-edits will be lost on the next `convex dev`/`deploy`.
 - **Don't add an `api/webhooks/clerk` route in Next.js.** The webhook lives in Convex's HTTP router (`convex/http.ts`) so secrets stay server-side and we avoid a hop.
 - **Don't make `users.upsertFromClerk` a public mutation.** Anyone could spoof identities.
 - **Don't gitignore `.env.example`** — it's the template.
 - **Don't introduce a new state library** (Redux, Zustand, etc.) for data that should live in Convex. Local UI state via `useState` is fine; persistent state should round-trip through Convex.
-- **Don't replace mock data without wiring Convex queries.** `src/lib/mock-data.ts` is intentionally a stand-in; when removing it, swap the call sites for real `useQuery(api.*)` hooks in the same change.
+- **Don't bypass `_authz.ts` helpers.** Every query/mutation that reads or writes a folder/list/task must resolve up the hierarchy with `requireListAccess`/`requireSpaceAccess`/`requireFolderAccess`.
 
-## Open work (not yet done)
+## Phased roadmap
 
-- Wire `useQuery(api.workspaces.listForCurrentUser)` into `DashboardSidebar`; remove `mockTeamWorkspaces`.
-- Wire `useMutation(api.workspaces.create)` into `OnboardingForm`; navigate to `/dashboard/w/<id>` on success.
-- Add a Resend email template + flow (e.g. workspace invite) — currently only the client wrapper exists.
-- Replace SVG icons with PNG variants (192, 512, maskable) for full PWA-installability across browsers.
-- Add task/list/doc models to `convex/schema.ts` and the corresponding UI in the dashboard.
+We are building this out in numbered phases, one PR each. See PR descriptions for what shipped in each.
+
+- **Phase 0 (PR #1):** Scaffold + marketing/auth/onboarding/dashboard shell + PWA.
+- **Phase 1 (current):** Hierarchy + tasks v1 — Spaces/Folders/Lists/Tasks, sidebar tree, list view with task CRUD, real Convex queries replacing mock data, onboarding wired.
+- **Phase 2:** Custom fields + per-list custom statuses.
+- **Phase 3:** Views — Board (Kanban), Calendar, Gantt, Timeline.
+- **Phase 4:** Comments, chat, mentions, realtime via Convex subscriptions.
+- **Phase 5:** Docs (Tiptap/Lexical) + Whiteboards (tldraw).
+- **Phase 6:** Time tracking + Goals + Dashboards/widgets.
+- **Phase 7:** Automations + recurring tasks.
+- **Phase 8:** Email integration + Clips (screen recording).
+- **Phase 9:** AI (Brain) — knowledge search, task auto-fill, summaries, writer.
+- **Phase 10:** Templates + 3rd-party integrations + Teams Hub.
+- **Phase 11:** Offline-first PWA polish + native app wrappers.
+
+## Known limitations (not bugs)
+
+- The committed `convex/_generated/` is a hand-rolled stub. Until you run `npx convex dev`, `useQuery`/`useMutation` calls return without strict argument checking on individual functions. Once the CLI overwrites it, full type safety kicks in.
+- Resend has no email flows wired — the wrapper exists but no template/sender code is built.
+- PWA icons are SVG-only; some Android variants prefer PNGs.

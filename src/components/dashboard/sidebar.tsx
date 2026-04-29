@@ -2,15 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { UserButton } from "@clerk/nextjs";
-import { Menu, Plus, X } from "lucide-react";
+import { useMutation, useQuery } from "convex/react";
+import { ChevronDown, ChevronRight, Menu, Plus, X } from "lucide-react";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
-import { mockPersonalSpaces, mockTeamWorkspaces } from "@/lib/mock-data";
+
+type SidebarTree = NonNullable<ReturnType<typeof useTreeQuery>>;
+type SpaceNode = SidebarTree["workspaces"][number]["spaces"][number];
+
+function useTreeQuery() {
+  return useQuery(api.sidebar.tree, {});
+}
 
 export function DashboardSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const pathname = usePathname();
+  const tree = useTreeQuery();
 
   return (
     <>
@@ -61,72 +70,18 @@ export function DashboardSidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto p-3">
-          <SectionHeader label="Personal" />
-          <ul className="mt-1 space-y-0.5">
-            {mockPersonalSpaces.map((space) => {
-              const href = `/dashboard/personal`;
-              return (
-                <li key={space.id}>
-                  <SidebarLink
-                    href={href}
-                    active={pathname === href}
-                    onNavigate={() => setMobileOpen(false)}
-                  >
-                    <Dot color={space.color} />
-                    {space.name}
-                  </SidebarLink>
-                </li>
-              );
-            })}
-          </ul>
-
-          <div className="mt-6 flex items-center justify-between">
-            <SectionHeader label="Team workspaces" />
-            <Link
-              href="/onboarding"
-              className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-              aria-label="Create workspace"
-              onClick={() => setMobileOpen(false)}
-            >
-              <Plus className="h-4 w-4" />
-            </Link>
-          </div>
-          <ul className="mt-1 space-y-3">
-            {mockTeamWorkspaces.map((ws) => {
-              const wsHref = `/dashboard/w/${ws.id}`;
-              return (
-                <li key={ws.id}>
-                  <SidebarLink
-                    href={wsHref}
-                    active={pathname === wsHref}
-                    onNavigate={() => setMobileOpen(false)}
-                  >
-                    <Dot color="#6366f1" />
-                    <span className="truncate">{ws.name}</span>
-                    <span className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {ws.role}
-                    </span>
-                  </SidebarLink>
-                  {ws.spaces.length > 0 && (
-                    <ul className="ml-6 mt-1 space-y-0.5 border-l border-border pl-2">
-                      {ws.spaces.map((space) => (
-                        <li key={space.id}>
-                          <SidebarLink
-                            href={`/dashboard/w/${ws.id}#${space.id}`}
-                            active={false}
-                            onNavigate={() => setMobileOpen(false)}
-                          >
-                            <Dot color={space.color} />
-                            {space.name}
-                          </SidebarLink>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          {tree === undefined ? (
+            <SidebarLoading />
+          ) : tree === null ? (
+            <p className="px-2 text-sm text-muted-foreground">
+              Sign in to see your spaces.
+            </p>
+          ) : (
+            <SidebarTreeView
+              tree={tree}
+              onNavigate={() => setMobileOpen(false)}
+            />
+          )}
         </nav>
 
         <div className="flex items-center gap-3 border-t border-border px-4 py-3">
@@ -138,47 +93,330 @@ export function DashboardSidebar() {
   );
 }
 
-function SectionHeader({ label }: { label: string }) {
+function SidebarLoading() {
   return (
-    <h3 className="px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-      {label}
-    </h3>
+    <div className="space-y-2 p-2">
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          className="h-6 animate-pulse rounded-2xl bg-muted"
+          style={{ width: `${60 + i * 10}%` }}
+        />
+      ))}
+    </div>
   );
 }
 
-function Dot({ color }: { color: string }) {
+function SidebarTreeView({
+  tree,
+  onNavigate,
+}: {
+  tree: SidebarTree;
+  onNavigate: () => void;
+}) {
   return (
-    <span
-      aria-hidden
-      className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
-      style={{ backgroundColor: color }}
-    />
+    <>
+      <SectionHeader label="Personal" />
+      {tree.personal ? (
+        <SpaceBranch space={tree.personal} onNavigate={onNavigate} />
+      ) : (
+        <p className="px-2 py-1 text-xs text-muted-foreground">Setting up…</p>
+      )}
+
+      <div className="mt-6 flex items-center justify-between">
+        <SectionHeader label="Team workspaces" />
+        <Link
+          href="/onboarding"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="Create workspace"
+          onClick={onNavigate}
+        >
+          <Plus className="h-4 w-4" />
+        </Link>
+      </div>
+      <ul className="mt-1 space-y-2">
+        {tree.workspaces.length === 0 && (
+          <li className="px-2 py-1 text-xs text-muted-foreground">
+            No team workspaces yet.
+          </li>
+        )}
+        {tree.workspaces.map((ws) => (
+          <li key={ws._id}>
+            <WorkspaceBranch workspace={ws} onNavigate={onNavigate} />
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
-function SidebarLink({
-  href,
+function WorkspaceBranch({
+  workspace,
+  onNavigate,
+}: {
+  workspace: SidebarTree["workspaces"][number];
+  onNavigate: () => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const createSpace = useMutation(api.spaces.create);
+
+  async function onAddSpace() {
+    const name = window.prompt("Space name");
+    if (!name) return;
+    await createSpace({
+      name,
+      parentType: "workspace",
+      parentId: workspace._id,
+    });
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          aria-label={expanded ? "Collapse" : "Expand"}
+          onClick={() => setExpanded((v) => !v)}
+          className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground"
+        >
+          {expanded ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
+        </button>
+        <Link
+          href={`/dashboard/w/${workspace._id}`}
+          onClick={onNavigate}
+          className="flex flex-1 items-center gap-1 truncate rounded-2xl px-2 py-1 text-sm font-medium hover:bg-muted"
+        >
+          <span className="truncate">{workspace.name}</span>
+          <span className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground">
+            {workspace.role}
+          </span>
+        </Link>
+        <button
+          type="button"
+          onClick={onAddSpace}
+          aria-label="Add space"
+          className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {expanded && (
+        <ul className="ml-4 mt-1 space-y-2 border-l border-border pl-2">
+          {workspace.spaces.length === 0 && (
+            <li className="px-2 py-1 text-xs text-muted-foreground">
+              No spaces yet.
+            </li>
+          )}
+          {workspace.spaces.map((space) => (
+            <li key={space._id}>
+              <SpaceBranch space={space} onNavigate={onNavigate} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function SpaceBranch({
+  space,
+  onNavigate,
+}: {
+  space: SpaceNode;
+  onNavigate: () => void;
+}) {
+  const pathname = usePathname();
+  const [expanded, setExpanded] = useState(true);
+  const createFolder = useMutation(api.folders.create);
+  const createList = useMutation(api.lists.create);
+
+  async function onAddFolder() {
+    const name = window.prompt("Folder name");
+    if (!name) return;
+    await createFolder({ spaceId: space._id, name });
+  }
+  async function onAddList() {
+    const name = window.prompt("List name");
+    if (!name) return;
+    await createList({ name, parentType: "space", parentId: space._id });
+  }
+
+  const dot = useMemo(
+    () => (
+      <span
+        aria-hidden
+        className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
+        style={{ backgroundColor: space.color ?? "#6366f1" }}
+      />
+    ),
+    [space.color],
+  );
+
+  return (
+    <div>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          aria-label={expanded ? "Collapse" : "Expand"}
+          onClick={() => setExpanded((v) => !v)}
+          className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground"
+        >
+          {expanded ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
+        </button>
+        <span className="flex flex-1 items-center gap-2 truncate rounded-2xl px-2 py-1 text-sm">
+          {dot}
+          <span className="truncate">{space.name}</span>
+        </span>
+        <button
+          type="button"
+          onClick={onAddFolder}
+          aria-label="Add folder"
+          title="Add folder"
+          className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {expanded && (
+        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border pl-2">
+          {space.folders.map((folder) => (
+            <li key={folder._id}>
+              <FolderBranch folder={folder} onNavigate={onNavigate} />
+            </li>
+          ))}
+          {space.lists.map((list) => (
+            <li key={list._id}>
+              <ListLink
+                listId={list._id}
+                name={list.name}
+                active={pathname === `/dashboard/l/${list._id}`}
+                onNavigate={onNavigate}
+              />
+            </li>
+          ))}
+          <li>
+            <button
+              type="button"
+              onClick={onAddList}
+              className="flex w-full items-center gap-1 rounded-2xl px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Plus className="h-3 w-3" /> Add list
+            </button>
+          </li>
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function FolderBranch({
+  folder,
+  onNavigate,
+}: {
+  folder: SpaceNode["folders"][number];
+  onNavigate: () => void;
+}) {
+  const pathname = usePathname();
+  const [expanded, setExpanded] = useState(true);
+  const createList = useMutation(api.lists.create);
+
+  async function onAddList() {
+    const name = window.prompt("List name");
+    if (!name) return;
+    await createList({ name, parentType: "folder", parentId: folder._id });
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          aria-label={expanded ? "Collapse" : "Expand"}
+          onClick={() => setExpanded((v) => !v)}
+          className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground"
+        >
+          {expanded ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
+        </button>
+        <span className="flex flex-1 items-center truncate rounded-2xl px-2 py-1 text-sm text-muted-foreground">
+          {folder.name}
+        </span>
+        <button
+          type="button"
+          onClick={onAddList}
+          aria-label="Add list"
+          title="Add list"
+          className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {expanded && (
+        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border pl-2">
+          {folder.lists.map((list) => (
+            <li key={list._id}>
+              <ListLink
+                listId={list._id}
+                name={list.name}
+                active={pathname === `/dashboard/l/${list._id}`}
+                onNavigate={onNavigate}
+              />
+            </li>
+          ))}
+          {folder.lists.length === 0 && (
+            <li className="px-2 py-1 text-xs text-muted-foreground">Empty</li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ListLink({
+  listId,
+  name,
   active,
   onNavigate,
-  children,
 }: {
-  href: string;
+  listId: Id<"lists">;
+  name: string;
   active: boolean;
   onNavigate: () => void;
-  children: React.ReactNode;
 }) {
   return (
     <Link
-      href={href}
+      href={`/dashboard/l/${listId}`}
       onClick={onNavigate}
       className={cn(
-        "flex items-center gap-2 rounded-2xl px-2 py-1.5 text-sm transition-colors",
+        "flex items-center gap-2 rounded-2xl px-2 py-1 text-sm transition-colors",
         active
           ? "bg-muted text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
-      {children}
+      <span aria-hidden>›</span>
+      <span className="truncate">{name}</span>
     </Link>
+  );
+}
+
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <h3 className="px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      {label}
+    </h3>
   );
 }
