@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -11,7 +11,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
+import { useUser } from "@clerk/nextjs";
 import {
   CheckSquare,
   FileText,
@@ -21,10 +22,12 @@ import {
   Search,
   Sparkles,
   User,
+  Wand2,
   X,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { useToast } from "@/components/dashboard/toast";
 import { cn } from "@/lib/utils";
 
 // The command palette is the central piece of Pace's "speed" promise.
@@ -84,12 +87,30 @@ type CommandItem = {
   icon: typeof Inbox;
 };
 
+type QuickItem = { kind: "quick"; query: string };
+
 const FALLBACK_COMMANDS: CommandItem[] = [
   { kind: "command", id: "home", label: "Go to Home", href: "/dashboard", icon: ListIcon },
   { kind: "command", id: "personal", label: "Go to Personal space", href: "/dashboard/personal", icon: ListIcon },
   { kind: "command", id: "inbox", label: "Go to Inbox", href: "/dashboard/inbox", icon: Inbox },
   { kind: "command", id: "brain", label: "Open Brain (AI search)", href: "/dashboard/brain", icon: Sparkles },
 ];
+
+// Look at the current pathname to decide the scope for Quick Task. Any
+// /dashboard/w/<id>/... route scopes to that workspace; everything else
+// scopes to the user's personal space (lists under their personal space
+// + assignment limited to themselves).
+function workspaceIdFromPath(pathname: string | null): Id<"workspaces"> | null {
+  if (!pathname) return null;
+  const m = pathname.match(/^\/dashboard\/w\/([^/]+)/);
+  return m ? (m[1] as Id<"workspaces">) : null;
+}
+
+function listIdFromPath(pathname: string | null): Id<"lists"> | null {
+  if (!pathname) return null;
+  const m = pathname.match(/^\/dashboard\/l\/([^/]+)/);
+  return m ? (m[1] as Id<"lists">) : null;
+}
 
 function CommandPalette({
   open,
@@ -99,14 +120,66 @@ function CommandPalette({
   onClose: () => void;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const { user } = useUser();
+  const { showUndo } = useToast();
+  const quickTask = useAction(api.ai.quickTask);
+  const removeTask = useMutation(api.tasks.remove);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLUListElement | null>(null);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [quickPending, setQuickPending] = useState(false);
 
   const hits = useQuery(
     api.search.palette,
     open && query.trim().length > 0 ? { q: query, limit: 12 } : "skip",
+  );
+
+  const workspaceId = workspaceIdFromPath(pathname);
+  const currentListId = listIdFromPath(pathname);
+
+  const runQuickTask = useCallback(
+    async (sentence: string) => {
+      const trimmed = sentence.trim();
+      if (!trimmed || quickPending) return;
+      const meSubject = user?.id;
+      if (!meSubject) return;
+      setQuickPending(true);
+      try {
+        const result = await quickTask({
+          prompt: trimmed,
+          scopeType: workspaceId ? "workspace" : "user",
+          scopeId: workspaceId ?? meSubject,
+          currentListId: currentListId ?? undefined,
+        });
+        if (result.ok) {
+          onClose();
+          router.push(`/dashboard/l/${result.listId}/t/${result.taskId}`);
+          showUndo({
+            label: result.explanation
+              ? `Added “${result.title}” — ${result.explanation}`
+              : `Added “${result.title}”`,
+            onUndo: () => removeTask({ taskId: result.taskId }),
+          });
+        } else {
+          alert(result.error);
+        }
+      } finally {
+        setQuickPending(false);
+      }
+    },
+    [
+      quickPending,
+      user,
+      workspaceId,
+      currentListId,
+      quickTask,
+      onClose,
+      router,
+      showUndo,
+      removeTask,
+    ],
   );
 
   // Reset state on open/close.
@@ -133,9 +206,17 @@ function CommandPalette({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  const items: (Hit | CommandItem)[] = useMemo(() => {
-    if (!query.trim()) return FALLBACK_COMMANDS;
-    return hits ?? [];
+  const items: (Hit | CommandItem | QuickItem)[] = useMemo(() => {
+    const trimmed = query.trim();
+    if (!trimmed) return FALLBACK_COMMANDS;
+    const search = hits ?? [];
+    // Show "Create task" once the query has enough signal to be useful
+    // (3+ chars). It pins to the bottom so it doesn't push real matches
+    // off the visible list.
+    if (trimmed.length >= 3) {
+      return [...search, { kind: "quick", query: trimmed } as QuickItem];
+    }
+    return search;
   }, [hits, query]);
 
   // Clamp the active index when the result set shrinks.
@@ -144,13 +225,17 @@ function CommandPalette({
   }, [items.length, activeIndex]);
 
   const navigate = useCallback(
-    (item: Hit | CommandItem) => {
+    (item: Hit | CommandItem | QuickItem) => {
+      if (item.kind === "quick") {
+        runQuickTask(item.query);
+        return;
+      }
       const href = hrefForItem(item);
       if (!href) return;
       router.push(href);
       onClose();
     },
-    [router, onClose],
+    [router, onClose, runQuickTask],
   );
 
   function onKeyDownInput(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -248,7 +333,10 @@ function CommandPalette({
                     )}
                   >
                     <ItemIcon item={item} />
-                    <ItemLabel item={item} />
+                    <ItemLabel
+                      item={item}
+                      pending={item.kind === "quick" && quickPending}
+                    />
                     <span className="ml-auto text-xs text-muted-foreground">
                       {kindLabel(item)}
                     </span>
@@ -285,7 +373,8 @@ function CommandPalette({
   );
 }
 
-function ItemIcon({ item }: { item: Hit | CommandItem }) {
+function ItemIcon({ item }: { item: Hit | CommandItem | QuickItem }) {
+  if (item.kind === "quick") return <Wand2 className="h-4 w-4 text-accent-600" aria-hidden />;
   if (item.kind === "command") {
     const Icon = item.icon;
     return <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />;
@@ -297,7 +386,21 @@ function ItemIcon({ item }: { item: Hit | CommandItem }) {
   return <User className="h-4 w-4 text-muted-foreground" aria-hidden />;
 }
 
-function ItemLabel({ item }: { item: Hit | CommandItem }) {
+function ItemLabel({
+  item,
+  pending,
+}: {
+  item: Hit | CommandItem | QuickItem;
+  pending: boolean;
+}) {
+  if (item.kind === "quick") {
+    return (
+      <span className="truncate">
+        {pending ? "Creating…" : "Create task:"}{" "}
+        <span className="font-medium text-foreground">{item.query}</span>
+      </span>
+    );
+  }
   if (item.kind === "command") return <span className="truncate">{item.label}</span>;
   if (item.kind === "list") return <span className="truncate">{item.name}</span>;
   if (item.kind === "task") return <span className="truncate">{item.title}</span>;
@@ -311,11 +414,13 @@ function ItemLabel({ item }: { item: Hit | CommandItem }) {
   );
 }
 
-function kindLabel(item: Hit | CommandItem): string {
+function kindLabel(item: Hit | CommandItem | QuickItem): string {
+  if (item.kind === "quick") return "AI";
   return item.kind === "command" ? "command" : item.kind;
 }
 
-function keyForItem(item: Hit | CommandItem): string {
+function keyForItem(item: Hit | CommandItem | QuickItem): string {
+  if (item.kind === "quick") return "quick";
   if (item.kind === "command") return `cmd:${item.id}`;
   if (item.kind === "person") return `person:${item.clerkId}`;
   return `${item.kind}:${item.id}`;

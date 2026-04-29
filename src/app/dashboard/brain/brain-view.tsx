@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useAction, useQuery } from "convex/react";
 import { Sparkles } from "lucide-react";
@@ -19,6 +20,18 @@ type Source = {
 export function Brain() {
   const tree = useQuery(api.sidebar.tree, {});
   const brainSearch = useAction(api.ai.brainSearch);
+  const searchParams = useSearchParams();
+
+  // "Ask Brain" links from task / list / doc pages drop the entity id
+  // into the URL. We resolve a friendly title for the chip and forward
+  // the id to the action so the model gets the surrounding context.
+  const taskId = (searchParams.get("taskId") as Id<"tasks"> | null) ?? null;
+  const listId = (searchParams.get("listId") as Id<"lists"> | null) ?? null;
+  const docId = (searchParams.get("docId") as Id<"docs"> | null) ?? null;
+  const taskMeta = useQuery(
+    api.tasks.resolveLocation,
+    taskId ? { taskId } : "skip",
+  );
 
   const [scopeKey, setScopeKey] = useState<string>("personal");
   const [query, setQuery] = useState("");
@@ -66,6 +79,9 @@ export function Brain() {
         scopeType: activeScope.type,
         scopeId: activeScope.id,
         query: query.trim(),
+        currentTaskId: taskId ?? undefined,
+        currentListId: listId ?? undefined,
+        currentDocId: docId ?? undefined,
       });
       setAnswer(res.answer);
       setSources(res.sources);
@@ -86,6 +102,18 @@ export function Brain() {
           Ask a question about your tasks and docs. Answers cite sources.
         </p>
       </header>
+
+      {(taskMeta || listId || docId) && (
+        <div className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs text-brand-700">
+          <Sparkles className="h-3 w-3" aria-hidden />
+          About{" "}
+          {taskMeta
+            ? `task “${taskMeta.title}”`
+            : listId
+              ? "this list"
+              : "this doc"}
+        </div>
+      )}
 
       <form onSubmit={ask} className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
