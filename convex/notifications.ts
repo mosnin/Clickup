@@ -93,6 +93,40 @@ export const sendAssignmentEmail = internalAction({
   },
 });
 
+export const sendInviteEmail = internalAction({
+  args: {
+    toEmail: v.string(),
+    fromName: v.string(),
+    workspaceName: v.string(),
+    role: v.string(),
+    token: v.string(),
+  },
+  handler: async (_, args) => {
+    const provider = makeResend();
+    if (!provider) return;
+    const baseUrl =
+      process.env.PACE_PUBLIC_URL ?? "https://your-app.vercel.app";
+    const link = `${baseUrl.replace(/\/$/, "")}/invite/${args.token}`;
+    try {
+      await provider.client.emails.send({
+        from: provider.from,
+        to: [args.toEmail],
+        subject: `${args.fromName} invited you to ${args.workspaceName} on Pace`,
+        text: [
+          `${args.fromName} invited you to join ${args.workspaceName} on Pace as a ${args.role}.`,
+          ``,
+          `Accept the invite:`,
+          `  ${link}`,
+          ``,
+          `Pace is the work app that gets out of your way.`,
+        ].join("\n"),
+      });
+    } catch (err) {
+      console.warn("[notifications] sendInviteEmail failed:", err);
+    }
+  },
+});
+
 // Outbound Slack post via incoming webhook. Webhook URL is read from the
 // integration row by tasks.ts and passed in here, so this action stays
 // independent of the data model.

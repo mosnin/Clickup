@@ -48,12 +48,35 @@ export default defineSchema({
       v.literal("owner"),
       v.literal("admin"),
       v.literal("member"),
+      v.literal("viewer"),
     ),
     joinedAt: v.number(),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_user", ["userClerkId"])
     .index("by_user_and_workspace", ["userClerkId", "workspaceId"]),
+
+  // One row per outstanding workspace invite. Token lives in the URL —
+  // anybody with the token + a Pace account can accept. Owner / admin
+  // creates and revokes; the invitee accepts.
+  invitations: defineTable({
+    workspaceId: v.id("workspaces"),
+    email: v.string(), // lowercased; not necessarily unique (resend allowed)
+    role: v.union(
+      v.literal("admin"),
+      v.literal("member"),
+      v.literal("viewer"),
+    ),
+    token: v.string(),
+    inviterClerkId: v.string(),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    acceptedAt: v.optional(v.number()),
+    acceptedByClerkId: v.optional(v.string()),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_token", ["token"]),
 
   spaces: defineTable({
     name: v.string(),

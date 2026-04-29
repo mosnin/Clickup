@@ -22,6 +22,7 @@ import type * as folders from "../folders.js";
 import type * as goals from "../goals.js";
 import type * as http from "../http.js";
 import type * as integrations from "../integrations.js";
+import type * as invitations from "../invitations.js";
 import type * as listAutomations from "../listAutomations.js";
 import type * as listStatuses from "../listStatuses.js";
 import type * as lists from "../lists.js";
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   goals: typeof goals;
   http: typeof http;
   integrations: typeof integrations;
+  invitations: typeof invitations;
   listAutomations: typeof listAutomations;
   listStatuses: typeof listStatuses;
   lists: typeof lists;
