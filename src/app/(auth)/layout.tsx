@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PaceWordmark } from "@/components/brand/pace-mark";
 
 export default function AuthLayout({
   children,
@@ -8,15 +9,8 @@ export default function AuthLayout({
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="px-4 pt-6 sm:px-8">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-sm font-semibold tracking-tight"
-        >
-          <span
-            aria-hidden
-            className="inline-block h-6 w-6 rounded-full bg-brand-600"
-          />
-          ClickUp Clone
+        <Link href="/">
+          <PaceWordmark />
         </Link>
       </header>
       <main className="flex flex-1 items-center justify-center px-4 py-12">

@@ -18,9 +18,12 @@ import {
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PaceWordmark } from "@/components/brand/pace-mark";
 import { RunningTimerChip } from "@/components/dashboard/running-timer-chip";
 import { TemplatePicker } from "@/components/dashboard/template-picker";
+import { useCommandPalette } from "@/components/dashboard/command-palette";
 
 type SidebarTree = NonNullable<ReturnType<typeof useTreeQuery>>;
 type SpaceNode = SidebarTree["workspaces"][number]["spaces"][number];
@@ -62,14 +65,9 @@ export function DashboardSidebar() {
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 text-sm font-semibold"
             onClick={() => setMobileOpen(false)}
           >
-            <span
-              aria-hidden
-              className="inline-block h-6 w-6 rounded-full bg-brand-600"
-            />
-            ClickUp Clone
+            <PaceWordmark />
           </Link>
           <button
             type="button"
@@ -83,13 +81,14 @@ export function DashboardSidebar() {
 
         <nav className="flex-1 overflow-y-auto p-3">
           <RunningTimerChip />
+          <SearchButton onNavigate={() => setMobileOpen(false)} />
           <BrainLink onNavigate={() => setMobileOpen(false)} />
           <InboxLink onNavigate={() => setMobileOpen(false)} />
           {tree === undefined ? (
             <SidebarLoading />
           ) : tree === null ? (
             <p className="px-2 text-sm text-muted-foreground">
-              Sign in to see your spaces.
+              Sign in.
             </p>
           ) : (
             <SidebarTreeView
@@ -105,6 +104,26 @@ export function DashboardSidebar() {
         </div>
       </aside>
     </>
+  );
+}
+
+function SearchButton({ onNavigate }: { onNavigate: () => void }) {
+  const { open } = useCommandPalette();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        onNavigate();
+        open();
+      }}
+      className="mb-1 flex w-full items-center gap-2 rounded-2xl px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    >
+      <Search className="h-4 w-4" />
+      <span className="flex-1 text-left">Search</span>
+      <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+        ⌘K
+      </kbd>
+    </button>
   );
 }
 

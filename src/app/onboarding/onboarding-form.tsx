@@ -44,11 +44,11 @@ export function OnboardingForm() {
           maxLength={48}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Acme Inc."
+          placeholder="Acme"
           className="mt-2 w-full rounded-full border border-border bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
         <span className="mt-2 block text-xs text-muted-foreground">
-          You can invite teammates after creating the workspace.
+          Invite teammates after this — or skip and use Pace solo.
         </span>
       </label>
 
@@ -60,7 +60,7 @@ export function OnboardingForm() {
 
       <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
         <Button type="button" variant="ghost" onClick={skip} disabled={pending}>
-          Skip for now
+          Use Pace solo
         </Button>
         <Button type="submit" disabled={pending}>
           {pending ? "Creating…" : "Create workspace"}

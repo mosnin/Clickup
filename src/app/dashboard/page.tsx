@@ -21,7 +21,11 @@ export default function DashboardHome() {
           Home
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Jump back into your spaces and team workspaces.
+          Press{" "}
+          <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[11px]">
+            ⌘K
+          </kbd>{" "}
+          to jump anywhere.
         </p>
       </header>
 
@@ -77,14 +81,14 @@ export default function DashboardHome() {
         <ul className="mt-3 grid gap-3 sm:grid-cols-2">
           {tree.workspaces.length === 0 && (
             <li className="rounded-3xl border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground sm:col-span-2">
-              You&apos;re not in any team workspaces yet.{" "}
+              No team yet.{" "}
               <Link
                 href="/onboarding"
                 className="font-medium text-brand-600 hover:underline"
               >
-                Create one
-              </Link>
-              .
+                Create a workspace
+              </Link>{" "}
+              and invite a teammate.
             </li>
           )}
           {tree.workspaces.map((ws) => (

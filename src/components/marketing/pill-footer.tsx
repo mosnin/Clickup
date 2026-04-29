@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PaceWordmark } from "@/components/brand/pace-mark";
 
 const SECTIONS = [
   {
@@ -30,18 +31,11 @@ export function PillFooter() {
       <div className="mx-auto max-w-6xl rounded-3xl border border-border bg-muted/40 p-6 sm:rounded-[2rem] sm:p-10">
         <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4">
           <div>
-            <Link
-              href="/"
-              className="flex items-center gap-2 text-sm font-semibold"
-            >
-              <span
-                aria-hidden
-                className="inline-block h-6 w-6 rounded-full bg-brand-600"
-              />
-              ClickUp Clone
+            <Link href="/">
+              <PaceWordmark />
             </Link>
             <p className="mt-3 text-sm text-muted-foreground">
-              One app to replace them all.
+              The work app that gets out of your way.
             </p>
           </div>
           {SECTIONS.map((section) => (
@@ -66,10 +60,10 @@ export function PillFooter() {
         </div>
         <div className="mt-10 flex flex-col items-start justify-between gap-3 border-t border-border pt-6 sm:flex-row sm:items-center">
           <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} ClickUp Clone. All rights reserved.
+            © {new Date().getFullYear()} Pace. All rights reserved.
           </p>
           <p className="text-xs text-muted-foreground">
-            Built with Next.js · Convex · Clerk · Resend
+            Press <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px]">⌘K</kbd> from anywhere in the app.
           </p>
         </div>
       </div>

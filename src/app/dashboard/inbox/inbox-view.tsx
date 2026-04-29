@@ -49,7 +49,11 @@ export function Inbox() {
 
       {mentions.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
-          When someone @mentions you, it&apos;ll show up here.
+          Mentions land here. Try{" "}
+          <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[11px]">
+            @
+          </kbd>{" "}
+          in any comment to ping a teammate.
         </div>
       ) : (
         <ul className="space-y-2">

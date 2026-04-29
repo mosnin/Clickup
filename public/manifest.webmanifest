@@ -1,13 +1,13 @@
 {
-  "name": "ClickUp Clone",
-  "short_name": "ClickUp",
-  "description": "Tasks, docs, goals, and chat in a single workspace.",
+  "name": "Pace",
+  "short_name": "Pace",
+  "description": "The work app that gets out of your way.",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#ffffff",
-  "theme_color": "#4f46e5",
+  "theme_color": "#059669",
   "icons": [
     {
       "src": "/icon-192.png",

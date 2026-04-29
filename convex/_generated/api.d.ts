@@ -28,6 +28,7 @@ import type * as mentions from "../mentions.js";
 import type * as messages from "../messages.js";
 import type * as notifications from "../notifications.js";
 import type * as reports from "../reports.js";
+import type * as search from "../search.js";
 import type * as sidebar from "../sidebar.js";
 import type * as spaces from "../spaces.js";
 import type * as taskFieldValues from "../taskFieldValues.js";
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   messages: typeof messages;
   notifications: typeof notifications;
   reports: typeof reports;
+  search: typeof search;
   sidebar: typeof sidebar;
   spaces: typeof spaces;
   taskFieldValues: typeof taskFieldValues;

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PaceWordmark } from "@/components/brand/pace-mark";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -21,15 +22,8 @@ export function PillHeader() {
         aria-label="Primary"
         className="mx-auto flex max-w-6xl items-center justify-between gap-2 rounded-full border border-border bg-background/80 px-3 py-2 shadow-sm backdrop-blur-md sm:px-5"
       >
-        <Link
-          href="/"
-          className="flex items-center gap-2 px-2 text-sm font-semibold tracking-tight"
-        >
-          <span
-            aria-hidden
-            className="inline-block h-6 w-6 rounded-full bg-brand-600"
-          />
-          ClickUp Clone
+        <Link href="/" className="px-2">
+          <PaceWordmark />
         </Link>
 
         <ul className="hidden items-center gap-1 md:flex">

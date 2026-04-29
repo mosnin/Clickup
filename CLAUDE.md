@@ -4,7 +4,16 @@ Guidance for Claude Code (and other AI assistants) working in this repository.
 
 ## What this is
 
-A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals and teams. Each account has one **personal space** (private to the user) and zero or more **team workspaces** (shared with members). The current commit is a working scaffold with the marketing site, auth flow, onboarding, and dashboard shell wired up; most domain features (tasks, docs, etc.) are not yet implemented.
+**Pace** — a productivity app whose one job is to not slow you down. Tasks, docs, chat, goals, all the usual surfaces, but the product position is **speed**: ⌘K everywhere, AI that takes action, mobile-first interactions, instant-feeling realtime.
+
+The codebase is still a ClickUp-style hierarchy under the hood: each account has one **personal space** (private to the user) and zero or more **team workspaces** (shared with members). The brand is Pace; the architecture is what we built across phases 0–11.
+
+**Identity guardrails for future agents:**
+- The product name is **Pace** — never "ClickUp Clone" in user-facing copy.
+- Tagline: *"Find your pace."* / *"The work app that gets out of your way."*
+- The differentiator is **speed**, not feature parity. New features either make the user faster or stay out of the way. If a change can't justify itself on those terms, push back.
+- Palette: emerald (`--color-brand-*` resolves to emerald) primary, amber (`--color-accent-*`) for AI / urgency / the leading dot in the mark.
+- Voice: terse, confident. Empty states *teach* (mention `⌘K`, point at a template). Buttons say what they do. Errors are honest.
 
 ## Stack
 
@@ -241,7 +250,10 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - **Phase 8:** Outbound email notifications via Resend (mentions and task assignments, scheduled via `ctx.scheduler.runAfter` so they don't block the originating mutation) and Clips (browser screen+mic recording uploaded to Convex file storage, played back in the task detail).
 - **Phase 9:** AI Brain on the OpenAI API — semantic search over docs + tasks (`text-embedding-3-small` vectors, RAG via `gpt-4o-mini`), AI writer (continue/summarize) inside docs, and one-click task description draft.
 - **Phase 10:** List templates (Software sprint / Marketing campaign / Personal to-do / Sales pipeline — each seeds list + statuses + custom fields + sample tasks in one transaction), Slack integration (incoming-webhook posts on task assignment), Teams Hub (per-member workload, week stats, currently-running timer) + new workspace Settings tab.
-- **Phase 11 (current):** Offline-first PWA polish via `@serwist/next` (Workbox-style precache + runtime caching, navigation preload, network-first navigation with offline fallback) and a `capacitor.config.ts` for iOS/Android wrapping using the remote-web-app pattern. Live offline indicator surfaces queued mutations.
+- **Phase 11:** Offline-first PWA polish via `@serwist/next` (Workbox-style precache + runtime caching, navigation preload, network-first navigation with offline fallback) and a `capacitor.config.ts` for iOS/Android wrapping using the remote-web-app pattern. Live offline indicator surfaces queued mutations.
+- **Polish (post-phase-11):** Task → list resolver, comment indexing in Brain, member picker for `assign_user`, calendar drag-to-reschedule, last-used view persisted per list, sharp-generated PNG icons.
+- **Pace Step 0 (current):** Rebrand — name, emerald palette, voice, marketing rebuild, onboarding copy. Shared `<PaceMark />` / `<PaceWordmark />` brand component used at every entry point (pill header, pill footer, sidebar, auth, onboarding).
+- **Pace Step 1 (current):** Command palette + keyboard shortcuts. `convex/search.ts` palette query (cross-table substring search across tasks/lists/docs/whiteboards/people, scoped to the user's personal + workspace memberships). `<CommandPaletteProvider />` + `<KeyboardShortcuts />` mounted in the dashboard layout. ⌘K opens the palette anywhere, `/` opens it from outside text inputs, `?` toggles a cheat sheet. Sidebar gains a Search button with the ⌘K affordance.
 
 ## Known limitations (not bugs)
 

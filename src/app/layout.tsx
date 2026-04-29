@@ -6,19 +6,19 @@ import { OfflineIndicator } from "@/components/offline-indicator";
 
 export const metadata: Metadata = {
   title: {
-    default: "ClickUp Clone",
-    template: "%s · ClickUp Clone",
+    default: "Pace — Find your pace.",
+    template: "%s · Pace",
   },
-  description: "One app to replace them all — tasks, docs, goals, and chat.",
+  description: "The work app that gets out of your way.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icon.svg",
     apple: "/icon.svg",
   },
-  applicationName: "ClickUp Clone",
+  applicationName: "Pace",
   appleWebApp: {
     capable: true,
-    title: "ClickUp Clone",
+    title: "Pace",
     statusBarStyle: "default",
   },
   formatDetection: { telephone: false },

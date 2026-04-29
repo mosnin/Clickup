@@ -42,9 +42,9 @@ export default function PersonalPage() {
       {personal.folders.length === 0 && directLists.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-10 text-center">
           <p className="text-sm text-muted-foreground">
-            No lists yet. Use the <span className="font-medium">+</span> next to{" "}
-            <span className="font-medium">{personal.name}</span> in the sidebar
-            to add a list or folder.
+            Empty for now. Add a list from the sidebar — or pick a starter
+            template like <span className="font-medium">Personal to-do</span>{" "}
+            and you&apos;ll have something to react to in 30 seconds.
           </p>
         </div>
       ) : (

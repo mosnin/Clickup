@@ -17,8 +17,8 @@ import type { CapacitorConfig } from "@capacitor/cli";
 //
 // Update `server.url` to your real production URL before publishing.
 const config: CapacitorConfig = {
-  appId: "com.clickupclone.app",
-  appName: "ClickUp Clone",
+  appId: "com.pace.app",
+  appName: "Pace",
   // webDir is required by Capacitor but unused when `server.url` is set.
   webDir: "public",
   server: {
