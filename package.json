@@ -20,6 +20,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@serwist/next": "^9.0.11",
+    "@tiptap/extension-collaboration": "^2.10.3",
     "@tiptap/pm": "^2.10.3",
     "@tiptap/react": "^2.10.3",
     "@tiptap/starter-kit": "^2.10.3",
@@ -36,7 +37,9 @@
     "serwist": "^9.0.11",
     "svix": "^1.45.0",
     "tailwind-merge": "^2.6.0",
-    "tldraw": "^3.5.0"
+    "tldraw": "^3.5.0",
+    "y-prosemirror": "^1.2.12",
+    "yjs": "^13.6.20"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",

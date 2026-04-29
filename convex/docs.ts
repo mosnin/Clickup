@@ -85,17 +85,10 @@ export const rename = mutation({
   },
 });
 
-export const updateContent = mutation({
-  args: { docId: v.id("docs"), content: v.any() },
-  handler: async (ctx, { docId, content }) => {
-    await requireIdentity(ctx);
-    const doc = await ctx.db.get(docId);
-    if (!doc) throw new Error("Doc not found");
-    await requireDocLikeParentAccess(ctx, doc.parentType, doc.parentId);
-    await ctx.db.patch(docId, { content, updatedAt: Date.now() });
-    await ctx.scheduler.runAfter(0, internal.ai.indexDocument, { docId });
-  },
-});
+// Note: docs.updateContent is gone — the editor pushes Yjs updates via
+// docUpdates.append now. Keep `content` (Tiptap JSON) on the doc as a
+// legacy seed; useYjsDoc pulls from it on first open and never writes
+// to it again.
 
 // Soft-delete the doc. Embedding gets dropped immediately so search
 // doesn't surface it; restore re-indexes.
@@ -125,12 +118,20 @@ export const restore = mutation({
   },
 });
 
+// Hard-delete: remove the doc + every Yjs update tied to it. Called by
+// the user's "Permanently delete" button in trash and by the daily
+// purge cron.
 export const purge = mutation({
   args: { docId: v.id("docs") },
   handler: async (ctx, { docId }) => {
     const doc = await ctx.db.get(docId);
     if (!doc) return;
     await requireDocLikeParentAccess(ctx, doc.parentType, doc.parentId);
+    const updates = await ctx.db
+      .query("docUpdates")
+      .withIndex("by_doc_seq", (q) => q.eq("docId", docId))
+      .collect();
+    for (const u of updates) await ctx.db.delete(u._id);
     await ctx.db.delete(docId);
     await ctx.scheduler.runAfter(0, internal.ai.dropEmbeddings, {
       parentType: "doc",

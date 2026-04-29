@@ -312,8 +312,14 @@ export default defineSchema({
     .index("by_message", ["messageId"]),
 
   // Rich-text documents. Belong to a workspace, a space, or a personal
-  // user (same `parentType` discriminant pattern as spaces). `content`
-  // is Tiptap/ProseMirror JSON.
+  // user (same `parentType` discriminant pattern as spaces).
+  //
+  // Authoritative state is now a Yjs CRDT. We keep two pieces:
+  //   - `snapshot`: a compacted Yjs document state (encodeStateAsUpdate)
+  //   - `snapshotSequence`: the docUpdates sequence number that
+  //     snapshot incorporates. Clients sync from here forward.
+  // Legacy `content` (Tiptap JSON) stays around for older docs and
+  // gets seeded into the Y.Doc on first open.
   docs: defineTable({
     parentType: v.union(
       v.literal("user"),
@@ -322,12 +328,27 @@ export default defineSchema({
     ),
     parentId: v.string(),
     title: v.string(),
-    content: v.any(),
+    content: v.optional(v.any()), // legacy Tiptap JSON; used only as seed
+    snapshot: v.optional(v.bytes()),
+    snapshotSequence: v.optional(v.number()),
     createdByClerkId: v.string(),
     updatedAt: v.number(),
     createdAt: v.number(),
     deletedAt: v.optional(v.number()),
   }).index("by_parent", ["parentType", "parentId"]),
+
+  // Yjs update log per doc. Each row is one Yjs binary update from a
+  // single client transaction. Compaction folds N updates into the
+  // doc's `snapshot` and prunes the rows. Sequence is monotonic per
+  // doc (computed from max(sequence)+1 on insert; OCC retries handle
+  // concurrent inserts).
+  docUpdates: defineTable({
+    docId: v.id("docs"),
+    sequence: v.number(),
+    update: v.bytes(),
+    authorClerkId: v.string(),
+    createdAt: v.number(),
+  }).index("by_doc_seq", ["docId", "sequence"]),
 
   // Whiteboards backed by tldraw. `snapshot` is the tldraw store snapshot.
   whiteboards: defineTable({

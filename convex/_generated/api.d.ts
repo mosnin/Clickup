@@ -17,6 +17,7 @@ import type * as ai from "../ai.js";
 import type * as clips from "../clips.js";
 import type * as crons from "../crons.js";
 import type * as customFields from "../customFields.js";
+import type * as docUpdates from "../docUpdates.js";
 import type * as docs from "../docs.js";
 import type * as folders from "../folders.js";
 import type * as goals from "../goals.js";
@@ -43,6 +44,7 @@ import type * as trash from "../trash.js";
 import type * as users from "../users.js";
 import type * as whiteboards from "../whiteboards.js";
 import type * as workspaces from "../workspaces.js";
+import type * as yjs from "../yjs.js";
 
 declare const fullApi: ApiFromModules<{
   _authz: typeof _authz;
@@ -50,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   clips: typeof clips;
   crons: typeof crons;
   customFields: typeof customFields;
+  docUpdates: typeof docUpdates;
   docs: typeof docs;
   folders: typeof folders;
   goals: typeof goals;
@@ -76,6 +79,7 @@ declare const fullApi: ApiFromModules<{
   users: typeof users;
   whiteboards: typeof whiteboards;
   workspaces: typeof workspaces;
+  yjs: typeof yjs;
 }>;
 
 export declare const api: FilterApi<

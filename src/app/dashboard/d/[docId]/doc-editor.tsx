@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
-import { useAction } from "convex/react";
-import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useAction } from "convex/react";
+import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import Collaboration from "@tiptap/extension-collaboration";
 import {
   ArrowLeft,
   Bold,
@@ -24,64 +24,54 @@ import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { PresenceStack } from "@/components/dashboard/presence-stack";
 import { usePresence } from "@/lib/use-presence";
+import { useYjsDoc } from "@/lib/use-yjs-doc";
 import { cn } from "@/lib/utils";
-
-const SAVE_DEBOUNCE_MS = 800;
 
 export function DocEditor({ docId }: { docId: string }) {
   const id = docId as Id<"docs">;
-  const doc = useQuery(api.docs.get, { docId: id });
-  const updateContent = useMutation(api.docs.updateContent);
+  const docMeta = useQuery(api.docs.get, { docId: id });
   const rename = useMutation(api.docs.rename);
   const remove = useMutation(api.docs.remove);
   const viewers = usePresence({ focusType: "doc", focusId: id });
 
+  // Y.Doc + sync. The hook handles snapshot load, incoming-update
+  // application, legacy seed, and outbound mutation pushes. The editor
+  // below treats it as the source of truth via the Collaboration
+  // extension; we never call setContent() directly.
+  const { ydoc, status } = useYjsDoc(id);
+
   const [title, setTitle] = useState("");
-  const [savedAt, setSavedAt] = useState<number | null>(null);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Tiptap is initialized once, with the doc's content. We hand the
-  // editor an empty doc until the query resolves, then push the real
-  // content via setContent below.
-  const editor = useEditor({
-    extensions: [StarterKit],
-    content: undefined,
-    editorProps: {
-      attributes: {
-        class:
-          "prose prose-sm sm:prose max-w-none min-h-[60vh] focus:outline-none",
+  // Tiptap editor: Collaboration extension binds to the Y.Doc. We pass
+  // a stable ydoc reference (the hook owns its lifecycle), so the
+  // editor doesn't recreate on every render. immediatelyRender:false
+  // because we still want SSR-clean markup.
+  const editor = useEditor(
+    {
+      extensions: [
+        // StarterKit's history conflicts with Yjs's undo manager; turn
+        // it off so Collaboration owns undo/redo.
+        StarterKit.configure({ history: false }),
+        Collaboration.configure({ document: ydoc }),
+      ],
+      editorProps: {
+        attributes: {
+          class:
+            "prose prose-sm sm:prose max-w-none min-h-[60vh] focus:outline-none",
+        },
       },
+      immediatelyRender: false,
     },
-    immediatelyRender: false,
-    onUpdate({ editor }) {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      const json = editor.getJSON();
-      saveTimerRef.current = setTimeout(() => {
-        updateContent({ docId: id, content: json }).then(() => {
-          setSavedAt(Date.now());
-        });
-      }, SAVE_DEBOUNCE_MS);
-    },
-  });
+    // The Y.Doc instance is what makes editor identity meaningful here.
+    [ydoc],
+  );
 
   useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, []);
+    if (docMeta && title === "") setTitle(docMeta.title);
+  }, [docMeta, title]);
 
-  // Initial content + title sync. Only run when the doc id changes or
-  // when the editor mounts to avoid clobbering local edits.
-  const initialized = useRef(false);
-  useEffect(() => {
-    if (!editor || !doc || initialized.current) return;
-    editor.commands.setContent((doc.content as JSONContent) ?? "");
-    setTitle(doc.title);
-    initialized.current = true;
-  }, [editor, doc]);
-
-  if (doc === undefined) return <DocSkeleton />;
-  if (doc === null) {
+  if (docMeta === undefined) return <DocSkeleton />;
+  if (docMeta === null) {
     return (
       <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
@@ -108,7 +98,7 @@ export function DocEditor({ docId }: { docId: string }) {
         </Link>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <PresenceStack viewers={viewers} size={6} />
-          {savedAt && <span>Saved {timeAgo(savedAt)}</span>}
+          <SyncBadge status={status} />
           <button
             type="button"
             onClick={() => {
@@ -130,10 +120,10 @@ export function DocEditor({ docId }: { docId: string }) {
         value={title}
         onChange={(e) => setTitle(e.currentTarget.value)}
         onBlur={() => {
-          if (title.trim() && title !== doc.title) {
+          if (title.trim() && title !== docMeta.title) {
             rename({ docId: id, title: title.trim() });
           } else if (!title.trim()) {
-            setTitle(doc.title);
+            setTitle(docMeta.title);
           }
         }}
         placeholder="Untitled"
@@ -146,6 +136,30 @@ export function DocEditor({ docId }: { docId: string }) {
       </div>
       <AiWriterRow editor={editor} />
     </div>
+  );
+}
+
+function SyncBadge({ status }: { status: "loading" | "synced" | "missing" }) {
+  if (status === "loading") {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <span
+          aria-hidden
+          className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500"
+        />
+        Loading
+      </span>
+    );
+  }
+  if (status === "missing") return null;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        aria-hidden
+        className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"
+      />
+      Synced
+    </span>
   );
 }
 
@@ -322,13 +336,4 @@ function DocSkeleton() {
       <div className="h-64 w-full animate-pulse rounded-3xl bg-muted/40" />
     </div>
   );
-}
-
-function timeAgo(ts: number): string {
-  const sec = Math.max(1, Math.floor((Date.now() - ts) / 1000));
-  if (sec < 60) return `${sec}s ago`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  return `${hr}h ago`;
 }
