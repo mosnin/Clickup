@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
-import { ChevronDown, ChevronRight, Menu, Plus, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Inbox, Menu, Plus, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
@@ -70,6 +70,7 @@ export function DashboardSidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto p-3">
+          <InboxLink onNavigate={() => setMobileOpen(false)} />
           {tree === undefined ? (
             <SidebarLoading />
           ) : tree === null ? (
@@ -90,6 +91,33 @@ export function DashboardSidebar() {
         </div>
       </aside>
     </>
+  );
+}
+
+function InboxLink({ onNavigate }: { onNavigate: () => void }) {
+  const pathname = usePathname();
+  const unread = useQuery(api.mentions.unreadCountForCurrent, {});
+  const active = pathname === "/dashboard/inbox";
+
+  return (
+    <Link
+      href="/dashboard/inbox"
+      onClick={onNavigate}
+      className={cn(
+        "mb-3 flex items-center gap-2 rounded-2xl px-2 py-1.5 text-sm transition-colors",
+        active
+          ? "bg-muted text-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <Inbox className="h-4 w-4" />
+      <span className="flex-1">Inbox</span>
+      {typeof unread === "number" && unread > 0 && (
+        <span className="rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
+          {unread > 99 ? "99+" : unread}
+        </span>
+      )}
+    </Link>
   );
 }
 

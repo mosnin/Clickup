@@ -118,3 +118,47 @@ export async function requireTaskAccess(
   }
   return { task, list, space, identity };
 }
+
+// Confirms the caller can read/write a message addressed at the given
+// parent, regardless of which kind of parent it is (task, space, or
+// workspace). Returns the workspace context when applicable so callers
+// can validate that mentioned users are members.
+export async function requireMessageParentAccess(
+  ctx: QueryCtx | MutationCtx,
+  parentType: "task" | "space" | "workspace",
+  parentId: string,
+): Promise<{ identity: Identity; workspaceId: Id<"workspaces"> | null }> {
+  if (parentType === "task") {
+    const { space } = await requireTaskAccess(ctx, parentId as Id<"tasks">);
+    return {
+      identity: await requireIdentity(ctx),
+      workspaceId:
+        space.parentType === "workspace"
+          ? (space.parentId as Id<"workspaces">)
+          : null,
+    };
+  }
+  if (parentType === "space") {
+    const { space } = await requireSpaceAccess(ctx, parentId as Id<"spaces">);
+    return {
+      identity: await requireIdentity(ctx),
+      workspaceId:
+        space.parentType === "workspace"
+          ? (space.parentId as Id<"workspaces">)
+          : null,
+    };
+  }
+  // workspace
+  const identity = await requireIdentity(ctx);
+  const workspaceId = parentId as Id<"workspaces">;
+  const workspace = await ctx.db.get(workspaceId);
+  if (!workspace) throw new Error("Workspace not found");
+  const membership = await ctx.db
+    .query("memberships")
+    .withIndex("by_user_and_workspace", (q) =>
+      q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
+    )
+    .unique();
+  if (!membership) throw new Error("Forbidden");
+  return { identity, workspaceId };
+}

@@ -18,6 +18,8 @@ import type * as folders from "../folders.js";
 import type * as http from "../http.js";
 import type * as listStatuses from "../listStatuses.js";
 import type * as lists from "../lists.js";
+import type * as mentions from "../mentions.js";
+import type * as messages from "../messages.js";
 import type * as sidebar from "../sidebar.js";
 import type * as spaces from "../spaces.js";
 import type * as taskFieldValues from "../taskFieldValues.js";
@@ -32,6 +34,8 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   listStatuses: typeof listStatuses;
   lists: typeof lists;
+  mentions: typeof mentions;
+  messages: typeof messages;
   sidebar: typeof sidebar;
   spaces: typeof spaces;
   taskFieldValues: typeof taskFieldValues;

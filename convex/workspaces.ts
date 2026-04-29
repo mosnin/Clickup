@@ -67,3 +67,35 @@ export const listForCurrentUser = query({
       .map((w, i) => ({ ...w, role: memberships[i].role }));
   },
 });
+
+export const listMembers = query({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    // Caller must be a member.
+    const myMembership = await ctx.db
+      .query("memberships")
+      .withIndex("by_user_and_workspace", (q) =>
+        q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
+      )
+      .unique();
+    if (!myMembership) return [];
+
+    const memberships = await ctx.db
+      .query("memberships")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+    const users = await Promise.all(
+      memberships.map((m) =>
+        ctx.db
+          .query("users")
+          .withIndex("by_clerk_id", (q) => q.eq("clerkId", m.userClerkId))
+          .unique(),
+      ),
+    );
+    return users
+      .map((u, i) => (u ? { ...u, role: memberships[i].role } : null))
+      .filter((u): u is NonNullable<typeof u> => u !== null);
+  },
+});

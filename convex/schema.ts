@@ -169,4 +169,52 @@ export default defineSchema({
     .index("by_list", ["listId"])
     .index("by_list_and_status", ["listId", "statusId"])
     .index("by_parent_task", ["parentTaskId"]),
+
+  // Threaded messages used both for task comments and Space/Workspace chat.
+  // The parent is polymorphic so the same composer + renderer powers all
+  // three contexts.
+  //
+  // `body` is plain text containing optional `@[Name](clerkId)` mention
+  // tokens. The composer + renderer parse those tokens into pills.
+  // For each token we also write a row in `mentions` so unread lookups
+  // are constant-time.
+  messages: defineTable({
+    parentType: v.union(
+      v.literal("task"),
+      v.literal("space"),
+      v.literal("workspace"),
+    ),
+    parentId: v.string(),
+    authorClerkId: v.string(),
+    body: v.string(),
+    // Top-level message has no parentMessageId. Replies point at the root
+    // message so we can render a flat thread under each top-level message.
+    parentMessageId: v.optional(v.id("messages")),
+    // "Assigned comment": when set, this message is a TODO targeted at
+    // someone — they (or anyone) can resolve it.
+    assigneeClerkId: v.optional(v.string()),
+    resolvedAt: v.optional(v.number()),
+    resolvedByClerkId: v.optional(v.string()),
+    editedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_parent", ["parentType", "parentId"])
+    .index("by_parent_message", ["parentMessageId"]),
+
+  mentions: defineTable({
+    messageId: v.id("messages"),
+    mentionedClerkId: v.string(),
+    // Materialized so the inbox query doesn't have to walk back through
+    // the message + parent + workspace chain for every unread mention.
+    parentType: v.union(
+      v.literal("task"),
+      v.literal("space"),
+      v.literal("workspace"),
+    ),
+    parentId: v.string(),
+    readAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["mentionedClerkId"])
+    .index("by_message", ["messageId"]),
 });
