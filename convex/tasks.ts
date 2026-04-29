@@ -39,6 +39,7 @@ export const create = mutation({
     description: v.optional(v.string()),
     statusId: v.optional(v.id("listStatuses")),
     priority: v.optional(priorityValidator),
+    startDate: v.optional(v.number()),
     dueDate: v.optional(v.number()),
     assigneeClerkIds: v.optional(v.array(v.string())),
     parentTaskId: v.optional(v.id("tasks")),
@@ -75,6 +76,7 @@ export const create = mutation({
       description: args.description,
       statusId,
       priority: args.priority,
+      startDate: args.startDate,
       dueDate: args.dueDate,
       assigneeClerkIds: args.assigneeClerkIds ?? [],
       parentTaskId: args.parentTaskId,
@@ -92,6 +94,7 @@ export const update = mutation({
     description: v.optional(v.string()),
     statusId: v.optional(v.id("listStatuses")),
     priority: v.optional(priorityValidator),
+    startDate: v.optional(v.union(v.number(), v.null())),
     dueDate: v.optional(v.union(v.number(), v.null())),
     assigneeClerkIds: v.optional(v.array(v.string())),
   },
@@ -113,6 +116,9 @@ export const update = mutation({
           : undefined;
     }
     if (args.priority !== undefined) patch.priority = args.priority;
+    if (args.startDate !== undefined) {
+      patch.startDate = args.startDate ?? undefined;
+    }
     if (args.dueDate !== undefined) {
       patch.dueDate = args.dueDate ?? undefined;
     }
@@ -150,6 +156,41 @@ export const toggleComplete = mutation({
           ? Date.now()
           : undefined,
     });
+  },
+});
+
+// Bulk reorder used by Board drag-drop: each task in `orderedIds` gets
+// `position = its index`. Optionally moves them all to a new status in the
+// same call. All tasks must belong to the same list.
+export const reorder = mutation({
+  args: {
+    listId: v.id("lists"),
+    orderedIds: v.array(v.id("tasks")),
+    statusId: v.optional(v.id("listStatuses")),
+  },
+  handler: async (ctx, { listId, orderedIds, statusId }) => {
+    await requireListAccess(ctx, listId);
+    if (statusId) {
+      const status = await ctx.db.get(statusId);
+      if (!status || status.listId !== listId) {
+        throw new Error("statusId must belong to the same list");
+      }
+    }
+    for (let i = 0; i < orderedIds.length; i++) {
+      const task = await ctx.db.get(orderedIds[i]);
+      if (!task || task.listId !== listId) continue;
+      const patch: Record<string, unknown> = { position: i };
+      if (statusId) {
+        patch.statusId = statusId;
+        const status = await ctx.db.get(statusId);
+        if (status?.category === "complete" || status?.category === "closed") {
+          patch.completedAt = Date.now();
+        } else {
+          patch.completedAt = undefined;
+        }
+      }
+      await ctx.db.patch(orderedIds[i], patch);
+    }
   },
 });
 

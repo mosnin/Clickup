@@ -67,7 +67,14 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   │       ├── page.tsx          # overview
 │   │       ├── personal/page.tsx # user's personal space view
 │   │       ├── w/[workspaceId]/  # team workspace view (server + client)
-│   │       └── l/[listId]/       # list view: task table with status pill + custom field columns
+│   │       └── l/[listId]/       # list page with view tabs (List/Board/Calendar/Gantt)
+│   │           ├── list-page.tsx # client wrapper that picks the active view
+│   │           ├── view-tabs.tsx # tab nav driven by ?view= search param
+│   │           ├── views/
+│   │           │   ├── list-view.tsx     # default — task table
+│   │           │   ├── board-view.tsx    # Kanban with @dnd-kit drag-drop
+│   │           │   ├── calendar-view.tsx # month grid keyed off dueDate
+│   │           │   └── gantt-view.tsx    # horizontal timeline of startDate→dueDate
 │   │           ├── settings/     # manage list statuses and custom fields
 │   │           └── t/[taskId]/   # full-page task editor
 │   ├── components/
@@ -113,7 +120,7 @@ User (personal) ──┘
 - `spaces` — top-level containers. `parentType: "user" | "workspace"`. A user's personal space is auto-created on first webhook sync (or first `ensureCurrent`) with `parentType: "user"`, `parentId: <clerkId>`.
 - `folders` — optional grouping inside a space.
 - `lists` — `parentType: "space" | "folder"` discriminated parent.
-- `tasks` — belong to a list. `statusId` references a `listStatuses` row in the same list. `parentTaskId` makes a task a subtask of another.
+- `tasks` — belong to a list. `statusId` references a `listStatuses` row in the same list. `parentTaskId` makes a task a subtask of another. `startDate` (optional) and `dueDate` (optional) drive the Gantt and Calendar views.
 - `listStatuses` — per-list workflow stages. Every list seeds 4 defaults on creation (To Do / In Progress / Complete / Closed). Each row has a `category` (`open | in_progress | complete | closed`) so the UI can answer "is this complete?" without hardcoding names.
 - `customFields` — per-list field definitions. `type` is one of `text | number | dropdown | date | checkbox`. Dropdown rows carry an `options` array.
 - `taskFieldValues` — sparse value rows keyed by `(taskId, fieldId)`. The four optional `*Value` columns hold the typed primitive; dropdown stores its option id in `textValue`.
@@ -174,8 +181,8 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 
 - **Phase 0 (PR #1):** Scaffold + marketing/auth/onboarding/dashboard shell + PWA.
 - **Phase 1:** Hierarchy + tasks v1 — Spaces/Folders/Lists/Tasks, sidebar tree, list view with task CRUD, real Convex queries replacing mock data, onboarding wired.
-- **Phase 2 (current):** Custom fields + per-list custom statuses, list settings page.
-- **Phase 3:** Views — Board (Kanban), Calendar, Gantt, Timeline.
+- **Phase 2:** Custom fields + per-list custom statuses, list settings page.
+- **Phase 3 (current):** Views — List/Board/Calendar/Gantt selectable via tabs (`?view=` query param). Board uses @dnd-kit; Calendar and Gantt are hand-rolled with date-fns.
 - **Phase 4:** Comments, chat, mentions, realtime via Convex subscriptions.
 - **Phase 5:** Docs (Tiptap/Lexical) + Whiteboards (tldraw).
 - **Phase 6:** Time tracking + Goals + Dashboards/widgets.
@@ -190,4 +197,6 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - The committed `convex/_generated/` is a hand-rolled stub. Until you run `npx convex dev`, `useQuery`/`useMutation` calls return without strict argument checking on individual functions. Once the CLI overwrites it, full type safety kicks in.
 - Resend has no email flows wired — the wrapper exists but no template/sender code is built.
 - PWA icons are SVG-only; some Android variants prefer PNGs.
-- Status reorder is wired in Convex (`listStatuses.reorder`) but no drag-and-drop UI yet — comes with Phase 3 along with Board view.
+- Status column reorder is wired in Convex (`listStatuses.reorder`) but no drag-and-drop UI yet for status columns themselves; tasks within columns ARE draggable via Board view.
+- No saved-view configs yet (filter/sort/group selections don't persist). View choice is in the URL via `?view=`, but other settings reset on reload.
+- Calendar and Gantt are read-only — no drag-to-reschedule. Edit a task's date from the task detail page or List view.

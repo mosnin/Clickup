@@ -157,6 +157,7 @@ export default defineSchema({
         v.literal("low"),
       ),
     ),
+    startDate: v.optional(v.number()),
     dueDate: v.optional(v.number()),
     assigneeClerkIds: v.array(v.string()),
     parentTaskId: v.optional(v.id("tasks")),

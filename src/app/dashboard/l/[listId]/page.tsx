@@ -1,10 +1,13 @@
-import { ListView } from "./list-view";
+import { ListPage } from "./list-page";
 
-export default async function ListPage({
+export default async function ListRoute({
   params,
+  searchParams,
 }: {
   params: Promise<{ listId: string }>;
+  searchParams: Promise<{ view?: string }>;
 }) {
   const { listId } = await params;
-  return <ListView listId={listId} />;
+  const { view } = await searchParams;
+  return <ListPage listId={listId} initialView={view} />;
 }

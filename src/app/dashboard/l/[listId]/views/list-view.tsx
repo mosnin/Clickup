@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Plus, Settings } from "lucide-react";
+import { Plus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -19,106 +19,62 @@ const PRIORITY_LABEL: Record<TaskPriority, string> = {
   low: "Low",
 };
 
-export function ListView({ listId }: { listId: string }) {
-  const id = listId as Id<"lists">;
-  const list = useQuery(api.lists.get, { listId: id });
-  const tasks = useQuery(api.tasks.listForList, { listId: id });
-  const statuses = useQuery(api.listStatuses.listForList, { listId: id });
-  const fields = useQuery(api.customFields.listForList, { listId: id });
-
-  if (
-    list === undefined ||
-    tasks === undefined ||
-    statuses === undefined ||
-    fields === undefined
-  ) {
-    return <ListSkeleton />;
-  }
-
-  if (list === null) {
-    return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center">
-        <p className="text-sm text-muted-foreground">
-          This list doesn&apos;t exist or you don&apos;t have access to it.
-        </p>
-        <Link
-          href="/dashboard"
-          className="mt-3 inline-block text-sm font-medium text-brand-600 hover:underline"
-        >
-          Back to dashboard
-        </Link>
-      </div>
-    );
-  }
-
-  const topLevelTasks = tasks
-    .filter((t) => !t.parentTaskId)
-    .sort((a, b) => a.position - b.position);
-
+export function ListView({
+  listId,
+  tasks,
+  statuses,
+  fields,
+}: {
+  listId: Id<"lists">;
+  tasks: Doc<"tasks">[];
+  statuses: Doc<"listStatuses">[];
+  fields: Doc<"customFields">[];
+}) {
   return (
-    <div className="space-y-6">
-      <header className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            {list.name}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {topLevelTasks.length} task{topLevelTasks.length === 1 ? "" : "s"}
-          </p>
-        </div>
-        <Link
-          href={`/dashboard/l/${list._id}/settings`}
-          className="inline-flex h-9 items-center gap-1 rounded-full border border-border bg-background px-3 text-sm hover:bg-muted"
-        >
-          <Settings className="h-4 w-4" /> Settings
-        </Link>
-      </header>
-
-      <div className="overflow-x-auto rounded-3xl border border-border bg-background">
-        <table className="w-full text-sm">
-          <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
-            <tr>
-              <th scope="col" className="w-10 px-3 py-2"></th>
-              <th scope="col" className="px-3 py-2">Title</th>
-              <th scope="col" className="hidden px-3 py-2 sm:table-cell">Status</th>
-              <th scope="col" className="hidden px-3 py-2 sm:table-cell">Priority</th>
-              <th scope="col" className="hidden px-3 py-2 md:table-cell">Due</th>
-              {fields.map((f) => (
-                <th
-                  key={f._id}
-                  scope="col"
-                  className="hidden px-3 py-2 md:table-cell"
-                >
-                  {f.name}
-                </th>
-              ))}
-              <th scope="col" className="px-3 py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {topLevelTasks.length === 0 && (
-              <tr>
-                <td
-                  colSpan={6 + fields.length}
-                  className="px-3 py-6 text-center text-sm text-muted-foreground"
-                >
-                  No tasks yet — add one below.
-                </td>
-              </tr>
-            )}
-            {topLevelTasks.map((task) => (
-              <TaskRow
-                key={task._id}
-                task={task}
-                listId={list._id}
-                statuses={statuses}
-                fields={fields}
-              />
+    <div className="overflow-x-auto rounded-3xl border border-border bg-background">
+      <table className="w-full text-sm">
+        <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
+          <tr>
+            <th scope="col" className="w-10 px-3 py-2"></th>
+            <th scope="col" className="px-3 py-2">Title</th>
+            <th scope="col" className="hidden px-3 py-2 sm:table-cell">Status</th>
+            <th scope="col" className="hidden px-3 py-2 sm:table-cell">Priority</th>
+            <th scope="col" className="hidden px-3 py-2 md:table-cell">Due</th>
+            {fields.map((f) => (
+              <th
+                key={f._id}
+                scope="col"
+                className="hidden px-3 py-2 md:table-cell"
+              >
+                {f.name}
+              </th>
             ))}
-          </tbody>
-        </table>
-        <NewTaskRow listId={list._id} />
-      </div>
+            <th scope="col" className="px-3 py-2"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {tasks.length === 0 && (
+            <tr>
+              <td
+                colSpan={6 + fields.length}
+                className="px-3 py-6 text-center text-sm text-muted-foreground"
+              >
+                No tasks yet — add one below.
+              </td>
+            </tr>
+          )}
+          {tasks.map((task) => (
+            <TaskRow
+              key={task._id}
+              task={task}
+              listId={listId}
+              statuses={statuses}
+              fields={fields}
+            />
+          ))}
+        </tbody>
+      </table>
+      <NewTaskRow listId={listId} />
     </div>
   );
 }
@@ -328,21 +284,5 @@ function NewTaskRow({ listId }: { listId: Id<"lists"> }) {
         Add
       </Button>
     </form>
-  );
-}
-
-function ListSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
-      <div className="overflow-hidden rounded-3xl border border-border bg-background">
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="h-12 animate-pulse border-b border-border last:border-0"
-          />
-        ))}
-      </div>
-    </div>
   );
 }

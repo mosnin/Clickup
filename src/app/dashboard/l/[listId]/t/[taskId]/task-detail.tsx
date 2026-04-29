@@ -121,7 +121,7 @@ function TaskEditor({
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Status">
           <select
             value={task.statusId}
@@ -160,6 +160,25 @@ function TaskEditor({
               </option>
             ))}
           </select>
+        </Field>
+
+        <Field label="Start date">
+          <input
+            type="date"
+            value={
+              task.startDate
+                ? new Date(task.startDate).toISOString().slice(0, 10)
+                : ""
+            }
+            onChange={(e) => {
+              const v = e.currentTarget.value;
+              update({
+                taskId: task._id,
+                startDate: v ? new Date(v).getTime() : null,
+              });
+            }}
+            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          />
         </Field>
 
         <Field label="Due date">
