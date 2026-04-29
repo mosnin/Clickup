@@ -49,7 +49,10 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   ├── listAutomations.ts        # per-list trigger/action rules + applyAutomations() called from tasks.create / tasks.update
 │   ├── notifications.ts          # internalActions: sendMentionEmail, sendAssignmentEmail (Resend, Node runtime)
 │   ├── clips.ts                  # screen recordings: generateUploadUrl + metadata rows pointing at Convex file storage
-│   └── ai.ts                     # OpenAI: embeddings on doc/task write + brainSearch (RAG), writerContinue, taskAutofill
+│   ├── ai.ts                     # OpenAI: embeddings on doc/task write + brainSearch (RAG), writerContinue, taskAutofill
+│   ├── templates.ts              # hardcoded LIST_TEMPLATES + applyListTemplate (creates list + statuses + fields + sample tasks)
+│   ├── integrations.ts           # per-workspace external services (currently: Slack incoming webhook)
+│   └── team.ts                   # Teams Hub: per-member workload + week stats + currently-running timer
 ├── public/
 │   ├── manifest.webmanifest
 │   ├── icon.svg / icon-maskable.svg
@@ -150,6 +153,7 @@ User (personal) ──┘
 - `tasks.recurrence` — optional `daily | weekly | monthly`. When a task transitions into a complete-category status, `tasks.update` spawns a fresh task on the same list with its dates advanced.
 - `clips` — screen-recording metadata. `storageId` references Convex file storage (`Id<"_storage">`); the bytes live there, not in the table. Author owns delete.
 - `embeddings` — one row per indexed task or doc, carrying the OpenAI `text-embedding-3-small` vector (1536 dims). `scopeType` / `scopeId` mirror the visibility boundary (personal user or workspace) so vector search filters can't leak across boundaries. Indexed via Convex's `vectorIndex("by_embedding", { vectorField, dimensions, filterFields })`.
+- `integrations` — per-workspace external services. One row per (workspaceId, kind). Currently the only kind is `slack` and `config.webhookUrl` is validated to start with `https://hooks.slack.com/` at write time. Owner/admin gated.
 
 **Authorization** is centralized in `convex/_authz.ts`. Every read/write resolves up the hierarchy (task → list → folder?/space → workspace?/user) and calls `canAccessSpace` to confirm either personal ownership or workspace membership. Use `requireListAccess`/`requireSpaceAccess`/`requireFolderAccess` rather than re-rolling checks in each function.
 
@@ -214,8 +218,8 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - **Phase 6:** Time tracking with a live timer (sidebar chip + per-task tracker, only one running per user), Goals (number/money/boolean) on workspaces, and a Reports tab per workspace with fixed widgets (open tasks, completed-this-week, time-tracked-this-week, goal progress, workload by assignee).
 - **Phase 7:** Recurring tasks (daily/weekly/monthly, regenerated on completion) and a minimal list-automation engine (trigger + action rules evaluated inside `tasks.create` / `tasks.update`).
 - **Phase 8:** Outbound email notifications via Resend (mentions and task assignments, scheduled via `ctx.scheduler.runAfter` so they don't block the originating mutation) and Clips (browser screen+mic recording uploaded to Convex file storage, played back in the task detail).
-- **Phase 9 (current):** AI Brain on the OpenAI API — semantic search over docs + tasks (`text-embedding-3-small` vectors, RAG via `gpt-4o-mini`), AI writer (continue/summarize) inside docs, and one-click task description draft.
-- **Phase 10:** Templates + 3rd-party integrations + Teams Hub.
+- **Phase 9:** AI Brain on the OpenAI API — semantic search over docs + tasks (`text-embedding-3-small` vectors, RAG via `gpt-4o-mini`), AI writer (continue/summarize) inside docs, and one-click task description draft.
+- **Phase 10 (current):** List templates (Software sprint / Marketing campaign / Personal to-do / Sales pipeline — each seeds list + statuses + custom fields + sample tasks in one transaction), Slack integration (incoming-webhook posts on task assignment), Teams Hub (per-member workload, week stats, currently-running timer) + new workspace Settings tab.
 - **Phase 11:** Offline-first PWA polish + native app wrappers.
 
 ## Known limitations (not bugs)
@@ -242,3 +246,6 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - Convex vectorSearch's filter API only takes a single `.eq()` per call; we filter on `scopeId` alone (Clerk subjects and Convex workspace IDs never collide) rather than chaining `scopeType + scopeId`.
 - Comments aren't indexed yet — search is doc + task only. Adding messages would multiply embedding traffic; defer until needed.
 - Brain "source" links navigate to docs but not tasks (a task → list resolver query is still missing). Same gap as the inbox.
+- The Teams Hub task link in the "Now" pill uses a placeholder listId (`_`) because the `task → listId` resolver isn't built yet — clicking it doesn't navigate cleanly. Replace once the resolver lands.
+- List templates live as code in `convex/templates.ts`. To add a new template, append to the `LIST_TEMPLATES` array and redeploy — there's no admin UI for creating templates from existing lists yet.
+- Slack is currently the only integration. Adding more (Google Drive, GitHub, etc.) means a new `kind` literal on the integrations table plus a `notifications.post*` action.
