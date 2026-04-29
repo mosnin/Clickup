@@ -96,3 +96,25 @@ export async function requireFolderAccess(
   }
   return { folder, space, identity };
 }
+
+export async function requireTaskAccess(
+  ctx: QueryCtx | MutationCtx,
+  taskId: Id<"tasks">,
+): Promise<{
+  task: Doc<"tasks">;
+  list: Doc<"lists">;
+  space: Doc<"spaces">;
+  identity: Identity;
+}> {
+  const identity = await requireIdentity(ctx);
+  const task = await ctx.db.get(taskId);
+  if (!task) throw new Error("Task not found");
+  const list = await ctx.db.get(task.listId);
+  if (!list) throw new Error("Orphan task");
+  const space = await getSpaceForList(ctx, list);
+  if (!space) throw new Error("Orphan list");
+  if (!(await canAccessSpace(ctx, space, identity))) {
+    throw new Error("Forbidden");
+  }
+  return { task, list, space, identity };
+}

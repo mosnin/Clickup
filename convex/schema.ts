@@ -13,11 +13,10 @@ import { v } from "convex/values";
 //                     ├─ Space ─ Folder? ─ List ─ Task ─ Subtask
 //   User (personal) ──┘
 //
-//   - Every user has exactly one personal Space (created on the first
-//     `user.created` webhook).
-//   - Team Workspaces hold many Spaces, one membership row per user.
-//   - `lists` and `spaces` use a discriminated parent (parentType+parentId)
-//     because Convex doesn't support union-of-Id field types.
+// Customization (phase 2):
+//   - Each List owns its own set of statuses and custom fields.
+//   - `tasks.statusId` references a `listStatuses` row in the same list.
+//   - Custom field values live in `taskFieldValues`, keyed by (task, field).
 //
 // Authorization is enforced inside each query/mutation via the helpers in
 // convex/_authz.ts — every read/write that touches a list/task/folder/space
@@ -60,9 +59,6 @@ export default defineSchema({
     name: v.string(),
     color: v.optional(v.string()),
     parentType: v.union(v.literal("user"), v.literal("workspace")),
-    // For parentType "user", parentId is the Clerk subject ID.
-    // For parentType "workspace", parentId is the Convex workspace ID
-    // serialized as a string (Convex doesn't support union over Id types).
     parentId: v.string(),
     position: v.number(),
     createdAt: v.number(),
@@ -80,24 +76,79 @@ export default defineSchema({
   lists: defineTable({
     name: v.string(),
     color: v.optional(v.string()),
-    // Lists can sit directly under a Space, or be grouped inside a Folder.
     parentType: v.union(v.literal("space"), v.literal("folder")),
-    parentId: v.string(), // Id<"spaces"> or Id<"folders"> serialized
+    parentId: v.string(),
     position: v.number(),
     createdAt: v.number(),
   })
     .index("by_parent", ["parentType", "parentId"]),
 
-  tasks: defineTable({
+  // Per-list custom workflow stages. Every list seeds 4 defaults
+  // (To Do / In Progress / Complete / Closed) on creation; users can
+  // rename, recolor, add, or delete them.
+  //
+  // `category` keeps a coarse grouping so the UI can still answer
+  // "is this task complete?" without hardcoding status names.
+  listStatuses: defineTable({
     listId: v.id("lists"),
-    title: v.string(),
-    description: v.optional(v.string()),
-    status: v.union(
+    name: v.string(),
+    color: v.string(),
+    category: v.union(
       v.literal("open"),
       v.literal("in_progress"),
       v.literal("complete"),
       v.literal("closed"),
     ),
+    position: v.number(),
+    createdAt: v.number(),
+  }).index("by_list", ["listId"]),
+
+  // Per-list field definitions (one row per column the user adds).
+  customFields: defineTable({
+    listId: v.id("lists"),
+    name: v.string(),
+    type: v.union(
+      v.literal("text"),
+      v.literal("number"),
+      v.literal("dropdown"),
+      v.literal("date"),
+      v.literal("checkbox"),
+    ),
+    // Only set for `type === "dropdown"`.
+    options: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          label: v.string(),
+          color: v.optional(v.string()),
+        }),
+      ),
+    ),
+    position: v.number(),
+    createdAt: v.number(),
+  }).index("by_list", ["listId"]),
+
+  // Sparse value rows: one per (task, field) pair that has a value set.
+  // The four optional `*Value` columns let each row hold the right
+  // primitive without packing JSON. Dropdown stores its option id in
+  // `textValue`.
+  taskFieldValues: defineTable({
+    taskId: v.id("tasks"),
+    fieldId: v.id("customFields"),
+    textValue: v.optional(v.string()),
+    numberValue: v.optional(v.number()),
+    booleanValue: v.optional(v.boolean()),
+    dateValue: v.optional(v.number()),
+  })
+    .index("by_task", ["taskId"])
+    .index("by_field", ["fieldId"])
+    .index("by_task_and_field", ["taskId", "fieldId"]),
+
+  tasks: defineTable({
+    listId: v.id("lists"),
+    title: v.string(),
+    description: v.optional(v.string()),
+    statusId: v.id("listStatuses"),
     priority: v.optional(
       v.union(
         v.literal("urgent"),
@@ -108,8 +159,6 @@ export default defineSchema({
     ),
     dueDate: v.optional(v.number()),
     assigneeClerkIds: v.array(v.string()),
-    // Subtasks: a task whose parentTaskId points at another task in the
-    // same list. Top-level tasks have parentTaskId undefined.
     parentTaskId: v.optional(v.id("tasks")),
     createdByClerkId: v.string(),
     position: v.number(),
@@ -117,6 +166,6 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
   })
     .index("by_list", ["listId"])
-    .index("by_list_and_status", ["listId", "status"])
+    .index("by_list_and_status", ["listId", "statusId"])
     .index("by_parent_task", ["parentTaskId"]),
 });

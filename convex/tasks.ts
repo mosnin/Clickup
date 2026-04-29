@@ -1,13 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { requireListAccess } from "./_authz";
-
-const statusValidator = v.union(
-  v.literal("open"),
-  v.literal("in_progress"),
-  v.literal("complete"),
-  v.literal("closed"),
-);
+import { requireListAccess, requireTaskAccess } from "./_authz";
 
 const priorityValidator = v.union(
   v.literal("urgent"),
@@ -21,7 +14,6 @@ export const listForList = query({
   handler: async (ctx, { listId }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
-    // Soft-fail — sidebar/list page may render before access is verified.
     const list = await ctx.db.get(listId);
     if (!list) return [];
     return await ctx.db
@@ -36,10 +28,7 @@ export const get = query({
   handler: async (ctx, { taskId }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    const task = await ctx.db.get(taskId);
-    if (!task) return null;
-    // Best-effort — caller should also call list/get for full auth.
-    return task;
+    return await ctx.db.get(taskId);
   },
 });
 
@@ -48,6 +37,7 @@ export const create = mutation({
     listId: v.id("lists"),
     title: v.string(),
     description: v.optional(v.string()),
+    statusId: v.optional(v.id("listStatuses")),
     priority: v.optional(priorityValidator),
     dueDate: v.optional(v.number()),
     assigneeClerkIds: v.optional(v.array(v.string())),
@@ -55,6 +45,24 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const { identity } = await requireListAccess(ctx, args.listId);
+
+    let statusId = args.statusId;
+    if (!statusId) {
+      const all = await ctx.db
+        .query("listStatuses")
+        .withIndex("by_list", (q) => q.eq("listId", args.listId))
+        .collect();
+      if (all.length === 0) {
+        throw new Error("List has no statuses configured");
+      }
+      const sorted = [...all].sort((a, b) => a.position - b.position);
+      statusId = (sorted.find((s) => s.category === "open") ?? sorted[0])._id;
+    } else {
+      const status = await ctx.db.get(statusId);
+      if (!status || status.listId !== args.listId) {
+        throw new Error("statusId must belong to the same list");
+      }
+    }
 
     const siblings = await ctx.db
       .query("tasks")
@@ -65,7 +73,7 @@ export const create = mutation({
       listId: args.listId,
       title: args.title,
       description: args.description,
-      status: "open",
+      statusId,
       priority: args.priority,
       dueDate: args.dueDate,
       assigneeClerkIds: args.assigneeClerkIds ?? [],
@@ -82,23 +90,25 @@ export const update = mutation({
     taskId: v.id("tasks"),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
-    status: v.optional(statusValidator),
+    statusId: v.optional(v.id("listStatuses")),
     priority: v.optional(priorityValidator),
     dueDate: v.optional(v.union(v.number(), v.null())),
     assigneeClerkIds: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
-    const task = await ctx.db.get(args.taskId);
-    if (!task) throw new Error("Task not found");
-    await requireListAccess(ctx, task.listId);
+    const { task } = await requireTaskAccess(ctx, args.taskId);
 
     const patch: Record<string, unknown> = {};
     if (args.title !== undefined) patch.title = args.title;
     if (args.description !== undefined) patch.description = args.description;
-    if (args.status !== undefined) {
-      patch.status = args.status;
+    if (args.statusId !== undefined) {
+      const status = await ctx.db.get(args.statusId);
+      if (!status || status.listId !== task.listId) {
+        throw new Error("statusId must belong to the same list");
+      }
+      patch.statusId = args.statusId;
       patch.completedAt =
-        args.status === "complete" || args.status === "closed"
+        status.category === "complete" || status.category === "closed"
           ? Date.now()
           : undefined;
     }
@@ -114,20 +124,61 @@ export const update = mutation({
   },
 });
 
+// Toggle convenience: flip task between its first "open" and first
+// "complete" status. Used by the row-level checkbox in the list view so
+// the UI doesn't need to know status IDs.
+export const toggleComplete = mutation({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const { task, list } = await requireTaskAccess(ctx, taskId);
+    const statuses = await ctx.db
+      .query("listStatuses")
+      .withIndex("by_list", (q) => q.eq("listId", list._id))
+      .collect();
+    const sorted = [...statuses].sort((a, b) => a.position - b.position);
+    const current = await ctx.db.get(task.statusId);
+    const isDone =
+      current?.category === "complete" || current?.category === "closed";
+    const next = isDone
+      ? sorted.find((s) => s.category === "open") ?? sorted[0]
+      : sorted.find((s) => s.category === "complete") ?? sorted[0];
+    if (!next) return;
+    await ctx.db.patch(taskId, {
+      statusId: next._id,
+      completedAt:
+        next.category === "complete" || next.category === "closed"
+          ? Date.now()
+          : undefined,
+    });
+  },
+});
+
 export const remove = mutation({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, { taskId }) => {
     const task = await ctx.db.get(taskId);
     if (!task) return;
-    await requireListAccess(ctx, task.listId);
+    await requireTaskAccess(ctx, taskId);
 
-    // Cascade subtasks.
     const subtasks = await ctx.db
       .query("tasks")
       .withIndex("by_parent_task", (q) => q.eq("parentTaskId", taskId))
       .collect();
-    for (const s of subtasks) await ctx.db.delete(s._id);
+    for (const s of subtasks) {
+      const sValues = await ctx.db
+        .query("taskFieldValues")
+        .withIndex("by_task", (q) => q.eq("taskId", s._id))
+        .collect();
+      for (const v of sValues) await ctx.db.delete(v._id);
+      await ctx.db.delete(s._id);
+    }
+
+    const values = await ctx.db
+      .query("taskFieldValues")
+      .withIndex("by_task", (q) => q.eq("taskId", taskId))
+      .collect();
+    for (const v of values) await ctx.db.delete(v._id);
+
     await ctx.db.delete(taskId);
   },
 });
-

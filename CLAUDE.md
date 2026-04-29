@@ -26,7 +26,7 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 ├── convex/                       # Convex backend — typechecked separately by Convex CLI
 │   ├── _generated/               # checked in (CLI overwrites on `convex dev`/`deploy`)
 │   ├── _authz.ts                 # shared auth helpers (require*Access)
-│   ├── schema.ts                 # users, workspaces, memberships, spaces, folders, lists, tasks
+│   ├── schema.ts                 # users, workspaces, memberships, spaces, folders, lists, listStatuses, customFields, taskFieldValues, tasks
 │   ├── auth.config.ts            # Clerk JWT integration
 │   ├── http.ts                   # Clerk webhook -> internal mutations
 │   ├── sidebar.ts                # single tree query that powers the sidebar
@@ -34,8 +34,11 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   ├── workspaces.ts             # create + listForCurrentUser
 │   ├── spaces.ts                 # personal/workspace space CRUD
 │   ├── folders.ts                # folder CRUD inside a space
-│   ├── lists.ts                  # list CRUD under space or folder
-│   └── tasks.ts                  # task CRUD with subtask support
+│   ├── lists.ts                  # list CRUD; seeds 4 default statuses on create
+│   ├── listStatuses.ts           # per-list workflow stages with cascade-reassign delete
+│   ├── customFields.ts           # per-list custom field definitions
+│   ├── taskFieldValues.ts        # sparse value rows keyed by (task, field)
+│   └── tasks.ts                  # task CRUD; statusId-based; toggleComplete helper
 ├── public/
 │   ├── manifest.webmanifest
 │   ├── icon.svg / icon-maskable.svg
@@ -64,7 +67,8 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   │       ├── page.tsx          # overview
 │   │       ├── personal/page.tsx # user's personal space view
 │   │       ├── w/[workspaceId]/  # team workspace view (server + client)
-│   │       └── l/[listId]/       # list view with task table + create form
+│   │       └── l/[listId]/       # list view: task table with status pill + custom field columns
+│   │           ├── settings/     # manage list statuses and custom fields
 │   │           └── t/[taskId]/   # full-page task editor
 │   ├── components/
 │   │   ├── ui/button.tsx         # shadcn-style primitive (cva + Tailwind)
@@ -72,6 +76,8 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   │   ├── marketing/pill-footer.tsx
 │   │   ├── dashboard/sidebar.tsx # tree of personal+team workspaces; drawer on mobile
 │   │   ├── dashboard/ensure-user.tsx # idempotent client bootstrap of user row
+│   │   ├── dashboard/status-pill.tsx # colored pill for a listStatuses row
+│   │   ├── dashboard/custom-field-input.tsx # type-aware editor for custom field values
 │   │   └── register-service-worker.tsx
 │   └── lib/
 │       ├── utils.ts              # cn(): clsx + tailwind-merge
@@ -107,7 +113,10 @@ User (personal) ──┘
 - `spaces` — top-level containers. `parentType: "user" | "workspace"`. A user's personal space is auto-created on first webhook sync (or first `ensureCurrent`) with `parentType: "user"`, `parentId: <clerkId>`.
 - `folders` — optional grouping inside a space.
 - `lists` — `parentType: "space" | "folder"` discriminated parent.
-- `tasks` — belong to a list. `status` is one of `open | in_progress | complete | closed`. `parentTaskId` makes a task a subtask of another.
+- `tasks` — belong to a list. `statusId` references a `listStatuses` row in the same list. `parentTaskId` makes a task a subtask of another.
+- `listStatuses` — per-list workflow stages. Every list seeds 4 defaults on creation (To Do / In Progress / Complete / Closed). Each row has a `category` (`open | in_progress | complete | closed`) so the UI can answer "is this complete?" without hardcoding names.
+- `customFields` — per-list field definitions. `type` is one of `text | number | dropdown | date | checkbox`. Dropdown rows carry an `options` array.
+- `taskFieldValues` — sparse value rows keyed by `(taskId, fieldId)`. The four optional `*Value` columns hold the typed primitive; dropdown stores its option id in `textValue`.
 
 **Authorization** is centralized in `convex/_authz.ts`. Every read/write resolves up the hierarchy (task → list → folder?/space → workspace?/user) and calls `canAccessSpace` to confirm either personal ownership or workspace membership. Use `requireListAccess`/`requireSpaceAccess`/`requireFolderAccess` rather than re-rolling checks in each function.
 
@@ -164,8 +173,8 @@ When bringing up a fresh checkout:
 We are building this out in numbered phases, one PR each. See PR descriptions for what shipped in each.
 
 - **Phase 0 (PR #1):** Scaffold + marketing/auth/onboarding/dashboard shell + PWA.
-- **Phase 1 (current):** Hierarchy + tasks v1 — Spaces/Folders/Lists/Tasks, sidebar tree, list view with task CRUD, real Convex queries replacing mock data, onboarding wired.
-- **Phase 2:** Custom fields + per-list custom statuses.
+- **Phase 1:** Hierarchy + tasks v1 — Spaces/Folders/Lists/Tasks, sidebar tree, list view with task CRUD, real Convex queries replacing mock data, onboarding wired.
+- **Phase 2 (current):** Custom fields + per-list custom statuses, list settings page.
 - **Phase 3:** Views — Board (Kanban), Calendar, Gantt, Timeline.
 - **Phase 4:** Comments, chat, mentions, realtime via Convex subscriptions.
 - **Phase 5:** Docs (Tiptap/Lexical) + Whiteboards (tldraw).
@@ -181,3 +190,4 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - The committed `convex/_generated/` is a hand-rolled stub. Until you run `npx convex dev`, `useQuery`/`useMutation` calls return without strict argument checking on individual functions. Once the CLI overwrites it, full type safety kicks in.
 - Resend has no email flows wired — the wrapper exists but no template/sender code is built.
 - PWA icons are SVG-only; some Android variants prefer PNGs.
+- Status reorder is wired in Convex (`listStatuses.reorder`) but no drag-and-drop UI yet — comes with Phase 3 along with Board view.

@@ -7,6 +7,7 @@ import {
   requireListAccess,
   requireSpaceAccess,
 } from "./_authz";
+import { seedDefaultStatuses } from "./listStatuses";
 
 const parentTypeValidator = v.union(
   v.literal("space"),
@@ -34,7 +35,6 @@ export const get = query({
     if (!identity) return null;
     const list = await ctx.db.get(listId);
     if (!list) return null;
-    // Resolve up to space and check access.
     let space;
     if (list.parentType === "space") {
       space = await ctx.db.get(list.parentId as Id<"spaces">);
@@ -72,11 +72,15 @@ export const create = mutation({
       )
       .collect();
 
-    return await ctx.db.insert("lists", {
+    const listId = await ctx.db.insert("lists", {
       ...args,
       position: siblings.length,
       createdAt: Date.now(),
     });
+
+    await seedDefaultStatuses(ctx, listId);
+
+    return listId;
   },
 });
 
@@ -92,11 +96,35 @@ export const remove = mutation({
   args: { listId: v.id("lists") },
   handler: async (ctx, { listId }) => {
     const { list } = await requireListAccess(ctx, listId);
+
+    // Cascade everything that hangs off this list:
+    //   tasks → taskFieldValues → also remove the task row
+    //   listStatuses, customFields → drop directly
     const tasks = await ctx.db
       .query("tasks")
       .withIndex("by_list", (q) => q.eq("listId", list._id))
       .collect();
-    for (const t of tasks) await ctx.db.delete(t._id);
+    for (const t of tasks) {
+      const values = await ctx.db
+        .query("taskFieldValues")
+        .withIndex("by_task", (q) => q.eq("taskId", t._id))
+        .collect();
+      for (const v of values) await ctx.db.delete(v._id);
+      await ctx.db.delete(t._id);
+    }
+
+    const statuses = await ctx.db
+      .query("listStatuses")
+      .withIndex("by_list", (q) => q.eq("listId", list._id))
+      .collect();
+    for (const s of statuses) await ctx.db.delete(s._id);
+
+    const fields = await ctx.db
+      .query("customFields")
+      .withIndex("by_list", (q) => q.eq("listId", list._id))
+      .collect();
+    for (const f of fields) await ctx.db.delete(f._id);
+
     await ctx.db.delete(list._id);
   },
 });

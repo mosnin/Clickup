@@ -1,22 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { ArrowLeft } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 
-type TaskStatus = Doc<"tasks">["status"];
 type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
 
-const STATUS_OPTIONS: TaskStatus[] = [
-  "open",
-  "in_progress",
-  "complete",
-  "closed",
-];
 const PRIORITY_OPTIONS: TaskPriority[] = ["urgent", "high", "normal", "low"];
 
 export function TaskDetail({
@@ -26,10 +20,21 @@ export function TaskDetail({
   listId: string;
   taskId: string;
 }) {
-  const list = useQuery(api.lists.get, { listId: listId as Id<"lists"> });
-  const task = useQuery(api.tasks.get, { taskId: taskId as Id<"tasks"> });
+  const lid = listId as Id<"lists">;
+  const tid = taskId as Id<"tasks">;
+  const list = useQuery(api.lists.get, { listId: lid });
+  const task = useQuery(api.tasks.get, { taskId: tid });
+  const statuses = useQuery(api.listStatuses.listForList, { listId: lid });
+  const fields = useQuery(api.customFields.listForList, { listId: lid });
+  const values = useQuery(api.taskFieldValues.listForTask, { taskId: tid });
 
-  if (list === undefined || task === undefined) {
+  if (
+    list === undefined ||
+    task === undefined ||
+    statuses === undefined ||
+    fields === undefined ||
+    values === undefined
+  ) {
     return <DetailSkeleton />;
   }
   if (!list || !task) {
@@ -48,25 +53,48 @@ export function TaskDetail({
     );
   }
 
-  return <TaskEditor task={task} listName={list.name} listId={list._id} />;
+  return (
+    <TaskEditor
+      task={task}
+      listName={list.name}
+      listId={list._id}
+      statuses={statuses}
+      fields={fields}
+      values={values}
+    />
+  );
 }
 
 function TaskEditor({
   task,
   listName,
   listId,
+  statuses,
+  fields,
+  values,
 }: {
   task: Doc<"tasks">;
   listName: string;
   listId: Id<"lists">;
+  statuses: Doc<"listStatuses">[];
+  fields: Doc<"customFields">[];
+  values: Doc<"taskFieldValues">[];
 }) {
   const update = useMutation(api.tasks.update);
+  const setValue = useMutation(api.taskFieldValues.set);
+  const clearValue = useMutation(api.taskFieldValues.clear);
+
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
 
-  // Keep local edits in sync if the task changes elsewhere.
   useEffect(() => setTitle(task.title), [task.title]);
   useEffect(() => setDescription(task.description ?? ""), [task.description]);
+
+  const valuesByField = useMemo(() => {
+    const map = new Map<string, Doc<"taskFieldValues">>();
+    for (const v of values) map.set(v.fieldId, v);
+    return map;
+  }, [values]);
 
   return (
     <div className="space-y-6">
@@ -96,18 +124,18 @@ function TaskEditor({
       <div className="grid gap-3 sm:grid-cols-3">
         <Field label="Status">
           <select
-            value={task.status}
+            value={task.statusId}
             onChange={(e) =>
               update({
                 taskId: task._id,
-                status: e.currentTarget.value as TaskStatus,
+                statusId: e.currentTarget.value as Id<"listStatuses">,
               })
             }
             className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
           >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s.replace("_", " ")}
+            {statuses.map((s) => (
+              <option key={s._id} value={s._id}>
+                {s.name}
               </option>
             ))}
           </select>
@@ -153,6 +181,36 @@ function TaskEditor({
           />
         </Field>
       </div>
+
+      {fields.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Custom fields
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {fields.map((field) => (
+              <Field key={field._id} label={field.name}>
+                <CustomFieldInput
+                  field={field}
+                  value={valuesByField.get(field._id)}
+                  size="md"
+                  onCommit={(value) => {
+                    if (value === null) {
+                      clearValue({ taskId: task._id, fieldId: field._id });
+                    } else {
+                      setValue({
+                        taskId: task._id,
+                        fieldId: field._id,
+                        ...value,
+                      });
+                    }
+                  }}
+                />
+              </Field>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div>
         <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">

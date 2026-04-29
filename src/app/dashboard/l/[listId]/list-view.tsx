@@ -1,23 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Plus } from "lucide-react";
+import { Plus, Settings } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { cn } from "@/lib/utils";
 
-type TaskStatus = Doc<"tasks">["status"];
 type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
-
-const STATUS_LABEL: Record<TaskStatus, string> = {
-  open: "Open",
-  in_progress: "In progress",
-  complete: "Complete",
-  closed: "Closed",
-};
 
 const PRIORITY_LABEL: Record<TaskPriority, string> = {
   urgent: "Urgent",
@@ -27,14 +20,18 @@ const PRIORITY_LABEL: Record<TaskPriority, string> = {
 };
 
 export function ListView({ listId }: { listId: string }) {
-  const list = useQuery(api.lists.get, {
-    listId: listId as Id<"lists">,
-  });
-  const tasks = useQuery(api.tasks.listForList, {
-    listId: listId as Id<"lists">,
-  });
+  const id = listId as Id<"lists">;
+  const list = useQuery(api.lists.get, { listId: id });
+  const tasks = useQuery(api.tasks.listForList, { listId: id });
+  const statuses = useQuery(api.listStatuses.listForList, { listId: id });
+  const fields = useQuery(api.customFields.listForList, { listId: id });
 
-  if (list === undefined || tasks === undefined) {
+  if (
+    list === undefined ||
+    tasks === undefined ||
+    statuses === undefined ||
+    fields === undefined
+  ) {
     return <ListSkeleton />;
   }
 
@@ -44,7 +41,10 @@ export function ListView({ listId }: { listId: string }) {
         <p className="text-sm text-muted-foreground">
           This list doesn&apos;t exist or you don&apos;t have access to it.
         </p>
-        <Link href="/dashboard" className="mt-3 inline-block text-sm font-medium text-brand-600 hover:underline">
+        <Link
+          href="/dashboard"
+          className="mt-3 inline-block text-sm font-medium text-brand-600 hover:underline"
+        >
           Back to dashboard
         </Link>
       </div>
@@ -57,16 +57,24 @@ export function ListView({ listId }: { listId: string }) {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          {list.name}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {topLevelTasks.length} task{topLevelTasks.length === 1 ? "" : "s"}
-        </p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            {list.name}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {topLevelTasks.length} task{topLevelTasks.length === 1 ? "" : "s"}
+          </p>
+        </div>
+        <Link
+          href={`/dashboard/l/${list._id}/settings`}
+          className="inline-flex h-9 items-center gap-1 rounded-full border border-border bg-background px-3 text-sm hover:bg-muted"
+        >
+          <Settings className="h-4 w-4" /> Settings
+        </Link>
       </header>
 
-      <div className="overflow-hidden rounded-3xl border border-border bg-background">
+      <div className="overflow-x-auto rounded-3xl border border-border bg-background">
         <table className="w-full text-sm">
           <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
             <tr>
@@ -75,6 +83,15 @@ export function ListView({ listId }: { listId: string }) {
               <th scope="col" className="hidden px-3 py-2 sm:table-cell">Status</th>
               <th scope="col" className="hidden px-3 py-2 sm:table-cell">Priority</th>
               <th scope="col" className="hidden px-3 py-2 md:table-cell">Due</th>
+              {fields.map((f) => (
+                <th
+                  key={f._id}
+                  scope="col"
+                  className="hidden px-3 py-2 md:table-cell"
+                >
+                  {f.name}
+                </th>
+              ))}
               <th scope="col" className="px-3 py-2"></th>
             </tr>
           </thead>
@@ -82,7 +99,7 @@ export function ListView({ listId }: { listId: string }) {
             {topLevelTasks.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={6 + fields.length}
                   className="px-3 py-6 text-center text-sm text-muted-foreground"
                 >
                   No tasks yet — add one below.
@@ -90,7 +107,13 @@ export function ListView({ listId }: { listId: string }) {
               </tr>
             )}
             {topLevelTasks.map((task) => (
-              <TaskRow key={task._id} task={task} listId={list._id} />
+              <TaskRow
+                key={task._id}
+                task={task}
+                listId={list._id}
+                statuses={statuses}
+                fields={fields}
+              />
             ))}
           </tbody>
         </table>
@@ -103,31 +126,65 @@ export function ListView({ listId }: { listId: string }) {
 function TaskRow({
   task,
   listId,
+  statuses,
+  fields,
 }: {
   task: Doc<"tasks">;
   listId: Id<"lists">;
+  statuses: Doc<"listStatuses">[];
+  fields: Doc<"customFields">[];
 }) {
   const update = useMutation(api.tasks.update);
+  const toggleComplete = useMutation(api.tasks.toggleComplete);
   const remove = useMutation(api.tasks.remove);
-  const isDone = task.status === "complete" || task.status === "closed";
+  const setValue = useMutation(api.taskFieldValues.set);
+  const clearValue = useMutation(api.taskFieldValues.clear);
+
+  const values = useQuery(api.taskFieldValues.listForTask, {
+    taskId: task._id,
+  });
+  const valuesByField = useMemo(() => {
+    const map = new Map<string, Doc<"taskFieldValues">>();
+    for (const v of values ?? []) map.set(v.fieldId, v);
+    return map;
+  }, [values]);
+
+  const status = statuses.find((s) => s._id === task.statusId);
+  const isDone =
+    status?.category === "complete" || status?.category === "closed";
 
   return (
-    <tr className="border-b border-border last:border-0">
-      <td className="px-3 py-2 align-middle">
-        <input
-          type="checkbox"
+    <tr className="border-b border-border last:border-0 align-middle">
+      <td className="px-3 py-2">
+        <button
+          type="button"
           aria-label={isDone ? "Mark task open" : "Mark task complete"}
-          checked={isDone}
-          onChange={(e) =>
-            update({
-              taskId: task._id,
-              status: e.currentTarget.checked ? "complete" : "open",
-            })
-          }
-          className="h-4 w-4 rounded-full border-border"
-        />
+          onClick={() => toggleComplete({ taskId: task._id })}
+          className="inline-flex h-5 w-5 items-center justify-center rounded-full border-2"
+          style={{
+            borderColor: status?.color ?? "var(--color-border)",
+            backgroundColor: isDone ? status?.color : "transparent",
+          }}
+        >
+          {isDone && (
+            <svg
+              viewBox="0 0 16 16"
+              className="h-3 w-3 text-white"
+              aria-hidden
+            >
+              <path
+                d="M3 8.5l3 3 7-7"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
+        </button>
       </td>
-      <td className="px-3 py-2 align-middle">
+      <td className="px-3 py-2">
         <Link
           href={`/dashboard/l/${listId}/t/${task._id}`}
           className={cn(
@@ -138,23 +195,27 @@ function TaskRow({
           {task.title}
         </Link>
       </td>
-      <td className="hidden px-3 py-2 align-middle sm:table-cell">
+      <td className="hidden px-3 py-2 sm:table-cell">
         <select
           aria-label="Status"
-          value={task.status}
+          value={task.statusId}
           onChange={(e) =>
-            update({ taskId: task._id, status: e.currentTarget.value as TaskStatus })
+            update({
+              taskId: task._id,
+              statusId: e.currentTarget.value as Id<"listStatuses">,
+            })
           }
           className="rounded-full border border-border bg-background px-2 py-1 text-xs"
+          style={{ borderColor: status?.color }}
         >
-          {(Object.keys(STATUS_LABEL) as TaskStatus[]).map((s) => (
-            <option key={s} value={s}>
-              {STATUS_LABEL[s]}
+          {statuses.map((s) => (
+            <option key={s._id} value={s._id}>
+              {s.name}
             </option>
           ))}
         </select>
       </td>
-      <td className="hidden px-3 py-2 align-middle sm:table-cell">
+      <td className="hidden px-3 py-2 sm:table-cell">
         <select
           aria-label="Priority"
           value={task.priority ?? ""}
@@ -175,7 +236,7 @@ function TaskRow({
           ))}
         </select>
       </td>
-      <td className="hidden px-3 py-2 align-middle md:table-cell">
+      <td className="hidden px-3 py-2 md:table-cell">
         <input
           type="date"
           aria-label="Due date"
@@ -194,7 +255,22 @@ function TaskRow({
           className="rounded-full border border-border bg-background px-2 py-1 text-xs"
         />
       </td>
-      <td className="px-3 py-2 text-right align-middle">
+      {fields.map((f) => (
+        <td key={f._id} className="hidden px-3 py-2 md:table-cell">
+          <CustomFieldInput
+            field={f}
+            value={valuesByField.get(f._id)}
+            onCommit={(value) => {
+              if (value === null) {
+                clearValue({ taskId: task._id, fieldId: f._id });
+              } else {
+                setValue({ taskId: task._id, fieldId: f._id, ...value });
+              }
+            }}
+          />
+        </td>
+      ))}
+      <td className="px-3 py-2 text-right">
         <button
           type="button"
           aria-label="Delete task"
