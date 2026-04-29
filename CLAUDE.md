@@ -42,7 +42,10 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   ├── messages.ts               # comments + chat (polymorphic parent: task | space | workspace)
 │   ├── mentions.ts               # unread mention queries + markRead/markAllRead
 │   ├── docs.ts                   # rich-text docs (Tiptap JSON in `content`)
-│   └── whiteboards.ts            # tldraw boards (snapshot in `snapshot`)
+│   ├── whiteboards.ts            # tldraw boards (snapshot in `snapshot`)
+│   ├── timeEntries.ts            # time tracking (start/stop, runningForCurrent)
+│   ├── goals.ts                  # OKRs/goals with number/money/boolean targets
+│   └── reports.ts                # workspaceSummary aggregation for the Reports tab
 ├── public/
 │   ├── manifest.webmanifest
 │   ├── icon.svg / icon-maskable.svg
@@ -137,6 +140,8 @@ User (personal) ──┘
 - `mentions` — one row per mention. `parentType`/`parentId` are denormalized from the message so the inbox query is O(unread) without resolving each message's parent.
 - `docs` — rich-text documents. Polymorphic parent (`user | workspace | space`). `content` holds Tiptap/ProseMirror JSON.
 - `whiteboards` — tldraw-backed boards with the same parent shape. `snapshot` holds the tldraw store snapshot.
+- `timeEntries` — one row per time-tracked interval. `endedAt` undefined means the timer is currently running. Convex doesn't index `undefined` cleanly, so the running-entry lookup walks recent entries by user; the working set per user is tiny (typically 0 or 1).
+- `goals` — `targetType` is `number | money | boolean`. All three share the same `targetValue` / `currentValue` columns; boolean goals always target 1 and the UI renders a checkbox.
 
 **Authorization** is centralized in `convex/_authz.ts`. Every read/write resolves up the hierarchy (task → list → folder?/space → workspace?/user) and calls `canAccessSpace` to confirm either personal ownership or workspace membership. Use `requireListAccess`/`requireSpaceAccess`/`requireFolderAccess` rather than re-rolling checks in each function.
 
@@ -197,8 +202,8 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - **Phase 2:** Custom fields + per-list custom statuses, list settings page.
 - **Phase 3:** Views — List/Board/Calendar/Gantt selectable via tabs (`?view=` query param). Board uses @dnd-kit; Calendar and Gantt are hand-rolled with date-fns.
 - **Phase 4:** Threaded task comments + workspace chat, @mentions with inline picker, assigned comments, /dashboard/inbox with unread badge in the sidebar. Realtime is automatic via Convex `useQuery` subscriptions.
-- **Phase 5 (current):** Rich-text docs (Tiptap, debounced save) and tldraw whiteboards (dynamic-imported, debounced save). Both attach to user/workspace/space and appear in the sidebar tree alongside lists.
-- **Phase 6:** Time tracking + Goals + Dashboards/widgets.
+- **Phase 5:** Rich-text docs (Tiptap, debounced save) and tldraw whiteboards (dynamic-imported, debounced save). Both attach to user/workspace/space and appear in the sidebar tree alongside lists.
+- **Phase 6 (current):** Time tracking with a live timer (sidebar chip + per-task tracker, only one running per user), Goals (number/money/boolean) on workspaces, and a Reports tab per workspace with fixed widgets (open tasks, completed-this-week, time-tracked-this-week, goal progress, workload by assignee).
 - **Phase 7:** Automations + recurring tasks.
 - **Phase 8:** Email integration + Clips (screen recording).
 - **Phase 9:** AI (Brain) — knowledge search, task auto-fill, summaries, writer.
@@ -217,3 +222,6 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - Mentions don't trigger email yet — Resend is wired but no notification flow has been built.
 - Docs and whiteboards save with last-write-wins (debounced). No CRDT collab yet; concurrent editors can clobber each other's changes.
 - tldraw is loaded with `next/dynamic` (`ssr: false`) so it only ships on the whiteboard route. Its license requires keeping the watermark unless you have a commercial license — we currently keep the default watermark.
+- The Reports query (`reports.workspaceSummary`) walks the workspace tree (spaces → folders → lists → tasks) and joins time entries per task. It's O(tasks + entries) and fine at the sizes we target; needs cursors/pagination once any workspace grows beyond a few thousand tasks.
+- Goals don't auto-update from tasks yet — progress is logged manually. Auto-rollup ("complete X tasks in list Y") is a follow-up.
+- Reports widget layout is fixed; users can't add/remove/rearrange widgets yet.

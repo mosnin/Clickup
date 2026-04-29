@@ -18,6 +18,7 @@ import {
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { RunningTimerChip } from "@/components/dashboard/running-timer-chip";
 
 type SidebarTree = NonNullable<ReturnType<typeof useTreeQuery>>;
 type SpaceNode = SidebarTree["workspaces"][number]["spaces"][number];
@@ -79,6 +80,7 @@ export function DashboardSidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto p-3">
+          <RunningTimerChip />
           <InboxLink onNavigate={() => setMobileOpen(false)} />
           {tree === undefined ? (
             <SidebarLoading />

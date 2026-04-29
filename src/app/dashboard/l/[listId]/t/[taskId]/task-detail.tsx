@@ -9,6 +9,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { Comments } from "@/components/dashboard/comments";
+import { TimeTracker } from "@/components/dashboard/time-tracker";
 
 type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
 
@@ -249,6 +250,13 @@ function TaskEditor({
           className="w-full rounded-3xl border border-border bg-background p-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
+
+      <section>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Time
+        </h2>
+        <TimeTracker taskId={task._id} />
+      </section>
 
       <section>
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">

@@ -249,4 +249,50 @@ export default defineSchema({
     updatedAt: v.number(),
     createdAt: v.number(),
   }).index("by_parent", ["parentType", "parentId"]),
+
+  // One row per time-tracked interval. `endedAt` undefined means the
+  // timer is currently running. Convex doesn't index undefined easily,
+  // so the "find running entry for user X" query filters in JS — the
+  // working set per user is tiny (typically 0 or 1 row).
+  timeEntries: defineTable({
+    taskId: v.id("tasks"),
+    userClerkId: v.string(),
+    startedAt: v.number(),
+    endedAt: v.optional(v.number()),
+    durationMs: v.optional(v.number()),
+    description: v.optional(v.string()),
+    billable: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_task", ["taskId"])
+    .index("by_user", ["userClerkId"])
+    .index("by_user_started", ["userClerkId", "startedAt"]),
+
+  // Goals support three target shapes — numerical, money, and
+  // true/false. The wire shape is the same for all three: a target
+  // and current value plus an optional unit (e.g. "USD" for money).
+  // Boolean goals store currentValue as 0 or 1 against a target of 1.
+  goals: defineTable({
+    parentType: v.union(v.literal("user"), v.literal("workspace")),
+    parentId: v.string(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    targetType: v.union(
+      v.literal("number"),
+      v.literal("money"),
+      v.literal("boolean"),
+    ),
+    targetValue: v.number(),
+    currentValue: v.number(),
+    unit: v.optional(v.string()),
+    dueDate: v.optional(v.number()),
+    status: v.union(
+      v.literal("open"),
+      v.literal("complete"),
+      v.literal("abandoned"),
+    ),
+    ownerClerkId: v.string(),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  }).index("by_parent", ["parentType", "parentId"]),
 });

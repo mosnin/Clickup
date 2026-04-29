@@ -6,19 +6,27 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Comments } from "@/components/dashboard/comments";
+import { GoalsPanel } from "@/components/dashboard/goals-panel";
+import { ReportsPanel } from "@/components/dashboard/reports-panel";
 import { cn } from "@/lib/utils";
 
-type Tab = "overview" | "chat";
+type Tab = "overview" | "chat" | "goals" | "reports";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "chat", label: "Chat" },
+  { key: "goals", label: "Goals" },
+  { key: "reports", label: "Reports" },
 ];
 
 export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
   const tree = useQuery(api.sidebar.tree, {});
   const searchParams = useSearchParams();
-  const tab: Tab = searchParams.get("tab") === "chat" ? "chat" : "overview";
+  const tab: Tab = (() => {
+    const raw = searchParams.get("tab");
+    if (raw === "chat" || raw === "goals" || raw === "reports") return raw;
+    return "overview";
+  })();
 
   if (tree === undefined) {
     return <Skeleton />;
@@ -125,12 +133,25 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
             </ul>
           </section>
         )
-      ) : (
+      ) : tab === "chat" ? (
         <section>
           <Comments
             parentType="workspace"
             parentId={workspace._id as Id<"workspaces">}
             emptyHint="No messages yet. Start the conversation."
+          />
+        </section>
+      ) : tab === "goals" ? (
+        <section>
+          <GoalsPanel
+            parentType="workspace"
+            parentId={workspace._id as Id<"workspaces">}
+          />
+        </section>
+      ) : (
+        <section>
+          <ReportsPanel
+            workspaceId={workspace._id as Id<"workspaces">}
           />
         </section>
       )}
