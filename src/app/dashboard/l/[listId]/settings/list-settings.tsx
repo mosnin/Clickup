@@ -77,6 +77,7 @@ export function ListSettings({ listId }: { listId: string }) {
   );
 }
 
+
 function StatusesSection({
   listId,
   statuses,
@@ -594,6 +595,7 @@ function AutomationsSection({
   const create = useMutation(api.listAutomations.create);
   const update = useMutation(api.listAutomations.update);
   const remove = useMutation(api.listAutomations.remove);
+  const members = useQuery(api.lists.membersForList, { listId }) ?? [];
 
   return (
     <section>
@@ -616,6 +618,7 @@ function AutomationsSection({
             key={automation._id}
             automation={automation}
             statuses={statuses}
+            members={members}
             onChange={(patch) =>
               update({ automationId: automation._id, ...patch })
             }
@@ -635,11 +638,13 @@ function AutomationsSection({
 function AutomationRow({
   automation,
   statuses,
+  members,
   onChange,
   onDelete,
 }: {
   automation: AutomationDoc;
   statuses: Doc<"listStatuses">[];
+  members: Doc<"users">[];
   onChange: (patch: {
     trigger?: Trigger;
     action?: AutomationDoc["action"];
@@ -679,6 +684,7 @@ function AutomationRow({
         <ActionEditor
           action={automation.action}
           statuses={statuses}
+          members={members}
           onChange={(action) => onChange({ action })}
         />
         <button
@@ -699,18 +705,21 @@ function AutomationRow({
 function ActionEditor({
   action,
   statuses,
+  members,
   onChange,
 }: {
   action: AutomationDoc["action"];
   statuses: Doc<"listStatuses">[];
+  members: Doc<"users">[];
   onChange: (action: AutomationDoc["action"]) => Promise<unknown>;
 }) {
   // Switching action kind resets the payload to a sensible default for
   // the new kind, so we never store mismatched fields.
   function setKind(kind: ActionKind) {
     if (kind === action.kind) return;
-    if (kind === "assign_user") onChange({ kind, clerkId: "" });
-    else if (kind === "set_priority") onChange({ kind, priority: "normal" });
+    if (kind === "assign_user") {
+      onChange({ kind, clerkId: members[0]?.clerkId ?? "" });
+    } else if (kind === "set_priority") onChange({ kind, priority: "normal" });
     else if (kind === "set_status") {
       const first = statuses[0];
       if (first) onChange({ kind, statusId: first._id });
@@ -731,15 +740,20 @@ function ActionEditor({
         ))}
       </select>
       {action.kind === "assign_user" && (
-        <input
-          type="text"
+        <select
           value={action.clerkId}
           onChange={(e) =>
             onChange({ kind: "assign_user", clerkId: e.currentTarget.value })
           }
-          placeholder="Clerk user ID"
           className="w-48 rounded-full border border-border bg-background px-3 py-1.5 text-xs"
-        />
+        >
+          {members.length === 0 && <option value="">No members</option>}
+          {members.map((m) => (
+            <option key={m.clerkId} value={m.clerkId}>
+              {m.name ?? m.email}
+            </option>
+          ))}
+        </select>
       )}
       {action.kind === "set_priority" && (
         <select

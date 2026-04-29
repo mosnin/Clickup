@@ -63,22 +63,36 @@ export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
               />
             </dl>
 
-            {m.running && (
-              <div className="mt-3 flex items-center gap-2 rounded-2xl border border-red-300/40 bg-red-50/40 p-2 text-xs">
-                <Timer className="h-3.5 w-3.5 text-red-600" aria-hidden />
-                <span className="font-medium text-red-700">Now</span>
-                <Link
-                  href={`/dashboard/l/${"_"}/t/${m.running.taskId}`}
-                  className="ml-1 truncate text-muted-foreground hover:text-foreground"
-                  title={m.running.taskTitle}
-                >
-                  {m.running.taskTitle}
-                </Link>
-              </div>
-            )}
+            {m.running && <RunningPill running={m.running} />}
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function RunningPill({
+  running,
+}: {
+  running: { taskId: Id<"tasks">; taskTitle: string; startedAt: number };
+}) {
+  const location = useQuery(api.tasks.resolveLocation, {
+    taskId: running.taskId,
+  });
+  const href = location
+    ? `/dashboard/l/${location.listId}/t/${running.taskId}`
+    : "#";
+  return (
+    <div className="mt-3 flex items-center gap-2 rounded-2xl border border-red-300/40 bg-red-50/40 p-2 text-xs">
+      <Timer className="h-3.5 w-3.5 text-red-600" aria-hidden />
+      <span className="font-medium text-red-700">Now</span>
+      <Link
+        href={href}
+        className="ml-1 truncate text-muted-foreground hover:text-foreground"
+        title={running.taskTitle}
+      >
+        {running.taskTitle}
+      </Link>
     </div>
   );
 }

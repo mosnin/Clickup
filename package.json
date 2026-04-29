@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:convex": "convex dev",
+    "prebuild": "node scripts/generate-icons.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -21,9 +22,10 @@
     "@tiptap/pm": "^2.10.3",
     "@tiptap/react": "^2.10.3",
     "@tiptap/starter-kit": "^2.10.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "convex": "^1.17.0",
     "date-fns": "^4.1.0",
-    "tldraw": "^3.5.0",
     "lucide-react": "^0.468.0",
     "next": "^15.1.0",
     "openai": "^4.71.1",
@@ -32,9 +34,8 @@
     "resend": "^4.0.1",
     "serwist": "^9.0.11",
     "svix": "^1.45.0",
-    "clsx": "^2.1.1",
     "tailwind-merge": "^2.6.0",
-    "class-variance-authority": "^0.7.1"
+    "tldraw": "^3.5.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
@@ -44,6 +45,7 @@
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.1.0",
     "postcss": "^8.4.49",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.2"
   }

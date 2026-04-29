@@ -170,6 +170,23 @@ export const get = query({
   },
 });
 
+// Resolves a taskId to its owning list (and workspace, if any) so the
+// client can build deep-link URLs without a separate query per source.
+// Used by Inbox, Brain results, and the Teams Hub "Now" pill.
+export const resolveLocation = query({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const task = await ctx.db.get(taskId);
+    if (!task) return null;
+    return {
+      listId: task.listId,
+      title: task.title,
+    };
+  },
+});
+
 export const create = mutation({
   args: {
     listId: v.id("lists"),

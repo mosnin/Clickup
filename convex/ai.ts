@@ -101,9 +101,39 @@ export const indexTask = internalAction({
   },
 });
 
+export const indexMessage = internalAction({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, { messageId }) => {
+    const client = makeClient();
+    if (!client) return;
+    const msg = await ctx.runQuery(internal.ai._getMessageForIndex, {
+      messageId,
+    });
+    if (!msg) return;
+    const text = msg.body.replace(/@\[([^\]]+)\]\([^)]+\)/g, "@$1").trim();
+    if (!text) return;
+    const embedding = await client.embeddings.create({
+      model: EMBEDDING_MODEL,
+      input: clip(text, 8000),
+    });
+    await ctx.runMutation(internal.ai._upsertEmbedding, {
+      parentType: "message",
+      parentId: messageId,
+      scopeType: msg.scopeType,
+      scopeId: msg.scopeId,
+      textPreview: clip(text, 240),
+      embedding: embedding.data[0].embedding,
+    });
+  },
+});
+
 export const dropEmbeddings = internalAction({
   args: {
-    parentType: v.union(v.literal("doc"), v.literal("task")),
+    parentType: v.union(
+      v.literal("doc"),
+      v.literal("task"),
+      v.literal("message"),
+    ),
     parentId: v.string(),
   },
   handler: async (ctx, args) => {
@@ -153,6 +183,46 @@ export const _getTaskForIndex = internalQuery({
   },
 });
 
+// Resolves a message's scope by walking back to its parent (task | space
+// | workspace). Workspace messages scope to the workspace; space and
+// task messages inherit the space's scope (personal-user vs. workspace).
+export const _getMessageForIndex = internalQuery({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, { messageId }) => {
+    const msg = await ctx.db.get(messageId);
+    if (!msg) return null;
+    let scope: { scopeType: "user" | "workspace"; scopeId: string } | null =
+      null;
+    if (msg.parentType === "workspace") {
+      scope = { scopeType: "workspace", scopeId: msg.parentId };
+    } else if (msg.parentType === "space") {
+      const space = await ctx.db.get(msg.parentId as Id<"spaces">);
+      if (space) {
+        scope = { scopeType: space.parentType, scopeId: space.parentId };
+      }
+    } else {
+      const task = await ctx.db.get(msg.parentId as Id<"tasks">);
+      if (task) {
+        const list = await ctx.db.get(task.listId);
+        if (list) {
+          let space: Doc<"spaces"> | null = null;
+          if (list.parentType === "space") {
+            space = await ctx.db.get(list.parentId as Id<"spaces">);
+          } else {
+            const folder = await ctx.db.get(list.parentId as Id<"folders">);
+            if (folder) space = await ctx.db.get(folder.spaceId);
+          }
+          if (space) {
+            scope = { scopeType: space.parentType, scopeId: space.parentId };
+          }
+        }
+      }
+    }
+    if (!scope) return null;
+    return { body: msg.body, ...scope };
+  },
+});
+
 async function scopeForDocLikeParent(
   ctx: { db: import("./_generated/server").QueryCtx["db"] },
   parentType: "user" | "workspace" | "space",
@@ -169,7 +239,11 @@ async function scopeForDocLikeParent(
 
 export const _upsertEmbedding = internalMutation({
   args: {
-    parentType: v.union(v.literal("doc"), v.literal("task")),
+    parentType: v.union(
+      v.literal("doc"),
+      v.literal("task"),
+      v.literal("message"),
+    ),
     parentId: v.string(),
     scopeType: v.union(v.literal("user"), v.literal("workspace")),
     scopeId: v.string(),
@@ -199,7 +273,11 @@ export const _upsertEmbedding = internalMutation({
 
 export const _dropEmbeddings = internalMutation({
   args: {
-    parentType: v.union(v.literal("doc"), v.literal("task")),
+    parentType: v.union(
+      v.literal("doc"),
+      v.literal("task"),
+      v.literal("message"),
+    ),
     parentId: v.string(),
   },
   handler: async (ctx, args) => {
@@ -216,7 +294,7 @@ export const _dropEmbeddings = internalMutation({
 // --- Public AI actions ---------------------------------------------------
 
 type BrainSource = {
-  parentType: "doc" | "task";
+  parentType: "doc" | "task" | "message";
   parentId: string;
   textPreview: string;
 };

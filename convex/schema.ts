@@ -333,13 +333,16 @@ export default defineSchema({
     .index("by_user_started", ["userClerkId", "startedAt"]),
 
   // Vector embeddings indexed for semantic search ("Brain"). Each row
-  // points at a primary entity (doc or task) and carries the OpenAI
-  // text-embedding-3-small vector (1536 dims). `scopeType`/`scopeId`
-  // mirror the visibility rules (a personal-space task scopes to the
-  // owning user; a workspace task scopes to its workspace) so vector
-  // search filters never leak across boundaries.
+  // points at a primary entity (doc, task, or message) and carries the
+  // OpenAI text-embedding-3-small vector (1536 dims). `scopeType` /
+  // `scopeId` mirror the visibility rules so vector search filters never
+  // leak across boundaries.
   embeddings: defineTable({
-    parentType: v.union(v.literal("doc"), v.literal("task")),
+    parentType: v.union(
+      v.literal("doc"),
+      v.literal("task"),
+      v.literal("message"),
+    ),
     parentId: v.string(),
     scopeType: v.union(v.literal("user"), v.literal("workspace")),
     scopeId: v.string(),

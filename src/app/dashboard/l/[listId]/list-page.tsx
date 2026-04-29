@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { Settings } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -10,6 +11,8 @@ import { ListView } from "./views/list-view";
 import { BoardView } from "./views/board-view";
 import { CalendarView } from "./views/calendar-view";
 import { GanttView } from "./views/gantt-view";
+
+const VIEW_STORAGE_PREFIX = "list-view:";
 
 export function ListPage({
   listId,
@@ -24,7 +27,26 @@ export function ListPage({
   const statuses = useQuery(api.listStatuses.listForList, { listId: id });
   const fields = useQuery(api.customFields.listForList, { listId: id });
 
-  const view: ViewKey = isViewKey(initialView) ? initialView : "list";
+  // Per-list saved view: when the URL doesn't pin a `?view=`, fall back
+  // to the user's last-used view for this list (localStorage). We
+  // initialize once on mount so server-rendered HTML matches the first
+  // client paint, then swap in the saved value if applicable.
+  const [savedView, setSavedView] = useState<ViewKey | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = window.localStorage.getItem(VIEW_STORAGE_PREFIX + listId);
+    if (isViewKey(raw)) setSavedView(raw);
+  }, [listId]);
+
+  const view: ViewKey = isViewKey(initialView)
+    ? initialView
+    : (savedView ?? "list");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!isViewKey(initialView)) return;
+    window.localStorage.setItem(VIEW_STORAGE_PREFIX + listId, initialView);
+  }, [initialView, listId]);
 
   if (
     list === undefined ||

@@ -5,12 +5,13 @@ import { useState } from "react";
 import { useAction, useQuery } from "convex/react";
 import { Sparkles } from "lucide-react";
 import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 
 type Scope = { type: "user"; id: string } | { type: "workspace"; id: string };
 
 type Source = {
-  parentType: "doc" | "task";
+  parentType: "doc" | "task" | "message";
   parentId: string;
   textPreview: string;
 };
@@ -151,13 +152,21 @@ export function Brain() {
 }
 
 function SourceLink({ index, source }: { index: number; source: Source }) {
-  // We can't always link directly to a task without knowing its listId
-  // (would require a resolver query). For docs we can. Linkable items
-  // open the editor; non-linkable just render a preview.
+  // Docs link directly. Tasks need a listId to deep-link, which we
+  // resolve via api.tasks.resolveLocation. Skip the query for docs.
+  const taskLocation = useQuery(
+    api.tasks.resolveLocation,
+    source.parentType === "task"
+      ? { taskId: source.parentId as Id<"tasks"> }
+      : "skip",
+  );
+
   const href =
     source.parentType === "doc"
       ? `/dashboard/d/${source.parentId}`
-      : null;
+      : taskLocation
+        ? `/dashboard/l/${taskLocation.listId}/t/${source.parentId}`
+        : null;
 
   const inner = (
     <div className="flex items-start gap-3 rounded-3xl border border-border bg-background p-3 hover:border-brand-500">

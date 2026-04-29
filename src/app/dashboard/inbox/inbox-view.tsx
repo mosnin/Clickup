@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import type { Doc } from "@convex/_generated/dataModel";
+import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { parseMentionBody } from "@/lib/mentions";
 import { cn } from "@/lib/utils";
@@ -71,15 +71,20 @@ function MentionItem({ mention }: { mention: Doc<"mentions"> }) {
     parentType: mention.parentType,
     parentId: mention.parentId,
   });
+  const taskLocation = useQuery(
+    api.tasks.resolveLocation,
+    mention.parentType === "task"
+      ? { taskId: mention.parentId as Id<"tasks"> }
+      : "skip",
+  );
   const markRead = useMutation(api.mentions.markRead);
 
-  // Task mentions can't deep-link to the list page without knowing the
-  // listId — leave them on the inbox for now so you can read the preview.
-  // A follow-up phase can add a task → list resolver query.
   const href =
     mention.parentType === "workspace"
       ? `/dashboard/w/${mention.parentId}?tab=chat`
-      : "/dashboard/inbox";
+      : mention.parentType === "task" && taskLocation
+        ? `/dashboard/l/${taskLocation.listId}/t/${mention.parentId}`
+        : "/dashboard/inbox";
 
   const msg = message?.find((m) => m._id === mention.messageId);
   const preview = msg ? renderInlineBody(msg.body) : "…";

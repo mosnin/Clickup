@@ -247,12 +247,12 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 
 - The committed `convex/_generated/` is a hand-rolled stub. Until you run `npx convex dev`, `useQuery`/`useMutation` calls return without strict argument checking on individual functions. Once the CLI overwrites it, full type safety kicks in.
 - Resend has no email flows wired — the wrapper exists but no template/sender code is built.
-- PWA icons are SVG-only; some Android variants prefer PNGs. Convert and add `/public/icon-192.png`, `/public/icon-512.png` for full coverage.
+- PNG icon variants (192/512/maskable) are generated via `scripts/generate-icons.mjs` (sharp) as a `prebuild` step. They're gitignored — `next build` always emits fresh ones from the SVG source.
 - Serwist's runtime caching uses the default policy (network-first navigation, stale-while-revalidate for static). Convex's WebSocket bypasses fetch entirely so live queries resume the moment the network returns; queued mutations are replayed by the Convex client on reconnect.
 - Status column reorder is wired in Convex (`listStatuses.reorder`) but no drag-and-drop UI yet for status columns themselves; tasks within columns ARE draggable via Board view.
 - No saved-view configs yet (filter/sort/group selections don't persist). View choice is in the URL via `?view=`, but other settings reset on reload.
-- Calendar and Gantt are read-only — no drag-to-reschedule. Edit a task's date from the task detail page or List view.
-- Inbox doesn't yet deep-link from a task mention back to its list page (would require a task → list resolver query). Workspace chat mentions deep-link correctly.
+- Gantt is read-only — no drag-to-reschedule there yet. Calendar supports drag-to-reschedule (and drag-to-undated to clear).
+- Saved view configs persist on the client only (per-list, in localStorage). Move to a server-side `lists.defaultView` field if cross-device persistence is needed.
 - Mentions don't trigger email yet — Resend is wired but no notification flow has been built.
 - Docs and whiteboards save with last-write-wins (debounced). No CRDT collab yet; concurrent editors can clobber each other's changes.
 - tldraw is loaded with `next/dynamic` (`ssr: false`) so it only ships on the whiteboard route. Its license requires keeping the watermark unless you have a commercial license — we currently keep the default watermark.
@@ -261,13 +261,11 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - Reports widget layout is fixed; users can't add/remove/rearrange widgets yet.
 - Automations are evaluated event-driven only — no scheduled (time-based) triggers like "every Monday at 9am" yet. Use Convex crons for that when needed.
 - Automation actions are primitives that call `db.patch` directly. They don't re-enter `tasks.update`, so a `set_status` action that points at a complete-category status won't re-fire `status_changed_to_complete` automations or recurrence in the same call.
-- The `assign_user` automation accepts a Clerk user ID; the list-settings UI uses a free-text input rather than a member picker. Add member-aware UI alongside Phase 10 (Teams Hub).
+- The `assign_user` automation list-settings UI now uses a member picker driven by `lists.membersForList`.
 - Email send actions (`notifications.ts`) read `RESEND_API_KEY` and `RESEND_FROM_EMAIL` at invocation time. Without those env vars set on the Convex deployment, the action logs and no-ops — no mutation rollback. Inbound email (turning replies into comments) is not built yet.
 - Clips use the browser's `getDisplayMedia` + `MediaRecorder`. Browser support varies: Safari handles screen capture but not always with mic; Firefox/Chrome/Edge are fine. The recorder picks the first supported `mimeType` from a small candidate list (vp9 → vp8 → webm → mp4).
 - AI requires `OPENAI_API_KEY` set on the Convex deployment (`npx convex env set OPENAI_API_KEY sk-...`). Without it, every AI action returns a polite "AI is not configured" message rather than crashing.
 - Convex vectorSearch's filter API only takes a single `.eq()` per call; we filter on `scopeId` alone (Clerk subjects and Convex workspace IDs never collide) rather than chaining `scopeType + scopeId`.
-- Comments aren't indexed yet — search is doc + task only. Adding messages would multiply embedding traffic; defer until needed.
-- Brain "source" links navigate to docs but not tasks (a task → list resolver query is still missing). Same gap as the inbox.
-- The Teams Hub task link in the "Now" pill uses a placeholder listId (`_`) because the `task → listId` resolver isn't built yet — clicking it doesn't navigate cleanly. Replace once the resolver lands.
+- Brain indexes docs, tasks, and messages (comments + chat). Embedding traffic scales with message volume; throttle if it becomes expensive.
 - List templates live as code in `convex/templates.ts`. To add a new template, append to the `LIST_TEMPLATES` array and redeploy — there's no admin UI for creating templates from existing lists yet.
 - Slack is currently the only integration. Adding more (Google Drive, GitHub, etc.) means a new `kind` literal on the integrations table plus a `notifications.post*` action.

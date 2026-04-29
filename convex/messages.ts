@@ -135,6 +135,8 @@ export const create = mutation({
       createdAt: Date.now(),
     });
 
+    await ctx.scheduler.runAfter(0, internal.ai.indexMessage, { messageId });
+
     // Author info, used to populate the email "from" line.
     const author = await ctx.db
       .query("users")
@@ -218,6 +220,7 @@ export const update = mutation({
     );
 
     await ctx.db.patch(messageId, { body, editedAt: Date.now() });
+    await ctx.scheduler.runAfter(0, internal.ai.indexMessage, { messageId });
 
     // Replace mentions: drop old rows, recreate from the new list.
     if (mentionClerkIds) {
@@ -273,6 +276,10 @@ export const remove = mutation({
         .collect();
       for (const m of ms) await ctx.db.delete(m._id);
       await ctx.db.delete(r._id);
+      await ctx.scheduler.runAfter(0, internal.ai.dropEmbeddings, {
+        parentType: "message",
+        parentId: r._id,
+      });
     }
     const ms = await ctx.db
       .query("mentions")
@@ -280,6 +287,10 @@ export const remove = mutation({
       .collect();
     for (const m of ms) await ctx.db.delete(m._id);
     await ctx.db.delete(messageId);
+    await ctx.scheduler.runAfter(0, internal.ai.dropEmbeddings, {
+      parentType: "message",
+      parentId: messageId,
+    });
   },
 });
 

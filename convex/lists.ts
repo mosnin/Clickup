@@ -51,6 +51,53 @@ export const get = query({
   },
 });
 
+// Returns the workspace members that the given list lives under, or
+// an empty list for personal-space lists. Drives the member picker in
+// the assign_user automation editor.
+export const membersForList = query({
+  args: { listId: v.id("lists") },
+  handler: async (ctx, { listId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const list = await ctx.db.get(listId);
+    if (!list) return [];
+    let space;
+    if (list.parentType === "space") {
+      space = await ctx.db.get(list.parentId as Id<"spaces">);
+    } else {
+      const folder = await ctx.db.get(list.parentId as Id<"folders">);
+      if (!folder) return [];
+      space = await ctx.db.get(folder.spaceId);
+    }
+    if (!space) return [];
+    if (!(await canAccessSpace(ctx, space, { subject: identity.subject }))) {
+      return [];
+    }
+    if (space.parentType === "user") {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", space.parentId))
+        .unique();
+      return user ? [user] : [];
+    }
+    const memberships = await ctx.db
+      .query("memberships")
+      .withIndex("by_workspace", (q) =>
+        q.eq("workspaceId", space.parentId as Id<"workspaces">),
+      )
+      .collect();
+    const users = await Promise.all(
+      memberships.map((m) =>
+        ctx.db
+          .query("users")
+          .withIndex("by_clerk_id", (q) => q.eq("clerkId", m.userClerkId))
+          .unique(),
+      ),
+    );
+    return users.filter((u): u is NonNullable<typeof u> => u !== null);
+  },
+});
+
 export const create = mutation({
   args: {
     name: v.string(),
