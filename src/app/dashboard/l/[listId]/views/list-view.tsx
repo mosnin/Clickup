@@ -31,11 +31,17 @@ export function ListView({
   tasks,
   statuses,
   fields,
+  selectMode = false,
+  selectedIds,
+  onToggleSelected,
 }: {
   listId: Id<"lists">;
   tasks: Doc<"tasks">[];
   statuses: Doc<"listStatuses">[];
   fields: Doc<"customFields">[];
+  selectMode?: boolean;
+  selectedIds?: Set<Id<"tasks">>;
+  onToggleSelected?: (taskId: Id<"tasks">) => void;
 }) {
   // "Just changed" highlight: any task whose status / due date / title
   // moves under another teammate's cursor flashes for ~1.6s. The version
@@ -68,6 +74,9 @@ export function ListView({
       <table className="w-full text-sm">
         <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
           <tr>
+            {selectMode && (
+              <th scope="col" className="w-10 px-3 py-2"></th>
+            )}
             <th scope="col" className="w-10 px-3 py-2"></th>
             <th scope="col" className="px-3 py-2">Title</th>
             <th scope="col" className="hidden px-3 py-2 sm:table-cell">Status</th>
@@ -89,10 +98,10 @@ export function ListView({
           {tasks.length === 0 && (
             <tr>
               <td
-                colSpan={6 + fields.length}
+                colSpan={6 + fields.length + (selectMode ? 1 : 0)}
                 className="px-3 py-6 text-center text-sm text-muted-foreground"
               >
-                No tasks yet — add one below.
+                No tasks match — adjust filters or add one below.
               </td>
             </tr>
           )}
@@ -104,6 +113,13 @@ export function ListView({
               statuses={statuses}
               fields={fields}
               isRecent={recentIds.has(task._id)}
+              selectMode={selectMode}
+              selected={selectedIds?.has(task._id) ?? false}
+              onToggleSelected={
+                onToggleSelected
+                  ? () => onToggleSelected(task._id)
+                  : undefined
+              }
             />
           ))}
         </tbody>
@@ -120,12 +136,18 @@ function TaskRow({
   statuses,
   fields,
   isRecent,
+  selectMode,
+  selected,
+  onToggleSelected,
 }: {
   task: Doc<"tasks">;
   listId: Id<"lists">;
   statuses: Doc<"listStatuses">[];
   fields: Doc<"customFields">[];
   isRecent: boolean;
+  selectMode: boolean;
+  selected: boolean;
+  onToggleSelected?: () => void;
 }) {
   const update = useMutation(api.tasks.update);
   const toggleComplete = useMutation(api.tasks.toggleComplete);
@@ -153,8 +175,20 @@ function TaskRow({
       className={cn(
         "border-b border-border align-middle transition-colors duration-700 last:border-0",
         isRecent && "bg-brand-50",
+        selected && "bg-brand-50/60",
       )}
     >
+      {selectMode && (
+        <td className="px-3 py-2">
+          <input
+            type="checkbox"
+            aria-label={selected ? "Deselect task" : "Select task"}
+            checked={selected}
+            onChange={onToggleSelected}
+            className="h-4 w-4 cursor-pointer rounded border-border accent-brand-600"
+          />
+        </td>
+      )}
       <td className="px-3 py-2">
         <button
           type="button"

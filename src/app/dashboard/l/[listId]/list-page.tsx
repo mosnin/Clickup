@@ -3,11 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
+import { useUser } from "@clerk/nextjs";
 import { Settings } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { PresenceStack } from "@/components/dashboard/presence-stack";
+import { FilterChips } from "@/components/dashboard/filter-chips";
+import { BulkActionBar } from "@/components/dashboard/bulk-action-bar";
 import { usePresence } from "@/lib/use-presence";
+import { useTaskFilter, useFilteredTasks } from "@/lib/use-task-filter";
 import { ViewTabs, type ViewKey, isViewKey } from "./view-tabs";
 import { ListView } from "./views/list-view";
 import { BoardView } from "./views/board-view";
@@ -28,6 +32,22 @@ export function ListPage({
   const tasks = useQuery(api.tasks.listForList, { listId: id });
   const statuses = useQuery(api.listStatuses.listForList, { listId: id });
   const fields = useQuery(api.customFields.listForList, { listId: id });
+  const { user } = useUser();
+  const meClerkId = user?.id ?? null;
+
+  const { filter, setFilter } = useTaskFilter(listId);
+
+  // Bulk-select state lives at the page level so it survives view
+  // transitions. List view shows the checkbox column; the bottom bar
+  // appears anywhere selection is non-empty.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<Id<"tasks">>>(
+    () => new Set(),
+  );
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  };
 
   // Per-list saved view: when the URL doesn't pin a `?view=`, fall back
   // to the user's last-used view for this list (localStorage). We
@@ -56,6 +76,20 @@ export function ListPage({
     window.localStorage.setItem(VIEW_STORAGE_PREFIX + listId, initialView);
   }, [initialView, listId]);
 
+  // Compute filtered tasks unconditionally (hooks must run on every
+  // render). Inputs are coerced to safe empty arrays before the queries
+  // resolve; the early returns below handle the actual loading UI.
+  const topLevelTasks = (tasks ?? [])
+    .filter((t) => !t.parentTaskId)
+    .sort((a, b) => a.position - b.position);
+
+  const filteredTasks = useFilteredTasks(
+    topLevelTasks,
+    filter,
+    statuses ?? [],
+    meClerkId,
+  );
+
   if (
     list === undefined ||
     tasks === undefined ||
@@ -81,9 +115,10 @@ export function ListPage({
     );
   }
 
-  const topLevelTasks = tasks
-    .filter((t) => !t.parentTaskId)
-    .sort((a, b) => a.position - b.position);
+  // Filter chips + select toggle only show on List/Board (the views
+  // they affect). Calendar / Gantt are time-anchored — filtering would
+  // create more confusion than it solves.
+  const showFilterBar = view === "list" || view === "board";
 
   return (
     <div className="space-y-6">
@@ -109,18 +144,46 @@ export function ListPage({
 
       <ViewTabs listId={list._id} active={view} />
 
+      {showFilterBar && (
+        <FilterChips
+          filter={filter}
+          onChange={setFilter}
+          totalCount={topLevelTasks.length}
+          visibleCount={filteredTasks.length}
+          selectMode={view === "list" ? selectMode : undefined}
+          onToggleSelectMode={
+            view === "list"
+              ? () => {
+                  if (selectMode) clearSelection();
+                  else setSelectMode(true);
+                }
+              : undefined
+          }
+        />
+      )}
+
       {view === "list" && (
         <ListView
           listId={list._id}
-          tasks={topLevelTasks}
+          tasks={filteredTasks}
           statuses={statuses}
           fields={fields}
+          selectMode={selectMode}
+          selectedIds={selectedIds}
+          onToggleSelected={(taskId) => {
+            setSelectedIds((prev) => {
+              const next = new Set(prev);
+              if (next.has(taskId)) next.delete(taskId);
+              else next.add(taskId);
+              return next;
+            });
+          }}
         />
       )}
       {view === "board" && (
         <BoardView
           listId={list._id}
-          tasks={topLevelTasks}
+          tasks={filteredTasks}
           statuses={statuses}
         />
       )}
@@ -130,6 +193,13 @@ export function ListPage({
       {view === "gantt" && (
         <GanttView listId={list._id} tasks={topLevelTasks} statuses={statuses} />
       )}
+
+      <BulkActionBar
+        selectedIds={selectedIds}
+        tasks={filteredTasks}
+        statuses={statuses}
+        onClear={clearSelection}
+      />
     </div>
   );
 }
