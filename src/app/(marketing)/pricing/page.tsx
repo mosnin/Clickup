@@ -4,115 +4,112 @@ import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Pricing" };
 
-const TIERS = [
-  {
-    name: "Solo",
-    price: "$0",
-    cadence: "forever",
-    blurb: "For one person. Personal space, no limits, no card.",
-    features: [
-      "Personal space",
-      "Unlimited tasks, docs, whiteboards",
-      "⌘K, AI, mobile",
-      "30-day trash",
-    ],
-    cta: "Start free",
-    highlight: false,
-  },
-  {
-    name: "Team",
-    price: "$8",
-    cadence: "per user / month",
-    blurb: "For teams under 50.",
-    features: [
-      "Everything in Solo",
-      "Unlimited team workspaces",
-      "Roles, invites, audit log",
-      "Slack + email notifications",
-      "Time tracking + reports",
-    ],
-    cta: "Start a team",
-    highlight: true,
-  },
-  {
-    name: "Business",
-    price: "Talk to us",
-    cadence: "",
-    blurb: "For companies that need SSO and a contract.",
-    features: ["Everything in Team", "SSO + SCIM", "API + webhooks", "Priority support"],
-    cta: "Contact sales",
-    highlight: false,
-  },
-];
-
 export default function PricingPage() {
   return (
-    <section className="px-4 py-16 sm:py-24">
-      <div className="mx-auto max-w-5xl">
-        <header className="text-center">
-          <h1 className="text-4xl font-semibold tracking-tight sm:text-6xl">
-            Pay for the team plan.
-            <br />
-            <span className="text-brand-600">Don&apos;t pay to think.</span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
-            Solo is free forever. The team plan exists because we&apos;d like to
-            keep the lights on.
-          </p>
-        </header>
+    <main className="px-4 py-16 sm:px-6 sm:py-20">
+      <section className="mx-auto max-w-3xl text-center">
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">
+          Honest pricing.
+        </h1>
+        <p className="mt-4 text-base text-muted-foreground sm:text-lg">
+          Free for one. $10 a person, a month, when you bring a team.
+        </p>
+      </section>
 
-        <div className="mt-12 grid gap-6 lg:grid-cols-3">
-          {TIERS.map((tier) => (
-            <div
-              key={tier.name}
-              className={
-                tier.highlight
-                  ? "rounded-3xl border-2 border-brand-600 bg-background p-8 shadow-lg shadow-brand-900/5"
-                  : "rounded-3xl border border-border bg-background p-8"
-              }
-            >
-              <div className="flex items-baseline justify-between">
-                <h2 className="text-lg font-semibold">{tier.name}</h2>
-                {tier.highlight && (
-                  <span className="rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-brand-700">
-                    Most teams
-                  </span>
-                )}
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">{tier.blurb}</p>
-              <p className="mt-6 text-3xl font-semibold tracking-tight">
-                {tier.price}{" "}
-                {tier.cadence && (
-                  <span className="text-base font-normal text-muted-foreground">
-                    {tier.cadence}
-                  </span>
-                )}
-              </p>
-              <ul className="mt-6 space-y-2 text-sm">
-                {tier.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2">
-                    <span aria-hidden className="mt-1 text-brand-600">
-                      ✓
-                    </span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href={tier.name === "Business" ? "mailto:hello@pace.app" : "/sign-up"}
-                className="mt-8 block"
-              >
-                <Button
-                  className="w-full"
-                  variant={tier.highlight ? "primary" : "outline"}
-                >
-                  {tier.cta}
-                </Button>
-              </Link>
-            </div>
-          ))}
-        </div>
+      <section className="mx-auto mt-12 grid max-w-4xl gap-4 sm:grid-cols-2">
+        <Tier
+          name="Free"
+          price="$0"
+          cadence="forever"
+          tagline="For one. Personal use."
+          features={[
+            "Your personal space",
+            "Unlimited tasks, lists, docs",
+            "Quick Task AI (10 / day)",
+            "Brain search",
+            "Mobile + offline",
+          ]}
+          cta="Get started"
+          ctaHref="/sign-up"
+          muted
+        />
+        <Tier
+          name="Pro"
+          price="$10"
+          cadence="per user / month"
+          tagline="For teams shipping work together."
+          features={[
+            "Everything in Free",
+            "Unlimited workspaces + members",
+            "Quick Task AI (unlimited)",
+            "Realtime presence + CRDT docs",
+            "Slack, Capacitor, integrations",
+            "Priority support",
+          ]}
+          cta="Start a workspace"
+          ctaHref="/sign-up"
+        />
+      </section>
+
+      <p className="mx-auto mt-10 max-w-xl text-center text-xs text-muted-foreground">
+        Annual billing knocks 20% off. No usage gotchas. Cancel anything.
+      </p>
+    </main>
+  );
+}
+
+function Tier({
+  name,
+  price,
+  cadence,
+  tagline,
+  features,
+  cta,
+  ctaHref,
+  muted,
+}: {
+  name: string;
+  price: string;
+  cadence: string;
+  tagline: string;
+  features: string[];
+  cta: string;
+  ctaHref: string;
+  muted?: boolean;
+}) {
+  return (
+    <article
+      className={
+        "rounded-3xl border p-6 " +
+        (muted
+          ? "border-border bg-muted/30"
+          : "border-foreground bg-background shadow-sm")
+      }
+    >
+      <h2 className="text-lg font-semibold">{name}</h2>
+      <p className="mt-1 text-xs text-muted-foreground">{tagline}</p>
+      <p className="mt-4">
+        <span className="text-4xl font-semibold tracking-tight">{price}</span>
+        <span className="ml-1 text-sm text-muted-foreground">{cadence}</span>
+      </p>
+      <ul className="mt-5 space-y-2 text-sm">
+        {features.map((f) => (
+          <li key={f} className="flex items-start gap-2">
+            <span
+              aria-hidden
+              className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-brand-500"
+            />
+            <span>{f}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-6">
+        <Link href={ctaHref}>
+          <Button className="w-full" variant={muted ? "outline" : "primary"}>
+            {cta}
+          </Button>
+        </Link>
       </div>
-    </section>
+    </article>
   );
 }

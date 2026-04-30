@@ -11,7 +11,6 @@ import {
   Clock,
   FileText,
   Inbox,
-  LayoutGrid,
   Menu,
   Plus,
   Sparkles,
@@ -362,7 +361,6 @@ function SpaceBranch({
   const createFolder = useMutation(api.folders.create);
   const createList = useMutation(api.lists.create);
   const createDoc = useMutation(api.docs.create);
-  const createWhiteboard = useMutation(api.whiteboards.create);
 
   async function onAddFolder() {
     const name = window.prompt("Folder name");
@@ -385,18 +383,6 @@ function SpaceBranch({
     onNavigate();
     router.push(`/dashboard/d/${docId}`);
   }
-  async function onAddWhiteboard() {
-    const title = window.prompt("Whiteboard title", "Untitled board");
-    if (title === null) return;
-    const wbId = await createWhiteboard({
-      parentType: "space",
-      parentId: space._id,
-      title,
-    });
-    onNavigate();
-    router.push(`/dashboard/wb/${wbId}`);
-  }
-
   const dot = useMemo(
     () => (
       <span
@@ -465,23 +451,12 @@ function SpaceBranch({
               />
             </li>
           ))}
-          {space.whiteboards.map((wb) => (
-            <li key={wb._id}>
-              <WhiteboardLink
-                whiteboardId={wb._id}
-                title={wb.title}
-                active={pathname === `/dashboard/wb/${wb._id}`}
-                onNavigate={onNavigate}
-              />
-            </li>
-          ))}
           <li className="mt-1 flex flex-wrap gap-1">
             <AddButton onClick={onAddList}>list</AddButton>
             <AddButton onClick={() => setTemplateOpen(true)}>
               from template
             </AddButton>
             <AddButton onClick={onAddDoc}>doc</AddButton>
-            <AddButton onClick={onAddWhiteboard}>board</AddButton>
           </li>
         </ul>
       )}
@@ -634,34 +609,6 @@ function DocLink({
       )}
     >
       <FileText className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
-      <span className="truncate">{title}</span>
-    </Link>
-  );
-}
-
-function WhiteboardLink({
-  whiteboardId,
-  title,
-  active,
-  onNavigate,
-}: {
-  whiteboardId: Id<"whiteboards">;
-  title: string;
-  active: boolean;
-  onNavigate: () => void;
-}) {
-  return (
-    <Link
-      href={`/dashboard/wb/${whiteboardId}`}
-      onClick={onNavigate}
-      className={cn(
-        "flex items-center gap-2 rounded-2xl px-2 py-1 text-sm transition-colors",
-        active
-          ? "bg-muted text-foreground"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-      )}
-    >
-      <LayoutGrid className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
       <span className="truncate">{title}</span>
     </Link>
   );

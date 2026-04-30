@@ -17,9 +17,7 @@ type Tab = "overview" | "team" | "chat" | "goals" | "reports" | "settings";
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "team", label: "Team" },
-  { key: "chat", label: "Chat" },
   { key: "goals", label: "Goals" },
-  { key: "reports", label: "Reports" },
   { key: "settings", label: "Settings" },
 ];
 

@@ -1,15 +1,24 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { Geist } from "next/font/google";
 import { Providers } from "./providers";
 import { RegisterServiceWorker } from "@/components/register-service-worker";
 import { OfflineIndicator } from "@/components/offline-indicator";
 
+const geist = Geist({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: {
-    default: "Pace — Find your pace.",
+    default: "Pace — Type. Done.",
     template: "%s · Pace",
   },
-  description: "The work app that gets out of your way.",
+  description:
+    "Pace turns a plain-English sentence into the right task on the right list. One keystroke.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icon.svg",
@@ -36,7 +45,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={geist.variable}>
       <body className="min-h-dvh bg-background text-foreground antialiased">
         <Providers>{children}</Providers>
         <OfflineIndicator />
