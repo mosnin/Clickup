@@ -109,8 +109,17 @@ export const update = mutation({
     entryId: v.id("timeEntries"),
     description: v.optional(v.string()),
     billable: v.optional(v.boolean()),
+    // Allow shifting the entry on the timesheet. We accept startedAt
+    // and endedAt independently so the form can patch one or both.
+    // durationMs is derived; we recompute it whenever either bound
+    // changes so the per-day totals query stays simple.
+    startedAt: v.optional(v.number()),
+    endedAt: v.optional(v.number()),
   },
-  handler: async (ctx, { entryId, description, billable }) => {
+  handler: async (
+    ctx,
+    { entryId, description, billable, startedAt, endedAt },
+  ) => {
     const identity = await requireIdentity(ctx);
     const entry = await ctx.db.get(entryId);
     if (!entry) throw new Error("Entry not found");
@@ -120,7 +129,89 @@ export const update = mutation({
     const patch: Record<string, unknown> = {};
     if (description !== undefined) patch.description = description;
     if (billable !== undefined) patch.billable = billable;
+    let nextStart = entry.startedAt;
+    let nextEnd = entry.endedAt;
+    if (startedAt !== undefined) {
+      patch.startedAt = startedAt;
+      nextStart = startedAt;
+    }
+    if (endedAt !== undefined) {
+      patch.endedAt = endedAt;
+      nextEnd = endedAt;
+    }
+    if (startedAt !== undefined || endedAt !== undefined) {
+      if (nextEnd !== undefined) {
+        if (nextEnd < nextStart) {
+          throw new Error("End time must be after start time");
+        }
+        patch.durationMs = nextEnd - nextStart;
+      }
+    }
     await ctx.db.patch(entryId, patch);
+  },
+});
+
+// Insert a completed time entry directly (no live timer). Used by the
+// timesheet's "Add entry" form. Both bounds are required and the
+// duration is computed server-side so we don't end up with mismatched
+// rows that the reporting query has to reconcile.
+export const manualCreate = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    startedAt: v.number(),
+    endedAt: v.number(),
+    description: v.optional(v.string()),
+    billable: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const { identity } = await requireTaskAccess(ctx, args.taskId);
+    if (args.endedAt < args.startedAt) {
+      throw new Error("End time must be after start time");
+    }
+    return await ctx.db.insert("timeEntries", {
+      taskId: args.taskId,
+      userClerkId: identity.subject,
+      startedAt: args.startedAt,
+      endedAt: args.endedAt,
+      durationMs: args.endedAt - args.startedAt,
+      description: args.description,
+      billable: args.billable ?? false,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+// All entries for the calling user whose start falls inside [from, to).
+// Returned with task title + listId resolved so the timesheet can
+// render rows + deep-link without a per-row roundtrip. We index by
+// (userClerkId, startedAt) so this is a range scan, not a full table
+// walk.
+export const listForUserInRange = query({
+  args: { from: v.number(), to: v.number() },
+  handler: async (ctx, { from, to }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    if (to <= from) return [];
+    const candidates = await ctx.db
+      .query("timeEntries")
+      .withIndex("by_user_started", (q) =>
+        q.eq("userClerkId", identity.subject).gte("startedAt", from),
+      )
+      .collect();
+    const inWindow = candidates.filter((e) => e.startedAt < to);
+
+    const enriched = await Promise.all(
+      inWindow.map(async (e) => {
+        const task = await ctx.db.get(e.taskId);
+        return {
+          ...e,
+          taskTitle: task?.title ?? "(deleted task)",
+          listId: task?.listId ?? null,
+          taskDeleted: !task || task.deletedAt !== undefined,
+        };
+      }),
+    );
+    return enriched.sort((a, b) => a.startedAt - b.startedAt);
   },
 });
 

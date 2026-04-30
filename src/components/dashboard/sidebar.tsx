@@ -8,6 +8,7 @@ import { useMutation, useQuery } from "convex/react";
 import {
   ChevronDown,
   ChevronRight,
+  Clock,
   FileText,
   Inbox,
   LayoutGrid,
@@ -85,6 +86,7 @@ export function DashboardSidebar() {
           <SearchButton onNavigate={() => setMobileOpen(false)} />
           <BrainLink onNavigate={() => setMobileOpen(false)} />
           <InboxLink onNavigate={() => setMobileOpen(false)} />
+          <TimeLink onNavigate={() => setMobileOpen(false)} />
           <TrashLink onNavigate={() => setMobileOpen(false)} />
           {tree === undefined ? (
             <SidebarLoading />
@@ -145,6 +147,26 @@ function BrainLink({ onNavigate }: { onNavigate: () => void }) {
     >
       <Sparkles className="h-4 w-4" />
       <span>Brain</span>
+    </Link>
+  );
+}
+
+function TimeLink({ onNavigate }: { onNavigate: () => void }) {
+  const pathname = usePathname();
+  const active = pathname === "/dashboard/time" || pathname?.startsWith("/dashboard/time?");
+  return (
+    <Link
+      href="/dashboard/time"
+      onClick={onNavigate}
+      className={cn(
+        "mb-1 flex items-center gap-2 rounded-2xl px-2 py-1.5 text-sm transition-colors",
+        active
+          ? "bg-muted text-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <Clock className="h-4 w-4" />
+      <span>Time</span>
     </Link>
   );
 }
