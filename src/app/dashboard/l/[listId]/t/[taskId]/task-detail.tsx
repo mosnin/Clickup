@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Lock, Sparkles, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -323,6 +323,8 @@ function TaskEditor({
         />
       </div>
 
+      <BlockerSection taskId={task._id} listId={listId} />
+
       <section>
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Time
@@ -369,6 +371,155 @@ function Field({
       </span>
       {children}
     </label>
+  );
+}
+
+function BlockerSection({
+  taskId,
+  listId,
+}: {
+  taskId: Id<"tasks">;
+  listId: Id<"lists">;
+}) {
+  const status = useQuery(api.tasks.blockerStatusFor, { taskId });
+  const addBlocker = useMutation(api.tasks.addBlocker);
+  const removeBlocker = useMutation(api.tasks.removeBlocker);
+  const siblings = useQuery(api.tasks.listForList, { listId });
+  const [picking, setPicking] = useState(false);
+  const [query, setQuery] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  if (!status) return null;
+
+  const blockedIds = new Set(status.blockers.map((b) => b._id));
+  const candidates = (siblings ?? [])
+    .filter(
+      (s) =>
+        s._id !== taskId &&
+        !blockedIds.has(s._id) &&
+        s.title.toLowerCase().includes(query.toLowerCase()),
+    )
+    .slice(0, 8);
+
+  async function add(blockerId: Id<"tasks">) {
+    setError(null);
+    try {
+      await addBlocker({ taskId, blockerTaskId: blockerId });
+      setPicking(false);
+      setQuery("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add blocker");
+    }
+  }
+
+  return (
+    <section className="rounded-3xl border border-border bg-background p-5">
+      <header className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold">Blocked by</span>
+          {status.isBlocked && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+              <Lock className="h-2.5 w-2.5" aria-hidden />
+              Blocked
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setPicking((v) => !v)}
+          className="text-xs text-muted-foreground hover:text-foreground"
+        >
+          {picking ? "Cancel" : "+ Add"}
+        </button>
+      </header>
+
+      {status.blockers.length === 0 && !picking && (
+        <p className="text-xs text-muted-foreground">
+          Nothing yet. Add a task that must finish first.
+        </p>
+      )}
+
+      {status.blockers.length > 0 && (
+        <ul className="space-y-1.5">
+          {status.blockers.map((b) => (
+            <li
+              key={b._id}
+              className="flex items-center justify-between gap-2 rounded-2xl border border-border px-3 py-1.5 text-sm"
+            >
+              <Link
+                href={`/dashboard/l/${listId}/t/${b._id}`}
+                className="truncate hover:underline"
+              >
+                {b.title}
+              </Link>
+              <button
+                type="button"
+                aria-label="Remove blocker"
+                onClick={() =>
+                  removeBlocker({ taskId, blockerTaskId: b._id })
+                }
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {picking && (
+        <div className="mt-3 space-y-2">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.currentTarget.value)}
+            placeholder="Search tasks in this list…"
+            autoFocus
+            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+          {error && <p className="text-xs text-red-700">{error}</p>}
+          <ul className="max-h-48 overflow-y-auto rounded-2xl border border-border">
+            {candidates.length === 0 ? (
+              <li className="px-3 py-2 text-xs text-muted-foreground">
+                No matches.
+              </li>
+            ) : (
+              candidates.map((c) => (
+                <li key={c._id}>
+                  <button
+                    type="button"
+                    onClick={() => add(c._id)}
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                  >
+                    {c.title}
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      )}
+
+      {status.blocking.length > 0 && (
+        <div className="mt-4 border-t border-border pt-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            This blocks
+          </p>
+          <ul className="mt-1.5 flex flex-wrap gap-1.5">
+            {status.blocking.map((b) => (
+              <li key={b._id}>
+                <Link
+                  href={`/dashboard/l/${listId}/t/${b._id}`}
+                  className="inline-flex items-center rounded-full border border-border bg-muted/30 px-2 py-0.5 text-xs hover:bg-muted"
+                >
+                  {b.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
   );
 }
 
