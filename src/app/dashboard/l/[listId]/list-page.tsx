@@ -1,0 +1,215 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useQuery } from "convex/react";
+import { useUser } from "@clerk/nextjs";
+import { Settings } from "lucide-react";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
+import { PresenceStack } from "@/components/dashboard/presence-stack";
+import { FilterChips } from "@/components/dashboard/filter-chips";
+import { BulkActionBar } from "@/components/dashboard/bulk-action-bar";
+import { usePresence } from "@/lib/use-presence";
+import { useTaskFilter, useFilteredTasks } from "@/lib/use-task-filter";
+import { ViewTabs, type ViewKey, isViewKey } from "./view-tabs";
+import { ListView } from "./views/list-view";
+import { BoardView } from "./views/board-view";
+import { CalendarView } from "./views/calendar-view";
+import { GanttView } from "./views/gantt-view";
+
+const VIEW_STORAGE_PREFIX = "list-view:";
+
+export function ListPage({
+  listId,
+  initialView,
+}: {
+  listId: string;
+  initialView?: string;
+}) {
+  const id = listId as Id<"lists">;
+  const list = useQuery(api.lists.get, { listId: id });
+  const tasks = useQuery(api.tasks.listForList, { listId: id });
+  const statuses = useQuery(api.listStatuses.listForList, { listId: id });
+  const fields = useQuery(api.customFields.listForList, { listId: id });
+  const { user } = useUser();
+  const meClerkId = user?.id ?? null;
+
+  const { filter, setFilter } = useTaskFilter(listId);
+
+  // Bulk-select state lives at the page level so it survives view
+  // transitions. List view shows the checkbox column; the bottom bar
+  // appears anywhere selection is non-empty.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<Id<"tasks">>>(
+    () => new Set(),
+  );
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  };
+
+  // Per-list saved view: when the URL doesn't pin a `?view=`, fall back
+  // to the user's last-used view for this list (localStorage). We
+  // initialize once on mount so server-rendered HTML matches the first
+  // client paint, then swap in the saved value if applicable.
+  const [savedView, setSavedView] = useState<ViewKey | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = window.localStorage.getItem(VIEW_STORAGE_PREFIX + listId);
+    if (isViewKey(raw)) setSavedView(raw);
+  }, [listId]);
+
+  const view: ViewKey = isViewKey(initialView)
+    ? initialView
+    : (savedView ?? "list");
+
+  const viewers = usePresence({
+    focusType: "list",
+    focusId: id,
+    enabled: list !== null && list !== undefined,
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!isViewKey(initialView)) return;
+    window.localStorage.setItem(VIEW_STORAGE_PREFIX + listId, initialView);
+  }, [initialView, listId]);
+
+  // Compute filtered tasks unconditionally (hooks must run on every
+  // render). Inputs are coerced to safe empty arrays before the queries
+  // resolve; the early returns below handle the actual loading UI.
+  const topLevelTasks = (tasks ?? [])
+    .filter((t) => !t.parentTaskId)
+    .sort((a, b) => a.position - b.position);
+
+  const filteredTasks = useFilteredTasks(
+    topLevelTasks,
+    filter,
+    statuses ?? [],
+    meClerkId,
+  );
+
+  if (
+    list === undefined ||
+    tasks === undefined ||
+    statuses === undefined ||
+    fields === undefined
+  ) {
+    return <PageSkeleton />;
+  }
+
+  if (list === null) {
+    return (
+      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center">
+        <p className="text-sm text-muted-foreground">
+          This list doesn&apos;t exist or you don&apos;t have access to it.
+        </p>
+        <Link
+          href="/dashboard"
+          className="mt-3 inline-block text-sm font-medium text-brand-600 hover:underline"
+        >
+          Back to dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  // Filter chips + select toggle only show on List/Board (the views
+  // they affect). Calendar / Gantt are time-anchored — filtering would
+  // create more confusion than it solves.
+  const showFilterBar = view === "list" || view === "board";
+
+  return (
+    <div className="space-y-6">
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            {list.name}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {topLevelTasks.length} task{topLevelTasks.length === 1 ? "" : "s"}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <PresenceStack viewers={viewers} />
+          <Link
+            href={`/dashboard/l/${list._id}/settings`}
+            className="inline-flex h-9 items-center gap-1 rounded-full border border-border bg-background px-3 text-sm hover:bg-muted"
+          >
+            <Settings className="h-4 w-4" /> Settings
+          </Link>
+        </div>
+      </header>
+
+      <ViewTabs listId={list._id} active={view} />
+
+      {showFilterBar && (
+        <FilterChips
+          filter={filter}
+          onChange={setFilter}
+          totalCount={topLevelTasks.length}
+          visibleCount={filteredTasks.length}
+          selectMode={view === "list" ? selectMode : undefined}
+          onToggleSelectMode={
+            view === "list"
+              ? () => {
+                  if (selectMode) clearSelection();
+                  else setSelectMode(true);
+                }
+              : undefined
+          }
+        />
+      )}
+
+      {view === "list" && (
+        <ListView
+          listId={list._id}
+          tasks={filteredTasks}
+          statuses={statuses}
+          fields={fields}
+          selectMode={selectMode}
+          selectedIds={selectedIds}
+          onToggleSelected={(taskId) => {
+            setSelectedIds((prev) => {
+              const next = new Set(prev);
+              if (next.has(taskId)) next.delete(taskId);
+              else next.add(taskId);
+              return next;
+            });
+          }}
+        />
+      )}
+      {view === "board" && (
+        <BoardView
+          listId={list._id}
+          tasks={filteredTasks}
+          statuses={statuses}
+        />
+      )}
+      {view === "calendar" && (
+        <CalendarView listId={list._id} tasks={topLevelTasks} />
+      )}
+      {view === "gantt" && (
+        <GanttView listId={list._id} tasks={topLevelTasks} statuses={statuses} />
+      )}
+
+      <BulkActionBar
+        selectedIds={selectedIds}
+        tasks={filteredTasks}
+        statuses={statuses}
+        onClear={clearSelection}
+      />
+    </div>
+  );
+}
+
+function PageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
+      <div className="h-9 w-2/3 animate-pulse rounded-full bg-muted" />
+      <div className="h-64 animate-pulse rounded-3xl bg-muted/40" />
+    </div>
+  );
+}

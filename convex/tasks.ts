@@ -1,0 +1,509 @@
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { requireListAccess, requireTaskAccess } from "./_authz";
+import { applyAutomations } from "./listAutomations";
+
+// For a given list of clerk IDs that have just been added as assignees on
+// `task`, schedule an assignment email to each one (skipping the actor)
+// and a single Slack post if the workspace has an enabled Slack
+// integration.
+async function scheduleAssignmentNotifications(
+  ctx: MutationCtx,
+  task: Doc<"tasks">,
+  newClerkIds: string[],
+  actorClerkId: string,
+): Promise<void> {
+  if (newClerkIds.length === 0) return;
+  const actor = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", actorClerkId))
+    .unique();
+  const actorName = actor?.name ?? actor?.email ?? "Someone";
+
+  const recipientNames: string[] = [];
+  for (const cid of newClerkIds) {
+    if (cid === actorClerkId) continue;
+    const recipient = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", cid))
+      .unique();
+    if (!recipient?.email) continue;
+    recipientNames.push(recipient.name ?? recipient.email);
+    await ctx.scheduler.runAfter(
+      0,
+      internal.notifications.sendAssignmentEmail,
+      {
+        toEmail: recipient.email,
+        toName: recipient.name,
+        fromName: actorName,
+        taskTitle: task.title,
+      },
+    );
+  }
+
+  // Slack: resolve workspace from task → list → space → workspaceId.
+  const list = await ctx.db.get(task.listId);
+  if (!list) return;
+  let space;
+  if (list.parentType === "space") {
+    space = await ctx.db.get(list.parentId as import("./_generated/dataModel").Id<"spaces">);
+  } else {
+    const folder = await ctx.db.get(
+      list.parentId as import("./_generated/dataModel").Id<"folders">,
+    );
+    if (folder) space = await ctx.db.get(folder.spaceId);
+  }
+  if (!space || space.parentType !== "workspace") return;
+  const workspaceId = space.parentId as import("./_generated/dataModel").Id<"workspaces">;
+  const slack = await ctx.db
+    .query("integrations")
+    .withIndex("by_workspace_and_kind", (q) =>
+      q.eq("workspaceId", workspaceId).eq("kind", "slack"),
+    )
+    .unique();
+  if (!slack || !slack.enabled || recipientNames.length === 0) return;
+  const text = `${actorName} assigned *${task.title}* to ${recipientNames.join(", ")}.`;
+  await ctx.scheduler.runAfter(0, internal.notifications.postSlack, {
+    webhookUrl: slack.config.webhookUrl,
+    text,
+  });
+}
+
+const recurrenceValidator = v.union(
+  v.literal("daily"),
+  v.literal("weekly"),
+  v.literal("monthly"),
+);
+
+function addRecurrence(ts: number, recurrence: "daily" | "weekly" | "monthly"): number {
+  const d = new Date(ts);
+  switch (recurrence) {
+    case "daily":
+      d.setUTCDate(d.getUTCDate() + 1);
+      break;
+    case "weekly":
+      d.setUTCDate(d.getUTCDate() + 7);
+      break;
+    case "monthly":
+      d.setUTCMonth(d.getUTCMonth() + 1);
+      break;
+  }
+  return d.getTime();
+}
+
+// When a recurring task is moved into a complete-category status, spawn
+// the next instance on the same list with its dates advanced. The new
+// task is open, retains the same priority/assignees/recurrence/etc., and
+// is appended at the bottom of the list.
+async function spawnRecurringInstance(
+  ctx: MutationCtx,
+  completedTask: Doc<"tasks">,
+): Promise<void> {
+  if (!completedTask.recurrence) return;
+
+  const statuses = await ctx.db
+    .query("listStatuses")
+    .withIndex("by_list", (q) => q.eq("listId", completedTask.listId))
+    .collect();
+  const sorted = [...statuses].sort((a, b) => a.position - b.position);
+  const openStatus = sorted.find((s) => s.category === "open") ?? sorted[0];
+  if (!openStatus) return;
+
+  const baseDue = completedTask.dueDate ?? Date.now();
+  const newDue = addRecurrence(baseDue, completedTask.recurrence);
+  const newStart = completedTask.startDate
+    ? addRecurrence(completedTask.startDate, completedTask.recurrence)
+    : undefined;
+
+  const siblings = await ctx.db
+    .query("tasks")
+    .withIndex("by_list", (q) => q.eq("listId", completedTask.listId))
+    .collect();
+
+  await ctx.db.insert("tasks", {
+    listId: completedTask.listId,
+    title: completedTask.title,
+    description: completedTask.description,
+    statusId: openStatus._id,
+    priority: completedTask.priority,
+    startDate: newStart,
+    dueDate: newDue,
+    assigneeClerkIds: completedTask.assigneeClerkIds,
+    parentTaskId: completedTask.parentTaskId,
+    recurrence: completedTask.recurrence,
+    createdByClerkId: completedTask.createdByClerkId,
+    position: siblings.length,
+    createdAt: Date.now(),
+  });
+}
+
+const priorityValidator = v.union(
+  v.literal("urgent"),
+  v.literal("high"),
+  v.literal("normal"),
+  v.literal("low"),
+);
+
+export const listForList = query({
+  args: { listId: v.id("lists") },
+  handler: async (ctx, { listId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const list = await ctx.db.get(listId);
+    if (!list || list.deletedAt) return [];
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_list", (q) => q.eq("listId", listId))
+      .collect();
+    return tasks.filter((t) => !t.deletedAt);
+  },
+});
+
+export const get = query({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const task = await ctx.db.get(taskId);
+    if (!task || task.deletedAt) return null;
+    return task;
+  },
+});
+
+// Resolves a taskId to its owning list (and workspace, if any) so the
+// client can build deep-link URLs without a separate query per source.
+// Used by Inbox, Brain results, and the Teams Hub "Now" pill.
+export const resolveLocation = query({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const task = await ctx.db.get(taskId);
+    if (!task || task.deletedAt) return null;
+    return {
+      listId: task.listId,
+      title: task.title,
+    };
+  },
+});
+
+export const create = mutation({
+  args: {
+    listId: v.id("lists"),
+    title: v.string(),
+    description: v.optional(v.string()),
+    statusId: v.optional(v.id("listStatuses")),
+    priority: v.optional(priorityValidator),
+    startDate: v.optional(v.number()),
+    dueDate: v.optional(v.number()),
+    assigneeClerkIds: v.optional(v.array(v.string())),
+    parentTaskId: v.optional(v.id("tasks")),
+    recurrence: v.optional(recurrenceValidator),
+  },
+  handler: async (ctx, args) => {
+    const { identity } = await requireListAccess(ctx, args.listId);
+
+    let statusId = args.statusId;
+    if (!statusId) {
+      const all = await ctx.db
+        .query("listStatuses")
+        .withIndex("by_list", (q) => q.eq("listId", args.listId))
+        .collect();
+      if (all.length === 0) {
+        throw new Error("List has no statuses configured");
+      }
+      const sorted = [...all].sort((a, b) => a.position - b.position);
+      statusId = (sorted.find((s) => s.category === "open") ?? sorted[0])._id;
+    } else {
+      const status = await ctx.db.get(statusId);
+      if (!status || status.listId !== args.listId) {
+        throw new Error("statusId must belong to the same list");
+      }
+    }
+
+    const siblings = await ctx.db
+      .query("tasks")
+      .withIndex("by_list", (q) => q.eq("listId", args.listId))
+      .collect();
+
+    const taskId = await ctx.db.insert("tasks", {
+      listId: args.listId,
+      title: args.title,
+      description: args.description,
+      statusId,
+      priority: args.priority,
+      startDate: args.startDate,
+      dueDate: args.dueDate,
+      assigneeClerkIds: args.assigneeClerkIds ?? [],
+      parentTaskId: args.parentTaskId,
+      recurrence: args.recurrence,
+      createdByClerkId: identity.subject,
+      position: siblings.length,
+      createdAt: Date.now(),
+    });
+
+    const created = await ctx.db.get(taskId);
+    if (created) {
+      await applyAutomations(ctx, created, "task_created");
+      const finalTask = (await ctx.db.get(taskId))!;
+      await scheduleAssignmentNotifications(
+        ctx,
+        finalTask,
+        finalTask.assigneeClerkIds,
+        identity.subject,
+      );
+    }
+
+    await ctx.scheduler.runAfter(0, internal.ai.indexTask, { taskId });
+
+    return taskId;
+  },
+});
+
+export const update = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    statusId: v.optional(v.id("listStatuses")),
+    priority: v.optional(priorityValidator),
+    startDate: v.optional(v.union(v.number(), v.null())),
+    dueDate: v.optional(v.union(v.number(), v.null())),
+    assigneeClerkIds: v.optional(v.array(v.string())),
+    recurrence: v.optional(v.union(recurrenceValidator, v.null())),
+  },
+  handler: async (ctx, args) => {
+    const { task } = await requireTaskAccess(ctx, args.taskId);
+
+    // Detect "transition into complete" before applying the patch so we
+    // can run automations + spawn the recurring instance afterwards.
+    const oldStatus = await ctx.db.get(task.statusId);
+    const wasComplete =
+      oldStatus?.category === "complete" || oldStatus?.category === "closed";
+
+    let willBeComplete = wasComplete;
+    if (args.statusId !== undefined && args.statusId !== task.statusId) {
+      const newStatus = await ctx.db.get(args.statusId);
+      if (!newStatus || newStatus.listId !== task.listId) {
+        throw new Error("statusId must belong to the same list");
+      }
+      willBeComplete =
+        newStatus.category === "complete" || newStatus.category === "closed";
+    }
+
+    const patch: Record<string, unknown> = {};
+    if (args.title !== undefined) patch.title = args.title;
+    if (args.description !== undefined) patch.description = args.description;
+    if (args.statusId !== undefined) {
+      patch.statusId = args.statusId;
+      patch.completedAt = willBeComplete ? Date.now() : undefined;
+    }
+    if (args.priority !== undefined) patch.priority = args.priority;
+    if (args.startDate !== undefined) {
+      patch.startDate = args.startDate ?? undefined;
+    }
+    if (args.dueDate !== undefined) {
+      patch.dueDate = args.dueDate ?? undefined;
+    }
+    let newlyAssigned: string[] = [];
+    if (args.assigneeClerkIds !== undefined) {
+      patch.assigneeClerkIds = args.assigneeClerkIds;
+      newlyAssigned = args.assigneeClerkIds.filter(
+        (cid) => !task.assigneeClerkIds.includes(cid),
+      );
+    }
+    if (args.recurrence !== undefined) {
+      patch.recurrence = args.recurrence ?? undefined;
+    }
+
+    await ctx.db.patch(args.taskId, patch);
+
+    if (newlyAssigned.length > 0) {
+      const updated = await ctx.db.get(args.taskId);
+      if (updated) {
+        const { identity } = await requireTaskAccess(ctx, args.taskId);
+        await scheduleAssignmentNotifications(
+          ctx,
+          updated,
+          newlyAssigned,
+          identity.subject,
+        );
+      }
+    }
+
+    if (!wasComplete && willBeComplete) {
+      const updated = await ctx.db.get(args.taskId);
+      if (updated) {
+        await applyAutomations(ctx, updated, "status_changed_to_complete");
+        await spawnRecurringInstance(ctx, updated);
+      }
+    }
+
+    if (args.title !== undefined || args.description !== undefined) {
+      await ctx.scheduler.runAfter(0, internal.ai.indexTask, {
+        taskId: args.taskId,
+      });
+    }
+  },
+});
+
+// Toggle convenience: flip task between its first "open" and first
+// "complete" status. Used by the row-level checkbox in the list view so
+// the UI doesn't need to know status IDs.
+export const toggleComplete = mutation({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const { task, list } = await requireTaskAccess(ctx, taskId);
+    const statuses = await ctx.db
+      .query("listStatuses")
+      .withIndex("by_list", (q) => q.eq("listId", list._id))
+      .collect();
+    const sorted = [...statuses].sort((a, b) => a.position - b.position);
+    const current = await ctx.db.get(task.statusId);
+    const isDone =
+      current?.category === "complete" || current?.category === "closed";
+    const next = isDone
+      ? sorted.find((s) => s.category === "open") ?? sorted[0]
+      : sorted.find((s) => s.category === "complete") ?? sorted[0];
+    if (!next) return;
+    await ctx.db.patch(taskId, {
+      statusId: next._id,
+      completedAt:
+        next.category === "complete" || next.category === "closed"
+          ? Date.now()
+          : undefined,
+    });
+  },
+});
+
+// Bulk reorder used by Board drag-drop: each task in `orderedIds` gets
+// `position = its index`. Optionally moves them all to a new status in the
+// same call. All tasks must belong to the same list.
+export const reorder = mutation({
+  args: {
+    listId: v.id("lists"),
+    orderedIds: v.array(v.id("tasks")),
+    statusId: v.optional(v.id("listStatuses")),
+  },
+  handler: async (ctx, { listId, orderedIds, statusId }) => {
+    await requireListAccess(ctx, listId);
+    if (statusId) {
+      const status = await ctx.db.get(statusId);
+      if (!status || status.listId !== listId) {
+        throw new Error("statusId must belong to the same list");
+      }
+    }
+    for (let i = 0; i < orderedIds.length; i++) {
+      const task = await ctx.db.get(orderedIds[i]);
+      if (!task || task.listId !== listId) continue;
+      const patch: Record<string, unknown> = { position: i };
+      if (statusId) {
+        patch.statusId = statusId;
+        const status = await ctx.db.get(statusId);
+        if (status?.category === "complete" || status?.category === "closed") {
+          patch.completedAt = Date.now();
+        } else {
+          patch.completedAt = undefined;
+        }
+      }
+      await ctx.db.patch(orderedIds[i], patch);
+    }
+  },
+});
+
+// Soft-delete: stamp deletedAt on this task and every subtask. The row
+// stays in the table — queries filter it out, and a 30-day cron purges
+// it for real. Restore reverses it.
+export const remove = mutation({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const task = await ctx.db.get(taskId);
+    if (!task || task.deletedAt) return;
+    await requireTaskAccess(ctx, taskId);
+    await softDeleteTaskTree(ctx, taskId, Date.now());
+    // Drop the embedding right away — the task is invisible to search
+    // until restored, and re-indexing on restore is cheap.
+    await ctx.scheduler.runAfter(0, internal.ai.dropEmbeddings, {
+      parentType: "task",
+      parentId: taskId,
+    });
+  },
+});
+
+export async function softDeleteTaskTree(
+  ctx: MutationCtx,
+  taskId: import("./_generated/dataModel").Id<"tasks">,
+  ts: number,
+): Promise<void> {
+  const task = await ctx.db.get(taskId);
+  if (!task || task.deletedAt) return;
+  const subtasks = await ctx.db
+    .query("tasks")
+    .withIndex("by_parent_task", (q) => q.eq("parentTaskId", taskId))
+    .collect();
+  for (const s of subtasks) {
+    if (!s.deletedAt) await ctx.db.patch(s._id, { deletedAt: ts });
+  }
+  await ctx.db.patch(taskId, { deletedAt: ts });
+}
+
+export const restore = mutation({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const task = await ctx.db.get(taskId);
+    if (!task || !task.deletedAt) return;
+    await requireTaskAccess(ctx, taskId);
+    const ts = task.deletedAt;
+    await ctx.db.patch(taskId, { deletedAt: undefined });
+    // Restore subtasks that were soft-deleted at the same instant
+    // (i.e. as part of the same delete).
+    const subtasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_parent_task", (q) => q.eq("parentTaskId", taskId))
+      .collect();
+    for (const s of subtasks) {
+      if (s.deletedAt === ts) await ctx.db.patch(s._id, { deletedAt: undefined });
+    }
+    await ctx.scheduler.runAfter(0, internal.ai.indexTask, { taskId });
+  },
+});
+
+// Hard-delete: actually remove the task (and its values + subtasks).
+// Called by the user's "Permanently delete" button in trash and by the
+// daily purge cron after 30 days.
+export const purge = mutation({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const task = await ctx.db.get(taskId);
+    if (!task) return;
+    await requireTaskAccess(ctx, taskId);
+    await purgeTaskTree(ctx, taskId);
+  },
+});
+
+export async function purgeTaskTree(
+  ctx: MutationCtx,
+  taskId: import("./_generated/dataModel").Id<"tasks">,
+): Promise<void> {
+  const subtasks = await ctx.db
+    .query("tasks")
+    .withIndex("by_parent_task", (q) => q.eq("parentTaskId", taskId))
+    .collect();
+  for (const s of subtasks) {
+    const sValues = await ctx.db
+      .query("taskFieldValues")
+      .withIndex("by_task", (q) => q.eq("taskId", s._id))
+      .collect();
+    for (const v of sValues) await ctx.db.delete(v._id);
+    await ctx.db.delete(s._id);
+  }
+  const values = await ctx.db
+    .query("taskFieldValues")
+    .withIndex("by_task", (q) => q.eq("taskId", taskId))
+    .collect();
+  for (const v of values) await ctx.db.delete(v._id);
+  await ctx.db.delete(taskId);
+}
