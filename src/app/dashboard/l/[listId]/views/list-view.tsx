@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Plus } from "lucide-react";
+import { Lock, Plus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -222,11 +222,14 @@ function TaskRow({
         <Link
           href={`/dashboard/l/${listId}/t/${task._id}`}
           className={cn(
-            "block truncate hover:underline",
+            "flex items-center gap-1.5 truncate hover:underline",
             isDone && "text-muted-foreground line-through",
           )}
         >
-          {task.title}
+          {task.blockedByTaskIds && task.blockedByTaskIds.length > 0 && (
+            <Lock className="h-3 w-3 flex-shrink-0 text-amber-600" aria-hidden />
+          )}
+          <span className="truncate">{task.title}</span>
         </Link>
       </td>
       <td className="hidden px-3 py-2 sm:table-cell">

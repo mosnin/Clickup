@@ -488,6 +488,7 @@ export async function purgeTaskTree(
   ctx: MutationCtx,
   taskId: import("./_generated/dataModel").Id<"tasks">,
 ): Promise<void> {
+  const task = await ctx.db.get(taskId);
   const subtasks = await ctx.db
     .query("tasks")
     .withIndex("by_parent_task", (q) => q.eq("parentTaskId", taskId))
@@ -505,5 +506,118 @@ export async function purgeTaskTree(
     .withIndex("by_task", (q) => q.eq("taskId", taskId))
     .collect();
   for (const v of values) await ctx.db.delete(v._id);
+  // Drop blocker references from siblings before the task vanishes.
+  if (task) {
+    const blockedBy = await ctx.db
+      .query("tasks")
+      .withIndex("by_list", (q) => q.eq("listId", task.listId))
+      .collect();
+    for (const sibling of blockedBy) {
+      const refs = sibling.blockedByTaskIds ?? [];
+      if (refs.includes(taskId)) {
+        await ctx.db.patch(sibling._id, {
+          blockedByTaskIds: refs.filter((id) => id !== taskId),
+        });
+      }
+    }
+  }
   await ctx.db.delete(taskId);
 }
+
+async function wouldCreateCycle(
+  ctx: MutationCtx,
+  startTaskId: import("./_generated/dataModel").Id<"tasks">,
+  searchFor: import("./_generated/dataModel").Id<"tasks">,
+): Promise<boolean> {
+  const visited = new Set<string>();
+  const stack: import("./_generated/dataModel").Id<"tasks">[] = [startTaskId];
+  while (stack.length) {
+    const id = stack.pop()!;
+    if (id === searchFor) return true;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const t = await ctx.db.get(id);
+    if (!t) continue;
+    for (const b of t.blockedByTaskIds ?? []) stack.push(b);
+  }
+  return false;
+}
+
+export const addBlocker = mutation({
+  args: { taskId: v.id("tasks"), blockerTaskId: v.id("tasks") },
+  handler: async (ctx, { taskId, blockerTaskId }) => {
+    if (taskId === blockerTaskId) {
+      throw new Error("A task can't block itself.");
+    }
+    const { task } = await requireTaskAccess(ctx, taskId);
+    const blocker = await ctx.db.get(blockerTaskId);
+    if (!blocker || blocker.deletedAt) throw new Error("Blocker not found");
+    // Same-list constraint keeps the model simple — cross-list blockers
+    // would need workspace-wide visibility checks. Add later if asked.
+    if (blocker.listId !== task.listId) {
+      throw new Error("Blockers must be in the same list.");
+    }
+    // Cycle detection — walk the blocker's transitive blocker graph and
+    // refuse if `taskId` is in it.
+    if (await wouldCreateCycle(ctx, blockerTaskId, taskId)) {
+      throw new Error("That would create a cycle.");
+    }
+    const current = task.blockedByTaskIds ?? [];
+    if (current.includes(blockerTaskId)) return;
+    if (current.length >= 20) {
+      throw new Error("A task can't have more than 20 blockers.");
+    }
+    await ctx.db.patch(taskId, {
+      blockedByTaskIds: [...current, blockerTaskId],
+    });
+  },
+});
+
+export const removeBlocker = mutation({
+  args: { taskId: v.id("tasks"), blockerTaskId: v.id("tasks") },
+  handler: async (ctx, { taskId, blockerTaskId }) => {
+    const { task } = await requireTaskAccess(ctx, taskId);
+    const current = task.blockedByTaskIds ?? [];
+    if (!current.includes(blockerTaskId)) return;
+    await ctx.db.patch(taskId, {
+      blockedByTaskIds: current.filter((id) => id !== blockerTaskId),
+    });
+  },
+});
+
+export const blockerStatusFor = query({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const task = await ctx.db.get(taskId);
+    if (!task || task.deletedAt) return null;
+    const blockerIds = task.blockedByTaskIds ?? [];
+    const blockers = (
+      await Promise.all(blockerIds.map((id) => ctx.db.get(id)))
+    ).filter((t): t is NonNullable<typeof t> => t !== null && !t.deletedAt);
+
+    let isBlocked = false;
+    for (const b of blockers) {
+      const status = await ctx.db.get(b.statusId);
+      if (
+        status &&
+        status.category !== "complete" &&
+        status.category !== "closed"
+      ) {
+        isBlocked = true;
+        break;
+      }
+    }
+
+    const siblings = await ctx.db
+      .query("tasks")
+      .withIndex("by_list", (q) => q.eq("listId", task.listId))
+      .collect();
+    const blocking = siblings.filter(
+      (s) => !s.deletedAt && (s.blockedByTaskIds ?? []).includes(taskId),
+    );
+
+    return { blockers, blocking, isBlocked };
+  },
+});

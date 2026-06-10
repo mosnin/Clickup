@@ -189,6 +189,11 @@ export default defineSchema({
     dueDate: v.optional(v.number()),
     assigneeClerkIds: v.array(v.string()),
     parentTaskId: v.optional(v.id("tasks")),
+    // Dependencies: tasks that must be complete before this one can be.
+    // Stored denormalized on the task (small per-task fan-out; we cap at
+    // 20 blockers on the mutation). The reverse direction is computed
+    // by tasks.blockerStatusFor via a small index scan.
+    blockedByTaskIds: v.optional(v.array(v.id("tasks"))),
     // When set, completing this task spawns a fresh task on the same list
     // with its dates advanced by the chosen interval. The new task copies
     // the same recurrence so the cycle continues.
