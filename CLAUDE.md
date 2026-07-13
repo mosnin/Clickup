@@ -27,7 +27,8 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 ├── convex/                       # Convex backend — typechecked separately by Convex CLI
 │   ├── _generated/               # checked in (CLI overwrites on `convex dev`/`deploy`)
 │   ├── _authz.ts                 # shared auth helpers (require*Access, requireMessageParentAccess, requireDocLikeParentAccess)
-│   ├── schema.ts                 # users, workspaces, memberships, spaces, folders, lists, listStatuses, customFields, taskFieldValues, tasks, messages, mentions, docs, whiteboards
+│   ├── _agentAuth.ts             # agent-side authz: API-key auth (pure-JS SHA-256), Actor type, require*ForAgent helpers
+│   ├── schema.ts                 # users, workspaces, memberships, spaces, folders, lists, listStatuses, customFields, taskFieldValues, tasks, messages, mentions, docs, whiteboards, agents, agentKeys, events, webhookSubscriptions, webhookDeliveries, sprints, scheduledTasks, skills
 │   ├── auth.config.ts            # Clerk JWT integration
 │   ├── http.ts                   # Clerk webhook -> internal mutations
 │   ├── sidebar.ts                # single tree query that powers the sidebar
@@ -53,7 +54,19 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   ├── ai.ts                     # OpenAI: embeddings on doc/task write + brainSearch (RAG), writerContinue, taskAutofill
 │   ├── templates.ts              # hardcoded LIST_TEMPLATES + applyListTemplate (creates list + statuses + fields + sample tasks)
 │   ├── integrations.ts           # per-workspace external services (currently: Slack incoming webhook)
-│   └── team.ts                   # Teams Hub: per-member workload + week stats + currently-running timer
+│   ├── team.ts                   # Teams Hub: per-member workload + week stats + currently-running timer
+│   ├── agents.ts                 # human-facing agent management: CRUD, key metadata, assignee-picker options
+│   ├── agentKeys.ts              # Node action minting agent API keys (CSPRNG; only the SHA-256 hash is stored)
+│   ├── agentApi.ts               # agent-facing API: ~40 key-authenticated functions the MCP server calls
+│   ├── agentAi.ts                # key-authenticated semantic search (Node runtime, OpenAI embeddings)
+│   ├── events.ts                 # append-only activity log: emitEvent() + human feed query
+│   ├── webhooks.ts               # webhook subscription CRUD + delivery bookkeeping
+│   ├── webhookDelivery.ts        # Node action: HMAC-SHA256-signed POSTs with retries/backoff/auto-disable
+│   ├── sprints.ts                # workspace-level sprints + per-sprint task rollup
+│   ├── scheduledTasks.ts         # time-based recurring task definitions + cron materializer
+│   ├── crons.ts                  # hourly cron that materializes due scheduledTasks
+│   └── skills.ts                 # built-in skill playbooks (code) + custom skills (table) merged per scope
+├── mcp/                          # npx-runnable stdio→HTTP proxy for stdio-only MCP clients
 ├── public/
 │   ├── manifest.webmanifest
 │   ├── icon.svg / icon-maskable.svg
@@ -61,6 +74,7 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 ├── src/
 │   ├── middleware.ts             # Clerk middleware; protects /dashboard, /onboarding
 │   ├── app/
+│   │   ├── api/[transport]/route.ts  # hosted MCP server (Streamable HTTP) at /api/mcp, bearer = agent API key
 │   │   ├── layout.tsx            # root layout, metadata, viewport, SW registration
 │   │   ├── globals.css           # Tailwind v4 import + theme tokens
 │   │   ├── providers.tsx         # ClerkProvider + ConvexProviderWithClerk
@@ -81,6 +95,7 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   │       ├── layout.tsx        # sidebar + main; auth-guarded; renders <EnsureUser />
 │   │       ├── page.tsx          # overview
 │   │       ├── personal/page.tsx # user's personal space view
+│   │       ├── agents/           # Agents HQ ("Mission Control"): manage agents/keys, live activity, webhooks, skills
 │   │       ├── inbox/            # @mention inbox with unread counter
 │   │       ├── w/[workspaceId]/  # team workspace view + Chat tab
 │   │       ├── d/[docId]/        # full-page Tiptap doc editor
@@ -103,7 +118,9 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   │   ├── dashboard/ensure-user.tsx # idempotent client bootstrap of user row
 │   │   ├── dashboard/status-pill.tsx # colored pill for a listStatuses row
 │   │   ├── dashboard/custom-field-input.tsx # type-aware editor for custom field values
-│   │   ├── dashboard/comments.tsx # threaded comments + chat composer with @-popover
+│   │   ├── dashboard/comments.tsx # threaded comments + chat composer with @-popover (agents mentionable too)
+│   │   ├── dashboard/sprints-panel.tsx # workspace Sprints tab: create/start/complete, progress, task rollup
+│   │   ├── dashboard/task-collab.tsx # task page: assignees (humans+agents), sprint, claim banner, checklist, blocked-by
 │   │   └── register-service-worker.tsx
 │   └── lib/
 │       ├── utils.ts              # cn(): clsx + tailwind-merge
@@ -155,6 +172,17 @@ User (personal) ──┘
 - `clips` — screen-recording metadata. `storageId` references Convex file storage (`Id<"_storage">`); the bytes live there, not in the table. Author owns delete.
 - `embeddings` — one row per indexed task or doc, carrying the OpenAI `text-embedding-3-small` vector (1536 dims). `scopeType` / `scopeId` mirror the visibility boundary (personal user or workspace) so vector search filters can't leak across boundaries. Indexed via Convex's `vectorIndex("by_embedding", { vectorField, dimensions, filterFields })`.
 - `integrations` — per-workspace external services. One row per (workspaceId, kind). Currently the only kind is `slack` and `config.webhookUrl` is validated to start with `https://hooks.slack.com/` at write time. Owner/admin gated.
+
+- `agents` — first-class AI agent principals scoped to a user's personal space or one workspace. Everywhere a clerkId-shaped string is stored (assignees, message authors, mentions, `*ActorId` columns) an agent's document id can appear instead. Live presence: `lastSeenAt`, `currentTaskId`, `statusText` (self-reported over MCP heartbeat).
+- `agentKeys` — SHA-256 hashes of agent API keys (plaintext shown once at mint time; keys look like `cua_…`). Minted in a Node action (`agentKeys.createKey`), verified in the default runtime with the pure-JS SHA-256 in `_agentAuth.ts`.
+- `events` — append-only activity log written inside the same transaction as the change (via `emitEvent`). Powers the human activity feed, agent cursor polling, and webhook fan-out. Types: `task.*`, `comment.created`, `mention.created`, `sprint.*`.
+- `webhookSubscriptions` / `webhookDeliveries` — outbound webhooks (user-configured in the UI or agent-registered over MCP). Deliveries are HMAC-SHA256 signed (`X-Webhook-Signature: sha256=<hex>`), retried 3× with backoff, and the subscription auto-disables after 10 consecutive failures.
+- `sprints` — workspace-level timeboxes; tasks join via `tasks.sprintId`. Status planned → active → complete, each transition emitting an event.
+- `scheduledTasks` — time-based recurring task definitions ("every Monday 09:00 UTC"); an hourly cron (`crons.ts`) materializes due rows into real tasks via `createTaskCore` with a system actor.
+- `skills` — custom markdown playbooks per scope; built-ins live in code (`skills.ts BUILTIN_SKILLS`) and are merged into reads, with custom rows overriding built-ins by slug.
+- `tasks` Phase 12 columns — `sprintId`, `blockedByTaskIds` (completion is refused while a blocker is open), `claimedByActorId`/`claimedAt` (soft work-lock, 60-min TTL), `checklist` (embedded acceptance criteria).
+
+**Actor pattern (Phase 12).** Task/message/sprint write paths are factored into `*Core` functions (`createTaskCore`, `updateTaskCore`, `createMessageCore`, …) that take an explicit `Actor` (`{ type: "user" | "agent" | "system", id, name }`). The Clerk-authenticated mutations and the API-key-authenticated functions in `agentApi.ts` both call the same cores, so automations, notifications, recurrence, and events behave identically for humans and agents. Never write a second code path for agents — extend the core and both sides get it.
 
 **Authorization** is centralized in `convex/_authz.ts`. Every read/write resolves up the hierarchy (task → list → folder?/space → workspace?/user) and calls `canAccessSpace` to confirm either personal ownership or workspace membership. Use `requireListAccess`/`requireSpaceAccess`/`requireFolderAccess` rather than re-rolling checks in each function.
 
@@ -241,7 +269,8 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - **Phase 8:** Outbound email notifications via Resend (mentions and task assignments, scheduled via `ctx.scheduler.runAfter` so they don't block the originating mutation) and Clips (browser screen+mic recording uploaded to Convex file storage, played back in the task detail).
 - **Phase 9:** AI Brain on the OpenAI API — semantic search over docs + tasks (`text-embedding-3-small` vectors, RAG via `gpt-4o-mini`), AI writer (continue/summarize) inside docs, and one-click task description draft.
 - **Phase 10:** List templates (Software sprint / Marketing campaign / Personal to-do / Sales pipeline — each seeds list + statuses + custom fields + sample tasks in one transaction), Slack integration (incoming-webhook posts on task assignment), Teams Hub (per-member workload, week stats, currently-running timer) + new workspace Settings tab.
-- **Phase 11 (current):** Offline-first PWA polish via `@serwist/next` (Workbox-style precache + runtime caching, navigation preload, network-first navigation with offline fallback) and a `capacitor.config.ts` for iOS/Android wrapping using the remote-web-app pattern. Live offline indicator surfaces queued mutations.
+- **Phase 11:** Offline-first PWA polish via `@serwist/next` (Workbox-style precache + runtime caching, navigation preload, network-first navigation with offline fallback) and a `capacitor.config.ts` for iOS/Android wrapping using the remote-web-app pattern. Live offline indicator surfaces queued mutations.
+- **Phase 12 (current):** AI agent collaboration. First-class agent principals with API keys; a hosted MCP server (`/api/mcp`, ~40 tools: projects/lists/tasks/comments/sprints/recurring tasks/docs/search/events/skills) plus an npx-runnable stdio proxy (`mcp/`); an append-only events log with signed outbound webhooks (agents register their own over MCP); collaboration primitives (claims, blocked-by dependencies, checklists, agent mentions = agent inbox); sprints; time-based recurring tasks via cron; a skills library (built-in + user/agent-authored playbooks); and the Agents HQ page (live presence + "now working on", key management, activity feed, webhooks, skills) with agents assignable from the task page like any teammate. See `docs/AGENTS.md`.
 
 ## Known limitations (not bugs)
 
@@ -271,3 +300,10 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - The Teams Hub task link in the "Now" pill uses a placeholder listId (`_`) because the `task → listId` resolver isn't built yet — clicking it doesn't navigate cleanly. Replace once the resolver lands.
 - List templates live as code in `convex/templates.ts`. To add a new template, append to the `LIST_TEMPLATES` array and redeploy — there's no admin UI for creating templates from existing lists yet.
 - Slack is currently the only integration. Adding more (Google Drive, GitHub, etc.) means a new `kind` literal on the integrations table plus a `notifications.post*` action.
+- Agent API keys travel as function arguments (`apiKey`) rather than headers, so they can appear in Convex function logs. Keys are hashed at rest and revocable; treat deployment log access as sensitive.
+- `webhookSubscriptions.secret` defaults to a `Math.random`-derived value when the caller doesn't supply one (Convex mutations have no CSPRNG). Callers that care should pass their own high-entropy `secret` — the UI and MCP tool both support it.
+- Task claims are advisory (soft locks with a 60-minute TTL), not enforced on writes: a claim signals "someone is working on this", it doesn't block edits.
+- `agentApi.listTasks`/`searchTasks` without a `listId` walk every list in the agent's scope — fine at target scale, needs pagination beyond a few thousand tasks (same story as `reports.workspaceSummary`).
+- The events table grows forever (no retention/pruning cron yet) and the human feed merges at most the newest 100 rows per scope.
+- MCP auth verifies the bearer key once per request via `agentApi.whoami`, then each tool call re-validates — two key lookups per tool call. Cheap (single indexed read) but worth a cache if traffic grows.
+- Sprints require workspace-scoped agents; personal-space agents can't create them (there's no workspace to attach them to).

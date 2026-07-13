@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import {
+  Bot,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -84,6 +85,7 @@ export function DashboardSidebar() {
         <nav className="flex-1 overflow-y-auto p-3">
           <RunningTimerChip />
           <BrainLink onNavigate={() => setMobileOpen(false)} />
+          <AgentsLink onNavigate={() => setMobileOpen(false)} />
           <InboxLink onNavigate={() => setMobileOpen(false)} />
           {tree === undefined ? (
             <SidebarLoading />
@@ -124,6 +126,26 @@ function BrainLink({ onNavigate }: { onNavigate: () => void }) {
     >
       <Sparkles className="h-4 w-4" />
       <span>Brain</span>
+    </Link>
+  );
+}
+
+function AgentsLink({ onNavigate }: { onNavigate: () => void }) {
+  const pathname = usePathname();
+  const active = pathname === "/dashboard/agents";
+  return (
+    <Link
+      href="/dashboard/agents"
+      onClick={onNavigate}
+      className={cn(
+        "mb-1 flex items-center gap-2 rounded-2xl px-2 py-1.5 text-sm transition-colors",
+        active
+          ? "bg-muted text-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <Bot className="h-4 w-4" />
+      <span>Agents</span>
     </Link>
   );
 }

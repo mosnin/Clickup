@@ -8,16 +8,28 @@ import type { Id } from "@convex/_generated/dataModel";
 import { Comments } from "@/components/dashboard/comments";
 import { GoalsPanel } from "@/components/dashboard/goals-panel";
 import { ReportsPanel } from "@/components/dashboard/reports-panel";
+import { SprintsPanel } from "@/components/dashboard/sprints-panel";
 import { TeamHub } from "@/components/dashboard/team-hub";
 import { WorkspaceSettings } from "@/components/dashboard/workspace-settings";
+import { ActivityFeed } from "@/app/dashboard/agents/agents-view";
 import { cn } from "@/lib/utils";
 
-type Tab = "overview" | "team" | "chat" | "goals" | "reports" | "settings";
+type Tab =
+  | "overview"
+  | "team"
+  | "chat"
+  | "sprints"
+  | "activity"
+  | "goals"
+  | "reports"
+  | "settings";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "team", label: "Team" },
   { key: "chat", label: "Chat" },
+  { key: "sprints", label: "Sprints" },
+  { key: "activity", label: "Activity" },
   { key: "goals", label: "Goals" },
   { key: "reports", label: "Reports" },
   { key: "settings", label: "Settings" },
@@ -30,6 +42,8 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
     const raw = searchParams.get("tab");
     if (
       raw === "chat" ||
+      raw === "sprints" ||
+      raw === "activity" ||
       raw === "goals" ||
       raw === "reports" ||
       raw === "team" ||
@@ -155,6 +169,19 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
             parentType="workspace"
             parentId={workspace._id as Id<"workspaces">}
             emptyHint="No messages yet. Start the conversation."
+          />
+        </section>
+      ) : tab === "sprints" ? (
+        <section>
+          <SprintsPanel workspaceId={workspace._id as Id<"workspaces">} />
+        </section>
+      ) : tab === "activity" ? (
+        <section>
+          <ActivityFeed
+            scope={{
+              scopeType: "workspace",
+              scopeId: workspace._id,
+            }}
           />
         </section>
       ) : tab === "goals" ? (

@@ -171,6 +171,28 @@ export default defineSchema({
         v.literal("monthly"),
       ),
     ),
+    // Phase 12 — agent collaboration:
+    //   - sprintId groups tasks into a sprint (see `sprints`).
+    //   - blockedByTaskIds are hard dependencies; agents refuse to complete
+    //     a task while a blocker is still open.
+    //   - claimedByActorId is a soft work-lock (a clerkId or an agent id)
+    //     so two agents don't pick up the same task. Claims expire via
+    //     claimedAt so a crashed agent can't hold a task forever.
+    //   - checklist holds lightweight acceptance criteria that agents (and
+    //     humans) can tick off one by one.
+    sprintId: v.optional(v.id("sprints")),
+    blockedByTaskIds: v.optional(v.array(v.id("tasks"))),
+    claimedByActorId: v.optional(v.string()),
+    claimedAt: v.optional(v.number()),
+    checklist: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          text: v.string(),
+          done: v.boolean(),
+        }),
+      ),
+    ),
     createdByClerkId: v.string(),
     position: v.number(),
     createdAt: v.number(),
@@ -178,7 +200,8 @@ export default defineSchema({
   })
     .index("by_list", ["listId"])
     .index("by_list_and_status", ["listId", "statusId"])
-    .index("by_parent_task", ["parentTaskId"]),
+    .index("by_parent_task", ["parentTaskId"])
+    .index("by_sprint", ["sprintId"]),
 
   // External integrations attached to a workspace. Each kind stores its
   // own credential shape inside `config` (e.g. { webhookUrl } for Slack).
@@ -396,4 +419,182 @@ export default defineSchema({
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
   }).index("by_parent", ["parentType", "parentId"]),
+
+  // ── Phase 12: AI agent collaboration ────────────────────────────────
+
+  // First-class AI agent principals. An agent belongs to either a user's
+  // personal space or a team workspace, and can do everything a member
+  // can inside that boundary (and nothing outside it). Agents show up in
+  // assignee pickers, mentions, and comments exactly like human members —
+  // anywhere a clerkId-shaped string is stored, an agent's document id
+  // can appear instead, with `actorType` fields (or an agents lookup)
+  // telling the two apart.
+  agents: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    emoji: v.optional(v.string()),
+    color: v.optional(v.string()),
+    parentType: v.union(v.literal("user"), v.literal("workspace")),
+    parentId: v.string(),
+    status: v.union(v.literal("active"), v.literal("paused")),
+    createdByClerkId: v.string(),
+    // Live presence, reported over MCP: heartbeat bumps lastSeenAt, and
+    // agents self-report what they're doing right now so Mission Control
+    // can show "Scout — working on 'Fix login flow': refactoring auth…".
+    lastSeenAt: v.optional(v.number()),
+    currentTaskId: v.optional(v.id("tasks")),
+    statusText: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_parent", ["parentType", "parentId"]),
+
+  // API keys for agents. We store only a SHA-256 hash — the plaintext key
+  // is shown once at creation time. `keyPrefix` keeps the first characters
+  // for display ("cua_3f9c…"). Lookup is by hash, so auth is a single
+  // indexed read.
+  agentKeys: defineTable({
+    agentId: v.id("agents"),
+    keyHash: v.string(),
+    keyPrefix: v.string(),
+    createdAt: v.number(),
+    revokedAt: v.optional(v.number()),
+    lastUsedAt: v.optional(v.number()),
+  })
+    .index("by_agent", ["agentId"])
+    .index("by_hash", ["keyHash"]),
+
+  // Append-only activity log. Every meaningful mutation (task created,
+  // status changed, comment posted, sprint started, …) writes one row.
+  // It powers three things: the human-facing activity feed, agent cursor
+  // polling (events.since), and outbound webhook fan-out.
+  events: defineTable({
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    type: v.string(),
+    actorType: v.union(
+      v.literal("user"),
+      v.literal("agent"),
+      v.literal("system"),
+    ),
+    actorId: v.string(),
+    actorName: v.string(),
+    entityType: v.string(),
+    entityId: v.string(),
+    entityTitle: v.optional(v.string()),
+    // Optional listId lets webhook subscriptions filter to a single list.
+    listId: v.optional(v.id("lists")),
+    payload: v.optional(v.any()),
+    createdAt: v.number(),
+  }).index("by_scope", ["scopeType", "scopeId", "createdAt"]),
+
+  // Outbound webhook endpoints. Owned by a user (configured in the UI) or
+  // an agent (registered over MCP — this is how agents get pushed events
+  // instead of polling). Empty eventTypes means "all events in scope".
+  // Deliveries are HMAC-SHA256 signed with `secret`.
+  webhookSubscriptions: defineTable({
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    url: v.string(),
+    secret: v.string(),
+    eventTypes: v.array(v.string()),
+    listId: v.optional(v.id("lists")),
+    ownerType: v.union(v.literal("user"), v.literal("agent")),
+    ownerId: v.string(),
+    enabled: v.boolean(),
+    // Consecutive failures; reset on success, auto-disable at threshold.
+    failureCount: v.number(),
+    disabledAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_scope", ["scopeType", "scopeId"])
+    .index("by_owner", ["ownerType", "ownerId"]),
+
+  // One row per webhook delivery attempt chain (not per attempt — the row
+  // is patched as retries happen). Kept for observability in the UI.
+  webhookDeliveries: defineTable({
+    subscriptionId: v.id("webhookSubscriptions"),
+    eventId: v.id("events"),
+    eventType: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("success"),
+      v.literal("failed"),
+    ),
+    attempts: v.number(),
+    responseStatus: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_subscription", ["subscriptionId"])
+    .index("by_event", ["eventId"]),
+
+  // Sprints group tasks (from any list in the workspace) into a timebox.
+  // `createdByActorId` is a clerkId or agent id.
+  sprints: defineTable({
+    workspaceId: v.id("workspaces"),
+    name: v.string(),
+    goal: v.optional(v.string()),
+    startDate: v.number(),
+    endDate: v.number(),
+    status: v.union(
+      v.literal("planned"),
+      v.literal("active"),
+      v.literal("complete"),
+    ),
+    createdByActorId: v.string(),
+    createdAt: v.number(),
+  }).index("by_workspace", ["workspaceId"]),
+
+  // Time-based recurring task definitions ("every Monday at 9am UTC"),
+  // complementing the completion-triggered `tasks.recurrence`. An hourly
+  // cron materializes rows whose nextRunAt has passed into real tasks.
+  scheduledTasks: defineTable({
+    listId: v.id("lists"),
+    title: v.string(),
+    description: v.optional(v.string()),
+    priority: v.optional(
+      v.union(
+        v.literal("urgent"),
+        v.literal("high"),
+        v.literal("normal"),
+        v.literal("low"),
+      ),
+    ),
+    assigneeIds: v.array(v.string()),
+    cadence: v.union(
+      v.literal("daily"),
+      v.literal("weekly"),
+      v.literal("monthly"),
+    ),
+    // weekly: 0 (Sunday) – 6. monthly: 1–28. Ignored for daily.
+    dayOfWeek: v.optional(v.number()),
+    dayOfMonth: v.optional(v.number()),
+    hourUtc: v.number(),
+    // Days until the created task is due (undefined = no due date).
+    dueInDays: v.optional(v.number()),
+    nextRunAt: v.number(),
+    lastRunAt: v.optional(v.number()),
+    enabled: v.boolean(),
+    createdByActorId: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_list", ["listId"])
+    .index("by_next_run", ["enabled", "nextRunAt"]),
+
+  // User-authored skills — reusable markdown playbooks agents import over
+  // MCP ("Sprint planner", "Backlog triage", …). Built-in skills live in
+  // code (convex/skills.ts) and are merged into reads; rows here are the
+  // workspace/personal custom ones.
+  skills: defineTable({
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    slug: v.string(),
+    name: v.string(),
+    description: v.string(),
+    content: v.string(),
+    enabled: v.boolean(),
+    createdByActorId: v.string(),
+    updatedAt: v.number(),
+    createdAt: v.number(),
+  }).index("by_scope", ["scopeType", "scopeId"]),
 });

@@ -16,6 +16,16 @@ import {
 
 type ParentType = "task" | "space" | "workspace";
 
+// Shape returned by messages.listMentionableUsers: workspace members plus
+// AI agents (agents carry their id in clerkId and isAgent: true).
+type Member = {
+  clerkId: string;
+  name?: string;
+  email: string;
+  imageUrl?: string;
+  isAgent?: boolean;
+};
+
 export function Comments({
   parentType,
   parentId,
@@ -109,8 +119,8 @@ function MessageItem({
 }: {
   message: Doc<"messages">;
   replies: Doc<"messages">[];
-  memberByClerkId: Map<string, Doc<"users">>;
-  members: Doc<"users">[];
+  memberByClerkId: Map<string, Member>;
+  members: Member[];
   parentType: ParentType;
   parentId: string;
 }) {
@@ -256,8 +266,8 @@ function ReplyItem({
   parentId,
 }: {
   reply: Doc<"messages">;
-  memberByClerkId: Map<string, Doc<"users">>;
-  members: Doc<"users">[];
+  memberByClerkId: Map<string, Member>;
+  members: Member[];
   parentType: ParentType;
   parentId: string;
 }) {
@@ -325,7 +335,7 @@ function MessageBody({
   memberByClerkId,
 }: {
   body: string;
-  memberByClerkId: Map<string, Doc<"users">>;
+  memberByClerkId: Map<string, Member>;
 }) {
   const parts = parseMentionBody(body);
   return (
@@ -338,7 +348,7 @@ function MessageBody({
 function renderPart(
   part: MessagePart,
   i: number,
-  memberByClerkId: Map<string, Doc<"users">>,
+  memberByClerkId: Map<string, Member>,
 ) {
   if (part.kind === "text") return <span key={i}>{part.text}</span>;
   const user = memberByClerkId.get(part.clerkId);
@@ -357,7 +367,7 @@ function Avatar({
   clerkId,
   small = false,
 }: {
-  user: Doc<"users"> | undefined;
+  user: Member | undefined;
   clerkId: string;
   small?: boolean;
 }) {
@@ -391,7 +401,7 @@ function Composer({
 }: {
   parentType: ParentType;
   parentId: string;
-  members: Doc<"users">[];
+  members: Member[];
   parentMessageId?: Id<"messages">;
   initialBody?: string;
   editingMessageId?: Id<"messages">;
@@ -444,7 +454,7 @@ function Composer({
     setPopover({ from: at, query: between });
   }
 
-  function insertMention(user: Doc<"users">) {
+  function insertMention(user: Member) {
     if (!popover) return;
     const before = body.slice(0, popover.from);
     const after = body.slice(popover.from + 1 + popover.query.length);

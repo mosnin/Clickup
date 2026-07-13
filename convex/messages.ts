@@ -1,9 +1,11 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { requireIdentity, requireMessageParentAccess } from "./_authz";
+import type { Actor } from "./_agentAuth";
+import { emitEvent, scopeForList } from "./events";
 
 async function describeMessageContext(
   ctx: MutationCtx,
@@ -32,6 +34,28 @@ const parentTypeValidator = v.union(
   v.literal("workspace"),
 );
 
+// Scope (personal user / workspace) that a message parent lives in, for
+// event emission.
+export async function scopeForMessageParent(
+  ctx: QueryCtx | MutationCtx,
+  parentType: "task" | "space" | "workspace",
+  parentId: string,
+): Promise<{ scopeType: "user" | "workspace"; scopeId: string } | null> {
+  if (parentType === "workspace") {
+    return { scopeType: "workspace", scopeId: parentId };
+  }
+  if (parentType === "space") {
+    const space = await ctx.db.get(parentId as Id<"spaces">);
+    if (!space) return null;
+    return { scopeType: space.parentType, scopeId: space.parentId };
+  }
+  const task = await ctx.db.get(parentId as Id<"tasks">);
+  if (!task) return null;
+  const list = await ctx.db.get(task.listId);
+  if (!list) return null;
+  return await scopeForList(ctx, list);
+}
+
 export const listForParent = query({
   args: { parentType: parentTypeValidator, parentId: v.string() },
   handler: async (ctx, { parentType, parentId }) => {
@@ -54,9 +78,10 @@ export const listForParent = query({
   },
 });
 
-// Mention candidates for the given parent. For workspace-scoped parents
-// it's every workspace member; for personal-space parents it's just the
-// personal user.
+// Mention candidates for the given parent: workspace members (or the
+// personal user), plus every AI agent in the same scope. Agents come back
+// user-shaped (their id in `clerkId`) so the composer, pills, and author
+// rendering work unchanged; `isAgent` lets the UI badge them.
 export const listMentionableUsers = query({
   args: { parentType: parentTypeValidator, parentId: v.string() },
   handler: async (ctx, { parentType, parentId }) => {
@@ -71,30 +96,216 @@ export const listMentionableUsers = query({
       return [];
     }
 
+    const people: {
+      clerkId: string;
+      name?: string;
+      email: string;
+      imageUrl?: string;
+      isAgent?: boolean;
+    }[] = [];
+
     if (workspaceId === null) {
       // Personal — only the current user.
       const user = await ctx.db
         .query("users")
         .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
         .unique();
-      return user ? [user] : [];
-    }
-
-    const memberships = await ctx.db
-      .query("memberships")
-      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
-      .collect();
-    const users = await Promise.all(
-      memberships.map((m) =>
-        ctx.db
+      if (user) people.push(user);
+    } else {
+      const memberships = await ctx.db
+        .query("memberships")
+        .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId!))
+        .collect();
+      for (const m of memberships) {
+        const user = await ctx.db
           .query("users")
           .withIndex("by_clerk_id", (q) => q.eq("clerkId", m.userClerkId))
-          .unique(),
-      ),
-    );
-    return users.filter((u): u is NonNullable<typeof u> => u !== null);
+          .unique();
+        if (user) people.push(user);
+      }
+    }
+
+    const scope =
+      workspaceId === null
+        ? { parentType: "user" as const, parentId: identity.subject }
+        : { parentType: "workspace" as const, parentId: workspaceId };
+    const agents = await ctx.db
+      .query("agents")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", scope.parentType).eq("parentId", scope.parentId),
+      )
+      .collect();
+    for (const a of agents) {
+      people.push({
+        clerkId: a._id,
+        name: `${a.emoji ?? "🤖"} ${a.name}`,
+        email: "",
+        isAgent: true,
+      });
+    }
+    return people;
   },
 });
+
+// Is this id mentionable in the given scope? Members are; so are agents
+// that live in the scope.
+async function canBeMentioned(
+  ctx: MutationCtx,
+  id: string,
+  workspaceId: Id<"workspaces"> | null,
+  personalSubject: string | null,
+): Promise<boolean> {
+  if (workspaceId !== null) {
+    const member = await ctx.db
+      .query("memberships")
+      .withIndex("by_user_and_workspace", (q) =>
+        q.eq("userClerkId", id).eq("workspaceId", workspaceId),
+      )
+      .unique();
+    if (member) return true;
+  } else if (personalSubject !== null && id === personalSubject) {
+    return true;
+  }
+  // Agent ids are Convex document ids; a failed normalize is just "not an
+  // agent".
+  const agentId = ctx.db.normalizeId("agents", id);
+  if (!agentId) return false;
+  const agent = await ctx.db.get(agentId);
+  if (!agent) return false;
+  if (workspaceId !== null) {
+    return (
+      agent.parentType === "workspace" && agent.parentId === workspaceId
+    );
+  }
+  return (
+    agent.parentType === "user" && agent.parentId === (personalSubject ?? "")
+  );
+}
+
+// ── Core write path (shared with the agent API) ────────────────────────
+
+export type CreateMessageArgs = {
+  parentType: "task" | "space" | "workspace";
+  parentId: string;
+  body: string;
+  parentMessageId?: Id<"messages">;
+  assigneeClerkId?: string;
+  mentionIds?: string[];
+};
+
+export async function createMessageCore(
+  ctx: MutationCtx,
+  args: CreateMessageArgs,
+  actor: Actor,
+  workspaceId: Id<"workspaces"> | null,
+): Promise<Id<"messages">> {
+  if (!args.body.trim()) throw new Error("Empty message");
+
+  if (args.parentMessageId) {
+    const root = await ctx.db.get(args.parentMessageId);
+    if (
+      !root ||
+      root.parentType !== args.parentType ||
+      root.parentId !== args.parentId
+    ) {
+      throw new Error("Reply parent must belong to the same context");
+    }
+  }
+
+  const messageId = await ctx.db.insert("messages", {
+    parentType: args.parentType,
+    parentId: args.parentId,
+    authorClerkId: actor.id,
+    body: args.body,
+    parentMessageId: args.parentMessageId,
+    assigneeClerkId: args.assigneeClerkId,
+    createdAt: Date.now(),
+  });
+
+  const contextLabel = await describeMessageContext(ctx, {
+    parentType: args.parentType,
+    parentId: args.parentId,
+    body: args.body,
+  });
+  const snippet = snippetFromBody(args.body);
+
+  const scope = await scopeForMessageParent(
+    ctx,
+    args.parentType,
+    args.parentId,
+  );
+  // In personal scope, the only mentionable human is the space owner.
+  const personalOwner =
+    workspaceId === null && scope?.scopeType === "user"
+      ? scope.scopeId
+      : null;
+  if (scope) {
+    await emitEvent(ctx, {
+      ...scope,
+      type: "comment.created",
+      actor,
+      entityType: "message",
+      entityId: messageId,
+      entityTitle: contextLabel,
+      payload: {
+        parentType: args.parentType,
+        parentId: args.parentId,
+        snippet,
+      },
+    });
+  }
+
+  // Create mention rows. Validate that every mentioned principal can
+  // actually see this context — silently drop the rest. Mentioned humans
+  // get an email; mentioned agents get an event (their MCP inbox +
+  // webhooks pick it up).
+  const mentionIds = Array.from(new Set(args.mentionIds ?? []));
+  for (const id of mentionIds) {
+    if (id === actor.id) continue;
+    const allowed = await canBeMentioned(ctx, id, workspaceId, personalOwner);
+    if (!allowed) continue;
+
+    await ctx.db.insert("mentions", {
+      messageId,
+      mentionedClerkId: id,
+      parentType: args.parentType,
+      parentId: args.parentId,
+      createdAt: Date.now(),
+    });
+
+    if (scope) {
+      await emitEvent(ctx, {
+        ...scope,
+        type: "mention.created",
+        actor,
+        entityType: "message",
+        entityId: messageId,
+        entityTitle: contextLabel,
+        payload: { mentionedId: id, snippet },
+      });
+    }
+
+    const recipient = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", id))
+      .unique();
+    if (recipient?.email) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.notifications.sendMentionEmail,
+        {
+          toEmail: recipient.email,
+          toName: recipient.name,
+          fromName: actor.name,
+          snippet,
+          contextLabel,
+        },
+      );
+    }
+  }
+
+  return messageId;
+}
 
 export const create = mutation({
   args: {
@@ -111,90 +322,28 @@ export const create = mutation({
       args.parentType,
       args.parentId,
     );
-
-    if (!args.body.trim()) throw new Error("Empty message");
-
-    if (args.parentMessageId) {
-      const root = await ctx.db.get(args.parentMessageId);
-      if (
-        !root ||
-        root.parentType !== args.parentType ||
-        root.parentId !== args.parentId
-      ) {
-        throw new Error("Reply parent must belong to the same context");
-      }
-    }
-
-    const messageId = await ctx.db.insert("messages", {
-      parentType: args.parentType,
-      parentId: args.parentId,
-      authorClerkId: identity.subject,
-      body: args.body,
-      parentMessageId: args.parentMessageId,
-      assigneeClerkId: args.assigneeClerkId,
-      createdAt: Date.now(),
-    });
-
-    // Author info, used to populate the email "from" line.
     const author = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .unique();
-    const authorName = author?.name ?? author?.email ?? "Someone";
-    const contextLabel = await describeMessageContext(ctx, {
-      parentType: args.parentType,
-      parentId: args.parentId,
-      body: args.body,
-    });
-    const snippet = snippetFromBody(args.body);
-
-    // Create mention rows. Validate that every mentioned user can actually
-    // see this context — silently drop the rest. For each surviving
-    // mention, schedule an outbound email if the user has an address on
-    // file.
-    const mentionIds = Array.from(new Set(args.mentionClerkIds ?? []));
-    for (const clerkId of mentionIds) {
-      if (workspaceId === null) {
-        if (clerkId !== identity.subject) continue;
-      } else {
-        const member = await ctx.db
-          .query("memberships")
-          .withIndex("by_user_and_workspace", (q) =>
-            q.eq("userClerkId", clerkId).eq("workspaceId", workspaceId),
-          )
-          .unique();
-        if (!member) continue;
-      }
-      // Don't notify yourself.
-      if (clerkId === identity.subject) continue;
-      await ctx.db.insert("mentions", {
-        messageId,
-        mentionedClerkId: clerkId,
+    const actor: Actor = {
+      type: "user",
+      id: identity.subject,
+      name: author?.name ?? author?.email ?? "Someone",
+    };
+    return await createMessageCore(
+      ctx,
+      {
         parentType: args.parentType,
         parentId: args.parentId,
-        createdAt: Date.now(),
-      });
-
-      const recipient = await ctx.db
-        .query("users")
-        .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-        .unique();
-      if (recipient?.email) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.notifications.sendMentionEmail,
-          {
-            toEmail: recipient.email,
-            toName: recipient.name,
-            fromName: authorName,
-            snippet,
-            contextLabel,
-          },
-        );
-      }
-    }
-
-    return messageId;
+        body: args.body,
+        parentMessageId: args.parentMessageId,
+        assigneeClerkId: args.assigneeClerkId,
+        mentionIds: args.mentionClerkIds,
+      },
+      actor,
+      workspaceId,
+    );
   },
 });
 
@@ -227,20 +376,18 @@ export const update = mutation({
         .collect();
       for (const m of old) await ctx.db.delete(m._id);
 
-      for (const clerkId of new Set(mentionClerkIds)) {
-        if (clerkId === identity.subject) continue;
-        if (workspaceId !== null) {
-          const member = await ctx.db
-            .query("memberships")
-            .withIndex("by_user_and_workspace", (q) =>
-              q.eq("userClerkId", clerkId).eq("workspaceId", workspaceId),
-            )
-            .unique();
-          if (!member) continue;
-        }
+      for (const id of new Set(mentionClerkIds)) {
+        if (id === identity.subject) continue;
+        const allowed = await canBeMentioned(
+          ctx,
+          id,
+          workspaceId,
+          workspaceId === null ? identity.subject : null,
+        );
+        if (!allowed) continue;
         await ctx.db.insert("mentions", {
           messageId,
-          mentionedClerkId: clerkId,
+          mentionedClerkId: id,
           parentType: msg.parentType,
           parentId: msg.parentId,
           createdAt: Date.now(),

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { Clips } from "@/components/dashboard/clips";
 import { Comments } from "@/components/dashboard/comments";
+import { TaskCollaboration } from "@/components/dashboard/task-collab";
 import { TimeTracker } from "@/components/dashboard/time-tracker";
 
 type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
@@ -211,6 +212,8 @@ function TaskEditor({
           />
         </Field>
       </div>
+
+      <TaskCollaboration task={task} listId={listId} />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Recurrence">
