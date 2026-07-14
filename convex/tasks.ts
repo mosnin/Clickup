@@ -7,6 +7,7 @@ import { requireListAccess, requireTaskAccess } from "./_authz";
 import { applyAutomations } from "./listAutomations";
 import type { Actor } from "./_agentAuth";
 import { emitEvent, scopeForList, userActor } from "./events";
+import { createMessageCore } from "./messages";
 
 // Task CRUD. Since Phase 12 the write paths are factored into *Core
 // functions that take an explicit Actor, so the Clerk-authenticated
@@ -34,6 +35,26 @@ async function scheduleAssignmentNotifications(
   const recipientNames: string[] = [];
   for (const cid of newAssigneeIds) {
     if (cid === actor.id) continue;
+    // Agent assignees get a direct push to their notifyUrl (if set) so
+    // assignment reaches their runtime even without a webhook
+    // subscription.
+    const agentId = ctx.db.normalizeId("agents", cid);
+    if (agentId) {
+      const agent = await ctx.db.get(agentId);
+      if (agent?.notifyUrl) {
+        await ctx.scheduler.runAfter(0, internal.notifications.postAgentPing, {
+          url: agent.notifyUrl,
+          type: "task.assigned",
+          payload: {
+            taskId: task._id,
+            listId: task.listId,
+            title: task.title,
+            byName: actor.name,
+          },
+        });
+      }
+      continue;
+    }
     const recipient = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", cid))
@@ -101,20 +122,14 @@ function addRecurrence(ts: number, recurrence: "daily" | "weekly" | "monthly"): 
 // When a recurring task is moved into a complete-category status, spawn
 // the next instance on the same list with its dates advanced. The new
 // task is open, retains the same priority/assignees/recurrence/etc., and
-// is appended at the bottom of the list.
+// is appended at the bottom of the list. Routed through createTaskCore so
+// the new instance fires task_created automations and emits events like
+// any other creation.
 async function spawnRecurringInstance(
   ctx: MutationCtx,
   completedTask: Doc<"tasks">,
 ): Promise<void> {
   if (!completedTask.recurrence) return;
-
-  const statuses = await ctx.db
-    .query("listStatuses")
-    .withIndex("by_list", (q) => q.eq("listId", completedTask.listId))
-    .collect();
-  const sorted = [...statuses].sort((a, b) => a.position - b.position);
-  const openStatus = sorted.find((s) => s.category === "open") ?? sorted[0];
-  if (!openStatus) return;
 
   const baseDue = completedTask.dueDate ?? Date.now();
   const newDue = addRecurrence(baseDue, completedTask.recurrence);
@@ -122,26 +137,21 @@ async function spawnRecurringInstance(
     ? addRecurrence(completedTask.startDate, completedTask.recurrence)
     : undefined;
 
-  const siblings = await ctx.db
-    .query("tasks")
-    .withIndex("by_list", (q) => q.eq("listId", completedTask.listId))
-    .collect();
-
-  await ctx.db.insert("tasks", {
-    listId: completedTask.listId,
-    title: completedTask.title,
-    description: completedTask.description,
-    statusId: openStatus._id,
-    priority: completedTask.priority,
-    startDate: newStart,
-    dueDate: newDue,
-    assigneeClerkIds: completedTask.assigneeClerkIds,
-    parentTaskId: completedTask.parentTaskId,
-    recurrence: completedTask.recurrence,
-    createdByClerkId: completedTask.createdByClerkId,
-    position: siblings.length,
-    createdAt: Date.now(),
-  });
+  await createTaskCore(
+    ctx,
+    {
+      listId: completedTask.listId,
+      title: completedTask.title,
+      description: completedTask.description,
+      priority: completedTask.priority,
+      startDate: newStart,
+      dueDate: newDue,
+      assigneeIds: completedTask.assigneeClerkIds,
+      parentTaskId: completedTask.parentTaskId,
+      recurrence: completedTask.recurrence,
+    },
+    { type: "system", id: "recurrence", name: "Recurrence" },
+  );
 }
 
 const priorityValidator = v.union(
@@ -252,6 +262,7 @@ export type CreateTaskArgs = {
   recurrence?: "daily" | "weekly" | "monthly";
   sprintId?: Id<"sprints">;
   checklist?: { id: string; text: string; done: boolean }[];
+  requiresApproval?: boolean;
 };
 
 export async function createTaskCore(
@@ -300,6 +311,7 @@ export async function createTaskCore(
     recurrence: args.recurrence,
     sprintId: args.sprintId,
     checklist: args.checklist,
+    requiresApproval: args.requiresApproval || undefined,
     createdByClerkId: actor.id,
     position: siblings.length,
     createdAt: Date.now(),
@@ -343,6 +355,7 @@ export type UpdateTaskArgs = {
   sprintId?: Id<"sprints"> | null;
   blockedByTaskIds?: Id<"tasks">[];
   checklist?: { id: string; text: string; done: boolean }[];
+  requiresApproval?: boolean;
 };
 
 export async function updateTaskCore(
@@ -379,6 +392,15 @@ export async function updateTaskCore(
             .map((b) => `"${b.title}"`)
             .join(", ")}`,
         );
+      }
+      // Human-in-the-loop gate: agents can't complete a gated task until
+      // a human approves. A human completing it directly IS the approval.
+      if (task.requiresApproval && task.approvedAt === undefined) {
+        if (actor.type !== "user") {
+          throw new Error(
+            "This task requires human approval before it can be completed. Ask a human to approve it (or comment @mentioning them).",
+          );
+        }
       }
     }
   }
@@ -441,6 +463,30 @@ export async function updateTaskCore(
   if (args.checklist !== undefined) {
     patch.checklist = args.checklist.length > 0 ? args.checklist : undefined;
     changedFields.push("checklist");
+  }
+  if (args.requiresApproval !== undefined) {
+    // Agents may raise the gate but never lower it — otherwise the gate
+    // is meaningless.
+    if (args.requiresApproval === false && actor.type !== "user") {
+      throw new Error("Only a human can remove the approval requirement");
+    }
+    patch.requiresApproval = args.requiresApproval || undefined;
+    if (args.requiresApproval === false) {
+      patch.approvedByClerkId = undefined;
+      patch.approvedAt = undefined;
+    }
+    changedFields.push("requiresApproval");
+  }
+  // A human completing a gated task counts as approving it.
+  if (
+    !wasComplete &&
+    willBeComplete &&
+    task.requiresApproval &&
+    task.approvedAt === undefined &&
+    actor.type === "user"
+  ) {
+    patch.approvedByClerkId = actor.id;
+    patch.approvedAt = Date.now();
   }
 
   await ctx.db.patch(args.taskId, patch);
@@ -522,6 +568,49 @@ export async function releaseTaskCore(
   await emitTaskEvent(ctx, updated, "task.released", actor);
 }
 
+// Hand a task to another principal: reassign, release the actor's claim,
+// leave a structured context comment, and emit task.handoff. `toId` is a
+// clerkId or agent id in the same scope (validated by the callers'
+// access checks + the mention machinery ignoring out-of-scope ids).
+export async function handoffTaskCore(
+  ctx: MutationCtx,
+  taskId: Id<"tasks">,
+  toId: string,
+  note: string,
+  actor: Actor,
+): Promise<void> {
+  const task = await ctx.db.get(taskId);
+  if (!task) throw new Error("Task not found");
+  if (task.claimedByActorId === actor.id) {
+    await ctx.db.patch(taskId, {
+      claimedByActorId: undefined,
+      claimedAt: undefined,
+    });
+  }
+  await updateTaskCore(ctx, { taskId, assigneeIds: [toId] }, actor);
+  const updated = (await ctx.db.get(taskId))!;
+  await emitTaskEvent(ctx, updated, "task.handoff", actor, {
+    toId,
+    note: note.slice(0, 500),
+  });
+  // Record the handoff context where the recipient will look first.
+  const list = await ctx.db.get(task.listId);
+  const scope = list ? await scopeForList(ctx, list) : null;
+  await createMessageCore(
+    ctx,
+    {
+      parentType: "task",
+      parentId: taskId,
+      body: `Handing this off. ${note}`.trim(),
+      mentionIds: [toId],
+    },
+    actor,
+    scope?.scopeType === "workspace"
+      ? (scope.scopeId as Id<"workspaces">)
+      : null,
+  );
+}
+
 export async function removeTaskCore(
   ctx: MutationCtx,
   taskId: Id<"tasks">,
@@ -562,10 +651,13 @@ export async function removeTaskCore(
 export const listForList = query({
   args: { listId: v.id("lists") },
   handler: async (ctx, { listId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-    const list = await ctx.db.get(listId);
-    if (!list) return [];
+    // Full hierarchy check, not just "is logged in" — task titles across
+    // foreign workspaces must not be enumerable by ID.
+    try {
+      await requireListAccess(ctx, listId);
+    } catch {
+      return [];
+    }
     return await ctx.db
       .query("tasks")
       .withIndex("by_list", (q) => q.eq("listId", listId))
@@ -576,13 +668,17 @@ export const listForList = query({
 export const get = query({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, { taskId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-    return await ctx.db.get(taskId);
+    try {
+      const { task } = await requireTaskAccess(ctx, taskId);
+      return task;
+    } catch {
+      return null;
+    }
   },
 });
 
-// Titles of the given tasks (for rendering dependency chips).
+// Titles of the given tasks (for rendering dependency chips). Tasks the
+// caller can't access are silently omitted.
 export const titles = query({
   args: { taskIds: v.array(v.id("tasks")) },
   handler: async (ctx, { taskIds }) => {
@@ -590,10 +686,28 @@ export const titles = query({
     if (!identity) return {};
     const out: Record<string, string> = {};
     for (const id of taskIds) {
-      const t = await ctx.db.get(id);
-      if (t) out[id] = t.title;
+      try {
+        const { task } = await requireTaskAccess(ctx, id);
+        out[id] = task.title;
+      } catch {
+        // skip inaccessible tasks
+      }
     }
     return out;
+  },
+});
+
+// Resolve a task's listId (for deep links from inbox/Brain/Teams Hub,
+// where only the task id is known). Null when inaccessible.
+export const resolveListId = query({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    try {
+      const { task } = await requireTaskAccess(ctx, taskId);
+      return task.listId;
+    } catch {
+      return null;
+    }
   },
 });
 
@@ -610,6 +724,7 @@ export const create = mutation({
     parentTaskId: v.optional(v.id("tasks")),
     recurrence: v.optional(recurrenceValidator),
     sprintId: v.optional(v.id("sprints")),
+    requiresApproval: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { identity } = await requireListAccess(ctx, args.listId);
@@ -628,6 +743,7 @@ export const create = mutation({
         parentTaskId: args.parentTaskId,
         recurrence: args.recurrence,
         sprintId: args.sprintId,
+        requiresApproval: args.requiresApproval,
       },
       actor,
     );
@@ -648,6 +764,7 @@ export const update = mutation({
     sprintId: v.optional(v.union(v.id("sprints"), v.null())),
     blockedByTaskIds: v.optional(v.array(v.id("tasks"))),
     checklist: v.optional(checklistValidator),
+    requiresApproval: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { identity } = await requireTaskAccess(ctx, args.taskId);
@@ -667,9 +784,37 @@ export const update = mutation({
         sprintId: args.sprintId,
         blockedByTaskIds: args.blockedByTaskIds,
         checklist: args.checklist,
+        requiresApproval: args.requiresApproval,
       },
       actor,
     );
+  },
+});
+
+// Human approval of a gated task. Emits task.approved so the agent
+// waiting on it gets a webhook/event and can finish the job.
+export const approve = mutation({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const { task, identity } = await requireTaskAccess(ctx, taskId);
+    if (!task.requiresApproval) throw new Error("Task has no approval gate");
+    const actor = await userActor(ctx, identity.subject);
+    await ctx.db.patch(taskId, {
+      approvedByClerkId: identity.subject,
+      approvedAt: Date.now(),
+    });
+    const updated = (await ctx.db.get(taskId))!;
+    await emitTaskEvent(ctx, updated, "task.approved", actor);
+  },
+});
+
+// Humans can claim work too ("I'm on it") — same soft lock agents use.
+export const claim = mutation({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const { identity } = await requireTaskAccess(ctx, taskId);
+    const actor = await userActor(ctx, identity.subject);
+    await claimTaskCore(ctx, taskId, actor);
   },
 });
 
@@ -709,7 +854,12 @@ export const toggleComplete = mutation({
 
 // Bulk reorder used by Board drag-drop: each task in `orderedIds` gets
 // `position = its index`. Optionally moves them all to a new status in the
-// same call. All tasks must belong to the same list.
+// same call. Position writes are raw patches, but status changes route
+// through updateTaskCore so drag-to-Complete emits events, fires
+// automations, spawns recurrence, honors blockers/approval gates, and
+// clears claims — exactly like changing status anywhere else. A task the
+// core refuses (blocked / needs approval) keeps its old status but still
+// gets its new position.
 export const reorder = mutation({
   args: {
     listId: v.id("lists"),
@@ -717,27 +867,31 @@ export const reorder = mutation({
     statusId: v.optional(v.id("listStatuses")),
   },
   handler: async (ctx, { listId, orderedIds, statusId }) => {
-    await requireListAccess(ctx, listId);
+    const { identity } = await requireListAccess(ctx, listId);
     if (statusId) {
       const status = await ctx.db.get(statusId);
       if (!status || status.listId !== listId) {
         throw new Error("statusId must belong to the same list");
       }
     }
+    const actor = await userActor(ctx, identity.subject);
+    const refused: string[] = [];
     for (let i = 0; i < orderedIds.length; i++) {
       const task = await ctx.db.get(orderedIds[i]);
       if (!task || task.listId !== listId) continue;
-      const patch: Record<string, unknown> = { position: i };
-      if (statusId) {
-        patch.statusId = statusId;
-        const status = await ctx.db.get(statusId);
-        if (status?.category === "complete" || status?.category === "closed") {
-          patch.completedAt = Date.now();
-        } else {
-          patch.completedAt = undefined;
+      await ctx.db.patch(orderedIds[i], { position: i });
+      if (statusId && task.statusId !== statusId) {
+        try {
+          await updateTaskCore(ctx, { taskId: orderedIds[i], statusId }, actor);
+        } catch (err) {
+          refused.push(
+            `"${task.title}": ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
       }
-      await ctx.db.patch(orderedIds[i], patch);
+    }
+    if (refused.length > 0) {
+      throw new Error(refused.join(" · "));
     }
   },
 });

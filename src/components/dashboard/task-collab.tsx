@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Lock, Plus, X } from "lucide-react";
+import { Hand, Lock, Plus, ShieldCheck, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ export function TaskCollaboration({
 }) {
   const update = useMutation(api.tasks.update);
   const releaseClaim = useMutation(api.tasks.releaseClaim);
+  const claim = useMutation(api.tasks.claim);
+  const approve = useMutation(api.tasks.approve);
   const assignable = useQuery(api.agents.listAssignableForList, { listId });
   const sprints = useQuery(api.sprints.listForList, { listId });
   const siblingTasks = useQuery(api.tasks.listForList, { listId });
@@ -40,6 +42,37 @@ export function TaskCollaboration({
 
   return (
     <div className="space-y-6">
+      {task.requiresApproval && (
+        <div
+          className={cn(
+            "flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm",
+            task.approvedAt
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-brand-200 bg-brand-50 text-brand-800",
+          )}
+        >
+          <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+          <span className="min-w-0 flex-1">
+            {task.approvedAt
+              ? "Approved — agents may complete this task."
+              : "Approval gate: agents can't complete this task until a human approves."}
+          </span>
+          {!task.approvedAt && (
+            <Button size="sm" onClick={() => approve({ taskId: task._id })}>
+              Approve
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              update({ taskId: task._id, requiresApproval: false })
+            }
+          >
+            Remove gate
+          </Button>
+        </div>
+      )}
       {task.claimedByActorId && (
         <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
           <Lock className="h-4 w-4 flex-shrink-0" />
@@ -59,6 +92,28 @@ export function TaskCollaboration({
           >
             Release
           </Button>
+        </div>
+      )}
+      {!task.claimedByActorId && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => claim({ taskId: task._id })}
+          >
+            <Hand className="h-3.5 w-3.5" /> I&apos;m on it
+          </Button>
+          {!task.requiresApproval && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                update({ taskId: task._id, requiresApproval: true })
+              }
+            >
+              <ShieldCheck className="h-3.5 w-3.5" /> Require approval
+            </Button>
+          )}
         </div>
       )}
 

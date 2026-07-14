@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "convex/react";
+import { TaskBadges } from "@/components/dashboard/task-badges";
 import {
   DndContext,
   DragOverlay,
@@ -288,6 +289,7 @@ function Card({
           className="block flex-1 text-sm font-medium hover:underline"
         >
           {task.title}
+          <TaskBadges task={task} />
         </Link>
       </div>
       <CardMeta task={task} />
@@ -309,7 +311,10 @@ function CardChrome({
         dragging && "rotate-2",
       )}
     >
-      <p className="text-sm font-medium">{task.title}</p>
+      <p className="text-sm font-medium">
+        {task.title}
+        <TaskBadges task={task} />
+      </p>
       <CardMeta task={task} />
     </div>
   );

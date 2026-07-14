@@ -170,9 +170,14 @@ function SprintCard({
   const [open, setOpen] = useState(false);
   const update = useMutation(api.sprints.update);
   const remove = useMutation(api.sprints.remove);
+  const updateTask = useMutation(api.tasks.update);
   const summary = useQuery(
     api.sprints.summary,
     open ? { sprintId: sprint._id } : "skip",
+  );
+  const addable = useQuery(
+    api.sprints.addableTasks,
+    open && sprint.status !== "complete" ? { sprintId: sprint._id } : "skip",
   );
 
   const pct =
@@ -260,6 +265,31 @@ function SprintCard({
             <li className="text-xs text-muted-foreground">
               No tasks in this sprint yet. Add them from a task&apos;s Sprint
               field.
+            </li>
+          )}
+          {sprint.status !== "complete" && (
+            <li>
+              <select
+                value=""
+                aria-label="Add task to sprint"
+                onChange={(e) => {
+                  const id = e.currentTarget.value;
+                  if (id) {
+                    updateTask({
+                      taskId: id as Id<"tasks">,
+                      sprintId: sprint._id,
+                    });
+                  }
+                }}
+                className="rounded-full border border-dashed border-border bg-background px-3 py-1 text-sm text-muted-foreground"
+              >
+                <option value="">+ Add task to sprint…</option>
+                {(addable ?? []).map((t) => (
+                  <option key={t.taskId} value={t.taskId}>
+                    {t.title}
+                  </option>
+                ))}
+              </select>
             </li>
           )}
           {summary.tasks.map((t) => (

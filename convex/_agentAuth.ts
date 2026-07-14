@@ -88,9 +88,28 @@ export function sha256Hex(input: string): string {
 
 // ── Key auth ───────────────────────────────────────────────────────────
 
+// Mutations per UTC day before an agent is throttled, unless the agent
+// row carries its own dailyActionLimit. Reads are not budgeted.
+export const DEFAULT_DAILY_ACTION_LIMIT = 2000;
+
+function utcDay(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Authenticate an agent API key.
+//
+// mode:
+//   "read"     (default) — no role check, no budget.
+//   "write"    — rejects readonly agents, counts against the daily action
+//                budget, and bumps the key's lastUsedAt. Only valid from
+//                mutations.
+//   "presence" — heartbeat-style calls: bumps lastUsedAt but is neither
+//                role-gated nor budgeted, so a readonly or throttled agent
+//                can still report liveness and read its inbox.
 export async function requireAgentByKey(
   ctx: QueryCtx | MutationCtx,
   apiKey: string,
+  mode: "read" | "write" | "presence" = "read",
 ): Promise<{ agent: Doc<"agents">; key: Doc<"agentKeys"> }> {
   const keyHash = sha256Hex(apiKey);
   const key = await ctx.db
@@ -103,7 +122,60 @@ export async function requireAgentByKey(
   const agent = await ctx.db.get(key.agentId);
   if (!agent) throw new Error("Invalid API key");
   if (agent.status !== "active") throw new Error("Agent is paused");
+
+  if (mode !== "read" && "patch" in ctx.db) {
+    const db = (ctx as MutationCtx).db;
+    // Throttle lastUsedAt writes to one per 5 minutes per key.
+    if (
+      key.lastUsedAt === undefined ||
+      Date.now() - key.lastUsedAt > 5 * 60 * 1000
+    ) {
+      await db.patch(key._id, { lastUsedAt: Date.now() });
+    }
+    if (mode === "write") {
+      if ((agent.role ?? "member") === "readonly") {
+        throw new Error("This agent is read-only");
+      }
+      const day = utcDay();
+      const usage = await db
+        .query("agentUsage")
+        .withIndex("by_agent_day", (q) =>
+          q.eq("agentId", agent._id).eq("day", day),
+        )
+        .unique();
+      const limit = agent.dailyActionLimit ?? DEFAULT_DAILY_ACTION_LIMIT;
+      const count = usage?.count ?? 0;
+      if (count >= limit) {
+        throw new Error(
+          `Daily action budget exhausted (${limit}/day). Ask a human to raise this agent's limit.`,
+        );
+      }
+      if (usage) {
+        await db.patch(usage._id, { count: count + 1 });
+      } else {
+        await db.insert("agentUsage", { agentId: agent._id, day, count: 1 });
+      }
+    }
+  }
   return { agent, key };
+}
+
+// Structure-level operations (creating spaces/folders/lists, sprints,
+// webhooks, skills) are off-limits to list-restricted agents — their
+// world is exactly their allowed lists.
+export function requireUnrestricted(agent: Doc<"agents">): void {
+  if (agent.allowedListIds !== undefined) {
+    throw new Error("This agent is restricted to specific lists");
+  }
+}
+
+export function agentCanTouchList(
+  agent: Doc<"agents">,
+  listId: Id<"lists">,
+): boolean {
+  return (
+    agent.allowedListIds === undefined || agent.allowedListIds.includes(listId)
+  );
 }
 
 export function agentActor(agent: Doc<"agents">): Actor {
@@ -155,6 +227,9 @@ export async function requireListAccessForAgent(
   const space = await getSpaceForList(ctx, list);
   if (!space) throw new Error("Orphan list");
   if (!canAgentAccessSpace(space, agent)) throw new Error("Forbidden");
+  if (!agentCanTouchList(agent, listId)) {
+    throw new Error("This agent is not allowed to touch this list");
+  }
   return { list, space };
 }
 

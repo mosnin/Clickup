@@ -8,6 +8,7 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
+import { TaskBadges } from "@/components/dashboard/task-badges";
 import { cn } from "@/lib/utils";
 
 type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
@@ -141,15 +142,18 @@ function TaskRow({
         </button>
       </td>
       <td className="px-3 py-2">
-        <Link
-          href={`/dashboard/l/${listId}/t/${task._id}`}
-          className={cn(
-            "block truncate hover:underline",
-            isDone && "text-muted-foreground line-through",
-          )}
-        >
-          {task.title}
-        </Link>
+        <span className="flex items-center">
+          <Link
+            href={`/dashboard/l/${listId}/t/${task._id}`}
+            className={cn(
+              "truncate hover:underline",
+              isDone && "text-muted-foreground line-through",
+            )}
+          >
+            {task.title}
+          </Link>
+          <TaskBadges task={task} />
+        </span>
       </td>
       <td className="hidden px-3 py-2 sm:table-cell">
         <select

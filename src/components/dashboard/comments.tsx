@@ -14,7 +14,7 @@ import {
   type MessagePart,
 } from "@/lib/mentions";
 
-type ParentType = "task" | "space" | "workspace";
+type ParentType = "task" | "space" | "workspace" | "channel";
 
 // Shape returned by messages.listMentionableUsers: workspace members plus
 // AI agents (agents carry their id in clerkId and isAgent: true).
@@ -372,10 +372,11 @@ function Avatar({
   small?: boolean;
 }) {
   const size = small ? "h-6 w-6 text-[10px]" : "h-8 w-8 text-xs";
-  const initial = (user?.name ?? clerkId.slice(-2) ?? "?")
-    .trim()
-    .charAt(0)
-    .toUpperCase();
+  // Array.from is code-point-aware so agent names prefixed with an emoji
+  // ("🤖 Scout") render the full emoji instead of half a surrogate pair.
+  const initial = (
+    Array.from((user?.name ?? clerkId.slice(-2) ?? "?").trim())[0] ?? "?"
+  ).toUpperCase();
   return (
     <span
       aria-hidden

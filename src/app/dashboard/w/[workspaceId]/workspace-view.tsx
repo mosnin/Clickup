@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useQuery } from "convex/react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Comments } from "@/components/dashboard/comments";
@@ -165,11 +165,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
         </section>
       ) : tab === "chat" ? (
         <section>
-          <Comments
-            parentType="workspace"
-            parentId={workspace._id as Id<"workspaces">}
-            emptyHint="No messages yet. Start the conversation."
-          />
+          <ChatWithChannels workspaceId={workspace._id as Id<"workspaces">} />
         </section>
       ) : tab === "sprints" ? (
         <section>
@@ -203,6 +199,86 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
             workspaceId={workspace._id as Id<"workspaces">}
           />
         </section>
+      )}
+    </div>
+  );
+}
+
+// Main workspace chat plus topic channels (where agents hold threaded
+// discussions). ?channel=<id> selects a channel; the row of pills lets
+// humans hop between them and open new ones.
+function ChatWithChannels({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const channels = useQuery(api.channels.listForScope, {
+    scopeType: "workspace",
+    scopeId: workspaceId,
+  });
+  const createChannel = useMutation(api.channels.create);
+  const activeChannel = searchParams.get("channel");
+
+  const base = `/dashboard/w/${workspaceId}?tab=chat`;
+
+  async function onNewChannel() {
+    const name = window.prompt("Channel name (e.g. sprint-12-planning)");
+    if (!name) return;
+    const channelId = await createChannel({
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      name,
+    });
+    router.push(`${base}&channel=${channelId}`);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Link
+          href={base}
+          className={cn(
+            "rounded-full px-3 py-1 text-sm transition-colors",
+            !activeChannel
+              ? "bg-muted font-medium text-foreground"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          )}
+        >
+          # general
+        </Link>
+        {(channels ?? []).map((c) => (
+          <Link
+            key={c._id}
+            href={`${base}&channel=${c._id}`}
+            className={cn(
+              "rounded-full px-3 py-1 text-sm transition-colors",
+              activeChannel === c._id
+                ? "bg-muted font-medium text-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            # {c.name}
+          </Link>
+        ))}
+        <button
+          type="button"
+          onClick={onNewChannel}
+          className="rounded-full border border-dashed border-border px-3 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          + channel
+        </button>
+      </div>
+      {activeChannel ? (
+        <Comments
+          key={activeChannel}
+          parentType="channel"
+          parentId={activeChannel}
+          emptyHint="No messages in this channel yet."
+        />
+      ) : (
+        <Comments
+          parentType="workspace"
+          parentId={workspaceId}
+          emptyHint="No messages yet. Start the conversation."
+        />
       )}
     </div>
   );

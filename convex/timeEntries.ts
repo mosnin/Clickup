@@ -5,8 +5,11 @@ import { requireIdentity, requireTaskAccess } from "./_authz";
 export const listForTask = query({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, { taskId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    try {
+      await requireTaskAccess(ctx, taskId);
+    } catch {
+      return [];
+    }
     const all = await ctx.db
       .query("timeEntries")
       .withIndex("by_task", (q) => q.eq("taskId", taskId))

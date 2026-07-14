@@ -64,9 +64,13 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   ├── webhookDelivery.ts        # Node action: HMAC-SHA256-signed POSTs with retries/backoff/auto-disable
 │   ├── sprints.ts                # workspace-level sprints + per-sprint task rollup
 │   ├── scheduledTasks.ts         # time-based recurring task definitions + cron materializer
-│   ├── crons.ts                  # hourly cron that materializes due scheduledTasks
+│   ├── crons.ts                  # 15-min crons (materialize schedules, watchdog) + daily retention prune
+│   ├── maintenance.ts            # watchdog (expired claims, overdue tasks, stalled agents) + retention pruning
+│   ├── channels.ts               # topic channels (messages with parentType "channel") for agent↔agent threads
 │   └── skills.ts                 # built-in skill playbooks (code) + custom skills (table) merged per scope
 ├── mcp/                          # npx-runnable stdio→HTTP proxy for stdio-only MCP clients
+├── scripts/smoke-mcp.mjs         # post-deploy smoke test for the hosted MCP endpoint
+├── tests/                        # vitest unit tests (sha256, schedule math, mention tokens) — `npm test`
 ├── public/
 │   ├── manifest.webmanifest
 │   ├── icon.svg / icon-maskable.svg
@@ -95,7 +99,7 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   │       ├── layout.tsx        # sidebar + main; auth-guarded; renders <EnsureUser />
 │   │       ├── page.tsx          # overview
 │   │       ├── personal/page.tsx # user's personal space view
-│   │       ├── agents/           # Agents HQ ("Mission Control"): manage agents/keys, live activity, webhooks, skills
+│   │       ├── agents/           # Agents HQ ("Mission Control") + per-agent detail page (runs, governance, usage)
 │   │       ├── inbox/            # @mention inbox with unread counter
 │   │       ├── w/[workspaceId]/  # team workspace view + Chat tab
 │   │       ├── d/[docId]/        # full-page Tiptap doc editor
@@ -139,6 +143,7 @@ npm run dev              # start Next.js dev server (separate terminal)
 npm run build            # production build (next build) — runs lint + typecheck
 npm run lint             # next lint
 npm run typecheck        # tsc --noEmit (Next.js tree only; convex/ checked by Convex CLI)
+npm test                 # vitest unit tests (tests/)
 ```
 
 You need **two terminals** in dev: one for `npx convex dev`, one for `npm run dev`. Convex's dev server regenerates `convex/_generated/` on every schema/function change.
@@ -180,7 +185,11 @@ User (personal) ──┘
 - `sprints` — workspace-level timeboxes; tasks join via `tasks.sprintId`. Status planned → active → complete, each transition emitting an event.
 - `scheduledTasks` — time-based recurring task definitions ("every Monday 09:00 UTC"); an hourly cron (`crons.ts`) materializes due rows into real tasks via `createTaskCore` with a system actor.
 - `skills` — custom markdown playbooks per scope; built-ins live in code (`skills.ts BUILTIN_SKILLS`) and are merged into reads, with custom rows overriding built-ins by slug.
-- `tasks` Phase 12 columns — `sprintId`, `blockedByTaskIds` (completion is refused while a blocker is open), `claimedByActorId`/`claimedAt` (soft work-lock, 60-min TTL), `checklist` (embedded acceptance criteria).
+- `tasks` Phase 12 columns — `sprintId`, `blockedByTaskIds` (completion is refused while a blocker is open), `claimedByActorId`/`claimedAt` (soft work-lock, 60-min TTL), `checklist` (embedded acceptance criteria), `requiresApproval`/`approvedByClerkId`/`approvedAt` (human-in-the-loop gate: agents can raise the gate but never lower it, and can't complete a gated task until a human approves — a human completing it counts as approval), `overdueNotifiedAt` (watchdog dedupe).
+- `agents` governance — `role` ("member" | "readonly": readonly agents can call every read tool but no mutations), `allowedListIds` (restricts a member agent to specific lists; structure-level ops are refused entirely), `dailyActionLimit` (mutations/UTC-day budget enforced in `requireAgentByKey`, tracked in `agentUsage`; default 2000), `notifyUrl` (unsigned assignment/mention pings pushed to the agent's runtime).
+- `agentRuns` — structured work sessions agents report over MCP (start_run/finish_run/report_error). Failed runs emit `agent.error` events. The watchdog marks runs of stalled agents "abandoned".
+- `channels` — named topic threads (messages/mentions carry `parentType: "channel"`), so agent↔agent deliberation stays out of the main workspace chat. Idempotent create-by-name = join.
+- Watchdog (`maintenance.watchdog`, every 15 min) — releases expired claims (`task.claim_expired`), nags on overdue open tasks once per overdue period (`task.overdue`), and flags agents holding a current task with no heartbeat for 30+ min (`agent.stalled`). Retention (`maintenance.prune`, daily) — events kept 90 days, webhook deliveries 30, usage counters 14.
 
 **Actor pattern (Phase 12).** Task/message/sprint write paths are factored into `*Core` functions (`createTaskCore`, `updateTaskCore`, `createMessageCore`, …) that take an explicit `Actor` (`{ type: "user" | "agent" | "system", id, name }`). The Clerk-authenticated mutations and the API-key-authenticated functions in `agentApi.ts` both call the same cores, so automations, notifications, recurrence, and events behave identically for humans and agents. Never write a second code path for agents — extend the core and both sides get it.
 
@@ -270,7 +279,8 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - **Phase 9:** AI Brain on the OpenAI API — semantic search over docs + tasks (`text-embedding-3-small` vectors, RAG via `gpt-4o-mini`), AI writer (continue/summarize) inside docs, and one-click task description draft.
 - **Phase 10:** List templates (Software sprint / Marketing campaign / Personal to-do / Sales pipeline — each seeds list + statuses + custom fields + sample tasks in one transaction), Slack integration (incoming-webhook posts on task assignment), Teams Hub (per-member workload, week stats, currently-running timer) + new workspace Settings tab.
 - **Phase 11:** Offline-first PWA polish via `@serwist/next` (Workbox-style precache + runtime caching, navigation preload, network-first navigation with offline fallback) and a `capacitor.config.ts` for iOS/Android wrapping using the remote-web-app pattern. Live offline indicator surfaces queued mutations.
-- **Phase 12 (current):** AI agent collaboration. First-class agent principals with API keys; a hosted MCP server (`/api/mcp`, ~40 tools: projects/lists/tasks/comments/sprints/recurring tasks/docs/search/events/skills) plus an npx-runnable stdio proxy (`mcp/`); an append-only events log with signed outbound webhooks (agents register their own over MCP); collaboration primitives (claims, blocked-by dependencies, checklists, agent mentions = agent inbox); sprints; time-based recurring tasks via cron; a skills library (built-in + user/agent-authored playbooks); and the Agents HQ page (live presence + "now working on", key management, activity feed, webhooks, skills) with agents assignable from the task page like any teammate. See `docs/AGENTS.md`.
+- **Phase 12:** AI agent collaboration. First-class agent principals with API keys; a hosted MCP server (`/api/mcp`, ~40 tools: projects/lists/tasks/comments/sprints/recurring tasks/docs/search/events/skills) plus an npx-runnable stdio proxy (`mcp/`); an append-only events log with signed outbound webhooks (agents register their own over MCP); collaboration primitives (claims, blocked-by dependencies, checklists, agent mentions = agent inbox); sprints; time-based recurring tasks via cron; a skills library (built-in + user/agent-authored playbooks); and the Agents HQ page (live presence + "now working on", key management, activity feed, webhooks, skills) with agents assignable from the task page like any teammate. See `docs/AGENTS.md`.
+- **Phase 13 (current):** Hardening + agentic-company scaffolding from the Phase 12 audit. Correctness: Board drag-drop and recurrence route through the shared cores (events/automations/blockers/claims apply everywhere); read-authz sweep so no query leaks titles by ID. Governance: agent roles (readonly / list-restricted), per-agent daily action budgets, human approval gates on tasks. Operations: watchdog + retention crons, structured agent runs + report_error, assignment/mention push to agent notifyUrls, `next_task` dispatch + `handoff_task`, topic channels. Surface: ~25 new MCP tools (time, goals, automations, templates, custom fields, comment management, runs, channels) + skills as MCP resources; UI for recurring schedules, per-agent detail (governance + runs + usage), sprint task picker, channel chat, claim/blocked/approval badges in List/Board, real deep links everywhere (task→list resolver). Infra: vitest unit tests, MCP smoke script.
 
 ## Known limitations (not bugs)
 
@@ -302,8 +312,8 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - Slack is currently the only integration. Adding more (Google Drive, GitHub, etc.) means a new `kind` literal on the integrations table plus a `notifications.post*` action.
 - Agent API keys travel as function arguments (`apiKey`) rather than headers, so they can appear in Convex function logs. Keys are hashed at rest and revocable; treat deployment log access as sensitive.
 - `webhookSubscriptions.secret` defaults to a `Math.random`-derived value when the caller doesn't supply one (Convex mutations have no CSPRNG). Callers that care should pass their own high-entropy `secret` — the UI and MCP tool both support it.
-- Task claims are advisory (soft locks with a 60-minute TTL), not enforced on writes: a claim signals "someone is working on this", it doesn't block edits.
+- Task claims are advisory (soft locks with a 60-minute TTL), not enforced on writes: a claim signals "someone is working on this", it doesn't block edits. The watchdog auto-releases expired claims.
 - `agentApi.listTasks`/`searchTasks` without a `listId` walk every list in the agent's scope — fine at target scale, needs pagination beyond a few thousand tasks (same story as `reports.workspaceSummary`).
-- The events table grows forever (no retention/pruning cron yet) and the human feed merges at most the newest 100 rows per scope.
+- The human activity feed merges at most the newest 100 rows per scope.
 - MCP auth verifies the bearer key once per request via `agentApi.whoami`, then each tool call re-validates — two key lookups per tool call. Cheap (single indexed read) but worth a cache if traffic grows.
 - Sprints require workspace-scoped agents; personal-space agents can't create them (there's no workspace to attach them to).

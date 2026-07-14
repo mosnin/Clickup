@@ -19,10 +19,11 @@ const optionValidator = v.object({
 export const listForList = query({
   args: { listId: v.id("lists") },
   handler: async (ctx, { listId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-    const list = await ctx.db.get(listId);
-    if (!list) return [];
+    try {
+      await requireListAccess(ctx, listId);
+    } catch {
+      return [];
+    }
     const fields = await ctx.db
       .query("customFields")
       .withIndex("by_list", (q) => q.eq("listId", listId))

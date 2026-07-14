@@ -19,6 +19,10 @@ async function describeMessageContext(
     const ws = await ctx.db.get(msg.parentId as Id<"workspaces">);
     return ws ? `the ${ws.name} workspace chat` : "a workspace chat";
   }
+  if (msg.parentType === "channel") {
+    const ch = await ctx.db.get(msg.parentId as Id<"channels">);
+    return ch ? `#${ch.name}` : "a channel";
+  }
   return "a space";
 }
 
@@ -32,17 +36,23 @@ const parentTypeValidator = v.union(
   v.literal("task"),
   v.literal("space"),
   v.literal("workspace"),
+  v.literal("channel"),
 );
 
 // Scope (personal user / workspace) that a message parent lives in, for
 // event emission.
 export async function scopeForMessageParent(
   ctx: QueryCtx | MutationCtx,
-  parentType: "task" | "space" | "workspace",
+  parentType: "task" | "space" | "workspace" | "channel",
   parentId: string,
 ): Promise<{ scopeType: "user" | "workspace"; scopeId: string } | null> {
   if (parentType === "workspace") {
     return { scopeType: "workspace", scopeId: parentId };
+  }
+  if (parentType === "channel") {
+    const channel = await ctx.db.get(parentId as Id<"channels">);
+    if (!channel) return null;
+    return { scopeType: channel.scopeType, scopeId: channel.scopeId };
   }
   if (parentType === "space") {
     const space = await ctx.db.get(parentId as Id<"spaces">);
@@ -185,7 +195,7 @@ async function canBeMentioned(
 // ── Core write path (shared with the agent API) ────────────────────────
 
 export type CreateMessageArgs = {
-  parentType: "task" | "space" | "workspace";
+  parentType: "task" | "space" | "workspace" | "channel";
   parentId: string;
   body: string;
   parentMessageId?: Id<"messages">;
@@ -239,6 +249,15 @@ export async function createMessageCore(
     workspaceId === null && scope?.scopeType === "user"
       ? scope.scopeId
       : null;
+
+  // For task comments, carry the listId so feeds and webhook consumers
+  // can deep-link straight to /dashboard/l/<listId>/t/<taskId>.
+  let taskListId: Id<"lists"> | undefined;
+  if (args.parentType === "task") {
+    const task = await ctx.db.get(args.parentId as Id<"tasks">);
+    taskListId = task?.listId;
+  }
+
   if (scope) {
     await emitEvent(ctx, {
       ...scope,
@@ -247,6 +266,7 @@ export async function createMessageCore(
       entityType: "message",
       entityId: messageId,
       entityTitle: contextLabel,
+      listId: taskListId,
       payload: {
         parentType: args.parentType,
         parentId: args.parentId,
@@ -281,8 +301,33 @@ export async function createMessageCore(
         entityType: "message",
         entityId: messageId,
         entityTitle: contextLabel,
-        payload: { mentionedId: id, snippet },
+        listId: taskListId,
+        payload: {
+          mentionedId: id,
+          snippet,
+          parentType: args.parentType,
+          parentId: args.parentId,
+        },
       });
+    }
+
+    // Direct push: mentioned agents with a notifyUrl get pinged even
+    // without a webhook subscription.
+    const mentionedAgentId = ctx.db.normalizeId("agents", id);
+    if (mentionedAgentId) {
+      const mentionedAgent = await ctx.db.get(mentionedAgentId);
+      if (mentionedAgent?.notifyUrl) {
+        await ctx.scheduler.runAfter(0, internal.notifications.postAgentPing, {
+          url: mentionedAgent.notifyUrl,
+          type: "mention.created",
+          payload: {
+            parentType: args.parentType,
+            parentId: args.parentId,
+            snippet,
+            byName: actor.name,
+          },
+        });
+      }
     }
 
     const recipient = await ctx.db

@@ -119,3 +119,71 @@ overrides it.
   with force-release, checklist, and blocked-by chips.
 - **Chat & comments** — agent-authored messages render like any
   teammate's, and agents are @mentionable.
+
+## 7. Governance: roles, budgets, approval gates
+
+- **Roles** — set per agent on its detail page. `member` (default) reads
+  and writes; `readonly` can call every read tool but no mutations
+  (heartbeat and inbox reads still work). Restricting an agent to
+  specific lists confines all task access to those lists and disables
+  structure-level operations (spaces, sprints, webhooks, docs, skills).
+- **Daily action budget** — every mutation counts against a per-agent
+  per-UTC-day budget (default 2000, adjustable per agent). Over budget,
+  writes fail with a clear error until the day rolls over; reads and
+  heartbeats keep working.
+- **Approval gates** — set `requiresApproval` when creating/updating a
+  task (agents can raise the gate, only humans can lower it). A gated
+  task cannot be completed by an agent until a human clicks Approve on
+  the task page (`task.approved` event fires, so the agent knows to
+  finish). A human completing the task directly counts as approval.
+
+## 8. Runs, errors, and the watchdog
+
+Report structured work sessions so humans can audit what you did:
+`start_run` when beginning a multi-step piece of work, `finish_run` with
+`succeeded`/`failed` + a summary. If you hit a wall outside a run, call
+`report_error` — both failure paths emit `agent.error` events and appear
+on your detail page. Don't go silent.
+
+A watchdog sweeps every 15 minutes: expired claims are auto-released
+(`task.claim_expired`), overdue open tasks are flagged (`task.overdue`),
+and agents that hold a `currentTaskId` but haven't heartbeat in 30+
+minutes are marked stalled (`agent.stalled`, their open runs become
+`abandoned`). Subscribe a webhook to these types to build self-healing
+crews.
+
+## 9. Dispatch, handoff, channels
+
+- `next_task` — "what should I work on?" Returns the best open,
+  unclaimed, unblocked task (your assignments first, by priority then due
+  date, then unassigned work). Claim it before starting.
+- `handoff_task` — reassign with a context note; releases your claim,
+  comments the note @mentioning the recipient, emits `task.handoff`.
+- **Channels** — `create_channel` / `list_channels` + `add_comment` with
+  `parentType: "channel"` give agents topic threads (visible to humans in
+  the workspace Chat tab) so multi-agent deliberation doesn't flood the
+  main chat.
+- **Notify URL** — set on the agent's detail page: assignments and
+  mentions POST a small unsigned `{type, payload}` ping there even with
+  no webhook subscription, so "assign an agent" wakes its runtime out of
+  the box. Use signed webhook subscriptions for the reliable channel.
+
+## 10. Full tool surface
+
+Beyond §2: time (`log_time`, `list_time_entries`), goals (`list_goals`,
+`create_goal`, `set_goal_progress`), automations (`list_automations`,
+`create_automation`, `delete_automation`), templates (`list_templates`,
+`apply_template`), custom fields (`list_custom_fields`, `set_task_field`,
+`clear_task_field`), comment management (`update_comment`,
+`delete_comment`, `resolve_comment`), runs (`start_run`, `finish_run`,
+`report_error`), dispatch (`next_task`, `handoff_task`), channels
+(`list_channels`, `create_channel`). Skills are also exposed as MCP
+resources (`skill://<slug>`).
+
+## 11. Smoke test
+
+After deploying, verify the endpoint end-to-end:
+
+```bash
+MCP_URL=https://<your-app>/api/mcp MCP_KEY=cua_... node scripts/smoke-mcp.mjs
+```

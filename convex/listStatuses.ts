@@ -49,10 +49,12 @@ export async function seedDefaultStatuses(
 export const listForList = query({
   args: { listId: v.id("lists") },
   handler: async (ctx, { listId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-    const list = await ctx.db.get(listId);
-    if (!list) return [];
+    // Full hierarchy check — status names must not be enumerable by ID.
+    try {
+      await requireListAccess(ctx, listId);
+    } catch {
+      return [];
+    }
     const statuses = await ctx.db
       .query("listStatuses")
       .withIndex("by_list", (q) => q.eq("listId", listId))

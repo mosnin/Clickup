@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { ScheduledTasksSection } from "@/components/dashboard/scheduled-tasks-section";
 
 type StatusCategory = Doc<"listStatuses">["category"];
 type FieldType = Doc<"customFields">["type"];
@@ -73,6 +74,7 @@ export function ListSettings({ listId }: { listId: string }) {
         automations={automations}
         statuses={statuses}
       />
+      <ScheduledTasksSection listId={list._id} />
     </div>
   );
 }

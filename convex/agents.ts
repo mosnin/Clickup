@@ -7,7 +7,8 @@ import {
 } from "./_generated/server";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireIdentity, requireListAccess } from "./_authz";
+import { requireIdentity, requireListAccess, requireTaskAccess } from "./_authz";
+import { DEFAULT_DAILY_ACTION_LIMIT } from "./_agentAuth";
 
 // Human-facing management of AI agent principals: create/pause/delete
 // agents, inspect their keys, and feed the assignee pickers. The agent-
@@ -98,7 +99,7 @@ export const listForCurrentUser = query({
 });
 
 // Current task titles for the "Now" line on agent cards, resolved in one
-// query so the UI doesn't fetch per agent.
+// query so the UI doesn't fetch per agent. Access-checked per task.
 export const currentTaskTitles = query({
   args: { taskIds: v.array(v.id("tasks")) },
   handler: async (ctx, { taskIds }) => {
@@ -106,10 +107,108 @@ export const currentTaskTitles = query({
     if (!identity) return {};
     const out: Record<string, string> = {};
     for (const id of taskIds) {
-      const task = await ctx.db.get(id);
-      if (task) out[id] = task.title;
+      try {
+        const { task } = await requireTaskAccess(ctx, id);
+        out[id] = task.title;
+      } catch {
+        // skip inaccessible tasks
+      }
     }
     return out;
+  },
+});
+
+// Everything the agent detail page needs in one subscription: the agent,
+// its recent runs, today's action usage, its recent events, and the tasks
+// it currently claims or is assigned.
+export const detail = query({
+  args: { agentId: v.id("agents") },
+  handler: async (ctx, { agentId }) => {
+    let agent;
+    try {
+      ({ agent } = await requireAgentManageAccess(ctx, agentId));
+    } catch {
+      return null;
+    }
+
+    const runs = await ctx.db
+      .query("agentRuns")
+      .withIndex("by_agent", (q) => q.eq("agentId", agentId))
+      .order("desc")
+      .take(25);
+
+    const day = new Date().toISOString().slice(0, 10);
+    const usage = await ctx.db
+      .query("agentUsage")
+      .withIndex("by_agent_day", (q) => q.eq("agentId", agentId).eq("day", day))
+      .unique();
+
+    const events = await ctx.db
+      .query("events")
+      .withIndex("by_actor", (q) =>
+        q.eq("actorType", "agent").eq("actorId", agentId),
+      )
+      .order("desc")
+      .take(50);
+
+    // Tasks in the agent's scope it claims or is assigned to. Full walk of
+    // scope tasks via events would miss quiet assignments, so scan the
+    // scope's lists (same tradeoff as reports).
+    const claimed: { taskId: Id<"tasks">; listId: Id<"lists">; title: string }[] = [];
+    const assigned: typeof claimed = [];
+    const spaces = await ctx.db
+      .query("spaces")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", agent.parentType).eq("parentId", agent.parentId),
+      )
+      .collect();
+    for (const space of spaces) {
+      const parents: { type: "space" | "folder"; id: string }[] = [
+        { type: "space", id: space._id },
+      ];
+      const folders = await ctx.db
+        .query("folders")
+        .withIndex("by_space", (q) => q.eq("spaceId", space._id))
+        .collect();
+      for (const f of folders) parents.push({ type: "folder", id: f._id });
+      for (const p of parents) {
+        const lists = await ctx.db
+          .query("lists")
+          .withIndex("by_parent", (q) =>
+            q.eq("parentType", p.type).eq("parentId", p.id),
+          )
+          .collect();
+        for (const l of lists) {
+          const tasks = await ctx.db
+            .query("tasks")
+            .withIndex("by_list", (q) => q.eq("listId", l._id))
+            .collect();
+          for (const t of tasks) {
+            const row = { taskId: t._id, listId: l._id, title: t.title };
+            if (t.claimedByActorId === agentId) claimed.push(row);
+            if (t.assigneeClerkIds.includes(agentId)) {
+              const status = await ctx.db.get(t.statusId);
+              if (
+                status?.category !== "complete" &&
+                status?.category !== "closed"
+              ) {
+                assigned.push(row);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      agent,
+      runs,
+      usageToday: usage?.count ?? 0,
+      usageLimit: agent.dailyActionLimit ?? DEFAULT_DAILY_ACTION_LIMIT,
+      events,
+      claimed,
+      assigned,
+    };
   },
 });
 
@@ -246,6 +345,10 @@ export const update = mutation({
     description: v.optional(v.string()),
     emoji: v.optional(v.string()),
     status: v.optional(v.union(v.literal("active"), v.literal("paused"))),
+    role: v.optional(v.union(v.literal("member"), v.literal("readonly"))),
+    allowedListIds: v.optional(v.union(v.array(v.id("lists")), v.null())),
+    dailyActionLimit: v.optional(v.union(v.number(), v.null())),
+    notifyUrl: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     await requireAgentManageAccess(ctx, args.agentId);
@@ -256,6 +359,22 @@ export const update = mutation({
     if (args.description !== undefined) patch.description = args.description;
     if (args.emoji !== undefined) patch.emoji = args.emoji;
     if (args.status !== undefined) patch.status = args.status;
+    if (args.role !== undefined) patch.role = args.role;
+    if (args.allowedListIds !== undefined) {
+      patch.allowedListIds = args.allowedListIds ?? undefined;
+    }
+    if (args.dailyActionLimit !== undefined) {
+      if (args.dailyActionLimit !== null && args.dailyActionLimit < 1) {
+        throw new Error("dailyActionLimit must be positive");
+      }
+      patch.dailyActionLimit = args.dailyActionLimit ?? undefined;
+    }
+    if (args.notifyUrl !== undefined) {
+      if (args.notifyUrl && !/^https:\/\/.+/i.test(args.notifyUrl)) {
+        throw new Error("notifyUrl must be https://");
+      }
+      patch.notifyUrl = args.notifyUrl || undefined;
+    }
     await ctx.db.patch(args.agentId, patch);
   },
 });
@@ -279,6 +398,16 @@ export const remove = mutation({
       )
       .collect();
     for (const s of subs) await ctx.db.delete(s._id);
+    const runs = await ctx.db
+      .query("agentRuns")
+      .withIndex("by_agent", (q) => q.eq("agentId", agentId))
+      .collect();
+    for (const r of runs) await ctx.db.delete(r._id);
+    const usage = await ctx.db
+      .query("agentUsage")
+      .withIndex("by_agent_day", (q) => q.eq("agentId", agentId))
+      .collect();
+    for (const u of usage) await ctx.db.delete(u._id);
     await ctx.db.delete(agentId);
   },
 });

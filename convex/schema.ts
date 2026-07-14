@@ -193,6 +193,15 @@ export default defineSchema({
         }),
       ),
     ),
+    // Human-in-the-loop gate: when true, agents cannot move this task
+    // into a complete-category status until a human calls tasks.approve
+    // (humans completing directly counts as approval).
+    requiresApproval: v.optional(v.boolean()),
+    approvedByClerkId: v.optional(v.string()),
+    approvedAt: v.optional(v.number()),
+    // Set by the watchdog when it emits task.overdue, so each task nags
+    // at most once per overdue period.
+    overdueNotifiedAt: v.optional(v.number()),
     createdByClerkId: v.string(),
     position: v.number(),
     createdAt: v.number(),
@@ -270,6 +279,7 @@ export default defineSchema({
       v.literal("task"),
       v.literal("space"),
       v.literal("workspace"),
+      v.literal("channel"),
     ),
     parentId: v.string(),
     authorClerkId: v.string(),
@@ -297,6 +307,7 @@ export default defineSchema({
       v.literal("task"),
       v.literal("space"),
       v.literal("workspace"),
+      v.literal("channel"),
     ),
     parentId: v.string(),
     readAt: v.optional(v.number()),
@@ -437,6 +448,19 @@ export default defineSchema({
     parentType: v.union(v.literal("user"), v.literal("workspace")),
     parentId: v.string(),
     status: v.union(v.literal("active"), v.literal("paused")),
+    // Permission tier. "member" acts like a workspace member; "readonly"
+    // can call every read tool but no mutations. When allowedListIds is
+    // set, list/task access (read AND write) is further restricted to
+    // those lists.
+    role: v.optional(v.union(v.literal("member"), v.literal("readonly"))),
+    allowedListIds: v.optional(v.array(v.id("lists"))),
+    // Mutations per UTC day before the agent is throttled. Undefined =
+    // DEFAULT_DAILY_ACTION_LIMIT (see _agentAuth.ts).
+    dailyActionLimit: v.optional(v.number()),
+    // Direct push endpoint: assignments and mentions POST a small unsigned
+    // ping here even when the agent has no webhook subscription, so
+    // "assign an agent" works out of the box.
+    notifyUrl: v.optional(v.string()),
     createdByClerkId: v.string(),
     // Live presence, reported over MCP: heartbeat bumps lastSeenAt, and
     // agents self-report what they're doing right now so Mission Control
@@ -446,6 +470,34 @@ export default defineSchema({
     statusText: v.optional(v.string()),
     createdAt: v.number(),
   }).index("by_parent", ["parentType", "parentId"]),
+
+  // One row per (agent, UTC day) counting mutations, for the daily action
+  // budget. Cheap: single indexed read + patch per agent mutation.
+  agentUsage: defineTable({
+    agentId: v.id("agents"),
+    day: v.string(), // "YYYY-MM-DD" UTC
+    count: v.number(),
+  }).index("by_agent_day", ["agentId", "day"]),
+
+  // Structured work sessions ("runs") agents report over MCP: started X,
+  // finished with success/failure + summary. Errors reported outside a
+  // run land here too as instant failed runs. Powers the per-agent
+  // history on the agent detail page and agent.error events.
+  agentRuns: defineTable({
+    agentId: v.id("agents"),
+    taskId: v.optional(v.id("tasks")),
+    title: v.string(),
+    status: v.union(
+      v.literal("running"),
+      v.literal("succeeded"),
+      v.literal("failed"),
+      v.literal("abandoned"),
+    ),
+    summary: v.optional(v.string()),
+    error: v.optional(v.string()),
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+  }).index("by_agent", ["agentId"]),
 
   // API keys for agents. We store only a SHA-256 hash — the plaintext key
   // is shown once at creation time. `keyPrefix` keeps the first characters
@@ -484,7 +536,20 @@ export default defineSchema({
     listId: v.optional(v.id("lists")),
     payload: v.optional(v.any()),
     createdAt: v.number(),
-  }).index("by_scope", ["scopeType", "scopeId", "createdAt"]),
+  })
+    .index("by_scope", ["scopeType", "scopeId", "createdAt"])
+    .index("by_actor", ["actorType", "actorId"]),
+
+  // Topic threads for agent↔agent (and agent↔human) discussion that
+  // shouldn't pollute the main workspace chat. Messages attach with
+  // parentType "channel".
+  channels: defineTable({
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    name: v.string(),
+    createdByActorId: v.string(),
+    createdAt: v.number(),
+  }).index("by_scope", ["scopeType", "scopeId"]),
 
   // Outbound webhook endpoints. Owned by a user (configured in the UI) or
   // an agent (registered over MCP — this is how agents get pushed events

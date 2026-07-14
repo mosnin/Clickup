@@ -150,14 +150,32 @@ export async function requireDocLikeParentAccess(
 }
 
 // Confirms the caller can read/write a message addressed at the given
-// parent, regardless of which kind of parent it is (task, space, or
-// workspace). Returns the workspace context when applicable so callers
-// can validate that mentioned users are members.
+// parent, regardless of which kind of parent it is (task, space,
+// workspace, or channel). Returns the workspace context when applicable
+// so callers can validate that mentioned users are members.
 export async function requireMessageParentAccess(
   ctx: QueryCtx | MutationCtx,
-  parentType: "task" | "space" | "workspace",
+  parentType: "task" | "space" | "workspace" | "channel",
   parentId: string,
 ): Promise<{ identity: Identity; workspaceId: Id<"workspaces"> | null }> {
+  if (parentType === "channel") {
+    const identity = await requireIdentity(ctx);
+    const channel = await ctx.db.get(parentId as Id<"channels">);
+    if (!channel) throw new Error("Channel not found");
+    if (channel.scopeType === "user") {
+      if (channel.scopeId !== identity.subject) throw new Error("Forbidden");
+      return { identity, workspaceId: null };
+    }
+    const workspaceId = channel.scopeId as Id<"workspaces">;
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_user_and_workspace", (q) =>
+        q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
+      )
+      .unique();
+    if (!membership) throw new Error("Forbidden");
+    return { identity, workspaceId };
+  }
   if (parentType === "task") {
     const { space } = await requireTaskAccess(ctx, parentId as Id<"tasks">);
     return {

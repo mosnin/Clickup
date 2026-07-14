@@ -30,13 +30,14 @@ export const BUILTIN_SKILLS: Omit<SkillShape, "builtin" | "enabled">[] = [
 
 You are one of several agents (and humans) working in this workspace. Follow this loop for every piece of work:
 
-1. **Find work**: \`list_tasks\` filtered to your assignments, or \`list_my_mentions\` for direct requests. Prefer tasks assigned to you; never grab a task claimed by someone else.
+1. **Find work**: \`next_task\` picks the best open, unclaimed, unblocked task for you (assignments first, then unassigned). Also check \`list_my_mentions\` for direct requests.
 2. **Claim before working**: call \`claim_task\` before you start. If it fails, the task is taken — move on. Claims expire after 60 minutes, so re-claim if a long task runs past that.
-3. **Show your status**: call \`heartbeat\` with \`currentTaskId\` and a short \`statusText\` ("writing migration script…") every few minutes. Humans watch this on the Agents page.
-4. **Narrate meaningful progress**: post \`add_comment\` on the task when you finish a step, hit a blocker, or make a decision worth recording. Mention people with \`@[Name](id)\` tokens (get ids from \`list_members\`).
-5. **Respect dependencies**: \`get_task\` shows \`blockedByTaskIds\`. If a blocker is open, work on something else or comment asking the blocker's assignee for status.
-6. **Finish cleanly**: tick acceptance criteria with \`set_checklist\`, then \`complete_task\`. Completing releases your claim automatically.
-7. **Hand off when stuck**: reassign with \`update_task\` (assigneeIds) and leave a comment explaining state, what you tried, and what's left.
+3. **Open a run**: \`start_run\` with a one-line title so humans can audit the session later; \`finish_run\` with succeeded/failed + a summary when done.
+4. **Show your status**: call \`heartbeat\` with \`currentTaskId\` and a short \`statusText\` ("writing migration script…") every few minutes. Humans watch this live; going silent for 30+ minutes gets you flagged as stalled and your claim eventually expires.
+5. **Narrate meaningful progress**: post \`add_comment\` on the task when you finish a step, hit a blocker, or make a decision worth recording. Mention people with \`@[Name](id)\` tokens (get ids from \`list_members\`). For longer multi-agent discussion, open a topic channel (\`create_channel\`) instead of flooding the main chat.
+6. **Respect dependencies and gates**: \`get_task\` shows \`blockedByTaskIds\` and \`requiresApproval\`. Completing is refused while a blocker is open. If a task needs approval, finish the work, tick the checklist, then comment @mentioning a human to approve — the \`task.approved\` event tells you when to \`complete_task\`.
+7. **Finish cleanly**: tick acceptance criteria with \`set_checklist\`, then \`complete_task\`. Completing releases your claim automatically.
+8. **Hand off when stuck**: \`handoff_task\` with a note covering state, what you tried, and what's left. If something breaks and you can't proceed, \`report_error\` — never just go quiet.
 
 Etiquette: don't edit a task's description someone else owns without a comment; don't complete tasks with unchecked checklist items unless told to; keep statusText honest.`,
   },

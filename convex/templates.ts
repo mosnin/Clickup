@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import {
   requireFolderAccess,
@@ -159,22 +160,20 @@ const parentTypeValidator = v.union(
   v.literal("folder"),
 );
 
-export const applyListTemplate = mutation({
+// Shared with the agent API: creates the list + statuses + fields +
+// seed tasks in one transaction. `creatorId` is a clerkId or agent id.
+export async function applyListTemplateCore(
+  ctx: MutationCtx,
   args: {
-    templateId: v.string(),
-    name: v.string(),
-    parentType: parentTypeValidator,
-    parentId: v.string(),
+    templateId: string;
+    name: string;
+    parentType: "space" | "folder";
+    parentId: string;
   },
-  handler: async (ctx, args) => {
+  creatorId: string,
+): Promise<Id<"lists">> {
     const template = LIST_TEMPLATES.find((t) => t.id === args.templateId);
     if (!template) throw new Error("Unknown template");
-
-    if (args.parentType === "space") {
-      await requireSpaceAccess(ctx, args.parentId as Id<"spaces">);
-    } else {
-      await requireFolderAccess(ctx, args.parentId as Id<"folders">);
-    }
 
     const siblings = await ctx.db
       .query("lists")
@@ -236,8 +235,6 @@ export const applyListTemplate = mutation({
     }
 
     if (template.tasks) {
-      const identity = await ctx.auth.getUserIdentity();
-      const subject = identity?.subject ?? "";
       for (let i = 0; i < template.tasks.length; i++) {
         const t = template.tasks[i];
         const idx = Math.min(t.statusIndex ?? 0, statusIds.length - 1);
@@ -247,7 +244,7 @@ export const applyListTemplate = mutation({
           description: t.description,
           statusId: statusIds[idx],
           assigneeClerkIds: [],
-          createdByClerkId: subject,
+          createdByClerkId: creatorId,
           position: i,
           createdAt: Date.now(),
         });
@@ -255,5 +252,30 @@ export const applyListTemplate = mutation({
     }
 
     return listId;
+}
+
+export const applyListTemplate = mutation({
+  args: {
+    templateId: v.string(),
+    name: v.string(),
+    parentType: parentTypeValidator,
+    parentId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { identity } =
+      args.parentType === "space"
+        ? await requireSpaceAccess(ctx, args.parentId as Id<"spaces">)
+        : await requireFolderAccess(ctx, args.parentId as Id<"folders">);
+    return await applyListTemplateCore(ctx, args, identity.subject);
   },
 });
+
+// Metadata for the agent API (no auth needed for the static catalog).
+export function templateCatalog() {
+  return LIST_TEMPLATES.map((t) => ({
+    id: t.id,
+    name: t.name,
+    emoji: t.emoji,
+    description: t.description,
+  }));
+}

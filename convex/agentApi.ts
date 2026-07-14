@@ -9,16 +9,20 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
   agentActor,
+  agentCanTouchList,
   requireAgentByKey,
   requireListAccessForAgent,
   requireSpaceAccessForAgent,
   requireTaskAccessForAgent,
+  requireUnrestricted,
   requireWorkspaceAccessForAgent,
   canAgentAccessSpace,
 } from "./_agentAuth";
 import {
+  CLAIM_TTL_MS,
   claimTaskCore,
   createTaskCore,
+  handoffTaskCore,
   releaseTaskCore,
   removeTaskCore,
   updateTaskCore,
@@ -32,6 +36,10 @@ import {
 import { createScheduledTaskCore, computeNextRunAt } from "./scheduledTasks";
 import { createSubscription } from "./webhooks";
 import { skillsForScope } from "./skills";
+import { createChannelCore } from "./channels";
+import { applyListTemplateCore, templateCatalog } from "./templates";
+import { seedDefaultStatuses } from "./listStatuses";
+import { emitEvent } from "./events";
 
 // The agent-facing API: every function here authenticates with an agent
 // API key instead of Clerk, resolves the agent's scope (personal space or
@@ -61,7 +69,7 @@ function scopeOf(agent: Doc<"agents">): {
 
 async function workspaceIdForMessageParent(
   ctx: QueryCtx | MutationCtx,
-  parentType: "task" | "space" | "workspace",
+  parentType: "task" | "space" | "workspace" | "channel",
   parentId: string,
 ): Promise<Id<"workspaces"> | null> {
   const scope = await scopeForMessageParent(ctx, parentType, parentId);
@@ -73,7 +81,7 @@ async function workspaceIdForMessageParent(
 // Agents may touch a message parent when it resolves into their scope.
 async function requireMessageParentAccessForAgent(
   ctx: QueryCtx | MutationCtx,
-  parentType: "task" | "space" | "workspace",
+  parentType: "task" | "space" | "workspace" | "channel",
   parentId: string,
   agent: Doc<"agents">,
 ): Promise<void> {
@@ -138,6 +146,8 @@ async function taskView(ctx: QueryCtx | MutationCtx, task: Doc<"tasks">) {
     recurrence: task.recurrence,
     checklist: task.checklist ?? [],
     blockedBy: blockers,
+    requiresApproval: task.requiresApproval ?? false,
+    approvedAt: task.approvedAt,
     claimedBy: task.claimedByActorId,
     claimedAt: task.claimedAt,
     createdAt: task.createdAt,
@@ -204,7 +214,7 @@ export const heartbeat = mutation({
     currentTaskId: v.optional(v.union(v.id("tasks"), v.null())),
   },
   handler: async (ctx, args) => {
-    const { agent, key } = await requireAgentByKey(ctx, args.apiKey);
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
     const patch: Record<string, unknown> = { lastSeenAt: Date.now() };
     if (args.statusText !== undefined) {
       patch.statusText = args.statusText.slice(0, 200) || undefined;
@@ -218,7 +228,6 @@ export const heartbeat = mutation({
       }
     }
     await ctx.db.patch(agent._id, patch);
-    await ctx.db.patch(key._id, { lastUsedAt: Date.now() });
   },
 });
 
@@ -251,7 +260,9 @@ export const getTree = query({
         folderNodes.push({
           folderId: folder._id,
           name: folder.name,
-          lists: lists.map((l) => ({ listId: l._id, name: l.name })),
+          lists: lists
+            .filter((l) => agentCanTouchList(agent, l._id))
+            .map((l) => ({ listId: l._id, name: l.name })),
         });
       }
       const lists = await ctx.db
@@ -264,7 +275,9 @@ export const getTree = query({
         spaceId: space._id,
         name: space.name,
         folders: folderNodes,
-        lists: lists.map((l) => ({ listId: l._id, name: l.name })),
+        lists: lists
+          .filter((l) => agentCanTouchList(agent, l._id))
+          .map((l) => ({ listId: l._id, name: l.name })),
       });
     }
     return { scopeType: agent.parentType, scopeId: agent.parentId, spaces: out };
@@ -274,7 +287,8 @@ export const getTree = query({
 export const createSpace = mutation({
   args: { apiKey: v.string(), name: v.string() },
   handler: async (ctx, { apiKey, name }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
+    requireUnrestricted(agent);
     if (!name.trim()) throw new Error("Name is required");
     const siblings = await ctx.db
       .query("spaces")
@@ -295,7 +309,8 @@ export const createSpace = mutation({
 export const createFolder = mutation({
   args: { apiKey: v.string(), spaceId: v.id("spaces"), name: v.string() },
   handler: async (ctx, { apiKey, spaceId, name }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
+    requireUnrestricted(agent);
     await requireSpaceAccessForAgent(ctx, spaceId, agent);
     if (!name.trim()) throw new Error("Name is required");
     const siblings = await ctx.db
@@ -311,17 +326,6 @@ export const createFolder = mutation({
   },
 });
 
-const DEFAULT_STATUSES: {
-  name: string;
-  color: string;
-  category: "open" | "in_progress" | "complete" | "closed";
-}[] = [
-  { name: "To Do", color: "#94a3b8", category: "open" },
-  { name: "In Progress", color: "#3b82f6", category: "in_progress" },
-  { name: "Complete", color: "#22c55e", category: "complete" },
-  { name: "Closed", color: "#64748b", category: "closed" },
-];
-
 export const createList = mutation({
   args: {
     apiKey: v.string(),
@@ -330,7 +334,8 @@ export const createList = mutation({
     parentId: v.string(),
   },
   handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
     if (!args.name.trim()) throw new Error("Name is required");
     if (args.parentType === "space") {
       await requireSpaceAccessForAgent(
@@ -356,15 +361,8 @@ export const createList = mutation({
       position: siblings.length,
       createdAt: Date.now(),
     });
-    // Seed the same defaults as lists.create so every list is usable.
-    for (let i = 0; i < DEFAULT_STATUSES.length; i++) {
-      await ctx.db.insert("listStatuses", {
-        listId,
-        ...DEFAULT_STATUSES[i],
-        position: i,
-        createdAt: Date.now(),
-      });
-    }
+    // Same default statuses as lists.create.
+    await seedDefaultStatuses(ctx, listId);
     return listId;
   },
 });
@@ -397,6 +395,7 @@ export const listTasks = query({
     sprintId: v.optional(v.id("sprints")),
     assignedToMe: v.optional(v.boolean()),
     includeCompleted: v.optional(v.boolean()),
+    limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey);
@@ -440,6 +439,7 @@ export const listTasks = query({
             )
             .collect();
           for (const l of lists) {
+            if (!agentCanTouchList(agent, l._id)) continue;
             const ts = await ctx.db
               .query("tasks")
               .withIndex("by_list", (q) => q.eq("listId", l._id))
@@ -450,11 +450,14 @@ export const listTasks = query({
       }
     }
 
+    tasks = tasks.filter((t) => agentCanTouchList(agent, t.listId));
     if (args.assignedToMe) {
       tasks = tasks.filter((t) => t.assigneeClerkIds.includes(agent._id));
     }
+    const max = Math.min(args.limit ?? 200, 500);
     const views = [];
     for (const t of tasks) {
+      if (views.length >= max) break;
       const view = await taskView(ctx, t);
       if (
         !args.includeCompleted &&
@@ -485,8 +488,19 @@ export const getTask = query({
         q.eq("parentType", "task").eq("parentId", taskId),
       )
       .collect();
+    const fieldValues = await ctx.db
+      .query("taskFieldValues")
+      .withIndex("by_task", (q) => q.eq("taskId", taskId))
+      .collect();
     return {
       ...view,
+      fieldValues: fieldValues.map((fv) => ({
+        fieldId: fv.fieldId,
+        textValue: fv.textValue,
+        numberValue: fv.numberValue,
+        booleanValue: fv.booleanValue,
+        dateValue: fv.dateValue,
+      })),
       subtasks: await Promise.all(subtasks.map((s) => taskView(ctx, s))),
       comments: comments
         .sort((a, b) => a.createdAt - b.createdAt)
@@ -520,9 +534,10 @@ export const createTask = mutation({
     ),
     sprintId: v.optional(v.id("sprints")),
     checklist: v.optional(checklistValidator),
+    requiresApproval: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     await requireListAccessForAgent(ctx, args.listId, agent);
     const { apiKey: _apiKey, ...rest } = args;
     return await createTaskCore(ctx, rest, agentActor(agent));
@@ -551,9 +566,10 @@ export const updateTask = mutation({
     sprintId: v.optional(v.union(v.id("sprints"), v.null())),
     blockedByTaskIds: v.optional(v.array(v.id("tasks"))),
     checklist: v.optional(checklistValidator),
+    requiresApproval: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     await requireTaskAccessForAgent(ctx, args.taskId, agent);
     const { apiKey: _apiKey, ...rest } = args;
     await updateTaskCore(ctx, rest, agentActor(agent));
@@ -564,7 +580,7 @@ export const updateTask = mutation({
 export const completeTask = mutation({
   args: { apiKey: v.string(), taskId: v.id("tasks") },
   handler: async (ctx, { apiKey, taskId }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
     const statuses = await ctx.db
       .query("listStatuses")
@@ -585,7 +601,7 @@ export const completeTask = mutation({
 export const deleteTask = mutation({
   args: { apiKey: v.string(), taskId: v.id("tasks") },
   handler: async (ctx, { apiKey, taskId }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     await requireTaskAccessForAgent(ctx, taskId, agent);
     await removeTaskCore(ctx, taskId, agentActor(agent));
   },
@@ -594,7 +610,7 @@ export const deleteTask = mutation({
 export const claimTask = mutation({
   args: { apiKey: v.string(), taskId: v.id("tasks") },
   handler: async (ctx, { apiKey, taskId }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     await requireTaskAccessForAgent(ctx, taskId, agent);
     await claimTaskCore(ctx, taskId, agentActor(agent));
   },
@@ -603,7 +619,7 @@ export const claimTask = mutation({
 export const releaseTask = mutation({
   args: { apiKey: v.string(), taskId: v.id("tasks") },
   handler: async (ctx, { apiKey, taskId }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     await requireTaskAccessForAgent(ctx, taskId, agent);
     await releaseTaskCore(ctx, taskId, agentActor(agent));
   },
@@ -616,7 +632,7 @@ export const setChecklist = mutation({
     items: checklistValidator,
   },
   handler: async (ctx, { apiKey, taskId, items }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     await requireTaskAccessForAgent(ctx, taskId, agent);
     await updateTaskCore(ctx, { taskId, checklist: items }, agentActor(agent));
   },
@@ -629,7 +645,7 @@ export const addDependency = mutation({
     blockedByTaskId: v.id("tasks"),
   },
   handler: async (ctx, { apiKey, taskId, blockedByTaskId }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
     await requireTaskAccessForAgent(ctx, blockedByTaskId, agent);
     const current = task.blockedByTaskIds ?? [];
@@ -649,7 +665,7 @@ export const removeDependency = mutation({
     blockedByTaskId: v.id("tasks"),
   },
   handler: async (ctx, { apiKey, taskId, blockedByTaskId }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
     const current = task.blockedByTaskIds ?? [];
     await updateTaskCore(
@@ -672,6 +688,7 @@ export const listComments = query({
       v.literal("task"),
       v.literal("space"),
       v.literal("workspace"),
+      v.literal("channel"),
     ),
     parentId: v.string(),
   },
@@ -705,6 +722,7 @@ export const addComment = mutation({
       v.literal("task"),
       v.literal("space"),
       v.literal("workspace"),
+      v.literal("channel"),
     ),
     parentId: v.string(),
     body: v.string(),
@@ -712,7 +730,7 @@ export const addComment = mutation({
     mentionIds: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     await requireMessageParentAccessForAgent(
       ctx,
       args.parentType,
@@ -769,7 +787,7 @@ export const listMyMentions = query({
 export const markMentionRead = mutation({
   args: { apiKey: v.string(), mentionId: v.id("mentions") },
   handler: async (ctx, { apiKey, mentionId }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "presence");
     const mention = await ctx.db.get(mentionId);
     if (!mention || mention.mentionedClerkId !== agent._id) {
       throw new Error("Mention not found");
@@ -861,7 +879,8 @@ export const createSprint = mutation({
     endDate: v.number(),
   },
   handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
     const workspaceId = requireWorkspaceAgent(agent);
     return await createSprintCore(
       ctx,
@@ -907,7 +926,7 @@ export const updateSprint = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     const workspaceId = requireWorkspaceAgent(agent);
     const sprint = await ctx.db.get(args.sprintId);
     if (!sprint || sprint.workspaceId !== workspaceId) {
@@ -952,7 +971,7 @@ export const createScheduledTask = mutation({
     dueInDays: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     await requireListAccessForAgent(ctx, args.listId, agent);
     const { apiKey: _apiKey, ...rest } = args;
     return await createScheduledTaskCore(ctx, rest, agentActor(agent));
@@ -978,7 +997,7 @@ export const updateScheduledTask = mutation({
     enabled: v.optional(v.boolean()),
   },
   handler: async (ctx, { apiKey, scheduledTaskId, enabled }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     const st = await ctx.db.get(scheduledTaskId);
     if (!st) throw new Error("Not found");
     await requireListAccessForAgent(ctx, st.listId, agent);
@@ -1004,7 +1023,7 @@ export const updateScheduledTask = mutation({
 export const deleteScheduledTask = mutation({
   args: { apiKey: v.string(), scheduledTaskId: v.id("scheduledTasks") },
   handler: async (ctx, { apiKey, scheduledTaskId }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     const st = await ctx.db.get(scheduledTaskId);
     if (!st) return;
     await requireListAccessForAgent(ctx, st.listId, agent);
@@ -1023,7 +1042,8 @@ export const registerWebhook = mutation({
     secret: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
     if (args.listId) await requireListAccessForAgent(ctx, args.listId, agent);
     return await createSubscription(ctx, {
       ...scopeOf(agent),
@@ -1054,7 +1074,7 @@ export const listWebhooks = query({
 export const deleteWebhook = mutation({
   args: { apiKey: v.string(), subscriptionId: v.id("webhookSubscriptions") },
   handler: async (ctx, { apiKey, subscriptionId }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     const sub = await ctx.db.get(subscriptionId);
     if (!sub) return;
     if (sub.ownerType !== "agent" || sub.ownerId !== agent._id) {
@@ -1150,7 +1170,8 @@ export const createSkill = mutation({
     content: v.string(),
   },
   handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
     const slug = args.slug
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -1233,7 +1254,8 @@ export const getDoc = query({
 export const createDoc = mutation({
   args: { apiKey: v.string(), title: v.string(), text: v.optional(v.string()) },
   handler: async (ctx, { apiKey, title, text }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
+    requireUnrestricted(agent);
     const docId = await ctx.db.insert("docs", {
       parentType: agent.parentType,
       parentId: agent.parentId,
@@ -1256,7 +1278,7 @@ export const updateDoc = mutation({
     text: v.optional(v.string()),
   },
   handler: async (ctx, { apiKey, docId, title, text }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     await requireDocAccessForAgent(ctx, docId, agent);
     const patch: Record<string, unknown> = { updatedAt: Date.now() };
     if (title !== undefined) patch.title = title;
@@ -1301,6 +1323,7 @@ export const searchTasks = query({
           )
           .collect();
         for (const l of lists) {
+          if (!agentCanTouchList(agent, l._id)) continue;
           const tasks = await ctx.db
             .query("tasks")
             .withIndex("by_list", (q) => q.eq("listId", l._id))
@@ -1330,5 +1353,672 @@ export const _validateKey = internalQuery({
       scopeType: agent.parentType,
       scopeId: agent.parentId,
     };
+  },
+});
+
+// ── Dispatch: what should I work on next? ──────────────────────────────
+
+// Priority-aware, dependency-aware picker: open tasks in scope that are
+// unclaimed (or expired-claim) and unblocked, preferring the agent's own
+// assignments, then unassigned work. Sorted urgent→low, then due date,
+// then age.
+export const nextTask = query({
+  args: {
+    apiKey: v.string(),
+    includeUnassigned: v.optional(v.boolean()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    const now = Date.now();
+    const prioRank = { urgent: 0, high: 1, normal: 2, low: 3 };
+
+    const candidates: {
+      task: Doc<"tasks">;
+      mine: boolean;
+    }[] = [];
+    const spaces = await ctx.db
+      .query("spaces")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", agent.parentType).eq("parentId", agent.parentId),
+      )
+      .collect();
+    for (const space of spaces) {
+      const parents: { type: "space" | "folder"; id: string }[] = [
+        { type: "space", id: space._id },
+      ];
+      const folders = await ctx.db
+        .query("folders")
+        .withIndex("by_space", (q) => q.eq("spaceId", space._id))
+        .collect();
+      for (const f of folders) parents.push({ type: "folder", id: f._id });
+      for (const p of parents) {
+        const lists = await ctx.db
+          .query("lists")
+          .withIndex("by_parent", (q) =>
+            q.eq("parentType", p.type).eq("parentId", p.id),
+          )
+          .collect();
+        for (const l of lists) {
+          if (!agentCanTouchList(agent, l._id)) continue;
+          const tasks = await ctx.db
+            .query("tasks")
+            .withIndex("by_list", (q) => q.eq("listId", l._id))
+            .collect();
+          for (const t of tasks) {
+            const status = await ctx.db.get(t.statusId);
+            if (
+              status?.category === "complete" ||
+              status?.category === "closed"
+            ) {
+              continue;
+            }
+            // Claimed and fresh → someone else's work.
+            if (
+              t.claimedByActorId !== undefined &&
+              t.claimedByActorId !== agent._id &&
+              t.claimedAt !== undefined &&
+              now - t.claimedAt < CLAIM_TTL_MS
+            ) {
+              continue;
+            }
+            const mine = t.assigneeClerkIds.includes(agent._id);
+            if (!mine) {
+              if (args.includeUnassigned === false) continue;
+              if (t.assigneeClerkIds.length > 0) continue; // someone else's
+            }
+            // Blocked?
+            let blocked = false;
+            for (const bid of t.blockedByTaskIds ?? []) {
+              const blocker = await ctx.db.get(bid);
+              if (!blocker) continue;
+              const bs = await ctx.db.get(blocker.statusId);
+              if (bs?.category !== "complete" && bs?.category !== "closed") {
+                blocked = true;
+                break;
+              }
+            }
+            if (blocked) continue;
+            candidates.push({ task: t, mine });
+          }
+        }
+      }
+    }
+
+    candidates.sort((a, b) => {
+      if (a.mine !== b.mine) return a.mine ? -1 : 1;
+      const pa = prioRank[a.task.priority ?? "normal"];
+      const pb = prioRank[b.task.priority ?? "normal"];
+      if (pa !== pb) return pa - pb;
+      const da = a.task.dueDate ?? Infinity;
+      const db = b.task.dueDate ?? Infinity;
+      if (da !== db) return da - db;
+      return a.task.createdAt - b.task.createdAt;
+    });
+
+    const limit = Math.min(args.limit ?? 1, 10);
+    const out = [];
+    for (const c of candidates.slice(0, limit)) {
+      out.push(await taskView(ctx, c.task));
+    }
+    return out;
+  },
+});
+
+// Hand a task to another member or agent with a context note. Reassigns,
+// releases my claim, posts the note as a comment mentioning the
+// recipient, and emits task.handoff.
+export const handoffTask = mutation({
+  args: {
+    apiKey: v.string(),
+    taskId: v.id("tasks"),
+    toId: v.string(),
+    note: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    // Recipient must be a member or agent in this scope.
+    const targetAgentId = ctx.db.normalizeId("agents", args.toId);
+    if (targetAgentId) {
+      const target = await ctx.db.get(targetAgentId);
+      if (
+        !target ||
+        target.parentType !== agent.parentType ||
+        target.parentId !== agent.parentId
+      ) {
+        throw new Error("Recipient is not in this scope");
+      }
+    } else if (agent.parentType === "workspace") {
+      const member = await ctx.db
+        .query("memberships")
+        .withIndex("by_user_and_workspace", (q) =>
+          q
+            .eq("userClerkId", args.toId)
+            .eq("workspaceId", agent.parentId as Id<"workspaces">),
+        )
+        .unique();
+      if (!member) throw new Error("Recipient is not in this scope");
+    } else if (args.toId !== agent.parentId) {
+      throw new Error("Recipient is not in this scope");
+    }
+    await handoffTaskCore(
+      ctx,
+      args.taskId,
+      args.toId,
+      args.note,
+      agentActor(agent),
+    );
+  },
+});
+
+// ── Runs & error reporting ─────────────────────────────────────────────
+
+// Start a structured work session. Humans see it on the agent's detail
+// page; finish it with finishRun when done.
+export const startRun = mutation({
+  args: {
+    apiKey: v.string(),
+    title: v.string(),
+    taskId: v.optional(v.id("tasks")),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
+    if (args.taskId) await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    return await ctx.db.insert("agentRuns", {
+      agentId: agent._id,
+      taskId: args.taskId,
+      title: args.title.slice(0, 200),
+      status: "running",
+      startedAt: Date.now(),
+    });
+  },
+});
+
+export const finishRun = mutation({
+  args: {
+    apiKey: v.string(),
+    runId: v.id("agentRuns"),
+    status: v.union(
+      v.literal("succeeded"),
+      v.literal("failed"),
+      v.literal("abandoned"),
+    ),
+    summary: v.optional(v.string()),
+    error: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
+    const run = await ctx.db.get(args.runId);
+    if (!run || run.agentId !== agent._id) throw new Error("Run not found");
+    await ctx.db.patch(args.runId, {
+      status: args.status,
+      summary: args.summary?.slice(0, 2000),
+      error: args.error?.slice(0, 2000),
+      finishedAt: Date.now(),
+    });
+    if (args.status === "failed") {
+      await emitEvent(ctx, {
+        ...scopeOf(agent),
+        type: "agent.error",
+        actor: agentActor(agent),
+        entityType: "agent",
+        entityId: agent._id,
+        entityTitle: agent.name,
+        payload: {
+          runTitle: run.title,
+          error: args.error?.slice(0, 500),
+          taskId: run.taskId,
+        },
+      });
+    }
+  },
+});
+
+// Report a failure outside any run: recorded as an instant failed run and
+// surfaced as an agent.error event so humans (and watching agents) see it.
+export const reportError = mutation({
+  args: {
+    apiKey: v.string(),
+    message: v.string(),
+    taskId: v.optional(v.id("tasks")),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
+    if (args.taskId) await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    const now = Date.now();
+    await ctx.db.insert("agentRuns", {
+      agentId: agent._id,
+      taskId: args.taskId,
+      title: "Error report",
+      status: "failed",
+      error: args.message.slice(0, 2000),
+      startedAt: now,
+      finishedAt: now,
+    });
+    await emitEvent(ctx, {
+      ...scopeOf(agent),
+      type: "agent.error",
+      actor: agentActor(agent),
+      entityType: "agent",
+      entityId: agent._id,
+      entityTitle: agent.name,
+      payload: { error: args.message.slice(0, 500), taskId: args.taskId },
+    });
+  },
+});
+
+// ── Channels (agent↔agent topic threads) ───────────────────────────────
+
+export const listChannels = query({
+  args: { apiKey: v.string() },
+  handler: async (ctx, { apiKey }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const channels = await ctx.db
+      .query("channels")
+      .withIndex("by_scope", (q) =>
+        q.eq("scopeType", agent.parentType).eq("scopeId", agent.parentId),
+      )
+      .collect();
+    return channels.map((c) => ({ channelId: c._id, name: c.name }));
+  },
+});
+
+// Create (or join — same name returns the existing id) a topic channel.
+export const createChannel = mutation({
+  args: { apiKey: v.string(), name: v.string() },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    return await createChannelCore(
+      ctx,
+      { ...scopeOf(agent), name: args.name },
+      agentActor(agent),
+    );
+  },
+});
+
+// ── Time tracking ──────────────────────────────────────────────────────
+
+export const logTime = mutation({
+  args: {
+    apiKey: v.string(),
+    taskId: v.id("tasks"),
+    durationMs: v.number(),
+    description: v.optional(v.string()),
+    startedAt: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    if (args.durationMs <= 0) throw new Error("durationMs must be positive");
+    const startedAt = args.startedAt ?? Date.now() - args.durationMs;
+    return await ctx.db.insert("timeEntries", {
+      taskId: args.taskId,
+      userClerkId: agent._id,
+      startedAt,
+      endedAt: startedAt + args.durationMs,
+      durationMs: args.durationMs,
+      description: args.description,
+      billable: false,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const listTimeEntries = query({
+  args: { apiKey: v.string(), taskId: v.id("tasks") },
+  handler: async (ctx, { apiKey, taskId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    await requireTaskAccessForAgent(ctx, taskId, agent);
+    const entries = await ctx.db
+      .query("timeEntries")
+      .withIndex("by_task", (q) => q.eq("taskId", taskId))
+      .collect();
+    return entries
+      .sort((a, b) => b.startedAt - a.startedAt)
+      .map((e) => ({
+        entryId: e._id,
+        actorId: e.userClerkId,
+        startedAt: e.startedAt,
+        endedAt: e.endedAt,
+        durationMs: e.durationMs,
+        description: e.description,
+      }));
+  },
+});
+
+// ── Goals ──────────────────────────────────────────────────────────────
+
+export const listGoals = query({
+  args: { apiKey: v.string() },
+  handler: async (ctx, { apiKey }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    return await ctx.db
+      .query("goals")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", agent.parentType).eq("parentId", agent.parentId),
+      )
+      .collect();
+  },
+});
+
+export const createGoal = mutation({
+  args: {
+    apiKey: v.string(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    targetType: v.union(
+      v.literal("number"),
+      v.literal("money"),
+      v.literal("boolean"),
+    ),
+    targetValue: v.number(),
+    unit: v.optional(v.string()),
+    dueDate: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    return await ctx.db.insert("goals", {
+      parentType: agent.parentType,
+      parentId: agent.parentId,
+      title: args.title,
+      description: args.description,
+      targetType: args.targetType,
+      targetValue: args.targetType === "boolean" ? 1 : args.targetValue,
+      currentValue: 0,
+      unit: args.unit,
+      dueDate: args.dueDate,
+      status: "open",
+      ownerClerkId: agent._id,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const setGoalProgress = mutation({
+  args: {
+    apiKey: v.string(),
+    goalId: v.id("goals"),
+    currentValue: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const goal = await ctx.db.get(args.goalId);
+    if (
+      !goal ||
+      goal.parentType !== agent.parentType ||
+      goal.parentId !== agent.parentId
+    ) {
+      throw new Error("Goal not found");
+    }
+    const complete = args.currentValue >= goal.targetValue;
+    await ctx.db.patch(args.goalId, {
+      currentValue: args.currentValue,
+      status: complete ? "complete" : "open",
+      completedAt: complete ? Date.now() : undefined,
+    });
+    await emitEvent(ctx, {
+      ...scopeOf(agent),
+      type: complete ? "goal.completed" : "goal.progress",
+      actor: agentActor(agent),
+      entityType: "goal",
+      entityId: args.goalId,
+      entityTitle: goal.title,
+      payload: { currentValue: args.currentValue, targetValue: goal.targetValue },
+    });
+  },
+});
+
+// ── List automations ───────────────────────────────────────────────────
+
+const automationActionValidator = v.union(
+  v.object({ kind: v.literal("assign_user"), clerkId: v.string() }),
+  v.object({ kind: v.literal("set_priority"), priority: priorityValidator }),
+  v.object({ kind: v.literal("set_status"), statusId: v.id("listStatuses") }),
+  v.object({ kind: v.literal("set_due_in_days"), days: v.number() }),
+);
+
+export const listAutomationsForList = query({
+  args: { apiKey: v.string(), listId: v.id("lists") },
+  handler: async (ctx, { apiKey, listId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    await requireListAccessForAgent(ctx, listId, agent);
+    return await ctx.db
+      .query("listAutomations")
+      .withIndex("by_list", (q) => q.eq("listId", listId))
+      .collect();
+  },
+});
+
+export const createAutomation = mutation({
+  args: {
+    apiKey: v.string(),
+    listId: v.id("lists"),
+    trigger: v.union(
+      v.literal("task_created"),
+      v.literal("status_changed_to_complete"),
+    ),
+    action: automationActionValidator,
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    await requireListAccessForAgent(ctx, args.listId, agent);
+    return await ctx.db.insert("listAutomations", {
+      listId: args.listId,
+      trigger: args.trigger,
+      action: args.action,
+      enabled: true,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const deleteAutomation = mutation({
+  args: { apiKey: v.string(), automationId: v.id("listAutomations") },
+  handler: async (ctx, { apiKey, automationId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
+    const auto = await ctx.db.get(automationId);
+    if (!auto) return;
+    await requireListAccessForAgent(ctx, auto.listId, agent);
+    await ctx.db.delete(automationId);
+  },
+});
+
+// ── List templates ─────────────────────────────────────────────────────
+
+export const listTemplates = query({
+  args: { apiKey: v.string() },
+  handler: async (ctx, { apiKey }) => {
+    await requireAgentByKey(ctx, apiKey);
+    return templateCatalog();
+  },
+});
+
+export const applyTemplate = mutation({
+  args: {
+    apiKey: v.string(),
+    templateId: v.string(),
+    name: v.string(),
+    parentType: v.union(v.literal("space"), v.literal("folder")),
+    parentId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    if (args.parentType === "space") {
+      await requireSpaceAccessForAgent(
+        ctx,
+        args.parentId as Id<"spaces">,
+        agent,
+      );
+    } else {
+      const folder = await ctx.db.get(args.parentId as Id<"folders">);
+      if (!folder) throw new Error("Folder not found");
+      await requireSpaceAccessForAgent(ctx, folder.spaceId, agent);
+    }
+    return await applyListTemplateCore(
+      ctx,
+      {
+        templateId: args.templateId,
+        name: args.name,
+        parentType: args.parentType,
+        parentId: args.parentId,
+      },
+      agent._id,
+    );
+  },
+});
+
+// ── Custom fields ──────────────────────────────────────────────────────
+
+export const listCustomFields = query({
+  args: { apiKey: v.string(), listId: v.id("lists") },
+  handler: async (ctx, { apiKey, listId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    await requireListAccessForAgent(ctx, listId, agent);
+    const fields = await ctx.db
+      .query("customFields")
+      .withIndex("by_list", (q) => q.eq("listId", listId))
+      .collect();
+    return fields
+      .sort((a, b) => a.position - b.position)
+      .map((f) => ({
+        fieldId: f._id,
+        name: f.name,
+        type: f.type,
+        options: f.options,
+      }));
+  },
+});
+
+export const setTaskFieldValue = mutation({
+  args: {
+    apiKey: v.string(),
+    taskId: v.id("tasks"),
+    fieldId: v.id("customFields"),
+    textValue: v.optional(v.string()),
+    numberValue: v.optional(v.number()),
+    booleanValue: v.optional(v.boolean()),
+    dateValue: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const { task } = await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    const field = await ctx.db.get(args.fieldId);
+    if (!field || field.listId !== task.listId) {
+      throw new Error("Field does not belong to this task's list");
+    }
+    const existing = await ctx.db
+      .query("taskFieldValues")
+      .withIndex("by_task_and_field", (q) =>
+        q.eq("taskId", args.taskId).eq("fieldId", args.fieldId),
+      )
+      .unique();
+    const patch = {
+      textValue: args.textValue,
+      numberValue: args.numberValue,
+      booleanValue: args.booleanValue,
+      dateValue: args.dateValue,
+    };
+    if (existing) {
+      await ctx.db.patch(existing._id, patch);
+      return existing._id;
+    }
+    return await ctx.db.insert("taskFieldValues", {
+      taskId: args.taskId,
+      fieldId: args.fieldId,
+      ...patch,
+    });
+  },
+});
+
+export const clearTaskFieldValue = mutation({
+  args: {
+    apiKey: v.string(),
+    taskId: v.id("tasks"),
+    fieldId: v.id("customFields"),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    const existing = await ctx.db
+      .query("taskFieldValues")
+      .withIndex("by_task_and_field", (q) =>
+        q.eq("taskId", args.taskId).eq("fieldId", args.fieldId),
+      )
+      .unique();
+    if (existing) await ctx.db.delete(existing._id);
+  },
+});
+
+// ── Comment management (author-only) ───────────────────────────────────
+
+export const updateComment = mutation({
+  args: { apiKey: v.string(), messageId: v.id("messages"), body: v.string() },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const msg = await ctx.db.get(args.messageId);
+    if (!msg || msg.authorClerkId !== agent._id) {
+      throw new Error("Only the author can edit");
+    }
+    if (!args.body.trim()) throw new Error("Empty message");
+    await ctx.db.patch(args.messageId, {
+      body: args.body,
+      editedAt: Date.now(),
+    });
+  },
+});
+
+export const deleteComment = mutation({
+  args: { apiKey: v.string(), messageId: v.id("messages") },
+  handler: async (ctx, { apiKey, messageId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
+    const msg = await ctx.db.get(messageId);
+    if (!msg) return;
+    if (msg.authorClerkId !== agent._id) {
+      throw new Error("Only the author can delete");
+    }
+    const replies = await ctx.db
+      .query("messages")
+      .withIndex("by_parent_message", (q) => q.eq("parentMessageId", messageId))
+      .collect();
+    for (const r of replies) {
+      const ms = await ctx.db
+        .query("mentions")
+        .withIndex("by_message", (q) => q.eq("messageId", r._id))
+        .collect();
+      for (const m of ms) await ctx.db.delete(m._id);
+      await ctx.db.delete(r._id);
+    }
+    const ms = await ctx.db
+      .query("mentions")
+      .withIndex("by_message", (q) => q.eq("messageId", messageId))
+      .collect();
+    for (const m of ms) await ctx.db.delete(m._id);
+    await ctx.db.delete(messageId);
+  },
+});
+
+export const resolveComment = mutation({
+  args: {
+    apiKey: v.string(),
+    messageId: v.id("messages"),
+    resolved: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const msg = await ctx.db.get(args.messageId);
+    if (!msg) throw new Error("Message not found");
+    await requireMessageParentAccessForAgent(
+      ctx,
+      msg.parentType,
+      msg.parentId,
+      agent,
+    );
+    await ctx.db.patch(args.messageId, {
+      resolvedAt: args.resolved ? Date.now() : undefined,
+      resolvedByClerkId: args.resolved ? agent._id : undefined,
+    });
   },
 });

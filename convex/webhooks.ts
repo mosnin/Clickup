@@ -19,16 +19,12 @@ const AUTO_DISABLE_AFTER = 10;
 export const RETRY_DELAYS_MS = [30_000, 120_000, 600_000];
 
 function randomSecret(): string {
-  // Math.random is fine here: the secret is a shared HMAC key the
-  // receiver uses to check message integrity, and callers (UI or agents)
-  // can always supply their own high-entropy secret instead.
-  let s = "";
-  for (let i = 0; i < 8; i++) {
-    s += Math.floor(Math.random() * 0xffff)
-      .toString(16)
-      .padStart(4, "0");
-  }
-  return `whsec_${s}`;
+  // crypto.randomUUID is available in the Convex default runtime (it
+  // records the value for deterministic replay) — 244 bits of entropy
+  // across two UUIDs. Callers can still supply their own secret.
+  return `whsec_${crypto.randomUUID().replace(/-/g, "")}${crypto
+    .randomUUID()
+    .replace(/-/g, "")}`;
 }
 
 export function validateWebhookUrl(url: string): void {

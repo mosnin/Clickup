@@ -217,6 +217,65 @@ export const listForList = query({
   },
 });
 
+// Open tasks in the workspace not yet in this sprint, for the sprint
+// card's "+ Add task" picker. Walks the workspace tree (reports-style).
+export const addableTasks = query({
+  args: { sprintId: v.id("sprints") },
+  handler: async (ctx, { sprintId }) => {
+    const sprint = await ctx.db.get(sprintId);
+    if (!sprint) return [];
+    try {
+      await requireWorkspaceMember(ctx, sprint.workspaceId);
+    } catch {
+      return [];
+    }
+    const out: { taskId: Id<"tasks">; title: string }[] = [];
+    const spaces = await ctx.db
+      .query("spaces")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", "workspace").eq("parentId", sprint.workspaceId),
+      )
+      .collect();
+    for (const space of spaces) {
+      const parents: { type: "space" | "folder"; id: string }[] = [
+        { type: "space", id: space._id },
+      ];
+      const folders = await ctx.db
+        .query("folders")
+        .withIndex("by_space", (q) => q.eq("spaceId", space._id))
+        .collect();
+      for (const f of folders) parents.push({ type: "folder", id: f._id });
+      for (const p of parents) {
+        const lists = await ctx.db
+          .query("lists")
+          .withIndex("by_parent", (q) =>
+            q.eq("parentType", p.type).eq("parentId", p.id),
+          )
+          .collect();
+        for (const l of lists) {
+          const tasks = await ctx.db
+            .query("tasks")
+            .withIndex("by_list", (q) => q.eq("listId", l._id))
+            .collect();
+          for (const t of tasks) {
+            if (t.sprintId === sprintId) continue;
+            const status = await ctx.db.get(t.statusId);
+            if (
+              status?.category === "complete" ||
+              status?.category === "closed"
+            ) {
+              continue;
+            }
+            out.push({ taskId: t._id, title: t.title });
+            if (out.length >= 200) return out;
+          }
+        }
+      }
+    }
+    return out;
+  },
+});
+
 export const summary = query({
   args: { sprintId: v.id("sprints") },
   handler: async (ctx, { sprintId }) => {

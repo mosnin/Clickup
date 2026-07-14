@@ -93,6 +93,33 @@ export const sendAssignmentEmail = internalAction({
   },
 });
 
+// Direct push to an agent's notifyUrl: a small unsigned JSON ping telling
+// the agent's runtime "you were assigned / mentioned — connect over MCP
+// and look". Best effort, no retries: the webhook subscription system is
+// the reliable channel; this is the zero-setup default.
+export const postAgentPing = internalAction({
+  args: {
+    url: v.string(),
+    type: v.string(),
+    payload: v.any(),
+  },
+  handler: async (_, args) => {
+    try {
+      const res = await fetch(args.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: args.type, payload: args.payload }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) {
+        console.warn("[notifications] postAgentPing failed:", res.status);
+      }
+    } catch (err) {
+      console.warn("[notifications] postAgentPing error:", err);
+    }
+  },
+});
+
 // Outbound Slack post via incoming webhook. Webhook URL is read from the
 // integration row by tasks.ts and passed in here, so this action stays
 // independent of the data model.

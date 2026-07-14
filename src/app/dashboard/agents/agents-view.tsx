@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
@@ -160,10 +160,11 @@ function AgentsTab() {
 
 function ConnectHint() {
   const [copied, setCopied] = useState(false);
-  const url =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/api/mcp`
-      : "/api/mcp";
+  // Resolved in an effect to avoid an SSR/client hydration mismatch.
+  const [url, setUrl] = useState("/api/mcp");
+  useEffect(() => {
+    setUrl(`${window.location.origin}/api/mcp`);
+  }, []);
   return (
     <div className="rounded-3xl border border-border bg-muted/30 p-4 text-sm">
       <p className="font-medium">Connect an agent</p>
@@ -350,7 +351,12 @@ function AgentCard({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">{agent.name}</span>
+            <Link
+              href={`/dashboard/agents/${agent._id}`}
+              className="font-medium hover:underline"
+            >
+              {agent.name}
+            </Link>
             <span
               className={cn(
                 "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider",
@@ -539,7 +545,50 @@ const EVENT_LABEL: Record<string, string> = {
   "sprint.started": "started sprint",
   "sprint.completed": "completed sprint",
   "sprint.updated": "updated sprint",
+  "task.approved": "approved",
+  "task.handoff": "handed off",
+  "task.overdue": "flagged overdue",
+  "task.claim_expired": "expired a claim on",
+  "agent.error": "reported an error",
+  "agent.stalled": "went quiet on a task",
+  "channel.created": "opened channel",
+  "goal.progress": "updated goal",
+  "goal.completed": "completed goal",
 };
+
+// Best-effort deep link for an event row.
+function eventHref(e: {
+  type: string;
+  entityType: string;
+  entityId: string;
+  listId?: string;
+  scopeType: "user" | "workspace";
+  scopeId: string;
+  payload?: unknown;
+}): string | null {
+  if (e.entityType === "task" && e.listId) {
+    return `/dashboard/l/${e.listId}/t/${e.entityId}`;
+  }
+  if (e.entityType === "message") {
+    const p = (e.payload ?? {}) as { parentType?: string; parentId?: string };
+    if (p.parentType === "task" && e.listId && p.parentId) {
+      return `/dashboard/l/${e.listId}/t/${p.parentId}`;
+    }
+    if (p.parentType === "workspace" && p.parentId) {
+      return `/dashboard/w/${p.parentId}?tab=chat`;
+    }
+    if (p.parentType === "channel" && p.parentId && e.scopeType === "workspace") {
+      return `/dashboard/w/${e.scopeId}?tab=chat&channel=${p.parentId}`;
+    }
+  }
+  if (e.entityType === "sprint" && e.scopeType === "workspace") {
+    return `/dashboard/w/${e.scopeId}?tab=sprints`;
+  }
+  if (e.entityType === "agent") {
+    return `/dashboard/agents/${e.entityId}`;
+  }
+  return null;
+}
 
 export function ActivityFeed({
   scope,
@@ -588,16 +637,16 @@ export function ActivityFeed({
             <span className="text-muted-foreground">
               {EVENT_LABEL[e.type] ?? e.type}{" "}
             </span>
-            {e.entityType === "task" && e.listId ? (
-              <Link
-                href={`/dashboard/l/${e.listId}/t/${e.entityId}`}
-                className="font-medium hover:underline"
-              >
-                {e.entityTitle ?? "a task"}
-              </Link>
-            ) : (
-              <span className="font-medium">{e.entityTitle ?? ""}</span>
-            )}
+            {(() => {
+              const href = eventHref(e);
+              return href ? (
+                <Link href={href} className="font-medium hover:underline">
+                  {e.entityTitle ?? "an item"}
+                </Link>
+              ) : (
+                <span className="font-medium">{e.entityTitle ?? ""}</span>
+              );
+            })()}
             {e.type === "task.status_changed" &&
               e.payload != null &&
               typeof e.payload === "object" && (

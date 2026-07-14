@@ -1,4 +1,6 @@
+import { randomBytes } from "crypto";
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
+import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ConvexHttpClient } from "convex/browser";
 import type { FunctionReference } from "convex/server";
@@ -151,6 +153,7 @@ const TOOLS: ToolDef[] = [
       sprintId: z.string().optional(),
       assignedToMe: z.boolean().optional(),
       includeCompleted: z.boolean().optional(),
+      limit: z.number().optional().describe("max results, default 200"),
     },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listTasks), { apiKey: k, ...a }),
@@ -180,6 +183,10 @@ const TOOLS: ToolDef[] = [
       recurrence: z.enum(["daily", "weekly", "monthly"]).optional(),
       sprintId: z.string().optional(),
       checklist: checklistArg.optional(),
+      requiresApproval: z
+        .boolean()
+        .optional()
+        .describe("gate completion behind human approval"),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.createTask), {
@@ -206,6 +213,10 @@ const TOOLS: ToolDef[] = [
       sprintId: z.string().nullable().optional(),
       blockedByTaskIds: z.array(z.string()).optional(),
       checklist: checklistArg.optional(),
+      requiresApproval: z
+        .boolean()
+        .optional()
+        .describe("true = gate completion behind human approval (only a human can set false)"),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.updateTask), {
@@ -293,7 +304,7 @@ const TOOLS: ToolDef[] = [
     description:
       "Comments/chat under a task, space, or workspace (workspace = team chat).",
     shape: {
-      parentType: z.enum(["task", "space", "workspace"]),
+      parentType: z.enum(["task", "space", "workspace", "channel"]),
       parentId: z.string(),
     },
     run: (c, k, a) =>
@@ -304,7 +315,7 @@ const TOOLS: ToolDef[] = [
     description:
       "Post a comment (task) or chat message (workspace). Mention someone by putting @[Name](id) in the body AND listing the id in mentionIds — they'll be notified.",
     shape: {
-      parentType: z.enum(["task", "space", "workspace"]),
+      parentType: z.enum(["task", "space", "workspace", "channel"]),
       parentId: z.string(),
       body: z.string(),
       parentMessageId: z.string().optional().describe("reply to this message"),
@@ -470,6 +481,7 @@ const TOOLS: ToolDef[] = [
       c.mutation(asMutation(api.agentApi.registerWebhook), {
         apiKey: k,
         ...a,
+        secret: a.secret ?? `whsec_${randomBytes(32).toString("hex")}`,
       }),
   },
   {
@@ -548,10 +560,332 @@ const TOOLS: ToolDef[] = [
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.updateDoc), { apiKey: k, ...a }),
   },
+  // ── Dispatch & handoff ───────────────────────────────────────────
+  {
+    name: "next_task",
+    description:
+      "What should I work on next? Returns the best open, unclaimed, unblocked task(s) — my assignments first (by priority, then due date), then unassigned work. Claim what it returns before starting.",
+    shape: {
+      includeUnassigned: z.boolean().optional().describe("default true"),
+      limit: z.number().optional().describe("default 1, max 10"),
+    },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.nextTask), { apiKey: k, ...a }),
+  },
+  {
+    name: "handoff_task",
+    description:
+      "Hand a task to another member or agent with a context note (what's done, what's left, what I tried). Reassigns, releases my claim, posts the note as a comment mentioning them, and emits task.handoff.",
+    shape: {
+      taskId: z.string(),
+      toId: z.string().describe("recipient id from list_members"),
+      note: z.string(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.handoffTask), { apiKey: k, ...a }),
+  },
+
+  // ── Runs & errors ────────────────────────────────────────────────
+  {
+    name: "start_run",
+    description:
+      "Start a structured work session ('run') humans can see on my detail page. Pair with finish_run. Use for any multi-step piece of work.",
+    shape: {
+      title: z.string().describe("what this session is doing"),
+      taskId: z.string().optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.startRun), { apiKey: k, ...a }),
+  },
+  {
+    name: "finish_run",
+    description:
+      "Finish a run with its outcome. failed runs emit an agent.error event that alerts humans.",
+    shape: {
+      runId: z.string(),
+      status: z.enum(["succeeded", "failed", "abandoned"]),
+      summary: z.string().optional(),
+      error: z.string().optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.finishRun), { apiKey: k, ...a }),
+  },
+  {
+    name: "report_error",
+    description:
+      "Something went wrong and I can't proceed — record it so humans are alerted (agent.error event + failed run on my history). Use instead of going silent.",
+    shape: {
+      message: z.string(),
+      taskId: z.string().optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.reportError), { apiKey: k, ...a }),
+  },
+
+  // ── Channels ─────────────────────────────────────────────────────
+  {
+    name: "list_channels",
+    description:
+      "Topic channels in my scope — threads for agent↔agent discussion that stay out of the main chat. Post with add_comment (parentType 'channel').",
+    shape: {},
+    run: (c, k) => c.query(asQuery(api.agentApi.listChannels), { apiKey: k }),
+  },
+  {
+    name: "create_channel",
+    description:
+      "Create (or join — same name returns the existing channel) a topic channel, e.g. 'sprint-12-planning'.",
+    shape: { name: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.createChannel), { apiKey: k, ...a }),
+  },
+
+  // ── Time tracking ────────────────────────────────────────────────
+  {
+    name: "log_time",
+    description: "Log time spent on a task (shows up in reports and the task's Time section).",
+    shape: {
+      taskId: z.string(),
+      durationMs: z.number(),
+      description: z.string().optional(),
+      startedAt: dateArg.optional().describe("defaults to now minus duration"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.logTime), {
+        apiKey: k,
+        ...a,
+        startedAt: ms(a.startedAt) ?? undefined,
+      }),
+  },
+  {
+    name: "list_time_entries",
+    description: "Time entries logged against a task.",
+    shape: { taskId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.listTimeEntries), { apiKey: k, ...a }),
+  },
+
+  // ── Goals ────────────────────────────────────────────────────────
+  {
+    name: "list_goals",
+    description: "Goals/OKRs in my scope with target and current progress.",
+    shape: {},
+    run: (c, k) => c.query(asQuery(api.agentApi.listGoals), { apiKey: k }),
+  },
+  {
+    name: "create_goal",
+    description: "Create a goal (number / money / boolean target).",
+    shape: {
+      title: z.string(),
+      description: z.string().optional(),
+      targetType: z.enum(["number", "money", "boolean"]),
+      targetValue: z.number(),
+      unit: z.string().optional().describe("e.g. USD"),
+      dueDate: dateArg.optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.createGoal), {
+        apiKey: k,
+        ...a,
+        dueDate: ms(a.dueDate) ?? undefined,
+      }),
+  },
+  {
+    name: "set_goal_progress",
+    description:
+      "Update a goal's current value. Reaching the target marks it complete and emits goal.completed.",
+    shape: { goalId: z.string(), currentValue: z.number() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.setGoalProgress), { apiKey: k, ...a }),
+  },
+
+  // ── Automations ──────────────────────────────────────────────────
+  {
+    name: "list_automations",
+    description: "Automation rules on a list (trigger → action).",
+    shape: { listId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.listAutomationsForList), { apiKey: k, ...a }),
+  },
+  {
+    name: "create_automation",
+    description:
+      "Add a list automation. Triggers: task_created, status_changed_to_complete. Actions: assign_user {clerkId}, set_priority {priority}, set_status {statusId}, set_due_in_days {days}.",
+    shape: {
+      listId: z.string(),
+      trigger: z.enum(["task_created", "status_changed_to_complete"]),
+      action: z
+        .object({
+          kind: z.enum([
+            "assign_user",
+            "set_priority",
+            "set_status",
+            "set_due_in_days",
+          ]),
+          clerkId: z.string().optional(),
+          priority: priorityArg.optional(),
+          statusId: z.string().optional(),
+          days: z.number().optional(),
+        })
+        .describe("only the field matching `kind` is used"),
+    },
+    run: (c, k, a) => {
+      const { kind, clerkId, priority, statusId, days } = a.action;
+      const action =
+        kind === "assign_user"
+          ? { kind, clerkId }
+          : kind === "set_priority"
+            ? { kind, priority }
+            : kind === "set_status"
+              ? { kind, statusId }
+              : { kind, days };
+      return c.mutation(asMutation(api.agentApi.createAutomation), {
+        apiKey: k,
+        listId: a.listId,
+        trigger: a.trigger,
+        action,
+      });
+    },
+  },
+  {
+    name: "delete_automation",
+    description: "Delete a list automation rule.",
+    shape: { automationId: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.deleteAutomation), { apiKey: k, ...a }),
+  },
+
+  // ── Templates ────────────────────────────────────────────────────
+  {
+    name: "list_templates",
+    description:
+      "Built-in list templates (software sprint, marketing campaign, personal to-do, sales pipeline) that seed statuses + fields + sample tasks.",
+    shape: {},
+    run: (c, k) => c.query(asQuery(api.agentApi.listTemplates), { apiKey: k }),
+  },
+  {
+    name: "apply_template",
+    description: "Create a new list from a template inside a space or folder.",
+    shape: {
+      templateId: z.string(),
+      name: z.string(),
+      parentType: z.enum(["space", "folder"]),
+      parentId: z.string(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.applyTemplate), { apiKey: k, ...a }),
+  },
+
+  // ── Custom fields ────────────────────────────────────────────────
+  {
+    name: "list_custom_fields",
+    description:
+      "Custom field definitions on a list (text/number/dropdown/date/checkbox; dropdowns carry options).",
+    shape: { listId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.listCustomFields), { apiKey: k, ...a }),
+  },
+  {
+    name: "set_task_field",
+    description:
+      "Set a custom field value on a task. Pass exactly one of textValue/numberValue/booleanValue/dateValue matching the field's type; dropdowns take the option id in textValue.",
+    shape: {
+      taskId: z.string(),
+      fieldId: z.string(),
+      textValue: z.string().optional(),
+      numberValue: z.number().optional(),
+      booleanValue: z.boolean().optional(),
+      dateValue: dateArg.optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.setTaskFieldValue), {
+        apiKey: k,
+        ...a,
+        dateValue: ms(a.dateValue) ?? undefined,
+      }),
+  },
+  {
+    name: "clear_task_field",
+    description: "Clear a custom field value on a task.",
+    shape: { taskId: z.string(), fieldId: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.clearTaskFieldValue), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+
+  // ── Comment management ───────────────────────────────────────────
+  {
+    name: "update_comment",
+    description: "Edit one of my own comments.",
+    shape: { messageId: z.string(), body: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.updateComment), { apiKey: k, ...a }),
+  },
+  {
+    name: "delete_comment",
+    description: "Delete one of my own comments (and its replies).",
+    shape: { messageId: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.deleteComment), { apiKey: k, ...a }),
+  },
+  {
+    name: "resolve_comment",
+    description: "Resolve (or reopen) an assigned comment in my scope.",
+    shape: { messageId: z.string(), resolved: z.boolean() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.resolveComment), { apiKey: k, ...a }),
+  },
 ];
 
 const handler = createMcpHandler(
   (server) => {
+    // Skills double as MCP resources (skill://<slug>) so clients that
+    // prefer resource imports over tool calls can pull playbooks directly.
+    server.resource(
+      "skills",
+      new ResourceTemplate("skill://{slug}", {
+        list: async (extra) => {
+          const apiKey = extra.authInfo?.token;
+          if (!apiKey) return { resources: [] };
+          try {
+            const skills = (await convexClient().query(
+              asQuery(api.agentApi.listSkills),
+              { apiKey },
+            )) as { slug: string; name: string; description: string }[];
+            return {
+              resources: skills.map((sk) => ({
+                uri: `skill://${sk.slug}`,
+                name: sk.name,
+                description: sk.description,
+                mimeType: "text/markdown",
+              })),
+            };
+          } catch {
+            return { resources: [] };
+          }
+        },
+      }),
+      async (uri, variables, extra) => {
+        const apiKey = extra.authInfo?.token;
+        if (!apiKey) throw new Error("Missing API key");
+        const skill = (await convexClient().query(
+          asQuery(api.agentApi.getSkill),
+          { apiKey, slug: String(variables.slug) },
+        )) as { content: string } | null;
+        if (!skill) throw new Error(`Unknown skill: ${variables.slug}`);
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: "text/markdown",
+              text: skill.content,
+            },
+          ],
+        };
+      },
+    );
+
     for (const tool of TOOLS) {
       server.tool(tool.name, tool.description, tool.shape, async (args, extra) => {
         const apiKey = extra.authInfo?.token;
@@ -614,4 +948,16 @@ const authHandler = withMcpAuth(
   { required: true },
 );
 
-export { authHandler as GET, authHandler as POST, authHandler as DELETE };
+// This file lives at app/api/[transport]/route.ts, which is a catch-all
+// under /api — explicitly 404 anything that isn't the MCP endpoint so
+// unknown /api/* paths never reach the MCP handler. (Static routes always
+// win over this dynamic segment, so real API routes are unaffected.)
+function guarded(req: Request): Promise<Response> | Response {
+  const { pathname } = new URL(req.url);
+  if (pathname !== "/api/mcp") {
+    return new Response("Not found", { status: 404 });
+  }
+  return authHandler(req);
+}
+
+export { guarded as GET, guarded as POST, guarded as DELETE };
