@@ -81,7 +81,7 @@ function Guide({ resource }: { resource: Resource }) {
                 <li key={b} className="flex items-start gap-2.5 text-sm leading-relaxed">
                   <span
                     aria-hidden
-                    className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-sage-500"
+                    className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-ember-500"
                   />
                   <span className="text-foreground/80">{b}</span>
                 </li>
@@ -89,11 +89,11 @@ function Guide({ resource }: { resource: Resource }) {
             </ul>
           )}
           {s.code && (
-            <div className="mt-5 overflow-hidden rounded-2xl bg-moss-950">
+            <div className="mt-5 overflow-hidden rounded-2xl bg-cocoa-950">
               <p className="border-b border-white/10 px-4 py-2 text-[11px] font-medium text-white/40">
                 {s.code.label}
               </p>
-              <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed text-sage-200">
+              <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed text-ember-200">
                 {s.code.lines.join("\n")}
               </pre>
             </div>
@@ -116,16 +116,16 @@ function Changelog({ resource }: { resource: Resource }) {
           <StaggerInItem key={r.tag} className="relative pl-8">
             <span
               aria-hidden
-              className="absolute left-0 top-2 h-[11px] w-[11px] rounded-full border-2 border-cream bg-sage-500"
+              className="absolute left-0 top-2 h-[11px] w-[11px] rounded-full border-2 border-cream bg-ember-500"
             />
-            <p className="text-sm font-medium text-sage-600">{r.tag}</p>
+            <p className="text-sm font-medium text-ember-600">{r.tag}</p>
             <h2 className="mt-1 text-xl font-semibold tracking-[-0.02em]">{r.title}</h2>
             <ul className="mt-3 space-y-2 rounded-2xl border border-black/[0.05] bg-white p-6">
               {r.items.map((item) => (
                 <li key={item} className="flex items-start gap-2.5 text-sm leading-relaxed">
                   <span
                     aria-hidden
-                    className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-sage-400"
+                    className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-ember-400"
                   />
                   <span className="text-foreground/80">{item}</span>
                 </li>

@@ -43,21 +43,22 @@
   /* Positive delta green (the only saturated color in the system) */
   --color-positive: #16a34a;
 
-  /* Marketing palette — the logged-out site lives on warm cream with
-     sage/moss greens (blurred-meadow scenes), while ink stays shared
-     with the app. Never use these inside /dashboard. */
-  --color-cream: #f7f6f1;
-  --color-cream-deep: #efeee4;
-  --color-sage-100: #eef1e0;
-  --color-sage-200: #e0e6c9;
-  --color-sage-300: #c8d3a5;
-  --color-sage-400: #a9ba7f;
-  --color-sage-500: #87995a;
-  --color-sage-600: #64763d;
-  --color-sage-700: #4b592e;
-  --color-moss-800: #2d3521;
-  --color-moss-900: #202619;
-  --color-moss-950: #161a11;
+  /* Marketing palette — the logged-out site lives on warm cream with an
+     ember (amber→coral) accent ramp and cocoa darks (golden-hour
+     scenes), while ink stays shared with the app. Never use these
+     inside /dashboard. */
+  --color-cream: #f8f6f2;
+  --color-cream-deep: #f1ede5;
+  --color-ember-100: #faeee1;
+  --color-ember-200: #f6ddc4;
+  --color-ember-300: #efc096;
+  --color-ember-400: #e59e65;
+  --color-ember-500: #d87c3e;
+  --color-ember-600: #b45a25;
+  --color-ember-700: #8a441d;
+  --color-cocoa-800: #3b2d21;
+  --color-cocoa-900: #2b2018;
+  --color-cocoa-950: #1e1712;
 
   --radius-pill: 9999px;
 }
@@ -112,6 +113,17 @@ body {
 }
 
 /* ── Marketing-site utilities (logged-out pages only) ─────────────────── */
+
+/* The warm brand gradient — headline accents and CTA washes. */
+.text-warm {
+  background: linear-gradient(115deg, #d8843f 0%, #cd5f36 55%, #b8452e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.bg-warm {
+  background: linear-gradient(115deg, #efab6b 0%, #e07a48 55%, #cd5636 100%);
+}
 
 /* Film-grain overlay that sells the "photographic" gradient scenes.
    Apply to a relatively-positioned container. */

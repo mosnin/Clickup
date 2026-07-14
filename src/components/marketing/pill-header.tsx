@@ -214,7 +214,7 @@ function MegaLink({
     <Link
       href={link.href}
       onClick={onNavigate}
-      className="group block rounded-xl px-3 py-2.5 transition-colors hover:bg-sage-100/80"
+      className="group block rounded-xl px-3 py-2.5 transition-colors hover:bg-ember-100/80"
     >
       <span className="flex items-center gap-1 text-sm font-semibold">
         {link.label}
@@ -264,19 +264,19 @@ function MenuHighlight({
     <Link
       href={h.href}
       onClick={onNavigate}
-      className="group relative flex w-56 flex-shrink-0 flex-col justify-between overflow-hidden rounded-2xl bg-moss-900 p-4 text-white"
+      className="group relative flex w-56 flex-shrink-0 flex-col justify-between overflow-hidden rounded-2xl bg-cocoa-900 p-4 text-white"
     >
       <span
         aria-hidden
-        className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-[radial-gradient(closest-side,#7f906a,transparent_70%)] opacity-60 blur-xl transition-transform duration-700 group-hover:scale-125"
+        className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-[radial-gradient(closest-side,#cf8a4e,transparent_70%)] opacity-60 blur-xl transition-transform duration-700 group-hover:scale-125"
       />
-      <span className="relative text-[13px] font-medium text-sage-300">
+      <span className="relative text-[13px] font-medium text-ember-300">
         {h.eyebrow}
       </span>
       <span className="relative mt-6 text-sm font-semibold leading-snug">
         {h.title}
       </span>
-      <span className="relative mt-4 inline-flex items-center gap-1 text-xs font-semibold text-sage-200">
+      <span className="relative mt-4 inline-flex items-center gap-1 text-xs font-semibold text-ember-200">
         {h.cta}
         <ArrowRight className="h-3 w-3 transition-transform duration-300 group-hover:translate-x-0.5" />
       </span>

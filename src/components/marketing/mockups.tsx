@@ -97,7 +97,7 @@ export function AgentCardMock({ className }: { className?: string }) {
 
 // ── Task rows: the top task checks itself off on a loop ────────────────
 const TASK_ROWS = [
-  { title: "Ship weekly digest email", chip: "🤖 Scout", chipBg: "bg-sage-100 text-sage-700" },
+  { title: "Ship weekly digest email", chip: "🤖 Scout", chipBg: "bg-ember-100 text-ember-700" },
   { title: "QA the onboarding flow", chip: "Sprint 12", chipBg: "bg-black/[0.05] text-foreground/60" },
   { title: "Refresh pricing page copy", chip: "Due Fri", chipBg: "bg-black/[0.05] text-foreground/60" },
 ];
@@ -293,7 +293,7 @@ export function ConnectMock({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl border border-white/10 bg-moss-950 font-mono text-[11px] text-sage-200 shadow-[0_24px_60px_-24px_rgb(0_0_0/0.6)]",
+        "overflow-hidden rounded-2xl border border-white/10 bg-cocoa-950 font-mono text-[11px] text-ember-200 shadow-[0_24px_60px_-24px_rgb(0_0_0/0.6)]",
         className,
       )}
     >
@@ -522,5 +522,188 @@ export function HandoffMock({ step, className }: { step: number; className?: str
         </AnimatePresence>
       </div>
     </MockShell>
+  );
+}
+
+// ── Mini illustrations for Expo-style feature cards ─────────────────────
+// Small, self-explanatory product moments — these replace decorative
+// icons entirely. Each floats on a warm wash inside FeatureCard.
+
+// Four views: a pill tab row over tiny gantt bars.
+export function ViewsMock({ className }: { className?: string }) {
+  const active = useCycle(4, 2000);
+  const tabs = ["List", "Board", "Calendar", "Gantt"];
+  return (
+    <div className={cn("w-full max-w-[240px] rounded-xl border border-black/5 bg-white p-3 shadow-[0_16px_40px_-20px_rgb(16_16_18/0.3)]", className)}>
+      <div className="flex gap-1 rounded-full bg-muted/70 p-0.5">
+        {tabs.map((t, i) => (
+          <span
+            key={t}
+            className={cn(
+              "flex-1 rounded-full py-1 text-center text-[9px] font-medium transition-colors duration-300",
+              i === active ? "bg-foreground text-white" : "text-muted-foreground",
+            )}
+          >
+            {t}
+          </span>
+        ))}
+      </div>
+      <div className="mt-3 space-y-1.5">
+        {[[8, 46], [22, 58], [40, 34]].map(([left, width], i) => (
+          <div key={i} className="h-2.5 rounded-full bg-muted/60">
+            <motion.div
+              initial={false}
+              animate={{ marginLeft: `${left}%`, width: `${width}%` }}
+              transition={{ type: "spring", stiffness: 120, damping: 20 }}
+              className={cn(
+                "h-full rounded-full",
+                i === 1 ? "bg-ember-400" : "bg-foreground/20",
+              )}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Doc with the AI writer continuing a paragraph.
+export function DocAiMock({ className }: { className?: string }) {
+  const phase = useCycle(2, 2600);
+  return (
+    <div className={cn("w-full max-w-[240px] rounded-xl border border-black/5 bg-white p-4 shadow-[0_16px_40px_-20px_rgb(16_16_18/0.3)]", className)}>
+      <p className="text-[11px] font-semibold">Q3 launch plan</p>
+      <div className="mt-2 space-y-1.5">
+        <div className="h-1.5 w-full rounded-full bg-muted" />
+        <div className="h-1.5 w-5/6 rounded-full bg-muted" />
+        <motion.div
+          initial={false}
+          animate={{ width: phase ? "66%" : "12%" }}
+          transition={{ duration: 1.6, ease: EASE }}
+          className="h-1.5 rounded-full bg-ember-300"
+        />
+      </div>
+      <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 text-[9px] font-medium text-foreground/60">
+        ✦ AI continuing…
+      </span>
+    </div>
+  );
+}
+
+// Sprint with a live progress fill.
+export function SprintMiniMock({ className }: { className?: string }) {
+  const phase = useCycle(3, 2000);
+  const pct = [28, 56, 84][phase];
+  return (
+    <div className={cn("w-full max-w-[240px] rounded-xl border border-black/5 bg-white p-4 shadow-[0_16px_40px_-20px_rgb(16_16_18/0.3)]", className)}>
+      <div className="flex items-baseline justify-between">
+        <p className="text-[11px] font-semibold">Sprint 12</p>
+        <span className="text-[9px] text-muted-foreground">Mar 4 – 18</span>
+      </div>
+      <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-muted">
+        <motion.div
+          initial={false}
+          animate={{ width: `${pct}%` }}
+          transition={{ type: "spring", stiffness: 90, damping: 24 }}
+          className="bg-warm h-full rounded-full"
+        />
+      </div>
+      <p className="mt-2 text-[9px] text-muted-foreground">
+        {Math.round(pct / 7)}/12 done · 🤖 2 agents on it
+      </p>
+    </div>
+  );
+}
+
+// Tiny report: animated bar chart.
+export function ReportMiniMock({ className }: { className?: string }) {
+  const phase = useCycle(2, 2400);
+  const bars = phase ? [34, 58, 44, 78, 62] : [22, 40, 30, 52, 44];
+  return (
+    <div className={cn("w-full max-w-[240px] rounded-xl border border-black/5 bg-white p-4 shadow-[0_16px_40px_-20px_rgb(16_16_18/0.3)]", className)}>
+      <div className="flex items-baseline justify-between">
+        <p className="text-[11px] font-semibold">Completed this week</p>
+        <span className="text-[9px] font-medium text-positive">+38%</span>
+      </div>
+      <div className="mt-3 flex h-16 items-end gap-1.5">
+        {bars.map((h, i) => (
+          <motion.div
+            key={i}
+            initial={false}
+            animate={{ height: `${h}%` }}
+            transition={{ type: "spring", stiffness: 140, damping: 22, delay: i * 0.05 }}
+            className={cn(
+              "flex-1 rounded-t-md",
+              i === 3 ? "bg-ember-400" : "bg-foreground/15",
+            )}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Brain semantic search: query + results sliding in.
+export function BrainMock({ className }: { className?: string }) {
+  const phase = useCycle(2, 2800);
+  return (
+    <div className={cn("w-full max-w-[240px] rounded-xl border border-black/5 bg-white p-3.5 shadow-[0_16px_40px_-20px_rgb(16_16_18/0.3)]", className)}>
+      <div className="flex items-center gap-1.5 rounded-full border border-black/[0.08] px-2.5 py-1.5 text-[10px] text-muted-foreground">
+        <span aria-hidden>⌕</span> what did we decide on pricing?
+      </div>
+      <AnimatePresence initial={false}>
+        {phase === 1 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4, ease: EASE }}
+            className="mt-2 space-y-1"
+          >
+            {["Pricing v2 — doc", "Tier limits — task"].map((r) => (
+              <div key={r} className="rounded-lg bg-muted/60 px-2.5 py-1.5 text-[10px]">
+                {r}
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ⌘K: two keycaps pressing, then the palette row.
+export function CmdKMock({ className }: { className?: string }) {
+  const phase = useCycle(2, 2200);
+  return (
+    <div className={cn("flex flex-col items-center gap-3", className)}>
+      <div className="flex gap-2">
+        {["⌘", "K"].map((k) => (
+          <motion.span
+            key={k}
+            initial={false}
+            animate={{ y: phase ? 2 : 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 20 }}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-black/[0.06] bg-white text-lg font-medium text-foreground/70 shadow-[0_3px_0_rgb(0_0_0/0.05),0_12px_28px_-14px_rgb(16_16_18/0.3)]"
+          >
+            {k}
+          </motion.span>
+        ))}
+      </div>
+      <AnimatePresence initial={false}>
+        {phase === 1 && (
+          <motion.div
+            initial={{ opacity: 0, y: 6, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.35, ease: EASE }}
+            className="w-full max-w-[220px] rounded-xl border border-black/5 bg-white px-3 py-2 text-[10px] shadow-[0_16px_40px_-20px_rgb(16_16_18/0.3)]"
+          >
+            <span className="text-muted-foreground">New task: </span>
+            <span className="font-medium">“Fix pricing typo”</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

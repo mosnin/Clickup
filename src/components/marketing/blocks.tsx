@@ -5,7 +5,7 @@
 // scroll-reveal primitives so pages stay declarative.
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FadeIn } from "@/components/marketing/reveal";
 
@@ -22,7 +22,7 @@ export function Eyebrow({
     <p
       className={cn(
         "text-sm font-medium",
-        tone === "light" ? "text-sage-300" : "text-sage-600",
+        tone === "light" ? "text-ember-300" : "text-ember-600",
         className,
       )}
     >
@@ -185,7 +185,7 @@ export function QuoteCard({
       <figcaption className="mt-6 flex items-center gap-3">
         <span
           aria-hidden
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-sage-200 text-sm font-semibold text-sage-700"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-ember-200 text-sm font-semibold text-ember-700"
         >
           {name[0]}
         </span>
@@ -219,7 +219,7 @@ export function ChatBubble({
       {name && (
         <span
           aria-hidden
-          className="mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-sage-200 text-[10px] font-semibold text-sage-700"
+          className="mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-ember-200 text-[10px] font-semibold text-ember-700"
         >
           {name[0]}
         </span>
@@ -231,15 +231,58 @@ export function ChatBubble({
   );
 }
 
-// Reference-style outcome tile: tinted icon square, huge numeral, quiet
-// label underneath.
+// Thin-line icon in a hairline squircle — the only icon treatment on the
+// marketing site (no emoji, no filled decorative glyphs).
+export function IconTile({
+  icon: Icon,
+  className,
+  iconClassName,
+}: {
+  icon: LucideIcon;
+  className?: string;
+  iconClassName?: string;
+}) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-black/[0.08] bg-white",
+        className,
+      )}
+    >
+      <Icon className={cn("h-4 w-4 text-foreground/70", iconClassName)} strokeWidth={1.75} />
+    </span>
+  );
+}
+
+// Keyboard keycap — soft-shadow squircle, like a real key.
+export function Keycap({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-black/[0.06] bg-white text-base font-medium text-foreground/70 shadow-[0_3px_0_rgb(0_0_0/0.05),0_10px_24px_-12px_rgb(16_16_18/0.25)]",
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+// Reference-style outcome tile: icon squircle, huge numeral, quiet label.
 export function StatTile({
   icon,
   value,
   label,
   className,
 }: {
-  icon: React.ReactNode;
+  icon: LucideIcon;
   value: React.ReactNode;
   label: string;
   className?: string;
@@ -247,22 +290,63 @@ export function StatTile({
   return (
     <div
       className={cn(
-        "flex h-full flex-col justify-between rounded-2xl bg-sage-100 p-6",
+        "flex h-full flex-col justify-between rounded-2xl bg-ember-100 p-6",
         className,
       )}
     >
-      <span
-        aria-hidden
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/70 text-sm"
-      >
-        {icon}
-      </span>
+      <IconTile icon={icon} className="border-black/[0.06] bg-white/80" />
       <div className="mt-8">
         <p className="text-4xl font-medium tabular-nums tracking-[-0.03em] sm:text-5xl">
           {value}
         </p>
         <p className="mt-2 text-[13px] leading-snug text-foreground/55">
           {label}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Expo-style feature card: an illustration floating on a soft warm wash
+// up top, plain title + body below. The illustration IS the icon.
+const WASHES = [
+  "bg-[linear-gradient(135deg,#fdf1e3_0%,#f9ddc4_100%)]",
+  "bg-[linear-gradient(135deg,#fdeee9_0%,#f8d9cd_100%)]",
+  "bg-[linear-gradient(135deg,#fdf6e4_0%,#f5e4c2_100%)]",
+] as const;
+
+export function FeatureCard({
+  title,
+  body,
+  illustration,
+  wash = 0,
+  className,
+}: {
+  title: string;
+  body: string;
+  illustration: React.ReactNode;
+  wash?: number;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex h-full flex-col overflow-hidden rounded-2xl border border-black/[0.05] bg-white",
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          "m-2 flex min-h-[168px] flex-1 items-center justify-center overflow-hidden rounded-xl px-6 py-7",
+          WASHES[wash % WASHES.length],
+        )}
+      >
+        {illustration}
+      </div>
+      <div className="px-6 pb-6 pt-3">
+        <h3 className="text-base font-semibold tracking-tight">{title}</h3>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+          {body}
         </p>
       </div>
     </div>

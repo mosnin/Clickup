@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Timer, Zap } from "lucide-react";
 import {
   useMotionValueEvent,
   useReducedMotion,
@@ -23,6 +23,7 @@ import { Scene } from "@/components/marketing/scene";
 import {
   ChatBubble,
   CtaPair,
+  FeatureCard,
   QuoteCard,
   SectionHeading,
   StatTile,
@@ -32,10 +33,16 @@ import {
   AgentCardMock,
   ApprovalMock,
   BoardMock,
+  BrainMock,
   BudgetMock,
+  CmdKMock,
   ConnectMock,
+  DocAiMock,
   HandoffMock,
+  ReportMiniMock,
+  SprintMiniMock,
   TaskListMock,
+  ViewsMock,
 } from "@/components/marketing/mockups";
 
 export function HomeContent() {
@@ -213,7 +220,7 @@ function RuntimeMarquee() {
               key={r}
               className="mx-7 flex items-center gap-2.5 whitespace-nowrap text-sm font-medium tracking-tight text-foreground/35"
             >
-              <span aria-hidden className="h-1 w-1 rounded-full bg-sage-300" />
+              <span aria-hidden className="h-1 w-1 rounded-full bg-ember-300" />
               {r}
             </span>
           ))}
@@ -357,7 +364,7 @@ function HandoffStory() {
                     exit={{ opacity: 0, y: -16, filter: "blur(6px)" }}
                     transition={{ duration: 0.45, ease: EASE }}
                   >
-                    <p className="text-sm font-medium text-sage-600">
+                    <p className="text-sm font-medium text-ember-600">
                       {HANDOFF_BEATS[step].time}
                     </p>
                     <h3 className="mt-3 text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
@@ -402,7 +409,7 @@ function HandoffStory() {
           <div className="mt-10 space-y-10">
             {HANDOFF_BEATS.map((b, i) => (
               <FadeIn key={b.time}>
-                <p className="text-sm font-medium text-sage-600">
+                <p className="text-sm font-medium text-ember-600">
                   {b.time}
                 </p>
                 <h3 className="mt-2 text-xl font-semibold tracking-[-0.02em]">
@@ -536,7 +543,7 @@ function SystemShowcase() {
           title={
             <>
               Everything agent work needs,{" "}
-              <span className="text-sage-600">in one system.</span>
+              <span className="text-warm">in one system.</span>
             </>
           }
           sub="Not a runtime — the scaffolding around every runtime: assignment, visibility, guardrails, and proof of work."
@@ -571,7 +578,7 @@ function SystemShowcase() {
                     aria-expanded={isActive}
                     className={cn(
                       "block w-full rounded-2xl px-5 py-4 text-left transition-colors duration-300",
-                      isActive ? "bg-sage-100/80" : "hover:bg-black/[0.03]",
+                      isActive ? "bg-ember-100/80" : "hover:bg-black/[0.03]",
                     )}
                   >
                     <span
@@ -632,34 +639,34 @@ function SystemShowcase() {
 
 const HUMAN_CARDS = [
   {
-    label: "Views",
     title: "Four views, one truth",
     body: "List, Board, Calendar, and Gantt over the same tasks, with custom statuses and fields per list.",
+    illustration: <ViewsMock />,
   },
   {
-    label: "Knowledge",
     title: "Docs & whiteboards",
     body: "Rich-text docs and tldraw boards live in the same tree as the work they describe.",
+    illustration: <DocAiMock />,
   },
   {
-    label: "Cadence",
     title: "Sprints & recurring work",
     body: "Timebox across every list; schedules materialize tasks on cron so routines never slip.",
+    illustration: <SprintMiniMock />,
   },
   {
-    label: "Insight",
     title: "Time, goals, reports",
     body: "A live timer, OKR-style goals, and per-workspace reports — humans and agents in the same numbers.",
+    illustration: <ReportMiniMock />,
   },
   {
-    label: "AI",
     title: "AI Brain",
     body: "Semantic search across tasks and docs, an AI writer in every doc, one-click task drafts.",
+    illustration: <BrainMock />,
   },
   {
-    label: "Speed",
     title: "⌘K everything",
     body: "Jump to any list, doc, board, or agent — or create a task — without leaving the keyboard.",
+    illustration: <CmdKMock />,
   },
 ];
 
@@ -673,17 +680,14 @@ function HumanWork() {
           sub="Everything you'd expect from a modern work platform — because agents are only useful inside real projects."
         />
         <StaggerIn className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {HUMAN_CARDS.map((c) => (
-            <StaggerInItem key={c.title}>
-              <div className="h-full rounded-2xl border border-black/[0.05] bg-white p-6 sm:p-7">
-                <p className="text-sm font-medium text-sage-600">{c.label}</p>
-                <h3 className="mt-2 text-lg font-semibold tracking-tight">
-                  {c.title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {c.body}
-                </p>
-              </div>
+          {HUMAN_CARDS.map((c, i) => (
+            <StaggerInItem key={c.title} className="h-full">
+              <FeatureCard
+                title={c.title}
+                body={c.body}
+                illustration={c.illustration}
+                wash={i}
+              />
             </StaggerInItem>
           ))}
         </StaggerIn>
@@ -739,7 +743,7 @@ function Governance() {
               {TRUST.map((t) => (
                 <StaggerInItem
                   key={t.title}
-                  className="bg-moss-900/80 p-6 backdrop-blur"
+                  className="bg-cocoa-900/80 p-6 backdrop-blur"
                 >
                   <h3 className="text-base font-semibold tracking-tight text-white">
                     {t.title}
@@ -803,7 +807,7 @@ function Stories() {
           title={
             <>
               Teams are already{" "}
-              <span className="text-sage-600">living like this.</span>
+              <span className="text-warm">living like this.</span>
             </>
           }
           sub="Small teams shipping like big ones — because the repetitive half of the company finally runs itself."
@@ -815,13 +819,13 @@ function Stories() {
               &ldquo;The first time an agent claimed a task, worked it, and
               asked me for approval — that was the moment this stopped feeling
               like tooling and started feeling like{" "}
-              <span className="text-sage-600">a team</span>.&rdquo;
+              <span className="text-warm">a team</span>.&rdquo;
             </blockquote>
             <figcaption className="mt-8 flex items-center justify-between gap-4">
               <span className="flex items-center gap-3">
                 <span
                   aria-hidden
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-sage-200 text-base font-semibold text-sage-700"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-ember-200 text-base font-semibold text-ember-700"
                 >
                   M
                 </span>
@@ -845,14 +849,14 @@ function Stories() {
           <StaggerIn className="grid grid-cols-2 gap-4">
             <StaggerInItem className="h-full">
               <StatTile
-                icon="⚡"
+                icon={Zap}
                 value={<CountUp value={87} suffix="%" />}
                 label="of handed-off tasks complete without rework"
               />
             </StaggerInItem>
             <StaggerInItem className="h-full">
               <StatTile
-                icon="🌿"
+                icon={Timer}
                 value={<CountUp value={11} suffix="h" />}
                 label="median time won back per person, per week"
               />

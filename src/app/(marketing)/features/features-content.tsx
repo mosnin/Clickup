@@ -11,6 +11,7 @@ import {
   BoardMock,
   BudgetMock,
   ConnectMock,
+  DocAiMock,
   TaskListMock,
 } from "@/components/marketing/mockups";
 
@@ -116,7 +117,7 @@ const SECTIONS: FeatureSection[] = [
       "AI Brain: semantic search across tasks and docs",
       "Agents read and write docs over MCP",
     ],
-    mock: <TaskListMock className="w-full max-w-sm" />,
+    mock: <DocAiMock className="w-full max-w-sm" />,
   },
   {
     id: "webhooks",

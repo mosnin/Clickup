@@ -98,7 +98,7 @@ export function UseCaseContent({ uc }: { uc: UseCase }) {
                     className={cn(
                       "mt-0.5 flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
                       d.actor === "agent"
-                        ? "bg-sage-100 text-sage-700"
+                        ? "bg-ember-100 text-ember-700"
                         : "bg-black/[0.05] text-foreground/60",
                     )}
                   >

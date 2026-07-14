@@ -24,7 +24,7 @@ export function ResourcesIndex() {
                   className="group flex h-full flex-col rounded-2xl border border-black/[0.05] bg-white p-7"
                 >
                   <span className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-sage-600">
+                    <span className="text-sm font-medium text-ember-600">
                       {r.eyebrow}
                     </span>
                     <span className="text-xs text-muted-foreground">

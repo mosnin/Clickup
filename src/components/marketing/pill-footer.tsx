@@ -40,18 +40,18 @@ export function PillFooter() {
     <footer className="bg-cream px-3 pb-6 pt-16 sm:px-6">
       <div className="mx-auto max-w-6xl">
         {/* CTA band */}
-        <div className="relative overflow-hidden rounded-[2rem] bg-moss-900 px-6 py-12 text-white sm:px-12 sm:py-16">
+        <div className="relative overflow-hidden rounded-[2rem] bg-cocoa-900 px-6 py-12 text-white sm:px-12 sm:py-16">
           <span
             aria-hidden
-            className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-[radial-gradient(closest-side,#7f906a,transparent_70%)] opacity-50 blur-2xl"
+            className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-[radial-gradient(closest-side,#cf8a4e,transparent_70%)] opacity-50 blur-2xl"
           />
           <span
             aria-hidden
-            className="absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-[radial-gradient(closest-side,#48563d,transparent_70%)] opacity-70 blur-2xl"
+            className="absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-[radial-gradient(closest-side,#54402a,transparent_70%)] opacity-70 blur-2xl"
           />
           <div className="relative flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-end">
             <div>
-              <p className="text-sm font-medium text-sage-300">Get started</p>
+              <p className="text-sm font-medium text-ember-300">Get started</p>
               <h2 className="mt-3 max-w-md text-3xl font-semibold tracking-[-0.02em] sm:text-4xl">
                 Your first agent, online before your coffee cools.
               </h2>

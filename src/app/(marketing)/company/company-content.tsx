@@ -85,7 +85,7 @@ export function CompanyContent() {
             {MILESTONES.map((m) => (
               <StaggerInItem key={m.tag}>
                 <div className="flex items-start gap-4 rounded-xl border border-black/[0.05] bg-white p-5">
-                  <span className="mt-0.5 flex-shrink-0 rounded-full bg-sage-100 px-2.5 py-0.5 text-[11px] font-medium text-sage-700">
+                  <span className="mt-0.5 flex-shrink-0 rounded-full bg-ember-100 px-2.5 py-0.5 text-[11px] font-medium text-ember-700">
                     {m.tag}
                   </span>
                   <p className="text-sm leading-relaxed text-foreground/80">

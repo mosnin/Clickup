@@ -102,14 +102,14 @@ export function PricingContent() {
                 className={cn(
                   "flex h-full flex-col rounded-2xl border p-7 sm:p-8",
                   tier.featured
-                    ? "border-transparent bg-moss-900 text-white shadow-[0_32px_80px_-32px_rgb(20_24_17/0.6)]"
+                    ? "border-transparent bg-cocoa-900 text-white shadow-[0_32px_80px_-32px_rgb(20_24_17/0.6)]"
                     : "border-black/[0.06] bg-white",
                 )}
               >
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-medium">{tier.name}</h2>
                   {tier.featured && (
-                    <span className="rounded-full bg-sage-200 px-2.5 py-0.5 text-[11px] font-medium text-moss-900">
+                    <span className="rounded-full bg-ember-200 px-2.5 py-0.5 text-[11px] font-medium text-cocoa-900">
                       Most popular
                     </span>
                   )}
@@ -139,7 +139,7 @@ export function PricingContent() {
                       <Check
                         className={cn(
                           "mt-0.5 h-4 w-4 flex-shrink-0",
-                          tier.featured ? "text-sage-300" : "text-sage-600",
+                          tier.featured ? "text-ember-300" : "text-ember-600",
                         )}
                       />
                       <span
