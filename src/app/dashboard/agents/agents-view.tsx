@@ -40,8 +40,8 @@ export function AgentsView() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+      <header className="title-rule">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           Agents
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -63,7 +63,7 @@ export function AgentsView() {
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 transition-colors",
               tab === key
-                ? "bg-muted font-medium text-foreground"
+                ? "bg-foreground font-medium text-background"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
@@ -114,7 +114,7 @@ function AgentsTab() {
   });
 
   if (data === undefined) {
-    return <div className="h-40 animate-pulse rounded-3xl bg-muted/40" />;
+    return <div className="h-40 animate-pulse rounded-2xl bg-muted/40" />;
   }
   if (data === null) return null;
 
@@ -166,7 +166,7 @@ function ConnectHint() {
     setUrl(`${window.location.origin}/api/mcp`);
   }, []);
   return (
-    <div className="rounded-3xl border border-border bg-muted/30 p-4 text-sm">
+    <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm">
       <p className="font-medium">Connect an agent</p>
       <p className="mt-1 text-muted-foreground">
         Point any MCP-capable agent at{" "}
@@ -213,7 +213,7 @@ function CreateAgentForm({
 
   return (
     <form
-      className="space-y-3 rounded-3xl border border-border bg-background p-4"
+      className="space-y-3 rounded-2xl border border-border bg-background p-4"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!name.trim() || pending || !user) return;
@@ -344,7 +344,7 @@ function AgentCard({
     : undefined;
 
   return (
-    <div className="rounded-3xl border border-border bg-background p-4">
+    <div className="rounded-2xl border border-border bg-background p-4">
       <div className="flex items-start gap-3">
         <span className="text-2xl" aria-hidden>
           {agent.emoji ?? "🤖"}
@@ -602,11 +602,11 @@ export function ActivityFeed({
   });
 
   if (events === undefined) {
-    return <div className="h-40 animate-pulse rounded-3xl bg-muted/40" />;
+    return <div className="h-40 animate-pulse rounded-2xl bg-muted/40" />;
   }
   if (events.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
         No activity yet. Events appear here the moment agents (or teammates)
         create, claim, and complete work.
       </div>
@@ -701,7 +701,7 @@ function WebhooksTab() {
       </p>
 
       <form
-        className="flex flex-wrap items-end gap-2 rounded-3xl border border-border bg-background p-4"
+        className="flex flex-wrap items-end gap-2 rounded-2xl border border-border bg-background p-4"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!url.trim() || !user) return;
@@ -764,7 +764,7 @@ function WebhooksTab() {
       </form>
 
       {freshSecret && (
-        <div className="rounded-3xl border border-emerald-300 bg-emerald-50 p-3 text-xs">
+        <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-xs">
           <p className="font-medium text-emerald-800">
             Signing secret (copy now — shown once):
           </p>
@@ -778,7 +778,7 @@ function WebhooksTab() {
         {(subs ?? []).map((s) => (
           <li
             key={s._id}
-            className="flex flex-wrap items-center gap-2 rounded-3xl border border-border bg-background px-4 py-3 text-sm"
+            className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-background px-4 py-3 text-sm"
           >
             <code className="min-w-0 flex-1 truncate text-xs">{s.url}</code>
             <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -819,7 +819,7 @@ function WebhooksTab() {
           </li>
         ))}
         {subs !== undefined && subs.length === 0 && (
-          <li className="rounded-3xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+          <li className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
             No webhooks yet.
           </li>
         )}
@@ -923,7 +923,7 @@ function SkillRow({
   const removeSkill = useMutation(api.skills.remove);
 
   return (
-    <div className="rounded-3xl border border-border bg-background p-4">
+    <div className="rounded-2xl border border-border bg-background p-4">
       <button
         type="button"
         onClick={onToggle}
@@ -985,7 +985,7 @@ function CreateSkillForm({
 
   return (
     <form
-      className="space-y-3 rounded-3xl border border-border bg-background p-4"
+      className="space-y-3 rounded-2xl border border-border bg-background p-4"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!name.trim() || !content.trim()) return;
@@ -1032,7 +1032,7 @@ function CreateSkillForm({
           value={content}
           onChange={(e) => setContent(e.currentTarget.value)}
           placeholder={"# Release checklist\n\n1. ..."}
-          className="w-full rounded-3xl border border-border bg-background p-4 text-sm"
+          className="w-full rounded-2xl border border-border bg-background p-4 text-sm"
         />
       </label>
       <div className="flex justify-end gap-2">

@@ -40,7 +40,7 @@ export function GoalsPanel({
         {[0, 1].map((i) => (
           <div
             key={i}
-            className="h-20 animate-pulse rounded-3xl bg-muted/40"
+            className="h-20 animate-pulse rounded-2xl bg-muted/40"
           />
         ))}
       </div>
@@ -122,7 +122,7 @@ function CreateGoalForm({
           setPending(false);
         }
       }}
-      className="space-y-2 rounded-3xl border border-dashed border-border p-3"
+      className="space-y-2 rounded-2xl border border-dashed border-border p-3"
     >
       <input
         type="text"
@@ -191,7 +191,7 @@ function GoalRow({ goal }: { goal: Doc<"goals"> }) {
   return (
     <div
       className={cn(
-        "rounded-3xl border border-border bg-background p-3",
+        "rounded-2xl border border-border bg-background p-3",
         goal.status === "complete" && "border-green-500/40",
         goal.status === "abandoned" && "opacity-60",
       )}

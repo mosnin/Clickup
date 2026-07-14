@@ -32,7 +32,7 @@ export function Brain() {
       <div className="space-y-4">
         <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
         <div className="h-12 w-full animate-pulse rounded-full bg-muted" />
-        <div className="h-32 animate-pulse rounded-3xl bg-muted/40" />
+        <div className="h-32 animate-pulse rounded-2xl bg-muted/40" />
       </div>
     );
   }
@@ -79,7 +79,7 @@ export function Brain() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           Brain
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -120,13 +120,13 @@ export function Brain() {
       </form>
 
       {error && (
-        <div className="rounded-3xl border border-red-300/40 bg-red-50/40 p-4 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-300/40 bg-red-50/40 p-4 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {answer && (
-        <article className="rounded-3xl border border-border bg-background p-5">
+        <article className="rounded-2xl border border-border bg-background p-5">
           <p className="whitespace-pre-wrap text-sm leading-relaxed">
             {answer}
           </p>
@@ -167,7 +167,7 @@ function SourceLink({ index, source }: { index: number; source: Source }) {
         : null;
 
   const inner = (
-    <div className="flex items-start gap-3 rounded-3xl border border-border bg-background p-3 hover:border-brand-500">
+    <div className="flex items-start gap-3 rounded-2xl border border-border bg-background p-3 hover:border-foreground/25">
       <span className="mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-medium text-brand-700">
         {index}
       </span>

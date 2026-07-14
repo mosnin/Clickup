@@ -49,7 +49,7 @@ export function TaskDetail({
   }
   if (!list || !task) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
           This task doesn&apos;t exist or you don&apos;t have access.
         </p>
@@ -129,7 +129,7 @@ function TaskEditor({
               setTitle(task.title);
             }
           }}
-          className="w-full bg-transparent text-2xl font-semibold tracking-tight focus:outline-none sm:text-3xl"
+          className="w-full bg-transparent text-2xl font-bold tracking-tight focus:outline-none sm:text-3xl"
         />
       </div>
 
@@ -313,7 +313,7 @@ function TaskEditor({
             }
           }}
           placeholder="Add more details…"
-          className="w-full rounded-3xl border border-border bg-background p-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          className="w-full rounded-2xl border border-border bg-background p-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
 
@@ -376,7 +376,7 @@ function DetailSkeleton() {
           <div key={i} className="h-9 animate-pulse rounded-full bg-muted" />
         ))}
       </div>
-      <div className="h-40 animate-pulse rounded-3xl bg-muted" />
+      <div className="h-40 animate-pulse rounded-2xl bg-muted" />
     </div>
   );
 }

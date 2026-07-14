@@ -47,7 +47,7 @@ export default function HomePage() {
           ].map((card) => (
             <div
               key={card.title}
-              className="rounded-3xl border border-border bg-background p-6"
+              className="rounded-2xl border border-border bg-background p-6"
             >
               <h2 className="text-lg font-semibold">{card.title}</h2>
               <p className="mt-2 text-sm text-muted-foreground">{card.body}</p>

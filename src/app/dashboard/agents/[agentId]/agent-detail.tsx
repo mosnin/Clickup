@@ -38,11 +38,11 @@ export function AgentDetail({ agentId }: { agentId: string }) {
   });
 
   if (detail === undefined) {
-    return <div className="h-60 animate-pulse rounded-3xl bg-muted/40" />;
+    return <div className="h-60 animate-pulse rounded-2xl bg-muted/40" />;
   }
   if (detail === null) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
           This agent doesn&apos;t exist or you don&apos;t have access.
         </p>
@@ -77,7 +77,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">
+            <h1 className="text-2xl font-bold tracking-tight">
               {agent.name}
             </h1>
             <span
@@ -135,7 +135,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
               <li key={t.taskId}>
                 <Link
                   href={`/dashboard/l/${t.listId}/t/${t.taskId}`}
-                  className="block truncate rounded-2xl border border-border bg-background px-3 py-2 text-sm hover:border-brand-500"
+                  className="block truncate rounded-2xl border border-border bg-background px-3 py-2 text-sm hover:border-foreground/25"
                 >
                   {t.title}
                   {claimed.some((c) => c.taskId === t.taskId) && (
@@ -236,7 +236,7 @@ function StatsRow({
       {tiles.map((t) => (
         <div
           key={t.label}
-          className="rounded-3xl border border-border bg-background p-3 text-center"
+          className="rounded-2xl border border-border bg-background p-3 text-center"
         >
           <p className="text-lg font-semibold">{t.value}</p>
           <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -264,7 +264,7 @@ function GovernancePanel({
   const usagePct = Math.min(100, Math.round((usageToday / usageLimit) * 100));
 
   return (
-    <section className="rounded-3xl border border-border bg-background p-4">
+    <section className="rounded-2xl border border-border bg-background p-4">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Governance
       </h2>

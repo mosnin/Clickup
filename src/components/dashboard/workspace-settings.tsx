@@ -17,7 +17,7 @@ export function WorkspaceSettings({
   });
 
   if (integrations === undefined) {
-    return <div className="h-32 animate-pulse rounded-3xl bg-muted/40" />;
+    return <div className="h-32 animate-pulse rounded-2xl bg-muted/40" />;
   }
 
   const slack = integrations.find((i) => i.kind === "slack") ?? null;
@@ -60,7 +60,7 @@ function SlackIntegration({
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="rounded-3xl border border-border bg-background p-4">
+    <div className="rounded-2xl border border-border bg-background p-4">
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold">Slack</h3>

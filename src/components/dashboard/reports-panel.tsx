@@ -21,7 +21,7 @@ export function ReportsPanel({
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
-            className="h-28 animate-pulse rounded-3xl bg-muted/40"
+            className="h-28 animate-pulse rounded-2xl bg-muted/40"
           />
         ))}
       </div>
@@ -30,7 +30,7 @@ export function ReportsPanel({
 
   if (summary === null) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
         You don&apos;t have access to this workspace&apos;s reports.
       </div>
     );
@@ -150,14 +150,14 @@ function Stat({
   subtext?: string;
 }) {
   return (
-    <div className="rounded-3xl border border-border bg-background p-4">
+    <div className="rounded-2xl border border-border bg-background p-4">
       <div className="flex items-center gap-2">
         <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {label}
         </span>
       </div>
-      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+      <p className="mt-2 text-2xl font-bold tracking-tight">{value}</p>
       {subtext && (
         <p className="mt-0.5 text-xs text-muted-foreground">{subtext}</p>
       )}
@@ -173,7 +173,7 @@ function Widget({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-3xl border border-border bg-background p-4">
+    <div className="rounded-2xl border border-border bg-background p-4">
       <h3 className="text-sm font-semibold">{title}</h3>
       <div className="mt-3">{children}</div>
     </div>

@@ -31,10 +31,10 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 
 const PRIORITY_COLOR: Record<string, string> = {
-  urgent: "#ef4444",
-  high: "#f97316",
-  normal: "#3b82f6",
-  low: "#a1a1aa",
+  urgent: "#f2b3ab",
+  high: "#f2c291",
+  normal: "#a9c6f2",
+  low: "#c9ccd4",
 };
 
 export function BoardView({
@@ -240,7 +240,7 @@ function Column({
       ref={setNodeRef}
       aria-label={status.name}
       className={cn(
-        "flex w-72 flex-shrink-0 flex-col rounded-3xl border border-border bg-muted/30",
+        "flex w-72 flex-shrink-0 flex-col rounded-2xl border border-border bg-muted/30",
         isOver && "border-brand-500",
       )}
     >

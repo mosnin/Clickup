@@ -138,7 +138,7 @@ function MessageItem({
   return (
     <div
       className={cn(
-        "rounded-3xl border border-border bg-background p-3",
+        "rounded-2xl border border-border bg-background p-3",
         isResolved && "opacity-60",
       )}
     >
@@ -510,7 +510,7 @@ function Composer({
           }
         }}
         placeholder={placeholder ?? "Write a message…"}
-        className="w-full resize-none rounded-3xl border border-border bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        className="w-full resize-none rounded-2xl border border-border bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
       />
 
       {popover && filtered.length > 0 && (

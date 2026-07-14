@@ -16,8 +16,8 @@ export default function DashboardHome() {
 
   return (
     <div className="space-y-10">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+      <header className="title-rule">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           Home
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -34,13 +34,13 @@ export default function DashboardHome() {
             <li>
               <Link
                 href="/dashboard/personal"
-                className="block rounded-3xl border border-border bg-background p-5 transition-colors hover:border-brand-500"
+                className="block rounded-2xl border border-border bg-background p-5 transition-colors hover:border-foreground/25"
               >
                 <div className="flex items-center gap-2">
                   <span
                     aria-hidden
                     className="inline-block h-3 w-3 rounded-full"
-                    style={{ backgroundColor: tree.personal.color ?? "#6366f1" }}
+                    style={{ backgroundColor: tree.personal.color ?? "#a9c6f2" }}
                   />
                   <span className="font-medium">{tree.personal.name}</span>
                 </div>
@@ -55,7 +55,7 @@ export default function DashboardHome() {
               </Link>
             </li>
           ) : (
-            <li className="rounded-3xl border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground">
+            <li className="rounded-2xl border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground">
               Setting up your personal space…
             </li>
           )}
@@ -76,7 +76,7 @@ export default function DashboardHome() {
         </div>
         <ul className="mt-3 grid gap-3 sm:grid-cols-2">
           {tree.workspaces.length === 0 && (
-            <li className="rounded-3xl border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground sm:col-span-2">
+            <li className="rounded-2xl border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground sm:col-span-2">
               You&apos;re not in any team workspaces yet.{" "}
               <Link
                 href="/onboarding"
@@ -91,7 +91,7 @@ export default function DashboardHome() {
             <li key={ws._id}>
               <Link
                 href={`/dashboard/w/${ws._id}`}
-                className="block rounded-3xl border border-border bg-background p-5 transition-colors hover:border-brand-500"
+                className="block rounded-2xl border border-border bg-background p-5 transition-colors hover:border-foreground/25"
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{ws.name}</span>
@@ -119,7 +119,7 @@ function DashboardSkeleton() {
         {[0, 1].map((i) => (
           <div
             key={i}
-            className="h-24 animate-pulse rounded-3xl border border-border bg-muted/40"
+            className="h-24 animate-pulse rounded-2xl border border-border bg-muted/40"
           />
         ))}
       </div>

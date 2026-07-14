@@ -37,7 +37,7 @@ export function ListPage({
 
   if (list === null) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
           This list doesn&apos;t exist or you don&apos;t have access to it.
         </p>
@@ -59,7 +59,7 @@ export function ListPage({
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             {list.name}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -106,7 +106,7 @@ function PageSkeleton() {
     <div className="space-y-6">
       <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
       <div className="h-9 w-2/3 animate-pulse rounded-full bg-muted" />
-      <div className="h-64 animate-pulse rounded-3xl bg-muted/40" />
+      <div className="h-64 animate-pulse rounded-2xl bg-muted/40" />
     </div>
   );
 }

@@ -14,14 +14,14 @@ const categoryValidator = v.union(
 // Default 4 statuses every list starts with. Mirrors ClickUp's defaults
 // closely; users can rename/recolor/add more from the list settings page.
 export const DEFAULT_STATUSES = [
-  { name: "To Do", color: "#a1a1aa", category: "open" as const },
+  { name: "To Do", color: "#c9ccd4", category: "open" as const },
   {
     name: "In Progress",
-    color: "#3b82f6",
+    color: "#a9c6f2",
     category: "in_progress" as const,
   },
-  { name: "Complete", color: "#10b981", category: "complete" as const },
-  { name: "Closed", color: "#71717a", category: "closed" as const },
+  { name: "Complete", color: "#a9dcbd", category: "complete" as const },
+  { name: "Closed", color: "#c2c2ca", category: "closed" as const },
 ];
 
 // Internal helper used by lists.create. Not a mutation — invoked

@@ -24,7 +24,7 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
   const [creating, setCreating] = useState(false);
 
   if (sprints === undefined) {
-    return <div className="h-40 animate-pulse rounded-3xl bg-muted/40" />;
+    return <div className="h-40 animate-pulse rounded-2xl bg-muted/40" />;
   }
 
   return (
@@ -47,7 +47,7 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
       )}
 
       {sprints.length === 0 && !creating && (
-        <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
           No sprints yet.
         </div>
       )}
@@ -82,7 +82,7 @@ function CreateSprintForm({
 
   return (
     <form
-      className="flex flex-wrap items-end gap-3 rounded-3xl border border-border bg-background p-4"
+      className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-background p-4"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!name.trim()) return;
@@ -191,7 +191,7 @@ function SprintCard({
     });
 
   return (
-    <div className="rounded-3xl border border-border bg-background p-4">
+    <div className="rounded-2xl border border-border bg-background p-4">
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"

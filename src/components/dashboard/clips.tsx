@@ -27,7 +27,7 @@ export function Clips({ taskId }: { taskId: Id<"tasks"> }) {
     <div className="space-y-3">
       <Recorder taskId={taskId} />
       {clips === undefined ? (
-        <div className="h-12 animate-pulse rounded-3xl bg-muted/40" />
+        <div className="h-12 animate-pulse rounded-2xl bg-muted/40" />
       ) : clips.length === 0 ? (
         <p className="text-sm text-muted-foreground">No clips yet.</p>
       ) : (
@@ -164,7 +164,7 @@ function Recorder({ taskId }: { taskId: Id<"tasks"> }) {
   }
 
   return (
-    <div className="rounded-3xl border border-border bg-background p-3">
+    <div className="rounded-2xl border border-border bg-background p-3">
       {state.kind === "idle" && (
         <Button type="button" size="sm" onClick={start}>
           <Video className="h-3.5 w-3.5" /> Record clip
@@ -230,7 +230,7 @@ function ClipCard({ clip }: { clip: Doc<"clips"> }) {
   const remove = useMutation(api.clips.remove);
 
   return (
-    <div className="rounded-3xl border border-border bg-background p-2">
+    <div className="rounded-2xl border border-border bg-background p-2">
       <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black">
         {url ? (
           <video

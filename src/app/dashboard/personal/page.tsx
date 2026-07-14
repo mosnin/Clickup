@@ -12,7 +12,7 @@ export default function PersonalPage() {
   }
   if (tree === null || !tree.personal) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
         Setting up your personal space…
       </div>
     );
@@ -28,9 +28,9 @@ export default function PersonalPage() {
           <span
             aria-hidden
             className="inline-block h-3 w-3 rounded-full"
-            style={{ backgroundColor: personal.color ?? "#6366f1" }}
+            style={{ backgroundColor: personal.color ?? "#a9c6f2" }}
           />
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             {personal.name}
           </h1>
         </div>
@@ -40,7 +40,7 @@ export default function PersonalPage() {
       </header>
 
       {personal.folders.length === 0 && directLists.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-10 text-center">
+        <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-10 text-center">
           <p className="text-sm text-muted-foreground">
             No lists yet. Use the <span className="font-medium">+</span> next to{" "}
             <span className="font-medium">{personal.name}</span> in the sidebar
@@ -89,13 +89,13 @@ function ListCard({
     <li>
       <Link
         href={`/dashboard/l/${list._id}`}
-        className="block rounded-3xl border border-border bg-background p-5 transition-colors hover:border-brand-500"
+        className="block rounded-2xl border border-border bg-background p-5 transition-colors hover:border-foreground/25"
       >
         <div className="flex items-center gap-2">
           <span
             aria-hidden
             className="inline-block h-2 w-2 rounded-full"
-            style={{ backgroundColor: list.color ?? "#6366f1" }}
+            style={{ backgroundColor: list.color ?? "#a9c6f2" }}
           />
           <span className="font-medium">{list.name}</span>
         </div>
@@ -112,7 +112,7 @@ function Skeleton() {
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="h-24 animate-pulse rounded-3xl border border-border bg-muted/40"
+            className="h-24 animate-pulse rounded-2xl border border-border bg-muted/40"
           />
         ))}
       </div>

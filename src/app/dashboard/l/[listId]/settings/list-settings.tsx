@@ -46,7 +46,7 @@ export function ListSettings({ listId }: { listId: string }) {
   }
   if (list === null) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
         List not found.
       </div>
     );
@@ -62,7 +62,7 @@ export function ListSettings({ listId }: { listId: string }) {
       </Link>
 
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           List settings
         </h1>
       </header>
@@ -148,7 +148,7 @@ function StatusRow({
   const [replaceWith, setReplaceWith] = useState<Id<"listStatuses"> | "">("");
 
   return (
-    <li className="rounded-3xl border border-border bg-background p-3">
+    <li className="rounded-2xl border border-border bg-background p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
           type="color"
@@ -255,7 +255,7 @@ function CreateStatusForm({
   ) => Promise<unknown>;
 }) {
   const [name, setName] = useState("");
-  const [color, setColor] = useState("#6366f1");
+  const [color, setColor] = useState("#a9c6f2");
   const [category, setCategory] = useState<StatusCategory>("open");
   const [pending, setPending] = useState(false);
 
@@ -272,7 +272,7 @@ function CreateStatusForm({
           setPending(false);
         }
       }}
-      className="mt-3 flex flex-col gap-2 rounded-3xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
+      className="mt-3 flex flex-col gap-2 rounded-2xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
     >
       <input
         type="color"
@@ -329,7 +329,7 @@ function FieldsSection({
 
       <ul className="mt-4 space-y-2">
         {fields.length === 0 && (
-          <li className="rounded-3xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+          <li className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
             No custom fields yet.
           </li>
         )}
@@ -372,7 +372,7 @@ function FieldRow({
   const [showOptions, setShowOptions] = useState(false);
 
   return (
-    <li className="rounded-3xl border border-border bg-background p-3">
+    <li className="rounded-2xl border border-border bg-background p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <span className="rounded-full bg-muted px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
           {FIELD_TYPE_LABEL[field.type]}
@@ -435,7 +435,7 @@ function DropdownOptionsEditor({
   ) => Promise<unknown>;
 }) {
   const [draft, setDraft] = useState("");
-  const [color, setColor] = useState("#6366f1");
+  const [color, setColor] = useState("#a9c6f2");
 
   return (
     <div className="mt-3 rounded-2xl bg-muted p-3">
@@ -448,7 +448,7 @@ function DropdownOptionsEditor({
             <span
               aria-hidden
               className="inline-block h-2 w-2 rounded-full"
-              style={{ backgroundColor: opt.color ?? "#a1a1aa" }}
+              style={{ backgroundColor: opt.color ?? "#c9ccd4" }}
             />
             <span className="flex-1">{opt.label}</span>
             <button
@@ -530,7 +530,7 @@ function CreateFieldForm({
                   {
                     id: crypto.randomUUID(),
                     label: "Option 1",
-                    color: "#6366f1",
+                    color: "#a9c6f2",
                   },
                 ]
               : undefined,
@@ -541,7 +541,7 @@ function CreateFieldForm({
           setPending(false);
         }
       }}
-      className="mt-3 flex flex-col gap-2 rounded-3xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
+      className="mt-3 flex flex-col gap-2 rounded-2xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
     >
       <input
         type="text"
@@ -609,7 +609,7 @@ function AutomationsSection({
 
       <ul className="mt-4 space-y-2">
         {automations.length === 0 && (
-          <li className="rounded-3xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+          <li className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
             No automations yet.
           </li>
         )}
@@ -653,8 +653,8 @@ function AutomationRow({
     <li
       className={
         automation.enabled
-          ? "rounded-3xl border border-border bg-background p-3"
-          : "rounded-3xl border border-border bg-muted/30 p-3 opacity-60"
+          ? "rounded-2xl border border-border bg-background p-3"
+          : "rounded-2xl border border-border bg-muted/30 p-3 opacity-60"
       }
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

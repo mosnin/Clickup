@@ -14,14 +14,14 @@ export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="h-28 animate-pulse rounded-3xl bg-muted/40" />
+          <div key={i} className="h-28 animate-pulse rounded-2xl bg-muted/40" />
         ))}
       </div>
     );
   }
   if (members === null) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
         You don&apos;t have access to this workspace&apos;s team.
       </div>
     );
@@ -37,7 +37,7 @@ export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
         {members.map((m) => (
           <li
             key={m.clerkId}
-            className="rounded-3xl border border-border bg-background p-4"
+            className="rounded-2xl border border-border bg-background p-4"
           >
             <div className="flex items-start gap-3">
               <Avatar name={m.name} clerkId={m.clerkId} />
@@ -113,7 +113,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
       <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
         {label}
       </dt>
-      <dd className="text-lg font-semibold">{value}</dd>
+      <dd className="text-lg font-bold tracking-tight">{value}</dd>
     </div>
   );
 }

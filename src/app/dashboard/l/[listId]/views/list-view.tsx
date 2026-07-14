@@ -32,7 +32,7 @@ export function ListView({
   fields: Doc<"customFields">[];
 }) {
   return (
-    <div className="overflow-x-auto rounded-3xl border border-border bg-background">
+    <div className="overflow-x-auto rounded-2xl border border-border bg-background">
       <table className="w-full text-sm">
         <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
           <tr>

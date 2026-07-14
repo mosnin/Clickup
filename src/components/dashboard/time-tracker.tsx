@@ -16,7 +16,7 @@ export function TimeTracker({ taskId }: { taskId: Id<"tasks"> }) {
   const stop = useMutation(api.timeEntries.stop);
 
   if (entries === undefined || running === undefined) {
-    return <div className="h-12 animate-pulse rounded-3xl bg-muted/40" />;
+    return <div className="h-12 animate-pulse rounded-2xl bg-muted/40" />;
   }
 
   const myRunningOnThisTask =
@@ -29,7 +29,7 @@ export function TimeTracker({ taskId }: { taskId: Id<"tasks"> }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 rounded-3xl border border-border bg-background p-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 rounded-2xl border border-border bg-background p-3 sm:flex-row sm:items-center">
         {myRunningOnThisTask ? (
           <RunningPanel
             entry={myRunningOnThisTask}

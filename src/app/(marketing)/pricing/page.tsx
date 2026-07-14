@@ -57,8 +57,8 @@ export default function PricingPage() {
               key={tier.name}
               className={
                 tier.highlight
-                  ? "rounded-3xl border-2 border-brand-600 bg-background p-8 shadow-lg"
-                  : "rounded-3xl border border-border bg-background p-8"
+                  ? "rounded-2xl border-2 border-brand-600 bg-background p-8 shadow-lg"
+                  : "rounded-2xl border border-border bg-background p-8"
               }
             >
               <h2 className="text-lg font-semibold">{tier.name}</h2>

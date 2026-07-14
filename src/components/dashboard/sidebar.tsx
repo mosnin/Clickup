@@ -63,14 +63,16 @@ export function DashboardSidebar() {
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 text-sm font-semibold"
+            className="flex items-center gap-2.5"
             onClick={() => setMobileOpen(false)}
           >
             <span
               aria-hidden
-              className="inline-block h-6 w-6 rounded-full bg-brand-600"
+              className="inline-block h-3.5 w-3.5 rounded-[4px] bg-foreground"
             />
-            ClickUp Clone
+            <span className="text-[13px] font-extrabold uppercase tracking-[0.22em]">
+              ClickUp&nbsp;Clone
+            </span>
           </Link>
           <button
             type="button"
@@ -118,7 +120,7 @@ function BrainLink({ onNavigate }: { onNavigate: () => void }) {
       href="/dashboard/brain"
       onClick={onNavigate}
       className={cn(
-        "mb-1 flex items-center gap-2 rounded-2xl px-2 py-1.5 text-sm transition-colors",
+        "mb-1 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
         active
           ? "bg-muted text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -138,7 +140,7 @@ function AgentsLink({ onNavigate }: { onNavigate: () => void }) {
       href="/dashboard/agents"
       onClick={onNavigate}
       className={cn(
-        "mb-1 flex items-center gap-2 rounded-2xl px-2 py-1.5 text-sm transition-colors",
+        "mb-1 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
         active
           ? "bg-muted text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -160,7 +162,7 @@ function InboxLink({ onNavigate }: { onNavigate: () => void }) {
       href="/dashboard/inbox"
       onClick={onNavigate}
       className={cn(
-        "mb-3 flex items-center gap-2 rounded-2xl px-2 py-1.5 text-sm transition-colors",
+        "mb-3 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
         active
           ? "bg-muted text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -272,7 +274,7 @@ function WorkspaceBranch({
         <Link
           href={`/dashboard/w/${workspace._id}`}
           onClick={onNavigate}
-          className="flex flex-1 items-center gap-1 truncate rounded-2xl px-2 py-1 text-sm font-medium hover:bg-muted"
+          className="flex flex-1 items-center gap-1 truncate rounded-lg px-2.5 py-1 text-sm font-medium hover:bg-muted"
         >
           <span className="truncate">{workspace.name}</span>
           <span className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -361,7 +363,7 @@ function SpaceBranch({
       <span
         aria-hidden
         className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
-        style={{ backgroundColor: space.color ?? "#6366f1" }}
+        style={{ backgroundColor: space.color ?? "#a9c6f2" }}
       />
     ),
     [space.color],
@@ -382,7 +384,7 @@ function SpaceBranch({
             <ChevronRight className="h-3.5 w-3.5" />
           )}
         </button>
-        <span className="flex flex-1 items-center gap-2 truncate rounded-2xl px-2 py-1 text-sm">
+        <span className="flex flex-1 items-center gap-2 truncate rounded-lg px-2.5 py-1 text-sm">
           {dot}
           <span className="truncate">{space.name}</span>
         </span>
@@ -469,7 +471,7 @@ function AddButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1 rounded-2xl px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+      className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
     >
       <Plus className="h-3 w-3" /> {children}
     </button>
@@ -508,7 +510,7 @@ function FolderBranch({
             <ChevronRight className="h-3.5 w-3.5" />
           )}
         </button>
-        <span className="flex flex-1 items-center truncate rounded-2xl px-2 py-1 text-sm text-muted-foreground">
+        <span className="flex flex-1 items-center truncate rounded-lg px-2.5 py-1 text-sm text-muted-foreground">
           {folder.name}
         </span>
         <button
@@ -558,7 +560,7 @@ function ListLink({
       href={`/dashboard/l/${listId}`}
       onClick={onNavigate}
       className={cn(
-        "flex items-center gap-2 rounded-2xl px-2 py-1 text-sm transition-colors",
+        "flex items-center gap-2 rounded-lg px-2.5 py-1 text-sm transition-colors",
         active
           ? "bg-muted text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -586,7 +588,7 @@ function DocLink({
       href={`/dashboard/d/${docId}`}
       onClick={onNavigate}
       className={cn(
-        "flex items-center gap-2 rounded-2xl px-2 py-1 text-sm transition-colors",
+        "flex items-center gap-2 rounded-lg px-2.5 py-1 text-sm transition-colors",
         active
           ? "bg-muted text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -614,7 +616,7 @@ function WhiteboardLink({
       href={`/dashboard/wb/${whiteboardId}`}
       onClick={onNavigate}
       className={cn(
-        "flex items-center gap-2 rounded-2xl px-2 py-1 text-sm transition-colors",
+        "flex items-center gap-2 rounded-lg px-2.5 py-1 text-sm transition-colors",
         active
           ? "bg-muted text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",

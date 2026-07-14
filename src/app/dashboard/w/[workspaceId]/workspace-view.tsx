@@ -63,7 +63,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
 
   if (!workspace) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
           This workspace doesn&apos;t exist or you&apos;re not a member.
         </p>
@@ -79,9 +79,9 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
 
   return (
     <div className="space-y-6">
-      <header>
+      <header className="title-rule">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             {workspace.name}
           </h1>
           <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs uppercase tracking-wider text-muted-foreground">
@@ -106,7 +106,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
             className={cn(
               "rounded-full px-3 py-1.5 transition-colors",
               tab === key
-                ? "bg-muted font-medium text-foreground"
+                ? "bg-foreground font-medium text-background"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
@@ -117,7 +117,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
 
       {tab === "overview" ? (
         workspace.spaces.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-10 text-center">
+          <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-10 text-center">
             <p className="text-sm text-muted-foreground">
               No spaces yet. Use the <span className="font-medium">+</span> next
               to <span className="font-medium">{workspace.name}</span> in the
@@ -138,13 +138,13 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
                   <li
                     key={space._id}
                     id={space._id}
-                    className="rounded-3xl border border-border bg-background p-5"
+                    className="rounded-2xl border border-border bg-background p-5"
                   >
                     <div className="flex items-center gap-2">
                       <span
                         aria-hidden
                         className="inline-block h-3 w-3 rounded-full"
-                        style={{ backgroundColor: space.color ?? "#6366f1" }}
+                        style={{ backgroundColor: space.color ?? "#a9c6f2" }}
                       />
                       <span className="font-medium">{space.name}</span>
                     </div>
@@ -238,7 +238,7 @@ function ChatWithChannels({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
           className={cn(
             "rounded-full px-3 py-1 text-sm transition-colors",
             !activeChannel
-              ? "bg-muted font-medium text-foreground"
+              ? "bg-foreground font-medium text-background"
               : "text-muted-foreground hover:bg-muted hover:text-foreground",
           )}
         >
@@ -251,7 +251,7 @@ function ChatWithChannels({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
             className={cn(
               "rounded-full px-3 py-1 text-sm transition-colors",
               activeChannel === c._id
-                ? "bg-muted font-medium text-foreground"
+                ? "bg-foreground font-medium text-background"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
@@ -292,7 +292,7 @@ function Skeleton() {
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="h-24 animate-pulse rounded-3xl border border-border bg-muted/40"
+            className="h-24 animate-pulse rounded-2xl border border-border bg-muted/40"
           />
         ))}
       </div>

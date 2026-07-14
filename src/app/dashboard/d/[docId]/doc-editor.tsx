@@ -80,7 +80,7 @@ export function DocEditor({ docId }: { docId: string }) {
   if (doc === undefined) return <DocSkeleton />;
   if (doc === null) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
           This doc doesn&apos;t exist or you don&apos;t have access.
         </p>
@@ -137,7 +137,7 @@ export function DocEditor({ docId }: { docId: string }) {
       />
 
       <Toolbar editor={editor} />
-      <div className="rounded-3xl border border-border bg-background p-6">
+      <div className="rounded-2xl border border-border bg-background p-6">
         <EditorContent editor={editor} />
       </div>
       <AiWriterRow editor={editor} />
@@ -315,7 +315,7 @@ function DocSkeleton() {
       <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
       <div className="h-12 w-2/3 animate-pulse rounded-full bg-muted" />
       <div className="h-9 w-full animate-pulse rounded-full bg-muted" />
-      <div className="h-64 w-full animate-pulse rounded-3xl bg-muted/40" />
+      <div className="h-64 w-full animate-pulse rounded-2xl bg-muted/40" />
     </div>
   );
 }

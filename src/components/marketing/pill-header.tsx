@@ -27,7 +27,7 @@ export function PillHeader() {
         >
           <span
             aria-hidden
-            className="inline-block h-6 w-6 rounded-full bg-brand-600"
+            className="inline-block h-4 w-4 rounded-[5px] bg-foreground"
           />
           ClickUp Clone
         </Link>
@@ -69,7 +69,7 @@ export function PillHeader() {
 
       <div
         className={cn(
-          "mx-auto mt-2 max-w-6xl overflow-hidden rounded-3xl border border-border bg-background shadow-sm transition-all md:hidden",
+          "mx-auto mt-2 max-w-6xl overflow-hidden rounded-2xl border border-border bg-background shadow-sm transition-all md:hidden",
           open ? "max-h-96 opacity-100" : "pointer-events-none max-h-0 opacity-0",
         )}
       >

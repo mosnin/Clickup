@@ -62,7 +62,7 @@ export function TemplatePicker({
         onClick={onClose}
         className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
       />
-      <div className="relative w-full max-w-2xl rounded-3xl border border-border bg-background shadow-xl">
+      <div className="relative w-full max-w-2xl rounded-2xl border border-border bg-background shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h2 className="text-sm font-semibold">Pick a list template</h2>
           <button
@@ -90,10 +90,10 @@ export function TemplatePicker({
                 if (!name) setName(t.name);
               }}
               className={cn(
-                "rounded-3xl border p-4 text-left transition-colors",
+                "rounded-2xl border p-4 text-left transition-colors",
                 selected === t.id
                   ? "border-brand-500 bg-brand-50/50"
-                  : "border-border bg-background hover:border-brand-500",
+                  : "border-border bg-background hover:border-foreground/25",
               )}
             >
               <div className="flex items-baseline gap-2">

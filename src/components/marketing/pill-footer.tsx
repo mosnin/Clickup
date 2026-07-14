@@ -27,7 +27,7 @@ const SECTIONS = [
 export function PillFooter() {
   return (
     <footer className="px-3 pb-6 pt-12 sm:px-6">
-      <div className="mx-auto max-w-6xl rounded-3xl border border-border bg-muted/40 p-6 sm:rounded-[2rem] sm:p-10">
+      <div className="mx-auto max-w-6xl rounded-2xl border border-border bg-muted/40 p-6 sm:rounded-[2rem] sm:p-10">
         <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-4">
           <div>
             <Link
@@ -36,7 +36,7 @@ export function PillFooter() {
             >
               <span
                 aria-hidden
-                className="inline-block h-6 w-6 rounded-full bg-brand-600"
+                className="inline-block h-4 w-4 rounded-[5px] bg-foreground"
               />
               ClickUp Clone
             </Link>

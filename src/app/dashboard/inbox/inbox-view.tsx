@@ -17,7 +17,7 @@ export function Inbox() {
     return (
       <div className="space-y-3">
         <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
-        <div className="h-24 animate-pulse rounded-3xl bg-muted/40" />
+        <div className="h-24 animate-pulse rounded-2xl bg-muted/40" />
       </div>
     );
   }
@@ -26,9 +26,9 @@ export function Inbox() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-start justify-between gap-3">
+      <header className="title-rule flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             Inbox
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -53,7 +53,7 @@ export function Inbox() {
       )}
 
       {mentions.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+        <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
           When someone @mentions you, it&apos;ll show up here.
         </div>
       ) : (
@@ -85,7 +85,7 @@ function ApprovalsQueue({
 }) {
   const approve = useMutation(api.tasks.approve);
   return (
-    <section className="rounded-3xl border border-brand-200 bg-brand-50/40 p-4">
+    <section className="rounded-2xl border border-brand-200 bg-brand-50/40 p-4">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-brand-700">
         Waiting on your approval ({approvals.length})
       </h2>
@@ -166,7 +166,7 @@ function MentionItem({ mention }: { mention: Doc<"mentions"> }) {
         if (!mention.readAt) markRead({ mentionId: mention._id });
       }}
       className={cn(
-        "block rounded-3xl border border-border bg-background p-3 transition-colors hover:border-brand-500",
+        "block rounded-2xl border border-border bg-background p-3 transition-colors hover:border-foreground/25",
         !mention.readAt && "border-l-4 border-l-brand-600",
       )}
     >

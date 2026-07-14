@@ -34,7 +34,7 @@ export function OnboardingForm() {
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-3xl border border-border bg-background p-6 shadow-sm"
+      className="rounded-2xl border border-border bg-background p-6 shadow-sm"
     >
       <label className="block">
         <span className="text-sm font-medium">Team workspace name</span>

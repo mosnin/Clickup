@@ -14,7 +14,7 @@ export default function AuthLayout({
         >
           <span
             aria-hidden
-            className="inline-block h-6 w-6 rounded-full bg-brand-600"
+            className="inline-block h-4 w-4 rounded-[5px] bg-foreground"
           />
           ClickUp Clone
         </Link>
