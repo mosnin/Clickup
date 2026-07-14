@@ -148,7 +148,7 @@ export function FeaturesContent() {
             <section
               key={s.id}
               id={s.id}
-              className="scroll-mt-28 overflow-hidden rounded-[2rem] border border-black/[0.06] bg-white"
+              className="scroll-mt-28 overflow-hidden rounded-[1.5rem] border border-black/[0.05] bg-white"
             >
               <div
                 className={cn(
@@ -173,7 +173,7 @@ export function FeaturesContent() {
                   </FadeIn>
                 </div>
               </div>
-              <StaggerIn className="grid gap-px border-t border-black/[0.06] bg-black/[0.04] sm:grid-cols-2 lg:grid-cols-4">
+              <StaggerIn className="grid gap-px border-t border-black/[0.05] bg-black/[0.04] sm:grid-cols-2 lg:grid-cols-4">
                 {s.bullets.map((b) => (
                   <StaggerInItem key={b} className="bg-white px-5 py-4">
                     <p className="text-[13px] leading-relaxed text-foreground/80">
@@ -187,7 +187,7 @@ export function FeaturesContent() {
         </div>
 
         <FadeIn className="mt-20 text-center">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <h2 className="text-3xl font-semibold tracking-[-0.02em] sm:text-4xl">
             See it with your own agents.
           </h2>
           <CtaPair

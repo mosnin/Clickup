@@ -165,7 +165,7 @@ export function PillHeader() {
               animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
               exit={{ opacity: 0, y: 8, scale: 0.99, filter: "blur(4px)" }}
               transition={{ duration: 0.3, ease: EASE }}
-              className="absolute left-1/2 top-full z-50 mt-2 hidden w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-3xl border border-black/[0.07] bg-white/95 p-2 shadow-[0_32px_80px_-24px_rgb(16_16_18/0.4)] backdrop-blur-2xl lg:block"
+              className="absolute left-1/2 top-full z-50 mt-2 hidden w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-2xl border border-black/[0.06] bg-white/95 p-2 shadow-[0_32px_80px_-24px_rgb(16_16_18/0.4)] backdrop-blur-2xl lg:block"
             >
               <div className="flex gap-2">
                 <ul
@@ -214,7 +214,7 @@ function MegaLink({
     <Link
       href={link.href}
       onClick={onNavigate}
-      className="group block rounded-2xl px-3 py-2.5 transition-colors hover:bg-sage-100/70"
+      className="group block rounded-xl px-3 py-2.5 transition-colors hover:bg-sage-100/80"
     >
       <span className="flex items-center gap-1 text-sm font-semibold">
         {link.label}
@@ -270,7 +270,7 @@ function MenuHighlight({
         aria-hidden
         className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-[radial-gradient(closest-side,#7f906a,transparent_70%)] opacity-60 blur-xl transition-transform duration-700 group-hover:scale-125"
       />
-      <span className="relative text-[10px] font-semibold uppercase tracking-[0.16em] text-sage-300">
+      <span className="relative text-[13px] font-medium text-sage-300">
         {h.eyebrow}
       </span>
       <span className="relative mt-6 text-sm font-semibold leading-snug">
@@ -395,7 +395,7 @@ function MobileGroup({
       }}
       className="border-b border-black/[0.07] py-4 last:border-0"
     >
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+      <p className="text-[13px] font-medium text-muted-foreground">
         {title}
       </p>
       <ul className={cn("mt-2", big ? "space-y-1" : "grid grid-cols-1 gap-0.5")}>
@@ -407,7 +407,7 @@ function MobileGroup({
               className={cn(
                 "group flex items-center justify-between rounded-xl py-1.5 pr-1",
                 big
-                  ? "text-2xl font-bold tracking-tight"
+                  ? "text-2xl font-semibold tracking-[-0.02em]"
                   : "text-base font-medium",
               )}
             >

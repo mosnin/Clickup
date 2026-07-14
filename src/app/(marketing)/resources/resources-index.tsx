@@ -21,17 +21,17 @@ export function ResourcesIndex() {
               <StaggerInItem key={r.slug}>
                 <Link
                   href={`/resources/${r.slug}`}
-                  className="lift group flex h-full flex-col rounded-3xl border border-black/[0.06] bg-white p-7"
+                  className="group flex h-full flex-col rounded-2xl border border-black/[0.05] bg-white p-7"
                 >
                   <span className="flex items-center justify-between">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sage-600">
+                    <span className="text-sm font-medium text-sage-600">
                       {r.eyebrow}
                     </span>
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {r.readingTime}
                     </span>
                   </span>
-                  <h2 className="mt-3 text-xl font-bold leading-snug tracking-tight">
+                  <h2 className="mt-3 text-xl font-semibold leading-snug tracking-[-0.02em]">
                     {r.title}
                   </h2>
                   <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">

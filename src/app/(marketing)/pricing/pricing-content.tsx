@@ -100,23 +100,21 @@ export function PricingContent() {
             <StaggerInItem key={tier.name} className="h-full">
               <div
                 className={cn(
-                  "flex h-full flex-col rounded-[2rem] border p-7 sm:p-8",
+                  "flex h-full flex-col rounded-2xl border p-7 sm:p-8",
                   tier.featured
                     ? "border-transparent bg-moss-900 text-white shadow-[0_32px_80px_-32px_rgb(20_24_17/0.6)]"
                     : "border-black/[0.06] bg-white",
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-semibold uppercase tracking-[0.16em]">
-                    {tier.name}
-                  </h2>
+                  <h2 className="text-sm font-medium">{tier.name}</h2>
                   {tier.featured && (
-                    <span className="rounded-full bg-sage-300 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-moss-900">
+                    <span className="rounded-full bg-sage-200 px-2.5 py-0.5 text-[11px] font-medium text-moss-900">
                       Most popular
                     </span>
                   )}
                 </div>
-                <p className="mt-5 text-4xl font-bold tracking-tight">
+                <p className="mt-5 text-4xl font-semibold tracking-[-0.02em]">
                   {tier.price}
                   <span
                     className={cn(
@@ -173,7 +171,7 @@ export function PricingContent() {
       <section className="border-t border-black/[0.06] px-4 py-20 sm:px-6">
         <div className="mx-auto max-w-2xl">
           <FadeIn>
-            <h2 className="text-center text-3xl font-bold tracking-tight">
+            <h2 className="text-center text-3xl font-semibold tracking-[-0.02em]">
               Questions, answered.
             </h2>
           </FadeIn>

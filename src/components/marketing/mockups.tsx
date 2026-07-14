@@ -32,7 +32,7 @@ export function MockShell({
         <div className="flex items-center gap-1.5 border-b border-border px-3.5 py-2">
           <span className="h-1.5 w-1.5 rounded-full bg-black/10" />
           <span className="h-1.5 w-1.5 rounded-full bg-black/10" />
-          <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          <span className="ml-1.5 text-[11px] font-medium text-muted-foreground">
             {label}
           </span>
         </div>
@@ -53,7 +53,7 @@ const AGENT_STATUS = [
 export function AgentCardMock({ className }: { className?: string }) {
   const i = useCycle(AGENT_STATUS.length, 3000);
   return (
-    <MockShell label="Agents · live" className={className}>
+    <MockShell label="Agents — live" className={className}>
       <div className="p-3.5">
         <div className="flex items-center gap-2.5">
           <span className="text-xl" aria-hidden>
@@ -61,7 +61,7 @@ export function AgentCardMock({ className }: { className?: string }) {
           </span>
           <div className="min-w-0">
             <p className="text-[13px] font-semibold leading-tight">Scout</p>
-            <p className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-emerald-600">
+            <p className="flex items-center gap-1 text-[10px] font-medium text-emerald-700">
               <span className="relative inline-flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/60" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -69,7 +69,7 @@ export function AgentCardMock({ className }: { className?: string }) {
               Online
             </p>
           </div>
-          <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
+          <span className="ml-auto rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-medium text-foreground/55">
             Member
           </span>
         </div>
@@ -97,16 +97,16 @@ export function AgentCardMock({ className }: { className?: string }) {
 
 // ── Task rows: the top task checks itself off on a loop ────────────────
 const TASK_ROWS = [
-  { title: "Ship weekly digest email", chip: "🤖 Scout", chipBg: "bg-pastel-blue" },
-  { title: "QA the onboarding flow", chip: "Sprint 12", chipBg: "bg-pastel-purple" },
-  { title: "Refresh pricing page copy", chip: "Due Fri", chipBg: "bg-pastel-yellow" },
+  { title: "Ship weekly digest email", chip: "🤖 Scout", chipBg: "bg-sage-100 text-sage-700" },
+  { title: "QA the onboarding flow", chip: "Sprint 12", chipBg: "bg-black/[0.05] text-foreground/60" },
+  { title: "Refresh pricing page copy", chip: "Due Fri", chipBg: "bg-black/[0.05] text-foreground/60" },
 ];
 
 export function TaskListMock({ className }: { className?: string }) {
   const phase = useCycle(2, 2400); // 0 = open, 1 = done
   const done = phase === 1;
   return (
-    <MockShell label="Launch week · list" className={className}>
+    <MockShell label="Launch week — list" className={className}>
       <ul className="divide-y divide-border">
         {TASK_ROWS.map((t, idx) => {
           const isDone = idx === 0 && done;
@@ -166,7 +166,7 @@ export function ActivityFeedMock({ className }: { className?: string }) {
   const i = useCycle(FEED.length, 2200);
   const visible = [0, 1, 2].map((o) => FEED[(i + FEED.length - o) % FEED.length]);
   return (
-    <MockShell label="Activity · everything, live" className={className}>
+    <MockShell label="Activity — live" className={className}>
       <ul className="space-y-1.5 p-3">
         <AnimatePresence initial={false} mode="popLayout">
           {visible.map((e) => (
@@ -248,7 +248,7 @@ export function BoardMock({ className }: { className?: string }) {
       <div className="grid grid-cols-3 gap-2 p-3">
         {BOARD_COLS.map((col, ci) => (
           <div key={col} className="rounded-xl bg-muted/50 p-1.5">
-            <p className="px-1 pb-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="px-1 pb-1 text-[10px] font-medium text-muted-foreground">
               {col}
             </p>
             <div className="space-y-1.5">
@@ -300,7 +300,7 @@ export function ConnectMock({ className }: { className?: string }) {
       <div className="flex items-center gap-1.5 border-b border-white/10 px-3.5 py-2">
         <span className="h-1.5 w-1.5 rounded-full bg-white/20" />
         <span className="h-1.5 w-1.5 rounded-full bg-white/20" />
-        <span className="ml-1.5 text-[10px] uppercase tracking-[0.14em] text-white/40">
+        <span className="ml-1.5 text-[11px] font-medium text-white/40">
           any MCP runtime
         </span>
       </div>
@@ -366,7 +366,7 @@ const HANDOFF_CHECKLIST = [
 export function HandoffMock({ step, className }: { step: number; className?: string }) {
   const done = step >= 4;
   return (
-    <MockShell label="Task · live" className={className}>
+    <MockShell label="Task — live" className={className}>
       <div className="space-y-3 p-4 sm:p-5">
         {/* Title row */}
         <div className="flex items-start gap-2.5">
@@ -396,8 +396,8 @@ export function HandoffMock({ step, className }: { step: number; className?: str
             >
               Draft the Acme renewal email
             </p>
-            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-              {step === 0 ? "created by you · just now" : "assigned · 🤖 Scout"}
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {step === 0 ? "Created by you · just now" : "Assigned · 🤖 Scout"}
             </p>
           </div>
           <AnimatePresence>
@@ -407,7 +407,7 @@ export function HandoffMock({ step, className }: { step: number; className?: str
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={SPRING}
-                className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700"
+                className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700"
               >
                 <span className="relative inline-flex h-1 w-1">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500/70" />

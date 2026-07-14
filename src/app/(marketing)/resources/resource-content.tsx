@@ -14,7 +14,7 @@ export function ResourceContent({ resource }: { resource: Resource }) {
   return (
     <>
       <PageHero eyebrow={resource.eyebrow} title={resource.title} sub={resource.sub}>
-        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        <p className="mt-6 text-sm text-muted-foreground">
           {resource.readingTime}
         </p>
       </PageHero>
@@ -39,7 +39,7 @@ export function ResourceContent({ resource }: { resource: Resource }) {
                 <Link
                   key={l.href}
                   href={l.href}
-                  className="lift group rounded-2xl border border-black/[0.06] bg-white p-5"
+                  className="group rounded-xl border border-black/[0.05] bg-white p-5"
                 >
                   <span className="flex items-center gap-1 text-sm font-semibold">
                     {l.label}
@@ -65,9 +65,9 @@ function Guide({ resource }: { resource: Resource }) {
       {(resource.sections ?? []).map((s) => (
         <FadeIn
           key={s.heading}
-          className="rounded-3xl border border-black/[0.06] bg-white p-7 sm:p-9"
+          className="rounded-2xl border border-black/[0.05] bg-white p-7 sm:p-9"
         >
-          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
+          <h2 className="text-xl font-semibold tracking-[-0.02em] sm:text-2xl">
             {s.heading}
           </h2>
           {s.body && (
@@ -90,7 +90,7 @@ function Guide({ resource }: { resource: Resource }) {
           )}
           {s.code && (
             <div className="mt-5 overflow-hidden rounded-2xl bg-moss-950">
-              <p className="border-b border-white/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
+              <p className="border-b border-white/10 px-4 py-2 text-[11px] font-medium text-white/40">
                 {s.code.label}
               </p>
               <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed text-sage-200">
@@ -118,11 +118,9 @@ function Changelog({ resource }: { resource: Resource }) {
               aria-hidden
               className="absolute left-0 top-2 h-[11px] w-[11px] rounded-full border-2 border-cream bg-sage-500"
             />
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sage-600">
-              {r.tag}
-            </p>
-            <h2 className="mt-1 text-xl font-bold tracking-tight">{r.title}</h2>
-            <ul className="mt-3 space-y-2 rounded-3xl border border-black/[0.06] bg-white p-6">
+            <p className="text-sm font-medium text-sage-600">{r.tag}</p>
+            <h2 className="mt-1 text-xl font-semibold tracking-[-0.02em]">{r.title}</h2>
+            <ul className="mt-3 space-y-2 rounded-2xl border border-black/[0.05] bg-white p-6">
               {r.items.map((item) => (
                 <li key={item} className="flex items-start gap-2.5 text-sm leading-relaxed">
                   <span

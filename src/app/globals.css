@@ -12,8 +12,8 @@
 */
 @theme {
   --font-sans:
-    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+    var(--font-instrument), "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
   /* Canvas + surfaces */
   --color-page: #ededf0;
@@ -46,18 +46,18 @@
   /* Marketing palette — the logged-out site lives on warm cream with
      sage/moss greens (blurred-meadow scenes), while ink stays shared
      with the app. Never use these inside /dashboard. */
-  --color-cream: #f5f4ee;
-  --color-cream-deep: #edece3;
-  --color-sage-100: #e9ede1;
-  --color-sage-200: #dbe2cf;
-  --color-sage-300: #c2cfae;
-  --color-sage-400: #a3b489;
-  --color-sage-500: #7f906a;
-  --color-sage-600: #5f7050;
-  --color-sage-700: #48563d;
-  --color-moss-800: #2b3426;
-  --color-moss-900: #1e241b;
-  --color-moss-950: #141811;
+  --color-cream: #f7f6f1;
+  --color-cream-deep: #efeee4;
+  --color-sage-100: #eef1e0;
+  --color-sage-200: #e0e6c9;
+  --color-sage-300: #c8d3a5;
+  --color-sage-400: #a9ba7f;
+  --color-sage-500: #87995a;
+  --color-sage-600: #64763d;
+  --color-sage-700: #4b592e;
+  --color-moss-800: #2d3521;
+  --color-moss-900: #202619;
+  --color-moss-950: #161a11;
 
   --radius-pill: 9999px;
 }

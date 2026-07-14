@@ -63,10 +63,10 @@ export function UseCaseContent({ uc }: { uc: UseCase }) {
             eyebrow="The problem"
             title="Where it breaks today."
           />
-          <StaggerIn className="mt-12 grid gap-px overflow-hidden rounded-3xl border border-black/[0.06] bg-black/[0.06] md:grid-cols-3">
+          <StaggerIn className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-black/[0.05] bg-black/[0.05] md:grid-cols-3">
             {uc.pains.map((p) => (
               <StaggerInItem key={p.title} className="bg-white p-7">
-                <h3 className="text-lg font-bold tracking-tight">{p.title}</h3>
+                <h3 className="text-lg font-semibold tracking-[-0.02em]">{p.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {p.body}
                 </p>
@@ -90,16 +90,16 @@ export function UseCaseContent({ uc }: { uc: UseCase }) {
             />
             {uc.day.map((d, i) => (
               <StaggerInItem key={i}>
-                <div className="relative flex items-start gap-4 rounded-2xl border border-black/[0.06] bg-white p-4 sm:gap-6">
+                <div className="relative flex items-start gap-4 rounded-xl border border-black/[0.05] bg-white p-4 sm:gap-6">
                   <span className="w-14 flex-shrink-0 pt-0.5 text-right text-xs font-semibold tabular-nums text-muted-foreground">
                     {d.time}
                   </span>
                   <span
                     className={cn(
-                      "mt-0.5 flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                      "mt-0.5 flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
                       d.actor === "agent"
-                        ? "bg-pastel-blue text-foreground"
-                        : "bg-pastel-yellow text-foreground",
+                        ? "bg-sage-100 text-sage-700"
+                        : "bg-black/[0.05] text-foreground/60",
                     )}
                   >
                     {d.actor}
@@ -124,8 +124,8 @@ export function UseCaseContent({ uc }: { uc: UseCase }) {
           <StaggerIn className="mt-12 grid gap-4 sm:grid-cols-2">
             {uc.plays.map((p) => (
               <StaggerInItem key={p.title}>
-                <div className="lift h-full rounded-3xl border border-black/[0.06] bg-white p-7">
-                  <h3 className="text-lg font-bold tracking-tight">{p.title}</h3>
+                <div className="h-full rounded-2xl border border-black/[0.05] bg-white p-7">
+                  <h3 className="text-lg font-semibold tracking-[-0.02em]">{p.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                     {p.body}
                   </p>
@@ -143,7 +143,7 @@ export function UseCaseContent({ uc }: { uc: UseCase }) {
             <QuoteCard {...uc.quote} />
           </FadeIn>
           <FadeIn delay={0.15} className="mt-12 text-center">
-            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            <h2 className="text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
               Put your first agent on the board today.
             </h2>
             <CtaPair className="mt-8" />

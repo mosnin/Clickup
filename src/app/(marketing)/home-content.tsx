@@ -129,7 +129,7 @@ function Hero() {
           </div>
 
           <FadeIn delay={0.1} y={16}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] backdrop-blur">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-medium backdrop-blur">
               <span className="relative inline-flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/70" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -204,7 +204,7 @@ function RuntimeMarquee() {
   return (
     <section className="px-0 py-9">
       <FadeIn>
-        <p className="text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
+        <p className="text-center text-xs font-medium text-muted-foreground/70">
           Works with any MCP-capable agent
         </p>
         <Marquee className="mt-4">
@@ -231,10 +231,10 @@ const STATS: {
   suffix?: string;
   label: string;
 }[] = [
-  { value: 2, prefix: "<", label: "minutes from signup to your first agent online" },
-  { value: 63, label: "MCP tools out of the box — tasks to sprints to docs" },
-  { value: 100, suffix: "%", label: "of agent actions land in the audit trail" },
-  { value: 0, label: "lines of glue code to connect a runtime" },
+  { value: 2, prefix: "<", label: "Minutes from signup to your first agent online" },
+  { value: 63, label: "MCP tools out of the box, tasks to sprints to docs" },
+  { value: 100, suffix: "%", label: "Of agent actions land in the audit trail" },
+  { value: 0, label: "Lines of glue code to connect a runtime" },
 ];
 
 function Problem() {
@@ -266,7 +266,7 @@ function Problem() {
         </div>
 
         <FadeIn delay={0.1} className="mt-16">
-          <div className="grid grid-cols-2 rounded-[2rem] border border-black/[0.06] bg-white lg:grid-cols-4 lg:divide-x lg:divide-black/[0.06]">
+          <div className="grid grid-cols-2 rounded-2xl border border-black/[0.05] bg-white lg:grid-cols-4 lg:divide-x lg:divide-black/[0.05]">
             {STATS.map((s, i) => (
               <div
                 key={s.label}
@@ -277,7 +277,7 @@ function Problem() {
                   i >= 2 && "border-t border-black/[0.06] lg:border-t-0",
                 )}
               >
-                <p className="text-[10px] font-semibold uppercase leading-relaxed tracking-[0.14em] text-muted-foreground">
+                <p className="text-[13px] leading-snug text-foreground/55">
                   {s.label}
                 </p>
                 <p className="mt-4 text-5xl font-medium tabular-nums tracking-[-0.03em] sm:text-6xl">
@@ -357,7 +357,7 @@ function HandoffStory() {
                     exit={{ opacity: 0, y: -16, filter: "blur(6px)" }}
                     transition={{ duration: 0.45, ease: EASE }}
                   >
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sage-600">
+                    <p className="text-sm font-medium text-sage-600">
                       {HANDOFF_BEATS[step].time}
                     </p>
                     <h3 className="mt-3 text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
@@ -402,7 +402,7 @@ function HandoffStory() {
           <div className="mt-10 space-y-10">
             {HANDOFF_BEATS.map((b, i) => (
               <FadeIn key={b.time}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sage-600">
+                <p className="text-sm font-medium text-sage-600">
                   {b.time}
                 </p>
                 <h3 className="mt-2 text-xl font-semibold tracking-[-0.02em]">
@@ -468,7 +468,7 @@ function HowItWorks() {
                 </div>
               </div>
               <div className="flex items-start gap-3 px-2 pt-4">
-                <span className="pt-0.5 text-[11px] font-semibold tabular-nums tracking-[0.16em] text-sage-600">
+                <span className="pt-0.5 text-[13px] font-medium tabular-nums text-foreground/35">
                   {step.n}
                 </span>
                 <div>
@@ -533,7 +533,12 @@ function SystemShowcase() {
       <div className="mx-auto max-w-6xl">
         <SectionHeading
           eyebrow="The coordination layer"
-          title="Everything agent work needs, in one system."
+          title={
+            <>
+              Everything agent work needs,{" "}
+              <span className="text-sage-600">in one system.</span>
+            </>
+          }
           sub="Not a runtime — the scaffolding around every runtime: assignment, visibility, guardrails, and proof of work."
         />
 
@@ -627,40 +632,34 @@ function SystemShowcase() {
 
 const HUMAN_CARDS = [
   {
+    label: "Views",
     title: "Four views, one truth",
     body: "List, Board, Calendar, and Gantt over the same tasks, with custom statuses and fields per list.",
-    chip: "Views",
-    chipBg: "bg-pastel-blue",
   },
   {
+    label: "Knowledge",
     title: "Docs & whiteboards",
     body: "Rich-text docs and tldraw boards live in the same tree as the work they describe.",
-    chip: "Knowledge",
-    chipBg: "bg-pastel-purple",
   },
   {
+    label: "Cadence",
     title: "Sprints & recurring work",
     body: "Timebox across every list; schedules materialize tasks on cron so routines never slip.",
-    chip: "Cadence",
-    chipBg: "bg-pastel-yellow",
   },
   {
+    label: "Insight",
     title: "Time, goals, reports",
     body: "A live timer, OKR-style goals, and per-workspace reports — humans and agents in the same numbers.",
-    chip: "Insight",
-    chipBg: "bg-pastel-green",
   },
   {
+    label: "AI",
     title: "AI Brain",
     body: "Semantic search across tasks and docs, an AI writer in every doc, one-click task drafts.",
-    chip: "AI",
-    chipBg: "bg-pastel-pink",
   },
   {
+    label: "Speed",
     title: "⌘K everything",
     body: "Jump to any list, doc, board, or agent — or create a task — without leaving the keyboard.",
-    chip: "Speed",
-    chipBg: "bg-pastel-red",
   },
 ];
 
@@ -676,16 +675,9 @@ function HumanWork() {
         <StaggerIn className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {HUMAN_CARDS.map((c) => (
             <StaggerInItem key={c.title}>
-              <div className="lift h-full rounded-3xl border border-black/[0.06] bg-white p-6">
-                <span
-                  className={cn(
-                    "inline-block rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider",
-                    c.chipBg,
-                  )}
-                >
-                  {c.chip}
-                </span>
-                <h3 className="mt-4 text-lg font-semibold tracking-tight">
+              <div className="h-full rounded-2xl border border-black/[0.05] bg-white p-6 sm:p-7">
+                <p className="text-sm font-medium text-sage-600">{c.label}</p>
+                <h3 className="mt-2 text-lg font-semibold tracking-tight">
                   {c.title}
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -743,7 +735,7 @@ function Governance() {
             sub="Delegation only works when the blast radius is bounded. Guardrails are first-class here, not a settings page."
           />
           <div className="mt-14 grid gap-8 lg:grid-cols-[1fr_minmax(0,420px)] lg:gap-16">
-            <StaggerIn className="grid content-start gap-px overflow-hidden rounded-3xl border border-white/10 bg-white/10 sm:grid-cols-2">
+            <StaggerIn className="grid content-start gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10 sm:grid-cols-2">
               {TRUST.map((t) => (
                 <StaggerInItem
                   key={t.title}
@@ -808,12 +800,17 @@ function Stories() {
       <div className="mx-auto max-w-6xl">
         <SectionHeading
           eyebrow="Stories"
-          title="Teams are already living like this."
+          title={
+            <>
+              Teams are already{" "}
+              <span className="text-sage-600">living like this.</span>
+            </>
+          }
           sub="Small teams shipping like big ones — because the repetitive half of the company finally runs itself."
         />
 
         <div className="mt-14 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-          <FadeIn className="flex flex-col justify-between rounded-[2rem] border border-black/[0.06] bg-white p-8 sm:p-10">
+          <FadeIn className="flex flex-col justify-between rounded-2xl border border-black/[0.05] bg-white p-8 sm:p-10">
             <blockquote className="text-xl font-medium leading-relaxed tracking-[-0.01em] sm:text-2xl">
               &ldquo;The first time an agent claimed a task, worked it, and
               asked me for approval — that was the moment this stopped feeling

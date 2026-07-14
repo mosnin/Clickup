@@ -8,30 +8,30 @@ import { cn } from "@/lib/utils";
 const VARIANTS = {
   // Deep blurred meadow — hero and finale panels (light text on top).
   meadow: {
-    base: "bg-[#232b1e]",
+    base: "bg-[#242b19]",
     blobs: [
-      "left-[-20%] top-[-30%] h-[80%] w-[70%] bg-[radial-gradient(closest-side,#5f7050_0%,transparent_70%)] opacity-90",
-      "right-[-15%] top-[5%] h-[90%] w-[65%] bg-[radial-gradient(closest-side,#8fa276_0%,transparent_70%)] opacity-60",
-      "bottom-[-40%] left-[15%] h-[90%] w-[80%] bg-[radial-gradient(closest-side,#3a4630_0%,transparent_70%)] opacity-90",
-      "bottom-[-10%] right-[5%] h-[50%] w-[40%] bg-[radial-gradient(closest-side,#c2cfae_0%,transparent_70%)] opacity-25",
+      "left-[-20%] top-[-30%] h-[80%] w-[70%] bg-[radial-gradient(closest-side,#64763d_0%,transparent_70%)] opacity-90",
+      "right-[-15%] top-[5%] h-[90%] w-[65%] bg-[radial-gradient(closest-side,#93a464_0%,transparent_70%)] opacity-60",
+      "bottom-[-40%] left-[15%] h-[90%] w-[80%] bg-[radial-gradient(closest-side,#3c4626_0%,transparent_70%)] opacity-90",
+      "bottom-[-10%] right-[5%] h-[50%] w-[40%] bg-[radial-gradient(closest-side,#c8d3a5_0%,transparent_70%)] opacity-25",
     ],
   },
   // Morning haze — light panels (dark text on top).
   haze: {
-    base: "bg-[#eef0e6]",
+    base: "bg-[#f0f1e4]",
     blobs: [
-      "left-[-15%] top-[-20%] h-[70%] w-[60%] bg-[radial-gradient(closest-side,#dbe2cf_0%,transparent_70%)] opacity-90",
-      "right-[-20%] top-[10%] h-[80%] w-[65%] bg-[radial-gradient(closest-side,#c2cfae_0%,transparent_70%)] opacity-70",
-      "bottom-[-30%] left-[20%] h-[80%] w-[70%] bg-[radial-gradient(closest-side,#f5f4ee_0%,transparent_70%)] opacity-90",
+      "left-[-15%] top-[-20%] h-[70%] w-[60%] bg-[radial-gradient(closest-side,#e0e6c9_0%,transparent_70%)] opacity-90",
+      "right-[-20%] top-[10%] h-[80%] w-[65%] bg-[radial-gradient(closest-side,#c8d3a5_0%,transparent_70%)] opacity-70",
+      "bottom-[-30%] left-[20%] h-[80%] w-[70%] bg-[radial-gradient(closest-side,#f7f6f1_0%,transparent_70%)] opacity-90",
     ],
   },
   // Dusk — the governance/dark sections (near-black green).
   dusk: {
-    base: "bg-[#141811]",
+    base: "bg-[#161a11]",
     blobs: [
-      "left-[-10%] top-[-30%] h-[80%] w-[60%] bg-[radial-gradient(closest-side,#2b3426_0%,transparent_70%)] opacity-90",
-      "right-[-15%] bottom-[-30%] h-[85%] w-[65%] bg-[radial-gradient(closest-side,#38442f_0%,transparent_70%)] opacity-80",
-      "left-[30%] top-[30%] h-[50%] w-[45%] bg-[radial-gradient(closest-side,#5f7050_0%,transparent_70%)] opacity-25",
+      "left-[-10%] top-[-30%] h-[80%] w-[60%] bg-[radial-gradient(closest-side,#2d3521_0%,transparent_70%)] opacity-90",
+      "right-[-15%] bottom-[-30%] h-[85%] w-[65%] bg-[radial-gradient(closest-side,#3a4525_0%,transparent_70%)] opacity-80",
+      "left-[30%] top-[30%] h-[50%] w-[45%] bg-[radial-gradient(closest-side,#64763d_0%,transparent_70%)] opacity-25",
     ],
   },
 } as const;

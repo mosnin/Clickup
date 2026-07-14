@@ -51,10 +51,8 @@ export function PillFooter() {
           />
           <div className="relative flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-end">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sage-300">
-                Get started
-              </p>
-              <h2 className="mt-3 max-w-md text-3xl font-bold tracking-tight sm:text-4xl">
+              <p className="text-sm font-medium text-sage-300">Get started</p>
+              <h2 className="mt-3 max-w-md text-3xl font-semibold tracking-[-0.02em] sm:text-4xl">
                 Your first agent, online before your coffee cools.
               </h2>
             </div>
@@ -88,7 +86,7 @@ export function PillFooter() {
           </div>
           {COLUMNS.map((col) => (
             <div key={col.heading}>
-              <h3 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <h3 className="text-[13px] font-medium text-muted-foreground">
                 {col.heading}
               </h3>
               <ul className="mt-3 space-y-2">

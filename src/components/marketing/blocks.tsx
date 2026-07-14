@@ -21,7 +21,7 @@ export function Eyebrow({
   return (
     <p
       className={cn(
-        "text-[11px] font-semibold uppercase tracking-[0.18em]",
+        "text-sm font-medium",
         tone === "light" ? "text-sage-300" : "text-sage-600",
         className,
       )}
@@ -57,7 +57,7 @@ export function SectionHeading({
       <Eyebrow tone={tone}>{eyebrow}</Eyebrow>
       <h2
         className={cn(
-          "mt-3 text-3xl font-semibold tracking-[-0.02em] sm:text-4xl",
+          "mt-2.5 text-3xl font-semibold tracking-[-0.02em] sm:text-4xl",
           tone === "light" && "text-white",
         )}
       >
@@ -94,8 +94,8 @@ export function PageHero({
     <section className="px-4 pb-14 pt-32 sm:px-6 sm:pt-40">
       <div className="mx-auto max-w-4xl text-center">
         <FadeIn>
-          <Eyebrow className="justify-center">{eyebrow}</Eyebrow>
-          <h1 className="mx-auto mt-4 max-w-3xl text-balance text-4xl font-semibold tracking-[-0.025em] sm:text-6xl">
+          <Eyebrow>{eyebrow}</Eyebrow>
+          <h1 className="mx-auto mt-3 max-w-3xl text-balance text-4xl font-semibold tracking-[-0.025em] sm:text-6xl">
             {title}
           </h1>
           {sub && (
@@ -175,7 +175,7 @@ export function QuoteCard({
   return (
     <figure
       className={cn(
-        "flex h-full flex-col justify-between rounded-3xl border border-black/[0.06] bg-white p-6",
+        "flex h-full flex-col justify-between rounded-2xl border border-black/[0.05] bg-white p-6 sm:p-7",
         className,
       )}
     >
@@ -247,21 +247,21 @@ export function StatTile({
   return (
     <div
       className={cn(
-        "flex h-full flex-col justify-between rounded-3xl border border-black/[0.06] bg-gradient-to-b from-sage-100/60 to-white p-6",
+        "flex h-full flex-col justify-between rounded-2xl bg-sage-100 p-6",
         className,
       )}
     >
       <span
         aria-hidden
-        className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-pastel-green text-sm"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white/70 text-sm"
       >
         {icon}
       </span>
       <div className="mt-8">
-        <p className="text-4xl font-semibold tabular-nums tracking-[-0.02em] sm:text-5xl">
+        <p className="text-4xl font-medium tabular-nums tracking-[-0.03em] sm:text-5xl">
           {value}
         </p>
-        <p className="mt-1.5 text-xs leading-snug text-muted-foreground">
+        <p className="mt-2 text-[13px] leading-snug text-foreground/55">
           {label}
         </p>
       </div>

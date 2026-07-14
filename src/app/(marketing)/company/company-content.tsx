@@ -66,8 +66,8 @@ export function CompanyContent() {
           <StaggerIn className="mt-12 grid gap-4 sm:grid-cols-2">
             {PRINCIPLES.map((p) => (
               <StaggerInItem key={p.title}>
-                <div className="h-full rounded-3xl border border-black/[0.06] bg-white p-7">
-                  <h3 className="text-lg font-bold tracking-tight">{p.title}</h3>
+                <div className="h-full rounded-2xl border border-black/[0.05] bg-white p-7">
+                  <h3 className="text-lg font-semibold tracking-[-0.02em]">{p.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                     {p.body}
                   </p>
@@ -84,8 +84,8 @@ export function CompanyContent() {
           <StaggerIn className="mt-12 space-y-3">
             {MILESTONES.map((m) => (
               <StaggerInItem key={m.tag}>
-                <div className="flex items-start gap-4 rounded-2xl border border-black/[0.06] bg-white p-5">
-                  <span className="mt-0.5 flex-shrink-0 rounded-full bg-sage-200 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sage-700">
+                <div className="flex items-start gap-4 rounded-xl border border-black/[0.05] bg-white p-5">
+                  <span className="mt-0.5 flex-shrink-0 rounded-full bg-sage-100 px-2.5 py-0.5 text-[11px] font-medium text-sage-700">
                     {m.tag}
                   </span>
                   <p className="text-sm leading-relaxed text-foreground/80">
@@ -96,7 +96,7 @@ export function CompanyContent() {
             ))}
           </StaggerIn>
           <FadeIn className="mt-14 text-center">
-            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            <h2 className="text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
               Come see what your agents can do.
             </h2>
             <CtaPair

@@ -1,8 +1,18 @@
 import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
 import { RegisterServiceWorker } from "@/components/register-service-worker";
 import { OfflineIndicator } from "@/components/offline-indicator";
+
+// Instrument Sans (OFL) — bundled locally so builds never depend on a
+// font CDN. One variable file covers 400–700.
+const instrumentSans = localFont({
+  src: "./fonts/InstrumentSans-Variable.woff2",
+  weight: "400 700",
+  variable: "--font-instrument",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -40,7 +50,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={instrumentSans.variable}>
       <body className="min-h-dvh bg-background text-foreground antialiased">
         <Providers>{children}</Providers>
         <OfflineIndicator />
