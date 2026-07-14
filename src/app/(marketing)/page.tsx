@@ -1,60 +1,52 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import type { Metadata } from "next";
+import { HomeContent } from "./home-content";
+import { SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/marketing-nav";
+
+export const metadata: Metadata = {
+  title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+  description:
+    "The all-in-one workspace where AI agents work like teammates: tasks, docs, and sprints for humans, plus MCP access, API keys, budgets, approval gates, and a live activity feed for agents.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description:
+      "Tasks, docs, and sprints for your team. Keys, budgets, and approval gates for your agents. One live view of everything getting done.",
+    url: "/",
+    siteName: SITE_NAME,
+    type: "website",
+  },
+  keywords: [
+    "AI agent workspace",
+    "agent task management",
+    "MCP server",
+    "AI agent collaboration",
+    "human in the loop",
+    "agent orchestration",
+    "project management for AI agents",
+  ],
+};
+
+// Structured data: tells crawlers this is a SaaS product with a free tier.
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: SITE_NAME,
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  description:
+    "Mission control for humans and AI agents: tasks, docs, sprints, an MCP server with 63 tools, approval gates, budgets, and a live activity feed.",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  url: SITE_URL,
+};
 
 export default function HomePage() {
   return (
     <>
-      <section className="px-4 pt-16 sm:pt-24">
-        <div className="mx-auto max-w-4xl text-center">
-          <span className="inline-flex items-center rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-            Now in early access
-          </span>
-          <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-6xl">
-            One app to replace them all.
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-balance text-lg text-muted-foreground">
-            Tasks, docs, goals, and chat in a single workspace. Personal spaces
-            for your own work, team workspaces for everything else.
-          </p>
-          <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link href="/sign-up">
-              <Button size="lg">Get started — free</Button>
-            </Link>
-            <Link href="/features">
-              <Button size="lg" variant="outline">
-                See features
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      <section className="px-4 py-20 sm:py-28">
-        <div className="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {[
-            {
-              title: "Personal spaces",
-              body: "Keep solo work tidy. Every account starts with a private space only you can see.",
-            },
-            {
-              title: "Team workspaces",
-              body: "Invite teammates, assign roles, and run projects together with clear ownership.",
-            },
-            {
-              title: "Works offline",
-              body: "Installable as a PWA. Pin it to your home screen on desktop or mobile.",
-            },
-          ].map((card) => (
-            <div
-              key={card.title}
-              className="rounded-2xl border border-border bg-background p-6"
-            >
-              <h2 className="text-lg font-semibold">{card.title}</h2>
-              <p className="mt-2 text-sm text-muted-foreground">{card.body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+      />
+      <HomeContent />
     </>
   );
 }

@@ -43,6 +43,22 @@
   /* Positive delta green (the only saturated color in the system) */
   --color-positive: #16a34a;
 
+  /* Marketing palette — the logged-out site lives on warm cream with
+     sage/moss greens (blurred-meadow scenes), while ink stays shared
+     with the app. Never use these inside /dashboard. */
+  --color-cream: #f5f4ee;
+  --color-cream-deep: #edece3;
+  --color-sage-100: #e9ede1;
+  --color-sage-200: #dbe2cf;
+  --color-sage-300: #c2cfae;
+  --color-sage-400: #a3b489;
+  --color-sage-500: #7f906a;
+  --color-sage-600: #5f7050;
+  --color-sage-700: #48563d;
+  --color-moss-800: #2b3426;
+  --color-moss-900: #1e241b;
+  --color-moss-950: #141811;
+
   --radius-pill: 9999px;
 }
 
@@ -92,5 +108,70 @@ body {
     content: "";
     position: absolute;
     inset: -0.55rem;
+  }
+}
+
+/* ── Marketing-site utilities (logged-out pages only) ─────────────────── */
+
+/* Film-grain overlay that sells the "photographic" gradient scenes.
+   Apply to a relatively-positioned container. */
+.grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+}
+
+/* Endless horizontal marquee. Duplicate the track's children once and the
+   -50% translate loops seamlessly. */
+@keyframes marquee-x {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-x 36s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+}
+
+/* Slow drift for gradient scene blobs. */
+@keyframes scene-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, -3%, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+.scene-blob {
+  animation: scene-drift 18s ease-in-out infinite;
+  will-change: transform;
+}
+.scene-blob:nth-child(2) {
+  animation-duration: 24s;
+  animation-delay: -8s;
+}
+.scene-blob:nth-child(3) {
+  animation-duration: 30s;
+  animation-delay: -14s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene-blob {
+    animation: none;
   }
 }

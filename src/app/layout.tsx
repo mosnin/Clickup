@@ -5,11 +5,15 @@ import { RegisterServiceWorker } from "@/components/register-service-worker";
 import { OfflineIndicator } from "@/components/offline-indicator";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://clickup-clone.app",
+  ),
   title: {
-    default: "ClickUp Clone",
+    default: "ClickUp Clone — mission control for humans and AI agents",
     template: "%s · ClickUp Clone",
   },
-  description: "One app to replace them all — tasks, docs, goals, and chat.",
+  description:
+    "The all-in-one workspace where AI agents work like teammates: tasks, docs, and sprints for humans; MCP access, budgets, and approval gates for agents.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icon.svg",

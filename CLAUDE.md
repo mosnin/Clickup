@@ -83,12 +83,15 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   │   ├── layout.tsx            # root layout, metadata, viewport, SW registration
 │   │   ├── globals.css           # Tailwind v4 import + theme tokens
 │   │   ├── providers.tsx         # ClerkProvider + ConvexProviderWithClerk
-│   │   ├── (marketing)/          # logged-out site
-│   │   │   ├── layout.tsx        # PillHeader + PillFooter
-│   │   │   ├── page.tsx          # /
-│   │   │   ├── features/page.tsx
-│   │   │   ├── pricing/page.tsx
-│   │   │   └── about/page.tsx
+│   │   ├── (marketing)/          # logged-out site (Phase 19 sales rebrand; fixed header — pages pad via PageHero)
+│   │   │   ├── layout.tsx        # PillHeader + PillFooter on the cream canvas
+│   │   │   ├── page.tsx          # / — scroll-animated sales narrative (home-content.tsx)
+│   │   │   ├── features/         # anchored feature sections (#agents, #mcp, … match marketing-nav)
+│   │   │   ├── use-cases/        # index + [slug] industry pages (content in lib/use-cases.ts)
+│   │   │   ├── resources/        # index + [slug] guides/changelog (content in lib/resources.ts)
+│   │   │   ├── company/page.tsx  # about → /company (old /about permanently redirects)
+│   │   │   ├── pricing/page.tsx  # tiers + animated FAQ
+│   │   │   └── about/page.tsx    # permanentRedirect("/company")
 │   │   ├── (auth)/               # Clerk-hosted sign-in / sign-up
 │   │   │   ├── layout.tsx
 │   │   │   ├── sign-in/[[...sign-in]]/page.tsx
@@ -121,8 +124,12 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   │   ├── toast.tsx             # ToastProvider + useToast (feedback + undo-able deletes)
 │   │   ├── command-palette.tsx   # ⌘K quick-switcher + task quick-create (mounted in dashboard layout)
 │   │   ├── motion.tsx            # brand motion primitives (EASE/SPRING/Reveal/Stagger/…)
-│   │   ├── marketing/pill-header.tsx
-│   │   ├── marketing/pill-footer.tsx
+│   │   ├── marketing/pill-header.tsx # scroll-expanding blurred pill + mega menus + full-screen mobile menu
+│   │   ├── marketing/pill-footer.tsx # CTA band + link columns (reads marketing-nav)
+│   │   ├── marketing/reveal.tsx  # scroll-reveal primitives (FadeIn/StaggerIn/CountUp/Parallax/Marquee/useCycle)
+│   │   ├── marketing/scene.tsx   # gradient "photography" backdrops (meadow/haze/dusk + grain)
+│   │   ├── marketing/mockups.tsx # animated looping product illustrations (agent card, tasks, approvals, board, budget, connect)
+│   │   ├── marketing/blocks.tsx  # PageHero/SectionHeading/CtaPair/QuoteCard
 │   │   ├── dashboard/sidebar.tsx # tree of personal+team workspaces; Inbox link with unread badge
 │   │   ├── dashboard/ensure-user.tsx # idempotent client bootstrap of user row
 │   │   ├── dashboard/status-pill.tsx # colored pill for a listStatuses row
@@ -139,7 +146,10 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │       ├── mentions.ts           # parse/format `@[Name](clerkId)` mention tokens
 │       ├── time.ts               # timeAgo() — the one relative-time voice
 │       ├── dates.ts              # local-time <input type=date> round-trips (no UTC off-by-one)
-│       └── event-labels.ts       # humanized event phrasing + eventHref deep links
+│       ├── event-labels.ts       # humanized event phrasing + eventHref deep links
+│       ├── marketing-nav.ts      # logged-out IA: mega-menu/footer/sitemap link lists + SITE_* consts
+│       ├── use-cases.ts          # content for /use-cases/[slug] (6 industries)
+│       └── resources.ts          # content for /resources/[slug] (guides + changelog)
 └── …config files (next, tsconfig, eslint, postcss, .env.example)
 ```
 
@@ -219,6 +229,7 @@ User (personal) ──┘
 - **Brand system (Phase 15 rebrand).** Monochrome editorial + pastel accents: the dashboard renders as a white sheet on the gray `bg-page` canvas (see `dashboard/layout.tsx`); ink is near-black with hairline `border-border` dividers; the primary CTA is a solid black pill (`Button` primary); active segments in pill navs are black with white text; meaning is carried by pastel chips (`--color-pastel-*` tokens; status/priority hexes are pastel with dark ink on top); page titles are bold with a `title-rule` hairline underneath; micro-labels are tiny uppercase tracking-wider gray. Buttons/chips stay `rounded-full`, cards are `rounded-2xl`, sidebar rows `rounded-lg`. Don't reintroduce saturated fills — green is reserved for positive deltas.
 - **Motion system (`src/components/motion.tsx`, built on `motion/react`).** One easing (`EASE`, a long-tail ease-out) and one spring (`SPRING`) everywhere. Primitives: `Reveal` (fade + rise + un-blur), `Stagger`/`StaggerItem` (50ms cascades for grids/lists), `AnimatedNumber` (springy count-up for stat tiles), `AnimatedBar` (progress fills), `PresenceDot` (radiating ping). Route transitions live in `dashboard/template.tsx`; tab switches re-mount a keyed `motion.div`; the sidebar's active pill morphs between links via `layoutId="sidebar-active"`; lists animate entrances (and exits via `AnimatePresence` where rows can disappear — approvals, checklist). Buttons press-scale via CSS; interactive cards use the `.lift` utility. Everything must respect reduced motion (`MotionConfig reducedMotion="user"` + the `.lift` media query) — keep new animations inside these primitives rather than inventing new timings.
 - **Feedback system (Phase 18).** Never use `window.prompt`/`window.confirm`/`window.alert`. Naming something new = `InlineCreate` in place; destructive actions = hide the row locally and `toast(msg, { action: {label: "Undo", …}, onExpire: commit })` from `useToast()` — the mutation only runs when the undo window closes; quiet saves (blur-persisted fields) confirm with a success toast; refused mutations surface a `kind: "error"` toast with the server's reason. `ToastProvider` is mounted once in the dashboard layout (as are the ⌘K `CommandPalette` and `AgentOnlineWatcher`). Use the `Picker` component instead of native `<select>` whenever options are people, agents, tasks, or sprints. Use `timeAgo` from `@/lib/time` and the date-input helpers from `@/lib/dates` (never `toISOString().slice(0, 10)` — it's off by a day across timezones). Small icon buttons get the `.tap-target` class for a ~44px touch area.
+- **Marketing site (Phase 19).** The logged-out pages live on their own palette — warm cream canvas with sage/moss greens (`--color-cream`, `--color-sage-*`, `--color-moss-*`; never use these inside `/dashboard`). Backdrops are `Scene` gradient blobs + the `.grain` overlay, never flat fills or external images. All logged-out IA (mega menus, footer, sitemap) reads from `src/lib/marketing-nav.ts` — add pages there, not in components. Scroll animation goes through `marketing/reveal.tsx` (FadeIn/StaggerIn/CountUp/Parallax, viewport-once, reduced-motion-safe); product illustrations are the looping HTML/CSS mocks in `marketing/mockups.tsx` (loops driven by `useCycle`, frozen under reduced motion). Every marketing page exports metadata with a canonical path; dynamic pages use `generateStaticParams` + `generateMetadata`; `src/app/sitemap.ts`/`robots.ts` pick new pages up from the shared lists.
 - **Responsive.** Mobile-first; use `md:`/`lg:` for desktop. Test at 360px, 768px, and 1280px before merging UI changes. Sidebar uses a drawer pattern below `md`.
 - **Apostrophes in JSX.** Escape as `&apos;` — `react/no-unescaped-entities` is enforced by `next lint`.
 - **Convex imports.** From the Next.js tree, use `convex/react` and `convex/react-clerk` (runtime). Typed `api`/`Doc`/`Id` come from `convex/_generated/`, imported via the `@convex/*` path alias (e.g. `import { api } from "@convex/_generated/api"`). The `_generated/` files are checked in as hand-rolled stubs so a fresh checkout typechecks; `npx convex dev` and `npx convex deploy` overwrite them with the real generated content.
@@ -299,7 +310,8 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - **Phase 15:** Full UI rebrand — the monochrome editorial system with pastel accents (see Brand system above).
 - **Phase 16:** Motion design pass — the single-easing animation language in `src/components/motion.tsx` applied to every surface (see Motion system above).
 - **Phase 17:** First-run experience — cinematic 2-question onboarding that builds workspace + HQ + teaching tasks + first agent + key in one transaction, and a living Home (greeting, welcome reveal, "waiting to connect" nudge).
-- **Phase 18 (current):** UX polish pass. Feedback system: app-wide toasts (`src/components/toast.tsx`) with undo-able deferred deletes replacing every `window.confirm`, and inline in-place creation (`inline-create.tsx`) replacing every `window.prompt`; blur-saving governance fields confirm with a "Saved" toast. ⌘K command palette (quick-switch to any list/doc/board/workspace/agent, plain-text task search via `tasks.quickSearch`, two-step task quick-create). Searchable `Picker` popover replacing native selects for assignees/blockers/sprints. Task page rebuilt two-column (content left, state rail right) with a springy completion moment (optimistic `toggleComplete` in the list view). Local-time date handling (`lib/dates.ts`), one `timeAgo` (`lib/time.ts`), shared humanized event labels (`lib/event-labels.ts`). `agent.connected` event on first heartbeat + app-wide first-connection toast + self-retiring connect hint + Home waiting-card resolve animation. Mobile: `.tap-target` hit-area utility, horizontally scrollable pill tab rows. Content-shaped skeletons on list/task/agents/inbox/agent-detail.
+- **Phase 18:** UX polish pass. Feedback system: app-wide toasts (`src/components/toast.tsx`) with undo-able deferred deletes replacing every `window.confirm`, and inline in-place creation (`inline-create.tsx`) replacing every `window.prompt`; blur-saving governance fields confirm with a "Saved" toast. ⌘K command palette (quick-switch to any list/doc/board/workspace/agent, plain-text task search via `tasks.quickSearch`, two-step task quick-create). Searchable `Picker` popover replacing native selects for assignees/blockers/sprints. Task page rebuilt two-column (content left, state rail right) with a springy completion moment (optimistic `toggleComplete` in the list view). Local-time date handling (`lib/dates.ts`), one `timeAgo` (`lib/time.ts`), shared humanized event labels (`lib/event-labels.ts`). `agent.connected` event on first heartbeat + app-wide first-connection toast + self-retiring connect hint + Home waiting-card resolve animation. Mobile: `.tap-target` hit-area utility, horizontally scrollable pill tab rows. Content-shaped skeletons on list/task/agents/inbox/agent-detail.
+- **Phase 19 (current):** Marketing site rebrand. Multi-page sales site on the cream/sage "blurred meadow" aesthetic: scroll-expanding blurred pill header with Features/Use-cases/Resources mega menus and a full-screen staggered mobile menu; home page as a scroll-animated narrative (floating product-mock hero with parallax, runtime marquee, count-up stat wall, interactive "coordination layer" showcase, dark governance panel); anchored /features; six industry /use-cases pages + four built-out /resources guides (incl. changelog) rendered from content libs; /company (about redirects); pricing rebuild with animated FAQ; animated CSS/SVG product illustrations (no external assets); SEO: per-page metadata + canonicals, JSON-LD, sitemap.ts, robots.ts, metadataBase.
 
 ## Known limitations (not bugs)
 
