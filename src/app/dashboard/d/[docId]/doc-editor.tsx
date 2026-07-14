@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useAction } from "convex/react";
@@ -23,6 +24,8 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { timeAgo } from "@/lib/time";
+import { useToast } from "@/components/toast";
 
 const SAVE_DEBOUNCE_MS = 800;
 
@@ -32,6 +35,8 @@ export function DocEditor({ docId }: { docId: string }) {
   const updateContent = useMutation(api.docs.updateContent);
   const rename = useMutation(api.docs.rename);
   const remove = useMutation(api.docs.remove);
+  const router = useRouter();
+  const { toast } = useToast();
 
   const [title, setTitle] = useState("");
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -108,11 +113,14 @@ export function DocEditor({ docId }: { docId: string }) {
           <button
             type="button"
             onClick={() => {
-              if (window.confirm("Delete this doc?")) {
-                remove({ docId: id }).then(() => {
-                  window.history.back();
-                });
-              }
+              router.push("/dashboard");
+              toast("Doc deleted", {
+                action: {
+                  label: "Undo",
+                  onClick: () => router.push(`/dashboard/d/${id}`),
+                },
+                onExpire: () => remove({ docId: id }),
+              });
             }}
             className="rounded-full px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
@@ -320,11 +328,3 @@ function DocSkeleton() {
   );
 }
 
-function timeAgo(ts: number): string {
-  const sec = Math.max(1, Math.floor((Date.now() - ts) / 1000));
-  if (sec < 60) return `${sec}s ago`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  return `${hr}h ago`;
-}

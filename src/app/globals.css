@@ -81,3 +81,16 @@ body {
     transform: none;
   }
 }
+
+/* Expanded touch hit-area for small icon buttons: keeps the compact visual
+ * size on desktop while giving coarse pointers a ~44px target. */
+.tap-target {
+  position: relative;
+}
+@media (pointer: coarse) {
+  .tap-target::after {
+    content: "";
+    position: absolute;
+    inset: -0.55rem;
+  }
+}

@@ -2,11 +2,13 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { ArrowLeft } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { useToast } from "@/components/toast";
 
 // tldraw is ~500 kB; lazy-load so other dashboard routes don't pay for it.
 // `ssr: false` because tldraw needs `window`.
@@ -31,6 +33,8 @@ export function WhiteboardEditor({
   const wb = useQuery(api.whiteboards.get, { whiteboardId: id });
   const rename = useMutation(api.whiteboards.rename);
   const remove = useMutation(api.whiteboards.remove);
+  const router = useRouter();
+  const { toast } = useToast();
 
   const [title, setTitle] = useState("");
   if (wb === undefined) {
@@ -69,11 +73,14 @@ export function WhiteboardEditor({
         <button
           type="button"
           onClick={() => {
-            if (window.confirm("Delete this whiteboard?")) {
-              remove({ whiteboardId: id }).then(() => {
-                window.history.back();
-              });
-            }
+            router.push("/dashboard");
+            toast("Whiteboard deleted", {
+              action: {
+                label: "Undo",
+                onClick: () => router.push(`/dashboard/wb/${id}`),
+              },
+              onExpire: () => remove({ whiteboardId: id }),
+            });
           }}
           className="rounded-full px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
         >

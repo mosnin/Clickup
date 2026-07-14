@@ -101,12 +101,35 @@ export function ListPage({
   );
 }
 
+// Shaped like the loaded page: title, view tabs, then a table with header
+// and rows — so the layout doesn't jump when data lands.
 function PageSkeleton() {
   return (
     <div className="space-y-6">
       <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
-      <div className="h-9 w-2/3 animate-pulse rounded-full bg-muted" />
-      <div className="h-64 animate-pulse rounded-2xl bg-muted/40" />
+      <div className="flex gap-1 rounded-full border border-border p-1">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="h-7 w-20 animate-pulse rounded-full bg-muted/60"
+          />
+        ))}
+      </div>
+      <div className="overflow-hidden rounded-2xl border border-border">
+        <div className="h-9 animate-pulse bg-muted/50" />
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="flex items-center gap-3 border-t border-border px-3 py-2.5"
+          >
+            <div className="h-5 w-5 animate-pulse rounded-full bg-muted" />
+            <div
+              className="h-4 animate-pulse rounded-full bg-muted/70"
+              style={{ width: `${55 - i * 8}%` }}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

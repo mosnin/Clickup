@@ -13,6 +13,7 @@ import {
   LayoutGrid,
   Menu,
   Plus,
+  Search,
   Sparkles,
   X,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { motion, SPRING } from "@/components/motion";
+import { InlineCreate } from "@/components/dashboard/inline-create";
 import { RunningTimerChip } from "@/components/dashboard/running-timer-chip";
 import { TemplatePicker } from "@/components/dashboard/template-picker";
 
@@ -86,6 +88,20 @@ export function DashboardSidebar() {
 
         <nav className="flex-1 overflow-y-auto p-3">
           <RunningTimerChip />
+          <button
+            type="button"
+            onClick={() => {
+              setMobileOpen(false);
+              window.dispatchEvent(new CustomEvent("open-command-palette"));
+            }}
+            className="mb-2 flex w-full items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground"
+          >
+            <Search className="h-4 w-4" />
+            <span className="flex-1 text-left">Search</span>
+            <kbd className="rounded-md border border-border px-1.5 py-0.5 text-[10px]">
+              ⌘K
+            </kbd>
+          </button>
           <BrainLink onNavigate={() => setMobileOpen(false)} />
           <AgentsLink onNavigate={() => setMobileOpen(false)} />
           <InboxLink onNavigate={() => setMobileOpen(false)} />
@@ -265,17 +281,8 @@ function WorkspaceBranch({
   onNavigate: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [addingSpace, setAddingSpace] = useState(false);
   const createSpace = useMutation(api.spaces.create);
-
-  async function onAddSpace() {
-    const name = window.prompt("Space name");
-    if (!name) return;
-    await createSpace({
-      name,
-      parentType: "workspace",
-      parentId: workspace._id,
-    });
-  }
 
   return (
     <div>
@@ -284,7 +291,7 @@ function WorkspaceBranch({
           type="button"
           aria-label={expanded ? "Collapse" : "Expand"}
           onClick={() => setExpanded((v) => !v)}
-          className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground"
+          className="tap-target inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground"
         >
           <motion.span
             animate={{ rotate: expanded ? 90 : 0 }}
@@ -306,9 +313,12 @@ function WorkspaceBranch({
         </Link>
         <button
           type="button"
-          onClick={onAddSpace}
+          onClick={() => {
+            setExpanded(true);
+            setAddingSpace(true);
+          }}
           aria-label="Add space"
-          className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
@@ -316,7 +326,23 @@ function WorkspaceBranch({
 
       {expanded && (
         <ul className="ml-4 mt-1 space-y-2 border-l border-border pl-2">
-          {workspace.spaces.length === 0 && (
+          {addingSpace && (
+            <li>
+              <InlineCreate
+                placeholder="Space name…"
+                onCancel={() => setAddingSpace(false)}
+                onSubmit={async (name) => {
+                  await createSpace({
+                    name,
+                    parentType: "workspace",
+                    parentId: workspace._id,
+                  });
+                  setAddingSpace(false);
+                }}
+              />
+            </li>
+          )}
+          {workspace.spaces.length === 0 && !addingSpace && (
             <li className="px-2 py-1 text-xs text-muted-foreground">
               No spaces yet.
             </li>
@@ -343,43 +369,45 @@ function SpaceBranch({
   const router = useRouter();
   const [expanded, setExpanded] = useState(true);
   const [templateOpen, setTemplateOpen] = useState(false);
+  const [adding, setAdding] = useState<
+    "folder" | "list" | "doc" | "board" | null
+  >(null);
   const createFolder = useMutation(api.folders.create);
   const createList = useMutation(api.lists.create);
   const createDoc = useMutation(api.docs.create);
   const createWhiteboard = useMutation(api.whiteboards.create);
 
-  async function onAddFolder() {
-    const name = window.prompt("Folder name");
-    if (!name) return;
-    await createFolder({ spaceId: space._id, name });
+  async function submitAdd(name: string) {
+    if (adding === "folder") {
+      await createFolder({ spaceId: space._id, name });
+    } else if (adding === "list") {
+      await createList({ name, parentType: "space", parentId: space._id });
+    } else if (adding === "doc") {
+      const docId = await createDoc({
+        parentType: "space",
+        parentId: space._id,
+        title: name,
+      });
+      onNavigate();
+      router.push(`/dashboard/d/${docId}`);
+    } else if (adding === "board") {
+      const wbId = await createWhiteboard({
+        parentType: "space",
+        parentId: space._id,
+        title: name,
+      });
+      onNavigate();
+      router.push(`/dashboard/wb/${wbId}`);
+    }
+    setAdding(null);
   }
-  async function onAddList() {
-    const name = window.prompt("List name");
-    if (!name) return;
-    await createList({ name, parentType: "space", parentId: space._id });
-  }
-  async function onAddDoc() {
-    const title = window.prompt("Doc title", "Untitled");
-    if (title === null) return;
-    const docId = await createDoc({
-      parentType: "space",
-      parentId: space._id,
-      title,
-    });
-    onNavigate();
-    router.push(`/dashboard/d/${docId}`);
-  }
-  async function onAddWhiteboard() {
-    const title = window.prompt("Whiteboard title", "Untitled board");
-    if (title === null) return;
-    const wbId = await createWhiteboard({
-      parentType: "space",
-      parentId: space._id,
-      title,
-    });
-    onNavigate();
-    router.push(`/dashboard/wb/${wbId}`);
-  }
+
+  const ADD_PLACEHOLDER: Record<string, string> = {
+    folder: "Folder name…",
+    list: "List name…",
+    doc: "Doc title…",
+    board: "Whiteboard title…",
+  };
 
   const dot = useMemo(
     () => (
@@ -399,7 +427,7 @@ function SpaceBranch({
           type="button"
           aria-label={expanded ? "Collapse" : "Expand"}
           onClick={() => setExpanded((v) => !v)}
-          className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground"
+          className="tap-target inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground"
         >
           <motion.span
             animate={{ rotate: expanded ? 90 : 0 }}
@@ -415,10 +443,13 @@ function SpaceBranch({
         </span>
         <button
           type="button"
-          onClick={onAddFolder}
+          onClick={() => {
+            setExpanded(true);
+            setAdding("folder");
+          }}
           aria-label="Add folder"
           title="Add folder"
-          className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
@@ -426,6 +457,15 @@ function SpaceBranch({
 
       {expanded && (
         <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border pl-2">
+          {adding && (
+            <li className="py-1">
+              <InlineCreate
+                placeholder={ADD_PLACEHOLDER[adding]}
+                onCancel={() => setAdding(null)}
+                onSubmit={submitAdd}
+              />
+            </li>
+          )}
           {space.folders.map((folder) => (
             <li key={folder._id}>
               <FolderBranch folder={folder} onNavigate={onNavigate} />
@@ -462,12 +502,12 @@ function SpaceBranch({
             </li>
           ))}
           <li className="mt-1 flex flex-wrap gap-1">
-            <AddButton onClick={onAddList}>list</AddButton>
+            <AddButton onClick={() => setAdding("list")}>list</AddButton>
             <AddButton onClick={() => setTemplateOpen(true)}>
               from template
             </AddButton>
-            <AddButton onClick={onAddDoc}>doc</AddButton>
-            <AddButton onClick={onAddWhiteboard}>board</AddButton>
+            <AddButton onClick={() => setAdding("doc")}>doc</AddButton>
+            <AddButton onClick={() => setAdding("board")}>board</AddButton>
           </li>
         </ul>
       )}
@@ -512,13 +552,8 @@ function FolderBranch({
 }) {
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(true);
+  const [addingList, setAddingList] = useState(false);
   const createList = useMutation(api.lists.create);
-
-  async function onAddList() {
-    const name = window.prompt("List name");
-    if (!name) return;
-    await createList({ name, parentType: "folder", parentId: folder._id });
-  }
 
   return (
     <div>
@@ -527,7 +562,7 @@ function FolderBranch({
           type="button"
           aria-label={expanded ? "Collapse" : "Expand"}
           onClick={() => setExpanded((v) => !v)}
-          className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground"
+          className="tap-target inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground"
         >
           <motion.span
             animate={{ rotate: expanded ? 90 : 0 }}
@@ -542,16 +577,35 @@ function FolderBranch({
         </span>
         <button
           type="button"
-          onClick={onAddList}
+          onClick={() => {
+            setExpanded(true);
+            setAddingList(true);
+          }}
           aria-label="Add list"
           title="Add list"
-          className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
       {expanded && (
         <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border pl-2">
+          {addingList && (
+            <li className="py-1">
+              <InlineCreate
+                placeholder="List name…"
+                onCancel={() => setAddingList(false)}
+                onSubmit={async (name) => {
+                  await createList({
+                    name,
+                    parentType: "folder",
+                    parentId: folder._id,
+                  });
+                  setAddingList(false);
+                }}
+              />
+            </li>
+          )}
           {folder.lists.map((list) => (
             <li key={list._id}>
               <ListLink
@@ -562,7 +616,7 @@ function FolderBranch({
               />
             </li>
           ))}
-          {folder.lists.length === 0 && (
+          {folder.lists.length === 0 && !addingList && (
             <li className="px-2 py-1 text-xs text-muted-foreground">Empty</li>
           )}
         </ul>

@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Comments } from "@/components/dashboard/comments";
+import { InlineCreate } from "@/components/dashboard/inline-create";
 import { GoalsPanel } from "@/components/dashboard/goals-panel";
 import { ReportsPanel } from "@/components/dashboard/reports-panel";
 import { SprintsPanel } from "@/components/dashboard/sprints-panel";
@@ -91,30 +93,35 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
         </div>
       </header>
 
-      <nav
-        aria-label="Workspace tabs"
-        className="inline-flex items-center gap-1 rounded-full border border-border bg-background p-1 text-sm"
-      >
-        {TABS.map(({ key, label }) => (
-          <Link
-            key={key}
-            href={
-              key === "overview"
-                ? `/dashboard/w/${workspace._id}`
-                : `/dashboard/w/${workspace._id}?tab=${key}`
-            }
-            aria-current={tab === key ? "page" : undefined}
-            className={cn(
-              "rounded-full px-3 py-1.5 transition-colors",
-              tab === key
-                ? "bg-foreground font-medium text-background"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
+      {/* Scrolls horizontally on narrow screens instead of wrapping into a
+          two-row pile — the full-bleed negative margin lets the row bleed
+          to the screen edge. */}
+      <div className="-mx-4 overflow-x-auto px-4 sm:-mx-8 sm:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav
+          aria-label="Workspace tabs"
+          className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-border bg-background p-1 text-sm"
+        >
+          {TABS.map(({ key, label }) => (
+            <Link
+              key={key}
+              href={
+                key === "overview"
+                  ? `/dashboard/w/${workspace._id}`
+                  : `/dashboard/w/${workspace._id}?tab=${key}`
+              }
+              aria-current={tab === key ? "page" : undefined}
+              className={cn(
+                "rounded-full px-3 py-1.5 transition-colors",
+                tab === key
+                  ? "bg-foreground font-medium text-background"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+      </div>
 
       <motion.div
         key={tab}
@@ -224,19 +231,9 @@ function ChatWithChannels({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   });
   const createChannel = useMutation(api.channels.create);
   const activeChannel = searchParams.get("channel");
+  const [addingChannel, setAddingChannel] = useState(false);
 
   const base = `/dashboard/w/${workspaceId}?tab=chat`;
-
-  async function onNewChannel() {
-    const name = window.prompt("Channel name (e.g. sprint-12-planning)");
-    if (!name) return;
-    const channelId = await createChannel({
-      scopeType: "workspace",
-      scopeId: workspaceId,
-      name,
-    });
-    router.push(`${base}&channel=${channelId}`);
-  }
 
   return (
     <div className="space-y-4">
@@ -266,13 +263,30 @@ function ChatWithChannels({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
             # {c.name}
           </Link>
         ))}
-        <button
-          type="button"
-          onClick={onNewChannel}
-          className="rounded-full border border-dashed border-border px-3 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          + channel
-        </button>
+        {addingChannel ? (
+          <InlineCreate
+            placeholder="channel-name…"
+            className="w-52"
+            onCancel={() => setAddingChannel(false)}
+            onSubmit={async (name) => {
+              const channelId = await createChannel({
+                scopeType: "workspace",
+                scopeId: workspaceId,
+                name,
+              });
+              setAddingChannel(false);
+              router.push(`${base}&channel=${channelId}`);
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAddingChannel(true)}
+            className="rounded-full border border-dashed border-border px-3 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            + channel
+          </button>
+        )}
       </div>
       {activeChannel ? (
         <Comments

@@ -12,23 +12,15 @@ import {
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { timeAgo } from "@/lib/time";
+import { eventLabel } from "@/lib/event-labels";
+import { useToast } from "@/components/toast";
 import { AnimatedBar, Stagger, StaggerItem } from "@/components/motion";
 
 // Per-agent drill-down: live status, governance controls (role, budget,
 // notify URL), run history, current claims/assignments, and the agent's
 // own event trail.
-
-function timeAgo(ts: number): string {
-  const s = Math.max(1, Math.floor((Date.now() - ts) / 1000));
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
 
 export function AgentDetail({ agentId }: { agentId: string }) {
   const detail = useQuery(api.agents.detail, {
@@ -39,7 +31,25 @@ export function AgentDetail({ agentId }: { agentId: string }) {
   });
 
   if (detail === undefined) {
-    return <div className="h-60 animate-pulse rounded-2xl bg-muted/40" />;
+    // Shaped like the loaded page: breadcrumb, header, stat tiles, panel.
+    return (
+      <div className="space-y-6">
+        <div className="h-4 w-20 animate-pulse rounded-full bg-muted" />
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 animate-pulse rounded-full bg-muted" />
+          <div className="h-7 w-48 animate-pulse rounded-full bg-muted" />
+        </div>
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className="h-16 animate-pulse rounded-2xl border border-border bg-muted/30"
+            />
+          ))}
+        </div>
+        <div className="h-40 animate-pulse rounded-2xl border border-border bg-muted/30" />
+      </div>
+    );
   }
   if (detail === null) {
     return (
@@ -184,7 +194,9 @@ export function AgentDetail({ agentId }: { agentId: string }) {
               className="flex items-baseline gap-2 rounded-2xl border border-border bg-background px-3 py-1.5 text-sm"
             >
               <span className="min-w-0 flex-1 truncate">
-                <span className="text-muted-foreground">{e.type} </span>
+                <span className="text-muted-foreground">
+                  {eventLabel(e.type)}{" "}
+                </span>
                 <span className="font-medium">{e.entityTitle ?? ""}</span>
               </span>
               <span className="flex-shrink-0 text-xs text-muted-foreground">
@@ -259,10 +271,22 @@ function GovernancePanel({
   usageLimit: number;
 }) {
   const update = useMutation(api.agents.update);
+  const { toast } = useToast();
   const [limitDraft, setLimitDraft] = useState(String(usageLimit));
   const [notifyDraft, setNotifyDraft] = useState(agent.notifyUrl ?? "");
   const [secretDraft, setSecretDraft] = useState(agent.notifySecret ?? "");
   const usagePct = Math.min(100, Math.round((usageToday / usageLimit) * 100));
+
+  // Blur-saving fields confirm themselves — silence reads as "did that
+  // stick?".
+  async function save(patch: Parameters<typeof update>[0], label: string) {
+    try {
+      await update(patch);
+      toast(`${label} saved`);
+    } catch {
+      toast(`Couldn't save ${label.toLowerCase()}`, { kind: "error" });
+    }
+  }
 
   return (
     <section className="rounded-2xl border border-border bg-background p-4">
@@ -277,10 +301,13 @@ function GovernancePanel({
           <select
             value={agent.role ?? "member"}
             onChange={(e) =>
-              update({
-                agentId: agent._id,
-                role: e.currentTarget.value as "member" | "readonly",
-              })
+              save(
+                {
+                  agentId: agent._id,
+                  role: e.currentTarget.value as "member" | "readonly",
+                },
+                "Role",
+              )
             }
             className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
           >
@@ -302,7 +329,10 @@ function GovernancePanel({
               onBlur={() => {
                 const n = parseInt(limitDraft, 10);
                 if (Number.isFinite(n) && n > 0 && n !== usageLimit) {
-                  update({ agentId: agent._id, dailyActionLimit: n });
+                  save(
+                    { agentId: agent._id, dailyActionLimit: n },
+                    "Daily budget",
+                  );
                 }
               }}
               className="w-28 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
@@ -331,10 +361,13 @@ function GovernancePanel({
               onChange={(e) => setNotifyDraft(e.currentTarget.value)}
               onBlur={() => {
                 if (notifyDraft !== (agent.notifyUrl ?? "")) {
-                  update({
-                    agentId: agent._id,
-                    notifyUrl: notifyDraft.trim() || null,
-                  });
+                  save(
+                    {
+                      agentId: agent._id,
+                      notifyUrl: notifyDraft.trim() || null,
+                    },
+                    "Notify URL",
+                  );
                 }
               }}
               placeholder="https://my-runtime.example.com/wake"
@@ -350,10 +383,13 @@ function GovernancePanel({
               onChange={(e) => setSecretDraft(e.currentTarget.value)}
               onBlur={() => {
                 if (secretDraft !== (agent.notifySecret ?? "")) {
-                  update({
-                    agentId: agent._id,
-                    notifySecret: secretDraft.trim() || null,
-                  });
+                  save(
+                    {
+                      agentId: agent._id,
+                      notifySecret: secretDraft.trim() || null,
+                    },
+                    "Signing secret",
+                  );
                 }
               }}
               placeholder="pings get X-Ping-Signature when set"

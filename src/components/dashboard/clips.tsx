@@ -6,6 +6,7 @@ import { Pause, Square, Trash2, Video } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/toast";
 import { formatDuration } from "@/lib/duration";
 
 // Recorder state machine.
@@ -228,6 +229,9 @@ function RecordingPanel({ onStop }: { onStop: () => void }) {
 function ClipCard({ clip }: { clip: Doc<"clips"> }) {
   const url = useQuery(api.clips.getUrl, { storageId: clip.storageId });
   const remove = useMutation(api.clips.remove);
+  const { toast } = useToast();
+  const [deleting, setDeleting] = useState(false);
+  if (deleting) return null;
 
   return (
     <div className="rounded-2xl border border-border bg-background p-2">
@@ -259,11 +263,13 @@ function ClipCard({ clip }: { clip: Doc<"clips"> }) {
           type="button"
           aria-label="Delete clip"
           onClick={() => {
-            if (window.confirm("Delete this clip?")) {
-              remove({ clipId: clip._id });
-            }
+            setDeleting(true);
+            toast("Clip deleted", {
+              action: { label: "Undo", onClick: () => setDeleting(false) },
+              onExpire: () => remove({ clipId: clip._id }),
+            });
           }}
-          className="text-muted-foreground hover:text-foreground"
+          className="tap-target text-muted-foreground hover:text-foreground"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>

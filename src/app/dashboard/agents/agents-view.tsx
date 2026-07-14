@@ -20,6 +20,9 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { timeAgo } from "@/lib/time";
+import { eventHref, eventLabel } from "@/lib/event-labels";
+import { useToast } from "@/components/toast";
 import {
   AnimatePresence,
   EASE,
@@ -57,28 +60,30 @@ export function AgentsView() {
         </p>
       </header>
 
-      <nav
-        aria-label="Agents tabs"
-        className="inline-flex items-center gap-1 rounded-full border border-border bg-background p-1 text-sm"
-      >
-        {TABS.map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            aria-current={tab === key ? "page" : undefined}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 transition-colors",
-              tab === key
-                ? "bg-foreground font-medium text-background"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            <Icon className="h-3.5 w-3.5" />
-            {label}
-          </button>
-        ))}
-      </nav>
+      <div className="-mx-4 overflow-x-auto px-4 sm:-mx-8 sm:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav
+          aria-label="Agents tabs"
+          className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-border bg-background p-1 text-sm"
+        >
+          {TABS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              aria-current={tab === key ? "page" : undefined}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 transition-colors",
+                tab === key
+                  ? "bg-foreground font-medium text-background"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </nav>
+      </div>
 
       <motion.div
         key={tab}
@@ -100,16 +105,6 @@ export function AgentsView() {
   );
 }
 
-function timeAgo(ts: number): string {
-  const s = Math.max(1, Math.floor((Date.now() - ts) / 1000));
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
 // ── Agents tab ─────────────────────────────────────────────────────────
 
 function AgentsTab() {
@@ -128,13 +123,17 @@ function AgentsTab() {
   });
 
   if (data === undefined) {
-    return <div className="h-40 animate-pulse rounded-2xl bg-muted/40" />;
+    return <AgentsSkeleton />;
   }
   if (data === null) return null;
 
+  // Once any agent has ever connected, the connect walkthrough has done
+  // its job — collapse it out of the way.
+  const anyConnected = allAgents.some((a) => a.lastSeenAt !== undefined);
+
   return (
     <div className="space-y-6">
-      <ConnectHint />
+      <ConnectHint retired={anyConnected} />
 
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -172,13 +171,53 @@ function AgentsTab() {
   );
 }
 
-function ConnectHint() {
+function AgentsSkeleton() {
+  // Shaped like the loaded page: hint card, section header, agent cards.
+  return (
+    <div className="space-y-6">
+      <div className="h-28 animate-pulse rounded-2xl border border-border bg-muted/30" />
+      <div className="h-4 w-28 animate-pulse rounded-full bg-muted" />
+      <div className="grid gap-3 lg:grid-cols-2">
+        {[0, 1].map((i) => (
+          <div
+            key={i}
+            className="space-y-3 rounded-2xl border border-border bg-background p-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
+              <div className="h-4 w-32 animate-pulse rounded-full bg-muted" />
+            </div>
+            <div className="h-3 w-3/4 animate-pulse rounded-full bg-muted/70" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ConnectHint({ retired = false }: { retired?: boolean }) {
   const [copied, setCopied] = useState(false);
+  // Once an agent has connected the walkthrough collapses to one line;
+  // it can be re-expanded to connect the next agent.
+  const [expanded, setExpanded] = useState(false);
   // Resolved in an effect to avoid an SSR/client hydration mismatch.
   const [url, setUrl] = useState("/api/mcp");
   useEffect(() => {
     setUrl(`${window.location.origin}/api/mcp`);
   }, []);
+
+  if (retired && !expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+      >
+        Connecting another agent? Show setup instructions
+      </button>
+    );
+  }
+
   return (
     <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm">
       <p className="font-medium">Connect an agent</p>
@@ -195,17 +234,28 @@ function ConnectHint() {
         </code>{" "}
         first.
       </p>
-      <button
-        type="button"
-        className="mt-2 inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-        onClick={async () => {
-          await navigator.clipboard.writeText(url);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        }}
-      >
-        <Copy className="h-3 w-3" /> {copied ? "Copied!" : "Copy MCP URL"}
-      </button>
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+          onClick={async () => {
+            await navigator.clipboard.writeText(url);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+        >
+          <Copy className="h-3 w-3" /> {copied ? "Copied!" : "Copy MCP URL"}
+        </button>
+        {retired && (
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="rounded-full px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            Hide
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -349,6 +399,8 @@ function AgentCard({
   const update = useMutation(api.agents.update);
   const remove = useMutation(api.agents.remove);
   const [showKeys, setShowKeys] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
 
   const online =
     agent.lastSeenAt !== undefined &&
@@ -356,6 +408,10 @@ function AgentCard({
   const currentTitle = agent.currentTaskId
     ? taskTitles[agent.currentTaskId]
     : undefined;
+
+  // Hidden while its undo toast is live — the delete (and key revocation)
+  // only commits once the undo window closes.
+  if (deleting) return null;
 
   return (
     <div className="lift rounded-2xl border border-border bg-background p-4">
@@ -428,7 +484,7 @@ function AgentCard({
                 status: agent.status === "active" ? "paused" : "active",
               })
             }
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             {agent.status === "active" ? (
               <Pause className="h-3.5 w-3.5" />
@@ -440,7 +496,7 @@ function AgentCard({
             type="button"
             title="API keys"
             onClick={() => setShowKeys((v) => !v)}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <KeyRound className="h-3.5 w-3.5" />
           </button>
@@ -448,15 +504,13 @@ function AgentCard({
             type="button"
             title="Delete agent"
             onClick={() => {
-              if (
-                window.confirm(
-                  `Delete ${agent.name}? Its API keys stop working immediately.`,
-                )
-              ) {
-                remove({ agentId: agent._id });
-              }
+              setDeleting(true);
+              toast(`${agent.name} deleted — keys stop working`, {
+                action: { label: "Undo", onClick: () => setDeleting(false) },
+                onExpire: () => remove({ agentId: agent._id }),
+              });
             }}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-600"
+            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-600"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -563,66 +617,6 @@ function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
 
 // ── Activity feed ──────────────────────────────────────────────────────
 
-const EVENT_LABEL: Record<string, string> = {
-  "task.created": "created task",
-  "task.updated": "updated task",
-  "task.assigned": "assigned",
-  "task.status_changed": "moved",
-  "task.completed": "completed task",
-  "task.deleted": "deleted task",
-  "task.claimed": "claimed task",
-  "task.released": "released task",
-  "comment.created": "commented on",
-  "mention.created": "mentioned someone in",
-  "sprint.created": "created sprint",
-  "sprint.started": "started sprint",
-  "sprint.completed": "completed sprint",
-  "sprint.updated": "updated sprint",
-  "task.approved": "approved",
-  "task.handoff": "handed off",
-  "task.overdue": "flagged overdue",
-  "task.claim_expired": "expired a claim on",
-  "agent.error": "reported an error",
-  "agent.stalled": "went quiet on a task",
-  "channel.created": "opened channel",
-  "goal.progress": "updated goal",
-  "goal.completed": "completed goal",
-};
-
-// Best-effort deep link for an event row.
-function eventHref(e: {
-  type: string;
-  entityType: string;
-  entityId: string;
-  listId?: string;
-  scopeType: "user" | "workspace";
-  scopeId: string;
-  payload?: unknown;
-}): string | null {
-  if (e.entityType === "task" && e.listId) {
-    return `/dashboard/l/${e.listId}/t/${e.entityId}`;
-  }
-  if (e.entityType === "message") {
-    const p = (e.payload ?? {}) as { parentType?: string; parentId?: string };
-    if (p.parentType === "task" && e.listId && p.parentId) {
-      return `/dashboard/l/${e.listId}/t/${p.parentId}`;
-    }
-    if (p.parentType === "workspace" && p.parentId) {
-      return `/dashboard/w/${p.parentId}?tab=chat`;
-    }
-    if (p.parentType === "channel" && p.parentId && e.scopeType === "workspace") {
-      return `/dashboard/w/${e.scopeId}?tab=chat&channel=${p.parentId}`;
-    }
-  }
-  if (e.entityType === "sprint" && e.scopeType === "workspace") {
-    return `/dashboard/w/${e.scopeId}?tab=sprints`;
-  }
-  if (e.entityType === "agent") {
-    return `/dashboard/agents/${e.entityId}`;
-  }
-  return null;
-}
-
 export function ActivityFeed({
   scope,
 }: {
@@ -673,7 +667,7 @@ export function ActivityFeed({
           </span>
           <span className="min-w-0 flex-1 truncate">
             <span className="text-muted-foreground">
-              {EVENT_LABEL[e.type] ?? e.type}{" "}
+              {eventLabel(e.type)}{" "}
             </span>
             {(() => {
               const href = eventHref(e);
@@ -850,7 +844,7 @@ function WebhooksTab() {
             <button
               type="button"
               onClick={() => remove({ subscriptionId: s._id })}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-600"
+              className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-600"
               title="Delete"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -993,7 +987,7 @@ function SkillRow({
             onKeyDown={(e) => {
               if (e.key === "Enter") removeSkill({ skillId: skill._id! });
             }}
-            className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-600"
+            className="tap-target ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-600"
             title="Delete skill"
           >
             <Trash2 className="h-3.5 w-3.5" />

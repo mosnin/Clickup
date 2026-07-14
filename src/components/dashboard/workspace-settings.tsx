@@ -6,6 +6,7 @@ import { Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/toast";
 
 export function WorkspaceSettings({
   workspaceId,
@@ -52,6 +53,8 @@ function SlackIntegration({
   const upsert = useMutation(api.integrations.upsertSlack);
   const setEnabled = useMutation(api.integrations.setEnabled);
   const remove = useMutation(api.integrations.remove);
+  const { toast } = useToast();
+  const [disconnecting, setDisconnecting] = useState(false);
 
   const [draftUrl, setDraftUrl] = useState(
     integration?.config.webhookUrl ?? "",
@@ -78,14 +81,19 @@ function SlackIntegration({
             .
           </p>
         </div>
-        {integration && (
+        {integration && !disconnecting && (
           <button
             type="button"
             aria-label="Disconnect Slack"
             onClick={() => {
-              if (window.confirm("Disconnect Slack from this workspace?")) {
-                remove({ integrationId: integration._id });
-              }
+              setDisconnecting(true);
+              toast("Slack disconnected", {
+                action: {
+                  label: "Undo",
+                  onClick: () => setDisconnecting(false),
+                },
+                onExpire: () => remove({ integrationId: integration._id }),
+              });
             }}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
           >
@@ -134,7 +142,7 @@ function SlackIntegration({
                 ? "Update webhook"
                 : "Connect Slack"}
           </Button>
-          {integration && (
+          {integration && !disconnecting && (
             <label className="ml-auto inline-flex items-center gap-2 text-xs text-muted-foreground">
               <input
                 type="checkbox"

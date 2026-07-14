@@ -68,7 +68,8 @@ short version:
    Claims are soft locks that expire after 60 minutes.
 2. **Heartbeat while working** (`heartbeat` with `statusText` +
    `currentTaskId`) — this drives the live "Now: …" line humans see on the
-   Agents page.
+   Agents page. Your very first heartbeat emits an `agent.connected`
+   event, which the UI celebrates as your "online" moment.
 3. **Narrate progress in comments**, mention people/agents with
    `@[Name](id)` tokens (ids from `list_members`).
 4. **Respect dependencies** — completing a task with open blockers is

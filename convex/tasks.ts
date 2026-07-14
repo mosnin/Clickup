@@ -790,6 +790,88 @@ export const resolveListId = query({
   },
 });
 
+// Plain-text title search across every list the current user can see —
+// powers the ⌘K palette. Same full-tree walk as reports.workspaceSummary:
+// fine at target scale, needs a search index beyond a few thousand tasks.
+export const quickSearch = query({
+  args: { text: v.string() },
+  handler: async (ctx, { text }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    const needle = text.trim().toLowerCase();
+    if (!identity || needle.length < 2) return [];
+
+    const spaces: Doc<"spaces">[] = [];
+    const personal = await ctx.db
+      .query("spaces")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", "user").eq("parentId", identity.subject),
+      )
+      .unique();
+    if (personal) spaces.push(personal);
+    const memberships = await ctx.db
+      .query("memberships")
+      .withIndex("by_user", (q) => q.eq("userClerkId", identity.subject))
+      .collect();
+    for (const m of memberships) {
+      const wsSpaces = await ctx.db
+        .query("spaces")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "workspace").eq("parentId", m.workspaceId),
+        )
+        .collect();
+      spaces.push(...wsSpaces);
+    }
+
+    const LIMIT = 12;
+    const results: {
+      taskId: Id<"tasks">;
+      listId: Id<"lists">;
+      title: string;
+      listName: string;
+    }[] = [];
+    for (const space of spaces) {
+      const lists = await ctx.db
+        .query("lists")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "space").eq("parentId", space._id),
+        )
+        .collect();
+      const folders = await ctx.db
+        .query("folders")
+        .withIndex("by_space", (q) => q.eq("spaceId", space._id))
+        .collect();
+      for (const folder of folders) {
+        lists.push(
+          ...(await ctx.db
+            .query("lists")
+            .withIndex("by_parent", (q) =>
+              q.eq("parentType", "folder").eq("parentId", folder._id),
+            )
+            .collect()),
+        );
+      }
+      for (const list of lists) {
+        const tasks = await ctx.db
+          .query("tasks")
+          .withIndex("by_list", (q) => q.eq("listId", list._id))
+          .collect();
+        for (const t of tasks) {
+          if (t.title.toLowerCase().includes(needle)) {
+            results.push({
+              taskId: t._id,
+              listId: list._id,
+              title: t.title,
+              listName: list.name,
+            });
+            if (results.length >= LIMIT) return results;
+          }
+        }
+      }
+    }
+    return results;
+  },
+});
+
 export const create = mutation({
   args: {
     listId: v.id("lists"),

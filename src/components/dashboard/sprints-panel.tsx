@@ -7,7 +7,10 @@ import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Picker } from "@/components/ui/picker";
 import { cn } from "@/lib/utils";
+import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
+import { useToast } from "@/components/toast";
 import {
   AnimatedBar,
   AnimatePresence,
@@ -81,11 +84,9 @@ function CreateSprintForm({
   const create = useMutation(api.sprints.create);
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
-  const [start, setStart] = useState(() =>
-    new Date().toISOString().slice(0, 10),
-  );
+  const [start, setStart] = useState(() => toDateInputValue(Date.now()));
   const [end, setEnd] = useState(() =>
-    new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
+    toDateInputValue(Date.now() + 14 * 86_400_000),
   );
 
   return (
@@ -98,8 +99,8 @@ function CreateSprintForm({
           workspaceId,
           name: name.trim(),
           goal: goal.trim() || undefined,
-          startDate: new Date(start).getTime(),
-          endDate: new Date(end).getTime(),
+          startDate: fromDateInputValue(start) ?? Date.now(),
+          endDate: fromDateInputValue(end) ?? Date.now(),
         });
         onDone();
       }}
@@ -176,9 +177,11 @@ function SprintCard({
   };
 }) {
   const [open, setOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const update = useMutation(api.sprints.update);
   const remove = useMutation(api.sprints.remove);
   const updateTask = useMutation(api.tasks.update);
+  const { toast } = useToast();
   const summary = useQuery(
     api.sprints.summary,
     open ? { sprintId: sprint._id } : "skip",
@@ -187,6 +190,9 @@ function SprintCard({
     api.sprints.addableTasks,
     open && sprint.status !== "complete" ? { sprintId: sprint._id } : "skip",
   );
+
+  // Hidden while its undo toast is live — delete commits on expiry.
+  if (deleting) return null;
 
   const pct =
     sprint.taskCount === 0
@@ -205,7 +211,7 @@ function SprintCard({
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-label={open ? "Collapse" : "Expand"}
-          className="inline-flex h-5 w-5 items-center justify-center text-muted-foreground"
+          className="tap-target inline-flex h-5 w-5 items-center justify-center text-muted-foreground"
         >
           <motion.span
             animate={{ rotate: open ? 90 : 0 }}
@@ -248,11 +254,13 @@ function SprintCard({
           type="button"
           title="Delete sprint (tasks are kept)"
           onClick={() => {
-            if (window.confirm(`Delete ${sprint.name}? Tasks are kept.`)) {
-              remove({ sprintId: sprint._id });
-            }
+            setDeleting(true);
+            toast(`${sprint.name} deleted — tasks are kept`, {
+              action: { label: "Undo", onClick: () => setDeleting(false) },
+              onExpire: () => remove({ sprintId: sprint._id }),
+            });
           }}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-600"
+          className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-600"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -285,27 +293,20 @@ function SprintCard({
           )}
           {sprint.status !== "complete" && (
             <li>
-              <select
-                value=""
-                aria-label="Add task to sprint"
-                onChange={(e) => {
-                  const id = e.currentTarget.value;
-                  if (id) {
-                    updateTask({
-                      taskId: id as Id<"tasks">,
-                      sprintId: sprint._id,
-                    });
-                  }
-                }}
-                className="rounded-full border border-dashed border-border bg-background px-3 py-1 text-sm text-muted-foreground"
-              >
-                <option value="">+ Add task to sprint…</option>
-                {(addable ?? []).map((t) => (
-                  <option key={t.taskId} value={t.taskId}>
-                    {t.title}
-                  </option>
-                ))}
-              </select>
+              <Picker
+                label="+ Add task to sprint…"
+                dashed
+                options={(addable ?? []).map((t) => ({
+                  id: t.taskId,
+                  label: t.title,
+                }))}
+                onSelect={(id) =>
+                  updateTask({
+                    taskId: id as Id<"tasks">,
+                    sprintId: sprint._id,
+                  })
+                }
+              />
             </li>
           )}
           {summary.tasks.map((t) => (

@@ -63,33 +63,40 @@ export default function DashboardHome() {
         </p>
       </header>
 
-      {waiting.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: EASE, delay: 0.15 }}
-        >
-          <Link
-            href="/dashboard/agents"
-            className="lift flex items-center gap-4 rounded-2xl border border-border bg-background p-5 hover:border-foreground/25"
+      {/* AnimatePresence so the card resolves with a satisfying collapse
+          the moment the agent's first heartbeat lands (live via Convex). */}
+      <AnimatePresence initial={false}>
+        {waiting.length > 0 && (
+          <motion.div
+            key="waiting-card"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, height: 0, marginTop: 0 }}
+            transition={{ duration: 0.5, ease: EASE }}
+            className="overflow-hidden"
           >
-            <span className="relative inline-flex text-3xl" aria-hidden>
-              <span className="absolute inset-0 animate-ping rounded-full bg-pastel-blue opacity-60" />
-              <span className="relative">{waiting[0].emoji ?? "🤖"}</span>
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-semibold">
-                {waiting[0].name} is waiting to connect
+            <Link
+              href="/dashboard/agents"
+              className="lift flex items-center gap-4 rounded-2xl border border-border bg-background p-5 hover:border-foreground/25"
+            >
+              <span className="relative inline-flex text-3xl" aria-hidden>
+                <span className="absolute inset-0 animate-ping rounded-full bg-pastel-blue opacity-60" />
+                <span className="relative">{waiting[0].emoji ?? "🤖"}</span>
               </span>
-              <span className="block text-sm text-muted-foreground">
-                Point your runtime at the MCP endpoint with its key — the dot
-                turns green the moment it heartbeats.
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">
+                  {waiting[0].name} is waiting to connect
+                </span>
+                <span className="block text-sm text-muted-foreground">
+                  Point your runtime at the MCP endpoint with its key — the dot
+                  turns green the moment it heartbeats.
+                </span>
               </span>
-            </span>
-            <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-          </Link>
-        </motion.div>
-      )}
+              <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+            </Link>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <section>
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">

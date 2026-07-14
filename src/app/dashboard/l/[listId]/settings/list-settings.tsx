@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useToast } from "@/components/toast";
 import { useMutation, useQuery } from "convex/react";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -370,6 +371,9 @@ function FieldRow({
 }) {
   const [name, setName] = useState(field.name);
   const [showOptions, setShowOptions] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
+  if (deleting) return null;
 
   return (
     <li className="rounded-2xl border border-border bg-background p-3">
@@ -401,15 +405,13 @@ function FieldRow({
           type="button"
           aria-label="Delete field"
           onClick={() => {
-            if (
-              window.confirm(
-                `Delete "${field.name}" and all its values across every task?`,
-              )
-            ) {
-              onDelete();
-            }
+            setDeleting(true);
+            toast(`"${field.name}" deleted — values go with it`, {
+              action: { label: "Undo", onClick: () => setDeleting(false) },
+              onExpire: () => onDelete(),
+            });
           }}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <Trash2 className="h-4 w-4" />
         </button>
@@ -649,6 +651,10 @@ function AutomationRow({
   }) => Promise<unknown>;
   onDelete: () => Promise<unknown>;
 }) {
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
+  if (deleting) return null;
+
   return (
     <li
       className={
@@ -687,9 +693,13 @@ function AutomationRow({
           type="button"
           aria-label="Delete automation"
           onClick={() => {
-            if (window.confirm("Delete this automation?")) onDelete();
+            setDeleting(true);
+            toast("Automation deleted", {
+              action: { label: "Undo", onClick: () => setDeleting(false) },
+              onExpire: () => onDelete(),
+            });
           }}
-          className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target ml-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <Trash2 className="h-4 w-4" />
         </button>

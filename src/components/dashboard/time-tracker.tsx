@@ -6,6 +6,7 @@ import { Pause, Play, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/toast";
 import { formatDuration, formatDurationCoarse } from "@/lib/duration";
 import { cn } from "@/lib/utils";
 
@@ -96,7 +97,10 @@ function RunningPanel({
 function EntryRow({ entry }: { entry: Doc<"timeEntries"> }) {
   const update = useMutation(api.timeEntries.update);
   const remove = useMutation(api.timeEntries.remove);
+  const { toast } = useToast();
   const [description, setDescription] = useState(entry.description ?? "");
+  const [deleting, setDeleting] = useState(false);
+  if (deleting) return null;
   const ms = entry.endedAt
     ? entry.durationMs ?? entry.endedAt - entry.startedAt
     : Date.now() - entry.startedAt;
@@ -137,11 +141,13 @@ function EntryRow({ entry }: { entry: Doc<"timeEntries"> }) {
         type="button"
         aria-label="Delete entry"
         onClick={() => {
-          if (window.confirm("Delete this entry?")) {
-            remove({ entryId: entry._id });
-          }
+          setDeleting(true);
+          toast("Time entry deleted", {
+            action: { label: "Undo", onClick: () => setDeleting(false) },
+            onExpire: () => remove({ entryId: entry._id }),
+          });
         }}
-        className="text-xs text-muted-foreground hover:text-foreground"
+        className="tap-target text-xs text-muted-foreground hover:text-foreground"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>

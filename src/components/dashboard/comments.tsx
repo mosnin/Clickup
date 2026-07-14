@@ -7,6 +7,8 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { timeAgo } from "@/lib/time";
+import { useToast } from "@/components/toast";
 import { EASE, motion } from "@/components/motion";
 import {
   extractMentionedClerkIds,
@@ -133,14 +135,20 @@ function MessageItem({
 }) {
   const [replying, setReplying] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const remove = useMutation(api.messages.remove);
   const resolve = useMutation(api.messages.resolve);
+  const { toast } = useToast();
 
   const author = memberByClerkId.get(message.authorClerkId);
   const assignee = message.assigneeClerkId
     ? memberByClerkId.get(message.assigneeClerkId)
     : null;
   const isResolved = !!message.resolvedAt;
+
+  // Hidden while its undo toast is live — the actual delete only commits
+  // once the toast expires.
+  if (deleting) return null;
 
   return (
     <div
@@ -221,9 +229,11 @@ function MessageItem({
                 type="button"
                 className="hover:text-foreground"
                 onClick={() => {
-                  if (window.confirm("Delete this message?")) {
-                    remove({ messageId: message._id });
-                  }
+                  setDeleting(true);
+                  toast("Message deleted", {
+                    action: { label: "Undo", onClick: () => setDeleting(false) },
+                    onExpire: () => remove({ messageId: message._id }),
+                  });
                 }}
               >
                 Delete
@@ -279,8 +289,12 @@ function ReplyItem({
   parentId: string;
 }) {
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const remove = useMutation(api.messages.remove);
+  const { toast } = useToast();
   const author = memberByClerkId.get(reply.authorClerkId);
+
+  if (deleting) return null;
 
   return (
     <div className="flex items-start gap-2">
@@ -322,9 +336,11 @@ function ReplyItem({
                 type="button"
                 className="hover:text-foreground"
                 onClick={() => {
-                  if (window.confirm("Delete this reply?")) {
-                    remove({ messageId: reply._id });
-                  }
+                  setDeleting(true);
+                  toast("Reply deleted", {
+                    action: { label: "Undo", onClick: () => setDeleting(false) },
+                    onExpire: () => remove({ messageId: reply._id }),
+                  });
                 }}
               >
                 Delete
@@ -581,15 +597,3 @@ function Composer({
   );
 }
 
-function timeAgo(ts: number): string {
-  const diff = Date.now() - ts;
-  const sec = Math.floor(diff / 1000);
-  if (sec < 60) return "just now";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  const days = Math.floor(hr / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(ts).toLocaleDateString();
-}

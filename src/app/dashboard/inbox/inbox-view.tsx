@@ -7,6 +7,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { parseMentionBody } from "@/lib/mentions";
 import { cn } from "@/lib/utils";
+import { timeAgo } from "@/lib/time";
 import {
   AnimatePresence,
   EASE,
@@ -21,10 +22,21 @@ export function Inbox() {
   const markAllRead = useMutation(api.mentions.markAllRead);
 
   if (mentions === undefined) {
+    // Shaped like the loaded page: header + mention rows.
     return (
-      <div className="space-y-3">
-        <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
-        <div className="h-24 animate-pulse rounded-2xl bg-muted/40" />
+      <div className="space-y-6">
+        <div className="space-y-2 border-b border-border pb-4">
+          <div className="h-8 w-32 animate-pulse rounded-full bg-muted" />
+          <div className="h-4 w-48 animate-pulse rounded-full bg-muted/70" />
+        </div>
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-16 animate-pulse rounded-2xl border border-border bg-muted/30"
+            />
+          ))}
+        </div>
       </div>
     );
   }
@@ -203,14 +215,3 @@ function renderInlineBody(body: string): string {
     .join("");
 }
 
-function timeAgo(ts: number): string {
-  const diff = Date.now() - ts;
-  const sec = Math.floor(diff / 1000);
-  if (sec < 60) return "just now";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  const days = Math.floor(hr / 24);
-  return `${days}d ago`;
-}

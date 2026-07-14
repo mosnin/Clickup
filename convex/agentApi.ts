@@ -215,6 +215,7 @@ export const heartbeat = mutation({
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
+    const firstConnection = agent.lastSeenAt === undefined;
     const patch: Record<string, unknown> = { lastSeenAt: Date.now() };
     if (args.statusText !== undefined) {
       patch.statusText = args.statusText.slice(0, 200) || undefined;
@@ -228,6 +229,19 @@ export const heartbeat = mutation({
       }
     }
     await ctx.db.patch(agent._id, patch);
+    // The very first heartbeat is a moment: the human just wired up their
+    // runtime. Emit it so the UI (and webhooks) can celebrate/react.
+    if (firstConnection) {
+      await emitEvent(ctx, {
+        scopeType: agent.parentType,
+        scopeId: agent.parentId,
+        type: "agent.connected",
+        actor: agentActor(agent),
+        entityType: "agent",
+        entityId: agent._id,
+        entityTitle: agent.name,
+      });
+    }
   },
 });
 

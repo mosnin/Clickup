@@ -7,15 +7,18 @@ import { Hand, Lock, Plus, ShieldCheck, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Picker } from "@/components/ui/picker";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
 
-// Collaboration controls on the task detail page: assignees (humans AND
-// agents), sprint membership, the agent work-claim, acceptance-criteria
-// checklist, and blocked-by dependencies. All persistence goes through
+// Collaboration sections for the task detail page: approval/claim banners,
+// assignees (humans AND agents), sprint membership, acceptance-criteria
+// checklist, and blocked-by dependencies. Exported as separate components
+// so the task page can lay them out (banners full-width, state in the
+// right rail, checklist with the content). All persistence goes through
 // tasks.update so agents see identical state over MCP.
 
-export function TaskCollaboration({
+export function TaskBanners({
   task,
   listId,
 }: {
@@ -27,11 +30,6 @@ export function TaskCollaboration({
   const claim = useMutation(api.tasks.claim);
   const approve = useMutation(api.tasks.approve);
   const assignable = useQuery(api.agents.listAssignableForList, { listId });
-  const sprints = useQuery(api.sprints.listForList, { listId });
-  const siblingTasks = useQuery(api.tasks.listForList, { listId });
-  const blockerTitles = useQuery(api.tasks.titles, {
-    taskIds: task.blockedByTaskIds ?? [],
-  });
 
   const byId = useMemo(
     () => new Map((assignable ?? []).map((a) => [a.id, a])),
@@ -42,7 +40,7 @@ export function TaskCollaboration({
     : undefined;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {task.requiresApproval && (
         <motion.div
           initial={{ opacity: 0, y: -6 }}
@@ -77,7 +75,7 @@ export function TaskCollaboration({
           </Button>
         </motion.div>
       )}
-      {task.claimedByActorId && (
+      {task.claimedByActorId ? (
         <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
           <Lock className="h-4 w-4 flex-shrink-0" />
           <span className="min-w-0 flex-1">
@@ -97,8 +95,7 @@ export function TaskCollaboration({
             Release
           </Button>
         </div>
-      )}
-      {!task.claimedByActorId && (
+      ) : (
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
@@ -120,163 +117,196 @@ export function TaskCollaboration({
           )}
         </div>
       )}
-
-      <section>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Assignees
-        </h2>
-        <div className="flex flex-wrap items-center gap-2">
-          {task.assigneeClerkIds.map((id) => {
-            const person = byId.get(id);
-            return (
-              <span
-                key={id}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-sm"
-              >
-                {person?.kind === "agent" ? (person.emoji ?? "🤖") : null}
-                <span>{person?.name ?? "Unknown"}</span>
-                <button
-                  type="button"
-                  aria-label={`Unassign ${person?.name ?? "assignee"}`}
-                  onClick={() =>
-                    update({
-                      taskId: task._id,
-                      assigneeClerkIds: task.assigneeClerkIds.filter(
-                        (a) => a !== id,
-                      ),
-                    })
-                  }
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            );
-          })}
-          <select
-            value=""
-            onChange={(e) => {
-              const id = e.currentTarget.value;
-              if (id && !task.assigneeClerkIds.includes(id)) {
-                update({
-                  taskId: task._id,
-                  assigneeClerkIds: [...task.assigneeClerkIds, id],
-                });
-              }
-            }}
-            className="rounded-full border border-dashed border-border bg-background px-3 py-1 text-sm text-muted-foreground"
-          >
-            <option value="">+ Assign…</option>
-            {(assignable ?? [])
-              .filter((a) => !task.assigneeClerkIds.includes(a.id))
-              .map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.kind === "agent" ? `🤖 ${a.name} (agent)` : a.name}
-                </option>
-              ))}
-          </select>
-        </div>
-      </section>
-
-      {sprints !== undefined && sprints.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Sprint
-          </h2>
-          <select
-            value={task.sprintId ?? ""}
-            onChange={(e) => {
-              const v = e.currentTarget.value;
-              update({
-                taskId: task._id,
-                sprintId: v ? (v as Id<"sprints">) : null,
-              });
-            }}
-            className="rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-          >
-            <option value="">No sprint</option>
-            {sprints.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.name} ({s.status})
-              </option>
-            ))}
-          </select>
-        </section>
-      )}
-
-      <Checklist task={task} />
-
-      <section>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Blocked by
-        </h2>
-        <div className="flex flex-wrap items-center gap-2">
-          {(task.blockedByTaskIds ?? []).map((id) => (
-            <span
-              key={id}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-sm"
-            >
-              <Link
-                href={`/dashboard/l/${listId}/t/${id}`}
-                className="hover:underline"
-              >
-                {blockerTitles?.[id] ?? "Task"}
-              </Link>
-              <button
-                type="button"
-                aria-label="Remove dependency"
-                onClick={() =>
-                  update({
-                    taskId: task._id,
-                    blockedByTaskIds: (task.blockedByTaskIds ?? []).filter(
-                      (b) => b !== id,
-                    ),
-                  })
-                }
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ))}
-          <select
-            value=""
-            onChange={(e) => {
-              const id = e.currentTarget.value as Id<"tasks">;
-              if (id && !(task.blockedByTaskIds ?? []).includes(id)) {
-                update({
-                  taskId: task._id,
-                  blockedByTaskIds: [...(task.blockedByTaskIds ?? []), id],
-                });
-              }
-            }}
-            className="rounded-full border border-dashed border-border bg-background px-3 py-1 text-sm text-muted-foreground"
-          >
-            <option value="">+ Add blocker…</option>
-            {(siblingTasks ?? [])
-              .filter(
-                (t) =>
-                  t._id !== task._id &&
-                  !(task.blockedByTaskIds ?? []).includes(t._id),
-              )
-              .map((t) => (
-                <option key={t._id} value={t._id}>
-                  {t.title}
-                </option>
-              ))}
-          </select>
-        </div>
-        {(task.blockedByTaskIds ?? []).length > 0 && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            This task can&apos;t be completed while a blocker is still open.
-          </p>
-        )}
-      </section>
     </div>
   );
 }
 
-function Checklist({ task }: { task: Doc<"tasks"> }) {
+export function TaskAssignees({
+  task,
+  listId,
+}: {
+  task: Doc<"tasks">;
+  listId: Id<"lists">;
+}) {
+  const update = useMutation(api.tasks.update);
+  const assignable = useQuery(api.agents.listAssignableForList, { listId });
+  const byId = useMemo(
+    () => new Map((assignable ?? []).map((a) => [a.id, a])),
+    [assignable],
+  );
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {task.assigneeClerkIds.map((id) => {
+        const person = byId.get(id);
+        return (
+          <span
+            key={id}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-sm"
+          >
+            {person?.kind === "agent" ? (person.emoji ?? "🤖") : null}
+            <span>{person?.name ?? "Someone"}</span>
+            <button
+              type="button"
+              aria-label={`Unassign ${person?.name ?? "assignee"}`}
+              onClick={() =>
+                update({
+                  taskId: task._id,
+                  assigneeClerkIds: task.assigneeClerkIds.filter(
+                    (a) => a !== id,
+                  ),
+                })
+              }
+              className="tap-target text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        );
+      })}
+      <Picker
+        label="+ Assign…"
+        dashed
+        options={(assignable ?? [])
+          .filter((a) => !task.assigneeClerkIds.includes(a.id))
+          .map((a) => ({
+            id: a.id,
+            label: a.name,
+            emoji: a.kind === "agent" ? (a.emoji ?? "🤖") : undefined,
+            hint: a.kind === "agent" ? "agent" : undefined,
+          }))}
+        onSelect={(id) =>
+          update({
+            taskId: task._id,
+            assigneeClerkIds: [...task.assigneeClerkIds, id],
+          })
+        }
+      />
+    </div>
+  );
+}
+
+// Renders nothing when the list's workspace has no sprints.
+export function TaskSprintPicker({
+  task,
+  listId,
+}: {
+  task: Doc<"tasks">;
+  listId: Id<"lists">;
+}) {
+  const update = useMutation(api.tasks.update);
+  const sprints = useQuery(api.sprints.listForList, { listId });
+  if (sprints === undefined || sprints.length === 0) return null;
+
+  return (
+    <section>
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Sprint
+      </h2>
+      <Picker
+        label={
+          task.sprintId
+            ? (sprints.find((s) => s._id === task.sprintId)?.name ?? "Sprint")
+            : "No sprint"
+        }
+        selectedId={task.sprintId ?? "none"}
+        options={[
+          { id: "none", label: "No sprint" },
+          ...sprints.map((s) => ({
+            id: s._id as string,
+            label: s.name,
+            hint: s.status,
+          })),
+        ]}
+        onSelect={(id) =>
+          update({
+            taskId: task._id,
+            sprintId: id === "none" ? null : (id as Id<"sprints">),
+          })
+        }
+      />
+    </section>
+  );
+}
+
+export function TaskBlockedBy({
+  task,
+  listId,
+}: {
+  task: Doc<"tasks">;
+  listId: Id<"lists">;
+}) {
+  const update = useMutation(api.tasks.update);
+  const siblingTasks = useQuery(api.tasks.listForList, { listId });
+  const blockerTitles = useQuery(api.tasks.titles, {
+    taskIds: task.blockedByTaskIds ?? [],
+  });
+
+  return (
+    <section>
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Blocked by
+      </h2>
+      <div className="flex flex-wrap items-center gap-2">
+        {(task.blockedByTaskIds ?? []).map((id) => (
+          <span
+            key={id}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-sm"
+          >
+            <Link
+              href={`/dashboard/l/${listId}/t/${id}`}
+              className="hover:underline"
+            >
+              {blockerTitles?.[id] ?? "Task"}
+            </Link>
+            <button
+              type="button"
+              aria-label="Remove dependency"
+              onClick={() =>
+                update({
+                  taskId: task._id,
+                  blockedByTaskIds: (task.blockedByTaskIds ?? []).filter(
+                    (b) => b !== id,
+                  ),
+                })
+              }
+              className="tap-target text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+        <Picker
+          label="+ Add blocker…"
+          dashed
+          options={(siblingTasks ?? [])
+            .filter(
+              (t) =>
+                t._id !== task._id &&
+                !(task.blockedByTaskIds ?? []).includes(t._id),
+            )
+            .map((t) => ({ id: t._id as string, label: t.title }))}
+          onSelect={(id) =>
+            update({
+              taskId: task._id,
+              blockedByTaskIds: [
+                ...(task.blockedByTaskIds ?? []),
+                id as Id<"tasks">,
+              ],
+            })
+          }
+        />
+      </div>
+      {(task.blockedByTaskIds ?? []).length > 0 && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          This task can&apos;t be completed while a blocker is still open.
+        </p>
+      )}
+    </section>
+  );
+}
+
+export function TaskChecklist({ task }: { task: Doc<"tasks"> }) {
   const update = useMutation(api.tasks.update);
   const [newItem, setNewItem] = useState("");
   const items = task.checklist ?? [];
@@ -293,46 +323,46 @@ function Checklist({ task }: { task: Doc<"tasks"> }) {
       </h2>
       <ul className="space-y-1">
         <AnimatePresence initial={false}>
-        {items.map((item) => (
-          <motion.li
-            key={item.id}
-            layout
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3, ease: EASE }}
-            className="flex items-center gap-2 overflow-hidden"
-          >
-            <input
-              type="checkbox"
-              checked={item.done}
-              onChange={() =>
-                commit(
-                  items.map((i) =>
-                    i.id === item.id ? { ...i, done: !i.done } : i,
-                  ),
-                )
-              }
-              className="h-4 w-4 rounded border-border"
-            />
-            <span
-              className={cn(
-                "flex-1 text-sm",
-                item.done && "text-muted-foreground line-through",
-              )}
+          {items.map((item) => (
+            <motion.li
+              key={item.id}
+              layout
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: EASE }}
+              className="flex items-center gap-2 overflow-hidden"
             >
-              {item.text}
-            </span>
-            <button
-              type="button"
-              aria-label="Remove item"
-              onClick={() => commit(items.filter((i) => i.id !== item.id))}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </motion.li>
-        ))}
+              <input
+                type="checkbox"
+                checked={item.done}
+                onChange={() =>
+                  commit(
+                    items.map((i) =>
+                      i.id === item.id ? { ...i, done: !i.done } : i,
+                    ),
+                  )
+                }
+                className="h-4 w-4 rounded border-border"
+              />
+              <span
+                className={cn(
+                  "flex-1 text-sm",
+                  item.done && "text-muted-foreground line-through",
+                )}
+              >
+                {item.text}
+              </span>
+              <button
+                type="button"
+                aria-label="Remove item"
+                onClick={() => commit(items.filter((i) => i.id !== item.id))}
+                className="tap-target text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </motion.li>
+          ))}
         </AnimatePresence>
       </ul>
       <form
@@ -357,7 +387,12 @@ function Checklist({ task }: { task: Doc<"tasks"> }) {
           placeholder="Add acceptance criterion…"
           className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
         />
-        <Button type="submit" size="sm" variant="outline" disabled={!newItem.trim()}>
+        <Button
+          type="submit"
+          size="sm"
+          variant="outline"
+          disabled={!newItem.trim()}
+        >
           <Plus className="h-3.5 w-3.5" /> Add
         </Button>
       </form>
