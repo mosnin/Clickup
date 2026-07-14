@@ -351,3 +351,176 @@ export function BudgetMock({ className }: { className?: string }) {
     </MockShell>
   );
 }
+
+// ── The handoff story card ──────────────────────────────────────────────
+// One task card that evolves through the five beats of the scroll story:
+// 0 created → 1 claimed → 2 worked → 3 gated → 4 approved & done.
+// Driven externally by `step` so the scrollytelling section owns pacing.
+
+const HANDOFF_CHECKLIST = [
+  "Pull last quarter's numbers",
+  "Draft with 3 subject lines",
+  "Link the doc on this task",
+];
+
+export function HandoffMock({ step, className }: { step: number; className?: string }) {
+  const done = step >= 4;
+  return (
+    <MockShell label="Task · live" className={className}>
+      <div className="space-y-3 p-4 sm:p-5">
+        {/* Title row */}
+        <div className="flex items-start gap-2.5">
+          <span
+            className={cn(
+              "mt-0.5 inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors duration-500",
+              done
+                ? "border-emerald-500 bg-emerald-500 text-white"
+                : "border-black/15 text-transparent",
+            )}
+          >
+            <motion.span
+              initial={false}
+              animate={{ scale: done ? 1 : 0 }}
+              transition={{ type: "spring", stiffness: 500, damping: 22 }}
+              className="inline-flex"
+            >
+              <Check className="h-3 w-3" strokeWidth={4} />
+            </motion.span>
+          </span>
+          <div className="min-w-0 flex-1">
+            <p
+              className={cn(
+                "text-sm font-semibold leading-snug transition-colors duration-500",
+                done && "text-muted-foreground line-through",
+              )}
+            >
+              Draft the Acme renewal email
+            </p>
+            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+              {step === 0 ? "created by you · just now" : "assigned · 🤖 Scout"}
+            </p>
+          </div>
+          <AnimatePresence>
+            {step >= 1 && step < 4 && (
+              <motion.span
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={SPRING}
+                className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-700"
+              >
+                <span className="relative inline-flex h-1 w-1">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500/70" />
+                  <span className="relative inline-flex h-1 w-1 rounded-full bg-amber-500" />
+                </span>
+                Claimed
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Checklist */}
+        <ul className="space-y-1.5 rounded-xl bg-muted/50 p-2.5">
+          {HANDOFF_CHECKLIST.map((item, i) => {
+            const ticked = step >= 3 || (step >= 2 && i < 2);
+            return (
+              <li key={item} className="flex items-center gap-2 text-[11px]">
+                <span
+                  className={cn(
+                    "inline-flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full border transition-colors duration-500",
+                    ticked
+                      ? "border-emerald-500 bg-emerald-500 text-white"
+                      : "border-black/15 bg-white text-transparent",
+                  )}
+                >
+                  <motion.span
+                    initial={false}
+                    animate={{ scale: ticked ? 1 : 0 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 500,
+                      damping: 24,
+                      delay: ticked ? i * 0.12 : 0,
+                    }}
+                    className="inline-flex"
+                  >
+                    <Check className="h-2 w-2" strokeWidth={4} />
+                  </motion.span>
+                </span>
+                <span
+                  className={cn(
+                    "transition-colors duration-500",
+                    ticked && "text-muted-foreground line-through",
+                  )}
+                >
+                  {item}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* Narration comment */}
+        <AnimatePresence>
+          {step >= 2 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, filter: "blur(3px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.45, ease: EASE }}
+              className="flex items-start gap-2"
+            >
+              <span
+                aria-hidden
+                className="mt-0.5 inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-foreground text-[9px] text-white"
+              >
+                🤖
+              </span>
+              <p className="min-w-0 flex-1 rounded-xl rounded-tl-md border border-border bg-white px-2.5 py-1.5 text-[11px] leading-snug">
+                {step >= 4
+                  ? "Sent. Doc + thread linked below."
+                  : "Went with subject line B — numbers are in the linked doc."}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Approval gate / receipt */}
+        <AnimatePresence mode="wait">
+          {step === 3 && (
+            <motion.div
+              key="gate"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.4, ease: EASE }}
+              className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800"
+            >
+              <Lock className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="min-w-0 flex-1">
+                Sending to a client is gated — waiting for you.
+              </span>
+              <span className="flex-shrink-0 rounded-full bg-foreground px-3 py-1 text-[10px] font-semibold text-white">
+                Approve
+              </span>
+            </motion.div>
+          )}
+          {step >= 4 && (
+            <motion.div
+              key="receipt"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, ease: EASE }}
+              className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800"
+            >
+              <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="min-w-0 flex-1">
+                Approved by you · run report: 1 doc · 8,214 tokens · $0.11
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </MockShell>
+  );
+}

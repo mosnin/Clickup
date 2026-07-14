@@ -1,10 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ArrowRight } from "lucide-react";
+import {
+  useMotionValueEvent,
+  useReducedMotion,
+  useScroll,
+} from "motion/react";
 import { cn } from "@/lib/utils";
-import { AnimatePresence, EASE, motion, SPRING } from "@/components/motion";
+import { AnimatePresence, EASE, motion } from "@/components/motion";
 import {
   CountUp,
   FadeIn,
@@ -16,9 +21,11 @@ import {
 } from "@/components/marketing/reveal";
 import { Scene } from "@/components/marketing/scene";
 import {
+  ChatBubble,
   CtaPair,
   QuoteCard,
   SectionHeading,
+  StatTile,
 } from "@/components/marketing/blocks";
 import {
   ActivityFeedMock,
@@ -27,6 +34,7 @@ import {
   BoardMock,
   BudgetMock,
   ConnectMock,
+  HandoffMock,
   TaskListMock,
 } from "@/components/marketing/mockups";
 
@@ -36,16 +44,39 @@ export function HomeContent() {
       <Hero />
       <RuntimeMarquee />
       <Problem />
+      <HandoffStory />
       <HowItWorks />
       <SystemShowcase />
       <HumanWork />
       <Governance />
-      <Quotes />
+      <Stories />
     </>
   );
 }
 
-/* ── Hero: dark meadow panel with floating product cards ──────────────── */
+/* ── Hero: dark meadow panel with depth-of-field floating cards ────────── */
+
+// Slow idle float so the cards feel suspended, not pinned.
+function Floating({
+  children,
+  duration = 6,
+  delay = 0,
+}: {
+  children: React.ReactNode;
+  duration?: number;
+  delay?: number;
+}) {
+  const reduced = useReducedMotion();
+  if (reduced) return <>{children}</>;
+  return (
+    <motion.div
+      animate={{ y: [0, -9, 0] }}
+      transition={{ duration, repeat: Infinity, ease: "easeInOut", delay }}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 function Hero() {
   return (
@@ -53,34 +84,46 @@ function Hero() {
       <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] sm:rounded-[2.5rem]">
         <Scene variant="meadow" />
 
-        <div className="relative z-10 px-5 pb-16 pt-12 text-center text-white sm:px-10 sm:pb-24 sm:pt-16">
-          {/* Floating product cards, tilted like prints on a table. */}
-          <div className="pointer-events-none relative mx-auto hidden h-56 max-w-3xl select-none md:block">
-            <Parallax speed={-28} className="absolute left-0 top-8 w-60">
+        <div className="relative z-10 px-5 pb-20 pt-12 text-center text-white sm:px-10 sm:pb-28 sm:pt-16">
+          {/* Floating product cards — center crisp, edges softly out of
+              focus, like objects at different depths in a photograph. */}
+          <div className="pointer-events-none relative mx-auto hidden h-60 max-w-3xl select-none md:block">
+            <Parallax speed={-26} className="absolute left-0 top-9 w-60">
               <motion.div
                 initial={{ opacity: 0, y: 40, rotate: -8 }}
                 animate={{ opacity: 1, y: 0, rotate: -5 }}
                 transition={{ duration: 0.9, ease: EASE, delay: 0.15 }}
+                className="blur-[1.5px]"
               >
-                <AgentCardMock />
+                <Floating duration={7} delay={0.4}>
+                  <AgentCardMock />
+                </Floating>
               </motion.div>
             </Parallax>
-            <Parallax speed={-44} className="absolute left-1/2 top-0 w-64 -translate-x-1/2">
+            <Parallax
+              speed={-44}
+              className="absolute left-1/2 top-0 z-10 w-64 -translate-x-1/2"
+            >
               <motion.div
                 initial={{ opacity: 0, y: 40 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.9, ease: EASE, delay: 0.3 }}
               >
-                <TaskListMock />
+                <Floating duration={6}>
+                  <TaskListMock />
+                </Floating>
               </motion.div>
             </Parallax>
-            <Parallax speed={-24} className="absolute right-0 top-10 w-60">
+            <Parallax speed={-22} className="absolute right-0 top-11 w-60">
               <motion.div
                 initial={{ opacity: 0, y: 40, rotate: 8 }}
                 animate={{ opacity: 1, y: 0, rotate: 5 }}
                 transition={{ duration: 0.9, ease: EASE, delay: 0.45 }}
+                className="blur-[1.5px]"
               >
-                <ApprovalMock />
+                <Floating duration={8} delay={0.8}>
+                  <ApprovalMock />
+                </Floating>
               </motion.div>
             </Parallax>
           </div>
@@ -96,16 +139,18 @@ function Hero() {
           </FadeIn>
 
           <FadeIn delay={0.2} y={20}>
-            <h1 className="mx-auto mt-6 max-w-3xl text-balance text-4xl font-bold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl">
-              A workspace for humans and their agents.
+            <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-semibold leading-[1.06] tracking-[-0.025em] sm:text-6xl lg:text-[68px]">
+              A system for your work.
+              <br />
+              And the agents doing it.
             </h1>
           </FadeIn>
 
           <FadeIn delay={0.35} y={20}>
-            <p className="mx-auto mt-6 max-w-2xl text-balance text-base leading-relaxed text-white/75 sm:text-lg">
-              Tasks, docs, and sprints for your team. Keys, budgets, and
-              approval gates for your agents. One live view of everything
-              getting done — by anyone.
+            <p className="mx-auto mt-6 max-w-xl text-balance text-base leading-relaxed text-white/75 sm:text-lg">
+              Hand real work to AI agents — and watch it happen. Tasks, docs,
+              and sprints for your team. Keys, budgets, and approval gates for
+              the machines.
             </p>
           </FadeIn>
 
@@ -126,12 +171,24 @@ function Hero() {
             <AgentCardMock />
           </FadeIn>
         </div>
+
+        {/* Conversational accent, like the reference's floating bubble. */}
+        <motion.div
+          initial={{ opacity: 0, y: 16, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.7, ease: EASE, delay: 1.1 }}
+          className="absolute bottom-8 left-8 z-20 hidden lg:block"
+        >
+          <ChatBubble name="Maya">
+            Scout finished the release notes while I was at lunch.
+          </ChatBubble>
+        </motion.div>
       </div>
     </section>
   );
 }
 
-/* ── Runtime marquee ──────────────────────────────────────────────────── */
+/* ── Runtime marquee — quiet, like a logo row ─────────────────────────── */
 
 const RUNTIMES = [
   "Claude Code",
@@ -145,18 +202,18 @@ const RUNTIMES = [
 
 function RuntimeMarquee() {
   return (
-    <section className="border-b border-black/[0.06] px-0 py-10">
+    <section className="px-0 py-9">
       <FadeIn>
-        <p className="text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        <p className="text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
           Works with any MCP-capable agent
         </p>
-        <Marquee className="mt-5">
+        <Marquee className="mt-4">
           {RUNTIMES.map((r) => (
             <span
               key={r}
-              className="mx-8 flex items-center gap-3 whitespace-nowrap text-lg font-semibold tracking-tight text-foreground/45"
+              className="mx-7 flex items-center gap-2.5 whitespace-nowrap text-sm font-medium tracking-tight text-foreground/35"
             >
-              <span aria-hidden className="h-1 w-1 rounded-full bg-sage-400" />
+              <span aria-hidden className="h-1 w-1 rounded-full bg-sage-300" />
               {r}
             </span>
           ))}
@@ -166,7 +223,7 @@ function RuntimeMarquee() {
   );
 }
 
-/* ── Problem + stats ──────────────────────────────────────────────────── */
+/* ── Problem + stat wall (label above, numeral below, hairline columns) ── */
 
 const STATS: {
   value: number;
@@ -174,7 +231,7 @@ const STATS: {
   suffix?: string;
   label: string;
 }[] = [
-  { value: 2, prefix: "<", suffix: " min", label: "from signup to your first agent online" },
+  { value: 2, prefix: "<", label: "minutes from signup to your first agent online" },
   { value: 63, label: "MCP tools out of the box — tasks to sprints to docs" },
   { value: 100, suffix: "%", label: "of agent actions land in the audit trail" },
   { value: 0, label: "lines of glue code to connect a runtime" },
@@ -182,39 +239,247 @@ const STATS: {
 
 function Problem() {
   return (
-    <section className="px-4 py-20 sm:px-6 sm:py-28">
+    <section className="border-t border-black/[0.06] px-4 py-20 sm:px-6 sm:py-28">
       <div className="mx-auto max-w-6xl">
         <div className="grid gap-10 lg:grid-cols-2 lg:gap-16">
           <FadeIn>
-            <h2 className="text-3xl font-bold tracking-tight sm:text-5xl">
-              Agent work is invisible in a human task tracker.
+            <h2 className="text-3xl font-semibold tracking-[-0.02em] sm:text-5xl">
+              Your agents already work.
+              <br />
+              You just can&apos;t see it.
             </h2>
           </FadeIn>
           <FadeIn delay={0.15} className="self-end">
             <p className="text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Your agents run in terminals, CI jobs, and cron tabs —{" "}
+              They run in terminals, CI jobs, and cron tabs —{" "}
               <span className="font-semibold text-foreground">
-                nobody can see what they&apos;re doing
+                invisible to the plan, the sprint, and the team
               </span>
-              , what they finished, or what they&apos;re stuck on. Handing them
-              real work means pasting context, praying, and checking logs.{" "}
+              . So delegation stays small: paste some context, hope, tail the
+              logs. Real leverage needs{" "}
               <span className="font-semibold text-foreground">
-                This needs a coordination layer
-              </span>
-              , not another dashboard.
+                a coordination layer both sides can trust
+              </span>{" "}
+              — not another dashboard.
             </p>
           </FadeIn>
         </div>
 
-        <StaggerIn className="mt-16 grid grid-cols-2 gap-px overflow-hidden rounded-3xl border border-black/[0.06] bg-black/[0.06] lg:grid-cols-4">
-          {STATS.map((s) => (
-            <StaggerInItem key={s.label} className="bg-white p-6 sm:p-8">
-              <p className="text-4xl font-bold tabular-nums tracking-tight sm:text-5xl">
-                <CountUp value={s.value} prefix={s.prefix} suffix={s.suffix} />
-              </p>
-              <p className="mt-3 text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                {s.label}
-              </p>
+        <FadeIn delay={0.1} className="mt-16">
+          <div className="grid grid-cols-2 rounded-[2rem] border border-black/[0.06] bg-white lg:grid-cols-4 lg:divide-x lg:divide-black/[0.06]">
+            {STATS.map((s, i) => (
+              <div
+                key={s.label}
+                className={cn(
+                  "p-7 sm:p-9",
+                  // hairlines for the 2×2 mobile grid
+                  i % 2 === 1 && "border-l border-black/[0.06] lg:border-l-0",
+                  i >= 2 && "border-t border-black/[0.06] lg:border-t-0",
+                )}
+              >
+                <p className="text-[10px] font-semibold uppercase leading-relaxed tracking-[0.14em] text-muted-foreground">
+                  {s.label}
+                </p>
+                <p className="mt-4 text-5xl font-medium tabular-nums tracking-[-0.03em] sm:text-6xl">
+                  <CountUp value={s.value} prefix={s.prefix} suffix={s.suffix} />
+                </p>
+              </div>
+            ))}
+          </div>
+        </FadeIn>
+      </div>
+    </section>
+  );
+}
+
+/* ── The handoff story: sticky scrollytelling through one task ─────────── */
+
+const HANDOFF_BEATS = [
+  {
+    time: "6:42 PM — you",
+    title: "Type it. Assign it. Leave.",
+    body: "⌘K, twelve words, assigned to Scout. That's the entire handoff — the context lives on the task, not in a prompt you'll paste again tomorrow.",
+  },
+  {
+    time: "6:43 PM — Scout",
+    title: "It claims the work. Publicly.",
+    body: "A visible lock with a heartbeat. Every human and agent can see it's taken — nobody duplicates the effort, and you can watch it breathe.",
+  },
+  {
+    time: "7:10 PM — Scout",
+    title: "Progress you can actually watch.",
+    body: "Checklist items tick themselves. A comment narrates the decision it made. No logs to tail. No “how's it going?” message to send.",
+  },
+  {
+    time: "7:32 PM — Scout",
+    title: "It stops exactly where you said stop.",
+    body: "Sending to a client is gated. Scout doesn't guess — it raises its hand and queues for your sign-off, then moves on to other work.",
+  },
+  {
+    time: "8:05 AM — you",
+    title: "You approve. It ships. Receipts attached.",
+    body: "One tap from your inbox over coffee. The run report carries the doc, the token count, and the cost. That's delegation with a paper trail.",
+  },
+];
+
+function HandoffStory() {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [step, setStep] = useState(0);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start start", "end end"],
+  });
+  useMotionValueEvent(scrollYProgress, "change", (v) => {
+    setStep(Math.max(0, Math.min(4, Math.floor(v * 5))));
+  });
+
+  return (
+    <section className="border-t border-black/[0.06] bg-cream-deep/60">
+      {/* Desktop: pinned viewport, the scroll drives the beats. */}
+      <div
+        ref={ref}
+        className="relative hidden lg:block"
+        style={{ height: "340vh" }}
+      >
+        <div className="sticky top-0 flex h-screen items-center px-6">
+          <div className="mx-auto grid w-full max-w-6xl grid-cols-2 items-center gap-20">
+            <div>
+              <SectionHeading
+                eyebrow="One task, start to finish"
+                title="The first handoff changes everything."
+              />
+              <div className="relative mt-10 min-h-[220px]">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={step}
+                    initial={{ opacity: 0, y: 24, filter: "blur(6px)" }}
+                    animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                    exit={{ opacity: 0, y: -16, filter: "blur(6px)" }}
+                    transition={{ duration: 0.45, ease: EASE }}
+                  >
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sage-600">
+                      {HANDOFF_BEATS[step].time}
+                    </p>
+                    <h3 className="mt-3 text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
+                      {HANDOFF_BEATS[step].title}
+                    </h3>
+                    <p className="mt-3 max-w-md text-base leading-relaxed text-muted-foreground">
+                      {HANDOFF_BEATS[step].body}
+                    </p>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+              {/* Beat progress */}
+              <div className="mt-8 flex items-center gap-2">
+                {HANDOFF_BEATS.map((_, i) => (
+                  <span
+                    key={i}
+                    className={cn(
+                      "h-1 rounded-full transition-all duration-500",
+                      i === step ? "w-8 bg-foreground" : "w-3 bg-black/15",
+                    )}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="relative flex items-center justify-center overflow-hidden rounded-[2rem] py-16">
+              <Scene variant="haze" />
+              <div className="relative z-10 w-full max-w-sm px-8">
+                <HandoffMock step={step} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile: the same story as a vertical sequence. */}
+      <div className="px-4 py-20 lg:hidden">
+        <div className="mx-auto max-w-xl">
+          <SectionHeading
+            eyebrow="One task, start to finish"
+            title="The first handoff changes everything."
+          />
+          <div className="mt-10 space-y-10">
+            {HANDOFF_BEATS.map((b, i) => (
+              <FadeIn key={b.time}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sage-600">
+                  {b.time}
+                </p>
+                <h3 className="mt-2 text-xl font-semibold tracking-[-0.02em]">
+                  {b.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {b.body}
+                </p>
+                <div className="mt-4">
+                  <HandoffMock step={i} />
+                </div>
+              </FadeIn>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── How it works: captioned scene panels, like framed prints ──────────── */
+
+const STEPS = [
+  {
+    n: "01",
+    title: "Create an agent, mint a key",
+    body: "A name, a scope, a key shown once and hashed forever.",
+    mock: <AgentCardMock className="w-full max-w-xs" />,
+    scene: "haze" as const,
+  },
+  {
+    n: "02",
+    title: "Point any runtime at one URL",
+    body: "The MCP endpoint plus a bearer key is the whole integration.",
+    mock: <ConnectMock className="w-full max-w-xs" />,
+    scene: "dusk" as const,
+  },
+  {
+    n: "03",
+    title: "Watch the work happen",
+    body: "First heartbeat, green dot, live feed. It's on the team now.",
+    mock: <ActivityFeedMock className="w-full max-w-xs" />,
+    scene: "haze" as const,
+  },
+];
+
+function HowItWorks() {
+  return (
+    <section className="px-4 py-20 sm:px-6 sm:py-28">
+      <div className="mx-auto max-w-6xl">
+        <SectionHeading
+          eyebrow="How it works"
+          title="From zero to a working agent, in three moves."
+          sub="No SDK to learn, no worker to deploy, no YAML. The workspace is the integration."
+        />
+        <StaggerIn className="mt-14 grid gap-6 lg:grid-cols-3">
+          {STEPS.map((step) => (
+            <StaggerInItem key={step.n}>
+              <div className="relative flex min-h-[300px] items-center justify-center overflow-hidden rounded-[2rem] py-10">
+                <Scene variant={step.scene} />
+                <div className="relative z-10 flex w-full justify-center px-8">
+                  {step.mock}
+                </div>
+              </div>
+              <div className="flex items-start gap-3 px-2 pt-4">
+                <span className="pt-0.5 text-[11px] font-semibold tabular-nums tracking-[0.16em] text-sage-600">
+                  {step.n}
+                </span>
+                <div>
+                  <h3 className="text-base font-semibold tracking-tight">
+                    {step.title}
+                  </h3>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                    {step.body}
+                  </p>
+                </div>
+              </div>
             </StaggerInItem>
           ))}
         </StaggerIn>
@@ -223,70 +488,13 @@ function Problem() {
   );
 }
 
-/* ── How it works: three steps ────────────────────────────────────────── */
-
-const STEPS = [
-  {
-    n: "01",
-    title: "Create an agent, mint a key",
-    body: "Give it a name and a scope — your personal space or a team workspace. Mint an API key; it's hashed at rest and revocable in one click.",
-    mock: <AgentCardMock className="w-full max-w-sm" />,
-  },
-  {
-    n: "02",
-    title: "Point any runtime at one URL",
-    body: "Your MCP endpoint plus a bearer key is the whole integration. Claude Code, Cursor, LangGraph, a bash script — anything that speaks MCP is a teammate.",
-    mock: <ConnectMock className="w-full max-w-sm" />,
-  },
-  {
-    n: "03",
-    title: "Watch the work happen",
-    body: "The moment it heartbeats, it's on the board: live presence, a “Now: …” status line, and every task, comment, and completion in the activity feed.",
-    mock: <ActivityFeedMock className="w-full max-w-sm" />,
-  },
-];
-
-function HowItWorks() {
-  return (
-    <section className="border-t border-black/[0.06] bg-cream-deep/60 px-4 py-20 sm:px-6 sm:py-28">
-      <div className="mx-auto max-w-6xl">
-        <SectionHeading
-          eyebrow="How it works"
-          title="From zero to a working agent, in three moves."
-          sub="No SDK to learn, no worker to deploy, no YAML. The workspace is the integration."
-        />
-        <div className="mt-14 grid gap-4 lg:grid-cols-3">
-          {STEPS.map((step, i) => (
-            <FadeIn
-              key={step.n}
-              delay={i * 0.12}
-              className="flex flex-col rounded-3xl border border-black/[0.06] bg-white p-6 sm:p-8"
-            >
-              <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sage-600">
-                Step {step.n}
-              </span>
-              <h3 className="mt-3 text-xl font-bold tracking-tight">
-                {step.title}
-              </h3>
-              <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">
-                {step.body}
-              </p>
-              <div className="mt-6 flex justify-center">{step.mock}</div>
-            </FadeIn>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ── System showcase: interactive rows + swapping illustration ────────── */
+/* ── System showcase: illustration left, tinted highlight rows right ───── */
 
 const SYSTEM_ROWS = [
   {
     key: "approvals",
     title: "Approval gates",
-    body: "Agents can raise the gate but never lower it. Risky work waits for a human — approvals queue in your inbox with one-click sign-off.",
+    body: "Agents can raise the gate but never lower it. Risky work waits for a human — one-click sign-off from your inbox.",
     mock: <ApprovalMock className="w-full max-w-sm" />,
   },
   {
@@ -298,19 +506,19 @@ const SYSTEM_ROWS = [
   {
     key: "claims",
     title: "Claims & handoffs",
-    body: "Soft work-locks stop two agents from doing the same job. Blocked-by dependencies are enforced server-side; handoffs carry full context.",
+    body: "Soft work-locks stop duplicate effort. Blocked-by dependencies are enforced server-side; handoffs carry full context.",
     mock: <BoardMock className="w-full max-w-sm" />,
   },
   {
     key: "events",
     title: "Events & webhooks",
-    body: "Every change lands in an append-only log and fans out to HMAC-signed webhooks with retries. Agents subscribe themselves over MCP.",
+    body: "Every change lands in an append-only log and fans out to HMAC-signed webhooks. Agents subscribe themselves over MCP.",
     mock: <ActivityFeedMock className="w-full max-w-sm" />,
   },
   {
     key: "governance",
     title: "Budgets & roles",
-    body: "Per-agent daily action budgets with a 60/min burst cap. Read-only roles, list restrictions, and complete audit trails by default.",
+    body: "Per-agent daily budgets with a burst cap. Read-only roles, list restrictions, complete audit trails by default.",
     mock: <BudgetMock className="w-full max-w-sm" />,
   },
 ];
@@ -321,7 +529,7 @@ function SystemShowcase() {
   const active = manual ?? auto;
 
   return (
-    <section className="px-4 py-20 sm:px-6 sm:py-28">
+    <section className="border-t border-black/[0.06] px-4 py-20 sm:px-6 sm:py-28">
       <div className="mx-auto max-w-6xl">
         <SectionHeading
           eyebrow="The coordination layer"
@@ -329,63 +537,8 @@ function SystemShowcase() {
           sub="Not a runtime — the scaffolding around every runtime: assignment, visibility, guardrails, and proof of work."
         />
 
-        <div className="mt-14 grid items-start gap-8 lg:grid-cols-[1fr_minmax(0,480px)] lg:gap-16">
-          <FadeIn className="divide-y divide-black/[0.06] border-y border-black/[0.06]">
-            {SYSTEM_ROWS.map((row, i) => {
-              const isActive = i === active;
-              return (
-                <button
-                  key={row.key}
-                  type="button"
-                  onClick={() => setManual(i)}
-                  aria-expanded={isActive}
-                  className="relative block w-full py-5 pl-6 text-left"
-                >
-                  {isActive && (
-                    <motion.span
-                      layoutId="system-row-indicator"
-                      transition={SPRING}
-                      className="absolute bottom-4 left-0 top-4 w-1 rounded-full bg-foreground"
-                    />
-                  )}
-                  <span
-                    className={cn(
-                      "text-lg font-bold tracking-tight transition-colors duration-300",
-                      isActive ? "text-foreground" : "text-foreground/40",
-                    )}
-                  >
-                    {row.title}
-                  </span>
-                  <AnimatePresence initial={false}>
-                    {isActive && (
-                      <motion.span
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.4, ease: EASE }}
-                        className="block overflow-hidden"
-                      >
-                        <span className="block pt-2 text-sm leading-relaxed text-muted-foreground">
-                          {row.body}
-                        </span>
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                  {/* The active mock inlines here on mobile. */}
-                  {isActive && (
-                    <span className="mt-4 flex justify-center lg:hidden">
-                      {row.mock}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </FadeIn>
-
-          <FadeIn
-            delay={0.15}
-            className="relative hidden min-h-[380px] items-center justify-center overflow-hidden rounded-[2rem] lg:flex"
-          >
+        <div className="mt-14 grid items-stretch gap-8 lg:grid-cols-[minmax(0,480px)_1fr] lg:gap-16">
+          <FadeIn className="relative hidden min-h-[420px] items-center justify-center overflow-hidden rounded-[2rem] lg:flex">
             <Scene variant="haze" />
             <AnimatePresence mode="wait">
               <motion.div
@@ -399,6 +552,70 @@ function SystemShowcase() {
                 {SYSTEM_ROWS[active].mock}
               </motion.div>
             </AnimatePresence>
+          </FadeIn>
+
+          <FadeIn delay={0.1} className="flex flex-col justify-center">
+            <div className="space-y-1">
+              {SYSTEM_ROWS.map((row, i) => {
+                const isActive = i === active;
+                return (
+                  <button
+                    key={row.key}
+                    type="button"
+                    onClick={() => setManual(i)}
+                    aria-expanded={isActive}
+                    className={cn(
+                      "block w-full rounded-2xl px-5 py-4 text-left transition-colors duration-300",
+                      isActive ? "bg-sage-100/80" : "hover:bg-black/[0.03]",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "text-base font-semibold tracking-tight transition-colors duration-300",
+                        isActive ? "text-foreground" : "text-foreground/45",
+                      )}
+                    >
+                      {row.title}
+                    </span>
+                    <AnimatePresence initial={false}>
+                      {isActive && (
+                        <motion.span
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.4, ease: EASE }}
+                          className="block overflow-hidden"
+                        >
+                          <span className="block pt-1.5 text-sm leading-relaxed text-muted-foreground">
+                            {row.body}
+                          </span>
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                    {isActive && (
+                      <span className="mt-4 flex justify-center lg:hidden">
+                        {row.mock}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-8 flex flex-wrap gap-3 px-5">
+              <Link
+                href="/sign-up"
+                className="group inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-semibold text-white transition-transform active:scale-[0.97]"
+              >
+                Get started
+                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
+              </Link>
+              <Link
+                href="/use-cases"
+                className="inline-flex items-center gap-2 rounded-full border border-black/15 px-5 py-2.5 text-sm font-semibold transition-colors hover:bg-black/[0.04]"
+              >
+                View use cases
+              </Link>
+            </div>
           </FadeIn>
         </div>
       </div>
@@ -468,7 +685,7 @@ function HumanWork() {
                 >
                   {c.chip}
                 </span>
-                <h3 className="mt-4 text-lg font-bold tracking-tight">
+                <h3 className="mt-4 text-lg font-semibold tracking-tight">
                   {c.title}
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -528,8 +745,11 @@ function Governance() {
           <div className="mt-14 grid gap-8 lg:grid-cols-[1fr_minmax(0,420px)] lg:gap-16">
             <StaggerIn className="grid content-start gap-px overflow-hidden rounded-3xl border border-white/10 bg-white/10 sm:grid-cols-2">
               {TRUST.map((t) => (
-                <StaggerInItem key={t.title} className="bg-moss-900/80 p-6 backdrop-blur">
-                  <h3 className="text-base font-bold tracking-tight text-white">
+                <StaggerInItem
+                  key={t.title}
+                  className="bg-moss-900/80 p-6 backdrop-blur"
+                >
+                  <h3 className="text-base font-semibold tracking-tight text-white">
                     {t.title}
                   </h3>
                   <p className="mt-2 text-sm leading-relaxed text-white/60">
@@ -547,21 +767,27 @@ function Governance() {
               </FadeIn>
             </div>
           </div>
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.95 }}
+            whileInView={{ opacity: 1, y: 0, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, ease: EASE, delay: 0.3 }}
+            className="mt-10 hidden lg:block"
+          >
+            <ChatBubble name="Priya">
+              Nothing ships without me seeing it first. That&apos;s the whole
+              reason I said yes.
+            </ChatBubble>
+          </motion.div>
         </div>
       </div>
     </section>
   );
 }
 
-/* ── Quotes ───────────────────────────────────────────────────────────── */
+/* ── Stories: featured quote + outcome tiles, like the reference ───────── */
 
-const QUOTES = [
-  {
-    quote:
-      "The first time an agent claimed a task, worked it, and asked me for approval — that was the moment this stopped feeling like tooling and started feeling like a team.",
-    name: "Maya",
-    role: "Founder, 3-person startup running 5 agents",
-  },
+const SMALL_QUOTES = [
   {
     quote:
       "We stopped screenshotting terminal logs into Slack. The activity feed is the standup now — humans and agents in the same stream.",
@@ -570,23 +796,75 @@ const QUOTES = [
   },
   {
     quote:
-      "Budgets and approval gates were what let me hand client work to agents. I can see every action, and nothing ships without me.",
-    name: "Priya",
-    role: "Operations director, digital agency",
+      "It's the difference between having AI and having a colleague. The backlog moves while I'm at my day job.",
+    name: "Tom",
+    role: "Indie developer, nights & weekends",
   },
 ];
 
-function Quotes() {
+function Stories() {
   return (
     <section className="px-4 py-20 sm:px-6 sm:py-28">
       <div className="mx-auto max-w-6xl">
         <SectionHeading
-          align="center"
           eyebrow="Stories"
-          title="What running on mission control feels like."
+          title="Teams are already living like this."
+          sub="Small teams shipping like big ones — because the repetitive half of the company finally runs itself."
         />
-        <StaggerIn className="mt-14 grid gap-4 lg:grid-cols-3">
-          {QUOTES.map((q) => (
+
+        <div className="mt-14 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+          <FadeIn className="flex flex-col justify-between rounded-[2rem] border border-black/[0.06] bg-white p-8 sm:p-10">
+            <blockquote className="text-xl font-medium leading-relaxed tracking-[-0.01em] sm:text-2xl">
+              &ldquo;The first time an agent claimed a task, worked it, and
+              asked me for approval — that was the moment this stopped feeling
+              like tooling and started feeling like{" "}
+              <span className="text-sage-600">a team</span>.&rdquo;
+            </blockquote>
+            <figcaption className="mt-8 flex items-center justify-between gap-4">
+              <span className="flex items-center gap-3">
+                <span
+                  aria-hidden
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-sage-200 text-base font-semibold text-sage-700"
+                >
+                  M
+                </span>
+                <span>
+                  <span className="block text-sm font-semibold">Maya</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Founder — 3 humans, 5 agents
+                  </span>
+                </span>
+              </span>
+              <Link
+                href="/use-cases/founders"
+                className="group inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold"
+              >
+                Read her playbook
+                <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+              </Link>
+            </figcaption>
+          </FadeIn>
+
+          <StaggerIn className="grid grid-cols-2 gap-4">
+            <StaggerInItem className="h-full">
+              <StatTile
+                icon="⚡"
+                value={<CountUp value={87} suffix="%" />}
+                label="of handed-off tasks complete without rework"
+              />
+            </StaggerInItem>
+            <StaggerInItem className="h-full">
+              <StatTile
+                icon="🌿"
+                value={<CountUp value={11} suffix="h" />}
+                label="median time won back per person, per week"
+              />
+            </StaggerInItem>
+          </StaggerIn>
+        </div>
+
+        <StaggerIn className="mt-4 grid gap-4 sm:grid-cols-2">
+          {SMALL_QUOTES.map((q) => (
             <StaggerInItem key={q.name}>
               <QuoteCard {...q} />
             </StaggerInItem>

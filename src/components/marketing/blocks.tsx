@@ -57,7 +57,7 @@ export function SectionHeading({
       <Eyebrow tone={tone}>{eyebrow}</Eyebrow>
       <h2
         className={cn(
-          "mt-3 text-3xl font-bold tracking-tight sm:text-4xl",
+          "mt-3 text-3xl font-semibold tracking-[-0.02em] sm:text-4xl",
           tone === "light" && "text-white",
         )}
       >
@@ -95,7 +95,7 @@ export function PageHero({
       <div className="mx-auto max-w-4xl text-center">
         <FadeIn>
           <Eyebrow className="justify-center">{eyebrow}</Eyebrow>
-          <h1 className="mx-auto mt-4 max-w-3xl text-balance text-4xl font-bold tracking-tight sm:text-6xl">
+          <h1 className="mx-auto mt-4 max-w-3xl text-balance text-4xl font-semibold tracking-[-0.025em] sm:text-6xl">
             {title}
           </h1>
           {sub && (
@@ -195,5 +195,76 @@ export function QuoteCard({
         </span>
       </figcaption>
     </figure>
+  );
+}
+
+// Conversational accent — the floating "I can finally see…" bubble from
+// the brand reference. Reads as a person reacting to the product.
+export function ChatBubble({
+  children,
+  name,
+  className,
+}: {
+  children: React.ReactNode;
+  name?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "inline-flex max-w-xs items-start gap-2.5 rounded-2xl rounded-bl-md bg-white px-4 py-3 text-left shadow-[0_16px_40px_-16px_rgb(16_16_18/0.3)]",
+        className,
+      )}
+    >
+      {name && (
+        <span
+          aria-hidden
+          className="mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-sage-200 text-[10px] font-semibold text-sage-700"
+        >
+          {name[0]}
+        </span>
+      )}
+      <span className="text-[13px] leading-snug text-foreground">
+        {children}
+      </span>
+    </div>
+  );
+}
+
+// Reference-style outcome tile: tinted icon square, huge numeral, quiet
+// label underneath.
+export function StatTile({
+  icon,
+  value,
+  label,
+  className,
+}: {
+  icon: React.ReactNode;
+  value: React.ReactNode;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex h-full flex-col justify-between rounded-3xl border border-black/[0.06] bg-gradient-to-b from-sage-100/60 to-white p-6",
+        className,
+      )}
+    >
+      <span
+        aria-hidden
+        className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-pastel-green text-sm"
+      >
+        {icon}
+      </span>
+      <div className="mt-8">
+        <p className="text-4xl font-semibold tabular-nums tracking-[-0.02em] sm:text-5xl">
+          {value}
+        </p>
+        <p className="mt-1.5 text-xs leading-snug text-muted-foreground">
+          {label}
+        </p>
+      </div>
+    </div>
   );
 }
