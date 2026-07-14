@@ -7,6 +7,13 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { parseMentionBody } from "@/lib/mentions";
 import { cn } from "@/lib/utils";
+import {
+  AnimatePresence,
+  EASE,
+  motion,
+  Stagger,
+  StaggerItem,
+} from "@/components/motion";
 
 export function Inbox() {
   const mentions = useQuery(api.mentions.listForCurrent, {});
@@ -57,13 +64,13 @@ export function Inbox() {
           When someone @mentions you, it&apos;ll show up here.
         </div>
       ) : (
-        <ul className="space-y-2">
+        <Stagger className="space-y-2">
           {mentions.map((mention) => (
-            <li key={mention._id}>
+            <StaggerItem key={mention._id}>
               <MentionItem mention={mention} />
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </Stagger>
       )}
     </div>
   );
@@ -90,10 +97,16 @@ function ApprovalsQueue({
         Waiting on your approval ({approvals.length})
       </h2>
       <ul className="mt-2 space-y-2">
+        <AnimatePresence initial={false}>
         {approvals.map((a) => (
-          <li
+          <motion.li
             key={a.taskId}
-            className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-background px-3 py-2 text-sm"
+            layout
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, x: 24, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.35, ease: EASE }}
+            className="flex flex-wrap items-center gap-2 overflow-hidden rounded-2xl border border-border bg-background px-3 py-2 text-sm"
           >
             <Link
               href={`/dashboard/l/${a.listId}/t/${a.taskId}`}
@@ -116,8 +129,9 @@ function ApprovalsQueue({
             <Button size="sm" onClick={() => approve({ taskId: a.taskId })}>
               Approve
             </Button>
-          </li>
+          </motion.li>
         ))}
+        </AnimatePresence>
       </ul>
     </section>
   );
@@ -166,7 +180,7 @@ function MentionItem({ mention }: { mention: Doc<"mentions"> }) {
         if (!mention.readAt) markRead({ mentionId: mention._id });
       }}
       className={cn(
-        "block rounded-2xl border border-border bg-background p-3 transition-colors hover:border-foreground/25",
+        "lift block rounded-2xl border border-border bg-background p-3 hover:border-foreground/25",
         !mention.readAt && "border-l-4 border-l-brand-600",
       )}
     >

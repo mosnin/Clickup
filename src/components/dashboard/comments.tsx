@@ -7,6 +7,7 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { EASE, motion } from "@/components/motion";
 import {
   extractMentionedClerkIds,
   formatMentionToken,
@@ -80,7 +81,13 @@ export function Comments({
       )}
       <ul className="space-y-3">
         {topLevel.map((m) => (
-          <li key={m._id}>
+          <motion.li
+            key={m._id}
+            layout
+            initial={{ opacity: 0, y: 10, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.4, ease: EASE }}
+          >
             <MessageItem
               message={m}
               replies={repliesByParent.get(m._id) ?? []}
@@ -89,7 +96,7 @@ export function Comments({
               parentType={parentType}
               parentId={parentId}
             />
-          </li>
+          </motion.li>
         ))}
       </ul>
 

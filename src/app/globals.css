@@ -62,3 +62,22 @@ body {
   border-bottom: 1px solid var(--color-border);
   padding-bottom: 1rem;
 }
+
+/* Interactive-card hover: a quiet lift with a soft, wide shadow. */
+.lift {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s ease;
+}
+.lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px -16px rgb(16 16 18 / 0.22);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lift,
+  .lift:hover {
+    transition: none;
+    transform: none;
+  }
+}

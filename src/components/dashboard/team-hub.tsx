@@ -6,6 +6,7 @@ import { Timer } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { formatDurationCoarse } from "@/lib/duration";
+import { AnimatedNumber, Stagger, StaggerItem } from "@/components/motion";
 
 export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const members = useQuery(api.team.hub, { workspaceId });
@@ -33,11 +34,11 @@ export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
         {members.length} member{members.length === 1 ? "" : "s"} ·{" "}
         {members.filter((m) => m.running).length} currently tracking time
       </p>
-      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <Stagger className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {members.map((m) => (
-          <li
+          <StaggerItem
             key={m.clerkId}
-            className="rounded-2xl border border-border bg-background p-4"
+            className="lift rounded-2xl border border-border bg-background p-4"
           >
             <div className="flex items-start gap-3">
               <Avatar name={m.name} clerkId={m.clerkId} />
@@ -73,9 +74,9 @@ export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
                 />
               </div>
             )}
-          </li>
+          </StaggerItem>
         ))}
-      </ul>
+      </Stagger>
     </div>
   );
 }
@@ -113,7 +114,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
       <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
         {label}
       </dt>
-      <dd className="text-lg font-bold tracking-tight">{value}</dd>
+      <dd className="text-lg font-bold tracking-tight"><AnimatedNumber value={value} /></dd>
     </div>
   );
 }

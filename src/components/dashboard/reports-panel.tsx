@@ -5,6 +5,7 @@ import { CheckCircle2, Clock, ListChecks, Target } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { formatDurationCoarse } from "@/lib/duration";
+import { AnimatedBar, AnimatedNumber, Stagger, StaggerItem } from "@/components/motion";
 
 export function ReportsPanel({
   workspaceId,
@@ -51,7 +52,7 @@ export function ReportsPanel({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <Stagger className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           icon={ListChecks}
           label="Open tasks"
@@ -78,7 +79,7 @@ export function ReportsPanel({
           value={summary.goals.total}
           subtext={`${Math.round(summary.goals.avgProgress * 100)}% avg progress`}
         />
-      </div>
+      </Stagger>
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Widget title="Workload by assignee">
@@ -150,18 +151,20 @@ function Stat({
   subtext?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-background p-4">
-      <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <StaggerItem className="rounded-2xl border border-border bg-background p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           {label}
         </span>
+        <Icon className="h-3.5 w-3.5 text-muted-foreground/70" aria-hidden />
       </div>
-      <p className="mt-2 text-2xl font-bold tracking-tight">{value}</p>
+      <p className="mt-2 text-3xl font-bold tracking-tight">
+        <AnimatedNumber value={value} />
+      </p>
       {subtext && (
-        <p className="mt-0.5 text-xs text-muted-foreground">{subtext}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{subtext}</p>
       )}
-    </div>
+    </StaggerItem>
   );
 }
 
@@ -206,12 +209,11 @@ function Bar({
         <span className="truncate">{label}</span>
         <span className="text-muted-foreground">{valueLabel ?? value}</span>
       </div>
-      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full bg-brand-600"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      <AnimatedBar
+        pct={pct}
+        className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"
+        barClassName="h-full rounded-full bg-brand-600"
+      />
     </li>
   );
 }

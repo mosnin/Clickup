@@ -14,6 +14,7 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { AnimatedBar, Stagger, StaggerItem } from "@/components/motion";
 
 // Per-agent drill-down: live status, governance controls (role, budget,
 // notify URL), run history, current claims/assignments, and the agent's
@@ -232,19 +233,19 @@ function StatsRow({
       : []),
   ];
   return (
-    <section className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+    <Stagger className="grid grid-cols-3 gap-3 sm:grid-cols-6">
       {tiles.map((t) => (
-        <div
+        <StaggerItem
           key={t.label}
           className="rounded-2xl border border-border bg-background p-3 text-center"
         >
-          <p className="text-lg font-semibold">{t.value}</p>
+          <p className="text-lg font-bold tracking-tight">{t.value}</p>
           <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
             {t.label}
           </p>
-        </div>
+        </StaggerItem>
       ))}
-    </section>
+    </Stagger>
   );
 }
 
@@ -310,15 +311,14 @@ function GovernancePanel({
               {usageToday} used today ({usagePct}%)
             </span>
           </div>
-          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-            <div
-              className={cn(
-                "h-full rounded-full",
-                usagePct > 90 ? "bg-red-500" : "bg-brand-600",
-              )}
-              style={{ width: `${usagePct}%` }}
-            />
-          </div>
+          <AnimatedBar
+            pct={usagePct}
+            className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"
+            barClassName={cn(
+              "h-full rounded-full",
+              usagePct > 90 ? "bg-red-500" : "bg-brand-600",
+            )}
+          />
         </label>
 
         <div className="space-y-2">

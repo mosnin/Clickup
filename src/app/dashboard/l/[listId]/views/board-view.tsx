@@ -29,6 +29,7 @@ import { CalendarDays, GripVertical } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { EASE, motion } from "@/components/motion";
 
 const PRIORITY_COLOR: Record<string, string> = {
   urgent: "#f2b3ab",
@@ -204,15 +205,21 @@ export function BoardView({
       onDragEnd={onDragEnd}
     >
       <div className="flex gap-3 overflow-x-auto pb-2">
-        {sortedStatuses.map((status) => {
+        {sortedStatuses.map((status, i) => {
           const columnTasks = columns.get(status._id) ?? [];
           return (
-            <Column
+            <motion.div
               key={status._id}
-              listId={listId}
-              status={status}
-              tasks={columnTasks}
-            />
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, ease: EASE, delay: i * 0.06 }}
+            >
+              <Column
+                listId={listId}
+                status={status}
+                tasks={columnTasks}
+              />
+            </motion.div>
           );
         })}
       </div>

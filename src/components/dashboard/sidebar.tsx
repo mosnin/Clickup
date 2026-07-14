@@ -7,7 +7,6 @@ import { UserButton } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import {
   Bot,
-  ChevronDown,
   ChevronRight,
   FileText,
   Inbox,
@@ -20,6 +19,7 @@ import {
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { motion, SPRING } from "@/components/motion";
 import { RunningTimerChip } from "@/components/dashboard/running-timer-chip";
 import { TemplatePicker } from "@/components/dashboard/template-picker";
 
@@ -120,14 +120,21 @@ function BrainLink({ onNavigate }: { onNavigate: () => void }) {
       href="/dashboard/brain"
       onClick={onNavigate}
       className={cn(
-        "mb-1 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+        "relative mb-1 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
         active
-          ? "bg-muted text-foreground"
+          ? "text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
-      <Sparkles className="h-4 w-4" />
-      <span>Brain</span>
+      {active && (
+        <motion.span
+          layoutId="sidebar-active"
+          className="absolute inset-0 rounded-lg bg-muted"
+          transition={SPRING}
+        />
+      )}
+      <Sparkles className="relative z-10 h-4 w-4" />
+      <span className="relative z-10">Brain</span>
     </Link>
   );
 }
@@ -140,14 +147,21 @@ function AgentsLink({ onNavigate }: { onNavigate: () => void }) {
       href="/dashboard/agents"
       onClick={onNavigate}
       className={cn(
-        "mb-1 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+        "relative mb-1 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
         active
-          ? "bg-muted text-foreground"
+          ? "text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
-      <Bot className="h-4 w-4" />
-      <span>Agents</span>
+      {active && (
+        <motion.span
+          layoutId="sidebar-active"
+          className="absolute inset-0 rounded-lg bg-muted"
+          transition={SPRING}
+        />
+      )}
+      <Bot className="relative z-10 h-4 w-4" />
+      <span className="relative z-10">Agents</span>
     </Link>
   );
 }
@@ -162,16 +176,23 @@ function InboxLink({ onNavigate }: { onNavigate: () => void }) {
       href="/dashboard/inbox"
       onClick={onNavigate}
       className={cn(
-        "mb-3 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+        "relative mb-3 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
         active
-          ? "bg-muted text-foreground"
+          ? "text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
-      <Inbox className="h-4 w-4" />
-      <span className="flex-1">Inbox</span>
+      {active && (
+        <motion.span
+          layoutId="sidebar-active"
+          className="absolute inset-0 rounded-lg bg-muted"
+          transition={SPRING}
+        />
+      )}
+      <Inbox className="relative z-10 h-4 w-4" />
+      <span className="relative z-10 flex-1">Inbox</span>
       {typeof unread === "number" && unread > 0 && (
-        <span className="rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
+        <span className="relative z-10 rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
           {unread > 99 ? "99+" : unread}
         </span>
       )}
@@ -265,11 +286,13 @@ function WorkspaceBranch({
           onClick={() => setExpanded((v) => !v)}
           className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground"
         >
-          {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5" />
-          ) : (
+          <motion.span
+            animate={{ rotate: expanded ? 90 : 0 }}
+            transition={SPRING}
+            className="inline-flex"
+          >
             <ChevronRight className="h-3.5 w-3.5" />
-          )}
+          </motion.span>
         </button>
         <Link
           href={`/dashboard/w/${workspace._id}`}
@@ -378,11 +401,13 @@ function SpaceBranch({
           onClick={() => setExpanded((v) => !v)}
           className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground"
         >
-          {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5" />
-          ) : (
+          <motion.span
+            animate={{ rotate: expanded ? 90 : 0 }}
+            transition={SPRING}
+            className="inline-flex"
+          >
             <ChevronRight className="h-3.5 w-3.5" />
-          )}
+          </motion.span>
         </button>
         <span className="flex flex-1 items-center gap-2 truncate rounded-lg px-2.5 py-1 text-sm">
           {dot}
@@ -504,11 +529,13 @@ function FolderBranch({
           onClick={() => setExpanded((v) => !v)}
           className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-muted-foreground"
         >
-          {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5" />
-          ) : (
+          <motion.span
+            animate={{ rotate: expanded ? 90 : 0 }}
+            transition={SPRING}
+            className="inline-flex"
+          >
             <ChevronRight className="h-3.5 w-3.5" />
-          )}
+          </motion.span>
         </button>
         <span className="flex flex-1 items-center truncate rounded-lg px-2.5 py-1 text-sm text-muted-foreground">
           {folder.name}

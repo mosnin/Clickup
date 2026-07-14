@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { TaskBadges } from "@/components/dashboard/task-badges";
 import { cn } from "@/lib/utils";
+import { EASE, motion } from "@/components/motion";
 
 type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
 
@@ -64,13 +65,14 @@ export function ListView({
               </td>
             </tr>
           )}
-          {tasks.map((task) => (
+          {tasks.map((task, i) => (
             <TaskRow
               key={task._id}
               task={task}
               listId={listId}
               statuses={statuses}
               fields={fields}
+              index={i}
             />
           ))}
         </tbody>
@@ -85,11 +87,13 @@ function TaskRow({
   listId,
   statuses,
   fields,
+  index,
 }: {
   task: Doc<"tasks">;
   listId: Id<"lists">;
   statuses: Doc<"listStatuses">[];
   fields: Doc<"customFields">[];
+  index: number;
 }) {
   const update = useMutation(api.tasks.update);
   const toggleComplete = useMutation(api.tasks.toggleComplete);
@@ -111,7 +115,16 @@ function TaskRow({
     status?.category === "complete" || status?.category === "closed";
 
   return (
-    <tr className="border-b border-border last:border-0 align-middle">
+    <motion.tr
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.4,
+        ease: EASE,
+        delay: Math.min(index * 0.03, 0.3),
+      }}
+      className="border-b border-border last:border-0 align-middle"
+    >
       <td className="px-3 py-2">
         <button
           type="button"
@@ -244,7 +257,7 @@ function TaskRow({
           ✕
         </button>
       </td>
-    </tr>
+    </motion.tr>
   );
 }
 

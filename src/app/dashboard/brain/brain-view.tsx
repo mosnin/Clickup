@@ -7,6 +7,7 @@ import { Sparkles } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Stagger, StaggerItem } from "@/components/motion";
 
 type Scope = { type: "user"; id: string } | { type: "workspace"; id: string };
 
@@ -138,13 +139,13 @@ export function Brain() {
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Sources
           </h2>
-          <ul className="mt-2 space-y-2">
+          <Stagger className="mt-2 space-y-2">
             {sources.map((s, i) => (
-              <li key={`${s.parentType}:${s.parentId}`}>
+              <StaggerItem key={`${s.parentType}:${s.parentId}`}>
                 <SourceLink index={i + 1} source={s} />
-              </li>
+              </StaggerItem>
             ))}
-          </ul>
+          </Stagger>
         </section>
       )}
     </div>
@@ -167,7 +168,7 @@ function SourceLink({ index, source }: { index: number; source: Source }) {
         : null;
 
   const inner = (
-    <div className="flex items-start gap-3 rounded-2xl border border-border bg-background p-3 hover:border-foreground/25">
+    <div className="lift flex items-start gap-3 rounded-2xl border border-border bg-background p-3 hover:border-foreground/25">
       <span className="mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-medium text-brand-700">
         {index}
       </span>

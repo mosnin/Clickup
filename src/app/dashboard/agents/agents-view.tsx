@@ -20,6 +20,13 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  AnimatePresence,
+  EASE,
+  motion,
+  Stagger,
+  StaggerItem,
+} from "@/components/motion";
 
 // Agents HQ ("Mission Control"): manage agent principals + API keys, watch
 // a live activity feed of everything agents and humans are doing, and
@@ -73,15 +80,22 @@ export function AgentsView() {
         ))}
       </nav>
 
-      {tab === "agents" ? (
-        <AgentsTab />
-      ) : tab === "activity" ? (
-        <ActivityFeed />
-      ) : tab === "webhooks" ? (
-        <WebhooksTab />
-      ) : (
-        <SkillsTab />
-      )}
+      <motion.div
+        key={tab}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: EASE }}
+      >
+        {tab === "agents" ? (
+          <AgentsTab />
+        ) : tab === "activity" ? (
+          <ActivityFeed />
+        ) : tab === "webhooks" ? (
+          <WebhooksTab />
+        ) : (
+          <SkillsTab />
+        )}
+      </motion.div>
     </div>
   );
 }
@@ -312,13 +326,13 @@ function AgentGroup({
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </h3>
-      <ul className="grid gap-3 lg:grid-cols-2">
+      <Stagger className="grid gap-3 lg:grid-cols-2">
         {agents.map((agent) => (
-          <li key={agent._id}>
+          <StaggerItem key={agent._id}>
             <AgentCard agent={agent} taskTitles={taskTitles} />
-          </li>
+          </StaggerItem>
         ))}
-      </ul>
+      </Stagger>
     </section>
   );
 }
@@ -344,7 +358,7 @@ function AgentCard({
     : undefined;
 
   return (
-    <div className="rounded-2xl border border-border bg-background p-4">
+    <div className="lift rounded-2xl border border-border bg-background p-4">
       <div className="flex items-start gap-3">
         <span className="text-2xl" aria-hidden>
           {agent.emoji ?? "🤖"}
@@ -367,17 +381,19 @@ function AgentCard({
                     : "bg-muted text-muted-foreground",
               )}
             >
-              <span
-                aria-hidden
-                className={cn(
-                  "h-1.5 w-1.5 rounded-full",
-                  agent.status === "paused"
-                    ? "bg-muted-foreground"
-                    : online
+              <span aria-hidden className="relative inline-flex h-1.5 w-1.5">
+                {agent.status === "active" && online && (
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/60" />
+                )}
+                <span
+                  className={cn(
+                    "relative inline-flex h-1.5 w-1.5 rounded-full",
+                    agent.status === "active" && online
                       ? "bg-emerald-500"
                       : "bg-muted-foreground",
-                )}
-              />
+                  )}
+                />
+              </span>
               {agent.status === "paused"
                 ? "Paused"
                 : online
@@ -446,7 +462,20 @@ function AgentCard({
           </button>
         </div>
       </div>
-      {showKeys && <KeysPanel agentId={agent._id} />}
+      <AnimatePresence initial={false}>
+        {showKeys && (
+          <motion.div
+            key="keys"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.35, ease: EASE }}
+            className="overflow-hidden"
+          >
+            <KeysPanel agentId={agent._id} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -461,7 +490,11 @@ function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
   return (
     <div className="mt-3 space-y-2 rounded-2xl border border-border bg-muted/20 p-3">
       {freshKey && (
-        <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-xs">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.97, y: -4 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: EASE }}
+          className="rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-xs">
           <p className="font-medium text-emerald-800">
             Copy this key now — it won&apos;t be shown again.
           </p>
@@ -478,7 +511,7 @@ function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
               <Copy className="h-3.5 w-3.5" />
             </button>
           </div>
-        </div>
+        </motion.div>
       )}
       <ul className="space-y-1 text-xs">
         {(keys ?? []).map((k) => (
@@ -615,9 +648,14 @@ export function ActivityFeed({
 
   return (
     <ul className="space-y-1.5">
+      <AnimatePresence initial={false}>
       {events.map((e) => (
-        <li
+        <motion.li
           key={e._id}
+          layout
+          initial={{ opacity: 0, y: -10, filter: "blur(3px)" }}
+          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          transition={{ duration: 0.4, ease: EASE }}
           className="flex items-baseline gap-2 rounded-2xl border border-border bg-background px-3 py-2 text-sm"
         >
           <span
@@ -659,8 +697,9 @@ export function ActivityFeed({
           <span className="flex-shrink-0 text-xs text-muted-foreground">
             {timeAgo(e.createdAt)}
           </span>
-        </li>
+        </motion.li>
       ))}
+      </AnimatePresence>
     </ul>
   );
 }

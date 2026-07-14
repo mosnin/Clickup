@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { Stagger, StaggerItem } from "@/components/motion";
 
 export default function DashboardHome() {
   const tree = useQuery(api.sidebar.tree, {});
@@ -29,12 +30,12 @@ export default function DashboardHome() {
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Personal
         </h2>
-        <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Stagger className="mt-3 grid gap-3 sm:grid-cols-2">
           {tree.personal ? (
-            <li>
+            <StaggerItem>
               <Link
                 href="/dashboard/personal"
-                className="block rounded-2xl border border-border bg-background p-5 transition-colors hover:border-foreground/25"
+                className="lift block rounded-2xl border border-border bg-background p-5 hover:border-foreground/25"
               >
                 <div className="flex items-center gap-2">
                   <span
@@ -53,13 +54,13 @@ export default function DashboardHome() {
                   lists · {tree.personal.folders.length} folders
                 </p>
               </Link>
-            </li>
+            </StaggerItem>
           ) : (
-            <li className="rounded-2xl border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground">
+            <StaggerItem className="rounded-2xl border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground">
               Setting up your personal space…
-            </li>
+            </StaggerItem>
           )}
-        </ul>
+        </Stagger>
       </section>
 
       <section>
@@ -74,9 +75,9 @@ export default function DashboardHome() {
             New workspace →
           </Link>
         </div>
-        <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Stagger className="mt-3 grid gap-3 sm:grid-cols-2">
           {tree.workspaces.length === 0 && (
-            <li className="rounded-2xl border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground sm:col-span-2">
+            <StaggerItem className="rounded-2xl border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground sm:col-span-2">
               You&apos;re not in any team workspaces yet.{" "}
               <Link
                 href="/onboarding"
@@ -85,13 +86,13 @@ export default function DashboardHome() {
                 Create one
               </Link>
               .
-            </li>
+            </StaggerItem>
           )}
           {tree.workspaces.map((ws) => (
-            <li key={ws._id}>
+            <StaggerItem key={ws._id}>
               <Link
                 href={`/dashboard/w/${ws._id}`}
-                className="block rounded-2xl border border-border bg-background p-5 transition-colors hover:border-foreground/25"
+                className="lift block rounded-2xl border border-border bg-background p-5 hover:border-foreground/25"
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{ws.name}</span>
@@ -103,9 +104,9 @@ export default function DashboardHome() {
                   {ws.spaces.length} space{ws.spaces.length === 1 ? "" : "s"}
                 </p>
               </Link>
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </Stagger>
       </section>
     </div>
   );

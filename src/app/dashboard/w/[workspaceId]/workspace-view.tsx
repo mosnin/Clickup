@@ -13,6 +13,7 @@ import { TeamHub } from "@/components/dashboard/team-hub";
 import { WorkspaceSettings } from "@/components/dashboard/workspace-settings";
 import { ActivityFeed } from "@/app/dashboard/agents/agents-view";
 import { cn } from "@/lib/utils";
+import { EASE, motion } from "@/components/motion";
 
 type Tab =
   | "overview"
@@ -115,6 +116,12 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
         ))}
       </nav>
 
+      <motion.div
+        key={tab}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: EASE }}
+      >
       {tab === "overview" ? (
         workspace.spaces.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-10 text-center">
@@ -200,6 +207,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
           />
         </section>
       )}
+      </motion.div>
     </div>
   );
 }

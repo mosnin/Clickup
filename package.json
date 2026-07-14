@@ -29,6 +29,7 @@
     "date-fns": "^4.1.0",
     "lucide-react": "^0.468.0",
     "mcp-handler": "^1.1.0",
+    "motion": "^12.42.2",
     "next": "^15.1.0",
     "openai": "^4.71.1",
     "react": "^19.0.0",

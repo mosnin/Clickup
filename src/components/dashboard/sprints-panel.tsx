@@ -3,11 +3,19 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  AnimatedBar,
+  AnimatePresence,
+  EASE,
+  motion,
+  Stagger,
+  StaggerItem,
+} from "@/components/motion";
 
 // Sprints tab on the workspace page: create timeboxes, watch progress,
 // and drill into the per-task rollup. Tasks join a sprint from the task
@@ -52,13 +60,13 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
         </div>
       )}
 
-      <ul className="space-y-3">
+      <Stagger className="space-y-3">
         {sprints.map((s) => (
-          <li key={s._id}>
+          <StaggerItem key={s._id}>
             <SprintCard sprint={s} />
-          </li>
+          </StaggerItem>
         ))}
-      </ul>
+      </Stagger>
     </div>
   );
 }
@@ -199,11 +207,13 @@ function SprintCard({
           aria-label={open ? "Collapse" : "Expand"}
           className="inline-flex h-5 w-5 items-center justify-center text-muted-foreground"
         >
-          {open ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
+          <motion.span
+            animate={{ rotate: open ? 90 : 0 }}
+            transition={{ duration: 0.25, ease: EASE }}
+            className="inline-flex"
+          >
             <ChevronRight className="h-4 w-4" />
-          )}
+          </motion.span>
         </button>
         <span className="font-medium">{sprint.name}</span>
         <span
@@ -252,15 +262,21 @@ function SprintCard({
         <p className="mt-1 pl-7 text-xs text-muted-foreground">{sprint.goal}</p>
       )}
 
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full bg-brand-600 transition-all"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      <AnimatedBar
+        pct={pct}
+        className="mt-3 h-2 overflow-hidden rounded-full bg-muted"
+        barClassName="h-full rounded-full bg-brand-600"
+      />
 
+      <AnimatePresence initial={false}>
       {open && summary && (
-        <ul className="mt-3 space-y-1 pl-7">
+        <motion.ul
+          key="tasks"
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.4, ease: EASE }}
+          className="mt-3 space-y-1 overflow-hidden pl-7">
           {summary.tasks.length === 0 && (
             <li className="text-xs text-muted-foreground">
               No tasks in this sprint yet. Add them from a task&apos;s Sprint
@@ -317,8 +333,9 @@ function SprintCard({
               </span>
             </li>
           ))}
-        </ul>
+        </motion.ul>
       )}
+      </AnimatePresence>
     </div>
   );
 }

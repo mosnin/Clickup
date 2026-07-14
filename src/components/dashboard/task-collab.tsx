@@ -8,6 +8,7 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { AnimatePresence, EASE, motion } from "@/components/motion";
 
 // Collaboration controls on the task detail page: assignees (humans AND
 // agents), sprint membership, the agent work-claim, acceptance-criteria
@@ -43,7 +44,10 @@ export function TaskCollaboration({
   return (
     <div className="space-y-6">
       {task.requiresApproval && (
-        <div
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: EASE }}
           className={cn(
             "flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm",
             task.approvedAt
@@ -71,7 +75,7 @@ export function TaskCollaboration({
           >
             Remove gate
           </Button>
-        </div>
+        </motion.div>
       )}
       {task.claimedByActorId && (
         <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
@@ -288,8 +292,17 @@ function Checklist({ task }: { task: Doc<"tasks"> }) {
         Checklist{items.length > 0 && ` · ${doneCount}/${items.length}`}
       </h2>
       <ul className="space-y-1">
+        <AnimatePresence initial={false}>
         {items.map((item) => (
-          <li key={item.id} className="flex items-center gap-2">
+          <motion.li
+            key={item.id}
+            layout
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3, ease: EASE }}
+            className="flex items-center gap-2 overflow-hidden"
+          >
             <input
               type="checkbox"
               checked={item.done}
@@ -318,8 +331,9 @@ function Checklist({ task }: { task: Doc<"tasks"> }) {
             >
               <X className="h-3 w-3" />
             </button>
-          </li>
+          </motion.li>
         ))}
+        </AnimatePresence>
       </ul>
       <form
         className="mt-2 flex items-center gap-2"
