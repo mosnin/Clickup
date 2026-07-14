@@ -235,6 +235,17 @@ const TOOLS: ToolDef[] = [
       c.mutation(asMutation(api.agentApi.completeTask), { apiKey: k, ...a }),
   },
   {
+    name: "request_approval",
+    description:
+      "My work on a gated task is done — ask a human to sign off. Raises the approval gate if needed, emits task.approval_requested, and emails a responsible human. Wait for the task.approved event (or poll get_task) before complete_task.",
+    shape: {
+      taskId: z.string(),
+      note: z.string().optional().describe("what to review / where to look"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.requestApproval), { apiKey: k, ...a }),
+  },
+  {
     name: "delete_task",
     description: "Delete a task (and its subtasks). Prefer completing over deleting.",
     shape: { taskId: z.string() },
@@ -606,6 +617,12 @@ const TOOLS: ToolDef[] = [
       status: z.enum(["succeeded", "failed", "abandoned"]),
       summary: z.string().optional(),
       error: z.string().optional(),
+      links: z
+        .array(z.string())
+        .optional()
+        .describe("artifacts produced: PR/doc/deploy URLs (max 20)"),
+      tokensUsed: z.number().optional(),
+      costUsd: z.number().optional(),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.finishRun), { apiKey: k, ...a }),

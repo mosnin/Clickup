@@ -13,8 +13,20 @@ import { cn } from "@/lib/utils";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+// "09:00 UTC (11:00 local)" — schedules run on UTC; show the viewer's
+// local equivalent so non-UTC teams don't misread the hour.
+function fmtHourUtc(hourUtc: number): string {
+  const d = new Date();
+  d.setUTCHours(hourUtc, 0, 0, 0);
+  const local = d.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `${String(hourUtc).padStart(2, "0")}:00 UTC (${local} local)`;
+}
+
 function describeSchedule(st: Doc<"scheduledTasks">): string {
-  const at = `${String(st.hourUtc).padStart(2, "0")}:00 UTC`;
+  const at = fmtHourUtc(st.hourUtc);
   if (st.cadence === "daily") return `Daily at ${at}`;
   if (st.cadence === "weekly") {
     return `Every ${WEEKDAYS[(st.dayOfWeek ?? 1) % 7]} at ${at}`;

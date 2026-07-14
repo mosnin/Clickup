@@ -210,7 +210,13 @@ export default defineSchema({
     .index("by_list", ["listId"])
     .index("by_list_and_status", ["listId", "statusId"])
     .index("by_parent_task", ["parentTaskId"])
-    .index("by_sprint", ["sprintId"]),
+    .index("by_sprint", ["sprintId"])
+    // Watchdog ranges: claimed tasks are claimedByActorId > "" (absent
+    // fields sort before all strings); due tasks are 0 < dueDate < now.
+    .index("by_claimed", ["claimedByActorId"])
+    .index("by_due", ["dueDate"])
+    // The global set of approval-gated tasks (small) for the inbox queue.
+    .index("by_approval", ["requiresApproval"]),
 
   // External integrations attached to a workspace. Each kind stores its
   // own credential shape inside `config` (e.g. { webhookUrl } for Slack).
@@ -457,10 +463,12 @@ export default defineSchema({
     // Mutations per UTC day before the agent is throttled. Undefined =
     // DEFAULT_DAILY_ACTION_LIMIT (see _agentAuth.ts).
     dailyActionLimit: v.optional(v.number()),
-    // Direct push endpoint: assignments and mentions POST a small unsigned
-    // ping here even when the agent has no webhook subscription, so
-    // "assign an agent" works out of the box.
+    // Direct push endpoint: assignments and mentions POST a small ping
+    // here even when the agent has no webhook subscription, so "assign an
+    // agent" works out of the box. When notifySecret is set, pings carry
+    // an HMAC-SHA256 X-Ping-Signature header.
     notifyUrl: v.optional(v.string()),
+    notifySecret: v.optional(v.string()),
     createdByClerkId: v.string(),
     // Live presence, reported over MCP: heartbeat bumps lastSeenAt, and
     // agents self-report what they're doing right now so Mission Control
@@ -477,6 +485,9 @@ export default defineSchema({
     agentId: v.id("agents"),
     day: v.string(), // "YYYY-MM-DD" UTC
     count: v.number(),
+    // Sliding burst window: mutations in the current minute.
+    minute: v.optional(v.string()), // "YYYY-MM-DDTHH:MM" UTC
+    minuteCount: v.optional(v.number()),
   }).index("by_agent_day", ["agentId", "day"]),
 
   // Structured work sessions ("runs") agents report over MCP: started X,
@@ -495,6 +506,11 @@ export default defineSchema({
     ),
     summary: v.optional(v.string()),
     error: v.optional(v.string()),
+    // Artifacts + cost reported by the runtime with finish_run: links to
+    // PRs/docs/deploys produced, and what the run cost.
+    links: v.optional(v.array(v.string())),
+    tokensUsed: v.optional(v.number()),
+    costUsd: v.optional(v.number()),
     startedAt: v.number(),
     finishedAt: v.optional(v.number()),
   }).index("by_agent", ["agentId"]),

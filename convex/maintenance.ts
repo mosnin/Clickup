@@ -22,83 +22,94 @@ const AGENT_STALL_MS = 30 * 60 * 1000;
 //      agent.stalled (their status line is cleared so the flag fires
 //      once and Mission Control stops showing a stale "Now: …").
 //
-// The task pass is a full-table walk — same tradeoff as
-// reports.workspaceSummary; fine at target scale, needs an index/cursor
-// past a few thousand tasks.
+// Both task passes are index ranges, not table scans: claimed tasks have
+// claimedByActorId > "" (absent optional fields sort before every
+// string), and due tasks have 0 < dueDate < now.
 export const watchdog = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
     const statusCache = new Map<string, Doc<"listStatuses"> | null>();
     const listCache = new Map<string, Doc<"lists"> | null>();
+    const getList = async (id: Doc<"tasks">["listId"]) => {
+      let list = listCache.get(id);
+      if (list === undefined) {
+        list = await ctx.db.get(id);
+        listCache.set(id, list);
+      }
+      return list;
+    };
 
-    const tasks = await ctx.db.query("tasks").collect();
-    for (const task of tasks) {
+    // 1. Expired claims.
+    const claimedTasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_claimed", (q) => q.gt("claimedByActorId", ""))
+      .collect();
+    for (const task of claimedTasks) {
+      if (
+        task.claimedAt === undefined ||
+        now - task.claimedAt <= CLAIM_TTL_MS
+      ) {
+        continue;
+      }
+      await ctx.db.patch(task._id, {
+        claimedByActorId: undefined,
+        claimedAt: undefined,
+      });
+      const list = await getList(task.listId);
+      const scope = list ? await scopeForList(ctx, list) : null;
+      if (scope) {
+        await emitEvent(ctx, {
+          ...scope,
+          type: "task.claim_expired",
+          actor: WATCHDOG_ACTOR,
+          entityType: "task",
+          entityId: task._id,
+          entityTitle: task.title,
+          listId: task.listId,
+          payload: { previousClaimant: task.claimedByActorId },
+        });
+      }
+    }
+
+    // 2. Overdue nag (once per overdue period: reset when dueDate moves).
+    const dueTasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_due", (q) => q.gt("dueDate", 0).lt("dueDate", now))
+      .collect();
+    for (const task of dueTasks) {
+      if (
+        task.overdueNotifiedAt !== undefined &&
+        task.overdueNotifiedAt >= task.dueDate!
+      ) {
+        continue;
+      }
       let status = statusCache.get(task.statusId);
       if (status === undefined) {
         status = await ctx.db.get(task.statusId);
         statusCache.set(task.statusId, status);
       }
-      const isDone =
-        status?.category === "complete" || status?.category === "closed";
-
-      let list = listCache.get(task.listId);
-      if (list === undefined) {
-        list = await ctx.db.get(task.listId);
-        listCache.set(task.listId, list);
+      if (status?.category === "complete" || status?.category === "closed") {
+        continue;
       }
+      const list = await getList(task.listId);
       if (!list) continue;
-
-      // 1. Expired claims.
-      if (
-        task.claimedByActorId !== undefined &&
-        task.claimedAt !== undefined &&
-        now - task.claimedAt > CLAIM_TTL_MS
-      ) {
-        await ctx.db.patch(task._id, {
-          claimedByActorId: undefined,
-          claimedAt: undefined,
+      await ctx.db.patch(task._id, { overdueNotifiedAt: now });
+      const scope = await scopeForList(ctx, list);
+      if (scope) {
+        await emitEvent(ctx, {
+          ...scope,
+          type: "task.overdue",
+          actor: WATCHDOG_ACTOR,
+          entityType: "task",
+          entityId: task._id,
+          entityTitle: task.title,
+          listId: task.listId,
+          payload: {
+            dueDate: task.dueDate,
+            assigneeIds: task.assigneeClerkIds,
+          },
         });
-        const scope = await scopeForList(ctx, list);
-        if (scope) {
-          await emitEvent(ctx, {
-            ...scope,
-            type: "task.claim_expired",
-            actor: WATCHDOG_ACTOR,
-            entityType: "task",
-            entityId: task._id,
-            entityTitle: task.title,
-            listId: task.listId,
-            payload: { previousClaimant: task.claimedByActorId },
-          });
-        }
-      }
-
-      // 2. Overdue nag (once per overdue period: reset when dueDate moves).
-      if (
-        !isDone &&
-        task.dueDate !== undefined &&
-        task.dueDate < now &&
-        (task.overdueNotifiedAt === undefined ||
-          task.overdueNotifiedAt < task.dueDate)
-      ) {
-        await ctx.db.patch(task._id, { overdueNotifiedAt: now });
-        const scope = await scopeForList(ctx, list);
-        if (scope) {
-          await emitEvent(ctx, {
-            ...scope,
-            type: "task.overdue",
-            actor: WATCHDOG_ACTOR,
-            entityType: "task",
-            entityId: task._id,
-            entityTitle: task.title,
-            listId: task.listId,
-            payload: {
-              dueDate: task.dueDate,
-              assigneeIds: task.assigneeClerkIds,
-            },
-          });
-        }
       }
     }
 

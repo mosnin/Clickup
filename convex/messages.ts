@@ -326,6 +326,7 @@ export async function createMessageCore(
             snippet,
             byName: actor.name,
           },
+          secret: mentionedAgent.notifySecret,
         });
       }
     }

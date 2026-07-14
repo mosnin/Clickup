@@ -8,6 +8,7 @@ import {
   requireSpaceAccess,
 } from "./_authz";
 import { seedDefaultStatuses } from "./listStatuses";
+import { cleanupTaskArtifacts } from "./tasks";
 
 const parentTypeValidator = v.union(
   v.literal("space"),
@@ -97,19 +98,15 @@ export const remove = mutation({
   handler: async (ctx, { listId }) => {
     const { list } = await requireListAccess(ctx, listId);
 
-    // Cascade everything that hangs off this list:
-    //   tasks → taskFieldValues → also remove the task row
-    //   listStatuses, customFields → drop directly
+    // Cascade everything that hangs off this list: tasks (with their
+    // comments/mentions/time entries/clips/field values), statuses,
+    // custom fields, automations, and recurring schedules.
     const tasks = await ctx.db
       .query("tasks")
       .withIndex("by_list", (q) => q.eq("listId", list._id))
       .collect();
     for (const t of tasks) {
-      const values = await ctx.db
-        .query("taskFieldValues")
-        .withIndex("by_task", (q) => q.eq("taskId", t._id))
-        .collect();
-      for (const v of values) await ctx.db.delete(v._id);
+      await cleanupTaskArtifacts(ctx, t._id);
       await ctx.db.delete(t._id);
     }
 
@@ -130,6 +127,12 @@ export const remove = mutation({
       .withIndex("by_list", (q) => q.eq("listId", list._id))
       .collect();
     for (const a of automations) await ctx.db.delete(a._id);
+
+    const schedules = await ctx.db
+      .query("scheduledTasks")
+      .withIndex("by_list", (q) => q.eq("listId", list._id))
+      .collect();
+    for (const st of schedules) await ctx.db.delete(st._id);
 
     await ctx.db.delete(list._id);
   },

@@ -49,6 +49,7 @@ export function BoardView({
   // Optimistic local copy so drag-drop feels instant. Server is the source
   // of truth and reconciles back via the live query whenever it returns.
   const [orderedTasks, setOrderedTasks] = useState<Doc<"tasks">[]>(tasks);
+  const [moveError, setMoveError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<Id<"tasks"> | null>(null);
   useEffect(() => setOrderedTasks(tasks), [tasks]);
 
@@ -157,11 +158,23 @@ export function BoardView({
       return [...others, ...newBucket];
     });
 
-    await reorder({
-      listId,
-      orderedIds: newBucket.map((t) => t._id),
-      statusId: targetStatus,
-    });
+    try {
+      await reorder({
+        listId,
+        orderedIds: newBucket.map((t) => t._id),
+        statusId: targetStatus,
+      });
+      setMoveError(null);
+    } catch (err) {
+      // The server refused the status change (blocked by a dependency or
+      // awaiting human approval). The live query snaps the card back;
+      // tell the user why instead of failing silently.
+      setOrderedTasks(tasks);
+      const raw = err instanceof Error ? err.message : String(err);
+      // Convex prefixes application errors; keep the readable tail.
+      const msg = raw.split("Uncaught Error:").pop()?.trim() ?? raw;
+      setMoveError(msg.slice(0, 300));
+    }
   }
 
   const activeTask = activeId
@@ -169,6 +182,20 @@ export function BoardView({
     : null;
 
   return (
+    <>
+      {moveError && (
+        <div className="mb-3 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+          <span className="min-w-0 flex-1">{moveError}</span>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setMoveError(null)}
+            className="flex-shrink-0 font-medium hover:underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
@@ -193,6 +220,7 @@ export function BoardView({
         {activeTask && <CardChrome task={activeTask} dragging />}
       </DragOverlay>
     </DndContext>
+    </>
   );
 }
 

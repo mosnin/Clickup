@@ -1,5 +1,6 @@
 "use node";
 
+import { createHmac } from "crypto";
 import { v } from "convex/values";
 import { Resend } from "resend";
 import { internalAction } from "./_generated/server";
@@ -93,22 +94,37 @@ export const sendAssignmentEmail = internalAction({
   },
 });
 
-// Direct push to an agent's notifyUrl: a small unsigned JSON ping telling
-// the agent's runtime "you were assigned / mentioned — connect over MCP
-// and look". Best effort, no retries: the webhook subscription system is
-// the reliable channel; this is the zero-setup default.
+// Direct push to an agent's notifyUrl: a small JSON ping telling the
+// agent's runtime "you were assigned / mentioned — connect over MCP and
+// look". Signed with HMAC-SHA256 (X-Ping-Signature) when the agent has a
+// notifySecret configured. Best effort, no retries: the webhook
+// subscription system is the reliable channel; this is the zero-setup
+// default.
 export const postAgentPing = internalAction({
   args: {
     url: v.string(),
     type: v.string(),
     payload: v.any(),
+    secret: v.optional(v.string()),
   },
   handler: async (_, args) => {
     try {
+      const body = JSON.stringify({
+        apiVersion: 1,
+        type: args.type,
+        payload: args.payload,
+      });
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (args.secret) {
+        headers["X-Ping-Signature"] =
+          `sha256=${createHmac("sha256", args.secret).update(body).digest("hex")}`;
+      }
       const res = await fetch(args.url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: args.type, payload: args.payload }),
+        headers,
+        body,
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) {
@@ -116,6 +132,39 @@ export const postAgentPing = internalAction({
       }
     } catch (err) {
       console.warn("[notifications] postAgentPing error:", err);
+    }
+  },
+});
+
+// Email a human that an agent finished work and is waiting on their
+// approval. Scheduled from agentApi.requestApproval.
+export const sendApprovalEmail = internalAction({
+  args: {
+    toEmail: v.string(),
+    toName: v.optional(v.string()),
+    agentName: v.string(),
+    taskTitle: v.string(),
+    note: v.optional(v.string()),
+  },
+  handler: async (_, args) => {
+    const provider = makeResend();
+    if (!provider) return;
+    try {
+      await provider.client.emails.send({
+        from: provider.from,
+        to: [args.toEmail],
+        subject: `${args.agentName} needs your approval: ${args.taskTitle}`,
+        text: [
+          `Hi ${args.toName ?? ""},`.trim(),
+          ``,
+          `${args.agentName} finished work on "${args.taskTitle}" and is waiting for your approval before completing it.`,
+          ...(args.note ? [``, args.note] : []),
+          ``,
+          `Approve it from your Inbox or the task page.`,
+        ].join("\n"),
+      });
+    } catch (err) {
+      console.warn("[notifications] sendApprovalEmail failed:", err);
     }
   },
 });

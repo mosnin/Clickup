@@ -9,6 +9,7 @@ import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity, requireListAccess, requireTaskAccess } from "./_authz";
 import { DEFAULT_DAILY_ACTION_LIMIT } from "./_agentAuth";
+import { validateWebhookUrl } from "./webhooks";
 
 // Human-facing management of AI agent principals: create/pause/delete
 // agents, inspect their keys, and feed the assignee pickers. The agent-
@@ -284,6 +285,105 @@ export const listAssignableForList = query({
   },
 });
 
+// Agents of one workspace (id/name/emoji only) — merged into name maps by
+// Reports and other member-keyed UI so agent actors don't render as
+// "Unknown".
+export const listForWorkspace = query({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const member = await ctx.db
+      .query("memberships")
+      .withIndex("by_user_and_workspace", (q) =>
+        q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
+      )
+      .unique();
+    if (!member) return [];
+    const agents = await ctx.db
+      .query("agents")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", "workspace").eq("parentId", workspaceId),
+      )
+      .collect();
+    return agents.map((a) => ({ _id: a._id, name: a.name, emoji: a.emoji }));
+  },
+});
+
+// Last-7-days analytics for one agent: throughput, run outcomes, cost,
+// and time logged. Powers the stat tiles on the agent detail page.
+export const stats = query({
+  args: { agentId: v.id("agents") },
+  handler: async (ctx, { agentId }) => {
+    try {
+      await requireAgentManageAccess(ctx, agentId);
+    } catch {
+      return null;
+    }
+    const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    const recentEvents = await ctx.db
+      .query("events")
+      .withIndex("by_actor", (q) =>
+        q.eq("actorType", "agent").eq("actorId", agentId),
+      )
+      .order("desc")
+      .take(500);
+    let completed = 0;
+    let created = 0;
+    let comments = 0;
+    for (const e of recentEvents) {
+      if (e.createdAt < since) break;
+      if (e.type === "task.completed") completed++;
+      else if (e.type === "task.created") created++;
+      else if (e.type === "comment.created") comments++;
+    }
+
+    const runs = await ctx.db
+      .query("agentRuns")
+      .withIndex("by_agent", (q) => q.eq("agentId", agentId))
+      .order("desc")
+      .take(200);
+    let runsSucceeded = 0;
+    let runsFailed = 0;
+    let runMsTotal = 0;
+    let runMsCount = 0;
+    let tokensUsed = 0;
+    let costUsd = 0;
+    for (const r of runs) {
+      if (r.startedAt < since) break;
+      if (r.status === "succeeded") runsSucceeded++;
+      if (r.status === "failed") runsFailed++;
+      if (r.finishedAt !== undefined) {
+        runMsTotal += r.finishedAt - r.startedAt;
+        runMsCount++;
+      }
+      tokensUsed += r.tokensUsed ?? 0;
+      costUsd += r.costUsd ?? 0;
+    }
+
+    const entries = await ctx.db
+      .query("timeEntries")
+      .withIndex("by_user_started", (q) =>
+        q.eq("userClerkId", agentId).gt("startedAt", since),
+      )
+      .collect();
+    const timeLoggedMs = entries.reduce((n, e) => n + (e.durationMs ?? 0), 0);
+
+    return {
+      completed7d: completed,
+      created7d: created,
+      comments7d: comments,
+      runsSucceeded7d: runsSucceeded,
+      runsFailed7d: runsFailed,
+      avgRunMs: runMsCount > 0 ? Math.round(runMsTotal / runMsCount) : null,
+      tokensUsed7d: tokensUsed,
+      costUsd7d: Math.round(costUsd * 100) / 100,
+      timeLoggedMs7d: timeLoggedMs,
+    };
+  },
+});
+
 // Key metadata (never the key itself) for the management UI.
 export const listKeys = query({
   args: { agentId: v.id("agents") },
@@ -349,6 +449,7 @@ export const update = mutation({
     allowedListIds: v.optional(v.union(v.array(v.id("lists")), v.null())),
     dailyActionLimit: v.optional(v.union(v.number(), v.null())),
     notifyUrl: v.optional(v.union(v.string(), v.null())),
+    notifySecret: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     await requireAgentManageAccess(ctx, args.agentId);
@@ -370,10 +471,11 @@ export const update = mutation({
       patch.dailyActionLimit = args.dailyActionLimit ?? undefined;
     }
     if (args.notifyUrl !== undefined) {
-      if (args.notifyUrl && !/^https:\/\/.+/i.test(args.notifyUrl)) {
-        throw new Error("notifyUrl must be https://");
-      }
+      if (args.notifyUrl) validateWebhookUrl(args.notifyUrl);
       patch.notifyUrl = args.notifyUrl || undefined;
+    }
+    if (args.notifySecret !== undefined) {
+      patch.notifySecret = args.notifySecret || undefined;
     }
     await ctx.db.patch(args.agentId, patch);
   },
@@ -408,6 +510,65 @@ export const remove = mutation({
       .withIndex("by_agent_day", (q) => q.eq("agentId", agentId))
       .collect();
     for (const u of usage) await ctx.db.delete(u._id);
+
+    // Strip the agent's id from live task state so no "Unknown" chips
+    // linger: unassign it everywhere and release any claims it holds.
+    const claimed = await ctx.db
+      .query("tasks")
+      .withIndex("by_claimed", (q) => q.eq("claimedByActorId", agentId))
+      .collect();
+    for (const t of claimed) {
+      await ctx.db.patch(t._id, {
+        claimedByActorId: undefined,
+        claimedAt: undefined,
+      });
+    }
+    const spaces = await ctx.db
+      .query("spaces")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", agent.parentType).eq("parentId", agent.parentId),
+      )
+      .collect();
+    for (const space of spaces) {
+      const parents: { type: "space" | "folder"; id: string }[] = [
+        { type: "space", id: space._id },
+      ];
+      const folders = await ctx.db
+        .query("folders")
+        .withIndex("by_space", (q) => q.eq("spaceId", space._id))
+        .collect();
+      for (const f of folders) parents.push({ type: "folder", id: f._id });
+      for (const p of parents) {
+        const lists = await ctx.db
+          .query("lists")
+          .withIndex("by_parent", (q) =>
+            q.eq("parentType", p.type).eq("parentId", p.id),
+          )
+          .collect();
+        for (const l of lists) {
+          const tasks = await ctx.db
+            .query("tasks")
+            .withIndex("by_list", (q) => q.eq("listId", l._id))
+            .collect();
+          for (const t of tasks) {
+            if (t.assigneeClerkIds.includes(agentId)) {
+              await ctx.db.patch(t._id, {
+                assigneeClerkIds: t.assigneeClerkIds.filter(
+                  (a) => a !== agentId,
+                ),
+              });
+            }
+          }
+        }
+      }
+    }
+    // Its unread mentions are meaningless without the agent.
+    const mentions = await ctx.db
+      .query("mentions")
+      .withIndex("by_user", (q) => q.eq("mentionedClerkId", agentId))
+      .collect();
+    for (const m of mentions) await ctx.db.delete(m._id);
+
     await ctx.db.delete(agentId);
   },
 });

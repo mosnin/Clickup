@@ -92,8 +92,17 @@ export function sha256Hex(input: string): string {
 // row carries its own dailyActionLimit. Reads are not budgeted.
 export const DEFAULT_DAILY_ACTION_LIMIT = 2000;
 
+// Hard per-minute burst cap, independent of the daily budget: a runaway
+// retry loop gets stopped in seconds instead of after burning a whole
+// day's budget.
+export const BURST_LIMIT_PER_MINUTE = 60;
+
 function utcDay(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function utcMinute(): string {
+  return new Date().toISOString().slice(0, 16);
 }
 
 // Authenticate an agent API key.
@@ -137,6 +146,7 @@ export async function requireAgentByKey(
         throw new Error("This agent is read-only");
       }
       const day = utcDay();
+      const minute = utcMinute();
       const usage = await db
         .query("agentUsage")
         .withIndex("by_agent_day", (q) =>
@@ -150,10 +160,27 @@ export async function requireAgentByKey(
           `Daily action budget exhausted (${limit}/day). Ask a human to raise this agent's limit.`,
         );
       }
+      const minuteCount =
+        usage?.minute === minute ? (usage.minuteCount ?? 0) : 0;
+      if (minuteCount >= BURST_LIMIT_PER_MINUTE) {
+        throw new Error(
+          `Rate limited (${BURST_LIMIT_PER_MINUTE} actions/minute). Slow down and retry shortly.`,
+        );
+      }
       if (usage) {
-        await db.patch(usage._id, { count: count + 1 });
+        await db.patch(usage._id, {
+          count: count + 1,
+          minute,
+          minuteCount: minuteCount + 1,
+        });
       } else {
-        await db.insert("agentUsage", { agentId: agent._id, day, count: 1 });
+        await db.insert("agentUsage", {
+          agentId: agent._id,
+          day,
+          count: 1,
+          minute,
+          minuteCount: 1,
+        });
       }
     }
   }

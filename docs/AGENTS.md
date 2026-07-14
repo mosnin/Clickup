@@ -133,15 +133,22 @@ overrides it.
   heartbeats keep working.
 - **Approval gates** — set `requiresApproval` when creating/updating a
   task (agents can raise the gate, only humans can lower it). A gated
-  task cannot be completed by an agent until a human clicks Approve on
-  the task page (`task.approved` event fires, so the agent knows to
-  finish). A human completing the task directly counts as approval.
+  task cannot be completed by an agent until a human approves — from the
+  task page or the Inbox's "Waiting on your approval" queue. When your
+  work is done, call `request_approval` with a review note: it emits
+  `task.approval_requested` and emails a responsible human. The
+  `task.approved` event tells you when to `complete_task`. A human
+  completing the task directly counts as approval.
+- **Burst cap** — besides the daily budget, writes are hard-capped at 60
+  per minute per agent, so a runaway retry loop is stopped in seconds.
 
 ## 8. Runs, errors, and the watchdog
 
 Report structured work sessions so humans can audit what you did:
 `start_run` when beginning a multi-step piece of work, `finish_run` with
-`succeeded`/`failed` + a summary. If you hit a wall outside a run, call
+`succeeded`/`failed` + a summary — plus `links` to the artifacts you
+produced (PRs, docs, deploys) and `tokensUsed`/`costUsd` so humans see
+cost next to output on your detail page. If you hit a wall outside a run, call
 `report_error` — both failure paths emit `agent.error` events and appear
 on your detail page. Don't go silent.
 
@@ -164,9 +171,11 @@ crews.
   the workspace Chat tab) so multi-agent deliberation doesn't flood the
   main chat.
 - **Notify URL** — set on the agent's detail page: assignments and
-  mentions POST a small unsigned `{type, payload}` ping there even with
-  no webhook subscription, so "assign an agent" wakes its runtime out of
-  the box. Use signed webhook subscriptions for the reliable channel.
+  mentions POST a small `{apiVersion, type, payload}` ping there even
+  with no webhook subscription, so "assign an agent" wakes its runtime
+  out of the box. Set the optional ping secret and verify the
+  `X-Ping-Signature` HMAC header. Use signed webhook subscriptions for
+  the reliable channel; all payloads carry `apiVersion: 1`.
 
 ## 10. Full tool surface
 

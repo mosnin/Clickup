@@ -51,6 +51,7 @@ async function scheduleAssignmentNotifications(
             title: task.title,
             byName: actor.name,
           },
+          secret: agent.notifySecret,
         });
       }
       continue;
@@ -611,6 +612,53 @@ export async function handoffTaskCore(
   );
 }
 
+// Delete everything hanging off a task: field values, comments (and
+// their mentions), time entries, and clips (including their stored
+// bytes). Shared by removeTaskCore and lists.remove so no path orphans
+// rows.
+export async function cleanupTaskArtifacts(
+  ctx: MutationCtx,
+  taskId: Id<"tasks">,
+): Promise<void> {
+  const values = await ctx.db
+    .query("taskFieldValues")
+    .withIndex("by_task", (q) => q.eq("taskId", taskId))
+    .collect();
+  for (const v of values) await ctx.db.delete(v._id);
+
+  const messages = await ctx.db
+    .query("messages")
+    .withIndex("by_parent", (q) =>
+      q.eq("parentType", "task").eq("parentId", taskId),
+    )
+    .collect();
+  for (const m of messages) {
+    const mentions = await ctx.db
+      .query("mentions")
+      .withIndex("by_message", (q) => q.eq("messageId", m._id))
+      .collect();
+    for (const men of mentions) await ctx.db.delete(men._id);
+    await ctx.db.delete(m._id);
+  }
+
+  const entries = await ctx.db
+    .query("timeEntries")
+    .withIndex("by_task", (q) => q.eq("taskId", taskId))
+    .collect();
+  for (const e of entries) await ctx.db.delete(e._id);
+
+  const clips = await ctx.db
+    .query("clips")
+    .withIndex("by_parent", (q) =>
+      q.eq("parentType", "task").eq("parentId", taskId),
+    )
+    .collect();
+  for (const c of clips) {
+    await ctx.storage.delete(c.storageId);
+    await ctx.db.delete(c._id);
+  }
+}
+
 export async function removeTaskCore(
   ctx: MutationCtx,
   taskId: Id<"tasks">,
@@ -624,19 +672,11 @@ export async function removeTaskCore(
     .withIndex("by_parent_task", (q) => q.eq("parentTaskId", taskId))
     .collect();
   for (const s of subtasks) {
-    const sValues = await ctx.db
-      .query("taskFieldValues")
-      .withIndex("by_task", (q) => q.eq("taskId", s._id))
-      .collect();
-    for (const v of sValues) await ctx.db.delete(v._id);
+    await cleanupTaskArtifacts(ctx, s._id);
     await ctx.db.delete(s._id);
   }
 
-  const values = await ctx.db
-    .query("taskFieldValues")
-    .withIndex("by_task", (q) => q.eq("taskId", taskId))
-    .collect();
-  for (const v of values) await ctx.db.delete(v._id);
+  await cleanupTaskArtifacts(ctx, taskId);
 
   await emitTaskEvent(ctx, task, "task.deleted", actor);
   await ctx.db.delete(taskId);
@@ -694,6 +734,45 @@ export const titles = query({
       }
     }
     return out;
+  },
+});
+
+// Approval queue for the inbox: every gated, unapproved, still-open task
+// the current user can see. The global set of gated tasks is small, so we
+// range the by_approval index and access-check each hit.
+export const pendingApprovals = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const gated = await ctx.db
+      .query("tasks")
+      .withIndex("by_approval", (q) => q.eq("requiresApproval", true))
+      .collect();
+    const out = [];
+    for (const task of gated) {
+      if (task.approvedAt !== undefined) continue;
+      const status = await ctx.db.get(task.statusId);
+      if (status?.category === "complete" || status?.category === "closed") {
+        continue;
+      }
+      try {
+        await requireTaskAccess(ctx, task._id);
+      } catch {
+        continue;
+      }
+      const checklist = task.checklist ?? [];
+      out.push({
+        taskId: task._id,
+        listId: task.listId,
+        title: task.title,
+        assigneeIds: task.assigneeClerkIds,
+        checklistDone: checklist.filter((i) => i.done).length,
+        checklistTotal: checklist.length,
+        createdAt: task.createdAt,
+      });
+    }
+    return out.sort((a, b) => b.createdAt - a.createdAt);
   },
 });
 

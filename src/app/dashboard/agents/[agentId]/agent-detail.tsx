@@ -33,6 +33,9 @@ export function AgentDetail({ agentId }: { agentId: string }) {
   const detail = useQuery(api.agents.detail, {
     agentId: agentId as Id<"agents">,
   });
+  const stats = useQuery(api.agents.stats, {
+    agentId: agentId as Id<"agents">,
+  });
 
   if (detail === undefined) {
     return <div className="h-60 animate-pulse rounded-3xl bg-muted/40" />;
@@ -111,6 +114,8 @@ export function AgentDetail({ agentId }: { agentId: string }) {
           )}
         </div>
       </header>
+
+      {stats && <StatsRow stats={stats} />}
 
       <GovernancePanel
         agent={agent}
@@ -197,6 +202,52 @@ export function AgentDetail({ agentId }: { agentId: string }) {
   );
 }
 
+function fmtMs(ms: number | null): string {
+  if (ms === null) return "—";
+  const m = Math.round(ms / 60000);
+  if (m < 60) return `${m}m`;
+  return `${Math.round(m / 6) / 10}h`;
+}
+
+// Last-7-days analytics: is this agent actually productive?
+function StatsRow({
+  stats,
+}: {
+  stats: NonNullable<
+    ReturnType<typeof useQuery<typeof api.agents.stats>>
+  >;
+}) {
+  const tiles: { label: string; value: string }[] = [
+    { label: "Completed · 7d", value: String(stats.completed7d) },
+    { label: "Created · 7d", value: String(stats.created7d) },
+    { label: "Comments · 7d", value: String(stats.comments7d) },
+    {
+      label: "Runs · 7d",
+      value: `${stats.runsSucceeded7d}✓ ${stats.runsFailed7d}✗`,
+    },
+    { label: "Avg run", value: fmtMs(stats.avgRunMs) },
+    { label: "Time logged · 7d", value: fmtMs(stats.timeLoggedMs7d) },
+    ...(stats.costUsd7d > 0
+      ? [{ label: "Cost · 7d", value: `$${stats.costUsd7d}` }]
+      : []),
+  ];
+  return (
+    <section className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+      {tiles.map((t) => (
+        <div
+          key={t.label}
+          className="rounded-3xl border border-border bg-background p-3 text-center"
+        >
+          <p className="text-lg font-semibold">{t.value}</p>
+          <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            {t.label}
+          </p>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 function GovernancePanel({
   agent,
   usageToday,
@@ -209,6 +260,7 @@ function GovernancePanel({
   const update = useMutation(api.agents.update);
   const [limitDraft, setLimitDraft] = useState(String(usageLimit));
   const [notifyDraft, setNotifyDraft] = useState(agent.notifyUrl ?? "");
+  const [secretDraft, setSecretDraft] = useState(agent.notifySecret ?? "");
   const usagePct = Math.min(100, Math.round((usageToday / usageLimit) * 100));
 
   return (
@@ -269,25 +321,46 @@ function GovernancePanel({
           </div>
         </label>
 
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Notify URL (assignment/mention pings)
-          </span>
-          <input
-            value={notifyDraft}
-            onChange={(e) => setNotifyDraft(e.currentTarget.value)}
-            onBlur={() => {
-              if (notifyDraft !== (agent.notifyUrl ?? "")) {
-                update({
-                  agentId: agent._id,
-                  notifyUrl: notifyDraft.trim() || null,
-                });
-              }
-            }}
-            placeholder="https://my-runtime.example.com/wake"
-            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-          />
-        </label>
+        <div className="space-y-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Notify URL (assignment/mention pings)
+            </span>
+            <input
+              value={notifyDraft}
+              onChange={(e) => setNotifyDraft(e.currentTarget.value)}
+              onBlur={() => {
+                if (notifyDraft !== (agent.notifyUrl ?? "")) {
+                  update({
+                    agentId: agent._id,
+                    notifyUrl: notifyDraft.trim() || null,
+                  });
+                }
+              }}
+              placeholder="https://my-runtime.example.com/wake"
+              className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Ping signing secret (optional)
+            </span>
+            <input
+              value={secretDraft}
+              onChange={(e) => setSecretDraft(e.currentTarget.value)}
+              onBlur={() => {
+                if (secretDraft !== (agent.notifySecret ?? "")) {
+                  update({
+                    agentId: agent._id,
+                    notifySecret: secretDraft.trim() || null,
+                  });
+                }
+              }}
+              placeholder="pings get X-Ping-Signature when set"
+              className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            />
+          </label>
+        </div>
       </div>
     </section>
   );
@@ -333,6 +406,29 @@ function RunRow({ run }: { run: Doc<"agentRuns"> }) {
           )}
         >
           {run.error ?? run.summary}
+        </p>
+      )}
+      {(run.links?.length ?? 0) > 0 && (
+        <ul className="mt-1 space-y-0.5 pl-6">
+          {run.links!.map((l) => (
+            <li key={l}>
+              <a
+                href={l}
+                target="_blank"
+                rel="noreferrer"
+                className="break-all text-xs text-brand-600 hover:underline"
+              >
+                {l}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+      {(run.costUsd !== undefined || run.tokensUsed !== undefined) && (
+        <p className="mt-0.5 pl-6 text-xs text-muted-foreground">
+          {run.tokensUsed !== undefined && `${run.tokensUsed} tokens`}
+          {run.tokensUsed !== undefined && run.costUsd !== undefined && " · "}
+          {run.costUsd !== undefined && `$${run.costUsd}`}
         </p>
       )}
       {run.taskId && listId && (

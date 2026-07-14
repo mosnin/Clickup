@@ -39,7 +39,7 @@ import { skillsForScope } from "./skills";
 import { createChannelCore } from "./channels";
 import { applyListTemplateCore, templateCatalog } from "./templates";
 import { seedDefaultStatuses } from "./listStatuses";
-import { emitEvent } from "./events";
+import { emitEvent, scopeForList } from "./events";
 
 // The agent-facing API: every function here authenticates with an agent
 // API key instead of Clerk, resolves the agent's scope (personal space or
@@ -1373,9 +1373,24 @@ export const nextTask = query({
     const now = Date.now();
     const prioRank = { urgent: 0, high: 1, normal: 2, low: 3 };
 
+    // Tasks in an active sprint outrank backlog work of the same priority.
+    const activeSprintIds = new Set<string>();
+    if (agent.parentType === "workspace") {
+      const sprints = await ctx.db
+        .query("sprints")
+        .withIndex("by_workspace", (q) =>
+          q.eq("workspaceId", agent.parentId as Id<"workspaces">),
+        )
+        .collect();
+      for (const sp of sprints) {
+        if (sp.status === "active") activeSprintIds.add(sp._id);
+      }
+    }
+
     const candidates: {
       task: Doc<"tasks">;
       mine: boolean;
+      inActiveSprint: boolean;
     }[] = [];
     const spaces = await ctx.db
       .query("spaces")
@@ -1439,7 +1454,12 @@ export const nextTask = query({
               }
             }
             if (blocked) continue;
-            candidates.push({ task: t, mine });
+            candidates.push({
+              task: t,
+              mine,
+              inActiveSprint:
+                t.sprintId !== undefined && activeSprintIds.has(t.sprintId),
+            });
           }
         }
       }
@@ -1447,6 +1467,9 @@ export const nextTask = query({
 
     candidates.sort((a, b) => {
       if (a.mine !== b.mine) return a.mine ? -1 : 1;
+      if (a.inActiveSprint !== b.inActiveSprint) {
+        return a.inActiveSprint ? -1 : 1;
+      }
       const pa = prioRank[a.task.priority ?? "normal"];
       const pb = prioRank[b.task.priority ?? "normal"];
       if (pa !== pb) return pa - pb;
@@ -1512,6 +1535,77 @@ export const handoffTask = mutation({
   },
 });
 
+// Signal "my work is done, a human needs to sign off": raises the gate if
+// it isn't up, emits task.approval_requested, and emails a responsible
+// human (a human assignee if any, else the task creator if human, else
+// the workspace owner / personal-space owner).
+export const requestApproval = mutation({
+  args: {
+    apiKey: v.string(),
+    taskId: v.id("tasks"),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const { task } = await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    if (!task.requiresApproval) {
+      await updateTaskCore(
+        ctx,
+        { taskId: args.taskId, requiresApproval: true },
+        agentActor(agent),
+      );
+    }
+    const updated = (await ctx.db.get(args.taskId))!;
+    const list = await ctx.db.get(updated.listId);
+    const scope = list ? await scopeForList(ctx, list) : null;
+    if (scope) {
+      await emitEvent(ctx, {
+        ...scope,
+        type: "task.approval_requested",
+        actor: agentActor(agent),
+        entityType: "task",
+        entityId: updated._id,
+        entityTitle: updated.title,
+        listId: updated.listId,
+        payload: { note: args.note?.slice(0, 500) },
+      });
+    }
+
+    // Pick the human to email.
+    const candidateIds: string[] = [
+      ...updated.assigneeClerkIds,
+      updated.createdByClerkId,
+    ];
+    if (agent.parentType === "workspace") {
+      const ws = await ctx.db.get(agent.parentId as Id<"workspaces">);
+      if (ws) candidateIds.push(ws.ownerClerkId);
+    } else {
+      candidateIds.push(agent.parentId);
+    }
+    for (const cid of candidateIds) {
+      if (ctx.db.normalizeId("agents", cid)) continue; // skip agents
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", cid))
+        .unique();
+      if (user?.email) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.notifications.sendApprovalEmail,
+          {
+            toEmail: user.email,
+            toName: user.name,
+            agentName: agent.name,
+            taskTitle: updated.title,
+            note: args.note?.slice(0, 500),
+          },
+        );
+        break;
+      }
+    }
+  },
+});
+
 // ── Runs & error reporting ─────────────────────────────────────────────
 
 // Start a structured work session. Humans see it on the agent's detail
@@ -1546,6 +1640,9 @@ export const finishRun = mutation({
     ),
     summary: v.optional(v.string()),
     error: v.optional(v.string()),
+    links: v.optional(v.array(v.string())),
+    tokensUsed: v.optional(v.number()),
+    costUsd: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
@@ -1555,6 +1652,9 @@ export const finishRun = mutation({
       status: args.status,
       summary: args.summary?.slice(0, 2000),
       error: args.error?.slice(0, 2000),
+      links: args.links?.slice(0, 20),
+      tokensUsed: args.tokensUsed,
+      costUsd: args.costUsd,
       finishedAt: Date.now(),
     });
     if (args.status === "failed") {

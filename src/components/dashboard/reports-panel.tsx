@@ -13,6 +13,7 @@ export function ReportsPanel({
 }) {
   const summary = useQuery(api.reports.workspaceSummary, { workspaceId });
   const members = useQuery(api.workspaces.listMembers, { workspaceId });
+  const agents = useQuery(api.agents.listForWorkspace, { workspaceId });
 
   if (summary === undefined || members === undefined) {
     return (
@@ -35,7 +36,18 @@ export function ReportsPanel({
     );
   }
 
-  const memberByClerkId = new Map(members.map((m) => [m.clerkId, m]));
+  // Agents appear in workload/time widgets like any assignee — merge them
+  // into the name map so they don't render as "Unknown".
+  const memberByClerkId = new Map<
+    string,
+    { clerkId: string; name?: string; email?: string }
+  >(members.map((m) => [m.clerkId, m]));
+  for (const a of agents ?? []) {
+    memberByClerkId.set(a._id, {
+      clerkId: a._id,
+      name: `${a.emoji ?? "🤖"} ${a.name}`,
+    });
+  }
 
   return (
     <div className="space-y-6">

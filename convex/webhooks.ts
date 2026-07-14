@@ -27,9 +27,37 @@ function randomSecret(): string {
     .replace(/-/g, "")}`;
 }
 
+// Best-effort SSRF guard for agent/user-supplied outbound URLs: require
+// https and refuse loopback/link-local/private-range IP literals and
+// obviously-internal hostnames. (DNS-based tricks can still resolve
+// privately — full protection needs egress-level policy — but this stops
+// the casual cases.)
 export function validateWebhookUrl(url: string): void {
-  if (!/^https:\/\/.+/i.test(url)) {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error("Invalid URL");
+  }
+  if (parsed.protocol !== "https:") {
     throw new Error("Webhook URL must be https://");
+  }
+  const host = parsed.hostname.toLowerCase();
+  const privatePatterns = [
+    /^localhost$/,
+    /^127\./,
+    /^0\./,
+    /^10\./,
+    /^192\.168\./,
+    /^169\.254\./,
+    /^172\.(1[6-9]|2\d|3[01])\./,
+    /^\[?::1\]?$/,
+    /^\[?f[cd][0-9a-f]{2}:/, // IPv6 unique-local
+    /^\[?fe80:/, // IPv6 link-local
+    /\.(local|internal|localdomain)$/,
+  ];
+  if (privatePatterns.some((re) => re.test(host))) {
+    throw new Error("Webhook URL must not point at a private address");
   }
 }
 

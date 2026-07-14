@@ -27,6 +27,8 @@ export const deliver = internalAction({
     if (delivery.status !== "pending" || !sub.enabled) return;
 
     const body = JSON.stringify({
+      // Bump when the payload shape changes so consumers can branch.
+      apiVersion: 1,
       id: event._id,
       type: event.type,
       createdAt: event.createdAt,

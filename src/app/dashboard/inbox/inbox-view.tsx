@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 
 export function Inbox() {
   const mentions = useQuery(api.mentions.listForCurrent, {});
+  const approvals = useQuery(api.tasks.pendingApprovals, {});
   const markAllRead = useMutation(api.mentions.markAllRead);
 
   if (mentions === undefined) {
@@ -47,6 +48,10 @@ export function Inbox() {
         )}
       </header>
 
+      {approvals !== undefined && approvals.length > 0 && (
+        <ApprovalsQueue approvals={approvals} />
+      )}
+
       {mentions.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
           When someone @mentions you, it&apos;ll show up here.
@@ -61,6 +66,60 @@ export function Inbox() {
         </ul>
       )}
     </div>
+  );
+}
+
+// Gated tasks where agents finished (or are working) and a human needs to
+// sign off. Approve inline or click through to review first.
+function ApprovalsQueue({
+  approvals,
+}: {
+  approvals: {
+    taskId: Id<"tasks">;
+    listId: Id<"lists">;
+    title: string;
+    checklistDone: number;
+    checklistTotal: number;
+    createdAt: number;
+  }[];
+}) {
+  const approve = useMutation(api.tasks.approve);
+  return (
+    <section className="rounded-3xl border border-brand-200 bg-brand-50/40 p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-brand-700">
+        Waiting on your approval ({approvals.length})
+      </h2>
+      <ul className="mt-2 space-y-2">
+        {approvals.map((a) => (
+          <li
+            key={a.taskId}
+            className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-background px-3 py-2 text-sm"
+          >
+            <Link
+              href={`/dashboard/l/${a.listId}/t/${a.taskId}`}
+              className="min-w-0 flex-1 truncate font-medium hover:underline"
+            >
+              {a.title}
+            </Link>
+            {a.checklistTotal > 0 && (
+              <span
+                className={cn(
+                  "text-xs",
+                  a.checklistDone === a.checklistTotal
+                    ? "text-emerald-600"
+                    : "text-muted-foreground",
+                )}
+              >
+                {a.checklistDone}/{a.checklistTotal} checklist
+              </span>
+            )}
+            <Button size="sm" onClick={() => approve({ taskId: a.taskId })}>
+              Approve
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
