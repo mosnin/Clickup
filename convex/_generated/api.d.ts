@@ -36,6 +36,7 @@ import type * as maintenance from "../maintenance.js";
 import type * as mentions from "../mentions.js";
 import type * as messages from "../messages.js";
 import type * as notifications from "../notifications.js";
+import type * as onboarding from "../onboarding.js";
 import type * as reports from "../reports.js";
 import type * as scheduledTasks from "../scheduledTasks.js";
 import type * as sidebar from "../sidebar.js";
@@ -78,6 +79,7 @@ declare const fullApi: ApiFromModules<{
   mentions: typeof mentions;
   messages: typeof messages;
   notifications: typeof notifications;
+  onboarding: typeof onboarding;
   reports: typeof reports;
   scheduledTasks: typeof scheduledTasks;
   sidebar: typeof sidebar;

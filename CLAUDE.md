@@ -67,6 +67,7 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   ├── crons.ts                  # 15-min crons (materialize schedules, watchdog) + daily retention prune
 │   ├── maintenance.ts            # watchdog (expired claims, overdue tasks, stalled agents) + retention pruning
 │   ├── channels.ts               # topic channels (messages with parentType "channel") for agent↔agent threads
+│   ├── onboarding.ts             # completeSetup: workspace + HQ + "Getting started" tasks + first agent in one transaction
 │   └── skills.ts                 # built-in skill playbooks (code) + custom skills (table) merged per scope
 ├── mcp/                          # npx-runnable stdio→HTTP proxy for stdio-only MCP clients
 ├── scripts/smoke-mcp.mjs         # post-deploy smoke test for the hosted MCP endpoint
@@ -92,9 +93,9 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   │   │   ├── layout.tsx
 │   │   │   ├── sign-in/[[...sign-in]]/page.tsx
 │   │   │   └── sign-up/[[...sign-up]]/page.tsx
-│   │   ├── onboarding/           # first-run team workspace setup
+│   │   ├── onboarding/           # first-run cinematic setup: 2 questions → workspace+HQ+starter tasks+first agent+key (convex/onboarding.ts)
 │   │   │   ├── page.tsx
-│   │   │   └── onboarding-form.tsx
+│   │   │   └── onboarding-flow.tsx
 │   │   └── dashboard/            # logged-in app shell
 │   │       ├── layout.tsx        # sidebar + main; auth-guarded; renders <EnsureUser />
 │   │       ├── page.tsx          # overview
