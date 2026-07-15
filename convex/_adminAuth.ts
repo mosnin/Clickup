@@ -45,7 +45,19 @@ async function currentUser(
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .unique();
-  // Prefer the mirrored email; fall back to the JWT claim.
+  // A suspended account is an admin hold: it must revoke admin powers too,
+  // not just normal app writes. Without this, an admin whose account is
+  // suspended (e.g. a rogue/compromised granted admin) could keep calling
+  // grantAdmin/suspendUser/inspectWorkspace because the admin path doesn't
+  // route through _authz.requireIdentity. Enforce it at the single choke
+  // point every admin function resolves through.
+  if (user?.suspendedAt) {
+    throw new Error("Account suspended");
+  }
+  // Prefer the mirrored (webhook-verified) email for the env-allowlist
+  // decision; the identity.email fallback only applies before the user row
+  // has synced, and the Clerk JWT template must emit only verified primary
+  // emails or that fallback would be spoofable.
   const email = (user?.email || identity.email || "").toLowerCase();
   return { subject: identity.subject, user, email };
 }

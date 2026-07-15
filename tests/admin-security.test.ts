@@ -111,4 +111,81 @@ describe("platform admin security", () => {
         }),
     ).rejects.toThrow(/root/i);
   });
+
+  it("strips admin powers from a suspended granted admin", async () => {
+    const t = convexTest(schema, modules);
+    await seedUsers(t);
+    // Root grants SUPPORT a superadmin row, then suspends that account.
+    await t
+      .withIdentity(ROOT)
+      .mutation(api.admin.grantAdmin, {
+        email: SUPPORT.email,
+        role: "superadmin",
+      });
+    await t
+      .withIdentity(ROOT)
+      .mutation(api.admin.suspendUser, {
+        clerkId: SUPPORT.subject,
+        reason: "compromised",
+      });
+    // The hold must contain the admin: no admin reads, no admin writes.
+    await expect(
+      t.withIdentity(SUPPORT).query(api.admin.overview, {}),
+    ).rejects.toThrow(/suspended/i);
+    await expect(
+      t
+        .withIdentity(SUPPORT)
+        .mutation(api.admin.grantAdmin, {
+          email: NORMAL.email,
+          role: "support",
+        }),
+    ).rejects.toThrow(/suspended/i);
+  });
+
+  it("forbids a support admin from suspending a platform admin", async () => {
+    const t = convexTest(schema, modules);
+    await seedUsers(t);
+    // SUPPORT is support-tier; try to suspend the granted superadmin SA.
+    const SA = { subject: "user_sa", email: "sa@company.com" };
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { clerkId: SA.subject, email: SA.email });
+    });
+    await t
+      .withIdentity(ROOT)
+      .mutation(api.admin.grantAdmin, { email: SUPPORT.email, role: "support" });
+    await t
+      .withIdentity(ROOT)
+      .mutation(api.admin.grantAdmin, { email: SA.email, role: "superadmin" });
+    await expect(
+      t
+        .withIdentity(SUPPORT)
+        .mutation(api.admin.suspendUser, {
+          clerkId: SA.subject,
+          reason: "attempted takeover",
+        }),
+    ).rejects.toThrow(/platform admin|superadmin access/i);
+  });
+
+  it("restricts agent status changes to superadmins", async () => {
+    const t = convexTest(schema, modules);
+    await seedUsers(t);
+    await t
+      .withIdentity(ROOT)
+      .mutation(api.admin.grantAdmin, { email: SUPPORT.email, role: "support" });
+    const agentId = await t.run(async (ctx) =>
+      ctx.db.insert("agents", {
+        name: "Bot",
+        parentType: "user",
+        parentId: ROOT.subject,
+        status: "active",
+        createdByClerkId: ROOT.subject,
+        createdAt: Date.now(),
+      }),
+    );
+    await expect(
+      t
+        .withIdentity(SUPPORT)
+        .mutation(api.admin.setAgentStatus, { agentId, status: "paused" }),
+    ).rejects.toThrow(/superadmin/i);
+  });
 });

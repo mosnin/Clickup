@@ -125,6 +125,27 @@ export const suspendUser = mutation({
     if (isEmailRootAdmin(user.email)) {
       throw new Error("Cannot suspend a root platform admin");
     }
+    // A suspension is an account hold — but it must not become a lateral or
+    // upward attack on the admin hierarchy. Support admins (read + holds on
+    // ordinary users) may not suspend any platform admin. A granted
+    // superadmin may not suspend a peer superadmin; only the env-allowlisted
+    // root (the ultimate authority) may hold a granted superadmin. This
+    // pairs with the _adminAuth suspension check so a hold on an admin
+    // actually contains them.
+    const targetAdmin = await ctx.db
+      .query("platformAdmins")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .unique();
+    if (targetAdmin && !targetAdmin.revokedAt) {
+      if (admin.role !== "superadmin") {
+        throw new Error("Support admins cannot suspend a platform admin");
+      }
+      if (targetAdmin.role === "superadmin" && !admin.viaEnv) {
+        throw new Error(
+          "Only a root admin can suspend another superadmin",
+        );
+      }
+    }
     await ctx.db.patch(user._id, {
       suspendedAt: Date.now(),
       suspendedReason: reason.trim(),
@@ -276,7 +297,9 @@ export const setAgentStatus = mutation({
     reason: v.optional(v.string()),
   },
   handler: async (ctx, { agentId, status, reason }) => {
-    const admin = await requirePlatformAdmin(ctx);
+    // Pausing/activating an agent reaches into a workspace's fleet platform
+    // wide, beyond support's "read + account-holds" remit — superadmin only.
+    const admin = await requirePlatformAdmin(ctx, { minRole: "superadmin" });
     const agent = await ctx.db.get(agentId);
     if (!agent) throw new Error("Agent not found");
     await ctx.db.patch(agentId, { status });
