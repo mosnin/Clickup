@@ -60,6 +60,89 @@ async function requireAgentManageAccess(
 
 // ── Queries ────────────────────────────────────────────────────────────
 
+// Fleet-level spend across every agent the caller can see: total cost and
+// tokens over 7/30 days plus the top spenders. Cost visibility is
+// table-stakes for teams running a real agent fleet.
+export const fleetSpend = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    // Same visibility set as listForCurrentUser: personal + member workspaces.
+    const memberships = await ctx.db
+      .query("memberships")
+      .withIndex("by_user", (q) => q.eq("userClerkId", identity.subject))
+      .collect();
+    const scopes: { parentType: "user" | "workspace"; parentId: string }[] = [
+      { parentType: "user", parentId: identity.subject },
+      ...memberships.map((m) => ({
+        parentType: "workspace" as const,
+        parentId: m.workspaceId as string,
+      })),
+    ];
+
+    const agents = (
+      await Promise.all(
+        scopes.map((s) =>
+          ctx.db
+            .query("agents")
+            .withIndex("by_parent", (q) =>
+              q.eq("parentType", s.parentType).eq("parentId", s.parentId),
+            )
+            .collect(),
+        ),
+      )
+    ).flat();
+
+    const now = Date.now();
+    const d7 = now - 7 * 24 * 60 * 60 * 1000;
+    const d30 = now - 30 * 24 * 60 * 60 * 1000;
+
+    let cost7 = 0;
+    let cost30 = 0;
+    let tokens7 = 0;
+    let runs7 = 0;
+    const perAgent = new Map<string, { name: string; emoji?: string; cost: number }>();
+
+    for (const agent of agents) {
+      const runs = await ctx.db
+        .query("agentRuns")
+        .withIndex("by_agent", (q) => q.eq("agentId", agent._id))
+        .collect();
+      for (const r of runs) {
+        if (r.startedAt >= d30) cost30 += r.costUsd ?? 0;
+        if (r.startedAt >= d7) {
+          cost7 += r.costUsd ?? 0;
+          tokens7 += r.tokensUsed ?? 0;
+          runs7 += 1;
+          const cur = perAgent.get(agent._id) ?? {
+            name: agent.name,
+            emoji: agent.emoji,
+            cost: 0,
+          };
+          cur.cost += r.costUsd ?? 0;
+          perAgent.set(agent._id, cur);
+        }
+      }
+    }
+
+    const topSpenders = [...perAgent.values()]
+      .filter((a) => a.cost > 0)
+      .sort((a, b) => b.cost - a.cost)
+      .slice(0, 5);
+
+    return {
+      agentCount: agents.length,
+      cost7: Math.round(cost7 * 100) / 100,
+      cost30: Math.round(cost30 * 100) / 100,
+      tokens7,
+      runs7,
+      topSpenders,
+    };
+  },
+});
+
 // All agents visible to the current user: personal ones plus one group per
 // workspace membership. Powers the Agents HQ page.
 export const listForCurrentUser = query({

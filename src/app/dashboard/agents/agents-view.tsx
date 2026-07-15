@@ -137,6 +137,7 @@ function AgentsTab() {
   return (
     <div className="space-y-6">
       <ConnectHint retired={anyConnected} />
+      <FleetSpend />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -300,6 +301,67 @@ function ConnectHint({ retired = false }: { retired?: boolean }) {
       </div>
     </div>
   );
+}
+
+// Fleet cost visibility — total agent spend over 7/30 days plus the top
+// spenders. Only shown once agents have reported runs with cost, so it
+// stays out of the way until it's meaningful.
+function FleetSpend() {
+  const spend = useQuery(api.agents.fleetSpend, {});
+  if (!spend || spend.runs7 === 0) return null;
+  return (
+    <div className="rounded-2xl border border-border bg-background p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-6">
+          <SpendStat label="Spend · 7d" value={`$${spend.cost7.toFixed(2)}`} />
+          <SpendStat label="Spend · 30d" value={`$${spend.cost30.toFixed(2)}`} />
+          <SpendStat
+            label="Tokens · 7d"
+            value={compactNumber(spend.tokens7)}
+          />
+          <SpendStat label="Runs · 7d" value={String(spend.runs7)} />
+        </div>
+        {spend.topSpenders.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Top spend
+            </span>
+            {spend.topSpenders.map((a) => (
+              <span
+                key={a.name}
+                className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs"
+              >
+                <span aria-hidden>{a.emoji ?? "🤖"}</span>
+                {a.name}
+                <span className="tabular-nums text-muted-foreground">
+                  ${a.cost.toFixed(2)}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SpendStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-0.5 text-xl font-bold tabular-nums tracking-tight">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function compactNumber(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
 }
 
 // One-click, pre-governed agent presets. Picks a target scope once, then
