@@ -7,6 +7,7 @@ import {
   SITE_TAGLINE,
   USE_CASE_LINKS,
 } from "@/lib/marketing-nav";
+import { LEGAL_LINKS } from "@/lib/legal";
 
 const COLUMNS = [
   {
@@ -105,13 +106,35 @@ export function PillFooter() {
           ))}
         </div>
 
-        <div className="flex flex-col items-start justify-between gap-3 border-t border-black/[0.07] px-2 pt-6 sm:flex-row sm:items-center">
-          <p className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()} {SITE_NAME}. All rights reserved.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Works with any MCP-capable agent runtime.
-          </p>
+        <div className="flex flex-col gap-4 border-t border-black/[0.07] px-2 pt-6">
+          <nav
+            aria-label="Legal"
+            className="flex flex-wrap items-center gap-x-5 gap-y-2"
+          >
+            <Link
+              href="/legal"
+              className="text-xs font-medium text-foreground/70 transition-colors hover:text-foreground"
+            >
+              Legal
+            </Link>
+            {LEGAL_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+            <p className="text-xs text-muted-foreground">
+              © {new Date().getFullYear()} {SITE_NAME}. All rights reserved.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Works with any MCP-capable agent runtime.
+            </p>
+          </div>
         </div>
       </div>
     </footer>

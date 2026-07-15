@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/marketing-nav";
 import { USE_CASES } from "@/lib/use-cases";
 import { RESOURCES } from "@/lib/resources";
+import { LEGAL_DOCS } from "@/lib/legal";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
@@ -12,6 +13,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/resources",
     "/pricing",
     "/company",
+    "/legal",
   ];
   return [
     ...staticPages.map((p) => ({
@@ -31,6 +33,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: now,
       changeFrequency: "monthly" as const,
       priority: 0.6,
+    })),
+    ...LEGAL_DOCS.map((d) => ({
+      url: `${SITE_URL}/legal/${d.slug}`,
+      lastModified: now,
+      changeFrequency: "yearly" as const,
+      priority: 0.4,
     })),
   ];
 }
