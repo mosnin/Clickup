@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
@@ -51,7 +52,14 @@ const TABS: { key: Tab; label: string; icon: typeof Bot }[] = [
 ];
 
 export function AgentsView() {
-  const [tab, setTab] = useState<Tab>("agents");
+  // Tab is URL-addressable (?tab=) so the sidebar can deep-link to Activity/
+  // Billing/Webhooks/Skills; the "agents" tab is the bare /dashboard/agents.
+  const searchParams = useSearchParams();
+  const rawTab = searchParams.get("tab");
+  const initialTab: Tab = TABS.some((t) => t.key === rawTab)
+    ? (rawTab as Tab)
+    : "agents";
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   return (
     <div className="space-y-6">
