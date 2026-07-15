@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { Stagger, StaggerItem } from "@/components/motion";
 
 export default function PersonalPage() {
   const tree = useQuery(api.sidebar.tree, {});
@@ -23,7 +24,7 @@ export default function PersonalPage() {
 
   return (
     <div className="space-y-6">
-      <header>
+      <header className="title-rule">
         <div className="flex items-center gap-2">
           <span
             aria-hidden
@@ -54,11 +55,11 @@ export default function PersonalPage() {
               <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 {folder.name}
               </h2>
-              <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Stagger className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {folder.lists.map((list) => (
                   <ListCard key={list._id} list={list} />
                 ))}
-              </ul>
+              </Stagger>
             </section>
           ))}
 
@@ -67,11 +68,11 @@ export default function PersonalPage() {
               <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 Lists
               </h2>
-              <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Stagger className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {directLists.map((list) => (
                   <ListCard key={list._id} list={list} />
                 ))}
-              </ul>
+              </Stagger>
             </section>
           )}
         </>
@@ -86,10 +87,10 @@ function ListCard({
   list: { _id: string; name: string; color?: string };
 }) {
   return (
-    <li>
+    <StaggerItem>
       <Link
         href={`/dashboard/l/${list._id}`}
-        className="block rounded-2xl border border-border bg-background p-5 transition-colors hover:border-foreground/25"
+        className="lift block rounded-2xl border border-border bg-background p-5 hover:border-foreground/25"
       >
         <div className="flex items-center gap-2">
           <span
@@ -100,7 +101,7 @@ function ListCard({
           <span className="font-medium">{list.name}</span>
         </div>
       </Link>
-    </li>
+    </StaggerItem>
   );
 }
 
