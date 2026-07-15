@@ -27,6 +27,7 @@ import type * as clips from "../clips.js";
 import type * as events from "../events.js";
 import type * as crons from "../crons.js";
 import type * as customFields from "../customFields.js";
+import type * as dataExport from "../dataExport.js";
 import type * as docs from "../docs.js";
 import type * as folders from "../folders.js";
 import type * as goals from "../goals.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   events: typeof events;
   customFields: typeof customFields;
+  dataExport: typeof dataExport;
   docs: typeof docs;
   folders: typeof folders;
   goals: typeof goals;

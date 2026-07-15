@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
-import { Trash2 } from "lucide-react";
+import { useConvex, useMutation, useQuery } from "convex/react";
+import { Download, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,69 @@ export function WorkspaceSettings({
           />
         </div>
       </section>
+
+      <ExportSection workspaceId={workspaceId} />
     </div>
+  );
+}
+
+// On-demand data export (owners/admins only, enforced server-side). Uses a
+// one-shot query on click rather than a reactive subscription, then hands
+// the browser a JSON download.
+function ExportSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
+  const convex = useConvex();
+  const { toast } = useToast();
+  const [pending, setPending] = useState(false);
+
+  async function onExport() {
+    setPending(true);
+    try {
+      const data = await convex.query(api.dataExport.exportWorkspace, {
+        workspaceId,
+      });
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${data.workspace.slug || "workspace"}-export.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("Export downloaded");
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      toast(raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || "Export failed", {
+        kind: "error",
+      });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <section>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Data & compliance
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Export this workspace&apos;s spaces, lists, tasks, sprints, and agent
+        configuration as a JSON document. Secrets and API keys are never
+        included.
+      </p>
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-border bg-background p-4">
+        <div>
+          <p className="text-sm font-medium">Export workspace data</p>
+          <p className="text-xs text-muted-foreground">
+            Owners and admins only. Portable, human-readable JSON.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" disabled={pending} onClick={onExport}>
+          <Download className="h-3.5 w-3.5" />
+          {pending ? "Preparing…" : "Export JSON"}
+        </Button>
+      </div>
+    </section>
   );
 }
 
