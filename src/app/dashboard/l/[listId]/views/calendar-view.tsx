@@ -91,7 +91,7 @@ export function CalendarView({
         </div>
       </header>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-background">
+      <div className="overflow-hidden rounded-2xl bento">
         <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs uppercase tracking-wider text-muted-foreground">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
             <div key={d} className="py-2">

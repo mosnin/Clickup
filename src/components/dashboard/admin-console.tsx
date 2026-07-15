@@ -150,7 +150,7 @@ function OverviewTab() {
       {tiles.map((t) => (
         <StaggerItem
           key={t.label}
-          className="rounded-2xl border border-border bg-background p-5"
+          className="rounded-2xl bento p-5"
         >
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {t.label}
@@ -191,7 +191,7 @@ function UsersTab() {
           {users.map((u) => (
             <li
               key={u._id}
-              className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-background px-4 py-3"
+              className="flex flex-wrap items-center gap-3 rounded-2xl bento px-4 py-3"
             >
               <Avatar name={u.name ?? u.email} img={u.imageUrl} />
               <div className="min-w-0 flex-1">
@@ -269,7 +269,7 @@ function WorkspacesTab() {
           {rows.map((w) => (
             <li
               key={w._id}
-              className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-background px-4 py-3"
+              className="flex flex-wrap items-center gap-3 rounded-2xl bento px-4 py-3"
             >
               <span className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-muted">
                 <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -338,7 +338,7 @@ function AgentsTab() {
       {rows.map((a) => (
         <li
           key={a._id}
-          className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-background px-4 py-3"
+          className="flex flex-wrap items-center gap-3 rounded-2xl bento px-4 py-3"
         >
           <span className="text-xl" aria-hidden>
             {a.emoji ?? "🤖"}
@@ -420,7 +420,7 @@ function AuditTab() {
       {rows.map((r) => (
         <li
           key={r._id}
-          className="flex flex-wrap items-baseline gap-2 rounded-2xl border border-border bg-background px-4 py-2.5 text-sm"
+          className="flex flex-wrap items-baseline gap-2 rounded-2xl bento px-4 py-2.5 text-sm"
         >
           <span
             className={cn(
@@ -464,7 +464,7 @@ function SecurityTab({ isSuper }: { isSuper: boolean }) {
           {posture.checks.map((c) => (
             <li
               key={c.key}
-              className="flex items-start gap-3 rounded-2xl border border-border bg-background px-4 py-3"
+              className="flex items-start gap-3 rounded-2xl bento px-4 py-3"
             >
               <span
                 className={cn(
@@ -509,7 +509,7 @@ function SettingsPanel({ settings }: { settings: Record<string, unknown> }) {
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Platform policy
       </h2>
-      <div className="space-y-3 rounded-2xl border border-border bg-background p-4">
+      <div className="space-y-3 rounded-2xl bento p-4">
         <NumberSetting
           label="Session idle timeout (minutes)"
           hint="0 disables the platform-wide idle policy."
@@ -593,7 +593,7 @@ function AdminsTab({ isSuper }: { isSuper: boolean }) {
 
       {isSuper && (
         <form
-          className="flex flex-wrap items-end gap-2 rounded-2xl border border-border bg-background p-4"
+          className="flex flex-wrap items-end gap-2 rounded-2xl bento p-4"
           onSubmit={async (e) => {
             e.preventDefault();
             if (!email.trim()) return;
@@ -647,7 +647,7 @@ function AdminsTab({ isSuper }: { isSuper: boolean }) {
           {rows.map((a) => (
             <li
               key={a._id}
-              className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-background px-4 py-3"
+              className="flex flex-wrap items-center gap-3 rounded-2xl bento px-4 py-3"
             >
               <span className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-muted">
                 <Shield className="h-4 w-4 text-muted-foreground" />

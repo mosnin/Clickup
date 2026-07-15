@@ -63,7 +63,7 @@ export function ScheduledTasksSection({ listId }: { listId: Id<"lists"> }) {
         {(schedules ?? []).map((st) => (
           <li
             key={st._id}
-            className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-background px-4 py-2.5 text-sm"
+            className="flex flex-wrap items-center gap-2 rounded-2xl bento px-4 py-2.5 text-sm"
           >
             <CalendarClock
               className="h-4 w-4 flex-shrink-0 text-muted-foreground"
@@ -127,7 +127,7 @@ function CreateScheduleForm({
 
   return (
     <form
-      className="mt-3 flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-background p-4"
+      className="mt-3 flex flex-wrap items-end gap-3 rounded-2xl bento p-4"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!title.trim()) return;

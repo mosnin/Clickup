@@ -195,7 +195,7 @@ function GoalRow({ goal }: { goal: Doc<"goals"> }) {
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border bg-background p-3",
+        "rounded-2xl bento p-3",
         goal.status === "complete" && "border-green-500/40",
         goal.status === "abandoned" && "opacity-60",
       )}

@@ -62,7 +62,7 @@ export function TemplatePicker({
         onClick={onClose}
         className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
       />
-      <div className="relative w-full max-w-2xl rounded-2xl border border-border bg-background shadow-xl">
+      <div className="relative w-full max-w-2xl rounded-2xl bento shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h2 className="text-sm font-semibold">Pick a list template</h2>
           <button

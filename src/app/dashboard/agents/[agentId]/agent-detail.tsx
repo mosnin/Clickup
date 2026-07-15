@@ -146,7 +146,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
               <li key={t.taskId}>
                 <Link
                   href={`/dashboard/l/${t.listId}/t/${t.taskId}`}
-                  className="block truncate rounded-2xl border border-border bg-background px-3 py-2 text-sm hover:border-foreground/25"
+                  className="lift block truncate rounded-2xl bento px-3 py-2 text-sm"
                 >
                   {t.title}
                   {claimed.some((c) => c.taskId === t.taskId) && (
@@ -191,7 +191,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
           {events.map((e) => (
             <li
               key={e._id}
-              className="flex items-baseline gap-2 rounded-2xl border border-border bg-background px-3 py-1.5 text-sm"
+              className="flex items-baseline gap-2 rounded-2xl bento px-3 py-1.5 text-sm"
             >
               <span className="min-w-0 flex-1 truncate">
                 <span className="text-muted-foreground">
@@ -249,7 +249,7 @@ function StatsRow({
       {tiles.map((t) => (
         <StaggerItem
           key={t.label}
-          className="rounded-2xl border border-border bg-background p-3 text-center"
+          className="rounded-2xl bento p-3 text-center"
         >
           <p className="text-lg font-bold tracking-tight">{t.value}</p>
           <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -289,7 +289,7 @@ function GovernancePanel({
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-background p-4">
+    <section className="rounded-2xl bento p-4">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Governance
       </h2>
@@ -423,7 +423,7 @@ function RunRow({ run }: { run: Doc<"agentRuns"> }) {
     run.taskId ? { taskId: run.taskId } : "skip",
   );
   return (
-    <li className="rounded-2xl border border-border bg-background px-3 py-2 text-sm">
+    <li className="rounded-2xl bento px-3 py-2 text-sm">
       <div className="flex items-center gap-2">
         <Icon
           className={cn("h-4 w-4 flex-shrink-0", RUN_COLOR[run.status])}

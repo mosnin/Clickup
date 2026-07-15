@@ -152,7 +152,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
                   <StaggerItem key={space._id}>
                     <div
                       id={space._id}
-                      className="rounded-2xl border border-border bg-background p-5"
+                      className="rounded-2xl bento p-5"
                     >
                       <div className="flex items-center gap-2">
                         <span

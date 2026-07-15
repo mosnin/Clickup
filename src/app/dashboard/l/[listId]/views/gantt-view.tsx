@@ -74,7 +74,7 @@ export function GanttView({
   const today = startOfDay(new Date());
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-border bg-background">
+    <div className="overflow-x-auto rounded-2xl bento">
       <div style={{ minWidth: 240 + totalWidth }}>
         <div className="flex border-b border-border">
           <div className="w-60 flex-shrink-0 border-r border-border bg-muted/40 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">

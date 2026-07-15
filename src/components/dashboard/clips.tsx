@@ -166,7 +166,7 @@ function Recorder({ taskId }: { taskId: Id<"tasks"> }) {
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-background p-3">
+    <div className="rounded-2xl bento p-3">
       {state.kind === "idle" && (
         <Button type="button" size="sm" onClick={start}>
           <Video className="h-3.5 w-3.5" /> Record clip
@@ -235,7 +235,7 @@ function ClipCard({ clip }: { clip: Doc<"clips"> }) {
   if (deleting) return null;
 
   return (
-    <div className="rounded-2xl border border-border bg-background p-2">
+    <div className="rounded-2xl bento p-2">
       <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black">
         {url ? (
           <video

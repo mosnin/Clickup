@@ -224,7 +224,7 @@ function AgentsSkeleton() {
         {[0, 1].map((i) => (
           <div
             key={i}
-            className="space-y-3 rounded-2xl border border-border bg-background p-4"
+            className="space-y-3 rounded-2xl bento p-4"
           >
             <div className="flex items-center gap-3">
               <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
@@ -310,7 +310,7 @@ function FleetSpend() {
   const spend = useQuery(api.agents.fleetSpend, {});
   if (!spend || spend.runs7 === 0) return null;
   return (
-    <div className="rounded-2xl border border-border bg-background p-4">
+    <div className="rounded-2xl bento p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-6">
           <SpendStat label="Spend · 7d" value={`$${spend.cost7.toFixed(2)}`} />
@@ -408,7 +408,7 @@ function TemplateGallery({
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-background p-4">
+    <div className="rounded-2xl bento p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-semibold">Start from a template</p>
@@ -434,7 +434,7 @@ function TemplateGallery({
               type="button"
               disabled={pendingSlug !== null}
               onClick={() => spawn(t.slug, t.name)}
-              className="lift flex h-full w-full flex-col rounded-2xl border border-border bg-background p-4 text-left disabled:opacity-60"
+              className="lift flex h-full w-full flex-col rounded-2xl bento p-4 text-left disabled:opacity-60"
             >
               <span className="flex items-center gap-2">
                 <span className="text-2xl" aria-hidden>
@@ -498,7 +498,7 @@ function CreateAgentForm({
 
   return (
     <form
-      className="space-y-3 rounded-2xl border border-border bg-background p-4"
+      className="space-y-3 rounded-2xl bento p-4"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!name.trim() || pending || !user) return;
@@ -635,7 +635,7 @@ function AgentCard({
   if (deleting) return null;
 
   return (
-    <div className="lift rounded-2xl border border-border bg-background p-4">
+    <div className="lift rounded-2xl bento p-4">
       <div className="flex items-start gap-3">
         <span className="text-2xl" aria-hidden>
           {agent.emoji ?? "🤖"}
@@ -871,7 +871,7 @@ export function ActivityFeed({
           initial={{ opacity: 0, y: -10, filter: "blur(3px)" }}
           animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
           transition={{ duration: 0.4, ease: EASE }}
-          className="flex items-baseline gap-2 rounded-2xl border border-border bg-background px-3 py-2 text-sm"
+          className="flex items-baseline gap-2 rounded-2xl bento px-3 py-2 text-sm"
         >
           <span
             className={cn(
@@ -955,7 +955,7 @@ function WebhooksTab() {
       </p>
 
       <form
-        className="flex flex-wrap items-end gap-2 rounded-2xl border border-border bg-background p-4"
+        className="flex flex-wrap items-end gap-2 rounded-2xl bento p-4"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!url.trim() || !user) return;
@@ -1032,7 +1032,7 @@ function WebhooksTab() {
         {(subs ?? []).map((s) => (
           <li
             key={s._id}
-            className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-background px-4 py-3 text-sm"
+            className="flex flex-wrap items-center gap-2 rounded-2xl bento px-4 py-3 text-sm"
           >
             <code className="min-w-0 flex-1 truncate text-xs">{s.url}</code>
             <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -1177,7 +1177,7 @@ function SkillRow({
   const removeSkill = useMutation(api.skills.remove);
 
   return (
-    <div className="rounded-2xl border border-border bg-background p-4">
+    <div className="rounded-2xl bento p-4">
       <button
         type="button"
         onClick={onToggle}
@@ -1239,7 +1239,7 @@ function CreateSkillForm({
 
   return (
     <form
-      className="space-y-3 rounded-2xl border border-border bg-background p-4"
+      className="space-y-3 rounded-2xl bento p-4"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!name.trim() || !content.trim()) return;
@@ -1286,7 +1286,7 @@ function CreateSkillForm({
           value={content}
           onChange={(e) => setContent(e.currentTarget.value)}
           placeholder={"# Release checklist\n\n1. ..."}
-          className="w-full rounded-2xl border border-border bg-background p-4 text-sm"
+          className="w-full rounded-2xl bento p-4 text-sm"
         />
       </label>
       <div className="flex justify-end gap-2">

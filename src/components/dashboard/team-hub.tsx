@@ -38,7 +38,7 @@ export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
         {members.map((m) => (
           <StaggerItem
             key={m.clerkId}
-            className="lift rounded-2xl border border-border bg-background p-4"
+            className="lift rounded-2xl bento p-4"
           >
             <div className="flex items-start gap-3">
               <Avatar name={m.name} clerkId={m.clerkId} />

@@ -158,7 +158,7 @@ export function Brain() {
       )}
 
       {pending && (
-        <div className="space-y-2 rounded-2xl border border-border bg-background p-5">
+        <div className="space-y-2 rounded-2xl bento p-5">
           <div className="h-3 w-4/5 animate-pulse rounded-full bg-muted" />
           <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
           <div className="h-3 w-2/3 animate-pulse rounded-full bg-muted" />
@@ -172,7 +172,7 @@ export function Brain() {
       )}
 
       {answer && (
-        <article className="rounded-2xl border border-border bg-background p-5">
+        <article className="rounded-2xl bento p-5">
           <p className="whitespace-pre-wrap text-sm leading-relaxed">
             {answer}
           </p>
@@ -213,7 +213,7 @@ function SourceLink({ index, source }: { index: number; source: Source }) {
         : null;
 
   const inner = (
-    <div className="lift flex items-start gap-3 rounded-2xl border border-border bg-background p-3 hover:border-foreground/25">
+    <div className="lift flex items-start gap-3 rounded-2xl bento p-3 hover:border-foreground/25">
       <span className="mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-medium text-brand-700">
         {index}
       </span>

@@ -90,7 +90,7 @@ function ListCard({
     <StaggerItem>
       <Link
         href={`/dashboard/l/${list._id}`}
-        className="lift block rounded-2xl border border-border bg-background p-5 hover:border-foreground/25"
+        className="lift block rounded-2xl bento p-5 hover:border-foreground/25"
       >
         <div className="flex items-center gap-2">
           <span

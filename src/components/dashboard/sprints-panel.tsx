@@ -91,7 +91,7 @@ function CreateSprintForm({
 
   return (
     <form
-      className="flex flex-wrap items-end gap-3 rounded-2xl border border-border bg-background p-4"
+      className="flex flex-wrap items-end gap-3 rounded-2xl bento p-4"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!name.trim()) return;
@@ -205,7 +205,7 @@ function SprintCard({
     });
 
   return (
-    <div className="rounded-2xl border border-border bg-background p-4">
+    <div className="rounded-2xl bento p-4">
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"

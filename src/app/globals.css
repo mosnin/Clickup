@@ -87,15 +87,15 @@ body {
    hairline-border card wherever a surface should read as a discrete panel. */
 .bento {
   background: var(--color-background);
-  border-radius: 1.5rem;
   box-shadow:
     0 1px 2px rgb(16 16 18 / 0.04),
     0 10px 30px -18px rgb(16 16 18 / 0.16);
 }
-/* A slightly tighter card for dense grids / rows. */
+/* A slightly softer shadow for dense grids / small tiles. Pair either with a
+   rounded-* utility — they intentionally don't set radius so each card keeps
+   its own. */
 .bento-sm {
   background: var(--color-background);
-  border-radius: 1.25rem;
   box-shadow:
     0 1px 2px rgb(16 16 18 / 0.04),
     0 8px 22px -16px rgb(16 16 18 / 0.14);

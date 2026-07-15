@@ -153,7 +153,7 @@ function StatusRow({
   const [replaceWith, setReplaceWith] = useState<Id<"listStatuses"> | "">("");
 
   return (
-    <li className="rounded-2xl border border-border bg-background p-3">
+    <li className="rounded-2xl bento p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
           type="color"
@@ -380,7 +380,7 @@ function FieldRow({
   if (deleting) return null;
 
   return (
-    <li className="rounded-2xl border border-border bg-background p-3">
+    <li className="rounded-2xl bento p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <span className="rounded-full bg-muted px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
           {FIELD_TYPE_LABEL[field.type]}
@@ -663,7 +663,7 @@ function AutomationRow({
     <li
       className={
         automation.enabled
-          ? "rounded-2xl border border-border bg-background p-3"
+          ? "rounded-2xl bento p-3"
           : "rounded-2xl border border-border bg-muted/30 p-3 opacity-60"
       }
     >

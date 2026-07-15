@@ -145,7 +145,7 @@ export function DocEditor({ docId }: { docId: string }) {
       />
 
       <Toolbar editor={editor} />
-      <div className="rounded-2xl border border-border bg-background p-6">
+      <div className="rounded-2xl bento p-6">
         <EditorContent editor={editor} />
       </div>
       <AiWriterRow editor={editor} />

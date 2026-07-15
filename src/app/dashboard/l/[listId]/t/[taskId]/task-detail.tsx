@@ -236,7 +236,7 @@ function TaskEditor({
                 }
               }}
               placeholder="Add more details…"
-              className="w-full rounded-2xl border border-border bg-background p-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full rounded-2xl bento p-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
 

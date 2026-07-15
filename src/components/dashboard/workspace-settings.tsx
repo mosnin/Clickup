@@ -89,7 +89,7 @@ function ExportSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
         configuration as a JSON document. Secrets and API keys are never
         included.
       </p>
-      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-border bg-background p-4">
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bento p-4">
         <div>
           <p className="text-sm font-medium">Export workspace data</p>
           <p className="text-xs text-muted-foreground">
@@ -125,7 +125,7 @@ function SlackIntegration({
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="rounded-2xl border border-border bg-background p-4">
+    <div className="rounded-2xl bento p-4">
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold">Slack</h3>

@@ -77,7 +77,7 @@ export default function DashboardHome() {
           >
             <Link
               href="/dashboard/agents"
-              className="lift flex items-center gap-4 rounded-2xl border border-border bg-background p-5 hover:border-foreground/25"
+              className="lift flex items-center gap-4 rounded-2xl bento p-5 hover:border-foreground/25"
             >
               <span className="relative inline-flex text-3xl" aria-hidden>
                 <span className="absolute inset-0 animate-ping rounded-full bg-pastel-blue opacity-60" />
@@ -107,7 +107,7 @@ export default function DashboardHome() {
             <StaggerItem>
               <Link
                 href="/dashboard/personal"
-                className="lift block rounded-2xl border border-border bg-background p-5 hover:border-foreground/25"
+                className="lift block rounded-2xl bento p-5 hover:border-foreground/25"
               >
                 <div className="flex items-center gap-2">
                   <span
@@ -164,7 +164,7 @@ export default function DashboardHome() {
             <StaggerItem key={ws._id}>
               <Link
                 href={`/dashboard/w/${ws._id}`}
-                className="lift block rounded-2xl border border-border bg-background p-5 hover:border-foreground/25"
+                className="lift block rounded-2xl bento p-5 hover:border-foreground/25"
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{ws.name}</span>

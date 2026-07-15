@@ -392,7 +392,7 @@ function StepBuild({
             transition={{ duration: 0.5, ease: EASE }}
             className="mt-10"
           >
-            <div className="rounded-2xl border border-border bg-background p-5 shadow-sm">
+            <div className="rounded-2xl bento p-5 shadow-sm">
               <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                 {agentName}&apos;s API key — shown once
               </p>

@@ -118,7 +118,7 @@ function ApprovalsQueue({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, x: 24, height: 0, marginBottom: 0 }}
             transition={{ duration: 0.35, ease: EASE }}
-            className="flex flex-wrap items-center gap-2 overflow-hidden rounded-2xl border border-border bg-background px-3 py-2 text-sm"
+            className="flex flex-wrap items-center gap-2 overflow-hidden rounded-2xl bento px-3 py-2 text-sm"
           >
             <Link
               href={`/dashboard/l/${a.listId}/t/${a.taskId}`}
@@ -192,7 +192,7 @@ function MentionItem({ mention }: { mention: Doc<"mentions"> }) {
         if (!mention.readAt) markRead({ mentionId: mention._id });
       }}
       className={cn(
-        "lift block rounded-2xl border border-border bg-background p-3 hover:border-foreground/25",
+        "lift block rounded-2xl bento p-3 hover:border-foreground/25",
         !mention.readAt && "border-l-4 border-l-brand-600",
       )}
     >

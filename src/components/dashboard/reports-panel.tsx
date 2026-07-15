@@ -151,7 +151,7 @@ function Stat({
   subtext?: string;
 }) {
   return (
-    <StaggerItem className="rounded-2xl border border-border bg-background p-4">
+    <StaggerItem className="rounded-2xl bento p-4">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           {label}
@@ -176,7 +176,7 @@ function Widget({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-background p-4">
+    <div className="rounded-2xl bento p-4">
       <h3 className="text-sm font-semibold">{title}</h3>
       <div className="mt-3">{children}</div>
     </div>

@@ -305,7 +305,7 @@ function Card({
         transition,
       }}
       className={cn(
-        "rounded-2xl border border-border bg-background shadow-sm",
+        "rounded-2xl bento shadow-sm",
         isDragging && "opacity-30",
       )}
     >
@@ -342,7 +342,7 @@ function CardChrome({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border bg-background p-3 shadow-md",
+        "rounded-2xl bento p-3 shadow-md",
         dragging && "rotate-2",
       )}
     >

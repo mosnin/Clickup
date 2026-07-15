@@ -30,7 +30,7 @@ export function TimeTracker({ taskId }: { taskId: Id<"tasks"> }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 rounded-2xl border border-border bg-background p-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 rounded-2xl bento p-3 sm:flex-row sm:items-center">
         {myRunningOnThisTask ? (
           <RunningPanel
             entry={myRunningOnThisTask}
@@ -108,7 +108,7 @@ function EntryRow({ entry }: { entry: Doc<"timeEntries"> }) {
   return (
     <li
       className={cn(
-        "flex flex-col gap-2 rounded-2xl border border-border bg-background p-2 sm:flex-row sm:items-center",
+        "flex flex-col gap-2 rounded-2xl bento p-2 sm:flex-row sm:items-center",
         !entry.endedAt && "border-red-300/50",
       )}
     >
