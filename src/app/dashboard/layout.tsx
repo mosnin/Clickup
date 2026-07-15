@@ -5,6 +5,7 @@ import { EnsureUser } from "@/components/dashboard/ensure-user";
 import { ToastProvider } from "@/components/toast";
 import { CommandPalette } from "@/components/command-palette";
 import { AgentOnlineWatcher } from "@/components/dashboard/agent-online-watcher";
+import { RequireBackend } from "@/components/require-backend";
 
 export default async function DashboardLayout({
   children,
@@ -15,8 +16,9 @@ export default async function DashboardLayout({
   if (!userId) redirect("/sign-in");
 
   // The app renders as a white sheet floating on the gray page canvas —
-  // sidebar and content live inside one rounded, hairline-bordered frame.
+  // sidebar and content live inside one rounded frame.
   return (
+    <RequireBackend>
     <ToastProvider>
       <div className="min-h-dvh bg-page p-0 md:p-4">
         <EnsureUser />
@@ -32,5 +34,6 @@ export default async function DashboardLayout({
         </div>
       </div>
     </ToastProvider>
+    </RequireBackend>
   );
 }
