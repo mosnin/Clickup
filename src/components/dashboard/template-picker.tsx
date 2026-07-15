@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery } from "convex/react";
 import { X } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -47,11 +48,15 @@ export function TemplatePicker({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open || !parent) return null;
+  if (!open || !parent || typeof document === "undefined") return null;
 
   const chosen = templates?.find((t) => t.id === selected) ?? null;
 
-  return (
+  // Portaled to <body>: this dialog is opened from inside the sidebar,
+  // whose collapse animation puts a CSS transform on the <aside>. A
+  // transformed ancestor becomes the containing block for position:fixed,
+  // which would trap the "fullscreen" overlay inside the sidebar box.
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -151,6 +156,7 @@ export function TemplatePicker({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -145,15 +145,13 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
             </h2>
             <Stagger className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {workspace.spaces.map((space) => {
-                const totalLists =
-                  space.lists.length +
-                  space.folders.reduce((n, f) => n + f.lists.length, 0);
+                const lists = [
+                  ...space.lists,
+                  ...space.folders.flatMap((f) => f.lists),
+                ];
                 return (
                   <StaggerItem key={space._id}>
-                    <div
-                      id={space._id}
-                      className="rounded-2xl bento p-5"
-                    >
+                    <div id={space._id} className="rounded-2xl bento p-5">
                       <div className="flex items-center gap-2">
                         <span
                           aria-hidden
@@ -162,11 +160,27 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
                         />
                         <span className="font-medium">{space.name}</span>
                       </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {totalLists} list{totalLists === 1 ? "" : "s"} ·{" "}
-                        {space.folders.length} folder
-                        {space.folders.length === 1 ? "" : "s"}
-                      </p>
+                      {lists.length === 0 ? (
+                        <p className="mt-3 text-xs text-muted-foreground">
+                          No lists yet — add one from the sidebar.
+                        </p>
+                      ) : (
+                        <ul className="mt-3 space-y-0.5">
+                          {lists.map((list) => (
+                            <li key={list._id}>
+                              <Link
+                                href={`/dashboard/l/${list._id}`}
+                                className="group flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted"
+                              >
+                                <span className="truncate">{list.name}</span>
+                                <span className="flex-shrink-0 text-[11px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                                  List · Board · Gantt
+                                </span>
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   </StaggerItem>
                 );

@@ -15,23 +15,21 @@ export default async function DashboardLayout({
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  // The app renders as a white sheet floating on the gray page canvas —
-  // sidebar and content live inside one rounded frame.
+  // Full-screen app: white sidebar + gray working canvas, edge to edge.
+  // White .bento cards float on the canvas — no boxed outer frame.
   return (
     <RequireBackend>
     <ToastProvider>
-      <div className="min-h-dvh bg-page p-0 md:p-4">
+      <div className="flex min-h-dvh bg-page">
         <EnsureUser />
         <CommandPalette />
         <AgentOnlineWatcher />
-        <div className="app-frame mx-auto flex min-h-dvh max-w-[1400px] overflow-hidden bg-background md:min-h-[calc(100dvh-2rem)] md:rounded-[1.75rem]">
-          <DashboardSidebar />
-          <main className="flex-1 overflow-x-hidden">
-            <div className="mx-auto max-w-5xl px-4 py-8 pt-16 sm:px-8 md:pt-8">
-              {children}
-            </div>
-          </main>
-        </div>
+        <DashboardSidebar />
+        <main className="min-w-0 flex-1 overflow-x-hidden">
+          <div className="mx-auto w-full max-w-7xl px-4 py-8 pt-16 sm:px-8 md:pt-8">
+            {children}
+          </div>
+        </main>
       </div>
     </ToastProvider>
     </RequireBackend>
