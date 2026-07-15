@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Trash2,
   Users,
+  Wallet,
   X,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -39,6 +40,7 @@ type Tab =
   | "users"
   | "workspaces"
   | "agents"
+  | "billing"
   | "audit"
   | "security"
   | "admins";
@@ -48,6 +50,7 @@ const TABS: { key: Tab; label: string; icon: typeof Users }[] = [
   { key: "users", label: "Users", icon: Users },
   { key: "workspaces", label: "Workspaces", icon: Building2 },
   { key: "agents", label: "Agents", icon: Bot },
+  { key: "billing", label: "Billing", icon: Wallet },
   { key: "audit", label: "Audit log", icon: Shield },
   { key: "security", label: "Security", icon: ShieldCheck },
   { key: "admins", label: "Admins", icon: Shield },
@@ -118,6 +121,8 @@ export function AdminConsole() {
           <WorkspacesTab />
         ) : tab === "agents" ? (
           <AgentsTab />
+        ) : tab === "billing" ? (
+          <BillingAdminTab isSuper={isSuper} />
         ) : tab === "audit" ? (
           <AuditTab />
         ) : tab === "security" ? (
@@ -445,6 +450,192 @@ function AuditTab() {
         </li>
       ))}
     </ul>
+  );
+}
+
+// ── Billing (x402 revenue + metering) ────────────────────────────────────
+
+function BillingAdminTab({ isSuper }: { isSuper: boolean }) {
+  const data = useQuery(api.x402.platformRevenue, {});
+  const setConfig = useMutation(api.x402.setMeteringConfig);
+  const { toast } = useToast();
+
+  if (data === undefined) {
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-24 animate-pulse rounded-2xl bg-muted/40" />
+          ))}
+        </div>
+        <div className="h-40 animate-pulse rounded-2xl bg-muted/40" />
+      </div>
+    );
+  }
+
+  const { metering, pricing } = data;
+
+  return (
+    <div className="space-y-6">
+      <Stagger className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StaggerItem className="rounded-2xl bento p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Credits sold
+          </p>
+          <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums">
+            <AnimatedNumber value={data.totalCreditsSold} />
+          </p>
+        </StaggerItem>
+        <StaggerItem className="rounded-2xl bento p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Settled payments
+          </p>
+          <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums">
+            <AnimatedNumber value={data.settledCount} />
+          </p>
+        </StaggerItem>
+        <StaggerItem className="rounded-2xl bento p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Funded wallets
+          </p>
+          <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums">
+            <AnimatedNumber value={data.walletCount} />
+          </p>
+        </StaggerItem>
+        <StaggerItem className="rounded-2xl bento p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Metering
+          </p>
+          <p className="mt-2 text-lg font-semibold">
+            {metering.enabled ? "On" : "Off"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {metering.actionCredits} credit
+            {metering.actionCredits === 1 ? "" : "s"}/action
+          </p>
+        </StaggerItem>
+      </Stagger>
+
+      {/* Metering config — superadmin only, since it changes what every
+          agent is charged platform-wide. */}
+      <div className="rounded-2xl bento p-5">
+        <h3 className="text-sm font-semibold">Metering</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          When on, each metered agent write action consumes credits from its
+          scope wallet. Agents top up via x402. Priced in {pricing.assetSymbol}{" "}
+          on {pricing.network}.
+        </p>
+        {isSuper ? (
+          <div className="mt-4 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">Charge agents per action</p>
+                <p className="text-xs text-muted-foreground">
+                  Turns credit metering on across the platform.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={metering.enabled}
+                onClick={async () => {
+                  try {
+                    await setConfig({ enabled: !metering.enabled });
+                    toast(
+                      `Metering ${!metering.enabled ? "enabled" : "disabled"}`,
+                    );
+                  } catch (e) {
+                    toast(errMsg(e), { kind: "error" });
+                  }
+                }}
+                className={cn(
+                  "relative h-6 w-11 flex-shrink-0 rounded-full transition-colors",
+                  metering.enabled ? "bg-foreground" : "bg-border",
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-0.5 h-5 w-5 rounded-full bg-background shadow-sm transition-transform",
+                    metering.enabled ? "translate-x-[1.375rem]" : "translate-x-0.5",
+                  )}
+                />
+              </button>
+            </div>
+            <NumberSetting
+              label="Credits per action"
+              hint="Consumed on each metered write. 0 = free."
+              value={metering.actionCredits}
+              onSave={async (v) => {
+                try {
+                  await setConfig({ actionCredits: v });
+                  toast("Saved");
+                } catch (e) {
+                  toast(errMsg(e), { kind: "error" });
+                }
+              }}
+            />
+          </div>
+        ) : (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Only a superadmin can change metering.
+          </p>
+        )}
+      </div>
+
+      {/* Recent settlements */}
+      <div>
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Recent settlements
+        </h3>
+        {data.recent.length === 0 ? (
+          <div className="mt-3 rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            No payments yet.
+          </div>
+        ) : (
+          <div className="mt-3 overflow-x-auto rounded-2xl bento">
+            <table className="w-full text-sm">
+              <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th scope="col" className="px-4 py-2.5">Scope</th>
+                  <th scope="col" className="px-4 py-2.5">Credits</th>
+                  <th scope="col" className="px-4 py-2.5">Status</th>
+                  <th scope="col" className="px-4 py-2.5 text-right">When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recent.map((p, i) => (
+                  <tr key={i} className="border-b border-border last:border-0">
+                    <td className="px-4 py-2.5 text-muted-foreground">
+                      {p.scopeType}
+                    </td>
+                    <td className="px-4 py-2.5 font-medium tabular-nums">
+                      {p.status === "settled"
+                        ? `+${p.creditsGranted.toLocaleString()}`
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                          p.status === "settled"
+                            ? "bg-pastel-green text-foreground"
+                            : "bg-pastel-red text-foreground",
+                        )}
+                      >
+                        {p.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">
+                      {timeAgo(p.createdAt)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

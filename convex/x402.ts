@@ -350,6 +350,7 @@ export const platformRevenue = query({
       totalCreditsSold: totalCredits,
       settledCount,
       walletCount,
+      metering: await readMetering(ctx),
       pricing: pricingSummary(),
       recent: settled.slice(0, 25).map((p) => ({
         scopeType: p.scopeType,

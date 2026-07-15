@@ -15,12 +15,14 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  Wallet,
   Webhook,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
+import { BillingTab } from "@/components/dashboard/billing-panel";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { eventHref, eventLabel } from "@/lib/event-labels";
@@ -38,11 +40,12 @@ import {
 // configure webhooks and skills. Everything renders live off Convex
 // queries, so an agent's heartbeat/statusText updates appear in realtime.
 
-type Tab = "agents" | "activity" | "webhooks" | "skills";
+type Tab = "agents" | "activity" | "billing" | "webhooks" | "skills";
 
 const TABS: { key: Tab; label: string; icon: typeof Bot }[] = [
   { key: "agents", label: "Agents", icon: Bot },
   { key: "activity", label: "Activity", icon: Activity },
+  { key: "billing", label: "Billing", icon: Wallet },
   { key: "webhooks", label: "Webhooks", icon: Webhook },
   { key: "skills", label: "Skills", icon: BookOpen },
 ];
@@ -97,6 +100,8 @@ export function AgentsView() {
           <AgentsTab />
         ) : tab === "activity" ? (
           <ActivityFeed />
+        ) : tab === "billing" ? (
+          <BillingTab />
         ) : tab === "webhooks" ? (
           <WebhooksTab />
         ) : (
