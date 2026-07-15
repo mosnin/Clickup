@@ -13,12 +13,14 @@ import {
   Pause,
   Play,
   Plus,
+  Sparkles,
   Trash2,
   Webhook,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Picker } from "@/components/ui/picker";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { eventHref, eventLabel } from "@/lib/event-labels";
@@ -110,6 +112,7 @@ export function AgentsView() {
 function AgentsTab() {
   const data = useQuery(api.agents.listForCurrentUser, {});
   const [creating, setCreating] = useState(false);
+  const [templating, setTemplating] = useState(false);
 
   const allAgents = useMemo(() => {
     if (!data) return [];
@@ -135,14 +138,53 @@ function AgentsTab() {
     <div className="space-y-6">
       <ConnectHint retired={anyConnected} />
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Your agents
         </h2>
-        <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" /> New agent
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setTemplating((v) => !v);
+              setCreating(false);
+            }}
+          >
+            <Sparkles className="h-4 w-4" /> From template
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              setCreating(true);
+              setTemplating(false);
+            }}
+          >
+            <Plus className="h-4 w-4" /> New agent
+          </Button>
+        </div>
       </div>
+
+      <AnimatePresence initial={false}>
+        {templating && (
+          <motion.div
+            key="template-gallery"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.35, ease: EASE }}
+            className="overflow-hidden"
+          >
+            <TemplateGallery
+              workspaces={data.workspaces.map((w) => ({
+                id: w.workspaceId,
+                name: w.workspaceName,
+              }))}
+              onDone={() => setTemplating(false)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {creating && (
         <CreateAgentForm
@@ -255,6 +297,123 @@ function ConnectHint({ retired = false }: { retired?: boolean }) {
             Hide
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// One-click, pre-governed agent presets. Picks a target scope once, then
+// each card spins up an agent with its role + budget already set.
+function TemplateGallery({
+  workspaces,
+  onDone,
+}: {
+  workspaces: { id: string; name: string }[];
+  onDone: () => void;
+}) {
+  const { user } = useUser();
+  const templates = useQuery(api.agentTemplates.listTemplates, {});
+  const createFromTemplate = useMutation(api.agentTemplates.createFromTemplate);
+  const { toast } = useToast();
+  const [scope, setScope] = useState("personal");
+  const [pendingSlug, setPendingSlug] = useState<string | null>(null);
+
+  const scopeOptions = [
+    { id: "personal", label: "Personal space" },
+    ...workspaces.map((w) => ({ id: w.id, label: w.name })),
+  ];
+  const scopeLabel =
+    scopeOptions.find((o) => o.id === scope)?.label ?? "Personal space";
+
+  async function spawn(slug: string, name: string) {
+    if (!user || pendingSlug) return;
+    setPendingSlug(slug);
+    try {
+      await createFromTemplate({
+        slug,
+        parentType: scope === "personal" ? "user" : "workspace",
+        parentId: scope === "personal" ? user.id : scope,
+      });
+      toast(`${name} agent created`);
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      toast(raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || "Failed", {
+        kind: "error",
+      });
+    } finally {
+      setPendingSlug(null);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-background p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold">Start from a template</p>
+          <p className="text-xs text-muted-foreground">
+            Each preset ships with a role and a daily action budget. Mint its
+            key after it&apos;s created.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          Create in
+          <Picker
+            label={scopeLabel}
+            selectedId={scope}
+            options={scopeOptions}
+            onSelect={setScope}
+          />
+        </label>
+      </div>
+      <Stagger className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {(templates ?? []).map((t) => (
+          <StaggerItem key={t.slug}>
+            <button
+              type="button"
+              disabled={pendingSlug !== null}
+              onClick={() => spawn(t.slug, t.name)}
+              className="lift flex h-full w-full flex-col rounded-2xl border border-border bg-background p-4 text-left disabled:opacity-60"
+            >
+              <span className="flex items-center gap-2">
+                <span className="text-2xl" aria-hidden>
+                  {t.emoji}
+                </span>
+                <span className="font-medium">{t.name}</span>
+                {pendingSlug === t.slug && (
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    Creating…
+                  </span>
+                )}
+              </span>
+              <span className="mt-1 text-xs text-muted-foreground">
+                {t.tagline}
+              </span>
+              <span className="mt-3 line-clamp-2 flex-1 text-xs leading-relaxed text-muted-foreground">
+                {t.description}
+              </span>
+              <span className="mt-3 flex flex-wrap gap-1.5">
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider",
+                    t.role === "readonly"
+                      ? "bg-pastel-yellow text-foreground"
+                      : "bg-pastel-blue text-foreground",
+                  )}
+                >
+                  {t.role}
+                </span>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {t.dailyActionLimit.toLocaleString()}/day
+                </span>
+              </span>
+            </button>
+          </StaggerItem>
+        ))}
+      </Stagger>
+      <div className="mt-3 flex justify-end">
+        <Button size="sm" variant="ghost" onClick={onDone}>
+          Done
+        </Button>
       </div>
     </div>
   );
