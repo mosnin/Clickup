@@ -1,9 +1,9 @@
 {
-  "name": "clickup-clone-mcp",
+  "name": "operate-mcp",
   "version": "1.0.0",
-  "description": "stdio proxy for the hosted ClickUp Clone agents MCP endpoint",
+  "description": "stdio proxy for the hosted operate.to agents MCP endpoint",
   "type": "module",
-  "bin": { "clickup-clone-mcp": "./index.mjs" },
+  "bin": { "operate-mcp": "./index.mjs" },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0"
   }

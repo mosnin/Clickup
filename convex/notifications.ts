@@ -12,7 +12,7 @@ import { internalAction } from "./_generated/server";
 //
 // Set RESEND_API_KEY and RESEND_FROM_EMAIL on the Convex deployment via
 //   npx convex env set RESEND_API_KEY re_...
-//   npx convex env set RESEND_FROM_EMAIL "ClickUp Clone <noreply@your.com>"
+//   npx convex env set RESEND_FROM_EMAIL "operate.to <noreply@operate.to>"
 // Both are read at action invocation time, so missing env vars cause a
 // no-op rather than a hard crash.
 
@@ -54,7 +54,7 @@ export const sendMentionEmail = internalAction({
           ``,
           args.snippet,
           ``,
-          `Open ClickUp Clone to reply.`,
+          `Open operate.to to reply.`,
         ].join("\n"),
       });
     } catch (err) {
@@ -85,7 +85,7 @@ export const sendAssignmentEmail = internalAction({
           ``,
           `  ${args.taskTitle}`,
           ``,
-          `Open ClickUp Clone to view it.`,
+          `Open operate.to to view it.`,
         ].join("\n"),
       });
     } catch (err) {

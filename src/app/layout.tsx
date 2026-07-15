@@ -16,11 +16,11 @@ const instrumentSans = localFont({
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "https://clickup-clone.app",
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://operate.to",
   ),
   title: {
-    default: "ClickUp Clone — mission control for humans and AI agents",
-    template: "%s · ClickUp Clone",
+    default: "operate.to — mission control for humans and AI agents",
+    template: "%s · operate.to",
   },
   description:
     "The all-in-one workspace where AI agents work like teammates: tasks, docs, and sprints for humans; MCP access, budgets, and approval gates for agents.",
@@ -29,10 +29,10 @@ export const metadata: Metadata = {
     icon: "/icon.svg",
     apple: "/icon.svg",
   },
-  applicationName: "ClickUp Clone",
+  applicationName: "operate.to",
   appleWebApp: {
     capable: true,
-    title: "ClickUp Clone",
+    title: "operate.to",
     statusBarStyle: "default",
   },
   formatDetection: { telephone: false },

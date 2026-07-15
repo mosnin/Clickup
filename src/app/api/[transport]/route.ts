@@ -969,7 +969,7 @@ const handler = createMcpHandler(
     }
   },
   {
-    serverInfo: { name: "clickup-clone-agents", version: "1.0.0" },
+    serverInfo: { name: "operate-agents", version: "1.0.0" },
   },
   {
     basePath: "/api",

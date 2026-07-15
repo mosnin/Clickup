@@ -17,12 +17,12 @@ import type { CapacitorConfig } from "@capacitor/cli";
 //
 // Update `server.url` to your real production URL before publishing.
 const config: CapacitorConfig = {
-  appId: "com.clickupclone.app",
-  appName: "ClickUp Clone",
+  appId: "to.operate.app",
+  appName: "operate.to",
   // webDir is required by Capacitor but unused when `server.url` is set.
   webDir: "public",
   server: {
-    url: process.env.CAP_SERVER_URL ?? "https://your-app.vercel.app",
+    url: process.env.CAP_SERVER_URL ?? "https://operate.to",
     cleartext: false,
     androidScheme: "https",
   },

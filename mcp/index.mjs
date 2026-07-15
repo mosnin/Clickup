@@ -6,10 +6,10 @@
 //
 // Usage (e.g. in an MCP client config):
 //   command: "npx"
-//   args: ["clickup-clone-mcp"]           (or "node mcp/index.mjs")
+//   args: ["operate-mcp"]           (or "node mcp/index.mjs")
 //   env:
-//     CLICKUP_CLONE_MCP_URL: "https://<your-app>/api/mcp"
-//     CLICKUP_CLONE_API_KEY: "cua_..."
+//     OPERATE_MCP_URL: "https://<your-app>/api/mcp"
+//     OPERATE_API_KEY: "cua_..."
 //
 // Flags --url and --key override the environment variables.
 
@@ -27,17 +27,17 @@ function argValue(flag) {
   return i !== -1 ? process.argv[i + 1] : undefined;
 }
 
-const url = argValue("--url") ?? process.env.CLICKUP_CLONE_MCP_URL;
-const apiKey = argValue("--key") ?? process.env.CLICKUP_CLONE_API_KEY;
+const url = argValue("--url") ?? process.env.OPERATE_MCP_URL;
+const apiKey = argValue("--key") ?? process.env.OPERATE_API_KEY;
 
 if (!url || !apiKey) {
   console.error(
-    "Set CLICKUP_CLONE_MCP_URL and CLICKUP_CLONE_API_KEY (or pass --url/--key).",
+    "Set OPERATE_MCP_URL and OPERATE_API_KEY (or pass --url/--key).",
   );
   process.exit(1);
 }
 
-const upstream = new Client({ name: "clickup-clone-mcp-proxy", version: "1.0.0" });
+const upstream = new Client({ name: "operate-mcp-proxy", version: "1.0.0" });
 await upstream.connect(
   new StreamableHTTPClientTransport(new URL(url), {
     requestInit: { headers: { Authorization: `Bearer ${apiKey}` } },
@@ -45,7 +45,7 @@ await upstream.connect(
 );
 
 const server = new Server(
-  { name: "clickup-clone-agents", version: "1.0.0" },
+  { name: "operate-agents", version: "1.0.0" },
   { capabilities: { tools: {} } },
 );
 server.setRequestHandler(ListToolsRequestSchema, async () =>

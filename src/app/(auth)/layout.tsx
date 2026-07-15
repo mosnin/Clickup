@@ -16,7 +16,7 @@ export default function AuthLayout({
             className="inline-block h-3.5 w-3.5 rounded-[4px] bg-foreground"
           />
           <span className="text-[13px] font-extrabold uppercase tracking-[0.22em]">
-            ClickUp&nbsp;Clone
+            operate.to
           </span>
         </Link>
       </header>
