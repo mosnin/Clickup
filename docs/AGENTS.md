@@ -24,8 +24,8 @@ its keys and webhooks.
 ```json
 {
   "mcpServers": {
-    "clickup-clone": {
-      "url": "https://<your-app>/api/mcp",
+    "operate": {
+      "url": "https://operate.to/api/mcp",
       "headers": { "Authorization": "Bearer cua_..." }
     }
   }
@@ -38,12 +38,12 @@ proxy:
 ```json
 {
   "mcpServers": {
-    "clickup-clone": {
+    "operate": {
       "command": "node",
       "args": ["mcp/index.mjs"],
       "env": {
-        "CLICKUP_CLONE_MCP_URL": "https://<your-app>/api/mcp",
-        "CLICKUP_CLONE_API_KEY": "cua_..."
+        "OPERATE_MCP_URL": "https://operate.to/api/mcp",
+        "OPERATE_API_KEY": "cua_..."
       }
     }
   }
@@ -195,5 +195,5 @@ resources (`skill://<slug>`).
 After deploying, verify the endpoint end-to-end:
 
 ```bash
-MCP_URL=https://<your-app>/api/mcp MCP_KEY=cua_... node scripts/smoke-mcp.mjs
+MCP_URL=https://operate.to/api/mcp MCP_KEY=cua_... node scripts/smoke-mcp.mjs
 ```

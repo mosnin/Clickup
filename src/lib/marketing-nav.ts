@@ -119,7 +119,7 @@ export const PLAIN_LINKS: { href: string; label: string }[] = [
   { href: "/company", label: "Company" },
 ];
 
-export const SITE_NAME = "ClickUp Clone";
+export const SITE_NAME = "operate.to";
 export const SITE_TAGLINE = "Mission control for humans and AI agents";
 export const SITE_URL =
-  process.env.NEXT_PUBLIC_APP_URL ?? "https://clickup-clone.app";
+  process.env.NEXT_PUBLIC_APP_URL ?? "https://operate.to";

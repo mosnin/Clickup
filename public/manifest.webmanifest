@@ -1,6 +1,6 @@
 {
-  "name": "ClickUp Clone",
-  "short_name": "ClickUp",
+  "name": "operate.to",
+  "short_name": "operate.to",
   "description": "Tasks, docs, goals, and chat in a single workspace.",
   "start_url": "/dashboard",
   "scope": "/",

@@ -1,7 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-// Schema for the ClickUp clone.
+// Schema for operate.to.
 //
 // Identity model:
 //   - Clerk owns auth. We mirror users into `users` via the Clerk webhook

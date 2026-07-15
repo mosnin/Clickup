@@ -9,13 +9,12 @@
 // reviewed by qualified counsel before you rely on them in production. The
 // LEGAL_DISCLAIMER banner says exactly this on every page.
 
-import { SITE_NAME } from "@/lib/marketing-nav";
-
 export const LEGAL_UPDATED = "July 15, 2026";
-export const LEGAL_ENTITY = `${SITE_NAME}, Inc.`;
-export const LEGAL_CONTACT = "legal@clickup-clone.app";
-export const PRIVACY_CONTACT = "privacy@clickup-clone.app";
-export const SECURITY_CONTACT = "security@clickup-clone.app";
+// The operating legal entity behind the operate.to platform.
+export const LEGAL_ENTITY = "Operate, Inc.";
+export const LEGAL_CONTACT = "legal@operate.to";
+export const PRIVACY_CONTACT = "privacy@operate.to";
+export const SECURITY_CONTACT = "security@operate.to";
 
 export const LEGAL_DISCLAIMER =
   "This document is a template that reflects how the product works today. It is not legal advice. Have qualified counsel review and adapt it before relying on it in production.";

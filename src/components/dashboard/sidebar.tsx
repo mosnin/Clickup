@@ -132,7 +132,7 @@ export function DashboardSidebar() {
                 collapsed && "md:hidden",
               )}
             >
-              ClickUp&nbsp;Clone
+              operate.to
             </span>
           </Link>
           {/* Desktop collapse toggle. */}

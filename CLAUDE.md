@@ -4,7 +4,7 @@ Guidance for Claude Code (and other AI assistants) working in this repository.
 
 ## What this is
 
-A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals and teams. Each account has one **personal space** (private to the user) and zero or more **team workspaces** (shared with members). The current commit is a working scaffold with the marketing site, auth flow, onboarding, and dashboard shell wired up; most domain features (tasks, docs, etc.) are not yet implemented.
+**operate.to** — a productivity app (ClickUp-style): tasks, docs, goals, chat — for individuals and teams. Each account has one **personal space** (private to the user) and zero or more **team workspaces** (shared with members). The current commit is a working scaffold with the marketing site, auth flow, onboarding, and dashboard shell wired up; most domain features (tasks, docs, etc.) are not yet implemented.
 
 ## Stack
 

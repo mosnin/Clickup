@@ -57,7 +57,7 @@ export function OnboardingFlow({ firstName }: { firstName: string }) {
                 className="inline-block h-3.5 w-3.5 rounded-[4px] bg-foreground"
               />
               <span className="text-[13px] font-extrabold uppercase tracking-[0.22em]">
-                ClickUp&nbsp;Clone
+                operate.to
               </span>
             </div>
             {step >= 0 && step < 2 && (
