@@ -1,17 +1,13 @@
-/* prettier-ignore-start */
 /* eslint-disable */
-//
-// Generated `api` references for Convex's data model.
-//
-// This file is initially hand-rolled to keep the Next.js side compiling
-// before `npx convex dev` has been run. Convex will overwrite it with the
-// real generated output as soon as the dev/deploy CLI runs.
+/**
+ * Generated `api` utility.
+ *
+ * THIS CODE IS AUTOMATICALLY GENERATED.
+ *
+ * To regenerate, run `npx convex dev`.
+ * @module
+ */
 
-import type {
-  ApiFromModules,
-  FilterApi,
-  FunctionReference,
-} from "convex/server";
 import type * as _adminAuth from "../_adminAuth.js";
 import type * as _agentAuth from "../_agentAuth.js";
 import type * as _authz from "../_authz.js";
@@ -23,13 +19,14 @@ import type * as agentKeys from "../agentKeys.js";
 import type * as agentTemplates from "../agentTemplates.js";
 import type * as agents from "../agents.js";
 import type * as ai from "../ai.js";
+import type * as aiDb from "../aiDb.js";
 import type * as channels from "../channels.js";
 import type * as clips from "../clips.js";
-import type * as events from "../events.js";
 import type * as crons from "../crons.js";
 import type * as customFields from "../customFields.js";
 import type * as dataExport from "../dataExport.js";
 import type * as docs from "../docs.js";
+import type * as events from "../events.js";
 import type * as folders from "../folders.js";
 import type * as goals from "../goals.js";
 import type * as http from "../http.js";
@@ -61,6 +58,12 @@ import type * as workspaces from "../workspaces.js";
 import type * as x402 from "../x402.js";
 import type * as x402Actions from "../x402Actions.js";
 
+import type {
+  ApiFromModules,
+  FilterApi,
+  FunctionReference,
+} from "convex/server";
+
 declare const fullApi: ApiFromModules<{
   _adminAuth: typeof _adminAuth;
   _agentAuth: typeof _agentAuth;
@@ -73,13 +76,14 @@ declare const fullApi: ApiFromModules<{
   agentTemplates: typeof agentTemplates;
   agents: typeof agents;
   ai: typeof ai;
+  aiDb: typeof aiDb;
   channels: typeof channels;
   clips: typeof clips;
   crons: typeof crons;
-  events: typeof events;
   customFields: typeof customFields;
   dataExport: typeof dataExport;
   docs: typeof docs;
+  events: typeof events;
   folders: typeof folders;
   goals: typeof goals;
   http: typeof http;
@@ -112,13 +116,30 @@ declare const fullApi: ApiFromModules<{
   x402Actions: typeof x402Actions;
 }>;
 
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 export declare const api: FilterApi<
   typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
   typeof fullApi,
   FunctionReference<any, "internal">
 >;
 
-/* prettier-ignore-end */
+export declare const components: {};

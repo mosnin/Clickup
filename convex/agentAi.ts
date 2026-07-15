@@ -39,7 +39,7 @@ export const search = action({
       limit: 8,
       filter: (q) => q.eq("scopeId", scope.scopeId),
     });
-    const rows = await ctx.runQuery(internal.ai._embeddingsByIds, {
+    const rows = await ctx.runQuery(internal.aiDb._embeddingsByIds, {
       ids: hits.map((h) => h._id),
     });
     return {
