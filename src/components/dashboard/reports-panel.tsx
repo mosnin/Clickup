@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { CheckCircle2, Clock, ListChecks, Target } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { formatDurationCoarse } from "@/lib/duration";
@@ -54,19 +53,16 @@ export function ReportsPanel({
     <div className="space-y-6">
       <Stagger className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
-          icon={ListChecks}
           label="Open tasks"
           value={summary.taskCounts.open + summary.taskCounts.inProgress}
           subtext={`${summary.taskCounts.inProgress} in progress`}
         />
         <Stat
-          icon={CheckCircle2}
           label="Completed this week"
           value={summary.taskCounts.completedThisWeek}
           subtext={`of ${summary.taskCounts.total} total`}
         />
         <Stat
-          icon={Clock}
           label="Tracked this week"
           value={formatDurationCoarse(summary.timeTrackedThisWeekMs)}
           subtext={summary.timeByUser.length
@@ -74,7 +70,6 @@ export function ReportsPanel({
             : "No entries yet"}
         />
         <Stat
-          icon={Target}
           label="Goals"
           value={summary.goals.total}
           subtext={`${Math.round(summary.goals.avgProgress * 100)}% avg progress`}
@@ -140,24 +135,19 @@ export function ReportsPanel({
 }
 
 function Stat({
-  icon: Icon,
   label,
   value,
   subtext,
 }: {
-  icon: typeof Clock;
   label: string;
   value: number | string;
   subtext?: string;
 }) {
   return (
     <StaggerItem className="rounded-2xl bento p-4">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          {label}
-        </span>
-        <Icon className="h-3.5 w-3.5 text-muted-foreground/70" aria-hidden />
-      </div>
+      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </span>
       <p className="mt-2 text-3xl font-bold tracking-tight">
         <AnimatedNumber value={value} />
       </p>

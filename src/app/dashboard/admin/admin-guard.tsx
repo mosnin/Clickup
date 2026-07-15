@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
-import { ShieldAlert } from "lucide-react";
 import { api } from "@convex/_generated/api";
 
 // Client-side gate for the admin console. The REAL security boundary is
@@ -33,10 +32,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
   if (me === null) {
     return (
       <div className="mx-auto max-w-md pt-16 text-center">
-        <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
-          <ShieldAlert className="h-6 w-6 text-muted-foreground" />
-        </span>
-        <h1 className="mt-4 text-xl font-bold tracking-tight">
+        <h1 className="text-xl font-bold tracking-tight">
           Admin access required
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
