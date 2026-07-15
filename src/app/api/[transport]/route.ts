@@ -853,6 +853,42 @@ const TOOLS: ToolDef[] = [
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.resolveComment), { apiKey: k, ...a }),
   },
+
+  // ── Billing (x402 agent payments) ─────────────────────────────────
+  {
+    name: "get_wallet",
+    description:
+      "My scope's prepaid credit balance, whether metering is on and the per-action price, the pricing (asset/network/payTo), and recent payments. Metered write actions consume credits; when the balance can't cover one, that action fails with an x402 payment-required challenge. Top up with buy_credits then settle_payment.",
+    shape: {},
+    run: (c, k) => c.query(asQuery(api.x402.walletByKey), { apiKey: k }),
+  },
+  {
+    name: "buy_credits",
+    description:
+      "Get an x402 payment challenge to purchase `credits` credits. Returns the standard 402 body: `accepts[0]` carries the scheme, network, asset, payTo address, and maxAmountRequired (atomic units). Build a signed X-PAYMENT authorization for those requirements, then call settle_payment.",
+    shape: {
+      credits: z.number().int().positive().describe("credits to purchase"),
+    },
+    run: (c, k, a) =>
+      c.query(asQuery(api.x402.topupRequirements), { apiKey: k, ...a }),
+  },
+  {
+    name: "settle_payment",
+    description:
+      "Settle a top-up: submit the base64 X-PAYMENT you built from a buy_credits challenge. Verifies and settles it through the payment facilitator, then credits my wallet. Returns the new balance and the settlement reference. Payments are single-use (replay-protected).",
+    shape: {
+      xPayment: z
+        .string()
+        .describe("base64-encoded X-PAYMENT header value"),
+      credits: z
+        .number()
+        .int()
+        .positive()
+        .describe("must match the credits from buy_credits"),
+    },
+    run: (c, k, a) =>
+      c.action(asAction(api.x402Actions.settleTopup), { apiKey: k, ...a }),
+  },
 ];
 
 const handler = createMcpHandler(

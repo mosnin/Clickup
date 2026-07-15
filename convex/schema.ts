@@ -730,4 +730,46 @@ export default defineSchema({
     updatedByClerkId: v.string(),
     updatedAt: v.number(),
   }).index("by_key", ["key"]),
+
+  // ── x402 agent payments ─────────────────────────────────────────────
+  //
+  // A prepaid credit wallet per billing scope (a user's personal space or a
+  // workspace). Every agent in that scope shares the wallet. Metered agent
+  // actions consume `balance`; agents top the wallet up by paying via the
+  // x402 protocol (HTTP 402 → signed on-chain payment → credits granted).
+  // Balances are integer credit units — never floats.
+  agentWallets: defineTable({
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    balance: v.number(),
+    lifetimeCredits: v.number(),
+    lifetimeSpent: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_scope", ["scopeType", "scopeId"]),
+
+  // Ledger of x402 settlements. One row per top-up (settled or failed).
+  // `nonce` is unique per payment authorization and enforced on the way in
+  // (by_nonce lookup) so a payment can never be replayed to double-credit.
+  // We store only settlement metadata — never the private keys agents sign
+  // with; on-chain data (txReference, payer) is inherently public.
+  payments: defineTable({
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    agentId: v.optional(v.id("agents")),
+    asset: v.string(),
+    network: v.string(),
+    // Atomic units of `asset` paid, kept as a string to avoid float error.
+    amountAtomic: v.string(),
+    creditsGranted: v.number(),
+    payer: v.optional(v.string()),
+    nonce: v.string(),
+    txReference: v.optional(v.string()),
+    facilitator: v.string(),
+    status: v.union(v.literal("settled"), v.literal("failed")),
+    reason: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_scope", ["scopeType", "scopeId", "createdAt"])
+    .index("by_nonce", ["nonce"]),
 });

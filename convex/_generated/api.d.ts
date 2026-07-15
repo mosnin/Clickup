@@ -15,6 +15,7 @@ import type {
 import type * as _adminAuth from "../_adminAuth.js";
 import type * as _agentAuth from "../_agentAuth.js";
 import type * as _authz from "../_authz.js";
+import type * as _x402 from "../_x402.js";
 import type * as admin from "../admin.js";
 import type * as agentAi from "../agentAi.js";
 import type * as agentApi from "../agentApi.js";
@@ -57,11 +58,14 @@ import type * as webhookDelivery from "../webhookDelivery.js";
 import type * as webhooks from "../webhooks.js";
 import type * as whiteboards from "../whiteboards.js";
 import type * as workspaces from "../workspaces.js";
+import type * as x402 from "../x402.js";
+import type * as x402Actions from "../x402Actions.js";
 
 declare const fullApi: ApiFromModules<{
   _adminAuth: typeof _adminAuth;
   _agentAuth: typeof _agentAuth;
   _authz: typeof _authz;
+  _x402: typeof _x402;
   admin: typeof admin;
   agentAi: typeof agentAi;
   agentApi: typeof agentApi;
@@ -104,6 +108,8 @@ declare const fullApi: ApiFromModules<{
   webhooks: typeof webhooks;
   whiteboards: typeof whiteboards;
   workspaces: typeof workspaces;
+  x402: typeof x402;
+  x402Actions: typeof x402Actions;
 }>;
 
 export declare const api: FilterApi<

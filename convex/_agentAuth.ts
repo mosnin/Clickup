@@ -1,6 +1,7 @@
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { getSpaceForList } from "./_authz";
+import { buildPaymentRequired, paymentRequiredError, x402Config } from "./_x402";
 
 // Agent-side counterpart of _authz.ts. Human calls authenticate via Clerk
 // (ctx.auth); agent calls authenticate via an API key passed as an argument
@@ -145,6 +146,61 @@ export async function requireAgentByKey(
       if ((agent.role ?? "member") === "readonly") {
         throw new Error("This agent is read-only");
       }
+
+      // x402 metered credits. When platform metering is enabled, each write
+      // action consumes credits from the agent's scope wallet. This runs
+      // BEFORE the daily/burst counters so a payment-required refusal doesn't
+      // burn budget. Insufficient balance raises a payment-required signal
+      // carrying an x402 402 challenge the agent can settle to top up.
+      const meteringRow = await db
+        .query("platformSettings")
+        .withIndex("by_key", (q) => q.eq("key", "x402.metering"))
+        .unique();
+      const meteringOn =
+        meteringRow?.value === "on" || meteringRow?.value === true;
+      if (meteringOn) {
+        const cfg = x402Config();
+        const priceRow = await db
+          .query("platformSettings")
+          .withIndex("by_key", (q) => q.eq("key", "x402.actionCredits"))
+          .unique();
+        const price =
+          typeof priceRow?.value === "number" && priceRow.value >= 0
+            ? priceRow.value
+            : cfg.actionCredits;
+        if (price > 0) {
+          const wallet = await db
+            .query("agentWallets")
+            .withIndex("by_scope", (q) =>
+              q
+                .eq("scopeType", agent.parentType)
+                .eq("scopeId", agent.parentId),
+            )
+            .unique();
+          const balance = wallet?.balance ?? 0;
+          if (balance < price) {
+            const suggested = Math.max(price, 1000);
+            const challenge = buildPaymentRequired(
+              suggested,
+              `x402://credits/${agent.parentType}/${agent.parentId}`,
+              cfg,
+            );
+            throw paymentRequiredError({
+              message: `Insufficient credits: balance ${balance} < ${price} per action. Buy credits via x402 (buy_credits → settle_payment).`,
+              balance,
+              pricePerAction: price,
+              ...challenge,
+            });
+          }
+          // balance >= price > 0 guarantees the wallet row exists.
+          await db.patch(wallet!._id, {
+            balance: balance - price,
+            lifetimeSpent: (wallet!.lifetimeSpent ?? 0) + price,
+            updatedAt: Date.now(),
+          });
+        }
+      }
+
       const day = utcDay();
       const minute = utcMinute();
       const usage = await db
