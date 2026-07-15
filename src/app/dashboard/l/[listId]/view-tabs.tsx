@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Calendar, Columns3, GanttChart, List as ListIcon } from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,15 @@ export function ViewTabs({
   listId: Id<"lists">;
   active: ViewKey;
 }) {
+  const searchParams = useSearchParams();
+  // Preserve active filters (?f=, ?pri=) when switching views.
+  function href(key: ViewKey): string {
+    const params = new URLSearchParams(searchParams.toString());
+    if (key === "list") params.delete("view");
+    else params.set("view", key);
+    const qs = params.toString();
+    return qs ? `/dashboard/l/${listId}?${qs}` : `/dashboard/l/${listId}`;
+  }
   return (
     <nav
       aria-label="Views"
@@ -35,11 +45,7 @@ export function ViewTabs({
       {VIEWS.map(({ key, label, Icon }) => (
         <Link
           key={key}
-          href={
-            key === "list"
-              ? `/dashboard/l/${listId}`
-              : `/dashboard/l/${listId}?view=${key}`
-          }
+          href={href(key)}
           aria-current={active === key ? "page" : undefined}
           className={cn(
             "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 transition-colors",
