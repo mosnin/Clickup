@@ -29,7 +29,17 @@ export type X402Config = {
   creditPriceAtomic: number;
   // Credits consumed per metered agent action (when metering is enabled).
   actionCredits: number;
+  // When true, the built-in MOCK facilitator is permitted (dev/test only —
+  // it mints credits without a real on-chain settlement). Must be an
+  // explicit opt-in so production can never silently hand out free credits.
+  allowMock: boolean;
 };
+
+// A real facilitator (or an explicit mock opt-in) is required before money
+// can move / credits can be granted. Metering must not be enabled without it.
+export function facilitatorConfigured(cfg: X402Config): boolean {
+  return cfg.facilitatorUrl !== null || cfg.allowMock;
+}
 
 // Resolve config from deployment env vars, with testnet-friendly defaults so
 // the flow works out of the box against the mock facilitator. Point these at
@@ -46,6 +56,7 @@ export function x402Config(): X402Config {
     facilitatorUrl: env("X402_FACILITATOR_URL") ?? null,
     creditPriceAtomic: Number(env("X402_CREDIT_PRICE_ATOMIC") ?? "1000"),
     actionCredits: Number(env("X402_ACTION_CREDITS") ?? "1"),
+    allowMock: env("X402_ALLOW_MOCK") === "1",
   };
 }
 
@@ -151,8 +162,12 @@ export type PaymentPayload = {
   };
 };
 
-// Structural validation shared by the mock facilitator and real-facilitator
-// pre-checks: right version/scheme/network and enough value authorized.
+// Structural validation for the "exact" scheme. This is what the built-in
+// MOCK facilitator relies on to bind granted credits to the payment (a real
+// facilitator in `facilitatorSettle` verifies independently and does NOT call
+// this — that facilitator's own value >= maxAmountRequired check is the
+// load-bearing guarantee there). Because the mock moves no money, the checks
+// here fail closed: a missing amount or pay-to is INVALID, never skipped.
 export function validatePaymentShape(
   payment: PaymentPayload,
   req: PaymentRequirements,
@@ -167,15 +182,19 @@ export function validatePaymentShape(
   const auth = payment.payload?.authorization;
   const nonce = auth?.nonce ?? (payment.payload?.transaction as string | undefined);
   if (!nonce) return { ok: false, reason: "missing payment nonce" };
-  if (auth?.value !== undefined) {
-    try {
-      if (BigInt(auth.value) < BigInt(req.maxAmountRequired))
-        return { ok: false, reason: "insufficient authorized amount" };
-    } catch {
-      return { ok: false, reason: "invalid amount" };
-    }
+  // Amount is mandatory — never accept a payload that omits it.
+  if (auth?.value === undefined)
+    return { ok: false, reason: "missing authorized amount" };
+  try {
+    if (BigInt(auth.value) < BigInt(req.maxAmountRequired))
+      return { ok: false, reason: "insufficient authorized amount" };
+  } catch {
+    return { ok: false, reason: "invalid amount" };
   }
-  if (auth?.to && req.payTo && auth.to.toLowerCase() !== req.payTo.toLowerCase())
-    return { ok: false, reason: "wrong payTo address" };
-  return { ok: true, nonce, payer: auth?.from };
+  // Pay-to is mandatory and must match the receiving address.
+  if (req.payTo) {
+    if (!auth.to || auth.to.toLowerCase() !== req.payTo.toLowerCase())
+      return { ok: false, reason: "wrong payTo address" };
+  }
+  return { ok: true, nonce, payer: auth.from };
 }

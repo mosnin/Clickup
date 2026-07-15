@@ -14,6 +14,7 @@ import {
   buildPaymentRequired,
   creditsToAtomic,
   creditsToDisplayAmount,
+  facilitatorConfigured,
   x402Config,
 } from "./_x402";
 
@@ -217,12 +218,15 @@ export const applySettlement = internalMutation({
     facilitator: v.string(),
   },
   handler: async (ctx, args) => {
-    // Replay protection: a settled nonce can never be credited twice.
-    const existing = await ctx.db
+    // Replay protection: a nonce that has already SETTLED can never be
+    // credited twice. We match only settled rows (not failed observability
+    // rows) so a transient failure that recorded the nonce doesn't
+    // permanently block a legitimate retry of the same authorization.
+    const sameNonce = await ctx.db
       .query("payments")
       .withIndex("by_nonce", (q) => q.eq("nonce", args.nonce))
-      .unique();
-    if (existing) {
+      .collect();
+    if (sameNonce.some((p) => p.status === "settled")) {
       throw new Error("This payment has already been settled");
     }
     if (!Number.isInteger(args.creditsGranted) || args.creditsGranted <= 0) {
@@ -374,6 +378,14 @@ export const setMeteringConfig = mutation({
   },
   handler: async (ctx, { enabled, actionCredits }) => {
     const admin = await requirePlatformAdmin(ctx, { minRole: "superadmin" });
+    // Fail closed: refuse to enable metering unless a payment facilitator is
+    // configured (or the mock is explicitly opted into). Otherwise metering
+    // would be enforced while agents could self-mint credits through the mock.
+    if (enabled === true && !facilitatorConfigured(x402Config())) {
+      throw new Error(
+        "Refusing to enable metering: no payment facilitator is configured. Set X402_FACILITATOR_URL first (or X402_ALLOW_MOCK=1 for development only).",
+      );
+    }
     async function put(key: string, value: unknown) {
       const row = await ctx.db
         .query("platformSettings")

@@ -114,6 +114,51 @@ describe("x402 settlement", () => {
     expect(wallet?.balance).toBe(1000);
     expect(wallet?.lifetimeCredits).toBe(1000);
   });
+
+  it("lets a legitimate retry settle after prior FAILED attempts on the same nonce", async () => {
+    const t = convexTest(schema, modules);
+    // Two transient failures recorded the nonce (observability rows).
+    await t.mutation(internal.x402.recordFailedPayment, {
+      scopeType: "user",
+      scopeId: "user_b",
+      nonce: "0xretry",
+      reason: "facilitator 500",
+      facilitator: "mock",
+    });
+    await t.mutation(internal.x402.recordFailedPayment, {
+      scopeType: "user",
+      scopeId: "user_b",
+      nonce: "0xretry",
+      reason: "facilitator timeout",
+      facilitator: "mock",
+    });
+    // The retry with the same authorization must still succeed (failed rows
+    // don't poison the settled-nonce replay namespace).
+    const applied = await t.mutation(internal.x402.applySettlement, {
+      scopeType: "user",
+      scopeId: "user_b",
+      asset: "USDC",
+      network: "base-sepolia",
+      amountAtomic: "1000000",
+      creditsGranted: 500,
+      nonce: "0xretry",
+      facilitator: "mock",
+    });
+    expect(applied.balance).toBe(500);
+    // …but a second successful settle is now blocked as a replay.
+    await expect(
+      t.mutation(internal.x402.applySettlement, {
+        scopeType: "user",
+        scopeId: "user_b",
+        asset: "USDC",
+        network: "base-sepolia",
+        amountAtomic: "1000000",
+        creditsGranted: 500,
+        nonce: "0xretry",
+        facilitator: "mock",
+      }),
+    ).rejects.toThrow(/already been settled/i);
+  });
 });
 
 // ── Metering enforcement ────────────────────────────────────────────────────
@@ -164,6 +209,47 @@ async function seedMeteredAgent(
   });
   return plainKey;
 }
+
+describe("x402 metering config (fail-closed)", () => {
+  it("refuses to enable metering without a facilitator; allows with mock opt-in", async () => {
+    const prevAdmins = process.env.PLATFORM_ADMIN_EMAILS;
+    const prevFac = process.env.X402_FACILITATOR_URL;
+    const prevMock = process.env.X402_ALLOW_MOCK;
+    try {
+      process.env.PLATFORM_ADMIN_EMAILS = "root@x.com";
+      delete process.env.X402_FACILITATOR_URL;
+      delete process.env.X402_ALLOW_MOCK;
+      const ROOT = { subject: "user_root", email: "root@x.com" };
+      const t = convexTest(schema, modules);
+      await t.run(async (ctx) => {
+        await ctx.db.insert("users", {
+          clerkId: ROOT.subject,
+          email: ROOT.email,
+        });
+      });
+      // No facilitator + no mock opt-in → enabling metering fails closed.
+      await expect(
+        t
+          .withIdentity(ROOT)
+          .mutation(api.x402.setMeteringConfig, { enabled: true }),
+      ).rejects.toThrow(/facilitator/i);
+
+      // Explicit mock opt-in → allowed.
+      process.env.X402_ALLOW_MOCK = "1";
+      const cfg = await t
+        .withIdentity(ROOT)
+        .mutation(api.x402.setMeteringConfig, { enabled: true });
+      expect(cfg.enabled).toBe(true);
+    } finally {
+      if (prevAdmins === undefined) delete process.env.PLATFORM_ADMIN_EMAILS;
+      else process.env.PLATFORM_ADMIN_EMAILS = prevAdmins;
+      if (prevFac === undefined) delete process.env.X402_FACILITATOR_URL;
+      else process.env.X402_FACILITATOR_URL = prevFac;
+      if (prevMock === undefined) delete process.env.X402_ALLOW_MOCK;
+      else process.env.X402_ALLOW_MOCK = prevMock;
+    }
+  });
+});
 
 describe("x402 metering", () => {
   it("charges credits per metered write action", async () => {

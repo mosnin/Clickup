@@ -6,6 +6,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import {
   buildPaymentRequired,
+  facilitatorConfigured,
   validatePaymentShape,
   x402Config,
   type PaymentPayload,
@@ -125,12 +126,19 @@ export const settleTopup = action({
     if (!Number.isInteger(credits) || credits <= 0) {
       throw new Error("credits must be a positive integer");
     }
+    const cfg = x402Config();
+    // Fail closed: never settle (and never mint credits) unless a real
+    // facilitator is configured or the mock is explicitly opted into for dev.
+    if (!facilitatorConfigured(cfg)) {
+      throw new Error(
+        "Payment facilitator not configured. Set X402_FACILITATOR_URL (production), or X402_ALLOW_MOCK=1 for development only.",
+      );
+    }
     const scope: {
       scopeType: "user" | "workspace";
       scopeId: string;
       agentId: Id<"agents">;
     } = await ctx.runQuery(internal.x402.resolveScopeByKey, { apiKey });
-    const cfg = x402Config();
     const requirements = buildPaymentRequired(
       credits,
       `x402://credits/${scope.scopeType}/${scope.scopeId}`,
@@ -169,20 +177,26 @@ export const settleTopup = action({
       throw new Error(`Payment failed: ${result.reason ?? "unknown"}`);
     }
 
+    // A settlement must carry a stable, non-empty reference (the payment
+    // nonce, or the on-chain tx ref) — it's the replay key. Refuse if neither.
+    const settlementNonce = nonce || result.txReference;
+    if (!settlementNonce) {
+      throw new Error("Settlement produced no payment reference");
+    }
     const applied: { balance: number; creditsGranted: number } =
       await ctx.runMutation(internal.x402.applySettlement, {
-      scopeType: scope.scopeType,
-      scopeId: scope.scopeId,
-      agentId: scope.agentId,
-      asset: cfg.asset,
-      network: cfg.network,
-      amountAtomic: requirements.maxAmountRequired,
-      creditsGranted: credits,
-      payer: result.payer,
-      nonce: nonce || (result.txReference ?? ""),
-      txReference: result.txReference,
-      facilitator: facilitatorLabel,
-    });
+        scopeType: scope.scopeType,
+        scopeId: scope.scopeId,
+        agentId: scope.agentId,
+        asset: cfg.asset,
+        network: cfg.network,
+        amountAtomic: requirements.maxAmountRequired,
+        creditsGranted: credits,
+        payer: result.payer,
+        nonce: settlementNonce,
+        txReference: result.txReference,
+        facilitator: facilitatorLabel,
+      });
 
     return {
       settled: true,
