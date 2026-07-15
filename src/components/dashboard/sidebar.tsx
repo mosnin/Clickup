@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -12,6 +12,7 @@ import {
   Inbox,
   LayoutGrid,
   Menu,
+  PanelLeft,
   Plus,
   Search,
   ShieldCheck,
@@ -21,7 +22,44 @@ import {
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
-import { motion, SPRING } from "@/components/motion";
+import { AnimatePresence, motion, SPRING } from "@/components/motion";
+
+// Desktop collapse state, persisted so the choice survives reloads. On < md
+// the sidebar is a drawer and this is ignored.
+function useCollapsed(): [boolean, () => void] {
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem("sidebar-collapsed") === "1");
+    } catch {
+      /* private mode / no storage — default expanded */
+    }
+  }, []);
+  const toggle = () =>
+    setCollapsed((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem("sidebar-collapsed", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  return [collapsed, toggle];
+}
+
+// A right-anchored tooltip that appears on hover, used for the icon rail so
+// collapsed nav items stay legible. Pure CSS group-hover — no JS per item.
+function RailTip({ label }: { label: string }) {
+  return (
+    <span
+      role="tooltip"
+      className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 translate-x-1 whitespace-nowrap rounded-lg bg-foreground px-2 py-1 text-xs font-medium text-background opacity-0 shadow-lg transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100"
+    >
+      {label}
+    </span>
+  );
+}
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { RunningTimerChip } from "@/components/dashboard/running-timer-chip";
 import { TemplatePicker } from "@/components/dashboard/template-picker";
@@ -35,7 +73,10 @@ function useTreeQuery() {
 
 export function DashboardSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, toggleCollapsed] = useCollapsed();
   const tree = useTreeQuery();
+  // Collapse only applies on desktop; the mobile drawer always shows full.
+  const close = () => setMobileOpen(false);
 
   return (
     <>
@@ -43,88 +84,145 @@ export function DashboardSidebar() {
         type="button"
         aria-label="Open navigation"
         onClick={() => setMobileOpen(true)}
-        className="fixed left-3 top-3 z-40 inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background shadow-sm md:hidden"
+        className="bento-sm fixed left-3 top-3 z-40 inline-flex h-10 w-10 items-center justify-center rounded-full bg-background md:hidden"
       >
         <Menu className="h-5 w-5" />
       </button>
 
-      {mobileOpen && (
-        <div
-          aria-hidden
-          onClick={() => setMobileOpen(false)}
-          className="fixed inset-0 z-40 bg-foreground/40 backdrop-blur-sm md:hidden"
-        />
-      )}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            aria-hidden
+            onClick={close}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 bg-foreground/40 backdrop-blur-sm md:hidden"
+          />
+        )}
+      </AnimatePresence>
 
       <aside
+        data-collapsed={collapsed || undefined}
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-border bg-background transition-transform md:static md:translate-x-0",
+          "group/side fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-border bg-background transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:static md:translate-x-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+          collapsed && "md:w-[4.75rem]",
         )}
         aria-label="Sidebar"
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div
+          className={cn(
+            "flex items-center border-b border-border px-3 py-3",
+            collapsed ? "md:justify-center md:px-0" : "justify-between",
+          )}
+        >
           <Link
             href="/dashboard"
-            className="flex items-center gap-2.5"
-            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-2.5 overflow-hidden pl-1"
+            onClick={close}
           >
             <span
               aria-hidden
-              className="inline-block h-3.5 w-3.5 rounded-[4px] bg-foreground"
+              className="inline-block h-3.5 w-3.5 flex-shrink-0 rounded-[4px] bg-foreground"
             />
-            <span className="text-[13px] font-extrabold uppercase tracking-[0.22em]">
+            <span
+              className={cn(
+                "text-[13px] font-extrabold uppercase tracking-[0.22em] transition-all",
+                collapsed && "md:hidden",
+              )}
+            >
               ClickUp&nbsp;Clone
             </span>
           </Link>
+          {/* Desktop collapse toggle. */}
+          <button
+            type="button"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            onClick={toggleCollapsed}
+            className={cn(
+              "hidden h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:inline-flex",
+              collapsed && "md:absolute md:right-2",
+            )}
+          >
+            <motion.span
+              animate={{ rotate: collapsed ? 180 : 0 }}
+              transition={SPRING}
+              className="inline-flex"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </motion.span>
+          </button>
           <button
             type="button"
             aria-label="Close navigation"
-            onClick={() => setMobileOpen(false)}
+            onClick={close}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted md:hidden"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-3">
-          <RunningTimerChip />
+        <nav
+          className={cn(
+            "flex-1 overflow-y-auto overflow-x-hidden p-3",
+            collapsed && "md:px-2",
+          )}
+        >
+          {!collapsed && <RunningTimerChip />}
           <button
             type="button"
             onClick={() => {
-              setMobileOpen(false);
+              close();
               window.dispatchEvent(new CustomEvent("open-command-palette"));
             }}
-            className="mb-2 flex w-full items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground"
+            className={cn(
+              "group relative mb-2 flex w-full items-center gap-2 rounded-lg border border-border text-sm text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground",
+              collapsed ? "md:justify-center md:px-0 md:py-2 px-2.5 py-1.5" : "px-2.5 py-1.5",
+            )}
           >
-            <Search className="h-4 w-4" />
-            <span className="flex-1 text-left">Search</span>
-            <kbd className="rounded-md border border-border px-1.5 py-0.5 text-[10px]">
+            <Search className="h-4 w-4 flex-shrink-0" />
+            <span className={cn("flex-1 text-left", collapsed && "md:hidden")}>
+              Search
+            </span>
+            <kbd
+              className={cn(
+                "rounded-md border border-border px-1.5 py-0.5 text-[10px]",
+                collapsed && "md:hidden",
+              )}
+            >
               ⌘K
             </kbd>
+            {collapsed && <RailTip label="Search  ⌘K" />}
           </button>
-          <BrainLink onNavigate={() => setMobileOpen(false)} />
-          <AgentsLink onNavigate={() => setMobileOpen(false)} />
-          <InboxLink onNavigate={() => setMobileOpen(false)} />
-          {tree === undefined ? (
-            <SidebarLoading />
-          ) : tree === null ? (
-            <p className="px-2 text-sm text-muted-foreground">
-              Sign in to see your spaces.
-            </p>
-          ) : (
-            <SidebarTreeView
-              tree={tree}
-              onNavigate={() => setMobileOpen(false)}
-            />
-          )}
+          <BrainLink onNavigate={close} collapsed={collapsed} />
+          <AgentsLink onNavigate={close} collapsed={collapsed} />
+          <InboxLink onNavigate={close} collapsed={collapsed} />
+          {/* The workspace tree only renders in the expanded rail. */}
+          {!collapsed &&
+            (tree === undefined ? (
+              <SidebarLoading />
+            ) : tree === null ? (
+              <p className="px-2 text-sm text-muted-foreground">
+                Sign in to see your spaces.
+              </p>
+            ) : (
+              <SidebarTreeView tree={tree} onNavigate={close} />
+            ))}
         </nav>
 
-        <AdminLink onNavigate={() => setMobileOpen(false)} />
+        <AdminLink onNavigate={close} collapsed={collapsed} />
 
-        <div className="flex items-center gap-3 border-t border-border px-4 py-3">
+        <div
+          className={cn(
+            "flex items-center gap-3 border-t border-border px-4 py-3",
+            collapsed && "md:justify-center md:px-0",
+          )}
+        >
           <UserButton afterSignOutUrl="/" />
-          <span className="text-xs text-muted-foreground">Account</span>
+          <span className={cn("text-xs text-muted-foreground", collapsed && "md:hidden")}>
+            Account
+          </span>
         </div>
       </aside>
     </>
@@ -133,118 +231,190 @@ export function DashboardSidebar() {
 
 // Only rendered for platform admins (api.admin.me returns null otherwise).
 // The link lives above the account footer, visually separated.
-function AdminLink({ onNavigate }: { onNavigate: () => void }) {
+function AdminLink({
+  onNavigate,
+  collapsed,
+}: {
+  onNavigate: () => void;
+  collapsed: boolean;
+}) {
   const pathname = usePathname();
   const me = useQuery(api.admin.me, {});
   if (!me) return null;
   const active = pathname.startsWith("/dashboard/admin");
   return (
-    <div className="border-t border-border p-3">
+    <div className={cn("border-t border-border p-3", collapsed && "md:px-2")}>
       <Link
         href="/dashboard/admin"
         onClick={onNavigate}
+        aria-current={active ? "page" : undefined}
         className={cn(
-          "relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+          "group relative flex items-center gap-2 rounded-lg text-sm transition-colors",
+          collapsed ? "md:justify-center md:px-0 md:py-2 px-2.5 py-1.5" : "px-2.5 py-1.5",
           active
             ? "bg-muted text-foreground"
             : "text-muted-foreground hover:bg-muted hover:text-foreground",
         )}
       >
-        <ShieldCheck className="h-4 w-4" />
-        <span className="flex-1">Admin console</span>
-        <span className="rounded-full bg-foreground/90 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-background">
+        <motion.span
+          whileHover={{ scale: 1.12 }}
+          whileTap={{ scale: 0.9 }}
+          transition={SPRING}
+          className="inline-flex"
+        >
+          <ShieldCheck className="h-4 w-4" />
+        </motion.span>
+        <span className={cn("flex-1", collapsed && "md:hidden")}>
+          Admin console
+        </span>
+        <span
+          className={cn(
+            "rounded-full bg-foreground/90 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-background",
+            collapsed && "md:hidden",
+          )}
+        >
           {me.role === "superadmin" ? "Super" : "Admin"}
         </span>
+        {collapsed && <RailTip label="Admin console" />}
       </Link>
     </div>
   );
 }
 
-function BrainLink({ onNavigate }: { onNavigate: () => void }) {
-  const pathname = usePathname();
-  const active = pathname === "/dashboard/brain";
+// Shared primary-nav row. Handles the active-pill morph (layoutId), the
+// collapsed icon-rail layout + tooltip, and icon press/hover micro-motion.
+function NavLink({
+  href,
+  label,
+  icon: Icon,
+  active,
+  collapsed,
+  onNavigate,
+  badge,
+  className,
+}: {
+  href: string;
+  label: string;
+  icon: typeof Bot;
+  active: boolean;
+  collapsed: boolean;
+  onNavigate: () => void;
+  badge?: React.ReactNode;
+  className?: string;
+}) {
   return (
     <Link
+      href={href}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "group relative mb-1 flex items-center gap-2 rounded-lg text-sm transition-colors",
+        collapsed ? "md:justify-center md:px-0 md:py-2 px-2.5 py-1.5" : "px-2.5 py-1.5",
+        active
+          ? "text-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        className,
+      )}
+    >
+      {active && (
+        <motion.span
+          layoutId="sidebar-active"
+          className="absolute inset-0 rounded-lg bg-muted"
+          transition={SPRING}
+        />
+      )}
+      <motion.span
+        whileHover={{ scale: 1.12 }}
+        whileTap={{ scale: 0.9 }}
+        transition={SPRING}
+        className="relative z-10 inline-flex"
+      >
+        <Icon className="h-4 w-4" />
+      </motion.span>
+      <span className={cn("relative z-10 flex-1", collapsed && "md:hidden")}>
+        {label}
+      </span>
+      {badge}
+      {collapsed && <RailTip label={label} />}
+    </Link>
+  );
+}
+
+function BrainLink({
+  onNavigate,
+  collapsed,
+}: {
+  onNavigate: () => void;
+  collapsed: boolean;
+}) {
+  const pathname = usePathname();
+  return (
+    <NavLink
       href="/dashboard/brain"
-      onClick={onNavigate}
-      className={cn(
-        "relative mb-1 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
-        active
-          ? "text-foreground"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-      )}
-    >
-      {active && (
-        <motion.span
-          layoutId="sidebar-active"
-          className="absolute inset-0 rounded-lg bg-muted"
-          transition={SPRING}
-        />
-      )}
-      <Sparkles className="relative z-10 h-4 w-4" />
-      <span className="relative z-10">Brain</span>
-    </Link>
+      label="Brain"
+      icon={Sparkles}
+      active={pathname === "/dashboard/brain"}
+      collapsed={collapsed}
+      onNavigate={onNavigate}
+    />
   );
 }
 
-function AgentsLink({ onNavigate }: { onNavigate: () => void }) {
+function AgentsLink({
+  onNavigate,
+  collapsed,
+}: {
+  onNavigate: () => void;
+  collapsed: boolean;
+}) {
   const pathname = usePathname();
-  const active = pathname === "/dashboard/agents";
   return (
-    <Link
+    <NavLink
       href="/dashboard/agents"
-      onClick={onNavigate}
-      className={cn(
-        "relative mb-1 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
-        active
-          ? "text-foreground"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-      )}
-    >
-      {active && (
-        <motion.span
-          layoutId="sidebar-active"
-          className="absolute inset-0 rounded-lg bg-muted"
-          transition={SPRING}
-        />
-      )}
-      <Bot className="relative z-10 h-4 w-4" />
-      <span className="relative z-10">Agents</span>
-    </Link>
+      label="Agents"
+      icon={Bot}
+      active={pathname === "/dashboard/agents"}
+      collapsed={collapsed}
+      onNavigate={onNavigate}
+    />
   );
 }
 
-function InboxLink({ onNavigate }: { onNavigate: () => void }) {
+function InboxLink({
+  onNavigate,
+  collapsed,
+}: {
+  onNavigate: () => void;
+  collapsed: boolean;
+}) {
   const pathname = usePathname();
   const unread = useQuery(api.mentions.unreadCountForCurrent, {});
-  const active = pathname === "/dashboard/inbox";
+  const hasUnread = typeof unread === "number" && unread > 0;
 
   return (
-    <Link
+    <NavLink
       href="/dashboard/inbox"
-      onClick={onNavigate}
-      className={cn(
-        "relative mb-3 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
-        active
-          ? "text-foreground"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-      )}
-    >
-      {active && (
-        <motion.span
-          layoutId="sidebar-active"
-          className="absolute inset-0 rounded-lg bg-muted"
-          transition={SPRING}
-        />
-      )}
-      <Inbox className="relative z-10 h-4 w-4" />
-      <span className="relative z-10 flex-1">Inbox</span>
-      {typeof unread === "number" && unread > 0 && (
-        <span className="relative z-10 rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
-          {unread > 99 ? "99+" : unread}
-        </span>
-      )}
-    </Link>
+      label="Inbox"
+      icon={Inbox}
+      active={pathname === "/dashboard/inbox"}
+      collapsed={collapsed}
+      onNavigate={onNavigate}
+      className="mb-3"
+      badge={
+        hasUnread ? (
+          <span
+            className={cn(
+              "relative z-10 rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-medium text-white",
+              // In the rail the count rides the top-right of the icon.
+              collapsed &&
+                "md:absolute md:right-1.5 md:top-1 md:px-1 md:py-0 md:leading-tight",
+            )}
+          >
+            {unread > 99 ? "99+" : unread}
+          </span>
+        ) : undefined
+      }
+    />
   );
 }
 

@@ -80,6 +80,80 @@ body {
   padding-bottom: 1rem;
 }
 
+/* ── Bento surface system ─────────────────────────────────────────────────
+   The tactile "soft UI" language: white cards that float on the gray canvas
+   with a soft, wide, low shadow instead of a hard hairline; content sits in
+   nested neutral tiles. Rounded generously. This replaces the flat
+   hairline-border card wherever a surface should read as a discrete panel. */
+.bento {
+  background: var(--color-background);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 1px 2px rgb(16 16 18 / 0.04),
+    0 10px 30px -18px rgb(16 16 18 / 0.16);
+}
+/* A slightly tighter card for dense grids / rows. */
+.bento-sm {
+  background: var(--color-background);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 1px 2px rgb(16 16 18 / 0.04),
+    0 8px 22px -16px rgb(16 16 18 / 0.14);
+}
+/* Nested neutral tile inside a bento card (the reference's material/preview
+   wells). Soft inset feel, no border. */
+.bento-tile {
+  background: var(--color-muted);
+  border-radius: 1rem;
+}
+/* Functional icon well — a thin-line glyph in a soft rounded square, the
+   only place an icon rides its own surface (per the reference's people/link
+   access rows). Never used decoratively. */
+.icon-tile {
+  display: grid;
+  place-items: center;
+  height: 2.5rem;
+  width: 2.5rem;
+  border-radius: 0.85rem;
+  background: var(--color-muted);
+  color: var(--color-foreground);
+  flex-shrink: 0;
+}
+
+/* Segmented control: a gray track with a raised white pill for the active
+   segment (Design/Animation, Isometric/Perspective in the reference). Pair
+   the container with .segmented and the active button with .segmented-on. */
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: 9999px;
+  background: var(--color-muted);
+}
+.segmented-on {
+  background: var(--color-background);
+  box-shadow:
+    0 1px 2px rgb(16 16 18 / 0.06),
+    0 2px 8px -4px rgb(16 16 18 / 0.16);
+}
+
+/* Soft field: the reference's inputs sit on a faint neutral fill with no hard
+   border and a gentle focus ring rather than a color outline. */
+.soft-field {
+  background: var(--color-muted);
+  border-radius: 0.9rem;
+  transition:
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+.soft-field:focus,
+.soft-field:focus-within {
+  outline: none;
+  background: var(--color-background);
+  box-shadow: 0 0 0 2px var(--color-foreground);
+}
+
 /* Interactive-card hover: a quiet lift with a soft, wide shadow. */
 .lift {
   transition:
