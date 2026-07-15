@@ -14,6 +14,7 @@ import {
   Menu,
   Plus,
   Search,
+  ShieldCheck,
   Sparkles,
   X,
 } from "lucide-react";
@@ -119,12 +120,43 @@ export function DashboardSidebar() {
           )}
         </nav>
 
+        <AdminLink onNavigate={() => setMobileOpen(false)} />
+
         <div className="flex items-center gap-3 border-t border-border px-4 py-3">
           <UserButton afterSignOutUrl="/" />
           <span className="text-xs text-muted-foreground">Account</span>
         </div>
       </aside>
     </>
+  );
+}
+
+// Only rendered for platform admins (api.admin.me returns null otherwise).
+// The link lives above the account footer, visually separated.
+function AdminLink({ onNavigate }: { onNavigate: () => void }) {
+  const pathname = usePathname();
+  const me = useQuery(api.admin.me, {});
+  if (!me) return null;
+  const active = pathname.startsWith("/dashboard/admin");
+  return (
+    <div className="border-t border-border p-3">
+      <Link
+        href="/dashboard/admin"
+        onClick={onNavigate}
+        className={cn(
+          "relative flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+          active
+            ? "bg-muted text-foreground"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        )}
+      >
+        <ShieldCheck className="h-4 w-4" />
+        <span className="flex-1">Admin console</span>
+        <span className="rounded-full bg-foreground/90 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-background">
+          {me.role === "superadmin" ? "Super" : "Admin"}
+        </span>
+      </Link>
+    </div>
   );
 }
 

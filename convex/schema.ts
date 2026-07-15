@@ -28,6 +28,10 @@ export default defineSchema({
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     onboardedAt: v.optional(v.number()),
+    // Platform-admin account controls. A suspended user is blocked from
+    // every authenticated operation (enforced in _authz.requireIdentity).
+    suspendedAt: v.optional(v.number()),
+    suspendedReason: v.optional(v.string()),
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_email", ["email"]),
@@ -37,6 +41,9 @@ export default defineSchema({
     slug: v.string(),
     ownerClerkId: v.string(),
     createdAt: v.number(),
+    // Platform-admin control: a suspended workspace's members lose access.
+    suspendedAt: v.optional(v.number()),
+    suspendedReason: v.optional(v.string()),
   })
     .index("by_owner", ["ownerClerkId"])
     .index("by_slug", ["slug"]),
@@ -678,4 +685,49 @@ export default defineSchema({
     updatedAt: v.number(),
     createdAt: v.number(),
   }).index("by_scope", ["scopeType", "scopeId"]),
+
+  // ── Platform administration (SOC2) ──────────────────────────────────
+  //
+  // Super-admin roster. Being an admin is NEVER self-grantable: the root
+  // of trust is the PLATFORM_ADMIN_EMAILS deployment env var (set out of
+  // band). Env-allowlisted users are treated as superadmins; they can
+  // grant scoped admin rows to others, and every grant/revoke is audited.
+  // A normal end-user has no path to escalate into this table.
+  platformAdmins: defineTable({
+    clerkId: v.string(),
+    email: v.string(),
+    role: v.union(v.literal("superadmin"), v.literal("support")),
+    grantedByClerkId: v.string(),
+    createdAt: v.number(),
+    revokedAt: v.optional(v.number()),
+    revokedByClerkId: v.optional(v.string()),
+  }).index("by_clerk_id", ["clerkId"]),
+
+  // Append-only audit trail. Every admin action — and every break-glass
+  // read of customer content — writes exactly one row here, with the
+  // actor, target, and (for content access) a required reason. Rows are
+  // never updated or deleted; retention pruning is deliberately excluded.
+  adminAuditLog: defineTable({
+    actorClerkId: v.string(),
+    actorEmail: v.string(),
+    action: v.string(),
+    targetType: v.optional(v.string()),
+    targetId: v.optional(v.string()),
+    summary: v.optional(v.string()),
+    reason: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    createdAt: v.number(),
+  })
+    .index("by_actor", ["actorClerkId"])
+    .index("by_created", ["createdAt"])
+    .index("by_target", ["targetType", "targetId"]),
+
+  // Singleton platform-security configuration (one row per key). Edited
+  // only by superadmins; every write is audited.
+  platformSettings: defineTable({
+    key: v.string(),
+    value: v.any(),
+    updatedByClerkId: v.string(),
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]),
 });

@@ -12,8 +12,10 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as _adminAuth from "../_adminAuth.js";
 import type * as _agentAuth from "../_agentAuth.js";
 import type * as _authz from "../_authz.js";
+import type * as admin from "../admin.js";
 import type * as agentAi from "../agentAi.js";
 import type * as agentApi from "../agentApi.js";
 import type * as agentKeys from "../agentKeys.js";
@@ -55,8 +57,10 @@ import type * as whiteboards from "../whiteboards.js";
 import type * as workspaces from "../workspaces.js";
 
 declare const fullApi: ApiFromModules<{
+  _adminAuth: typeof _adminAuth;
   _agentAuth: typeof _agentAuth;
   _authz: typeof _authz;
+  admin: typeof admin;
   agentAi: typeof agentAi;
   agentApi: typeof agentApi;
   agentKeys: typeof agentKeys;

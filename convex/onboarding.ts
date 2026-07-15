@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
+import { assertNotSuspended } from "./_authz";
 import type { Id } from "./_generated/dataModel";
 import { seedDefaultStatuses } from "./listStatuses";
 import { createTaskCore } from "./tasks";
@@ -30,6 +31,7 @@ export const completeSetup = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
+    await assertNotSuspended(ctx, identity.subject);
     const workspaceName = args.workspaceName.trim();
     const agentName = args.agentName.trim() || "Scout";
     if (!workspaceName) throw new Error("Workspace name is required");

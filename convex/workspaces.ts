@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { assertNotSuspended } from "./_authz";
 
 function slugify(input: string): string {
   return input
@@ -15,6 +16,7 @@ export const create = mutation({
   handler: async (ctx, { name }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
+    await assertNotSuspended(ctx, identity.subject);
 
     const baseSlug = slugify(name) || "workspace";
     let slug = baseSlug;

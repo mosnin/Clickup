@@ -16,7 +16,32 @@ export async function requireIdentity(
 ): Promise<Identity> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new Error("Not authenticated");
+  // Platform-admin suspension is enforced here so it covers every
+  // authenticated read and write in one place. One indexed lookup; a
+  // user row that doesn't exist yet (pre-bootstrap) is allowed through.
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+    .unique();
+  if (user?.suspendedAt) {
+    throw new Error("Account suspended");
+  }
   return { subject: identity.subject };
+}
+
+// Guard for mutation entry points that resolve identity directly via
+// ctx.auth.getUserIdentity() (top-level creates like workspaces/spaces)
+// rather than going through requireIdentity. Throws for a suspended user
+// so account holds cover every write path, not just hierarchy-authed ones.
+export async function assertNotSuspended(
+  ctx: QueryCtx | MutationCtx,
+  subject: string,
+): Promise<void> {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", subject))
+    .unique();
+  if (user?.suspendedAt) throw new Error("Account suspended");
 }
 
 export async function canAccessSpace(
