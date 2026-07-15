@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   Activity,
@@ -23,7 +23,6 @@ import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { useToast } from "@/components/toast";
 import {
-  AnimatePresence,
   AnimatedNumber,
   EASE,
   motion,
@@ -783,8 +782,8 @@ function SearchBar({
 
 function Avatar({ name, img }: { name: string; img?: string }) {
   if (img) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={img}
         alt=""

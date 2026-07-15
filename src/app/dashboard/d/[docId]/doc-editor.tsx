@@ -296,7 +296,7 @@ function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   return (
     <nav
       aria-label="Formatting"
-      className="flex flex-wrap gap-1 rounded-full border border-border bg-background p-1"
+      className="sticky top-2 z-10 flex flex-wrap gap-1 rounded-full border border-border bg-background/80 p-1 backdrop-blur"
     >
       {buttons.map((b) => (
         <button
