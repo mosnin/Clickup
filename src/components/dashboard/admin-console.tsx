@@ -82,7 +82,7 @@ export function AdminConsole() {
       <div className="-mx-4 overflow-x-auto px-4 sm:-mx-8 sm:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <nav
           aria-label="Admin sections"
-          className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-border bg-background p-1 text-sm"
+          className="segmented whitespace-nowrap text-sm"
         >
           {TABS.map(({ key, label, icon: Icon }) => (
             <button
@@ -93,8 +93,8 @@ export function AdminConsole() {
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 transition-colors",
                 tab === key
-                  ? "bg-foreground font-medium text-background"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  ? "segmented-on font-medium text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               <Icon className="h-3.5 w-3.5" />
