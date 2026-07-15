@@ -18,6 +18,7 @@ import type * as _authz from "../_authz.js";
 import type * as _x402 from "../_x402.js";
 import type * as admin from "../admin.js";
 import type * as agentAi from "../agentAi.js";
+import type * as aiDb from "../aiDb.js";
 import type * as agentApi from "../agentApi.js";
 import type * as agentKeys from "../agentKeys.js";
 import type * as agentTemplates from "../agentTemplates.js";
@@ -68,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   _x402: typeof _x402;
   admin: typeof admin;
   agentAi: typeof agentAi;
+  aiDb: typeof aiDb;
   agentApi: typeof agentApi;
   agentKeys: typeof agentKeys;
   agentTemplates: typeof agentTemplates;

@@ -2,12 +2,7 @@
 
 import { v } from "convex/values";
 import OpenAI from "openai";
-import {
-  action,
-  internalAction,
-  internalMutation,
-  internalQuery,
-} from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 
@@ -57,7 +52,7 @@ export const indexDocument = internalAction({
   handler: async (ctx, { docId }) => {
     const client = makeClient();
     if (!client) return;
-    const doc = await ctx.runQuery(internal.ai._getDocForIndex, { docId });
+    const doc = await ctx.runQuery(internal.aiDb._getDocForIndex, { docId });
     if (!doc) return;
     const text = `${doc.title}\n\n${tiptapToText(doc.content)}`.trim();
     if (!text) return;
@@ -66,7 +61,7 @@ export const indexDocument = internalAction({
       model: EMBEDDING_MODEL,
       input: truncated,
     });
-    await ctx.runMutation(internal.ai._upsertEmbedding, {
+    await ctx.runMutation(internal.aiDb._upsertEmbedding, {
       parentType: "doc",
       parentId: docId,
       scopeType: doc.scopeType,
@@ -82,7 +77,7 @@ export const indexTask = internalAction({
   handler: async (ctx, { taskId }) => {
     const client = makeClient();
     if (!client) return;
-    const task = await ctx.runQuery(internal.ai._getTaskForIndex, { taskId });
+    const task = await ctx.runQuery(internal.aiDb._getTaskForIndex, { taskId });
     if (!task) return;
     const text = `${task.title}\n\n${task.description ?? ""}`.trim();
     if (!text) return;
@@ -90,7 +85,7 @@ export const indexTask = internalAction({
       model: EMBEDDING_MODEL,
       input: clip(text, 8000),
     });
-    await ctx.runMutation(internal.ai._upsertEmbedding, {
+    await ctx.runMutation(internal.aiDb._upsertEmbedding, {
       parentType: "task",
       parentId: taskId,
       scopeType: task.scopeType,
@@ -107,111 +102,12 @@ export const dropEmbeddings = internalAction({
     parentId: v.string(),
   },
   handler: async (ctx, args) => {
-    await ctx.runMutation(internal.ai._dropEmbeddings, args);
+    await ctx.runMutation(internal.aiDb._dropEmbeddings, args);
   },
 });
 
-// --- Internal helpers (queries + mutations) used by the actions above ----
-
-export const _getDocForIndex = internalQuery({
-  args: { docId: v.id("docs") },
-  handler: async (ctx, { docId }) => {
-    const doc = await ctx.db.get(docId);
-    if (!doc) return null;
-    const scope = await scopeForDocLikeParent(ctx, doc.parentType, doc.parentId);
-    if (!scope) return null;
-    return {
-      title: doc.title,
-      content: doc.content,
-      scopeType: scope.scopeType,
-      scopeId: scope.scopeId,
-    };
-  },
-});
-
-export const _getTaskForIndex = internalQuery({
-  args: { taskId: v.id("tasks") },
-  handler: async (ctx, { taskId }) => {
-    const task = await ctx.db.get(taskId);
-    if (!task) return null;
-    const list = await ctx.db.get(task.listId);
-    if (!list) return null;
-    let space: Doc<"spaces"> | null = null;
-    if (list.parentType === "space") {
-      space = await ctx.db.get(list.parentId as Id<"spaces">);
-    } else {
-      const folder = await ctx.db.get(list.parentId as Id<"folders">);
-      if (folder) space = await ctx.db.get(folder.spaceId);
-    }
-    if (!space) return null;
-    return {
-      title: task.title,
-      description: task.description,
-      scopeType: space.parentType,
-      scopeId: space.parentId,
-    };
-  },
-});
-
-async function scopeForDocLikeParent(
-  ctx: { db: import("./_generated/server").QueryCtx["db"] },
-  parentType: "user" | "workspace" | "space",
-  parentId: string,
-): Promise<{ scopeType: "user" | "workspace"; scopeId: string } | null> {
-  if (parentType === "user") return { scopeType: "user", scopeId: parentId };
-  if (parentType === "workspace") {
-    return { scopeType: "workspace", scopeId: parentId };
-  }
-  const space = await ctx.db.get(parentId as Id<"spaces">);
-  if (!space) return null;
-  return { scopeType: space.parentType, scopeId: space.parentId };
-}
-
-export const _upsertEmbedding = internalMutation({
-  args: {
-    parentType: v.union(v.literal("doc"), v.literal("task")),
-    parentId: v.string(),
-    scopeType: v.union(v.literal("user"), v.literal("workspace")),
-    scopeId: v.string(),
-    textPreview: v.string(),
-    embedding: v.array(v.float64()),
-  },
-  handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("embeddings")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", args.parentType).eq("parentId", args.parentId),
-      )
-      .unique();
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        scopeType: args.scopeType,
-        scopeId: args.scopeId,
-        textPreview: args.textPreview,
-        embedding: args.embedding,
-        updatedAt: Date.now(),
-      });
-      return;
-    }
-    await ctx.db.insert("embeddings", { ...args, updatedAt: Date.now() });
-  },
-});
-
-export const _dropEmbeddings = internalMutation({
-  args: {
-    parentType: v.union(v.literal("doc"), v.literal("task")),
-    parentId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("embeddings")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", args.parentType).eq("parentId", args.parentId),
-      )
-      .collect();
-    for (const e of existing) await ctx.db.delete(e._id);
-  },
-});
+// The internal queries/mutations these actions rely on live in aiDb.ts —
+// this file is Node runtime ("use node"), which may only define actions.
 
 // --- Public AI actions ---------------------------------------------------
 
@@ -236,7 +132,7 @@ export const brainSearch = action({
     if (scopeType === "user") {
       if (scopeId !== identity.subject) throw new Error("Forbidden");
     } else {
-      const ok = await ctx.runQuery(internal.ai._isWorkspaceMember, {
+      const ok = await ctx.runQuery(internal.aiDb._isWorkspaceMember, {
         workspaceId: scopeId as Id<"workspaces">,
       });
       if (!ok) throw new Error("Forbidden");
@@ -266,7 +162,7 @@ export const brainSearch = action({
       filter: (q) => q.eq("scopeId", scopeId),
     });
 
-    const rows = await ctx.runQuery(internal.ai._embeddingsByIds, {
+    const rows = await ctx.runQuery(internal.aiDb._embeddingsByIds, {
       ids: hits.map((h) => h._id),
     });
     const sources: BrainSource[] = rows.map(
@@ -377,25 +273,3 @@ export const taskAutofill = action({
   },
 });
 
-export const _isWorkspaceMember = internalQuery({
-  args: { workspaceId: v.id("workspaces") },
-  handler: async (ctx, { workspaceId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return false;
-    const m = await ctx.db
-      .query("memberships")
-      .withIndex("by_user_and_workspace", (q) =>
-        q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
-      )
-      .unique();
-    return m !== null;
-  },
-});
-
-export const _embeddingsByIds = internalQuery({
-  args: { ids: v.array(v.id("embeddings")) },
-  handler: async (ctx, { ids }) => {
-    const rows = await Promise.all(ids.map((id) => ctx.db.get(id)));
-    return rows.filter((r): r is NonNullable<typeof r> => r !== null);
-  },
-});
