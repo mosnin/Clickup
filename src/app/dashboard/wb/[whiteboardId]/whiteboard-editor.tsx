@@ -2,11 +2,13 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { ArrowLeft } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { useToast } from "@/components/toast";
 
 // tldraw is ~500 kB; lazy-load so other dashboard routes don't pay for it.
 // `ssr: false` because tldraw needs `window`.
@@ -15,7 +17,7 @@ const TldrawCanvas = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[70vh] items-center justify-center rounded-3xl border border-border bg-muted/40 text-sm text-muted-foreground">
+      <div className="flex h-[70vh] items-center justify-center rounded-2xl border border-border bg-muted/40 text-sm text-muted-foreground">
         Loading whiteboard…
       </div>
     ),
@@ -31,19 +33,21 @@ export function WhiteboardEditor({
   const wb = useQuery(api.whiteboards.get, { whiteboardId: id });
   const rename = useMutation(api.whiteboards.rename);
   const remove = useMutation(api.whiteboards.remove);
+  const router = useRouter();
+  const { toast } = useToast();
 
   const [title, setTitle] = useState("");
   if (wb === undefined) {
     return (
       <div className="space-y-4">
         <div className="h-12 w-2/3 animate-pulse rounded-full bg-muted" />
-        <div className="h-[70vh] animate-pulse rounded-3xl bg-muted/40" />
+        <div className="h-[70vh] animate-pulse rounded-2xl bg-muted/40" />
       </div>
     );
   }
   if (wb === null) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
           This whiteboard doesn&apos;t exist or you don&apos;t have access.
         </p>
@@ -69,11 +73,14 @@ export function WhiteboardEditor({
         <button
           type="button"
           onClick={() => {
-            if (window.confirm("Delete this whiteboard?")) {
-              remove({ whiteboardId: id }).then(() => {
-                window.history.back();
-              });
-            }
+            router.push("/dashboard");
+            toast("Whiteboard deleted", {
+              action: {
+                label: "Undo",
+                onClick: () => router.push(`/dashboard/wb/${id}`),
+              },
+              onExpire: () => remove({ whiteboardId: id }),
+            });
           }}
           className="rounded-full px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
         >
@@ -94,7 +101,7 @@ export function WhiteboardEditor({
           }
         }}
         placeholder="Untitled board"
-        className="w-full bg-transparent text-2xl font-semibold tracking-tight focus:outline-none sm:text-3xl"
+        className="w-full bg-transparent text-2xl font-bold tracking-tight focus:outline-none sm:text-3xl"
       />
 
       <TldrawCanvas whiteboardId={id} initialSnapshot={wb.snapshot} />

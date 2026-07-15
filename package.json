@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@capacitor/cli": "^6.2.0",
@@ -17,14 +18,18 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@serwist/next": "^9.0.11",
     "@tiptap/pm": "^2.10.3",
     "@tiptap/react": "^2.10.3",
     "@tiptap/starter-kit": "^2.10.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "convex": "^1.17.0",
     "date-fns": "^4.1.0",
-    "tldraw": "^3.5.0",
     "lucide-react": "^0.468.0",
+    "mcp-handler": "^1.1.0",
+    "motion": "^12.42.2",
     "next": "^15.1.0",
     "openai": "^4.71.1",
     "react": "^19.0.0",
@@ -32,19 +37,22 @@
     "resend": "^4.0.1",
     "serwist": "^9.0.11",
     "svix": "^1.45.0",
-    "clsx": "^2.1.1",
     "tailwind-merge": "^2.6.0",
-    "class-variance-authority": "^0.7.1"
+    "tldraw": "^3.5.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "convex-test": "^0.0.54",
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.1.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
   }
 }

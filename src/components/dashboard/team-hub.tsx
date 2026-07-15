@@ -6,6 +6,7 @@ import { Timer } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { formatDurationCoarse } from "@/lib/duration";
+import { AnimatedNumber, Stagger, StaggerItem } from "@/components/motion";
 
 export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const members = useQuery(api.team.hub, { workspaceId });
@@ -14,14 +15,14 @@ export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="h-28 animate-pulse rounded-3xl bg-muted/40" />
+          <div key={i} className="h-28 animate-pulse rounded-2xl bg-muted/40" />
         ))}
       </div>
     );
   }
   if (members === null) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
         You don&apos;t have access to this workspace&apos;s team.
       </div>
     );
@@ -33,11 +34,11 @@ export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
         {members.length} member{members.length === 1 ? "" : "s"} ·{" "}
         {members.filter((m) => m.running).length} currently tracking time
       </p>
-      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <Stagger className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {members.map((m) => (
-          <li
+          <StaggerItem
             key={m.clerkId}
-            className="rounded-3xl border border-border bg-background p-4"
+            className="lift rounded-2xl bento p-4"
           >
             <div className="flex items-start gap-3">
               <Avatar name={m.name} clerkId={m.clerkId} />
@@ -67,19 +68,43 @@ export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
               <div className="mt-3 flex items-center gap-2 rounded-2xl border border-red-300/40 bg-red-50/40 p-2 text-xs">
                 <Timer className="h-3.5 w-3.5 text-red-600" aria-hidden />
                 <span className="font-medium text-red-700">Now</span>
-                <Link
-                  href={`/dashboard/l/${"_"}/t/${m.running.taskId}`}
-                  className="ml-1 truncate text-muted-foreground hover:text-foreground"
+                <RunningTaskLink
+                  taskId={m.running.taskId}
                   title={m.running.taskTitle}
-                >
-                  {m.running.taskTitle}
-                </Link>
+                />
               </div>
             )}
-          </li>
+          </StaggerItem>
         ))}
-      </ul>
+      </Stagger>
     </div>
+  );
+}
+
+// Resolves the running task's listId so the link actually navigates.
+function RunningTaskLink({
+  taskId,
+  title,
+}: {
+  taskId: Id<"tasks">;
+  title: string;
+}) {
+  const listId = useQuery(api.tasks.resolveListId, { taskId });
+  if (!listId) {
+    return (
+      <span className="ml-1 truncate text-muted-foreground" title={title}>
+        {title}
+      </span>
+    );
+  }
+  return (
+    <Link
+      href={`/dashboard/l/${listId}/t/${taskId}`}
+      className="ml-1 truncate text-muted-foreground hover:text-foreground"
+      title={title}
+    >
+      {title}
+    </Link>
   );
 }
 
@@ -89,7 +114,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
       <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
         {label}
       </dt>
-      <dd className="text-lg font-semibold">{value}</dd>
+      <dd className="text-lg font-bold tracking-tight"><AnimatedNumber value={value} /></dd>
     </div>
   );
 }

@@ -16,7 +16,32 @@ export async function requireIdentity(
 ): Promise<Identity> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new Error("Not authenticated");
+  // Platform-admin suspension is enforced here so it covers every
+  // authenticated read and write in one place. One indexed lookup; a
+  // user row that doesn't exist yet (pre-bootstrap) is allowed through.
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+    .unique();
+  if (user?.suspendedAt) {
+    throw new Error("Account suspended");
+  }
   return { subject: identity.subject };
+}
+
+// Guard for mutation entry points that resolve identity directly via
+// ctx.auth.getUserIdentity() (top-level creates like workspaces/spaces)
+// rather than going through requireIdentity. Throws for a suspended user
+// so account holds cover every write path, not just hierarchy-authed ones.
+export async function assertNotSuspended(
+  ctx: QueryCtx | MutationCtx,
+  subject: string,
+): Promise<void> {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", subject))
+    .unique();
+  if (user?.suspendedAt) throw new Error("Account suspended");
 }
 
 export async function canAccessSpace(
@@ -150,14 +175,32 @@ export async function requireDocLikeParentAccess(
 }
 
 // Confirms the caller can read/write a message addressed at the given
-// parent, regardless of which kind of parent it is (task, space, or
-// workspace). Returns the workspace context when applicable so callers
-// can validate that mentioned users are members.
+// parent, regardless of which kind of parent it is (task, space,
+// workspace, or channel). Returns the workspace context when applicable
+// so callers can validate that mentioned users are members.
 export async function requireMessageParentAccess(
   ctx: QueryCtx | MutationCtx,
-  parentType: "task" | "space" | "workspace",
+  parentType: "task" | "space" | "workspace" | "channel",
   parentId: string,
 ): Promise<{ identity: Identity; workspaceId: Id<"workspaces"> | null }> {
+  if (parentType === "channel") {
+    const identity = await requireIdentity(ctx);
+    const channel = await ctx.db.get(parentId as Id<"channels">);
+    if (!channel) throw new Error("Channel not found");
+    if (channel.scopeType === "user") {
+      if (channel.scopeId !== identity.subject) throw new Error("Forbidden");
+      return { identity, workspaceId: null };
+    }
+    const workspaceId = channel.scopeId as Id<"workspaces">;
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_user_and_workspace", (q) =>
+        q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
+      )
+      .unique();
+    if (!membership) throw new Error("Forbidden");
+    return { identity, workspaceId };
+  }
   if (parentType === "task") {
     const { space } = await requireTaskAccess(ctx, parentId as Id<"tasks">);
     return {

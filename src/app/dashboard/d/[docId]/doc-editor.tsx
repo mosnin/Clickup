@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useAction } from "convex/react";
@@ -23,6 +24,8 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { timeAgo } from "@/lib/time";
+import { useToast } from "@/components/toast";
 
 const SAVE_DEBOUNCE_MS = 800;
 
@@ -32,6 +35,8 @@ export function DocEditor({ docId }: { docId: string }) {
   const updateContent = useMutation(api.docs.updateContent);
   const rename = useMutation(api.docs.rename);
   const remove = useMutation(api.docs.remove);
+  const router = useRouter();
+  const { toast } = useToast();
 
   const [title, setTitle] = useState("");
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -80,7 +85,7 @@ export function DocEditor({ docId }: { docId: string }) {
   if (doc === undefined) return <DocSkeleton />;
   if (doc === null) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
           This doc doesn&apos;t exist or you don&apos;t have access.
         </p>
@@ -108,11 +113,14 @@ export function DocEditor({ docId }: { docId: string }) {
           <button
             type="button"
             onClick={() => {
-              if (window.confirm("Delete this doc?")) {
-                remove({ docId: id }).then(() => {
-                  window.history.back();
-                });
-              }
+              router.push("/dashboard");
+              toast("Doc deleted", {
+                action: {
+                  label: "Undo",
+                  onClick: () => router.push(`/dashboard/d/${id}`),
+                },
+                onExpire: () => remove({ docId: id }),
+              });
             }}
             className="rounded-full px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
@@ -137,7 +145,7 @@ export function DocEditor({ docId }: { docId: string }) {
       />
 
       <Toolbar editor={editor} />
-      <div className="rounded-3xl border border-border bg-background p-6">
+      <div className="rounded-2xl bento p-6">
         <EditorContent editor={editor} />
       </div>
       <AiWriterRow editor={editor} />
@@ -288,7 +296,7 @@ function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   return (
     <nav
       aria-label="Formatting"
-      className="flex flex-wrap gap-1 rounded-full border border-border bg-background p-1"
+      className="sticky top-2 z-10 flex flex-wrap gap-1 rounded-full border border-border bg-background/80 p-1 backdrop-blur"
     >
       {buttons.map((b) => (
         <button
@@ -315,16 +323,8 @@ function DocSkeleton() {
       <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
       <div className="h-12 w-2/3 animate-pulse rounded-full bg-muted" />
       <div className="h-9 w-full animate-pulse rounded-full bg-muted" />
-      <div className="h-64 w-full animate-pulse rounded-3xl bg-muted/40" />
+      <div className="h-64 w-full animate-pulse rounded-2xl bg-muted/40" />
     </div>
   );
 }
 
-function timeAgo(ts: number): string {
-  const sec = Math.max(1, Math.floor((Date.now() - ts) / 1000));
-  if (sec < 60) return `${sec}s ago`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.floor(min / 60);
-  return `${hr}h ago`;
-}

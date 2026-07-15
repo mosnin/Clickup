@@ -62,7 +62,7 @@ export function GanttView({
 
   if (datedTasks.length === 0) {
     return (
-      <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-10 text-center">
+      <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
           No tasks have a start or due date yet. Add dates in a task to see it
           on the Gantt.
@@ -74,7 +74,7 @@ export function GanttView({
   const today = startOfDay(new Date());
 
   return (
-    <div className="overflow-x-auto rounded-3xl border border-border bg-background">
+    <div className="overflow-x-auto rounded-2xl bento">
       <div style={{ minWidth: 240 + totalWidth }}>
         <div className="flex border-b border-border">
           <div className="w-60 flex-shrink-0 border-r border-border bg-muted/40 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -145,7 +145,7 @@ export function GanttView({
                     left: offset * DAY_PX + 2,
                     width: Math.max(span * DAY_PX - 4, 24),
                     height: 24,
-                    backgroundColor: status?.color ?? "#6366f1",
+                    backgroundColor: status?.color ?? "#a9c6f2",
                     lineHeight: "24px",
                   }}
                   title={`${format(startDay, "MMM d")} – ${format(endDay, "MMM d")}`}

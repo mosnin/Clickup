@@ -27,7 +27,10 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 ├── convex/                       # Convex backend — typechecked separately by Convex CLI
 │   ├── _generated/               # checked in (CLI overwrites on `convex dev`/`deploy`)
 │   ├── _authz.ts                 # shared auth helpers (require*Access, requireMessageParentAccess, requireDocLikeParentAccess)
-│   ├── schema.ts                 # users, workspaces, memberships, spaces, folders, lists, listStatuses, customFields, taskFieldValues, tasks, messages, mentions, docs, whiteboards
+│   ├── _agentAuth.ts             # agent-side authz: API-key auth (pure-JS SHA-256), Actor type, require*ForAgent helpers
+│   ├── _adminAuth.ts             # platform-admin authz: env-allowlist root of trust, requirePlatformAdmin, logAdminAction (audit)
+│   ├── admin.ts                  # SOC2 admin console API: overview/users/workspaces/agents/audit/security/roster (all audited)
+│   ├── schema.ts                 # users, workspaces, memberships, spaces, folders, lists, listStatuses, customFields, taskFieldValues, tasks, messages, mentions, docs, whiteboards, agents, agentKeys, events, webhookSubscriptions, webhookDeliveries, sprints, scheduledTasks, skills, platformAdmins, adminAuditLog, platformSettings, agentWallets, payments
 │   ├── auth.config.ts            # Clerk JWT integration
 │   ├── http.ts                   # Clerk webhook -> internal mutations
 │   ├── sidebar.ts                # single tree query that powers the sidebar
@@ -53,7 +56,27 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   ├── ai.ts                     # OpenAI: embeddings on doc/task write + brainSearch (RAG), writerContinue, taskAutofill
 │   ├── templates.ts              # hardcoded LIST_TEMPLATES + applyListTemplate (creates list + statuses + fields + sample tasks)
 │   ├── integrations.ts           # per-workspace external services (currently: Slack incoming webhook)
-│   └── team.ts                   # Teams Hub: per-member workload + week stats + currently-running timer
+│   ├── team.ts                   # Teams Hub: per-member workload + week stats + currently-running timer
+│   ├── agents.ts                 # human-facing agent management: CRUD, key metadata, assignee-picker options
+│   ├── agentKeys.ts              # Node action minting agent API keys (CSPRNG; only the SHA-256 hash is stored)
+│   ├── agentApi.ts               # agent-facing API: ~40 key-authenticated functions the MCP server calls
+│   ├── agentAi.ts                # key-authenticated semantic search (Node runtime, OpenAI embeddings)
+│   ├── events.ts                 # append-only activity log: emitEvent() + human feed query
+│   ├── webhooks.ts               # webhook subscription CRUD + delivery bookkeeping
+│   ├── webhookDelivery.ts        # Node action: HMAC-SHA256-signed POSTs with retries/backoff/auto-disable
+│   ├── sprints.ts                # workspace-level sprints + per-sprint task rollup
+│   ├── scheduledTasks.ts         # time-based recurring task definitions + cron materializer
+│   ├── crons.ts                  # 15-min crons (materialize schedules, watchdog) + daily retention prune
+│   ├── maintenance.ts            # watchdog (expired claims, overdue tasks, stalled agents) + retention pruning
+│   ├── channels.ts               # topic channels (messages with parentType "channel") for agent↔agent threads
+│   ├── onboarding.ts             # completeSetup: workspace + HQ + "Getting started" tasks + first agent in one transaction
+│   ├── skills.ts                 # built-in skill playbooks (code) + custom skills (table) merged per scope
+│   ├── _x402.ts                  # x402 protocol helpers (pure): config, 402 challenge builder, credit⇄atomic pricing, payment-shape validation
+│   ├── x402.ts                   # agent-payment surface: wallet/topup queries, internal applySettlement (nonce-unique), human walletForScope, admin revenue + metering config
+│   └── x402Actions.ts            # Node action: facilitator verify+settle (real via X402_FACILITATOR_URL, else mock) then credit the wallet
+├── mcp/                          # npx-runnable stdio→HTTP proxy for stdio-only MCP clients
+├── scripts/smoke-mcp.mjs         # post-deploy smoke test for the hosted MCP endpoint
+├── tests/                        # vitest unit tests (sha256, schedule math, mention tokens) — `npm test`
 ├── public/
 │   ├── manifest.webmanifest
 │   ├── icon.svg / icon-maskable.svg
@@ -61,26 +84,31 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 ├── src/
 │   ├── middleware.ts             # Clerk middleware; protects /dashboard, /onboarding
 │   ├── app/
+│   │   ├── api/[transport]/route.ts  # hosted MCP server (Streamable HTTP) at /api/mcp, bearer = agent API key
 │   │   ├── layout.tsx            # root layout, metadata, viewport, SW registration
 │   │   ├── globals.css           # Tailwind v4 import + theme tokens
 │   │   ├── providers.tsx         # ClerkProvider + ConvexProviderWithClerk
-│   │   ├── (marketing)/          # logged-out site
-│   │   │   ├── layout.tsx        # PillHeader + PillFooter
-│   │   │   ├── page.tsx          # /
-│   │   │   ├── features/page.tsx
-│   │   │   ├── pricing/page.tsx
-│   │   │   └── about/page.tsx
+│   │   ├── (marketing)/          # logged-out site (Phase 19 sales rebrand; fixed header — pages pad via PageHero)
+│   │   │   ├── layout.tsx        # PillHeader + PillFooter on the cream canvas
+│   │   │   ├── page.tsx          # / — scroll-animated sales narrative (home-content.tsx)
+│   │   │   ├── features/         # anchored feature sections (#agents, #mcp, … match marketing-nav)
+│   │   │   ├── use-cases/        # index + [slug] industry pages (content in lib/use-cases.ts)
+│   │   │   ├── resources/        # index + [slug] guides/changelog (content in lib/resources.ts)
+│   │   │   ├── company/page.tsx  # about → /company (old /about permanently redirects)
+│   │   │   ├── pricing/page.tsx  # tiers + animated FAQ
+│   │   │   └── about/page.tsx    # permanentRedirect("/company")
 │   │   ├── (auth)/               # Clerk-hosted sign-in / sign-up
 │   │   │   ├── layout.tsx
 │   │   │   ├── sign-in/[[...sign-in]]/page.tsx
 │   │   │   └── sign-up/[[...sign-up]]/page.tsx
-│   │   ├── onboarding/           # first-run team workspace setup
+│   │   ├── onboarding/           # first-run cinematic setup: 2 questions → workspace+HQ+starter tasks+first agent+key (convex/onboarding.ts)
 │   │   │   ├── page.tsx
-│   │   │   └── onboarding-form.tsx
+│   │   │   └── onboarding-flow.tsx
 │   │   └── dashboard/            # logged-in app shell
 │   │       ├── layout.tsx        # sidebar + main; auth-guarded; renders <EnsureUser />
 │   │       ├── page.tsx          # overview
 │   │       ├── personal/page.tsx # user's personal space view
+│   │       ├── agents/           # Agents HQ ("Mission Control") + per-agent detail page (runs, governance, usage)
 │   │       ├── inbox/            # @mention inbox with unread counter
 │   │       ├── w/[workspaceId]/  # team workspace view + Chat tab
 │   │       ├── d/[docId]/        # full-page Tiptap doc editor
@@ -97,18 +125,36 @@ A ClickUp-style productivity app: tasks, docs, goals, chat — for individuals a
 │   │           └── t/[taskId]/   # full-page task editor
 │   ├── components/
 │   │   ├── ui/button.tsx         # shadcn-style primitive (cva + Tailwind)
-│   │   ├── marketing/pill-header.tsx
-│   │   ├── marketing/pill-footer.tsx
+│   │   ├── ui/picker.tsx         # searchable popover picker (replaces native <select> for people/tasks/sprints)
+│   │   ├── toast.tsx             # ToastProvider + useToast (feedback + undo-able deletes)
+│   │   ├── command-palette.tsx   # ⌘K quick-switcher + task quick-create (mounted in dashboard layout)
+│   │   ├── motion.tsx            # brand motion primitives (EASE/SPRING/Reveal/Stagger/…)
+│   │   ├── marketing/pill-header.tsx # scroll-expanding blurred pill + mega menus + full-screen mobile menu
+│   │   ├── marketing/pill-footer.tsx # CTA band + link columns (reads marketing-nav)
+│   │   ├── marketing/reveal.tsx  # scroll-reveal primitives (FadeIn/StaggerIn/CountUp/Parallax/Marquee/useCycle)
+│   │   ├── marketing/scene.tsx   # gradient "photography" backdrops (meadow/haze/dusk + grain)
+│   │   ├── marketing/mockups.tsx # animated looping product illustrations (agent card, tasks, approvals, board, budget, connect)
+│   │   ├── marketing/blocks.tsx  # PageHero/SectionHeading/CtaPair/QuoteCard
 │   │   ├── dashboard/sidebar.tsx # tree of personal+team workspaces; Inbox link with unread badge
 │   │   ├── dashboard/ensure-user.tsx # idempotent client bootstrap of user row
 │   │   ├── dashboard/status-pill.tsx # colored pill for a listStatuses row
 │   │   ├── dashboard/custom-field-input.tsx # type-aware editor for custom field values
-│   │   ├── dashboard/comments.tsx # threaded comments + chat composer with @-popover
+│   │   ├── dashboard/comments.tsx # threaded comments + chat composer with @-popover (agents mentionable too)
+│   │   ├── dashboard/sprints-panel.tsx # workspace Sprints tab: create/start/complete, progress, task rollup
+│   │   ├── dashboard/task-collab.tsx # task-page sections: banners, assignees, sprint, checklist, blocked-by (composable exports)
+│   │   ├── dashboard/inline-create.tsx # in-place naming input (the replacement for window.prompt)
+│   │   ├── dashboard/agent-online-watcher.tsx # toasts an agent's first heartbeat, app-wide
 │   │   └── register-service-worker.tsx
 │   └── lib/
 │       ├── utils.ts              # cn(): clsx + tailwind-merge
 │       ├── resend.ts             # lazy Resend client (server-only)
-│       └── mentions.ts           # parse/format `@[Name](clerkId)` mention tokens
+│       ├── mentions.ts           # parse/format `@[Name](clerkId)` mention tokens
+│       ├── time.ts               # timeAgo() — the one relative-time voice
+│       ├── dates.ts              # local-time <input type=date> round-trips (no UTC off-by-one)
+│       ├── event-labels.ts       # humanized event phrasing + eventHref deep links
+│       ├── marketing-nav.ts      # logged-out IA: mega-menu/footer/sitemap link lists + SITE_* consts
+│       ├── use-cases.ts          # content for /use-cases/[slug] (6 industries)
+│       └── resources.ts          # content for /resources/[slug] (guides + changelog)
 └── …config files (next, tsconfig, eslint, postcss, .env.example)
 ```
 
@@ -122,6 +168,7 @@ npm run dev              # start Next.js dev server (separate terminal)
 npm run build            # production build (next build) — runs lint + typecheck
 npm run lint             # next lint
 npm run typecheck        # tsc --noEmit (Next.js tree only; convex/ checked by Convex CLI)
+npm test                 # vitest unit tests (tests/)
 ```
 
 You need **two terminals** in dev: one for `npx convex dev`, one for `npm run dev`. Convex's dev server regenerates `convex/_generated/` on every schema/function change.
@@ -156,6 +203,25 @@ User (personal) ──┘
 - `embeddings` — one row per indexed task or doc, carrying the OpenAI `text-embedding-3-small` vector (1536 dims). `scopeType` / `scopeId` mirror the visibility boundary (personal user or workspace) so vector search filters can't leak across boundaries. Indexed via Convex's `vectorIndex("by_embedding", { vectorField, dimensions, filterFields })`.
 - `integrations` — per-workspace external services. One row per (workspaceId, kind). Currently the only kind is `slack` and `config.webhookUrl` is validated to start with `https://hooks.slack.com/` at write time. Owner/admin gated.
 
+- `agents` — first-class AI agent principals scoped to a user's personal space or one workspace. Everywhere a clerkId-shaped string is stored (assignees, message authors, mentions, `*ActorId` columns) an agent's document id can appear instead. Live presence: `lastSeenAt`, `currentTaskId`, `statusText` (self-reported over MCP heartbeat).
+- `agentKeys` — SHA-256 hashes of agent API keys (plaintext shown once at mint time; keys look like `cua_…`). Minted in a Node action (`agentKeys.createKey`), verified in the default runtime with the pure-JS SHA-256 in `_agentAuth.ts`.
+- `events` — append-only activity log written inside the same transaction as the change (via `emitEvent`). Powers the human activity feed, agent cursor polling, and webhook fan-out. Types: `task.*`, `comment.created`, `mention.created`, `sprint.*`, `agent.*` (including `agent.connected` on an agent's first heartbeat).
+- `webhookSubscriptions` / `webhookDeliveries` — outbound webhooks (user-configured in the UI or agent-registered over MCP). Deliveries are HMAC-SHA256 signed (`X-Webhook-Signature: sha256=<hex>`), retried 3× with backoff, and the subscription auto-disables after 10 consecutive failures.
+- `sprints` — workspace-level timeboxes; tasks join via `tasks.sprintId`. Status planned → active → complete, each transition emitting an event.
+- `scheduledTasks` — time-based recurring task definitions ("every Monday 09:00 UTC"); an hourly cron (`crons.ts`) materializes due rows into real tasks via `createTaskCore` with a system actor.
+- `skills` — custom markdown playbooks per scope; built-ins live in code (`skills.ts BUILTIN_SKILLS`) and are merged into reads, with custom rows overriding built-ins by slug.
+- `platformAdmins` / `adminAuditLog` / `platformSettings` — the SOC2 admin layer. Root of trust is the `PLATFORM_ADMIN_EMAILS` deployment env var (env-allowlisted users are superadmins; there is no in-app self-escalation path). Superadmins grant scoped `platformAdmins` rows (`superadmin` | `support`); support is read + account-holds-on-ordinary-users only — support can neither pause agents (`setAgentStatus` requires `minRole: superadmin`) nor suspend any platform admin. A granted superadmin can't suspend a peer superadmin; only the env-root may hold a granted superadmin. Every admin mutation and every break-glass content read writes one append-only `adminAuditLog` row (never updated/pruned). `users.suspendedAt` / `workspaces.suspendedAt` are admin holds — enforced in `_authz.requireIdentity` (and `assertNotSuspended` for the few raw-identity write entry points), AND in `_adminAuth` (a suspended admin loses admin powers too, so a hold actually contains a rogue admin), so a suspended principal is blocked from every write. Emails are stored lowercased (`users.upsertFromClerk`) so the `by_email` admin-grant lookup is reliable. All admin functions gate on `_adminAuth.requirePlatformAdmin`; the `/dashboard/admin` client guard is UX-only, the Convex functions are the real boundary. Security posture panel computes a live SOC2 checklist. See `tests/admin-security.test.ts`.
+- `agentWallets` / `payments` — the x402 agent-payment layer. `agentWallets` is a prepaid **credit** balance per billing scope (a user's personal space or a workspace); every agent in that scope shares it. Metered write actions consume credits, enforced in `_agentAuth.requireAgentByKey` (mode "write", BEFORE the daily/burst counters, so a payment-required refusal doesn't burn budget); metering is OFF until a superadmin enables it (`x402.setMeteringConfig` → `platformSettings`). Agents top up over the **x402 protocol**: an HTTP 402 challenge (`buildPaymentRequired`) → the agent signs an `X-PAYMENT` authorization → `x402Actions.settleTopup` verifies + settles it through a facilitator (real via `X402_FACILITATOR_URL`, else a built-in **mock** that mints a deterministic settlement — dev/test only, and refused unless `X402_ALLOW_MOCK=1`) → the internal `applySettlement` mutation credits the wallet. **Fail-closed:** `settleTopup` refuses to settle and `setMeteringConfig` refuses to enable metering unless a real facilitator or explicit mock opt-in is configured, so production can't silently hand out free credits. `payments.nonce` is unique (`by_nonce`) so a settlement can never be replayed to double-credit; the private keys agents sign with are never stored. Amounts are atomic asset-unit strings; credits are integers. Surfaced by MCP tools (`get_wallet`/`buy_credits`/`settle_payment`), the `/api/x402` HTTP 402 endpoint, the agents Billing tab, and the admin Billing tab. See `tests/x402.test.ts`.
+- `tasks` Phase 12 columns — `sprintId`, `blockedByTaskIds` (completion is refused while a blocker is open), `claimedByActorId`/`claimedAt` (soft work-lock, 60-min TTL), `checklist` (embedded acceptance criteria), `requiresApproval`/`approvedByClerkId`/`approvedAt` (human-in-the-loop gate: agents can raise the gate but never lower it, and can't complete a gated task until a human approves — a human completing it counts as approval), `overdueNotifiedAt` (watchdog dedupe).
+- `agents` governance — `role` ("member" | "readonly": readonly agents can call every read tool but no mutations), `allowedListIds` (restricts a member agent to specific lists; structure-level ops are refused entirely), `dailyActionLimit` (mutations/UTC-day budget enforced in `requireAgentByKey`, tracked in `agentUsage`; default 2000) plus a hard 60 actions/minute burst cap, `notifyUrl`/`notifySecret` (assignment/mention pings pushed to the agent's runtime; HMAC-signed via `X-Ping-Signature` when the secret is set). All outbound URLs (webhooks + pings) pass an SSRF guard that refuses private/loopback addresses.
+- `agentRuns` — structured work sessions agents report over MCP (start_run/finish_run/report_error), including artifacts (`links`) and cost (`tokensUsed`/`costUsd`). Failed runs emit `agent.error` events. The watchdog marks runs of stalled agents "abandoned". `agents.stats` aggregates 7-day per-agent analytics for the detail page.
+- `channels` — named topic threads (messages/mentions carry `parentType: "channel"`), so agent↔agent deliberation stays out of the main workspace chat. Idempotent create-by-name = join.
+- Watchdog (`maintenance.watchdog`, every 15 min) — releases expired claims (`task.claim_expired`), nags on overdue open tasks once per overdue period (`task.overdue`), and flags agents holding a current task with no heartbeat for 30+ min (`agent.stalled`). Both task passes are index ranges (`by_claimed`, `by_due`), not table scans. Retention (`maintenance.prune`, daily) — events kept 90 days, webhook deliveries 30, usage counters 14.
+- Approval queue — `tasks.pendingApprovals` ranges the `by_approval` index and access-checks each gated task; the Inbox renders it with one-click Approve. Agents call `request_approval` (MCP) to raise the gate, emit `task.approval_requested`, and email a responsible human.
+- Webhook + ping payloads carry `apiVersion: 1`; bump on breaking shape changes.
+
+**Actor pattern (Phase 12).** Task/message/sprint write paths are factored into `*Core` functions (`createTaskCore`, `updateTaskCore`, `createMessageCore`, …) that take an explicit `Actor` (`{ type: "user" | "agent" | "system", id, name }`). The Clerk-authenticated mutations and the API-key-authenticated functions in `agentApi.ts` both call the same cores, so automations, notifications, recurrence, and events behave identically for humans and agents. Never write a second code path for agents — extend the core and both sides get it.
+
 **Authorization** is centralized in `convex/_authz.ts`. Every read/write resolves up the hierarchy (task → list → folder?/space → workspace?/user) and calls `canAccessSpace` to confirm either personal ownership or workspace membership. Use `requireListAccess`/`requireSpaceAccess`/`requireFolderAccess` rather than re-rolling checks in each function.
 
 - Public mutations: anything end-user invokable (`workspaces.create`, `tasks.update`, etc.).
@@ -167,7 +233,10 @@ User (personal) ──┘
 - **Server vs. client components.** Default to server. Add `"use client"` only when you need state, effects, browser APIs, or Clerk hooks (`useUser`, etc.).
 - **Routing.** Marketing routes live in `(marketing)`, auth routes in `(auth)`, app routes under `/dashboard`. Add new auth-guarded routes either inside `/dashboard` or extend `isProtectedRoute` in `src/middleware.ts`.
 - **Styling.** Tailwind utilities only. Use `cn()` from `@/lib/utils` for conditional classes. Theme tokens live in `globals.css` under `@theme` — extend there, not via inline arbitrary values.
-- **Pill aesthetic.** Buttons use `rounded-full`. Header/footer cards use `rounded-3xl` or `rounded-[2rem]`. Keep the rhythm consistent.
+- **Brand system (Phase 15 rebrand + Phase 21 bento).** Monochrome editorial + pastel accents on the soft "bento" surface language: the dashboard renders as a white sheet on the gray `bg-page` canvas (see `dashboard/layout.tsx`); ink is near-black; the primary CTA is a solid black pill (`Button` primary); meaning is carried by pastel chips (`--color-pastel-*` tokens; status/priority hexes are pastel with dark ink on top); page titles are bold with a `title-rule` hairline underneath; micro-labels are tiny uppercase tracking-wider gray. **Surfaces use the bento primitives in `globals.css`, not hairline borders:** discrete cards/panels/tables get `.bento` (soft floating shadow) paired with a `rounded-*` utility — do NOT reintroduce `border border-border` on cards; nested wells use `.bento-tile`; a functional glyph on its own surface uses `.icon-tile` (the only place an icon rides a tile); inputs use `.soft-field` (neutral fill + focus ring). **Segmented controls** (view/tab/mode toggles) use `.segmented` track + `.segmented-on` raised-white active pill (NOT black) — black stays for primary action buttons only. Buttons/chips stay `rounded-full`, cards `rounded-2xl`, sidebar rows `rounded-lg`. **No decorative icons** — an icon must be a button/link affordance, a form control, a semantic status/type indicator, or an `.icon-tile`; never ornament beside a heading or centered in an empty state. Don't reintroduce saturated fills — green is reserved for positive deltas. Popovers/menus keep `shadow-lg` (stronger than bento). The sidebar collapses to an icon rail (persisted); nav icons press/hover-scale and the active pill morphs via `layoutId="sidebar-active"`.
+- **Motion system (`src/components/motion.tsx`, built on `motion/react`).** One easing (`EASE`, a long-tail ease-out) and one spring (`SPRING`) everywhere. Primitives: `Reveal` (fade + rise + un-blur), `Stagger`/`StaggerItem` (50ms cascades for grids/lists), `AnimatedNumber` (springy count-up for stat tiles), `AnimatedBar` (progress fills), `PresenceDot` (radiating ping). Route transitions live in `dashboard/template.tsx`; tab switches re-mount a keyed `motion.div`; the sidebar's active pill morphs between links via `layoutId="sidebar-active"`; lists animate entrances (and exits via `AnimatePresence` where rows can disappear — approvals, checklist). Buttons press-scale via CSS; interactive cards use the `.lift` utility. Everything must respect reduced motion (`MotionConfig reducedMotion="user"` + the `.lift` media query) — keep new animations inside these primitives rather than inventing new timings.
+- **Feedback system (Phase 18).** Never use `window.prompt`/`window.confirm`/`window.alert`. Naming something new = `InlineCreate` in place; destructive actions = hide the row locally and `toast(msg, { action: {label: "Undo", …}, onExpire: commit })` from `useToast()` — the mutation only runs when the undo window closes; quiet saves (blur-persisted fields) confirm with a success toast; refused mutations surface a `kind: "error"` toast with the server's reason. `ToastProvider` is mounted once in the dashboard layout (as are the ⌘K `CommandPalette` and `AgentOnlineWatcher`). Use the `Picker` component instead of native `<select>` whenever options are people, agents, tasks, or sprints. Use `timeAgo` from `@/lib/time` and the date-input helpers from `@/lib/dates` (never `toISOString().slice(0, 10)` — it's off by a day across timezones). Small icon buttons get the `.tap-target` class for a ~44px touch area.
+- **Marketing site (Phase 19).** Typeface is Instrument Sans (variable woff2 bundled at `src/app/fonts/`, wired via next/font/local + `--font-sans`; never load fonts from a CDN). Labels/eyebrows are quiet sentence-case `text-sm font-medium text-ember-600` — NO uppercase-tracked chips, no pastel chip rainbow (pastels stay dashboard-only); chips on marketing use `bg-ember-100 text-ember-700` (agents/accent) or `bg-black/[0.05]` (neutral). Content cards are `rounded-2xl border-black/[0.05]`; only scene/photo panels use `rounded-[2rem]`. Feature/gallery cards follow the Expo pattern (`FeatureCard` in blocks.tsx): an animated product mini-illustration floating on a soft warm wash panel up top, plain title+body below — never decorative icons or emoji; the only icon treatment is `IconTile` (thin-line lucide in a hairline squircle) and `Keycap`. Headings are semibold with -0.02em tracking, sentence case with periods; key section titles two-tone with a `.text-warm` gradient tail (`.text-warm`/`.bg-warm` are the brand gradient utilities). The logged-out pages live on their own palette — warm cream canvas with an ember (amber→coral) accent ramp and cocoa darks (`--color-cream`, `--color-ember-*`, `--color-cocoa-*`; never use these inside `/dashboard`). Backdrops are `Scene` gradient blobs (golden-hour meadow/haze/dusk) + the `.grain` overlay, never flat fills or external images. All logged-out IA (mega menus, footer, sitemap) reads from `src/lib/marketing-nav.ts` — add pages there, not in components. Scroll animation goes through `marketing/reveal.tsx` (FadeIn/StaggerIn/CountUp/Parallax, viewport-once, reduced-motion-safe); product illustrations are the looping HTML/CSS mocks in `marketing/mockups.tsx` (loops driven by `useCycle`, frozen under reduced motion). Every marketing page exports metadata with a canonical path; dynamic pages use `generateStaticParams` + `generateMetadata`; `src/app/sitemap.ts`/`robots.ts` pick new pages up from the shared lists.
 - **Responsive.** Mobile-first; use `md:`/`lg:` for desktop. Test at 360px, 768px, and 1280px before merging UI changes. Sidebar uses a drawer pattern below `md`.
 - **Apostrophes in JSX.** Escape as `&apos;` — `react/no-unescaped-entities` is enforced by `next lint`.
 - **Convex imports.** From the Next.js tree, use `convex/react` and `convex/react-clerk` (runtime). Typed `api`/`Doc`/`Id` come from `convex/_generated/`, imported via the `@convex/*` path alias (e.g. `import { api } from "@convex/_generated/api"`). The `_generated/` files are checked in as hand-rolled stubs so a fresh checkout typechecks; `npx convex dev` and `npx convex deploy` overwrite them with the real generated content.
@@ -241,7 +310,17 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - **Phase 8:** Outbound email notifications via Resend (mentions and task assignments, scheduled via `ctx.scheduler.runAfter` so they don't block the originating mutation) and Clips (browser screen+mic recording uploaded to Convex file storage, played back in the task detail).
 - **Phase 9:** AI Brain on the OpenAI API — semantic search over docs + tasks (`text-embedding-3-small` vectors, RAG via `gpt-4o-mini`), AI writer (continue/summarize) inside docs, and one-click task description draft.
 - **Phase 10:** List templates (Software sprint / Marketing campaign / Personal to-do / Sales pipeline — each seeds list + statuses + custom fields + sample tasks in one transaction), Slack integration (incoming-webhook posts on task assignment), Teams Hub (per-member workload, week stats, currently-running timer) + new workspace Settings tab.
-- **Phase 11 (current):** Offline-first PWA polish via `@serwist/next` (Workbox-style precache + runtime caching, navigation preload, network-first navigation with offline fallback) and a `capacitor.config.ts` for iOS/Android wrapping using the remote-web-app pattern. Live offline indicator surfaces queued mutations.
+- **Phase 11:** Offline-first PWA polish via `@serwist/next` (Workbox-style precache + runtime caching, navigation preload, network-first navigation with offline fallback) and a `capacitor.config.ts` for iOS/Android wrapping using the remote-web-app pattern. Live offline indicator surfaces queued mutations.
+- **Phase 12:** AI agent collaboration. First-class agent principals with API keys; a hosted MCP server (`/api/mcp`, ~40 tools: projects/lists/tasks/comments/sprints/recurring tasks/docs/search/events/skills) plus an npx-runnable stdio proxy (`mcp/`); an append-only events log with signed outbound webhooks (agents register their own over MCP); collaboration primitives (claims, blocked-by dependencies, checklists, agent mentions = agent inbox); sprints; time-based recurring tasks via cron; a skills library (built-in + user/agent-authored playbooks); and the Agents HQ page (live presence + "now working on", key management, activity feed, webhooks, skills) with agents assignable from the task page like any teammate. See `docs/AGENTS.md`.
+- **Phase 13:** Hardening + agentic-company scaffolding from the Phase 12 audit. Correctness: Board drag-drop and recurrence route through the shared cores (events/automations/blockers/claims apply everywhere); read-authz sweep so no query leaks titles by ID. Governance: agent roles (readonly / list-restricted), per-agent daily action budgets, human approval gates on tasks. Operations: watchdog + retention crons, structured agent runs + report_error, assignment/mention push to agent notifyUrls, `next_task` dispatch + `handoff_task`, topic channels. Surface: ~25 new MCP tools (time, goals, automations, templates, custom fields, comment management, runs, channels) + skills as MCP resources; UI for recurring schedules, per-agent detail (governance + runs + usage), sprint task picker, channel chat, claim/blocked/approval badges in List/Board, real deep links everywhere (task→list resolver). Infra: vitest unit tests, MCP smoke script.
+- **Phase 14:** Closing the loop from the Phase 13 re-audit. Approvals inbox ("Waiting on your approval" queue + `request_approval` MCP tool + approval emails); per-agent 7-day analytics (`agents.stats` tiles) and run artifacts/cost (`finish_run` links/tokensUsed/costUsd); reports resolve agent names; watchdog moved to index ranges (`by_claimed`/`by_due`); 60/min burst cap on top of the daily budget; SSRF guard on outbound URLs + HMAC-signed notify pings + `apiVersion` on payloads; complete delete cascades (task artifacts, list schedules, agent references); Board drag rejection banner; sprint-aware `next_task`; local-time hints on schedules; convex-test integration suite (authz/claims/blockers/gates/roles/budgets) + GitHub Actions CI.
+- **Phase 15:** Full UI rebrand — the monochrome editorial system with pastel accents (see Brand system above).
+- **Phase 16:** Motion design pass — the single-easing animation language in `src/components/motion.tsx` applied to every surface (see Motion system above).
+- **Phase 17:** First-run experience — cinematic 2-question onboarding that builds workspace + HQ + teaching tasks + first agent + key in one transaction, and a living Home (greeting, welcome reveal, "waiting to connect" nudge).
+- **Phase 18:** UX polish pass. Feedback system: app-wide toasts (`src/components/toast.tsx`) with undo-able deferred deletes replacing every `window.confirm`, and inline in-place creation (`inline-create.tsx`) replacing every `window.prompt`; blur-saving governance fields confirm with a "Saved" toast. ⌘K command palette (quick-switch to any list/doc/board/workspace/agent, plain-text task search via `tasks.quickSearch`, two-step task quick-create). Searchable `Picker` popover replacing native selects for assignees/blockers/sprints. Task page rebuilt two-column (content left, state rail right) with a springy completion moment (optimistic `toggleComplete` in the list view). Local-time date handling (`lib/dates.ts`), one `timeAgo` (`lib/time.ts`), shared humanized event labels (`lib/event-labels.ts`). `agent.connected` event on first heartbeat + app-wide first-connection toast + self-retiring connect hint + Home waiting-card resolve animation. Mobile: `.tap-target` hit-area utility, horizontally scrollable pill tab rows. Content-shaped skeletons on list/task/agents/inbox/agent-detail.
+- **Phase 22 (current):** Legal + x402 agent payments + onboarding + bento rebrand. **Legal** (`src/lib/legal.ts` → `/legal` + `/legal/[slug]`): counsel-reviewable Terms/Privacy/AUP/Cookies/Subprocessors/Security/DPA templates, sober prose, wired into footer + sitemap, no decorative icons. **x402 agent payments** (`convex/_x402.ts` + `x402.ts` + `x402Actions.ts`, `src/app/api/x402/route.ts`, `components/dashboard/billing-panel.tsx`): agents pay for the platform themselves over the x402 protocol — a prepaid credit wallet per scope (`agentWallets`), a nonce-replay-protected settlement ledger (`payments`), env-driven pricing, a facilitator client (real via `X402_FACILITATOR_URL`, else a built-in mock that runs the full flow without a chain), metering enforced in `requireAgentByKey` (OFF by default; superadmin toggles it in the admin Billing tab), MCP tools `get_wallet`/`buy_credits`/`settle_payment`, and a protocol-faithful HTTP 402 endpoint. Agents Billing tab + admin revenue/metering, both icon-free. Proven by `tests/x402.test.ts`. **Onboarding**: cinematic Apple-inspired rebuild (welcome ceremony, aurora backdrop, live assembling preview, agent-online reveal) on the same `completeSetup` backend, strictly icon-free. **Bento rebrand** (Phase 21, folded in): the soft-shadow `.bento` surface system + collapsible icon-rail sidebar + raised-white segmented controls (see Brand system).
+- **Phase 20:** Platform admin + ICP features + polish. SOC2 admin console (`/dashboard/admin`, `convex/admin.ts` + `_adminAuth.ts`): env-allowlist root of trust, superadmin/support tiers, append-only `adminAuditLog`, user/workspace account holds enforced in `_authz`, security-posture checklist, admin roster — proven by `tests/admin-security.test.ts`. ICP features: one-click agent template gallery (`agentTemplates.ts` — pre-governed presets), workspace data export (`dataExport.ts`, owner/admin JSON download), URL-persisted task filters across all four views (Active/Mine/Unassigned/Blocked/Needs-approval + priority, shareable), and fleet cost visibility (`agents.fleetSpend` — 7/30-day spend + top spenders). Consistency polish: `title-rule` headers and `.lift`/`Stagger` card motion brought to parity on the personal page.
+- **Phase 19:** Marketing site rebrand. Multi-page sales site on the cream/sage "blurred meadow" aesthetic: scroll-expanding blurred pill header with Features/Use-cases/Resources mega menus and a full-screen staggered mobile menu; home page as a scroll-animated narrative (depth-of-field floating-mock hero with parallax + idle float, runtime marquee, label-top stat wall, a pinned scrollytelling "first handoff" story driven by useScroll, tinted-row "coordination layer" showcase, dark governance panel, featured-story + StatTile social proof, ChatBubble accents); anchored /features; six industry /use-cases pages + four built-out /resources guides (incl. changelog) rendered from content libs; /company (about redirects); pricing rebuild with animated FAQ; animated CSS/SVG product illustrations (no external assets); SEO: per-page metadata + canonicals, JSON-LD, sitemap.ts, robots.ts, metadataBase.
 
 ## Known limitations (not bugs)
 
@@ -271,3 +350,10 @@ We are building this out in numbered phases, one PR each. See PR descriptions fo
 - The Teams Hub task link in the "Now" pill uses a placeholder listId (`_`) because the `task → listId` resolver isn't built yet — clicking it doesn't navigate cleanly. Replace once the resolver lands.
 - List templates live as code in `convex/templates.ts`. To add a new template, append to the `LIST_TEMPLATES` array and redeploy — there's no admin UI for creating templates from existing lists yet.
 - Slack is currently the only integration. Adding more (Google Drive, GitHub, etc.) means a new `kind` literal on the integrations table plus a `notifications.post*` action.
+- Agent API keys travel as function arguments (`apiKey`) rather than headers, so they can appear in Convex function logs. Keys are hashed at rest and revocable; treat deployment log access as sensitive.
+- `webhookSubscriptions.secret` defaults to a `Math.random`-derived value when the caller doesn't supply one (Convex mutations have no CSPRNG). Callers that care should pass their own high-entropy `secret` — the UI and MCP tool both support it.
+- Task claims are advisory (soft locks with a 60-minute TTL), not enforced on writes: a claim signals "someone is working on this", it doesn't block edits. The watchdog auto-releases expired claims.
+- `agentApi.listTasks`/`searchTasks` without a `listId` walk every list in the agent's scope — fine at target scale, needs pagination beyond a few thousand tasks (same story as `reports.workspaceSummary`).
+- The human activity feed merges at most the newest 100 rows per scope.
+- MCP auth verifies the bearer key once per request via `agentApi.whoami`, then each tool call re-validates — two key lookups per tool call. Cheap (single indexed read) but worth a cache if traffic grows.
+- Sprints require workspace-scoped agents; personal-space agents can't create them (there's no workspace to attach them to).

@@ -6,6 +6,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 
 type ParentType = "user" | "workspace";
@@ -40,7 +41,7 @@ export function GoalsPanel({
         {[0, 1].map((i) => (
           <div
             key={i}
-            className="h-20 animate-pulse rounded-3xl bg-muted/40"
+            className="h-20 animate-pulse rounded-2xl bg-muted/40"
           />
         ))}
       </div>
@@ -122,7 +123,7 @@ function CreateGoalForm({
           setPending(false);
         }
       }}
-      className="space-y-2 rounded-3xl border border-dashed border-border p-3"
+      className="space-y-2 rounded-2xl border border-dashed border-border p-3"
     >
       <input
         type="text"
@@ -182,6 +183,9 @@ function GoalRow({ goal }: { goal: Doc<"goals"> }) {
   const setProgress = useMutation(api.goals.setProgress);
   const update = useMutation(api.goals.update);
   const remove = useMutation(api.goals.remove);
+  const { toast } = useToast();
+  const [deleting, setDeleting] = useState(false);
+  if (deleting) return null;
 
   const progress =
     goal.targetValue > 0
@@ -191,7 +195,7 @@ function GoalRow({ goal }: { goal: Doc<"goals"> }) {
   return (
     <div
       className={cn(
-        "rounded-3xl border border-border bg-background p-3",
+        "rounded-2xl bento p-3",
         goal.status === "complete" && "border-green-500/40",
         goal.status === "abandoned" && "opacity-60",
       )}
@@ -205,6 +209,7 @@ function GoalRow({ goal }: { goal: Doc<"goals"> }) {
         </div>
         <div className="flex items-center gap-1">
           <select
+            aria-label="Goal status"
             value={goal.status}
             onChange={(e) =>
               update({
@@ -224,11 +229,13 @@ function GoalRow({ goal }: { goal: Doc<"goals"> }) {
             type="button"
             aria-label="Delete goal"
             onClick={() => {
-              if (window.confirm(`Delete "${goal.title}"?`)) {
-                remove({ goalId: goal._id });
-              }
+              setDeleting(true);
+              toast(`"${goal.title}" deleted`, {
+                action: { label: "Undo", onClick: () => setDeleting(false) },
+                onExpire: () => remove({ goalId: goal._id }),
+              });
             }}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>

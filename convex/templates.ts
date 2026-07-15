@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import {
   requireFolderAccess,
@@ -52,14 +53,14 @@ const LIST_TEMPLATES: ListTemplate[] = [
     id: "software-sprint",
     name: "Software sprint",
     emoji: "🛠️",
-    color: "#6366f1",
+    color: "#c6bcf2",
     description:
       "Backlog → In Progress → Review → Done with story points and sprint tags.",
     statuses: [
-      { name: "Backlog", color: "#a1a1aa", category: "open" },
-      { name: "In Progress", color: "#3b82f6", category: "in_progress" },
-      { name: "Review", color: "#f59e0b", category: "in_progress" },
-      { name: "Done", color: "#10b981", category: "complete" },
+      { name: "Backlog", color: "#c9ccd4", category: "open" },
+      { name: "In Progress", color: "#a9c6f2", category: "in_progress" },
+      { name: "Review", color: "#f2d491", category: "in_progress" },
+      { name: "Done", color: "#a9dcbd", category: "complete" },
     ],
     fields: [
       { name: "Story Points", type: "number" },
@@ -67,9 +68,9 @@ const LIST_TEMPLATES: ListTemplate[] = [
         name: "Sprint",
         type: "dropdown",
         options: [
-          { label: "Sprint 1", color: "#6366f1" },
-          { label: "Sprint 2", color: "#10b981" },
-          { label: "Sprint 3", color: "#f59e0b" },
+          { label: "Sprint 1", color: "#c6bcf2" },
+          { label: "Sprint 2", color: "#a9dcbd" },
+          { label: "Sprint 3", color: "#f2d491" },
         ],
       },
     ],
@@ -83,23 +84,23 @@ const LIST_TEMPLATES: ListTemplate[] = [
     id: "marketing-campaign",
     name: "Marketing campaign",
     emoji: "📣",
-    color: "#f97316",
+    color: "#f2c291",
     description:
       "Brief → Drafting → Review → Published, with a Channel dropdown.",
     statuses: [
-      { name: "Brief", color: "#a1a1aa", category: "open" },
-      { name: "Drafting", color: "#3b82f6", category: "in_progress" },
-      { name: "Review", color: "#f59e0b", category: "in_progress" },
-      { name: "Published", color: "#10b981", category: "complete" },
+      { name: "Brief", color: "#c9ccd4", category: "open" },
+      { name: "Drafting", color: "#a9c6f2", category: "in_progress" },
+      { name: "Review", color: "#f2d491", category: "in_progress" },
+      { name: "Published", color: "#a9dcbd", category: "complete" },
     ],
     fields: [
       {
         name: "Channel",
         type: "dropdown",
         options: [
-          { label: "Email", color: "#3b82f6" },
-          { label: "Social", color: "#10b981" },
-          { label: "Blog", color: "#f59e0b" },
+          { label: "Email", color: "#a9c6f2" },
+          { label: "Social", color: "#a9dcbd" },
+          { label: "Blog", color: "#f2d491" },
         ],
       },
     ],
@@ -113,7 +114,7 @@ const LIST_TEMPLATES: ListTemplate[] = [
     id: "personal-todo",
     name: "Personal to-do",
     emoji: "✅",
-    color: "#10b981",
+    color: "#a9dcbd",
     description: "A simple personal list with starter tasks.",
     tasks: [
       { title: "Take a walk" },
@@ -125,15 +126,15 @@ const LIST_TEMPLATES: ListTemplate[] = [
     id: "sales-pipeline",
     name: "Sales pipeline",
     emoji: "💼",
-    color: "#3b82f6",
+    color: "#a9c6f2",
     description:
       "Leads → Qualified → Proposal → Closed Won / Lost with Deal Value.",
     statuses: [
-      { name: "Leads", color: "#a1a1aa", category: "open" },
-      { name: "Qualified", color: "#3b82f6", category: "in_progress" },
-      { name: "Proposal", color: "#f59e0b", category: "in_progress" },
-      { name: "Closed Won", color: "#10b981", category: "complete" },
-      { name: "Closed Lost", color: "#71717a", category: "closed" },
+      { name: "Leads", color: "#c9ccd4", category: "open" },
+      { name: "Qualified", color: "#a9c6f2", category: "in_progress" },
+      { name: "Proposal", color: "#f2d491", category: "in_progress" },
+      { name: "Closed Won", color: "#a9dcbd", category: "complete" },
+      { name: "Closed Lost", color: "#c2c2ca", category: "closed" },
     ],
     fields: [
       { name: "Deal Value", type: "number" },
@@ -159,22 +160,20 @@ const parentTypeValidator = v.union(
   v.literal("folder"),
 );
 
-export const applyListTemplate = mutation({
+// Shared with the agent API: creates the list + statuses + fields +
+// seed tasks in one transaction. `creatorId` is a clerkId or agent id.
+export async function applyListTemplateCore(
+  ctx: MutationCtx,
   args: {
-    templateId: v.string(),
-    name: v.string(),
-    parentType: parentTypeValidator,
-    parentId: v.string(),
+    templateId: string;
+    name: string;
+    parentType: "space" | "folder";
+    parentId: string;
   },
-  handler: async (ctx, args) => {
+  creatorId: string,
+): Promise<Id<"lists">> {
     const template = LIST_TEMPLATES.find((t) => t.id === args.templateId);
     if (!template) throw new Error("Unknown template");
-
-    if (args.parentType === "space") {
-      await requireSpaceAccess(ctx, args.parentId as Id<"spaces">);
-    } else {
-      await requireFolderAccess(ctx, args.parentId as Id<"folders">);
-    }
 
     const siblings = await ctx.db
       .query("lists")
@@ -236,8 +235,6 @@ export const applyListTemplate = mutation({
     }
 
     if (template.tasks) {
-      const identity = await ctx.auth.getUserIdentity();
-      const subject = identity?.subject ?? "";
       for (let i = 0; i < template.tasks.length; i++) {
         const t = template.tasks[i];
         const idx = Math.min(t.statusIndex ?? 0, statusIds.length - 1);
@@ -247,7 +244,7 @@ export const applyListTemplate = mutation({
           description: t.description,
           statusId: statusIds[idx],
           assigneeClerkIds: [],
-          createdByClerkId: subject,
+          createdByClerkId: creatorId,
           position: i,
           createdAt: Date.now(),
         });
@@ -255,5 +252,30 @@ export const applyListTemplate = mutation({
     }
 
     return listId;
+}
+
+export const applyListTemplate = mutation({
+  args: {
+    templateId: v.string(),
+    name: v.string(),
+    parentType: parentTypeValidator,
+    parentId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { identity } =
+      args.parentType === "space"
+        ? await requireSpaceAccess(ctx, args.parentId as Id<"spaces">)
+        : await requireFolderAccess(ctx, args.parentId as Id<"folders">);
+    return await applyListTemplateCore(ctx, args, identity.subject);
   },
 });
+
+// Metadata for the agent API (no auth needed for the static catalog).
+export function templateCatalog() {
+  return LIST_TEMPLATES.map((t) => ({
+    id: t.id,
+    name: t.name,
+    emoji: t.emoji,
+    description: t.description,
+  }));
+}

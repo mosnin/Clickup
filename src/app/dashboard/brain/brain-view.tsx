@@ -5,7 +5,9 @@ import { useState } from "react";
 import { useAction, useQuery } from "convex/react";
 import { Sparkles } from "lucide-react";
 import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Stagger, StaggerItem } from "@/components/motion";
 
 type Scope = { type: "user"; id: string } | { type: "workspace"; id: string };
 
@@ -14,6 +16,13 @@ type Source = {
   parentId: string;
   textPreview: string;
 };
+
+const EXAMPLE_PROMPTS = [
+  "What's blocking the launch?",
+  "Summarize the open work in this space",
+  "Who owns the design review?",
+  "What did we decide about pricing?",
+];
 
 export function Brain() {
   const tree = useQuery(api.sidebar.tree, {});
@@ -31,7 +40,7 @@ export function Brain() {
       <div className="space-y-4">
         <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
         <div className="h-12 w-full animate-pulse rounded-full bg-muted" />
-        <div className="h-32 animate-pulse rounded-3xl bg-muted/40" />
+        <div className="h-32 animate-pulse rounded-2xl bg-muted/40" />
       </div>
     );
   }
@@ -53,9 +62,9 @@ export function Brain() {
     scopeOptions.find((s) => s.key === scopeKey)?.scope ??
     scopeOptions[0]?.scope;
 
-  async function ask(e: React.FormEvent) {
-    e.preventDefault();
-    if (!query.trim() || pending || !activeScope) return;
+  async function run(q: string) {
+    if (!q.trim() || pending || !activeScope) return;
+    setQuery(q);
     setPending(true);
     setError(null);
     setAnswer(null);
@@ -64,7 +73,7 @@ export function Brain() {
       const res = await brainSearch({
         scopeType: activeScope.type,
         scopeId: activeScope.id,
-        query: query.trim(),
+        query: q.trim(),
       });
       setAnswer(res.answer);
       setSources(res.sources);
@@ -75,10 +84,12 @@ export function Brain() {
     }
   }
 
+  const idle = !pending && !answer && !error && sources.length === 0;
+
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+      <header className="title-rule">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           Brain
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -86,7 +97,13 @@ export function Brain() {
         </p>
       </header>
 
-      <form onSubmit={ask} className="space-y-3">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          run(query);
+        }}
+        className="space-y-3"
+      >
         <div className="flex flex-wrap items-center gap-2">
           <label className="text-xs text-muted-foreground">
             Search in:
@@ -118,14 +135,44 @@ export function Brain() {
         </div>
       </form>
 
+      {/* Empty state: guided example prompts, so the page is never a blank
+          search box staring back at you. */}
+      {idle && (
+        <section className="rounded-2xl border border-dashed border-border bg-muted/20 p-6">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Try asking
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {EXAMPLE_PROMPTS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => run(p)}
+                className="rounded-full border border-border bg-background px-3.5 py-1.5 text-sm text-foreground/80 transition-colors hover:border-foreground/25 hover:text-foreground"
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {pending && (
+        <div className="space-y-2 rounded-2xl bento p-5">
+          <div className="h-3 w-4/5 animate-pulse rounded-full bg-muted" />
+          <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
+          <div className="h-3 w-2/3 animate-pulse rounded-full bg-muted" />
+        </div>
+      )}
+
       {error && (
-        <div className="rounded-3xl border border-red-300/40 bg-red-50/40 p-4 text-sm text-red-700">
+        <div className="rounded-2xl border border-red-300/40 bg-red-50/40 p-4 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {answer && (
-        <article className="rounded-3xl border border-border bg-background p-5">
+        <article className="rounded-2xl bento p-5">
           <p className="whitespace-pre-wrap text-sm leading-relaxed">
             {answer}
           </p>
@@ -137,13 +184,13 @@ export function Brain() {
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Sources
           </h2>
-          <ul className="mt-2 space-y-2">
+          <Stagger className="mt-2 space-y-2">
             {sources.map((s, i) => (
-              <li key={`${s.parentType}:${s.parentId}`}>
+              <StaggerItem key={`${s.parentType}:${s.parentId}`}>
                 <SourceLink index={i + 1} source={s} />
-              </li>
+              </StaggerItem>
             ))}
-          </ul>
+          </Stagger>
         </section>
       )}
     </div>
@@ -151,16 +198,22 @@ export function Brain() {
 }
 
 function SourceLink({ index, source }: { index: number; source: Source }) {
-  // We can't always link directly to a task without knowing its listId
-  // (would require a resolver query). For docs we can. Linkable items
-  // open the editor; non-linkable just render a preview.
+  // Docs link straight to the editor; tasks resolve their listId first.
+  const taskListId = useQuery(
+    api.tasks.resolveListId,
+    source.parentType === "task"
+      ? { taskId: source.parentId as Id<"tasks"> }
+      : "skip",
+  );
   const href =
     source.parentType === "doc"
       ? `/dashboard/d/${source.parentId}`
-      : null;
+      : taskListId
+        ? `/dashboard/l/${taskListId}/t/${source.parentId}`
+        : null;
 
   const inner = (
-    <div className="flex items-start gap-3 rounded-3xl border border-border bg-background p-3 hover:border-brand-500">
+    <div className="lift flex items-start gap-3 rounded-2xl bento p-3 hover:border-foreground/25">
       <span className="mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-medium text-brand-700">
         {index}
       </span>

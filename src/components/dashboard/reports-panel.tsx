@@ -1,10 +1,10 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { CheckCircle2, Clock, ListChecks, Target } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { formatDurationCoarse } from "@/lib/duration";
+import { AnimatedBar, AnimatedNumber, Stagger, StaggerItem } from "@/components/motion";
 
 export function ReportsPanel({
   workspaceId,
@@ -13,6 +13,7 @@ export function ReportsPanel({
 }) {
   const summary = useQuery(api.reports.workspaceSummary, { workspaceId });
   const members = useQuery(api.workspaces.listMembers, { workspaceId });
+  const agents = useQuery(api.agents.listForWorkspace, { workspaceId });
 
   if (summary === undefined || members === undefined) {
     return (
@@ -20,7 +21,7 @@ export function ReportsPanel({
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
-            className="h-28 animate-pulse rounded-3xl bg-muted/40"
+            className="h-28 animate-pulse rounded-2xl bg-muted/40"
           />
         ))}
       </div>
@@ -29,31 +30,39 @@ export function ReportsPanel({
 
   if (summary === null) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
         You don&apos;t have access to this workspace&apos;s reports.
       </div>
     );
   }
 
-  const memberByClerkId = new Map(members.map((m) => [m.clerkId, m]));
+  // Agents appear in workload/time widgets like any assignee — merge them
+  // into the name map so they don't render as "Unknown".
+  const memberByClerkId = new Map<
+    string,
+    { clerkId: string; name?: string; email?: string }
+  >(members.map((m) => [m.clerkId, m]));
+  for (const a of agents ?? []) {
+    memberByClerkId.set(a._id, {
+      clerkId: a._id,
+      name: `${a.emoji ?? "🤖"} ${a.name}`,
+    });
+  }
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <Stagger className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
-          icon={ListChecks}
           label="Open tasks"
           value={summary.taskCounts.open + summary.taskCounts.inProgress}
           subtext={`${summary.taskCounts.inProgress} in progress`}
         />
         <Stat
-          icon={CheckCircle2}
           label="Completed this week"
           value={summary.taskCounts.completedThisWeek}
           subtext={`of ${summary.taskCounts.total} total`}
         />
         <Stat
-          icon={Clock}
           label="Tracked this week"
           value={formatDurationCoarse(summary.timeTrackedThisWeekMs)}
           subtext={summary.timeByUser.length
@@ -61,12 +70,11 @@ export function ReportsPanel({
             : "No entries yet"}
         />
         <Stat
-          icon={Target}
           label="Goals"
           value={summary.goals.total}
           subtext={`${Math.round(summary.goals.avgProgress * 100)}% avg progress`}
         />
-      </div>
+      </Stagger>
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Widget title="Workload by assignee">
@@ -127,29 +135,26 @@ export function ReportsPanel({
 }
 
 function Stat({
-  icon: Icon,
   label,
   value,
   subtext,
 }: {
-  icon: typeof Clock;
   label: string;
   value: number | string;
   subtext?: string;
 }) {
   return (
-    <div className="rounded-3xl border border-border bg-background p-4">
-      <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {label}
-        </span>
-      </div>
-      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
+    <StaggerItem className="rounded-2xl bento p-4">
+      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        {label}
+      </span>
+      <p className="mt-2 text-3xl font-bold tracking-tight">
+        <AnimatedNumber value={value} />
+      </p>
       {subtext && (
-        <p className="mt-0.5 text-xs text-muted-foreground">{subtext}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{subtext}</p>
       )}
-    </div>
+    </StaggerItem>
   );
 }
 
@@ -161,7 +166,7 @@ function Widget({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-3xl border border-border bg-background p-4">
+    <div className="rounded-2xl bento p-4">
       <h3 className="text-sm font-semibold">{title}</h3>
       <div className="mt-3">{children}</div>
     </div>
@@ -194,12 +199,11 @@ function Bar({
         <span className="truncate">{label}</span>
         <span className="text-muted-foreground">{valueLabel ?? value}</span>
       </div>
-      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full bg-brand-600"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      <AnimatedBar
+        pct={pct}
+        className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"
+        barClassName="h-full rounded-full bg-brand-600"
+      />
     </li>
   );
 }

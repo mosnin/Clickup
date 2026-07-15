@@ -6,6 +6,7 @@ import { Pause, Play, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/toast";
 import { formatDuration, formatDurationCoarse } from "@/lib/duration";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +17,7 @@ export function TimeTracker({ taskId }: { taskId: Id<"tasks"> }) {
   const stop = useMutation(api.timeEntries.stop);
 
   if (entries === undefined || running === undefined) {
-    return <div className="h-12 animate-pulse rounded-3xl bg-muted/40" />;
+    return <div className="h-12 animate-pulse rounded-2xl bg-muted/40" />;
   }
 
   const myRunningOnThisTask =
@@ -29,7 +30,7 @@ export function TimeTracker({ taskId }: { taskId: Id<"tasks"> }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 rounded-3xl border border-border bg-background p-3 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 rounded-2xl bento p-3 sm:flex-row sm:items-center">
         {myRunningOnThisTask ? (
           <RunningPanel
             entry={myRunningOnThisTask}
@@ -96,7 +97,10 @@ function RunningPanel({
 function EntryRow({ entry }: { entry: Doc<"timeEntries"> }) {
   const update = useMutation(api.timeEntries.update);
   const remove = useMutation(api.timeEntries.remove);
+  const { toast } = useToast();
   const [description, setDescription] = useState(entry.description ?? "");
+  const [deleting, setDeleting] = useState(false);
+  if (deleting) return null;
   const ms = entry.endedAt
     ? entry.durationMs ?? entry.endedAt - entry.startedAt
     : Date.now() - entry.startedAt;
@@ -104,7 +108,7 @@ function EntryRow({ entry }: { entry: Doc<"timeEntries"> }) {
   return (
     <li
       className={cn(
-        "flex flex-col gap-2 rounded-2xl border border-border bg-background p-2 sm:flex-row sm:items-center",
+        "flex flex-col gap-2 rounded-2xl bento p-2 sm:flex-row sm:items-center",
         !entry.endedAt && "border-red-300/50",
       )}
     >
@@ -137,11 +141,13 @@ function EntryRow({ entry }: { entry: Doc<"timeEntries"> }) {
         type="button"
         aria-label="Delete entry"
         onClick={() => {
-          if (window.confirm("Delete this entry?")) {
-            remove({ entryId: entry._id });
-          }
+          setDeleting(true);
+          toast("Time entry deleted", {
+            action: { label: "Undo", onClick: () => setDeleting(false) },
+            onExpire: () => remove({ entryId: entry._id }),
+          });
         }}
-        className="text-xs text-muted-foreground hover:text-foreground"
+        className="tap-target text-xs text-muted-foreground hover:text-foreground"
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>

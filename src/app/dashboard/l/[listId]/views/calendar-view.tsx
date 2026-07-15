@@ -18,10 +18,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const PRIORITY_COLOR: Record<string, string> = {
-  urgent: "#ef4444",
-  high: "#f97316",
-  normal: "#3b82f6",
-  low: "#a1a1aa",
+  urgent: "#f2b3ab",
+  high: "#f2c291",
+  normal: "#a9c6f2",
+  low: "#c9ccd4",
 };
 
 export function CalendarView({
@@ -91,7 +91,7 @@ export function CalendarView({
         </div>
       </header>
 
-      <div className="overflow-hidden rounded-3xl border border-border bg-background">
+      <div className="overflow-hidden rounded-2xl bento">
         <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs uppercase tracking-wider text-muted-foreground">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
             <div key={d} className="py-2">
@@ -162,7 +162,7 @@ export function CalendarView({
       </div>
 
       {undated.length > 0 && (
-        <div className="rounded-3xl border border-dashed border-border bg-background p-3">
+        <div className="rounded-2xl border border-dashed border-border bg-background p-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             No due date
           </p>

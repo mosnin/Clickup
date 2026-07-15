@@ -1,28 +1,66 @@
 @import "tailwindcss";
 
+/*
+  Brand system — monochrome editorial + pastel accents.
+
+  The app renders as a white "sheet" floating on a soft gray page
+  (--color-page). Ink is near-black, secondary text is quiet gray,
+  borders are hairlines. The single strong accent is black (buttons,
+  active segments, toggles); meaning is carried by pastel chips
+  (blue/red/yellow/green/purple/pink) with dark ink on top, and green
+  is reserved for positive deltas.
+*/
 @theme {
+  --font-sans:
+    var(--font-instrument), "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Canvas + surfaces */
+  --color-page: #ededf0;
   --color-background: #ffffff;
-  --color-foreground: #0a0a0a;
-  --color-muted: #f4f4f5;
-  --color-muted-foreground: #71717a;
-  --color-border: #e4e4e7;
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
+  --color-foreground: #101012;
+  --color-muted: #f5f5f6;
+  --color-muted-foreground: #8b8b94;
+  --color-border: #ececee;
+
+  /* "Brand" is ink now: black CTAs, gray chips. Kept as a scale so the
+     existing bg-brand-* / text-brand-* call sites shift in place. */
+  --color-brand-50: #f5f5f6;
+  --color-brand-100: #e9e9ec;
+  --color-brand-200: #d9d9de;
+  --color-brand-500: #3f3f46;
+  --color-brand-600: #131316;
+  --color-brand-700: #000000;
+
+  /* Pastel accent fills (chart-series / chip backgrounds) */
+  --color-pastel-blue: #d9e8fa;
+  --color-pastel-red: #fadcd7;
+  --color-pastel-yellow: #faeec7;
+  --color-pastel-green: #d5efdE;
+  --color-pastel-purple: #e6defa;
+  --color-pastel-pink: #f9e0f4;
+
+  /* Positive delta green (the only saturated color in the system) */
+  --color-positive: #16a34a;
+
+  /* Marketing palette — the logged-out site lives on warm cream with an
+     ember (amber→coral) accent ramp and cocoa darks (golden-hour
+     scenes), while ink stays shared with the app. Never use these
+     inside /dashboard. */
+  --color-cream: #f8f6f2;
+  --color-cream-deep: #f1ede5;
+  --color-ember-100: #faeee1;
+  --color-ember-200: #f6ddc4;
+  --color-ember-300: #efc096;
+  --color-ember-400: #e59e65;
+  --color-ember-500: #d87c3e;
+  --color-ember-600: #b45a25;
+  --color-ember-700: #8a441d;
+  --color-cocoa-800: #3b2d21;
+  --color-cocoa-900: #2b2018;
+  --color-cocoa-950: #1e1712;
 
   --radius-pill: 9999px;
-}
-
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-background: #0a0a0a;
-    --color-foreground: #fafafa;
-    --color-muted: #18181b;
-    --color-muted-foreground: #a1a1aa;
-    --color-border: #27272a;
-  }
 }
 
 html,
@@ -34,4 +72,200 @@ body {
 body {
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Hairline horizontal rule under page titles, per the brand reference. */
+.title-rule {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 1rem;
+}
+
+/* ── Bento surface system ─────────────────────────────────────────────────
+   The tactile "soft UI" language: white cards that float on the gray canvas
+   with a soft, wide, low shadow instead of a hard hairline; content sits in
+   nested neutral tiles. Rounded generously. This replaces the flat
+   hairline-border card wherever a surface should read as a discrete panel. */
+.bento {
+  background: var(--color-background);
+  box-shadow:
+    0 1px 2px rgb(16 16 18 / 0.04),
+    0 10px 30px -18px rgb(16 16 18 / 0.16);
+}
+/* A slightly softer shadow for dense grids / small tiles. Pair either with a
+   rounded-* utility — they intentionally don't set radius so each card keeps
+   its own. */
+.bento-sm {
+  background: var(--color-background);
+  box-shadow:
+    0 1px 2px rgb(16 16 18 / 0.04),
+    0 8px 22px -16px rgb(16 16 18 / 0.14);
+}
+/* The whole app sheet: a large soft-shadowed panel floating on the gray
+   canvas, no hard frame border (desktop only — full-bleed on mobile). */
+.app-frame {
+  box-shadow:
+    0 1px 2px rgb(16 16 18 / 0.04),
+    0 24px 60px -32px rgb(16 16 18 / 0.28);
+}
+
+/* Nested neutral tile inside a bento card (the reference's material/preview
+   wells). Soft inset feel, no border. */
+.bento-tile {
+  background: var(--color-muted);
+  border-radius: 1rem;
+}
+/* Functional icon well — a thin-line glyph in a soft rounded square, the
+   only place an icon rides its own surface (per the reference's people/link
+   access rows). Never used decoratively. */
+.icon-tile {
+  display: grid;
+  place-items: center;
+  height: 2.5rem;
+  width: 2.5rem;
+  border-radius: 0.85rem;
+  background: var(--color-muted);
+  color: var(--color-foreground);
+  flex-shrink: 0;
+}
+
+/* Segmented control: a gray track with a raised white pill for the active
+   segment (Design/Animation, Isometric/Perspective in the reference). Pair
+   the container with .segmented and the active button with .segmented-on. */
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: 9999px;
+  background: var(--color-muted);
+}
+.segmented-on {
+  background: var(--color-background);
+  box-shadow:
+    0 1px 2px rgb(16 16 18 / 0.06),
+    0 2px 8px -4px rgb(16 16 18 / 0.16);
+}
+
+/* Soft field: the reference's inputs sit on a faint neutral fill with no hard
+   border and a gentle focus ring rather than a color outline. */
+.soft-field {
+  background: var(--color-muted);
+  border-radius: 0.9rem;
+  transition:
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+.soft-field:focus,
+.soft-field:focus-within {
+  outline: none;
+  background: var(--color-background);
+  box-shadow: 0 0 0 2px var(--color-foreground);
+}
+
+/* Interactive-card hover: a quiet lift with a soft, wide shadow. */
+.lift {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s ease;
+}
+.lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px -16px rgb(16 16 18 / 0.22);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lift,
+  .lift:hover {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Expanded touch hit-area for small icon buttons: keeps the compact visual
+ * size on desktop while giving coarse pointers a ~44px target. */
+.tap-target {
+  position: relative;
+}
+@media (pointer: coarse) {
+  .tap-target::after {
+    content: "";
+    position: absolute;
+    inset: -0.55rem;
+  }
+}
+
+/* ── Marketing-site utilities (logged-out pages only) ─────────────────── */
+
+/* The warm brand gradient — headline accents and CTA washes. */
+.text-warm {
+  background: linear-gradient(115deg, #d8843f 0%, #cd5f36 55%, #b8452e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.bg-warm {
+  background: linear-gradient(115deg, #efab6b 0%, #e07a48 55%, #cd5636 100%);
+}
+
+/* Film-grain overlay that sells the "photographic" gradient scenes.
+   Apply to a relatively-positioned container. */
+.grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+}
+
+/* Endless horizontal marquee. Duplicate the track's children once and the
+   -50% translate loops seamlessly. */
+@keyframes marquee-x {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-x 36s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+}
+
+/* Slow drift for gradient scene blobs. */
+@keyframes scene-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, -3%, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+.scene-blob {
+  animation: scene-drift 18s ease-in-out infinite;
+  will-change: transform;
+}
+.scene-blob:nth-child(2) {
+  animation-duration: 24s;
+  animation-delay: -8s;
+}
+.scene-blob:nth-child(3) {
+  animation-duration: 30s;
+  animation-delay: -14s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene-blob {
+    animation: none;
+  }
 }

@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useToast } from "@/components/toast";
 import { useMutation, useQuery } from "convex/react";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { ScheduledTasksSection } from "@/components/dashboard/scheduled-tasks-section";
 
 type StatusCategory = Doc<"listStatuses">["category"];
 type FieldType = Doc<"customFields">["type"];
@@ -45,7 +47,7 @@ export function ListSettings({ listId }: { listId: string }) {
   }
   if (list === null) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
         List not found.
       </div>
     );
@@ -60,10 +62,14 @@ export function ListSettings({ listId }: { listId: string }) {
         <ArrowLeft className="h-4 w-4" /> {list.name}
       </Link>
 
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+      <header className="title-rule">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           List settings
         </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Statuses, custom fields, automations, and schedules for{" "}
+          <span className="font-medium text-foreground">{list.name}</span>.
+        </p>
       </header>
 
       <StatusesSection listId={list._id} statuses={statuses} />
@@ -73,6 +79,7 @@ export function ListSettings({ listId }: { listId: string }) {
         automations={automations}
         statuses={statuses}
       />
+      <ScheduledTasksSection listId={list._id} />
     </div>
   );
 }
@@ -146,7 +153,7 @@ function StatusRow({
   const [replaceWith, setReplaceWith] = useState<Id<"listStatuses"> | "">("");
 
   return (
-    <li className="rounded-3xl border border-border bg-background p-3">
+    <li className="rounded-2xl bento p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
           type="color"
@@ -253,7 +260,7 @@ function CreateStatusForm({
   ) => Promise<unknown>;
 }) {
   const [name, setName] = useState("");
-  const [color, setColor] = useState("#6366f1");
+  const [color, setColor] = useState("#a9c6f2");
   const [category, setCategory] = useState<StatusCategory>("open");
   const [pending, setPending] = useState(false);
 
@@ -270,7 +277,7 @@ function CreateStatusForm({
           setPending(false);
         }
       }}
-      className="mt-3 flex flex-col gap-2 rounded-3xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
+      className="mt-3 flex flex-col gap-2 rounded-2xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
     >
       <input
         type="color"
@@ -327,7 +334,7 @@ function FieldsSection({
 
       <ul className="mt-4 space-y-2">
         {fields.length === 0 && (
-          <li className="rounded-3xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+          <li className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
             No custom fields yet.
           </li>
         )}
@@ -368,9 +375,12 @@ function FieldRow({
 }) {
   const [name, setName] = useState(field.name);
   const [showOptions, setShowOptions] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
+  if (deleting) return null;
 
   return (
-    <li className="rounded-3xl border border-border bg-background p-3">
+    <li className="rounded-2xl bento p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <span className="rounded-full bg-muted px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
           {FIELD_TYPE_LABEL[field.type]}
@@ -399,15 +409,13 @@ function FieldRow({
           type="button"
           aria-label="Delete field"
           onClick={() => {
-            if (
-              window.confirm(
-                `Delete "${field.name}" and all its values across every task?`,
-              )
-            ) {
-              onDelete();
-            }
+            setDeleting(true);
+            toast(`"${field.name}" deleted — values go with it`, {
+              action: { label: "Undo", onClick: () => setDeleting(false) },
+              onExpire: () => onDelete(),
+            });
           }}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <Trash2 className="h-4 w-4" />
         </button>
@@ -433,7 +441,7 @@ function DropdownOptionsEditor({
   ) => Promise<unknown>;
 }) {
   const [draft, setDraft] = useState("");
-  const [color, setColor] = useState("#6366f1");
+  const [color, setColor] = useState("#a9c6f2");
 
   return (
     <div className="mt-3 rounded-2xl bg-muted p-3">
@@ -446,7 +454,7 @@ function DropdownOptionsEditor({
             <span
               aria-hidden
               className="inline-block h-2 w-2 rounded-full"
-              style={{ backgroundColor: opt.color ?? "#a1a1aa" }}
+              style={{ backgroundColor: opt.color ?? "#c9ccd4" }}
             />
             <span className="flex-1">{opt.label}</span>
             <button
@@ -528,7 +536,7 @@ function CreateFieldForm({
                   {
                     id: crypto.randomUUID(),
                     label: "Option 1",
-                    color: "#6366f1",
+                    color: "#a9c6f2",
                   },
                 ]
               : undefined,
@@ -539,7 +547,7 @@ function CreateFieldForm({
           setPending(false);
         }
       }}
-      className="mt-3 flex flex-col gap-2 rounded-3xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
+      className="mt-3 flex flex-col gap-2 rounded-2xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
     >
       <input
         type="text"
@@ -607,7 +615,7 @@ function AutomationsSection({
 
       <ul className="mt-4 space-y-2">
         {automations.length === 0 && (
-          <li className="rounded-3xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+          <li className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
             No automations yet.
           </li>
         )}
@@ -647,12 +655,16 @@ function AutomationRow({
   }) => Promise<unknown>;
   onDelete: () => Promise<unknown>;
 }) {
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
+  if (deleting) return null;
+
   return (
     <li
       className={
         automation.enabled
-          ? "rounded-3xl border border-border bg-background p-3"
-          : "rounded-3xl border border-border bg-muted/30 p-3 opacity-60"
+          ? "rounded-2xl bento p-3"
+          : "rounded-2xl border border-border bg-muted/30 p-3 opacity-60"
       }
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -685,9 +697,13 @@ function AutomationRow({
           type="button"
           aria-label="Delete automation"
           onClick={() => {
-            if (window.confirm("Delete this automation?")) onDelete();
+            setDeleting(true);
+            toast("Automation deleted", {
+              action: { label: "Undo", onClick: () => setDeleting(false) },
+              onExpire: () => onDelete(),
+            });
           }}
-          className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target ml-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <Trash2 className="h-4 w-4" />
         </button>
