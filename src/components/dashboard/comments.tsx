@@ -6,6 +6,7 @@ import { CheckCircle2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Picker } from "@/components/ui/picker";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { useToast } from "@/components/toast";
@@ -555,21 +556,30 @@ function Composer({
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         {!editingMessageId && !parentMessageId && (
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             Assign to:
-            <select
-              value={assignTo}
-              onChange={(e) => setAssignTo(e.currentTarget.value)}
-              className="rounded-full border border-border bg-background px-2 py-1 text-xs"
-            >
-              <option value="">No one</option>
-              {members.map((m) => (
-                <option key={m.clerkId} value={m.clerkId}>
-                  {m.name ?? m.email}
-                </option>
-              ))}
-            </select>
-          </label>
+            <Picker
+              dashed
+              label={
+                assignTo
+                  ? (members.find((m) => m.clerkId === assignTo)?.name ??
+                    members.find((m) => m.clerkId === assignTo)?.email ??
+                    "Someone")
+                  : "No one"
+              }
+              selectedId={assignTo || undefined}
+              options={[
+                { id: "", label: "No one" },
+                ...members.map((m) => ({
+                  id: m.clerkId,
+                  label: m.name ?? m.email,
+                  emoji: m.isAgent ? "🤖" : undefined,
+                  hint: m.isAgent ? "agent" : undefined,
+                })),
+              ]}
+              onSelect={(id) => setAssignTo(id)}
+            />
+          </div>
         )}
         <div className="ml-auto flex items-center gap-2">
           {onDone && (

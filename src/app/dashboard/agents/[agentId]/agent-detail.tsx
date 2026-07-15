@@ -88,7 +88,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
               {agent.name}
             </h1>
             <span

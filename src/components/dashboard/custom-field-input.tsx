@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Doc } from "@convex/_generated/dataModel";
+import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 
 // Renders an input appropriate for a given custom field type. The parent
 // supplies the current value and an onChange callback that receives the
@@ -67,14 +68,10 @@ export function CustomFieldInput({
       return (
         <input
           type="date"
-          value={
-            value?.dateValue
-              ? new Date(value.dateValue).toISOString().slice(0, 10)
-              : ""
-          }
+          value={value?.dateValue ? toDateInputValue(value.dateValue) : ""}
           onChange={(e) => {
-            const v = e.currentTarget.value;
-            onCommit(v ? { dateValue: new Date(v).getTime() } : null);
+            const ts = fromDateInputValue(e.currentTarget.value);
+            onCommit(ts !== undefined ? { dateValue: ts } : null);
           }}
           className={cls}
         />

@@ -8,6 +8,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { formatDuration } from "@/lib/duration";
+import { Stagger, StaggerItem } from "@/components/motion";
 
 // Recorder state machine.
 //   idle    -> requesting (asks the user for screen + mic)
@@ -32,13 +33,13 @@ export function Clips({ taskId }: { taskId: Id<"tasks"> }) {
       ) : clips.length === 0 ? (
         <p className="text-sm text-muted-foreground">No clips yet.</p>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <Stagger className="grid gap-3 sm:grid-cols-2">
           {clips.map((clip) => (
-            <li key={clip._id}>
+            <StaggerItem key={clip._id}>
               <ClipCard clip={clip} />
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </Stagger>
       )}
     </div>
   );

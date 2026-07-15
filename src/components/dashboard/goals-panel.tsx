@@ -209,6 +209,7 @@ function GoalRow({ goal }: { goal: Doc<"goals"> }) {
         </div>
         <div className="flex items-center gap-1">
           <select
+            aria-label="Goal status"
             value={goal.status}
             onChange={(e) =>
               update({
