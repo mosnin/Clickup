@@ -15,7 +15,7 @@ import { TeamHub } from "@/components/dashboard/team-hub";
 import { WorkspaceSettings } from "@/components/dashboard/workspace-settings";
 import { ActivityFeed } from "@/app/dashboard/agents/agents-view";
 import { cn } from "@/lib/utils";
-import { EASE, motion } from "@/components/motion";
+import { EASE, motion, Stagger, StaggerItem } from "@/components/motion";
 
 type Tab =
   | "overview"
@@ -143,34 +143,35 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Spaces
             </h2>
-            <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Stagger className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {workspace.spaces.map((space) => {
                 const totalLists =
                   space.lists.length +
                   space.folders.reduce((n, f) => n + f.lists.length, 0);
                 return (
-                  <li
-                    key={space._id}
-                    id={space._id}
-                    className="rounded-2xl border border-border bg-background p-5"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        aria-hidden
-                        className="inline-block h-3 w-3 rounded-full"
-                        style={{ backgroundColor: space.color ?? "#a9c6f2" }}
-                      />
-                      <span className="font-medium">{space.name}</span>
+                  <StaggerItem key={space._id}>
+                    <div
+                      id={space._id}
+                      className="rounded-2xl border border-border bg-background p-5"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          aria-hidden
+                          className="inline-block h-3 w-3 rounded-full"
+                          style={{ backgroundColor: space.color ?? "#a9c6f2" }}
+                        />
+                        <span className="font-medium">{space.name}</span>
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {totalLists} list{totalLists === 1 ? "" : "s"} ·{" "}
+                        {space.folders.length} folder
+                        {space.folders.length === 1 ? "" : "s"}
+                      </p>
                     </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {totalLists} list{totalLists === 1 ? "" : "s"} ·{" "}
-                      {space.folders.length} folder
-                      {space.folders.length === 1 ? "" : "s"}
-                    </p>
-                  </li>
+                  </StaggerItem>
                 );
               })}
-            </ul>
+            </Stagger>
           </section>
         )
       ) : tab === "team" ? (

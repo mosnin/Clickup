@@ -62,10 +62,14 @@ export function ListSettings({ listId }: { listId: string }) {
         <ArrowLeft className="h-4 w-4" /> {list.name}
       </Link>
 
-      <header>
+      <header className="title-rule">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           List settings
         </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Statuses, custom fields, automations, and schedules for{" "}
+          <span className="font-medium text-foreground">{list.name}</span>.
+        </p>
       </header>
 
       <StatusesSection listId={list._id} statuses={statuses} />
