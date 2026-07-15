@@ -127,6 +127,7 @@ export function ListPage({
           tasks={topLevelTasks}
           statuses={statuses}
           fields={fields}
+          filtered={filtered}
         />
       )}
       {view === "board" && (

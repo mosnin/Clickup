@@ -28,11 +28,13 @@ export function ListView({
   tasks,
   statuses,
   fields,
+  filtered = false,
 }: {
   listId: Id<"lists">;
   tasks: Doc<"tasks">[];
   statuses: Doc<"listStatuses">[];
   fields: Doc<"customFields">[];
+  filtered?: boolean;
 }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-border bg-background">
@@ -63,7 +65,9 @@ export function ListView({
                 colSpan={6 + fields.length}
                 className="px-3 py-6 text-center text-sm text-muted-foreground"
               >
-                No tasks yet — add one below.
+                {filtered
+                  ? "No tasks match these filters."
+                  : "No tasks yet — add one below."}
               </td>
             </tr>
           )}
