@@ -51,6 +51,16 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning className={instrumentSans.variable}>
+      <head>
+        {/* Resolve the theme before first paint so there's no flash. The
+            toggle writes localStorage "theme" = dark | light; anything else
+            (or nothing) follows the OS. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="min-h-dvh bg-background text-foreground antialiased">
         <Providers>{children}</Providers>
         <OfflineIndicator />

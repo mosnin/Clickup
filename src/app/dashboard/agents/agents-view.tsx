@@ -787,7 +787,7 @@ function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
             Copy this key now — it won&apos;t be shown again.
           </p>
           <div className="mt-1 flex items-center gap-2">
-            <code className="flex-1 break-all rounded bg-white px-2 py-1">
+            <code className="flex-1 break-all rounded bg-muted px-2 py-1">
               {freshKey}
             </code>
             <button
@@ -1035,7 +1035,7 @@ function WebhooksTab() {
           <p className="font-medium text-emerald-800">
             Signing secret (copy now — shown once):
           </p>
-          <code className="mt-1 block break-all rounded bg-white px-2 py-1">
+          <code className="mt-1 block break-all rounded bg-muted px-2 py-1">
             {freshSecret}
           </code>
         </div>

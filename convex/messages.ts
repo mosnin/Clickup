@@ -6,6 +6,7 @@ import { internal } from "./_generated/api";
 import { requireIdentity, requireMessageParentAccess } from "./_authz";
 import type { Actor } from "./_agentAuth";
 import { emitEvent, scopeForList } from "./events";
+import { notify } from "./notificationCenter";
 
 async function describeMessageContext(
   ctx: MutationCtx,
@@ -336,6 +337,13 @@ export async function createMessageCore(
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", id))
       .unique();
     if (recipient?.email) {
+      await notify(ctx, {
+        userClerkId: id,
+        type: "mention",
+        title: `${actor.name} mentioned you`,
+        body: snippet,
+        href: mentionHref(args.parentType, args.parentId, taskListId),
+      });
       await ctx.scheduler.runAfter(
         0,
         internal.notifications.sendMentionEmail,
@@ -351,6 +359,21 @@ export async function createMessageCore(
   }
 
   return messageId;
+}
+
+// Best-effort deep link for a mention notification. Task mentions resolve
+// through the message's cached listId; workspace/channel chat lands on the
+// workspace; personal-scope messages fall back to the inbox.
+function mentionHref(
+  parentType: string,
+  parentId: string,
+  taskListId: Id<"lists"> | undefined,
+): string {
+  if (parentType === "task" && taskListId)
+    return `/dashboard/l/${taskListId}/t/${parentId}`;
+  if (parentType === "workspace")
+    return `/dashboard/w/${parentId}?tab=chat`;
+  return "/dashboard/inbox";
 }
 
 export const create = mutation({

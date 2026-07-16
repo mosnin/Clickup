@@ -31,6 +31,68 @@ function makeResend(): {
   return { client: new Resend(key), from };
 }
 
+export const sendInviteEmail = internalAction({
+  args: {
+    toEmail: v.string(),
+    fromName: v.string(),
+    workspaceName: v.string(),
+    token: v.string(),
+  },
+  handler: async (_, args) => {
+    const provider = makeResend();
+    if (!provider) return;
+    const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://operate.to";
+    try {
+      await provider.client.emails.send({
+        from: provider.from,
+        to: [args.toEmail],
+        subject: `${args.fromName} invited you to ${args.workspaceName} on operate.to`,
+        text: [
+          `${args.fromName} invited you to join "${args.workspaceName}" on operate.to.`,
+          ``,
+          `Accept your invite:`,
+          `${base}/invite/${args.token}`,
+          ``,
+          `operate.to — mission control for humans and AI agents.`,
+        ].join("\n"),
+      });
+    } catch (err) {
+      console.error("[notifications] invite email failed", err);
+    }
+  },
+});
+
+export const sendDueSoonEmail = internalAction({
+  args: {
+    toEmail: v.string(),
+    toName: v.optional(v.string()),
+    taskTitle: v.string(),
+    whenLabel: v.string(),
+  },
+  handler: async (_, args) => {
+    const provider = makeResend();
+    if (!provider) return;
+    try {
+      await provider.client.emails.send({
+        from: provider.from,
+        to: [args.toEmail],
+        subject: `Due ${args.whenLabel}: ${args.taskTitle}`,
+        text: [
+          `Hi ${args.toName ?? ""},`.trim(),
+          ``,
+          `A task assigned to you is due ${args.whenLabel}:`,
+          ``,
+          args.taskTitle,
+          ``,
+          `Open operate.to to work on it.`,
+        ].join("\n"),
+      });
+    } catch (err) {
+      console.error("[notifications] due-soon email failed", err);
+    }
+  },
+});
+
 export const sendMentionEmail = internalAction({
   args: {
     toEmail: v.string(),

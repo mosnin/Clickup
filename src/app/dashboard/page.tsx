@@ -14,6 +14,7 @@ import {
   Stagger,
   StaggerItem,
 } from "@/components/motion";
+import { InviteCards } from "@/components/dashboard/invite-cards";
 
 // Home: the first thing a signed-in user sees. Greets them by name,
 // surfaces any agent that's still waiting to connect, and lays out their
@@ -62,6 +63,8 @@ export default function DashboardHome() {
             : "Here's where everything lives."}
         </p>
       </header>
+
+      <InviteCards />
 
       {/* AnimatePresence so the card resolves with a satisfying collapse
           the moment the agent's first heartbeat lands (live via Convex). */}

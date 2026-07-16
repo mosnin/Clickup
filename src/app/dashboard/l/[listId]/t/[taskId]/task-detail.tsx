@@ -9,6 +9,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { Clips } from "@/components/dashboard/clips";
+import { Attachments } from "@/components/dashboard/attachments";
 import { Comments } from "@/components/dashboard/comments";
 import {
   TaskAssignees,
@@ -241,6 +242,13 @@ function TaskEditor({
           </div>
 
           <TaskChecklist task={task} />
+
+          <section>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Attachments
+            </h2>
+            <Attachments taskId={task._id} />
+          </section>
 
           <section>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">

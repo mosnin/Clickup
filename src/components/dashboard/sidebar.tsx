@@ -22,6 +22,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   List as ListIcon,
+  ListTodo,
   Menu,
   MessageSquare,
   PanelLeft,
@@ -44,6 +45,8 @@ import { AnimatePresence, motion, SPRING } from "@/components/motion";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { RunningTimerChip } from "@/components/dashboard/running-timer-chip";
 import { TemplatePicker } from "@/components/dashboard/template-picker";
+import { NotificationBell } from "@/components/dashboard/notification-bell";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type SidebarTree = NonNullable<ReturnType<typeof useTreeQuery>>;
 type SpaceNode = SidebarTree["workspaces"][number]["spaces"][number];
@@ -212,6 +215,8 @@ export function DashboardSidebar() {
           </button>
 
           <HomeLink onNavigate={close} collapsed={collapsed} />
+          <MyWorkLink onNavigate={close} collapsed={collapsed} />
+          <NotificationBell collapsed={collapsed} onNavigate={close} />
           <InboxLink onNavigate={close} collapsed={collapsed} />
           <BrainLink onNavigate={close} collapsed={collapsed} />
           <AgentsGroup onNavigate={close} collapsed={collapsed} />
@@ -249,19 +254,24 @@ export function DashboardSidebar() {
 
         <div
           className={cn(
-            "flex shrink-0 items-center gap-3 border-t border-border px-4 py-3",
-            collapsed && "md:justify-center md:px-0",
+            "shrink-0 border-t border-border px-3 py-3",
+            collapsed && "md:px-2",
           )}
         >
-          <UserButton afterSignOutUrl="/" />
-          <span
-            className={cn(
-              "text-xs text-muted-foreground",
-              collapsed && "md:hidden",
-            )}
-          >
-            Account
-          </span>
+          {collapsed ? (
+            <div className="flex flex-col items-center gap-2">
+              <ThemeToggle collapsed />
+              <UserButton afterSignOutUrl="/" />
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              <ThemeToggle />
+              <div className="flex items-center gap-3 px-1">
+                <UserButton afterSignOutUrl="/" />
+                <span className="text-xs text-muted-foreground">Account</span>
+              </div>
+            </div>
+          )}
         </div>
       </aside>
     </>
@@ -349,6 +359,26 @@ function HomeLink({
   );
 }
 
+function MyWorkLink({
+  onNavigate,
+  collapsed,
+}: {
+  onNavigate: () => void;
+  collapsed: boolean;
+}) {
+  const pathname = usePathname();
+  return (
+    <NavLink
+      href="/dashboard/my-work"
+      label="My work"
+      icon={ListTodo}
+      active={pathname === "/dashboard/my-work"}
+      collapsed={collapsed}
+      onNavigate={onNavigate}
+    />
+  );
+}
+
 function BrainLink({
   onNavigate,
   collapsed,
@@ -392,7 +422,7 @@ function InboxLink({
         hasUnread ? (
           <span
             className={cn(
-              "relative z-10 rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-medium text-white",
+              "relative z-10 rounded-full bg-foreground px-1.5 py-0.5 text-[10px] font-medium text-background",
               collapsed &&
                 "md:absolute md:right-1.5 md:top-1 md:px-1 md:py-0 md:leading-tight",
             )}

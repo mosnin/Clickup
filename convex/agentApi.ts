@@ -5,6 +5,7 @@ import {
   query,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { notify } from "./notificationCenter";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -1603,6 +1604,13 @@ export const requestApproval = mutation({
         .withIndex("by_clerk_id", (q) => q.eq("clerkId", cid))
         .unique();
       if (user?.email) {
+        await notify(ctx, {
+          userClerkId: cid,
+          type: "approval",
+          title: `${agent.name} needs your approval`,
+          body: updated.title,
+          href: `/dashboard/l/${updated.listId}/t/${updated._id}`,
+        });
         await ctx.scheduler.runAfter(
           0,
           internal.notifications.sendApprovalEmail,
