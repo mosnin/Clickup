@@ -8,13 +8,25 @@
 //
 // NEXT_PUBLIC_* is inlined at build time, so this check is static per build:
 // setting the var requires a redeploy to take effect.
+import { TerminalSurface } from "@/components/terminal-surface";
+
 const CONFIGURED = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
 export function RequireBackend({ children }: { children: React.ReactNode }) {
   if (!CONFIGURED) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-page p-6">
-        <div className="bento max-w-md rounded-2xl p-8">
+        <div className="bento max-w-md overflow-hidden rounded-2xl">
+          <TerminalSurface
+            className="h-24"
+            contentClassName="flex h-full items-end px-8 pb-3"
+            tint="#e0685c"
+          >
+            <span className="font-mono text-[11px] tracking-wider text-white/70">
+              no backend connection
+            </span>
+          </TerminalSurface>
+          <div className="p-8">
           <h1 className="text-lg font-bold tracking-tight">
             Backend not configured
           </h1>
@@ -31,6 +43,7 @@ export function RequireBackend({ children }: { children: React.ReactNode }) {
             ) in your hosting environment variables, then redeploy, the value
             is inlined at build time.
           </p>
+          </div>
         </div>
       </div>
     );

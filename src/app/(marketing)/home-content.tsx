@@ -11,6 +11,12 @@ import {
 import { cn } from "@/lib/utils";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
 import TextType from "@/components/text-type";
+import dynamic from "next/dynamic";
+
+// WebGL glyph field for the dark governance panel; client-only chunk.
+const FaultyTerminal = dynamic(() => import("@/components/faulty-terminal"), {
+  ssr: false,
+});
 import {
   CountUp,
   FadeIn,
@@ -744,6 +750,25 @@ function Governance() {
     <section className="px-3 py-10 sm:px-6">
       <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] sm:rounded-[2.5rem]">
         <Scene variant="dusk" />
+        {/* Machine layer: a dim glyph field running under the guardrails
+            copy. The work hums; the guardrails hold. */}
+        <div aria-hidden className="absolute inset-0 opacity-30 mix-blend-screen">
+          <FaultyTerminal
+            scale={1.6}
+            gridMul={[2, 1]}
+            digitSize={1.3}
+            timeScale={0.25}
+            scanlineIntensity={0.25}
+            glitchAmount={0.5}
+            flickerAmount={0.4}
+            noiseAmp={0.9}
+            curvature={0.1}
+            tint="#e59e65"
+            mouseReact={false}
+            pageLoadAnimation
+            brightness={0.7}
+          />
+        </div>
         <div className="relative z-10 px-6 py-16 sm:px-12 sm:py-24">
           <SectionHeading
             tone="light"

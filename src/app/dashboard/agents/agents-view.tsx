@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
 import { BillingTab } from "@/components/dashboard/billing-panel";
 import { ConnectSnippet } from "@/components/dashboard/connect-snippet";
+import { TerminalSurface } from "@/components/terminal-surface";
 import TextType from "@/components/text-type";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
@@ -274,7 +275,13 @@ function ConnectHint({ retired = false }: { retired?: boolean }) {
   }
 
   return (
-    <div className="rounded-2xl bento p-5 text-sm">
+    <div className="overflow-hidden rounded-2xl bento text-sm">
+      <TerminalSurface className="h-24" contentClassName="flex h-full items-end px-5 pb-3">
+        <span className="font-mono text-[11px] tracking-wider text-white/70">
+          listening for your first agent…
+        </span>
+      </TerminalSurface>
+      <div className="p-5">
       <p className="font-medium">Connect an agent</p>
       <p className="mt-1 leading-relaxed text-muted-foreground">
         Create an agent, copy its key, then paste one of these blocks where
@@ -291,6 +298,7 @@ function ConnectHint({ retired = false }: { retired?: boolean }) {
           Hide
         </button>
       )}
+      </div>
     </div>
   );
 }
@@ -496,7 +504,17 @@ function CreateAgentForm({
 
   if (connect) {
     return (
-      <div className="space-y-4 rounded-2xl bento p-5">
+      <div className="overflow-hidden rounded-2xl bento">
+        <TerminalSurface
+          intensity="live"
+          className="h-28"
+          contentClassName="flex h-full items-end px-5 pb-3"
+        >
+          <span className="font-mono text-[11px] tracking-wider text-white/70">
+            waiting for {connect.name.toLowerCase()} to check in…
+          </span>
+        </TerminalSurface>
+        <div className="space-y-4 p-5">
         <div>
           <p className="font-semibold">{connect.name} is ready.</p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -520,6 +538,7 @@ function CreateAgentForm({
           <Button type="button" size="sm" onClick={onDone}>
             Done
           </Button>
+        </div>
         </div>
       </div>
     );
