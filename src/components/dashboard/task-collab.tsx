@@ -56,7 +56,7 @@ export function TaskBanners({
           <ShieldCheck className="h-4 w-4 flex-shrink-0" />
           <span className="min-w-0 flex-1">
             {task.approvedAt
-              ? "Approved — agents may complete this task."
+              ? "Approved, agents may complete this task."
               : "Approval gate: agents can't complete this task until a human approves."}
           </span>
           {!task.approvedAt && (
@@ -85,7 +85,7 @@ export function TaskBanners({
                 ? `${claimant.kind === "agent" ? "🤖 " : ""}${claimant.name}`
                 : "someone"}
             </span>{" "}
-            — they&apos;re actively working on this.
+, they&apos;re actively working on this.
           </span>
           <Button
             size="sm"

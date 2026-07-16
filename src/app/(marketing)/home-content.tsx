@@ -10,6 +10,13 @@ import {
 } from "motion/react";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
+import TextType from "@/components/text-type";
+import dynamic from "next/dynamic";
+
+// WebGL glyph field for the dark governance panel; client-only chunk.
+const FaultyTerminal = dynamic(() => import("@/components/faulty-terminal"), {
+  ssr: false,
+});
 import {
   CountUp,
   FadeIn,
@@ -24,7 +31,6 @@ import {
   ChatBubble,
   CtaPair,
   FeatureCard,
-  QuoteCard,
   SectionHeading,
   StatTile,
 } from "@/components/marketing/blocks";
@@ -92,7 +98,7 @@ function Hero() {
         <Scene variant="meadow" />
 
         <div className="relative z-10 px-5 pb-20 pt-12 text-center text-white sm:px-10 sm:pb-28 sm:pt-16">
-          {/* Floating product cards — center crisp, edges softly out of
+          {/* Floating product cards, center crisp, edges softly out of
               focus, like objects at different depths in a photograph. */}
           <div className="pointer-events-none relative mx-auto hidden h-60 max-w-3xl select-none md:block">
             <Parallax speed={-26} className="absolute left-0 top-9 w-60">
@@ -149,13 +155,26 @@ function Hero() {
             <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-semibold leading-[1.06] tracking-[-0.025em] sm:text-6xl lg:text-[68px]">
               A system for your work.
               <br />
-              And the agents doing it.
+              <TextType
+                as="span"
+                text={[
+                  "And the agents doing it.",
+                  "And the agents shipping it.",
+                  "And the agents running it.",
+                ]}
+                typingSpeed={55}
+                deletingSpeed={28}
+                pauseDuration={3200}
+                initialDelay={900}
+                cursorCharacter="|"
+                cursorClassName="text-white/60"
+              />
             </h1>
           </FadeIn>
 
           <FadeIn delay={0.35} y={20}>
             <p className="mx-auto mt-6 max-w-xl text-balance text-base leading-relaxed text-white/75 sm:text-lg">
-              Hand real work to AI agents — and watch it happen. Tasks, docs,
+              Hand real work to AI agents and watch it happen. Tasks, docs,
               and sprints for your team. Keys, budgets, and approval gates for
               the machines.
             </p>
@@ -169,7 +188,7 @@ function Hero() {
               secondaryLabel="See how it works"
             />
             <p className="mt-5 text-xs text-white/50">
-              Free to start · No credit card · Agent online in under two minutes
+              Free to start · No credit card · One pasted config connects your first agent
             </p>
           </FadeIn>
 
@@ -258,7 +277,7 @@ function Problem() {
           </FadeIn>
           <FadeIn delay={0.15} className="self-end">
             <p className="text-base leading-relaxed text-muted-foreground sm:text-lg">
-              They run in terminals, CI jobs, and cron tabs —{" "}
+              They run in terminals, CI jobs, and cron tabs -{" "}
               <span className="font-semibold text-foreground">
                 invisible to the plan, the sprint, and the team
               </span>
@@ -267,7 +286,7 @@ function Problem() {
               <span className="font-semibold text-foreground">
                 a coordination layer both sides can trust
               </span>{" "}
-              — not another dashboard.
+, not another dashboard.
             </p>
           </FadeIn>
         </div>
@@ -303,27 +322,27 @@ function Problem() {
 
 const HANDOFF_BEATS = [
   {
-    time: "6:42 PM — you",
+    time: "6:42 PM, you",
     title: "Type it. Assign it. Leave.",
-    body: "⌘K, twelve words, assigned to Scout. That's the entire handoff — the context lives on the task, not in a prompt you'll paste again tomorrow.",
+    body: "⌘K, twelve words, assigned to Scout. That's the entire handoff, the context lives on the task, not in a prompt you'll paste again tomorrow.",
   },
   {
-    time: "6:43 PM — Scout",
+    time: "6:43 PM. Scout",
     title: "It claims the work. Publicly.",
-    body: "A visible lock with a heartbeat. Every human and agent can see it's taken — nobody duplicates the effort, and you can watch it breathe.",
+    body: "A visible lock with a heartbeat. Every human and agent can see it's taken, nobody duplicates the effort, and you can watch it breathe.",
   },
   {
-    time: "7:10 PM — Scout",
+    time: "7:10 PM. Scout",
     title: "Progress you can actually watch.",
     body: "Checklist items tick themselves. A comment narrates the decision it made. No logs to tail. No “how's it going?” message to send.",
   },
   {
-    time: "7:32 PM — Scout",
+    time: "7:32 PM. Scout",
     title: "It stops exactly where you said stop.",
-    body: "Sending to a client is gated. Scout doesn't guess — it raises its hand and queues for your sign-off, then moves on to other work.",
+    body: "Sending to a client is gated. Scout doesn't guess, it raises its hand and queues for your sign-off, then moves on to other work.",
   },
   {
-    time: "8:05 AM — you",
+    time: "8:05 AM, you",
     title: "You approve. It ships. Receipts attached.",
     body: "One tap from your inbox over coffee. The run report carries the doc, the token count, and the cost. That's delegation with a paper trail.",
   },
@@ -501,7 +520,7 @@ const SYSTEM_ROWS = [
   {
     key: "approvals",
     title: "Approval gates",
-    body: "Agents can raise the gate but never lower it. Risky work waits for a human — one-click sign-off from your inbox.",
+    body: "Agents can raise the gate but never lower it. Risky work waits for a human, one-click sign-off from your inbox.",
     mock: <ApprovalMock className="w-full max-w-sm" />,
   },
   {
@@ -546,7 +565,7 @@ function SystemShowcase() {
               <span className="text-warm">in one system.</span>
             </>
           }
-          sub="Not a runtime — the scaffolding around every runtime: assignment, visibility, guardrails, and proof of work."
+          sub="Not a runtime, the scaffolding around every runtime: assignment, visibility, guardrails, and proof of work."
         />
 
         <div className="mt-14 grid items-stretch gap-8 lg:grid-cols-[minmax(0,480px)_1fr] lg:gap-16">
@@ -655,7 +674,7 @@ const HUMAN_CARDS = [
   },
   {
     title: "Time, goals, reports",
-    body: "A live timer, OKR-style goals, and per-workspace reports — humans and agents in the same numbers.",
+    body: "A live timer, OKR-style goals, and per-workspace reports, humans and agents in the same numbers.",
     illustration: <ReportMiniMock />,
   },
   {
@@ -665,7 +684,7 @@ const HUMAN_CARDS = [
   },
   {
     title: "⌘K everything",
-    body: "Jump to any list, doc, board, or agent — or create a task — without leaving the keyboard.",
+    body: "Jump to any list, doc, board, or agent, or create a task, without leaving the keyboard.",
     illustration: <CmdKMock />,
   },
 ];
@@ -677,7 +696,7 @@ function HumanWork() {
         <SectionHeading
           eyebrow="For the humans"
           title="Still the very best home for human work."
-          sub="Everything you'd expect from a modern work platform — because agents are only useful inside real projects."
+          sub="Everything you'd expect from a modern work platform, because agents are only useful inside real projects."
         />
         <StaggerIn className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {HUMAN_CARDS.map((c, i) => (
@@ -714,7 +733,7 @@ const TRUST = [
   },
   {
     title: "Least privilege, per agent",
-    body: "Read-only roles, list-level restrictions, and revocable keys — hashed at rest, shown once.",
+    body: "Read-only roles, list-level restrictions, and revocable keys, hashed at rest, shown once.",
   },
   {
     title: "Hard spending limits",
@@ -731,6 +750,25 @@ function Governance() {
     <section className="px-3 py-10 sm:px-6">
       <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] sm:rounded-[2.5rem]">
         <Scene variant="dusk" />
+        {/* Machine layer: a dim glyph field running under the guardrails
+            copy. The work hums; the guardrails hold. */}
+        <div aria-hidden className="absolute inset-0 opacity-30 mix-blend-screen">
+          <FaultyTerminal
+            scale={1.6}
+            gridMul={[2, 1]}
+            digitSize={1.3}
+            timeScale={0.25}
+            scanlineIntensity={0.25}
+            glitchAmount={0.5}
+            flickerAmount={0.4}
+            noiseAmp={0.9}
+            curvature={0.1}
+            tint="#e59e65"
+            mouseReact={false}
+            pageLoadAnimation
+            brightness={0.7}
+          />
+        </div>
         <div className="relative z-10 px-6 py-16 sm:px-12 sm:py-24">
           <SectionHeading
             tone="light"
@@ -770,9 +808,8 @@ function Governance() {
             transition={{ duration: 0.6, ease: EASE, delay: 0.3 }}
             className="mt-10 hidden lg:block"
           >
-            <ChatBubble name="Priya">
-              Nothing ships without me seeing it first. That&apos;s the whole
-              reason I said yes.
+            <ChatBubble name="You">
+              Nothing ships without me seeing it first.
             </ChatBubble>
           </motion.div>
         </div>
@@ -781,20 +818,16 @@ function Governance() {
   );
 }
 
-/* ── Stories: featured quote + outcome tiles, like the reference ───────── */
+/* ── Stories: what the first week actually feels like ─────────────────── */
 
-const SMALL_QUOTES = [
+const SCENARIOS = [
   {
-    quote:
-      "We stopped screenshotting terminal logs into Slack. The activity feed is the standup now — humans and agents in the same stream.",
-    name: "Daniel",
-    role: "Engineering lead, product studio",
+    title: "The standup that writes itself",
+    body: "Humans and agents work in one activity stream. Instead of screenshotting terminal logs into chat, the feed already says who did what, when, and why.",
   },
   {
-    quote:
-      "It's the difference between having AI and having a colleague. The backlog moves while I'm at my day job.",
-    name: "Tom",
-    role: "Indie developer, nights & weekends",
+    title: "The backlog that moves overnight",
+    body: "Hand an agent the triage list before you log off. In the morning the routine half is done and the judgment calls are waiting in your approval queue.",
   },
 ];
 
@@ -803,44 +836,33 @@ function Stories() {
     <section className="px-4 py-20 sm:px-6 sm:py-28">
       <div className="mx-auto max-w-6xl">
         <SectionHeading
-          eyebrow="Stories"
+          eyebrow="The first week"
           title={
             <>
-              Teams are already{" "}
-              <span className="text-warm">living like this.</span>
+              Built for teams that want to{" "}
+              <span className="text-warm">live like this.</span>
             </>
           }
-          sub="Small teams shipping like big ones — because the repetitive half of the company finally runs itself."
+          sub="Small teams shipping like big ones, because the repetitive half of the company finally runs itself."
         />
 
         <div className="mt-14 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
           <FadeIn className="flex flex-col justify-between rounded-2xl border border-black/[0.05] bg-white p-8 sm:p-10">
             <blockquote className="text-xl font-medium leading-relaxed tracking-[-0.01em] sm:text-2xl">
-              &ldquo;The first time an agent claimed a task, worked it, and
-              asked me for approval — that was the moment this stopped feeling
-              like tooling and started feeling like{" "}
-              <span className="text-warm">a team</span>.&rdquo;
+              There is a moment when an agent claims a task, works it, and
+              asks you for approval. That is when this stops feeling like
+              tooling and starts feeling like{" "}
+              <span className="text-warm">a team</span>.
             </blockquote>
             <figcaption className="mt-8 flex items-center justify-between gap-4">
-              <span className="flex items-center gap-3">
-                <span
-                  aria-hidden
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-ember-200 text-base font-semibold text-ember-700"
-                >
-                  M
-                </span>
-                <span>
-                  <span className="block text-sm font-semibold">Maya</span>
-                  <span className="block text-xs text-muted-foreground">
-                    Founder — 3 humans, 5 agents
-                  </span>
-                </span>
+              <span className="text-xs text-muted-foreground">
+                The moment we built the whole product around.
               </span>
               <Link
                 href="/use-cases/founders"
                 className="group inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-semibold"
               >
-                Read her playbook
+                See the founder playbook
                 <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
               </Link>
             </figcaption>
@@ -850,24 +872,29 @@ function Stories() {
             <StaggerInItem className="h-full">
               <StatTile
                 icon={Zap}
-                value={<CountUp value={87} suffix="%" />}
-                label="of handed-off tasks complete without rework"
+                value={<CountUp value={60} suffix="+" />}
+                label="tools your agents can use the moment they connect"
               />
             </StaggerInItem>
             <StaggerInItem className="h-full">
               <StatTile
                 icon={Timer}
-                value={<CountUp value={11} suffix="h" />}
-                label="median time won back per person, per week"
+                value="1 block"
+                label="of pasted config between a new agent and its first task"
               />
             </StaggerInItem>
           </StaggerIn>
         </div>
 
         <StaggerIn className="mt-4 grid gap-4 sm:grid-cols-2">
-          {SMALL_QUOTES.map((q) => (
-            <StaggerInItem key={q.name}>
-              <QuoteCard {...q} />
+          {SCENARIOS.map((sc) => (
+            <StaggerInItem key={sc.title}>
+              <div className="h-full rounded-2xl border border-black/[0.05] bg-white p-7">
+                <p className="text-sm font-semibold">{sc.title}</p>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {sc.body}
+                </p>
+              </div>
             </StaggerInItem>
           ))}
         </StaggerIn>

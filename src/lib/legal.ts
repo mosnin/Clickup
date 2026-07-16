@@ -60,14 +60,14 @@ const TERMS: LegalDoc = {
       heading: "2. AI agents acting on your behalf",
       body: [
         "The Service lets you create first-class AI agent principals and issue them API keys. An agent authenticated with your key acts as your authorized representative. You are responsible for everything an agent does under a key you issued, exactly as if you had taken the action yourself.",
-        "You control each agent's authority through the governance controls we provide — roles, list restrictions, per-day action budgets, spending limits, and human approval gates. You are responsible for configuring these controls appropriately for the autonomy you grant.",
+        "You control each agent's authority through the governance controls we provide, roles, list restrictions, per-day action budgets, spending limits, and human approval gates. You are responsible for configuring these controls appropriately for the autonomy you grant.",
         "You must not issue keys to agents you do not control, and you must revoke keys that are lost, leaked, or no longer needed. We may rate-limit, suspend, or revoke agent access that threatens the integrity, security, or availability of the Service.",
       ],
     },
     {
       heading: "3. Acceptable use",
       body: [
-        "Your use of the Service — by humans and agents alike — is subject to our Acceptable Use Policy, which is incorporated into these Terms by reference. In short, you may not use the Service to break the law, harm others, compromise security, or circumvent the controls that keep the platform safe for everyone.",
+        "Your use of the Service, by humans and agents alike, is subject to our Acceptable Use Policy, which is incorporated into these Terms by reference. In short, you may not use the Service to break the law, harm others, compromise security, or circumvent the controls that keep the platform safe for everyone.",
       ],
     },
     {
@@ -94,7 +94,7 @@ const TERMS: LegalDoc = {
     {
       heading: "7. Third-party services",
       body: [
-        "The Service integrates with third parties you choose to connect (for example, outbound webhooks, chat integrations, and payment facilitators). Your use of a third-party service is governed by that provider's terms, and we are not responsible for third-party services. Our subprocessors — the vendors we rely on to run the Service — are listed on our Subprocessors page.",
+        "The Service integrates with third parties you choose to connect (for example, outbound webhooks, chat integrations, and payment facilitators). Your use of a third-party service is governed by that provider's terms, and we are not responsible for third-party services. Our subprocessors, the vendors we rely on to run the Service, are listed on our Subprocessors page.",
       ],
     },
     {
@@ -200,7 +200,7 @@ const PRIVACY: LegalDoc = {
     {
       heading: "5. Sharing and subprocessors",
       body: [
-        "We share personal data with the subprocessors that help us run the Service — our infrastructure, authentication, email, AI, and payment-facilitation providers — under contracts that require appropriate safeguards. The current list is maintained on our Subprocessors page. We also share data when required by law or to protect rights, safety, and the integrity of the Service. We do not sell personal data.",
+        "We share personal data with the subprocessors that help us run the Service, our infrastructure, authentication, email, AI, and payment-facilitation providers, under contracts that require appropriate safeguards. The current list is maintained on our Subprocessors page. We also share data when required by law or to protect rights, safety, and the integrity of the Service. We do not sell personal data.",
       ],
     },
     {
@@ -212,7 +212,7 @@ const PRIVACY: LegalDoc = {
     {
       heading: "7. Retention",
       body: [
-        "We retain account data for as long as your account is active and for a limited period afterward. Operational records are retained on a rolling basis — for example, activity events for 90 days, webhook deliveries for 30 days, and usage counters for 14 days — after which they are pruned. Payment records are retained as long as required for accounting and legal compliance. You can export or delete workspace content as described below.",
+        "We retain account data for as long as your account is active and for a limited period afterward. Operational records are retained on a rolling basis, for example, activity events for 90 days, webhook deliveries for 30 days, and usage counters for 14 days, after which they are pruned. Payment records are retained as long as required for accounting and legal compliance. You can export or delete workspace content as described below.",
       ],
     },
     {
@@ -274,14 +274,14 @@ const ACCEPTABLE_USE: LegalDoc = {
     {
       heading: "2. Agent-specific rules",
       body: [
-        "Agents must respect the collaboration primitives the platform provides — claims, blockers, checklists, and approval gates — and must not act outside the roles, list restrictions, and budgets configured for them. Agents must not attempt to escalate their own privileges, lower an approval gate they did not raise, or exceed their spending limits.",
+        "Agents must respect the collaboration primitives the platform provides, claims, blockers, checklists, and approval gates, and must not act outside the roles, list restrictions, and budgets configured for them. Agents must not attempt to escalate their own privileges, lower an approval gate they did not raise, or exceed their spending limits.",
         "Agents that repeatedly error, stall while holding work, or generate abusive traffic may be throttled or suspended automatically by our watchdog systems.",
       ],
     },
     {
       heading: "3. Payment integrity",
       body: [
-        "You must not attempt to defraud the x402 payment flow — for example, by replaying payment authorizations, spoofing settlement, or manipulating credit balances. Metered actions consume credits as priced; circumventing metering is a violation of this AUP.",
+        "You must not attempt to defraud the x402 payment flow, for example, by replaying payment authorizations, spoofing settlement, or manipulating credit balances. Metered actions consume credits as priced; circumventing metering is a violation of this AUP.",
       ],
     },
     {

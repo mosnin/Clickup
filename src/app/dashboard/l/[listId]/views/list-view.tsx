@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Plus } from "lucide-react";
@@ -9,19 +10,16 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { TaskBadges } from "@/components/dashboard/task-badges";
+import { taskPeekHref } from "@/components/dashboard/task-peek";
+import {
+  PRIORITY_LABEL,
+  PRIORITY_ORDER,
+  type TaskPriority,
+} from "@/components/dashboard/priority";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { useToast } from "@/components/toast";
-import { EASE, motion } from "@/components/motion";
-
-type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
-
-const PRIORITY_LABEL: Record<TaskPriority, string> = {
-  urgent: "Urgent",
-  high: "High",
-  normal: "Normal",
-  low: "Low",
-};
+import { AnimatePresence, EASE, motion } from "@/components/motion";
 
 export function ListView({
   listId,
@@ -36,42 +34,81 @@ export function ListView({
   fields: Doc<"customFields">[];
   filtered?: boolean;
 }) {
+  // Multi-select for bulk actions. A Set of task ids; the bulk bar floats in
+  // when anything is selected.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Rows hidden while a bulk-delete undo toast is live.
+  const [pendingDelete, setPendingDelete] = useState<Set<string>>(new Set());
+  const shown = useMemo(
+    () => tasks.filter((t) => !pendingDelete.has(t._id)),
+    [tasks, pendingDelete],
+  );
+  const visibleIds = useMemo(
+    () => new Set<string>(shown.map((t) => t._id)),
+    [shown],
+  );
+  const selectedVisible = [...selected].filter((id) => visibleIds.has(id));
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected(
+      selectedVisible.length === shown.length && shown.length > 0
+        ? new Set()
+        : new Set(shown.map((t) => t._id)),
+    );
+  }
+
   return (
     <div className="overflow-x-auto rounded-2xl bento">
-      <table className="w-full text-sm">
-        <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
+      <table className="sheet-table w-full text-sm">
+        <thead>
           <tr>
-            <th scope="col" className="w-10 px-3 py-2"></th>
-            <th scope="col" className="px-3 py-2">Title</th>
-            <th scope="col" className="hidden px-3 py-2 sm:table-cell">Status</th>
-            <th scope="col" className="hidden px-3 py-2 sm:table-cell">Priority</th>
-            <th scope="col" className="hidden px-3 py-2 md:table-cell">Due</th>
+            <th scope="col" className="w-10">
+              <input
+                type="checkbox"
+                aria-label="Select all tasks"
+                checked={
+                  shown.length > 0 && selectedVisible.length === shown.length
+                }
+                onChange={toggleAll}
+                className="h-3.5 w-3.5 accent-[var(--color-foreground)]"
+              />
+            </th>
+            <th scope="col" className="w-10"></th>
+            <th scope="col">Title</th>
+            <th scope="col" className="hidden sm:table-cell">Status</th>
+            <th scope="col" className="hidden sm:table-cell">Priority</th>
+            <th scope="col" className="hidden md:table-cell">Due</th>
             {fields.map((f) => (
-              <th
-                key={f._id}
-                scope="col"
-                className="hidden px-3 py-2 md:table-cell"
-              >
+              <th key={f._id} scope="col" className="hidden md:table-cell">
                 {f.name}
               </th>
             ))}
-            <th scope="col" className="px-3 py-2"></th>
+            <th scope="col"></th>
           </tr>
         </thead>
         <tbody>
-          {tasks.length === 0 && (
+          {shown.length === 0 && (
             <tr>
               <td
-                colSpan={6 + fields.length}
-                className="px-3 py-6 text-center text-sm text-muted-foreground"
+                colSpan={7 + fields.length}
+                className="py-14 text-center text-sm text-muted-foreground"
               >
                 {filtered
                   ? "No tasks match these filters."
-                  : "No tasks yet — add one below."}
+                  : "Nothing here yet. Add the first task below."}
               </td>
             </tr>
           )}
-          {tasks.map((task, i) => (
+          {shown.map((task, i) => (
             <TaskRow
               key={task._id}
               task={task}
@@ -79,12 +116,212 @@ export function ListView({
               statuses={statuses}
               fields={fields}
               index={i}
+              selected={selected.has(task._id)}
+              onToggleSelect={() => toggleSelect(task._id)}
             />
           ))}
         </tbody>
       </table>
       <NewTaskRow listId={listId} />
+
+      <BulkBar
+        statuses={statuses}
+        selectedIds={selectedVisible as Id<"tasks">[]}
+        onClear={() => setSelected(new Set())}
+        onHide={(ids) =>
+          setPendingDelete((prev) => new Set([...prev, ...ids]))
+        }
+        onUnhide={(ids) =>
+          setPendingDelete((prev) => {
+            const next = new Set(prev);
+            for (const id of ids) next.delete(id);
+            return next;
+          })
+        }
+      />
     </div>
+  );
+}
+
+// Floating bulk-action bar: appears when tasks are selected. Complete, set
+// status, set priority, and delete (undo-able) act on the whole selection.
+function BulkBar({
+  statuses,
+  selectedIds,
+  onClear,
+  onHide,
+  onUnhide,
+}: {
+  statuses: Doc<"listStatuses">[];
+  selectedIds: Id<"tasks">[];
+  onClear: () => void;
+  onHide: (ids: string[]) => void;
+  onUnhide: (ids: string[]) => void;
+}) {
+  const update = useMutation(api.tasks.update);
+  const remove = useMutation(api.tasks.remove);
+  const { toast } = useToast();
+  const count = selectedIds.length;
+
+  const completeStatus = statuses.find((s) => s.category === "complete");
+
+  async function bulk(patch: {
+    statusId?: Id<"listStatuses">;
+    priority?: TaskPriority;
+  }) {
+    const ids = [...selectedIds];
+    onClear();
+    let failed = 0;
+    for (const taskId of ids) {
+      try {
+        await update({ taskId, ...patch });
+      } catch {
+        failed += 1;
+      }
+    }
+    if (failed > 0) {
+      toast(
+        `${failed} task${failed === 1 ? "" : "s"} couldn't be updated (blocked or awaiting approval)`,
+        { kind: "error" },
+      );
+    } else {
+      toast(`${ids.length} task${ids.length === 1 ? "" : "s"} updated`);
+    }
+  }
+
+  function bulkDelete() {
+    const ids = [...selectedIds];
+    onClear();
+    onHide(ids);
+    toast(`${ids.length} task${ids.length === 1 ? "" : "s"} deleted`, {
+      action: { label: "Undo", onClick: () => onUnhide(ids) },
+      onExpire: () => {
+        for (const taskId of ids) void remove({ taskId });
+      },
+    });
+  }
+
+  return (
+    <AnimatePresence>
+      {count > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 16 }}
+          transition={{ duration: 0.25, ease: EASE }}
+          className="fixed inset-x-0 bottom-6 z-40 flex justify-center px-4"
+        >
+          <div className="bento flex flex-wrap items-center gap-2 rounded-full bg-background py-2 pl-4 pr-2 shadow-lg">
+            <span className="text-sm font-medium tabular-nums">
+              {count} selected
+            </span>
+            <span aria-hidden className="h-4 w-px bg-border" />
+            {completeStatus && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => void bulk({ statusId: completeStatus._id })}
+              >
+                Complete
+              </Button>
+            )}
+            <BulkMenu label="Status">
+              {statuses
+                .slice()
+                .sort((a, b) => a.position - b.position)
+                .map((s) => (
+                  <BulkMenuItem
+                    key={s._id}
+                    label={s.name}
+                    swatch={s.color}
+                    onClick={() => void bulk({ statusId: s._id })}
+                  />
+                ))}
+            </BulkMenu>
+            <BulkMenu label="Priority">
+              {PRIORITY_ORDER.map((p) => (
+                <BulkMenuItem
+                  key={p}
+                  label={PRIORITY_LABEL[p]}
+                  onClick={() => void bulk({ priority: p })}
+                />
+              ))}
+            </BulkMenu>
+            <Button size="sm" variant="ghost" onClick={bulkDelete}>
+              Delete
+            </Button>
+            <Button size="sm" variant="outline" onClick={onClear}>
+              Done
+            </Button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function BulkMenu({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
+        {label}
+      </Button>
+      <AnimatePresence>
+        {open && (
+          <>
+            <div
+              aria-hidden
+              className="fixed inset-0 z-40"
+              onClick={() => setOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 4, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 4, scale: 0.98 }}
+              transition={{ duration: 0.15 }}
+              className="absolute bottom-full left-0 z-50 mb-2 w-44 rounded-xl bg-background p-1 shadow-lg"
+              onClick={() => setOpen(false)}
+            >
+              {children}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function BulkMenuItem({
+  label,
+  swatch,
+  onClick,
+}: {
+  label: string;
+  swatch?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-muted"
+    >
+      {swatch && (
+        <span
+          aria-hidden
+          className="h-2 w-2 rounded-full"
+          style={{ backgroundColor: swatch }}
+        />
+      )}
+      {label}
+    </button>
   );
 }
 
@@ -94,13 +331,18 @@ function TaskRow({
   statuses,
   fields,
   index,
+  selected,
+  onToggleSelect,
 }: {
   task: Doc<"tasks">;
   listId: Id<"lists">;
   statuses: Doc<"listStatuses">[];
   fields: Doc<"customFields">[];
   index: number;
+  selected: boolean;
+  onToggleSelect: () => void;
 }) {
+  const searchParams = useSearchParams();
   const update = useMutation(api.tasks.update);
   // Optimistic: the check fills instantly, before the server round-trip.
   // The server result reconciles it (and reverts if a blocker/approval
@@ -157,9 +399,18 @@ function TaskRow({
         ease: EASE,
         delay: Math.min(index * 0.03, 0.3),
       }}
-      className="border-b border-border last:border-0 align-middle"
+      className={cn("align-middle", selected && "bg-muted/60")}
     >
-      <td className="px-3 py-2">
+      <td>
+        <input
+          type="checkbox"
+          aria-label={`Select ${task.title}`}
+          checked={selected}
+          onChange={onToggleSelect}
+          className="h-3.5 w-3.5 accent-[var(--color-foreground)]"
+        />
+      </td>
+      <td>
         <motion.button
           type="button"
           aria-label={isDone ? "Mark task open" : "Mark task complete"}
@@ -202,10 +453,11 @@ function TaskRow({
           </motion.svg>
         </motion.button>
       </td>
-      <td className="px-3 py-2">
+      <td>
         <span className="flex items-center">
           <Link
-            href={`/dashboard/l/${listId}/t/${task._id}`}
+            href={taskPeekHref(searchParams, task._id)}
+            scroll={false}
             className={cn(
               "truncate hover:underline",
               isDone && "text-muted-foreground line-through",
@@ -216,7 +468,7 @@ function TaskRow({
           <TaskBadges task={task} />
         </span>
       </td>
-      <td className="hidden px-3 py-2 sm:table-cell">
+      <td className="hidden sm:table-cell">
         <select
           aria-label="Status"
           value={task.statusId}
@@ -226,8 +478,10 @@ function TaskRow({
               statusId: e.currentTarget.value as Id<"listStatuses">,
             })
           }
-          className="rounded-full border border-border bg-background px-2 py-1 text-xs"
-          style={{ borderColor: status?.color }}
+          className="soft-field px-2 py-1 text-xs"
+          style={{
+            backgroundColor: status ? `${status.color}33` : undefined,
+          }}
         >
           {statuses.map((s) => (
             <option key={s._id} value={s._id}>
@@ -236,7 +490,7 @@ function TaskRow({
           ))}
         </select>
       </td>
-      <td className="hidden px-3 py-2 sm:table-cell">
+      <td className="hidden sm:table-cell">
         <select
           aria-label="Priority"
           value={task.priority ?? ""}
@@ -247,17 +501,17 @@ function TaskRow({
               priority: (value || undefined) as TaskPriority | undefined,
             });
           }}
-          className="rounded-full border border-border bg-background px-2 py-1 text-xs"
+          className="soft-field px-2 py-1 text-xs"
         >
-          <option value="">—</option>
-          {(Object.keys(PRIORITY_LABEL) as TaskPriority[]).map((p) => (
+          <option value="">None</option>
+          {PRIORITY_ORDER.map((p) => (
             <option key={p} value={p}>
               {PRIORITY_LABEL[p]}
             </option>
           ))}
         </select>
       </td>
-      <td className="hidden px-3 py-2 md:table-cell">
+      <td className="hidden md:table-cell">
         <input
           type="date"
           aria-label="Due date"
@@ -268,11 +522,11 @@ function TaskRow({
               dueDate: fromDateInputValue(e.currentTarget.value) ?? null,
             })
           }
-          className="rounded-full border border-border bg-background px-2 py-1 text-xs"
+          className="soft-field px-2 py-1 text-xs"
         />
       </td>
       {fields.map((f) => (
-        <td key={f._id} className="hidden px-3 py-2 md:table-cell">
+        <td key={f._id} className="hidden md:table-cell">
           <CustomFieldInput
             field={f}
             value={valuesByField.get(f._id)}
@@ -286,7 +540,7 @@ function TaskRow({
           />
         </td>
       ))}
-      <td className="px-3 py-2 text-right">
+      <td className="text-right">
         <button
           type="button"
           aria-label="Delete task"
@@ -324,10 +578,7 @@ function NewTaskRow({ listId }: { listId: Id<"lists"> }) {
   }
 
   return (
-    <form
-      onSubmit={submit}
-      className="flex items-center gap-2 border-t border-border p-3"
-    >
+    <form onSubmit={submit} className="flex items-center gap-2 px-4 py-3">
       <Plus className="h-4 w-4 text-muted-foreground" aria-hidden />
       <input
         type="text"

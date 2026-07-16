@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useMutation } from "convex/react";
 import {
   addMonths,
   endOfMonth,
@@ -13,16 +15,19 @@ import {
   startOfWeek,
 } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { taskPeekHref } from "@/components/dashboard/task-peek";
+import {
+  PriorityDot,
+  type TaskPriority,
+} from "@/components/dashboard/priority";
 
-const PRIORITY_COLOR: Record<string, string> = {
-  urgent: "#f2b3ab",
-  high: "#f2c291",
-  normal: "#a9c6f2",
-  low: "#c9ccd4",
-};
+// A calendar you can schedule on: drag a task chip onto a day to reschedule,
+// click a day's empty space to create a task due that day, click a chip to
+// peek at the task without leaving the month.
 
 export function CalendarView({
   listId,
@@ -32,8 +37,13 @@ export function CalendarView({
   tasks: Doc<"tasks">[];
 }) {
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()));
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [composing, setComposing] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<string | null>(null);
+  const update = useMutation(api.tasks.update);
+  const create = useMutation(api.tasks.create);
 
-  // Build a 6-row week grid that always covers the entire month + spillover.
+  // Build a week grid that always covers the entire month + spillover.
   const weeks = useMemo(() => {
     const start = startOfWeek(startOfMonth(cursor), { weekStartsOn: 0 });
     const end = endOfWeek(endOfMonth(cursor), { weekStartsOn: 0 });
@@ -58,7 +68,27 @@ export function CalendarView({
     return map;
   }, [tasks]);
 
-  const undated = tasks.filter((t) => !t.dueDate).slice(0, 6);
+  const undated = tasks.filter((t) => !t.dueDate);
+
+  function dayTimestamp(day: Date): number {
+    // Local midnight, matching the date-input round-trip in lib/dates.
+    return new Date(
+      day.getFullYear(),
+      day.getMonth(),
+      day.getDate(),
+    ).getTime();
+  }
+
+  function onDrop(day: Date, e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(null);
+    const taskId = e.dataTransfer.getData("text/task-id");
+    if (!taskId) return;
+    void update({
+      taskId: taskId as Id<"tasks">,
+      dueDate: dayTimestamp(day),
+    });
+  }
 
   return (
     <div className="space-y-3">
@@ -91,65 +121,101 @@ export function CalendarView({
         </div>
       </header>
 
+      {tasks.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          Click any day to schedule your first task.
+        </p>
+      )}
+
       <div className="overflow-hidden rounded-2xl bento">
-        <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs uppercase tracking-wider text-muted-foreground">
+        <div className="grid grid-cols-7 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-            <div key={d} className="py-2">
+            <div key={d} className="py-2.5">
               {d}
             </div>
           ))}
         </div>
         <div>
           {weeks.map((week, wi) => (
-            <div
-              key={wi}
-              className="grid grid-cols-7 border-b border-border last:border-b-0"
-            >
+            <div key={wi} className="grid grid-cols-7">
               {week.map((day) => {
                 const key = format(day, "yyyy-MM-dd");
                 const dayTasks = tasksByDay.get(key) ?? [];
                 const inMonth = isSameMonth(day, cursor);
                 const today = isSameDay(day, new Date());
+                const isExpanded = expanded.has(key);
+                const shown = isExpanded ? dayTasks : dayTasks.slice(0, 3);
                 return (
                   <div
                     key={key}
+                    role="button"
+                    tabIndex={-1}
+                    onClick={(e) => {
+                      // Only empty-space clicks start a quick add.
+                      if (e.target === e.currentTarget) setComposing(key);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragOver(key);
+                    }}
+                    onDragLeave={() =>
+                      setDragOver((cur) => (cur === key ? null : cur))
+                    }
+                    onDrop={(e) => onDrop(day, e)}
                     className={cn(
-                      "min-h-24 border-r border-border p-1.5 last:border-r-0 sm:min-h-28",
-                      !inMonth && "bg-muted/20 text-muted-foreground",
+                      "min-h-24 cursor-pointer p-1.5 transition-colors sm:min-h-28",
+                      !inMonth && "bg-muted/25 text-muted-foreground",
+                      dragOver === key && "bg-muted/70",
                     )}
                   >
                     <div
                       className={cn(
-                        "mb-1 flex h-5 w-5 items-center justify-center text-[11px]",
-                        today && "rounded-full bg-brand-600 text-white",
+                        "pointer-events-none mb-1 flex h-5 w-5 items-center justify-center text-[11px]",
+                        today &&
+                          "rounded-full bg-foreground font-medium text-background",
                       )}
                     >
                       {day.getDate()}
                     </div>
                     <ul className="space-y-1">
-                      {dayTasks.slice(0, 3).map((t) => (
+                      {shown.map((t) => (
                         <li key={t._id}>
-                          <Link
-                            href={`/dashboard/l/${listId}/t/${t._id}`}
-                            className="flex items-center gap-1 truncate rounded-full bg-muted px-1.5 py-0.5 text-[11px] hover:bg-brand-100 hover:text-brand-700"
-                          >
-                            {t.priority && (
-                              <span
-                                aria-hidden
-                                className="inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full"
-                                style={{
-                                  backgroundColor:
-                                    PRIORITY_COLOR[t.priority],
-                                }}
-                              />
-                            )}
-                            <span className="truncate">{t.title}</span>
-                          </Link>
+                          <TaskChip task={t} />
                         </li>
                       ))}
                       {dayTasks.length > 3 && (
-                        <li className="text-[11px] text-muted-foreground">
-                          +{dayTasks.length - 3} more
+                        <li>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpanded((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(key)) next.delete(key);
+                                else next.add(key);
+                                return next;
+                              });
+                            }}
+                            className="text-[11px] text-muted-foreground hover:text-foreground"
+                          >
+                            {isExpanded
+                              ? "Show less"
+                              : `+${dayTasks.length - 3} more`}
+                          </button>
+                        </li>
+                      )}
+                      {composing === key && (
+                        <li onClick={(e) => e.stopPropagation()}>
+                          <QuickAdd
+                            onSubmit={async (title) => {
+                              await create({
+                                listId,
+                                title,
+                                dueDate: dayTimestamp(day),
+                              });
+                            }}
+                            onClose={() => setComposing(null)}
+                          />
                         </li>
                       )}
                     </ul>
@@ -162,24 +228,82 @@ export function CalendarView({
       </div>
 
       {undated.length > 0 && (
-        <div className="rounded-2xl border border-dashed border-border bg-background p-3">
+        <div className="rounded-2xl bento p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            No due date
+            No due date · drag onto a day to schedule
           </p>
-          <ul className="mt-2 flex flex-wrap gap-2">
+          <ul className="mt-2.5 flex flex-wrap gap-2">
             {undated.map((t) => (
               <li key={t._id}>
-                <Link
-                  href={`/dashboard/l/${listId}/t/${t._id}`}
-                  className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs hover:bg-brand-100 hover:text-brand-700"
-                >
-                  {t.title}
-                </Link>
+                <TaskChip task={t} pill />
               </li>
             ))}
           </ul>
         </div>
       )}
     </div>
+  );
+}
+
+function TaskChip({ task, pill }: { task: Doc<"tasks">; pill?: boolean }) {
+  const searchParams = useSearchParams();
+  return (
+    <Link
+      href={taskPeekHref(searchParams, task._id)}
+      scroll={false}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/task-id", task._id);
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      onClick={(e) => e.stopPropagation()}
+      className={cn(
+        "flex cursor-grab items-center gap-1 truncate rounded-full bg-muted text-[11px] transition-colors hover:bg-brand-100 hover:text-brand-700 active:cursor-grabbing",
+        pill ? "px-2 py-1 text-xs" : "px-1.5 py-0.5",
+      )}
+    >
+      {task.priority && (
+        <PriorityDot
+          priority={task.priority as TaskPriority}
+          className="h-1.5 w-1.5"
+        />
+      )}
+      <span className="truncate">{task.title}</span>
+    </Link>
+  );
+}
+
+function QuickAdd({
+  onSubmit,
+  onClose,
+}: {
+  onSubmit: (title: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const t = title.trim();
+        if (!t) return onClose();
+        setTitle("");
+        onClose();
+        await onSubmit(t);
+      }}
+    >
+      <input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.currentTarget.value)}
+        onBlur={onClose}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+        }}
+        placeholder="New task…"
+        aria-label="New task title"
+        className="soft-field w-full px-1.5 py-1 text-[11px]"
+      />
+    </form>
   );
 }

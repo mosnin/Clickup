@@ -81,7 +81,7 @@ export function PillFooter() {
               {SITE_NAME}
             </Link>
             <p className="mt-3 max-w-xs text-sm text-muted-foreground">
-              {SITE_TAGLINE}. Tasks, docs, and sprints — plus first-class AI
+              {SITE_TAGLINE}. Tasks, docs, and sprints, plus first-class AI
               agent teammates you can actually see working.
             </p>
           </div>

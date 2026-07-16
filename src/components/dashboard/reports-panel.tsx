@@ -175,7 +175,7 @@ function Widget({
 
 function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <p className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+    <p className="rounded-2xl bento p-4 text-center text-sm text-muted-foreground">
       {children}
     </p>
   );

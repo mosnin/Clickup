@@ -9,6 +9,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { Clips } from "@/components/dashboard/clips";
+import { Attachments } from "@/components/dashboard/attachments";
 import { Comments } from "@/components/dashboard/comments";
 import {
   TaskAssignees,
@@ -159,10 +160,12 @@ function TaskEditor({
           whileTap={{ scale: 0.85 }}
           className={cn(
             "tap-target mt-1 inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors sm:mt-1.5",
-            isDone
-              ? "border-emerald-500 bg-emerald-500 text-white"
-              : "border-border text-transparent hover:border-emerald-400 hover:text-emerald-400",
+            isDone ? "text-white" : "text-transparent",
           )}
+          style={{
+            borderColor: currentStatus?.color ?? "var(--color-border)",
+            backgroundColor: isDone ? currentStatus?.color : "transparent",
+          }}
         >
           <motion.span
             initial={false}
@@ -241,6 +244,13 @@ function TaskEditor({
           </div>
 
           <TaskChecklist task={task} />
+
+          <section>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Attachments
+            </h2>
+            <Attachments taskId={task._id} />
+          </section>
 
           <section>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">

@@ -237,7 +237,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "request_approval",
     description:
-      "My work on a gated task is done — ask a human to sign off. Raises the approval gate if needed, emits task.approval_requested, and emails a responsible human. Wait for the task.approved event (or poll get_task) before complete_task.",
+      "My work on a gated task is done, ask a human to sign off. Raises the approval gate if needed, emits task.approval_requested, and emails a responsible human. Wait for the task.approved event (or poll get_task) before complete_task.",
     shape: {
       taskId: z.string(),
       note: z.string().optional().describe("what to review / where to look"),
@@ -324,7 +324,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "add_comment",
     description:
-      "Post a comment (task) or chat message (workspace). Mention someone by putting @[Name](id) in the body AND listing the id in mentionIds — they'll be notified.",
+      "Post a comment (task) or chat message (workspace). Mention someone by putting @[Name](id) in the body AND listing the id in mentionIds, they'll be notified.",
     shape: {
       parentType: z.enum(["task", "space", "workspace", "channel"]),
       parentId: z.string(),
@@ -356,7 +356,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_members",
     description:
-      "Everyone in my scope — humans and agents — with ids usable in assigneeIds/mentionIds. Agents include live status.",
+      "Everyone in my scope, humans and agents, with ids usable in assigneeIds/mentionIds. Agents include live status.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.listMembers), { apiKey: k }),
   },
@@ -575,7 +575,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "next_task",
     description:
-      "What should I work on next? Returns the best open, unclaimed, unblocked task(s) — my assignments first (by priority, then due date), then unassigned work. Claim what it returns before starting.",
+      "What should I work on next? Returns the best open, unclaimed, unblocked task(s), my assignments first (by priority, then due date), then unassigned work. Claim what it returns before starting.",
     shape: {
       includeUnassigned: z.boolean().optional().describe("default true"),
       limit: z.number().optional().describe("default 1, max 10"),
@@ -630,7 +630,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "report_error",
     description:
-      "Something went wrong and I can't proceed — record it so humans are alerted (agent.error event + failed run on my history). Use instead of going silent.",
+      "Something went wrong and I can't proceed, record it so humans are alerted (agent.error event + failed run on my history). Use instead of going silent.",
     shape: {
       message: z.string(),
       taskId: z.string().optional(),
@@ -643,14 +643,14 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_channels",
     description:
-      "Topic channels in my scope — threads for agent↔agent discussion that stay out of the main chat. Post with add_comment (parentType 'channel').",
+      "Topic channels in my scope, threads for agent↔agent discussion that stay out of the main chat. Post with add_comment (parentType 'channel').",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.listChannels), { apiKey: k }),
   },
   {
     name: "create_channel",
     description:
-      "Create (or join — same name returns the existing channel) a topic channel, e.g. 'sprint-12-planning'.",
+      "Create (or join, same name returns the existing channel) a topic channel, e.g. 'sprint-12-planning'.",
     shape: { name: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.createChannel), { apiKey: k, ...a }),

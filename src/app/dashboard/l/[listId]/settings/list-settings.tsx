@@ -8,6 +8,7 @@ import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Picker } from "@/components/ui/picker";
 import { ScheduledTasksSection } from "@/components/dashboard/scheduled-tasks-section";
 
 type StatusCategory = Doc<"listStatuses">["category"];
@@ -277,7 +278,7 @@ function CreateStatusForm({
           setPending(false);
         }
       }}
-      className="mt-3 flex flex-col gap-2 rounded-2xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
+      className="mt-3 flex flex-col gap-2 rounded-2xl bento p-3 sm:flex-row sm:items-center"
     >
       <input
         type="color"
@@ -334,7 +335,7 @@ function FieldsSection({
 
       <ul className="mt-4 space-y-2">
         {fields.length === 0 && (
-          <li className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+          <li className="rounded-2xl bento p-4 text-center text-sm text-muted-foreground">
             No custom fields yet.
           </li>
         )}
@@ -410,7 +411,7 @@ function FieldRow({
           aria-label="Delete field"
           onClick={() => {
             setDeleting(true);
-            toast(`"${field.name}" deleted — values go with it`, {
+            toast(`"${field.name}" deleted, values go with it`, {
               action: { label: "Undo", onClick: () => setDeleting(false) },
               onExpire: () => onDelete(),
             });
@@ -547,7 +548,7 @@ function CreateFieldForm({
           setPending(false);
         }
       }}
-      className="mt-3 flex flex-col gap-2 rounded-2xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
+      className="mt-3 flex flex-col gap-2 rounded-2xl bento p-3 sm:flex-row sm:items-center"
     >
       <input
         type="text"
@@ -615,13 +616,14 @@ function AutomationsSection({
 
       <ul className="mt-4 space-y-2">
         {automations.length === 0 && (
-          <li className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+          <li className="rounded-2xl bento p-4 text-center text-sm text-muted-foreground">
             No automations yet.
           </li>
         )}
         {automations.map((automation) => (
           <AutomationRow
             key={automation._id}
+            listId={listId}
             automation={automation}
             statuses={statuses}
             onChange={(patch) =>
@@ -641,11 +643,13 @@ function AutomationsSection({
 }
 
 function AutomationRow({
+  listId,
   automation,
   statuses,
   onChange,
   onDelete,
 }: {
+  listId: Id<"lists">;
   automation: AutomationDoc;
   statuses: Doc<"listStatuses">[];
   onChange: (patch: {
@@ -689,6 +693,7 @@ function AutomationRow({
         </select>
         <span className="text-xs text-muted-foreground">→</span>
         <ActionEditor
+          listId={listId}
           action={automation.action}
           statuses={statuses}
           onChange={(action) => onChange({ action })}
@@ -713,14 +718,19 @@ function AutomationRow({
 }
 
 function ActionEditor({
+  listId,
   action,
   statuses,
   onChange,
 }: {
+  listId: Id<"lists">;
   action: AutomationDoc["action"];
   statuses: Doc<"listStatuses">[];
   onChange: (action: AutomationDoc["action"]) => Promise<unknown>;
 }) {
+  // People and agents assignable in this list, so "assign" is a picker,
+  // never a raw ID field.
+  const assignable = useQuery(api.agents.listAssignableForList, { listId });
   // Switching action kind resets the payload to a sensible default for
   // the new kind, so we never store mismatched fields.
   function setKind(kind: ActionKind) {
@@ -747,14 +757,19 @@ function ActionEditor({
         ))}
       </select>
       {action.kind === "assign_user" && (
-        <input
-          type="text"
-          value={action.clerkId}
-          onChange={(e) =>
-            onChange({ kind: "assign_user", clerkId: e.currentTarget.value })
+        <Picker
+          label={
+            (assignable ?? []).find((a) => a.id === action.clerkId)?.name ??
+            "Choose who…"
           }
-          placeholder="Clerk user ID"
-          className="w-48 rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+          selectedId={action.clerkId || undefined}
+          options={(assignable ?? []).map((a) => ({
+            id: a.id,
+            label: a.name,
+            emoji: a.emoji,
+            hint: a.kind === "agent" ? "agent" : undefined,
+          }))}
+          onSelect={(id) => onChange({ kind: "assign_user", clerkId: id })}
         />
       )}
       {action.kind === "set_priority" && (

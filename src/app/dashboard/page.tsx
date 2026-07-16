@@ -14,6 +14,9 @@ import {
   Stagger,
   StaggerItem,
 } from "@/components/motion";
+import { InviteCards } from "@/components/dashboard/invite-cards";
+import { NewWorkspaceDialog } from "@/components/dashboard/new-workspace-dialog";
+import TextType from "@/components/text-type";
 
 // Home: the first thing a signed-in user sees. Greets them by name,
 // surfaces any agent that's still waiting to connect, and lays out their
@@ -32,6 +35,7 @@ export default function DashboardHome() {
   const tree = useQuery(api.sidebar.tree, {});
   const agents = useQuery(api.agents.listForCurrentUser, {});
   const { user } = useUser();
+  const [wsDialog, setWsDialog] = useState(false);
 
   if (tree === undefined) {
     return <DashboardSkeleton />;
@@ -56,12 +60,22 @@ export default function DashboardHome() {
           {greeting()}
           {user?.firstName ? `, ${user.firstName}` : ""}.
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {waiting.length > 0
-            ? "Your mission control is live — one thing left: bring your agent online."
-            : "Here's where everything lives."}
-        </p>
+        <TextType
+          as="p"
+          className="mt-1 text-sm text-muted-foreground"
+          text={
+            waiting.length > 0
+              ? "Almost there. One thing left: bring your agent online."
+              : "Here's where everything lives."
+          }
+          typingSpeed={28}
+          loop={false}
+          hideCursorWhileTyping={false}
+          cursorBlinkDuration={0.6}
+        />
       </header>
+
+      <InviteCards />
 
       {/* AnimatePresence so the card resolves with a satisfying collapse
           the moment the agent's first heartbeat lands (live via Convex). */}
@@ -88,8 +102,8 @@ export default function DashboardHome() {
                   {waiting[0].name} is waiting to connect
                 </span>
                 <span className="block text-sm text-muted-foreground">
-                  Point your runtime at the MCP endpoint with its key — the dot
-                  turns green the moment it heartbeats.
+                  Copy its ready-made setup from the Agents page. The dot turns
+                  green the moment it checks in.
                 </span>
               </span>
               <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
@@ -128,7 +142,7 @@ export default function DashboardHome() {
               </Link>
             </StaggerItem>
           ) : (
-            <StaggerItem className="rounded-2xl border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground">
+            <StaggerItem className="rounded-2xl bento p-5 text-sm text-muted-foreground">
               Setting up your personal space…
             </StaggerItem>
           )}
@@ -140,23 +154,25 @@ export default function DashboardHome() {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Team workspaces
           </h2>
-          <Link
-            href="/onboarding"
+          <button
+            type="button"
+            onClick={() => setWsDialog(true)}
             className="text-sm font-medium text-brand-600 hover:underline"
           >
-            New workspace →
-          </Link>
+            New workspace
+          </button>
         </div>
         <Stagger className="mt-3 grid gap-3 sm:grid-cols-2">
           {tree.workspaces.length === 0 && (
-            <StaggerItem className="rounded-2xl border border-dashed border-border bg-muted/30 p-5 text-sm text-muted-foreground sm:col-span-2">
+            <StaggerItem className="rounded-2xl bento p-5 text-sm text-muted-foreground sm:col-span-2">
               You&apos;re not in any team workspaces yet.{" "}
-              <Link
-                href="/onboarding"
+              <button
+                type="button"
+                onClick={() => setWsDialog(true)}
                 className="font-medium text-brand-600 hover:underline"
               >
                 Create one
-              </Link>
+              </button>
               .
             </StaggerItem>
           )}
@@ -180,6 +196,8 @@ export default function DashboardHome() {
           ))}
         </Stagger>
       </section>
+
+      <NewWorkspaceDialog open={wsDialog} onClose={() => setWsDialog(false)} />
     </div>
   );
 }

@@ -212,7 +212,7 @@ function RecordingPanel({ onStop }: { onStop: () => void }) {
           aria-hidden
           className="inline-block h-2 w-2 animate-pulse rounded-full bg-red-500"
         />
-        Recording — {formatDuration(now - startedAt.current)}
+        Recording, {formatDuration(now - startedAt.current)}
       </span>
       <Button
         type="button"
@@ -252,7 +252,7 @@ function ClipCard({ clip }: { clip: Doc<"clips"> }) {
       </div>
       <div className="mt-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
         <span>
-          {clip.durationMs ? formatDuration(clip.durationMs) : "—"}
+          {clip.durationMs ? formatDuration(clip.durationMs) : "-"}
         </span>
         <span className="ml-auto">
           {new Date(clip.createdAt).toLocaleString(undefined, {

@@ -138,7 +138,7 @@ export function Brain() {
       {/* Empty state: guided example prompts, so the page is never a blank
           search box staring back at you. */}
       {idle && (
-        <section className="rounded-2xl border border-dashed border-border bg-muted/20 p-6">
+        <section className="rounded-2xl bento p-6">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Try asking
           </p>

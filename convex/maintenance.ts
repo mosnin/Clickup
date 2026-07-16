@@ -1,6 +1,8 @@
 import { internalMutation } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import { emitEvent, scopeForList } from "./events";
+import { notify } from "./notificationCenter";
 import { CLAIM_TTL_MS } from "./tasks";
 
 // Unattended-operation safety nets, driven from convex/crons.ts.
@@ -110,6 +112,67 @@ export const watchdog = internalMutation({
             assigneeIds: task.assigneeClerkIds,
           },
         });
+      }
+      // In-app nudge for each human assignee.
+      for (const cid of task.assigneeClerkIds) {
+        if (ctx.db.normalizeId("agents", cid)) continue;
+        await notify(ctx, {
+          userClerkId: cid,
+          type: "overdue",
+          title: "Task overdue",
+          body: task.title,
+          href: `/dashboard/l/${task.listId}/t/${task._id}`,
+        });
+      }
+    }
+
+    // 2b. Due-soon reminder (within the next 24h, once per due date).
+    const soonHorizon = now + 24 * 60 * 60 * 1000;
+    const soonTasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_due", (q) => q.gt("dueDate", now).lt("dueDate", soonHorizon))
+      .collect();
+    for (const task of soonTasks) {
+      if (
+        task.dueSoonNotifiedAt !== undefined &&
+        task.dueSoonNotifiedAt >= task.dueDate!
+      ) {
+        continue;
+      }
+      let status = statusCache.get(task.statusId);
+      if (status === undefined) {
+        status = await ctx.db.get(task.statusId);
+        statusCache.set(task.statusId, status);
+      }
+      if (status?.category === "complete" || status?.category === "closed") {
+        continue;
+      }
+      await ctx.db.patch(task._id, { dueSoonNotifiedAt: now });
+      for (const cid of task.assigneeClerkIds) {
+        if (ctx.db.normalizeId("agents", cid)) continue;
+        await notify(ctx, {
+          userClerkId: cid,
+          type: "due_soon",
+          title: "Due within a day",
+          body: task.title,
+          href: `/dashboard/l/${task.listId}/t/${task._id}`,
+        });
+        const user = await ctx.db
+          .query("users")
+          .withIndex("by_clerk_id", (q) => q.eq("clerkId", cid))
+          .unique();
+        if (user?.email) {
+          await ctx.scheduler.runAfter(
+            0,
+            internal.notifications.sendDueSoonEmail,
+            {
+              toEmail: user.email,
+              toName: user.name,
+              taskTitle: task.title,
+              whenLabel: "within a day",
+            },
+          );
+        }
       }
     }
 

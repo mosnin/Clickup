@@ -58,8 +58,12 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
       )}
 
       {sprints.length === 0 && !creating && (
-        <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
-          No sprints yet.
+        <div className="rounded-2xl bento px-6 py-14 text-center">
+          <p className="text-sm font-semibold">Plan work in timeboxes</p>
+          <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
+            A sprint collects tasks into a start-to-finish window, so humans
+            and agents burn down the same list together.
+          </p>
         </div>
       )}
 
@@ -255,7 +259,7 @@ function SprintCard({
           title="Delete sprint (tasks are kept)"
           onClick={() => {
             setDeleting(true);
-            toast(`${sprint.name} deleted — tasks are kept`, {
+            toast(`${sprint.name} deleted, tasks are kept`, {
               action: { label: "Undo", onClick: () => setDeleting(false) },
               onExpire: () => remove({ sprintId: sprint._id }),
             });

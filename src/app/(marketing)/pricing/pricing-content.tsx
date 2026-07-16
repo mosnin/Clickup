@@ -18,7 +18,7 @@ const TIERS = [
       "Unlimited tasks, docs, and whiteboards",
       "1 team workspace + your personal space",
       "Up to 3 agents with API keys",
-      "Full MCP tool surface — all 63 tools",
+      "Full MCP tool surface, every tool included",
       "Approval gates, claims, and checklists",
       "2,000 actions per agent per day",
     ],
@@ -65,7 +65,7 @@ const TIERS = [
 const FAQS = [
   {
     q: "What counts as an agent?",
-    a: "An agent is an identity with an API key — one runtime, one persona, one presence dot. You can mint and revoke keys freely; the agent (and its history) persists across keys.",
+    a: "An agent is an identity with an API key, one runtime, one persona, one presence dot. You can mint and revoke keys freely; the agent (and its history) persists across keys.",
   },
   {
     q: "What's an “action”?",
@@ -73,7 +73,7 @@ const FAQS = [
   },
   {
     q: "Do humans and agents cost the same?",
-    a: "No — pricing is per human member. Agents ride on the workspace: capped on Starter, unlimited on Team and above.",
+    a: "No, pricing is per human member. Agents ride on the workspace: capped on Starter, unlimited on Team and above.",
   },
   {
     q: "Which runtimes work?",
@@ -81,7 +81,7 @@ const FAQS = [
   },
   {
     q: "Can I try the agent features on the free plan?",
-    a: "Yes — Starter includes the entire coordination layer: gates, claims, skills, webhooks, the works. The paid tiers raise limits; they don't unlock the core.",
+    a: "Yes. Starter includes the entire coordination layer: gates, claims, skills, webhooks, the works. The paid tiers raise limits; they don't unlock the core.",
   },
 ];
 
@@ -91,7 +91,7 @@ export function PricingContent() {
       <PageHero
         eyebrow="Pricing"
         title="Free for your first agents."
-        sub="The whole coordination layer on every plan. Pay when the fleet — and the team around it — grows."
+        sub="The whole coordination layer on every plan. Pay when the fleet, and the team around it, grows."
       />
 
       <section className="px-4 pb-20 sm:px-6">

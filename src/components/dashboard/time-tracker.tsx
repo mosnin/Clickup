@@ -79,7 +79,7 @@ function RunningPanel({
           aria-hidden
           className="inline-block h-2 w-2 animate-pulse rounded-full bg-red-500"
         />
-        Running — {formatDuration(ms)}
+        Running, {formatDuration(ms)}
       </span>
       <Button
         type="button"

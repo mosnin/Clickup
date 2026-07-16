@@ -16,11 +16,11 @@ export async function generateMetadata({
   const doc = getLegalDoc(slug);
   if (!doc) return {};
   return {
-    title: `${doc.title} — legal`,
+    title: `${doc.title}, legal`,
     description: doc.summary,
     alternates: { canonical: `/legal/${doc.slug}` },
     openGraph: {
-      title: `${doc.title} — legal`,
+      title: `${doc.title}, legal`,
       description: doc.summary,
       url: `/legal/${doc.slug}`,
       type: "article",

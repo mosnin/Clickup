@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useUser } from "@clerk/nextjs";
 import { useConvex, useMutation, useQuery } from "convex/react";
-import { Download, Trash2 } from "lucide-react";
+import { Download, Trash2, UserPlus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,8 @@ export function WorkspaceSettings({
 
   return (
     <div className="space-y-8">
+      <MembersSection workspaceId={workspaceId} />
+
       <section>
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Integrations
@@ -41,6 +44,178 @@ export function WorkspaceSettings({
       </section>
 
       <ExportSection workspaceId={workspaceId} />
+    </div>
+  );
+}
+
+// Members & invites. Everyone in the workspace sees the roster; owners and
+// admins additionally get the invite form and pending-invite management. The
+// pending-invite query throws for plain members (requireManageAccess), so we
+// only subscribe to it when the current user manages the workspace.
+function MembersSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
+  const { user } = useUser();
+  const members = useQuery(api.workspaces.listMembers, { workspaceId });
+
+  const myRole = members?.find((m) => m.clerkId === user?.id)?.role;
+  const canManage = myRole === "owner" || myRole === "admin";
+
+  const invites = useQuery(
+    api.invites.listForWorkspace,
+    canManage ? { workspaceId } : "skip",
+  );
+
+  return (
+    <section>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Members
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {canManage
+          ? "Invite teammates by email and manage who has access."
+          : "People with access to this workspace."}
+      </p>
+
+      {canManage && <InviteForm workspaceId={workspaceId} />}
+
+      <div className="mt-4 space-y-2">
+        {members === undefined ? (
+          <div className="h-12 animate-pulse rounded-2xl bg-muted/40" />
+        ) : (
+          members.map((m) => (
+            <div
+              key={m._id}
+              className="flex items-center gap-3 rounded-2xl bento px-4 py-2.5"
+            >
+              <span className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-medium text-white">
+                {(m.name || m.email || "?").slice(0, 1).toUpperCase()}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">
+                  {m.name || m.email}
+                  {m.clerkId === user?.id && (
+                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                      (you)
+                    </span>
+                  )}
+                </p>
+                {m.name && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    {m.email}
+                  </p>
+                )}
+              </div>
+              <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                {m.role}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+
+      {canManage && invites && invites.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Pending invites
+          </h3>
+          <div className="mt-2 space-y-2">
+            {invites.map((inv) => (
+              <PendingInviteRow key={inv._id} inviteId={inv._id} email={inv.email} role={inv.role} />
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function InviteForm({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
+  const createInvite = useMutation(api.invites.create);
+  const { toast } = useToast();
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"admin" | "member">("member");
+  const [pending, setPending] = useState(false);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setPending(true);
+    try {
+      await createInvite({ workspaceId, email: email.trim(), role });
+      toast(`Invite sent to ${email.trim()}`);
+      setEmail("");
+    } catch (err) {
+      toast(
+        err instanceof Error
+          ? err.message.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() ||
+              "Couldn't send invite"
+          : "Couldn't send invite",
+        { kind: "error" },
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="mt-4 flex flex-wrap items-center gap-2">
+      <input
+        type="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.currentTarget.value)}
+        placeholder="teammate@company.com"
+        className="soft-field min-w-0 flex-1 px-3 py-2 text-sm"
+      />
+      <select
+        value={role}
+        onChange={(e) => setRole(e.currentTarget.value as "admin" | "member")}
+        className="soft-field px-3 py-2 text-sm"
+        aria-label="Invite role"
+      >
+        <option value="member">Member</option>
+        <option value="admin">Admin</option>
+      </select>
+      <Button type="submit" size="sm" disabled={!email.trim() || pending}>
+        <UserPlus className="h-3.5 w-3.5" />
+        {pending ? "Sending…" : "Invite"}
+      </Button>
+    </form>
+  );
+}
+
+function PendingInviteRow({
+  inviteId,
+  email,
+  role,
+}: {
+  inviteId: Id<"invites">;
+  email: string;
+  role: string;
+}) {
+  const revoke = useMutation(api.invites.revoke);
+  const { toast } = useToast();
+  const [revoked, setRevoked] = useState(false);
+  if (revoked) return null;
+
+  return (
+    <div className="flex items-center gap-3 rounded-2xl bento px-4 py-2.5">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm">{email}</p>
+        <p className="text-xs text-muted-foreground">Invited as {role} · pending</p>
+      </div>
+      <button
+        type="button"
+        aria-label={`Revoke invite for ${email}`}
+        onClick={() => {
+          setRevoked(true);
+          toast("Invite revoked", {
+            action: { label: "Undo", onClick: () => setRevoked(false) },
+            onExpire: () => revoke({ inviteId }),
+          });
+        }}
+        className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
     </div>
   );
 }
@@ -118,9 +293,9 @@ function SlackIntegration({
   const { toast } = useToast();
   const [disconnecting, setDisconnecting] = useState(false);
 
-  const [draftUrl, setDraftUrl] = useState(
-    integration?.config.webhookUrl ?? "",
-  );
+  // The stored webhook URL is a secret (anyone holding it can post to the
+  // channel), so it is never rendered back. Empty field = unchanged.
+  const [draftUrl, setDraftUrl] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -188,8 +363,12 @@ function SlackIntegration({
           type="url"
           value={draftUrl}
           onChange={(e) => setDraftUrl(e.currentTarget.value)}
-          placeholder="https://hooks.slack.com/services/T0…"
-          className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm font-mono"
+          placeholder={
+            integration
+              ? "Connected. Paste a new URL to replace it."
+              : "https://hooks.slack.com/services/T0…"
+          }
+          className="soft-field w-full px-3 py-1.5 font-mono text-sm"
         />
         {error && <p className="text-xs text-red-700">{error}</p>}
         <div className="flex flex-wrap items-center gap-2">

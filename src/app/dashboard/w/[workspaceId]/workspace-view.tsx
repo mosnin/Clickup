@@ -94,7 +94,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
       </header>
 
       {/* Scrolls horizontally on narrow screens instead of wrapping into a
-          two-row pile — the full-bleed negative margin lets the row bleed
+          two-row pile, the full-bleed negative margin lets the row bleed
           to the screen edge. */}
       <div className="-mx-4 overflow-x-auto px-4 sm:-mx-8 sm:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <nav
@@ -131,7 +131,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
       >
       {tab === "overview" ? (
         workspace.spaces.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-10 text-center">
+          <div className="rounded-2xl bento p-10 text-center">
             <p className="text-sm text-muted-foreground">
               No spaces yet. Use the <span className="font-medium">+</span> next
               to <span className="font-medium">{workspace.name}</span> in the
@@ -162,7 +162,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
                       </div>
                       {lists.length === 0 ? (
                         <p className="mt-3 text-xs text-muted-foreground">
-                          No lists yet — add one from the sidebar.
+                          No lists yet, add one from the sidebar.
                         </p>
                       ) : (
                         <ul className="mt-3 space-y-0.5">
@@ -297,7 +297,7 @@ function ChatWithChannels({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
           <button
             type="button"
             onClick={() => setAddingChannel(true)}
-            className="rounded-full border border-dashed border-border px-3 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="rounded-full bento px-3 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             + channel
           </button>

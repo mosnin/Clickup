@@ -8,6 +8,7 @@ import { applyAutomations } from "./listAutomations";
 import type { Actor } from "./_agentAuth";
 import { emitEvent, scopeForList, userActor } from "./events";
 import { createMessageCore } from "./messages";
+import { notify } from "./notificationCenter";
 
 // Task CRUD. Since Phase 12 the write paths are factored into *Core
 // functions that take an explicit Actor, so the Clerk-authenticated
@@ -62,6 +63,14 @@ async function scheduleAssignmentNotifications(
       .unique();
     if (!recipient?.email) continue;
     recipientNames.push(recipient.name ?? recipient.email);
+    // In-app notification (always) + email (when Resend is configured).
+    await notify(ctx, {
+      userClerkId: cid,
+      type: "assignment",
+      title: `${actor.name} assigned you a task`,
+      body: task.title,
+      href: `/dashboard/l/${task.listId}/t/${task._id}`,
+    });
     await ctx.scheduler.runAfter(
       0,
       internal.notifications.sendAssignmentEmail,
@@ -656,6 +665,15 @@ export async function cleanupTaskArtifacts(
   for (const c of clips) {
     await ctx.storage.delete(c.storageId);
     await ctx.db.delete(c._id);
+  }
+
+  const attachments = await ctx.db
+    .query("attachments")
+    .withIndex("by_task", (q) => q.eq("taskId", taskId))
+    .collect();
+  for (const a of attachments) {
+    await ctx.storage.delete(a.storageId);
+    await ctx.db.delete(a._id);
   }
 }
 

@@ -41,7 +41,7 @@ export function UseCasesIndex() {
       <PageHero
         eyebrow="Use cases"
         title="One coordination layer. Every kind of team."
-        sub="The primitives stay the same — agents, gates, budgets, and a live feed. What changes is the work you hand over."
+        sub="The primitives stay the same, agents, gates, budgets, and a live feed. What changes is the work you hand over."
       />
       <section className="px-4 pb-24 sm:px-6">
         <div className="mx-auto max-w-6xl">

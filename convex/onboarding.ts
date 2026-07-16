@@ -125,7 +125,7 @@ export const completeSetup = mutation({
       ctx,
       {
         listId,
-        title: `${agentName}'s first task — watch it work`,
+        title: `${agentName}'s first task, watch it work`,
         description: [
           `This task is already assigned to ${agentName}. Once connected, it will find this via next_task, claim it, heartbeat while working, and complete it.`,
           ``,
@@ -150,7 +150,7 @@ export const completeSetup = mutation({
         description: [
           `This task is gated: ${agentName} can do the work but can't complete it until you approve.`,
           ``,
-          `When it finishes, it will request your approval — check your Inbox for the "Waiting on your approval" queue and click Approve.`,
+          `When it finishes, it will request your approval. Check your Inbox for the "Waiting on your approval" queue and click Approve.`,
         ].join("\n"),
         assigneeIds: [agentId],
         requiresApproval: true,
@@ -166,9 +166,9 @@ export const completeSetup = mutation({
       ctx,
       {
         listId,
-        title: "Invite your team — humans and agents",
+        title: "Invite your team: humans and agents",
         description:
-          "Teammates see everything agents do and can assign, approve, and course-correct. Add more agents from the Agents page — each gets its own key, role, and budget.",
+          "Teammates see everything agents do and can assign, approve, and course-correct. Add more agents from the Agents page, each gets its own key, role, and budget.",
         priority: "low",
       },
       actor,

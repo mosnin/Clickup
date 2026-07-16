@@ -31,13 +31,13 @@ export const BUILTIN_SKILLS: Omit<SkillShape, "builtin" | "enabled">[] = [
 You are one of several agents (and humans) working in this workspace. Follow this loop for every piece of work:
 
 1. **Find work**: \`next_task\` picks the best open, unclaimed, unblocked task for you (assignments first, then unassigned). Also check \`list_my_mentions\` for direct requests.
-2. **Claim before working**: call \`claim_task\` before you start. If it fails, the task is taken — move on. Claims expire after 60 minutes, so re-claim if a long task runs past that.
+2. **Claim before working**: call \`claim_task\` before you start. If it fails, the task is taken, move on. Claims expire after 60 minutes, so re-claim if a long task runs past that.
 3. **Open a run**: \`start_run\` with a one-line title so humans can audit the session later; \`finish_run\` with succeeded/failed + a summary when done.
 4. **Show your status**: call \`heartbeat\` with \`currentTaskId\` and a short \`statusText\` ("writing migration script…") every few minutes. Humans watch this live; going silent for 30+ minutes gets you flagged as stalled and your claim eventually expires.
 5. **Narrate meaningful progress**: post \`add_comment\` on the task when you finish a step, hit a blocker, or make a decision worth recording. Mention people with \`@[Name](id)\` tokens (get ids from \`list_members\`). For longer multi-agent discussion, open a topic channel (\`create_channel\`) instead of flooding the main chat.
-6. **Respect dependencies and gates**: \`get_task\` shows \`blockedByTaskIds\` and \`requiresApproval\`. Completing is refused while a blocker is open. If a task needs approval, finish the work, tick the checklist, then call \`request_approval\` with a note on what to review — it lands in the humans' inbox and emails them. The \`task.approved\` event tells you when to \`complete_task\`. Report artifacts (PR links, docs) and cost via \`finish_run\`.
+6. **Respect dependencies and gates**: \`get_task\` shows \`blockedByTaskIds\` and \`requiresApproval\`. Completing is refused while a blocker is open. If a task needs approval, finish the work, tick the checklist, then call \`request_approval\` with a note on what to review, it lands in the humans' inbox and emails them. The \`task.approved\` event tells you when to \`complete_task\`. Report artifacts (PR links, docs) and cost via \`finish_run\`.
 7. **Finish cleanly**: tick acceptance criteria with \`set_checklist\`, then \`complete_task\`. Completing releases your claim automatically.
-8. **Hand off when stuck**: \`handoff_task\` with a note covering state, what you tried, and what's left. If something breaks and you can't proceed, \`report_error\` — never just go quiet.
+8. **Hand off when stuck**: \`handoff_task\` with a note covering state, what you tried, and what's left. If something breaks and you can't proceed, \`report_error\`, never just go quiet.
 
 Etiquette: don't edit a task's description someone else owns without a comment; don't complete tasks with unchecked checklist items unless told to; keep statusText honest.`,
   },
@@ -69,7 +69,7 @@ Goal: produce a committed, balanced sprint.
 Produce one workspace-chat message covering the last 24h.
 
 1. \`list_events\` since yesterday. Group by actor.
-2. For each member with activity: one line — tasks completed, tasks started (claimed/status-changed), comments worth noting.
+2. For each member with activity: one line, tasks completed, tasks started (claimed/status-changed), comments worth noting.
 3. **Blocked list**: \`list_tasks\` for open tasks; call out tasks whose blockers are still open, tasks overdue, and tasks claimed >24h without completion (possible stuck agent).
 4. **Today**: from the active sprint (\`sprint_summary\`), list the highest-priority open tasks per assignee.
 5. Post it with \`add_comment\` (parent: workspace chat). Keep it under 30 lines. Mention anyone who owns a blocker.`,
@@ -87,7 +87,7 @@ For each task from \`list_tasks\` that is missing metadata:
 
 1. **Priority**: infer from the title/description (outage/security → urgent; customer-facing bug → high; cleanup → low). \`update_task\`.
 2. **Acceptance criteria**: if the description implies multiple steps, encode them with \`set_checklist\` (3–7 concrete, verifiable items).
-3. **Assignee**: match the task to the best member by their recent activity (\`list_events\`) — or leave unassigned and note why.
+3. **Assignee**: match the task to the best member by their recent activity (\`list_events\`), or leave unassigned and note why.
 4. **Dependencies**: if the task obviously needs another open task first, \`add_dependency\`.
 5. **Split**: if a task is really 3+ tasks, create subtasks with \`create_task\` (parentTaskId) and a checklist on the parent.
 6. Leave an \`add_comment\` audit trail on anything you changed materially, so humans can review your triage decisions.`,
@@ -104,7 +104,7 @@ Input: a short brief (goal, rough deadline, who's involved).
 1. **Structure**: \`create_space\` named after the project. Inside it, \`create_list\` for "Backlog", "In flight", and "Milestones" (or a single list if the project is small).
 2. **Milestones first**: break the brief into 3–6 milestone tasks with due dates walking back from the deadline. Create them in Milestones with \`create_task\`, chained with \`add_dependency\` so order is explicit.
 3. **First tasks**: decompose the first milestone into concrete tasks (each with a checklist of acceptance criteria). Assign starters.
-4. **Kickoff doc**: \`create_doc\` titled "<Project> — brief" containing the goal, scope boundaries, milestone table, and links/ids of the milestone tasks.
+4. **Kickoff doc**: \`create_doc\` titled "<Project>, brief" containing the goal, scope boundaries, milestone table, and links/ids of the milestone tasks.
 5. **Recurring heartbeat**: \`create_scheduled_task\` for a weekly "<Project> status update" task assigned to yourself.
 6. **Announce**: workspace-chat comment mentioning everyone involved, linking the doc and the first tasks.`,
   },
@@ -117,8 +117,8 @@ Input: a short brief (goal, rough deadline, who's involved).
 
 Produce a report a busy human can read in 60 seconds.
 
-1. **Sprint state**: \`sprint_summary\` for the active sprint — done vs total, days remaining, on-track verdict (done% vs time-elapsed%).
-2. **Movement**: \`list_events\` for the period — completed tasks (call out who/what), new tasks created, anything reopened.
+1. **Sprint state**: \`sprint_summary\` for the active sprint, done vs total, days remaining, on-track verdict (done% vs time-elapsed%).
+2. **Movement**: \`list_events\` for the period, completed tasks (call out who/what), new tasks created, anything reopened.
 3. **Risks**: overdue tasks, tasks blocked >2 days, unassigned urgent tasks, agents that haven't heartbeat in >1h while holding claims.
 4. **Next**: top 5 upcoming tasks by priority/due date.
 5. Deliver as a workspace-chat comment (or \`create_doc\` if >40 lines) with sections: ✅ Shipped / 🏃 In flight / ⚠️ At risk / ⏭ Next.`,

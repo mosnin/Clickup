@@ -114,7 +114,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               className={cn(
                 "pointer-events-auto flex max-w-md items-center gap-2.5 rounded-full py-2 pl-4 pr-2 text-sm shadow-lg",
                 t.kind === "error"
-                  ? "bg-red-600 text-white"
+                  ? "bg-danger text-white"
                   : "bg-foreground text-background",
               )}
             >
@@ -125,7 +125,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               ) : (
                 <Info className="h-4 w-4 flex-shrink-0 opacity-80" />
               )}
-              <span className="min-w-0 flex-1 truncate">{t.message}</span>
+              <span className="min-w-0 flex-1 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
+                {t.message}
+              </span>
               {t.action && (
                 <button
                   type="button"

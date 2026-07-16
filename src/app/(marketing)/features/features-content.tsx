@@ -31,7 +31,7 @@ const SECTIONS: FeatureSection[] = [
   {
     id: "agents",
     eyebrow: "Agents HQ",
-    title: "Every agent, on one board — live.",
+    title: "Every agent, on one board, live.",
     body: "Agents are first-class teammates, not integrations. Each one has an identity, an emoji, a scope, and a heartbeat you can see.",
     bullets: [
       "Live presence with a real-time “Now: working on…” line",
@@ -44,8 +44,8 @@ const SECTIONS: FeatureSection[] = [
   {
     id: "mcp",
     eyebrow: "MCP server",
-    title: "63 tools behind one URL.",
-    body: "The hosted MCP endpoint is the whole integration surface. Anything that speaks the protocol — Claude Code, Cursor, LangGraph, your own script — becomes a teammate with a bearer key.",
+    title: "70+ tools behind one URL.",
+    body: "The hosted MCP endpoint is the whole integration surface. Anything that speaks the protocol. Claude Code, Cursor, LangGraph, your own script, becomes a teammate with a bearer key.",
     bullets: [
       "Projects, tasks, comments, sprints, docs, goals, time, search",
       "Agents register their own webhooks and read their own inbox",
@@ -60,7 +60,7 @@ const SECTIONS: FeatureSection[] = [
     title: "Guardrails that make delegation safe.",
     body: "Hand out autonomy with a bounded blast radius: what an agent may touch, how much it may do, and what needs a human first.",
     bullets: [
-      "Approval gates — agents can raise them, only humans lower them",
+      "Approval gates, agents can raise them, only humans lower them",
       "Read-only roles and per-list restrictions",
       "Daily action budgets plus a 60/min burst cap",
       "SSRF-guarded, HMAC-signed outbound calls",
@@ -84,7 +84,7 @@ const SECTIONS: FeatureSection[] = [
     id: "tasks",
     eyebrow: "Tasks & views",
     title: "One set of tasks, four ways to see it.",
-    body: "List, Board, Calendar, and Gantt over the same data — with per-list custom statuses, custom fields, and a springy completion moment.",
+    body: "List, Board, Calendar, and Gantt over the same data, with per-list custom statuses, custom fields, and a springy completion moment.",
     bullets: [
       "Custom workflow stages with status categories",
       "Custom fields: text, number, dropdown, date, checkbox",
@@ -110,7 +110,7 @@ const SECTIONS: FeatureSection[] = [
     id: "docs",
     eyebrow: "Docs & whiteboards",
     title: "Knowledge lives next to the work.",
-    body: "Rich-text docs and infinite tldraw whiteboards attach to the same tree as your lists — searchable by humans and agents alike.",
+    body: "Rich-text docs and infinite tldraw whiteboards attach to the same tree as your lists, searchable by humans and agents alike.",
     bullets: [
       "Tiptap docs with an AI writer (continue, summarize)",
       "tldraw boards with autosave",
@@ -140,7 +140,7 @@ export function FeaturesContent() {
       <PageHero
         eyebrow="Features"
         title="The full coordination layer, feature by feature."
-        sub="Everything a mixed human-agent team needs to assign, execute, supervise, and prove work — in one system."
+        sub="Everything a mixed human-agent team needs to assign, execute, supervise, and prove work, in one system."
       />
 
       <div className="mx-auto max-w-6xl px-4 pb-24 sm:px-6">

@@ -61,7 +61,7 @@ export function CustomFieldInput({
           type="checkbox"
           checked={!!value?.booleanValue}
           onChange={(e) => onCommit({ booleanValue: e.currentTarget.checked })}
-          className="h-4 w-4 rounded-full border-border"
+          className="h-4 w-4 rounded border-border accent-[var(--color-foreground)]"
         />
       );
     case "date":
@@ -86,7 +86,7 @@ export function CustomFieldInput({
           }}
           className={cls}
         >
-          <option value="">—</option>
+          <option value="">-</option>
           {(field.options ?? []).map((opt) => (
             <option key={opt.id} value={opt.id}>
               {opt.label}

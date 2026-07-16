@@ -12,7 +12,7 @@ export function ResourcesIndex() {
       <PageHero
         eyebrow="Resources"
         title="Learn the system. Then hand it to your agents."
-        sub="Short, honest guides — the same pages your agents read over MCP, written for the humans running them."
+        sub="Short, honest guides, the same pages your agents read over MCP, written for the humans running them."
       />
       <section className="px-4 pb-24 sm:px-6">
         <div className="mx-auto max-w-5xl">

@@ -43,6 +43,11 @@
   /* Positive delta green (the only saturated color in the system) */
   --color-positive: #16a34a;
 
+  /* Semantic states. Danger is a muted brick, never alarm-red; unread is the
+     single accent used by every unread indicator in the app. */
+  --color-danger: #c2453a;
+  --color-unread: #101012;
+
   /* Marketing palette — the logged-out site lives on warm cream with an
      ember (amber→coral) accent ramp and cocoa darks (golden-hour
      scenes), while ink stays shared with the app. Never use these
@@ -181,6 +186,61 @@ body {
   }
 }
 
+/* ── TextType (typed-title animation) ────────────────────────────────────
+   Used sparingly: one hero line on the marketing site and the greeting on
+   Home. The component itself freezes under reduced motion. */
+.text-type {
+  display: inline-block;
+  white-space: pre-wrap;
+}
+.text-type__cursor {
+  margin-left: 0.15em;
+  display: inline-block;
+  font-weight: 300;
+  opacity: 1;
+}
+.text-type__cursor--hidden {
+  display: none;
+}
+
+/* FaultyTerminal (WebGL glyph background). Always an absolutely-positioned
+   dim layer behind content on a dark panel; never a foreground element. */
+.faulty-terminal-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+.faulty-terminal-container canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Premium table language ──────────────────────────────────────────────
+   Tables live inside a bento sheet: no cell borders, generous row padding,
+   a whisper of separation between rows, and a soft hover fill. Pair the
+   <table> with .sheet-table. */
+.sheet-table th {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-muted-foreground);
+  text-align: left;
+  padding: 0.75rem 1rem;
+}
+.sheet-table td {
+  padding: 0.8rem 1rem;
+}
+.sheet-table tbody tr {
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+  transition: background-color 0.15s ease;
+}
+.sheet-table tbody tr:hover {
+  background: color-mix(in srgb, var(--color-muted) 55%, transparent);
+}
+
 /* Expanded touch hit-area for small icon buttons: keeps the compact visual
  * size on desktop while giving coarse pointers a ~44px target. */
 .tap-target {
@@ -238,6 +298,49 @@ body {
   .marquee-track {
     animation: none;
   }
+}
+
+/* ── Dark theme ───────────────────────────────────────────────────────────
+   The app opts into a dark theme via a `data-theme` attribute the root
+   layout's inline script stamps on <html> before paint (no flash). Only the
+   token values flip here — because the whole design system is token-based
+   (bg-background / text-foreground / bg-muted / border-border), overriding
+   these cascades to nearly every surface. The marketing site keeps its own
+   warm cream palette and never reads these.
+
+   Soft shadows are near-invisible on a dark canvas, so bento surfaces gain a
+   hairline border in dark to stay legible as discrete panels. */
+:root[data-theme="dark"] {
+  --color-page: #0b0b0d;
+  --color-background: #161619;
+  --color-foreground: #f3f3f4;
+  --color-muted: #232327;
+  --color-muted-foreground: #9b9ba3;
+  --color-border: #2b2b31;
+
+  /* Ink scale inverts: light chips become dark tiles, "ink" text becomes
+     near-white. brand-600 stays a mid gray so both `bg-brand-600 text-white`
+     (avatars/badges/bars) and `text-brand-600` links remain legible. */
+  --color-brand-50: #1c1c20;
+  --color-brand-100: #232327;
+  --color-brand-200: #303036;
+  --color-brand-500: #a1a1aa;
+  --color-brand-600: #71717a;
+  --color-brand-700: #ededf0;
+
+  --color-danger: #e0685c;
+  --color-unread: #f3f3f4;
+}
+
+:root[data-theme="dark"] .bento,
+:root[data-theme="dark"] .bento-sm,
+:root[data-theme="dark"] .app-frame {
+  border: 1px solid var(--color-border);
+}
+/* The raised-white active segment reads as a lighter tile in dark. */
+:root[data-theme="dark"] .segmented-on {
+  background: #34343b;
+  box-shadow: none;
 }
 
 /* Slow drift for gradient scene blobs. */

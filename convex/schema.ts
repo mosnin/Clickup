@@ -209,6 +209,8 @@ export default defineSchema({
     // Set by the watchdog when it emits task.overdue, so each task nags
     // at most once per overdue period.
     overdueNotifiedAt: v.optional(v.number()),
+    // Dedupe for the due-soon reminder (one nudge per due date).
+    dueSoonNotifiedAt: v.optional(v.number()),
     createdByClerkId: v.string(),
     position: v.number(),
     createdAt: v.number(),
@@ -730,6 +732,49 @@ export default defineSchema({
     updatedByClerkId: v.string(),
     updatedAt: v.number(),
   }).index("by_key", ["key"]),
+
+  // Workspace invitations. Email is lowercased at write time; `token` is a
+  // capability link (anyone signed-in holding it may accept), while the
+  // in-app invite card requires the signed-in user's email to match.
+  invites: defineTable({
+    workspaceId: v.id("workspaces"),
+    email: v.string(),
+    role: v.union(v.literal("admin"), v.literal("member")),
+    token: v.string(),
+    invitedByClerkId: v.string(),
+    createdAt: v.number(),
+    acceptedAt: v.optional(v.number()),
+    acceptedByClerkId: v.optional(v.string()),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_email", ["email"])
+    .index("by_token", ["token"]),
+
+  // In-app notification feed (assignments, mentions, approvals, invites,
+  // due-soon/overdue reminders). One row per recipient per event; the
+  // Inbox renders these newest-first and the sidebar badge counts unread.
+  notifications: defineTable({
+    userClerkId: v.string(),
+    type: v.string(),
+    title: v.string(),
+    body: v.optional(v.string()),
+    href: v.optional(v.string()),
+    readAt: v.optional(v.number()),
+    createdAt: v.number(),
+  }).index("by_user", ["userClerkId", "createdAt"]),
+
+  // Task file attachments. Bytes live in Convex file storage; rows are
+  // metadata. Deleted with their task.
+  attachments: defineTable({
+    taskId: v.id("tasks"),
+    storageId: v.id("_storage"),
+    name: v.string(),
+    mimeType: v.string(),
+    sizeBytes: v.number(),
+    uploadedByActorId: v.string(),
+    createdAt: v.number(),
+  }).index("by_task", ["taskId"]),
 
   // ── x402 agent payments ─────────────────────────────────────────────
   //

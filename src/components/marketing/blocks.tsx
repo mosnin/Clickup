@@ -112,7 +112,7 @@ export function PageHero({
 
 export function CtaPair({
   primaryHref = "/sign-up",
-  primaryLabel = "Get started — free",
+  primaryLabel = "Get started, free",
   secondaryHref,
   secondaryLabel,
   tone = "dark",

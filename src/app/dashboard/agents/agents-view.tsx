@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useAction, useMutation, useQuery } from "convex/react";
@@ -24,6 +24,9 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
 import { BillingTab } from "@/components/dashboard/billing-panel";
+import { ConnectSnippet } from "@/components/dashboard/connect-snippet";
+import { TerminalSurface } from "@/components/terminal-surface";
+import TextType from "@/components/text-type";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { eventHref, eventLabel } from "@/lib/event-labels";
@@ -67,10 +70,13 @@ export function AgentsView() {
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           Agents
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Mission control for the AI agents working in your spaces — see what
-          they&apos;re doing live, hand them work, and manage their access.
-        </p>
+        <TextType
+          as="p"
+          className="mt-1 text-sm text-muted-foreground"
+          text="Mission control for the AI agents working in your spaces. See what they're doing live, hand them work, and manage their access."
+          typingSpeed={22}
+          loop={false}
+        />
       </header>
 
       <div className="-mx-4 overflow-x-auto px-4 sm:-mx-8 sm:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -252,15 +258,9 @@ function AgentsSkeleton() {
 }
 
 function ConnectHint({ retired = false }: { retired?: boolean }) {
-  const [copied, setCopied] = useState(false);
   // Once an agent has connected the walkthrough collapses to one line;
   // it can be re-expanded to connect the next agent.
   const [expanded, setExpanded] = useState(false);
-  // Resolved in an effect to avoid an SSR/client hydration mismatch.
-  const [url, setUrl] = useState("/api/mcp");
-  useEffect(() => {
-    setUrl(`${window.location.origin}/api/mcp`);
-  }, []);
 
   if (retired && !expanded) {
     return (
@@ -275,42 +275,29 @@ function ConnectHint({ retired = false }: { retired?: boolean }) {
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm">
+    <div className="overflow-hidden rounded-2xl bento text-sm">
+      <TerminalSurface className="h-24" contentClassName="flex h-full items-end px-5 pb-3">
+        <span className="font-mono text-[11px] tracking-wider text-white/70">
+          listening for your first agent…
+        </span>
+      </TerminalSurface>
+      <div className="p-5">
       <p className="font-medium">Connect an agent</p>
-      <p className="mt-1 text-muted-foreground">
-        Point any MCP-capable agent at{" "}
-        <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{url}</code>{" "}
-        with header{" "}
-        <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-          Authorization: Bearer &lt;api key&gt;
-        </code>
-        . Create an agent below, then mint its key. Tell it to call{" "}
-        <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-          get_skill(&quot;collaboration-protocol&quot;)
-        </code>{" "}
-        first.
+      <p className="mt-1 leading-relaxed text-muted-foreground">
+        Create an agent, copy its key, then paste one of these blocks where
+        your agent runs. That&apos;s the whole setup. It shows up here the
+        moment it checks in.
       </p>
-      <div className="mt-2 flex items-center gap-2">
+      <ConnectSnippet className="mt-3" />
+      {retired && (
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-          onClick={async () => {
-            await navigator.clipboard.writeText(url);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          }}
+          onClick={() => setExpanded(false)}
+          className="mt-2 rounded-full px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
         >
-          <Copy className="h-3 w-3" /> {copied ? "Copied!" : "Copy MCP URL"}
+          Hide
         </button>
-        {retired && (
-          <button
-            type="button"
-            onClick={() => setExpanded(false)}
-            className="rounded-full px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            Hide
-          </button>
-        )}
+      )}
       </div>
     </div>
   );
@@ -502,12 +489,60 @@ function CreateAgentForm({
   onDone: () => void;
 }) {
   const create = useMutation(api.agents.create);
+  const mintKey = useAction(api.agentKeys.createKey);
   const { user } = useUser();
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState("🤖");
   const [description, setDescription] = useState("");
   const [scope, setScope] = useState("personal");
   const [pending, setPending] = useState(false);
+  // After create: the guided connect step, so nobody has to hunt for the
+  // key panel. The key is shown exactly once.
+  const [connect, setConnect] = useState<{ name: string; key: string } | null>(
+    null,
+  );
+
+  if (connect) {
+    return (
+      <div className="overflow-hidden rounded-2xl bento">
+        <TerminalSurface
+          intensity="live"
+          className="h-28"
+          contentClassName="flex h-full items-end px-5 pb-3"
+        >
+          <span className="font-mono text-[11px] tracking-wider text-white/70">
+            waiting for {connect.name.toLowerCase()} to check in…
+          </span>
+        </TerminalSurface>
+        <div className="space-y-4 p-5">
+        <div>
+          <p className="font-semibold">{connect.name} is ready.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            One step left: paste this where {connect.name} runs. The key is
+            shown only this once, so copy it now.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 rounded-xl bg-muted p-3">
+          <code className="min-w-0 flex-1 break-all text-xs">{connect.key}</code>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => navigator.clipboard.writeText(connect.key)}
+          >
+            <Copy className="h-3 w-3" /> Copy key
+          </Button>
+        </div>
+        <ConnectSnippet apiKey={connect.key} />
+        <div className="flex justify-end">
+          <Button type="button" size="sm" onClick={onDone}>
+            Done
+          </Button>
+        </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form
@@ -517,14 +552,15 @@ function CreateAgentForm({
         if (!name.trim() || pending || !user) return;
         setPending(true);
         try {
-          await create({
+          const agentId = await create({
             name: name.trim(),
             emoji: emoji || undefined,
             description: description.trim() || undefined,
             parentType: scope === "personal" ? "user" : "workspace",
             parentId: scope === "personal" ? user.id : scope,
           });
-          onDone();
+          const res = await mintKey({ agentId });
+          setConnect({ name: name.trim(), key: res.key });
         } finally {
           setPending(false);
         }
@@ -702,7 +738,7 @@ function AgentCard({
             <p className="mt-2 rounded-2xl bg-muted/50 px-3 py-1.5 text-xs">
               <span className="font-medium">Now:</span>{" "}
               {currentTitle && agent.currentTaskId ? (
-                <span className="font-medium">{currentTitle} — </span>
+                <span className="font-medium">{currentTitle}, </span>
               ) : null}
               {agent.statusText ?? "working"}
             </p>
@@ -739,7 +775,7 @@ function AgentCard({
             title="Delete agent"
             onClick={() => {
               setDeleting(true);
-              toast(`${agent.name} deleted — keys stop working`, {
+              toast(`${agent.name} deleted, keys stop working`, {
                 action: { label: "Undo", onClick: () => setDeleting(false) },
                 onExpire: () => remove({ agentId: agent._id }),
               });
@@ -771,6 +807,7 @@ function AgentCard({
 function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
   const keys = useQuery(api.agents.listKeys, { agentId });
   const createKey = useAction(api.agentKeys.createKey);
+  const { toast } = useToast();
   const revokeKey = useMutation(api.agents.revokeKey);
   const [freshKey, setFreshKey] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -784,10 +821,10 @@ function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
           transition={{ duration: 0.4, ease: EASE }}
           className="rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-xs">
           <p className="font-medium text-emerald-800">
-            Copy this key now — it won&apos;t be shown again.
+            Copy this key now, it won&apos;t be shown again.
           </p>
           <div className="mt-1 flex items-center gap-2">
-            <code className="flex-1 break-all rounded bg-white px-2 py-1">
+            <code className="flex-1 break-all rounded bg-muted px-2 py-1">
               {freshKey}
             </code>
             <button
@@ -817,8 +854,13 @@ function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
             {!k.revokedAt && (
               <button
                 type="button"
-                onClick={() => revokeKey({ keyId: k._id })}
-                className="ml-auto rounded-full px-2 py-0.5 text-muted-foreground hover:bg-muted hover:text-red-600"
+                onClick={() =>
+                  toast(`Key ${k.keyPrefix}… will be revoked`, {
+                    action: { label: "Undo", onClick: () => {} },
+                    onExpire: () => revokeKey({ keyId: k._id }),
+                  })
+                }
+                className="ml-auto rounded-full px-2 py-0.5 text-muted-foreground hover:bg-muted hover:text-danger"
               >
                 Revoke
               </button>
@@ -867,7 +909,7 @@ export function ActivityFeed({
   }
   if (events.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl bento p-10 text-center text-sm text-muted-foreground">
         No activity yet. Events appear here the moment agents (or teammates)
         create, claim, and complete work.
       </div>
@@ -945,6 +987,7 @@ function WebhooksTab() {
   const [scope, setScope] = useState("personal");
   const [types, setTypes] = useState("");
   const [freshSecret, setFreshSecret] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const agentNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -962,9 +1005,10 @@ function WebhooksTab() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Webhooks push every matching event (task.*, comment.*, mention.*,
-        sprint.*) to an HTTPS endpoint, signed with HMAC-SHA256. Agents can
-        also register their own over MCP — those show up here too.
+        Get notified in your own systems the moment work changes: tasks,
+        comments, mentions, and sprints can each ping any HTTPS endpoint you
+        choose. Every delivery is signed so your endpoint can verify it came
+        from us. Agents can register their own; those show up here too.
       </p>
 
       <form
@@ -1033,9 +1077,9 @@ function WebhooksTab() {
       {freshSecret && (
         <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-xs">
           <p className="font-medium text-emerald-800">
-            Signing secret (copy now — shown once):
+            Signing secret (copy now, shown once):
           </p>
-          <code className="mt-1 block break-all rounded bg-white px-2 py-1">
+          <code className="mt-1 block break-all rounded bg-muted px-2 py-1">
             {freshSecret}
           </code>
         </div>
@@ -1077,8 +1121,13 @@ function WebhooksTab() {
             </button>
             <button
               type="button"
-              onClick={() => remove({ subscriptionId: s._id })}
-              className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-600"
+              onClick={() =>
+                toast("Webhook deleted", {
+                  action: { label: "Undo", onClick: () => {} },
+                  onExpire: () => remove({ subscriptionId: s._id }),
+                })
+              }
+              className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger"
               title="Delete"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -1086,7 +1135,7 @@ function WebhooksTab() {
           </li>
         ))}
         {subs !== undefined && subs.length === 0 && (
-          <li className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+          <li className="rounded-2xl bento p-6 text-center text-sm text-muted-foreground">
             No webhooks yet.
           </li>
         )}
@@ -1116,16 +1165,9 @@ function SkillsTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <p className="flex-1 text-sm text-muted-foreground">
-          Skills are markdown playbooks agents import over MCP (
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">
-            list_skills
-          </code>
-          {" / "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">
-            get_skill
-          </code>
-          ). Built-ins ship with the product; add your own to teach agents
-          your team&apos;s processes.
+          Skills are playbooks your agents read before they work: how your
+          team triages, reviews, and ships. Built-ins come with the product.
+          Write your own to teach agents your way of doing things.
         </p>
         <select
           value={scope}
@@ -1188,6 +1230,7 @@ function SkillRow({
     open ? { ...scopeArgs, slug: skill.slug } : "skip",
   );
   const removeSkill = useMutation(api.skills.remove);
+  const { toast } = useToast();
 
   return (
     <div className="rounded-2xl bento p-4">
@@ -1216,10 +1259,19 @@ function SkillRow({
             tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
-              removeSkill({ skillId: skill._id! });
+              toast(`"${skill.name}" deleted`, {
+                action: { label: "Undo", onClick: () => {} },
+                onExpire: () => removeSkill({ skillId: skill._id! }),
+              });
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") removeSkill({ skillId: skill._id! });
+              if (e.key === "Enter") {
+                e.stopPropagation();
+                toast(`"${skill.name}" deleted`, {
+                  action: { label: "Undo", onClick: () => {} },
+                  onExpire: () => removeSkill({ skillId: skill._id! }),
+                });
+              }
             }}
             className="tap-target ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-600"
             title="Delete skill"

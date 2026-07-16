@@ -22,6 +22,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   List as ListIcon,
+  ListTodo,
   Menu,
   MessageSquare,
   PanelLeft,
@@ -44,6 +45,8 @@ import { AnimatePresence, motion, SPRING } from "@/components/motion";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { RunningTimerChip } from "@/components/dashboard/running-timer-chip";
 import { TemplatePicker } from "@/components/dashboard/template-picker";
+import { NewWorkspaceDialog } from "@/components/dashboard/new-workspace-dialog";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type SidebarTree = NonNullable<ReturnType<typeof useTreeQuery>>;
 type SpaceNode = SidebarTree["workspaces"][number]["spaces"][number];
@@ -122,7 +125,7 @@ export function DashboardSidebar() {
       <aside
         data-collapsed={collapsed || undefined}
         className={cn(
-          "group/side fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-border bg-background transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:static md:translate-x-0",
+          "group/side fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-background shadow-[1px_0_0_rgb(16_16_18/0.04),8px_0_24px_-20px_rgb(16_16_18/0.10)] transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:static md:translate-x-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
           collapsed && "md:w-[4.75rem]",
         )}
@@ -131,7 +134,7 @@ export function DashboardSidebar() {
         {/* Header */}
         <div
           className={cn(
-            "flex shrink-0 items-center border-b border-border px-3 py-3",
+            "flex shrink-0 items-center px-4 pb-2 pt-4",
             collapsed ? "md:justify-center md:px-0" : "justify-between",
           )}
         >
@@ -180,7 +183,7 @@ export function DashboardSidebar() {
           </button>
         </div>
 
-        {/* Fixed nav band — stays put while the tree scrolls. */}
+        {/* Fixed nav band, stays put while the tree scrolls. */}
         <div className={cn("shrink-0 px-3 pt-3", collapsed && "md:px-2")}>
           {!collapsed && <RunningTimerChip />}
           <button
@@ -190,7 +193,7 @@ export function DashboardSidebar() {
               window.dispatchEvent(new CustomEvent("open-command-palette"));
             }}
             className={cn(
-              "group relative mb-1 flex w-full items-center gap-2 rounded-lg border border-border text-sm text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground",
+              "soft-field group relative mb-2 flex w-full items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground",
               collapsed
                 ? "md:justify-center md:px-0 md:py-2 px-2.5 py-1.5"
                 : "px-2.5 py-1.5",
@@ -202,7 +205,7 @@ export function DashboardSidebar() {
             </span>
             <kbd
               className={cn(
-                "rounded-md border border-border px-1.5 py-0.5 text-[10px]",
+                "rounded-md bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground",
                 collapsed && "md:hidden",
               )}
             >
@@ -212,6 +215,7 @@ export function DashboardSidebar() {
           </button>
 
           <HomeLink onNavigate={close} collapsed={collapsed} />
+          <MyWorkLink onNavigate={close} collapsed={collapsed} />
           <InboxLink onNavigate={close} collapsed={collapsed} />
           <BrainLink onNavigate={close} collapsed={collapsed} />
           <AgentsGroup onNavigate={close} collapsed={collapsed} />
@@ -249,19 +253,24 @@ export function DashboardSidebar() {
 
         <div
           className={cn(
-            "flex shrink-0 items-center gap-3 border-t border-border px-4 py-3",
-            collapsed && "md:justify-center md:px-0",
+            "shrink-0 px-3 pb-4 pt-2",
+            collapsed && "md:px-2",
           )}
         >
-          <UserButton afterSignOutUrl="/" />
-          <span
-            className={cn(
-              "text-xs text-muted-foreground",
-              collapsed && "md:hidden",
-            )}
-          >
-            Account
-          </span>
+          {collapsed ? (
+            <div className="flex flex-col items-center gap-2">
+              <ThemeToggle collapsed />
+              <UserButton afterSignOutUrl="/" />
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              <ThemeToggle />
+              <div className="flex items-center gap-3 px-1">
+                <UserButton afterSignOutUrl="/" />
+                <span className="text-xs text-muted-foreground">Account</span>
+              </div>
+            </div>
+          )}
         </div>
       </aside>
     </>
@@ -349,6 +358,26 @@ function HomeLink({
   );
 }
 
+function MyWorkLink({
+  onNavigate,
+  collapsed,
+}: {
+  onNavigate: () => void;
+  collapsed: boolean;
+}) {
+  const pathname = usePathname();
+  return (
+    <NavLink
+      href="/dashboard/my-work"
+      label="My work"
+      icon={ListTodo}
+      active={pathname === "/dashboard/my-work"}
+      collapsed={collapsed}
+      onNavigate={onNavigate}
+    />
+  );
+}
+
 function BrainLink({
   onNavigate,
   collapsed,
@@ -377,8 +406,11 @@ function InboxLink({
   collapsed: boolean;
 }) {
   const pathname = usePathname();
-  const unread = useQuery(api.mentions.unreadCountForCurrent, {});
-  const hasUnread = typeof unread === "number" && unread > 0;
+  // The badge counts everything the Inbox page shows: mentions + updates.
+  const unreadMentions = useQuery(api.mentions.unreadCountForCurrent, {});
+  const unreadUpdates = useQuery(api.notificationCenter.unreadCount, {});
+  const unread = (unreadMentions ?? 0) + (unreadUpdates ?? 0);
+  const hasUnread = unread > 0;
 
   return (
     <NavLink
@@ -392,7 +424,7 @@ function InboxLink({
         hasUnread ? (
           <span
             className={cn(
-              "relative z-10 rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-medium text-white",
+              "relative z-10 rounded-full bg-foreground px-1.5 py-0.5 text-[10px] font-medium text-background",
               collapsed &&
                 "md:absolute md:right-1.5 md:top-1 md:px-1 md:py-0 md:leading-tight",
             )}
@@ -486,7 +518,7 @@ function AgentsGroup({
       </div>
 
       {expanded && (
-        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border pl-2">
+        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border/50 pl-2">
           {AGENT_SUBLINKS.map(({ key, label, Icon }) => {
             const isActive = onAgents && (activeTab ?? "") === key;
             return (
@@ -548,6 +580,7 @@ function NewButton({
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<NewStep>({ kind: "menu" });
   const [templateSpace, setTemplateSpace] = useState<Id<"spaces"> | null>(null);
+  const [wsDialog, setWsDialog] = useState(false);
 
   const spaces = tree ? allSpaces(tree) : [];
 
@@ -667,8 +700,7 @@ function NewButton({
                     label="New workspace"
                     onClick={() => {
                       reset();
-                      onNavigate();
-                      router.push("/onboarding");
+                      setWsDialog(true);
                     }}
                   />
                 </MenuList>
@@ -757,6 +789,7 @@ function NewButton({
           }}
         />
       )}
+      <NewWorkspaceDialog open={wsDialog} onClose={() => setWsDialog(false)} />
     </div>
   );
 }
@@ -823,7 +856,7 @@ function AdminLink({
   if (!me) return null;
   const active = pathname.startsWith("/dashboard/admin");
   return (
-    <div className={cn("shrink-0 border-t border-border p-3", collapsed && "md:px-2")}>
+    <div className={cn("shrink-0 px-3 pb-1 pt-2", collapsed && "md:px-2")}>
       <Link
         href="/dashboard/admin"
         onClick={onNavigate}
@@ -950,8 +983,10 @@ function SidebarTreeView({
   tree: SidebarTree;
   onNavigate: () => void;
 }) {
+  const [wsDialog, setWsDialog] = useState(false);
   return (
     <>
+      <NewWorkspaceDialog open={wsDialog} onClose={() => setWsDialog(false)} />
       <SectionHeader label="Personal" />
       {tree.personal ? (
         <SpaceBranch
@@ -965,25 +1000,25 @@ function SidebarTreeView({
 
       <div className="mt-6 flex items-center justify-between">
         <SectionHeader label="Team workspaces" />
-        <Link
-          href="/onboarding"
+        <button
+          type="button"
           className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
           aria-label="Create workspace"
-          onClick={onNavigate}
+          onClick={() => setWsDialog(true)}
         >
           <Plus className="h-4 w-4" />
-        </Link>
+        </button>
       </div>
       <ul className="mt-1 space-y-2">
         {tree.workspaces.length === 0 && (
           <li>
-            <Link
-              href="/onboarding"
-              onClick={onNavigate}
-              className="flex items-center gap-2 rounded-lg border border-dashed border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:border-foreground/25 hover:text-foreground"
+            <button
+              type="button"
+              onClick={() => setWsDialog(true)}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <Plus className="h-3.5 w-3.5" /> Create a workspace
-            </Link>
+            </button>
           </li>
         )}
         {tree.workspaces.map((ws) => (
@@ -1129,7 +1164,7 @@ function WorkspaceBranch({
       </div>
 
       {expanded && (
-        <div className="ml-4 mt-1 border-l border-border pl-2">
+        <div className="ml-4 mt-1 border-l border-border/50 pl-2">
           <WorkspaceFeatureGrid workspaceId={workspace._id} />
 
           <ul className="mt-1 space-y-2">
@@ -1154,7 +1189,7 @@ function WorkspaceBranch({
                 <button
                   type="button"
                   onClick={() => setAddingSpace(true)}
-                  className="flex w-full items-center gap-2 rounded-lg border border-dashed border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:border-foreground/25 hover:text-foreground"
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
                   <Plus className="h-3.5 w-3.5" /> Add a space
                 </button>
@@ -1351,7 +1386,7 @@ function SpaceBranch({
       </div>
 
       {expanded && (
-        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border pl-2">
+        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border/50 pl-2">
           {adding && (
             <li className="py-1">
               <InlineCreate
@@ -1366,7 +1401,7 @@ function SpaceBranch({
               <button
                 type="button"
                 onClick={() => setAdding("list")}
-                className="flex w-full items-center gap-2 rounded-lg border border-dashed border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:border-foreground/25 hover:text-foreground"
+                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <Plus className="h-3.5 w-3.5" /> Add a list
               </button>
@@ -1467,7 +1502,7 @@ function FolderBranch({
         </button>
       </div>
       {expanded && (
-        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border pl-2">
+        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border/50 pl-2">
           {addingList && (
             <li className="py-1">
               <InlineCreate

@@ -53,7 +53,7 @@ const AGENT_STATUS = [
 export function AgentCardMock({ className }: { className?: string }) {
   const i = useCycle(AGENT_STATUS.length, 3000);
   return (
-    <MockShell label="Agents — live" className={className}>
+    <MockShell label="Agents, live" className={className}>
       <div className="p-3.5">
         <div className="flex items-center gap-2.5">
           <span className="text-xl" aria-hidden>
@@ -106,7 +106,7 @@ export function TaskListMock({ className }: { className?: string }) {
   const phase = useCycle(2, 2400); // 0 = open, 1 = done
   const done = phase === 1;
   return (
-    <MockShell label="Launch week — list" className={className}>
+    <MockShell label="Launch week, list" className={className}>
       <ul className="divide-y divide-border">
         {TASK_ROWS.map((t, idx) => {
           const isDone = idx === 0 && done;
@@ -166,7 +166,7 @@ export function ActivityFeedMock({ className }: { className?: string }) {
   const i = useCycle(FEED.length, 2200);
   const visible = [0, 1, 2].map((o) => FEED[(i + FEED.length - o) % FEED.length]);
   return (
-    <MockShell label="Activity — live" className={className}>
+    <MockShell label="Activity, live" className={className}>
       <ul className="space-y-1.5 p-3">
         <AnimatePresence initial={false} mode="popLayout">
           {visible.map((e) => (
@@ -217,7 +217,7 @@ export function ApprovalMock({ className }: { className?: string }) {
             <Lock className="h-3.5 w-3.5 flex-shrink-0" />
           )}
           {approved
-            ? "Approved — Scout may complete this."
+            ? "Approved. Scout may complete this."
             : "Agent is waiting for a human."}
         </div>
         <motion.span
@@ -366,7 +366,7 @@ const HANDOFF_CHECKLIST = [
 export function HandoffMock({ step, className }: { step: number; className?: string }) {
   const done = step >= 4;
   return (
-    <MockShell label="Task — live" className={className}>
+    <MockShell label="Task, live" className={className}>
       <div className="space-y-3 p-4 sm:p-5">
         {/* Title row */}
         <div className="flex items-start gap-2.5">
@@ -479,7 +479,7 @@ export function HandoffMock({ step, className }: { step: number; className?: str
               <p className="min-w-0 flex-1 rounded-xl rounded-tl-md border border-border bg-white px-2.5 py-1.5 text-[11px] leading-snug">
                 {step >= 4
                   ? "Sent. Doc + thread linked below."
-                  : "Went with subject line B — numbers are in the linked doc."}
+                  : "Went with subject line B, numbers are in the linked doc."}
               </p>
             </motion.div>
           )}
@@ -498,7 +498,7 @@ export function HandoffMock({ step, className }: { step: number; className?: str
             >
               <Lock className="h-3.5 w-3.5 flex-shrink-0" />
               <span className="min-w-0 flex-1">
-                Sending to a client is gated — waiting for you.
+                Sending to a client is gated, waiting for you.
               </span>
               <span className="flex-shrink-0 rounded-full bg-foreground px-3 py-1 text-[10px] font-semibold text-white">
                 Approve
@@ -660,7 +660,7 @@ export function BrainMock({ className }: { className?: string }) {
             transition={{ duration: 0.4, ease: EASE }}
             className="mt-2 space-y-1"
           >
-            {["Pricing v2 — doc", "Tier limits — task"].map((r) => (
+            {["Pricing v2, doc", "Tier limits, task"].map((r) => (
               <div key={r} className="rounded-lg bg-muted/60 px-2.5 py-1.5 text-[10px]">
                 {r}
               </div>

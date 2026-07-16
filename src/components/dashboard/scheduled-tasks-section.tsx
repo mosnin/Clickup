@@ -51,7 +51,7 @@ export function ScheduledTasksSection({ listId }: { listId: Id<"lists"> }) {
         </Button>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        Time-based recurring tasks — created on a clock, unlike a task&apos;s
+        Time-based recurring tasks, created on a clock, unlike a task&apos;s
         Recurrence field which repeats on completion.
       </p>
 
@@ -99,7 +99,7 @@ export function ScheduledTasksSection({ listId }: { listId: Id<"lists"> }) {
           </li>
         ))}
         {schedules !== undefined && schedules.length === 0 && !creating && (
-          <li className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+          <li className="rounded-2xl bento p-6 text-center text-sm text-muted-foreground">
             No schedules yet.
           </li>
         )}
@@ -226,7 +226,7 @@ function CreateScheduleForm({
           min={0}
           value={dueInDays}
           onChange={(e) => setDueInDays(e.currentTarget.value)}
-          placeholder="—"
+          placeholder="-"
           className="w-20 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
         />
       </label>
