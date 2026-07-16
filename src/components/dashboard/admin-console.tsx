@@ -441,7 +441,7 @@ function AuditTab() {
               <span className="text-muted-foreground"> · {r.summary}</span>
             )}
             {r.reason && (
-              <span className="text-muted-foreground"> — “{r.reason}”</span>
+              <span className="text-muted-foreground">, “{r.reason}”</span>
             )}
           </span>
           <span className="flex-shrink-0 text-xs text-muted-foreground">
@@ -516,7 +516,7 @@ function BillingAdminTab({ isSuper }: { isSuper: boolean }) {
         </StaggerItem>
       </Stagger>
 
-      {/* Metering config — superadmin only, since it changes what every
+      {/* Metering config, superadmin only, since it changes what every
           agent is charged platform-wide. */}
       <div className="rounded-2xl bento p-5">
         <h3 className="text-sm font-semibold">Metering</h3>
@@ -588,7 +588,7 @@ function BillingAdminTab({ isSuper }: { isSuper: boolean }) {
           Recent settlements
         </h3>
         {data.recent.length === 0 ? (
-          <div className="mt-3 rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          <div className="mt-3 rounded-2xl bento p-8 text-center text-sm text-muted-foreground">
             No payments yet.
           </div>
         ) : (
@@ -611,7 +611,7 @@ function BillingAdminTab({ isSuper }: { isSuper: boolean }) {
                     <td className="px-4 py-2.5 font-medium tabular-nums">
                       {p.status === "settled"
                         ? `+${p.creditsGranted.toLocaleString()}`
-                        : "—"}
+                        : "-"}
                     </td>
                     <td className="px-4 py-2.5">
                       <span
@@ -991,7 +991,7 @@ function Avatar({ name, img }: { name: string; img?: string }) {
 
 function Empty({ label }: { label: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+    <div className="rounded-2xl bento p-10 text-center text-sm text-muted-foreground">
       {label}
     </div>
   );

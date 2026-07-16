@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_APP_URL ?? "https://operate.to",
   ),
   title: {
-    default: "operate.to — mission control for humans and AI agents",
+    default: "operate.to: mission control for humans and AI agents",
     template: "%s · operate.to",
   },
   description:

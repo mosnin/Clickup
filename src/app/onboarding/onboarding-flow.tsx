@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAction, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Button } from "@/components/ui/button";
@@ -134,7 +134,6 @@ export function OnboardingFlow({ firstName }: { firstName: string }) {
                     workspaceName={workspaceName}
                     agentName={agentName}
                     agentEmoji={agentEmoji}
-                    onRetry={() => setStep(1)}
                   />
                 </Screen>
               )}
@@ -273,7 +272,7 @@ function WelcomeStep({
         className="mx-auto mt-6 max-w-md text-lg leading-relaxed text-muted-foreground"
       >
         In two answers you&apos;ll have a workspace, a home for your team, and
-        your first AI agent — online and already holding a task.
+        your first AI agent, online and already holding a task.
       </motion.p>
       <motion.div
         initial={{ opacity: 0, y: 12 }}
@@ -377,7 +376,7 @@ function AgentStep({
         Meet your first agent.
       </h1>
       <p className="mt-3 max-w-md text-muted-foreground">
-        It lives here — its brain runs wherever you run agents. You&apos;ll
+        It lives here, its brain runs wherever you run agents. You&apos;ll
         assign it work, watch it live, and approve what ships.
       </p>
 
@@ -459,8 +458,11 @@ function LivePreview({
       </div>
 
       <div className="mt-4 space-y-1.5">
-        {["Set up your first list", "Invite a teammate", "Assign a task to an agent"].map(
-          (t, i) => (
+        {[
+          `Connect ${agentName.trim() || "your agent"} to your runtime`,
+          `${agentName.trim() || "Your agent"}'s first task, watch it work`,
+          "Try the approval gate",
+        ].map((t, i) => (
             <motion.div
               key={t}
               className="flex items-center gap-2 rounded-lg bg-muted/60 px-2.5 py-1.5"
@@ -471,8 +473,7 @@ function LivePreview({
               <span className="inline-block h-3 w-3 rounded-full border-2 border-border" />
               <span className="truncate text-[13px] text-foreground/70">{t}</span>
             </motion.div>
-          ),
-        )}
+          ))}
       </div>
 
       <AnimatePresence>
@@ -509,12 +510,10 @@ function BuildStep({
   workspaceName,
   agentName,
   agentEmoji,
-  onRetry,
 }: {
   workspaceName: string;
   agentName: string;
   agentEmoji: string;
-  onRetry: () => void;
 }) {
   const router = useRouter();
   const completeSetup = useMutation(api.onboarding.completeSetup);
@@ -522,6 +521,42 @@ function BuildStep({
   const [state, setState] = useState<BuildState>({ phase: "building", step: 0 });
   const [copied, setCopied] = useState(false);
   const started = useRef(false);
+  // Setup is NOT idempotent server-side, so it must run at most once per
+  // flow: the created ids persist here and a retry after a failed
+  // key-mint only re-mints the key — it never re-creates the workspace.
+  const resultRef = useRef<{
+    workspaceId: string;
+    agentId: Parameters<typeof createKey>[0]["agentId"];
+  } | null>(null);
+
+  const run = useCallback(async () => {
+    setState((s) =>
+      s.phase === "error" ? { phase: "building", step: BUILD_STEPS.length } : s,
+    );
+    try {
+      if (!resultRef.current) {
+        const result = await completeSetup({
+          workspaceName,
+          agentName,
+          agentEmoji,
+        });
+        resultRef.current = {
+          workspaceId: result.workspaceId,
+          agentId: result.agentId,
+        };
+      }
+      const { key } = await createKey({
+        agentId: resultRef.current.agentId,
+      });
+      const workspaceId = resultRef.current.workspaceId;
+      setState({ phase: "done", key, workspaceId });
+    } catch (err) {
+      setState({
+        phase: "error",
+        message: err instanceof Error ? err.message : "Setup failed",
+      });
+    }
+  }, [agentEmoji, agentName, completeSetup, createKey, workspaceName]);
 
   useEffect(() => {
     if (started.current) return;
@@ -536,29 +571,9 @@ function BuildStep({
         550 * (i + 1),
       ),
     );
-
-    (async () => {
-      try {
-        const result = await completeSetup({
-          workspaceName,
-          agentName,
-          agentEmoji,
-        });
-        const { key } = await createKey({ agentId: result.agentId });
-        setTimeout(
-          () =>
-            setState({ phase: "done", key, workspaceId: result.workspaceId }),
-          Math.max(0, 550 * (BUILD_STEPS.length + 1)),
-        );
-      } catch (err) {
-        setState({
-          phase: "error",
-          message: err instanceof Error ? err.message : "Setup failed",
-        });
-      }
-    })();
+    void run();
     return () => timers.forEach(clearTimeout);
-  }, [agentEmoji, agentName, completeSetup, createKey, workspaceName]);
+  }, [run]);
 
   if (state.phase === "error") {
     return (
@@ -566,8 +581,8 @@ function BuildStep({
         <h1 className="text-3xl font-bold tracking-tight">
           Something went wrong.
         </h1>
-        <p className="mt-2 text-sm text-red-600">{state.message}</p>
-        <Button className="mt-6" onClick={onRetry}>
+        <p className="mt-2 text-sm text-danger">{state.message}</p>
+        <Button className="mt-6" onClick={() => void run()}>
           Try again
         </Button>
       </div>
@@ -633,7 +648,7 @@ function BuildStep({
             >
               <div className="rounded-2xl bento p-5">
                 <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  {agentName}&apos;s API key — shown once
+                  {agentName}&apos;s API key, shown once
                 </p>
                 <div className="mt-2 flex items-center gap-2">
                   <code className="min-w-0 flex-1 break-all rounded-lg bg-muted px-3 py-2 text-sm">

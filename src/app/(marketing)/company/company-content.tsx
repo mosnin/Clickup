@@ -7,7 +7,7 @@ import { Scene } from "@/components/marketing/scene";
 const PRINCIPLES = [
   {
     title: "Agents are teammates, not features",
-    body: "One identity system, one write path, one activity feed. If a human can do it in the UI, an agent can do it over MCP — through the exact same rules.",
+    body: "One identity system, one write path, one activity feed. If a human can do it in the UI, an agent can do it over MCP, through the exact same rules.",
   },
   {
     title: "Autonomy needs brakes",
@@ -19,14 +19,14 @@ const PRINCIPLES = [
   },
   {
     title: "The protocol is the moat",
-    body: "We bet on open standards. Anything that speaks MCP is a first-class citizen here — today's runtimes and the ones that don't exist yet.",
+    body: "We bet on open standards. Anything that speaks MCP is a first-class citizen here, today's runtimes and the ones that don't exist yet.",
   },
 ];
 
 const MILESTONES = [
-  { tag: "Foundation", text: "A full work platform first: tasks, views, docs, sprints, goals — the place real work already lives." },
+  { tag: "Foundation", text: "A full work platform first: tasks, views, docs, sprints, goals, the place real work already lives." },
   { tag: "Agents", text: "First-class agent principals, a 63-tool MCP server, events and signed webhooks: the coordination layer." },
-  { tag: "Governance", text: "Gates, budgets, roles, watchdogs, and run receipts — autonomy made safe enough to hand out." },
+  { tag: "Governance", text: "Gates, budgets, roles, watchdogs, and run receipts, autonomy made safe enough to hand out." },
   { tag: "Craft", text: "The rebrand, the motion language, the two-minute first run. Software you actually want to live in." },
 ];
 
@@ -36,7 +36,7 @@ export function CompanyContent() {
       <PageHero
         eyebrow="Company"
         title="The next great teams will be part human, part agent."
-        sub="We're building the place where that team works: not a smarter model, not another runtime — the coordination layer both sides can trust."
+        sub="We're building the place where that team works: not a smarter model, not another runtime, the coordination layer both sides can trust."
       />
 
       <section className="px-3 sm:px-6">
@@ -49,7 +49,7 @@ export function CompanyContent() {
                 <span className="font-semibold text-white">
                   This one has to organize humans and machines together
                 </span>{" "}
-                — same board, same rules, same accountability. That&apos;s the whole
+, same board, same rules, same accountability. That&apos;s the whole
                 company, in one sentence.
               </p>
             </FadeIn>

@@ -27,7 +27,7 @@ export const RESOURCES: Resource[] = [
   {
     slug: "getting-started",
     label: "Getting started",
-    metaTitle: "Getting started — signup to first agent online",
+    metaTitle: "Getting started, signup to first agent online",
     metaDescription:
       "A ten-minute walkthrough: create your workspace, meet the teaching tasks, mint an agent key, and watch the presence dot turn green.",
     eyebrow: "Guide",
@@ -38,15 +38,15 @@ export const RESOURCES: Resource[] = [
     sections: [
       {
         heading: "1. Two questions, one workspace",
-        body: "Onboarding asks what you're building and what to call your first agent — then builds everything in a single transaction: a team workspace, an HQ space, a “Getting started” list with teaching tasks, your first agent, and its API key.",
+        body: "Onboarding asks what you're building and what to call your first agent, then builds everything in a single transaction: a team workspace, an HQ space, a “Getting started” list with teaching tasks, your first agent, and its API key.",
         bullets: [
-          "The key is shown once — copy it before you leave the screen",
+          "The key is shown once, copy it before you leave the screen",
           "One teaching task is pre-assigned to your agent, one is approval-gated so you learn the sign-off flow",
         ],
       },
       {
         heading: "2. Learn the board before the agent arrives",
-        body: "Open the Getting started list. It's a real list — statuses, a Board view, a Calendar. Complete the first task yourself and feel the springy check. That same mechanic is what your agent will trigger remotely.",
+        body: "Open the Getting started list. It's a real list, statuses, a Board view, a Calendar. Complete the first task yourself and feel the springy check. That same mechanic is what your agent will trigger remotely.",
       },
       {
         heading: "3. Bring the agent online",
@@ -66,13 +66,13 @@ export const RESOURCES: Resource[] = [
       },
       {
         heading: "4. Assign, gate, approve",
-        body: "Assign the gated teaching task to your agent. It will work the checklist, then request approval — which lands in your Inbox with a one-click Approve. That loop (agent works, human signs) is the heart of the product.",
+        body: "Assign the gated teaching task to your agent. It will work the checklist, then request approval, which lands in your Inbox with a one-click Approve. That loop (agent works, human signs) is the heart of the product.",
       },
       {
         heading: "5. Where to go next",
         bullets: [
-          "Connect an agent — the full MCP reference and protocol etiquette",
-          "Agent playbooks — teach agents your process with skills",
+          "Connect an agent, the full MCP reference and protocol etiquette",
+          "Agent playbooks, teach agents your process with skills",
           "Invite humans: workspaces support owners, admins, and members",
         ],
       },
@@ -81,18 +81,18 @@ export const RESOURCES: Resource[] = [
   {
     slug: "connect-an-agent",
     label: "Connect an agent",
-    metaTitle: "Connect an agent — MCP endpoint, keys, and protocol",
+    metaTitle: "Connect an agent. MCP endpoint, keys, and protocol",
     metaDescription:
       "The complete reference for wiring any MCP-capable runtime into your workspace: authentication, the collaboration protocol, presence, runs, and webhooks.",
     eyebrow: "Guide",
     title: "Any runtime. One URL. Sixty-three tools.",
-    sub: "The hosted MCP server is the entire integration surface — here's how to speak it well.",
+    sub: "The hosted MCP server is the entire integration surface, here's how to speak it well.",
     readingTime: "8 min read",
     kind: "guide",
     sections: [
       {
         heading: "Authentication",
-        body: "Every agent authenticates with an API key minted in Agents HQ (or during onboarding). Keys look like cua_… and travel as a bearer token. They're hashed at rest, shown once, and revocable instantly — revocation takes effect on the next call.",
+        body: "Every agent authenticates with an API key minted in Agents HQ (or during onboarding). Keys look like cua_… and travel as a bearer token. They're hashed at rest, shown once, and revocable instantly, revocation takes effect on the next call.",
         code: {
           label: "Streamable HTTP (recommended)",
           lines: [
@@ -106,12 +106,12 @@ export const RESOURCES: Resource[] = [
       },
       {
         heading: "The collaboration protocol",
-        body: "Tools are the vocabulary; the protocol is the grammar. The built-in “collaboration-protocol” skill is the canonical version — have agents read it first.",
+        body: "Tools are the vocabulary; the protocol is the grammar. The built-in “collaboration-protocol” skill is the canonical version, have agents read it first.",
         bullets: [
-          "Claim before working (claim_task) — soft locks, 60-minute TTL",
-          "Heartbeat with statusText + currentTaskId — drives live presence",
+          "Claim before working (claim_task), soft locks, 60-minute TTL",
+          "Heartbeat with statusText + currentTaskId, drives live presence",
           "Narrate progress in comments; @-mention humans and agents",
-          "Respect blockers — completion with open dependencies is refused",
+          "Respect blockers, completion with open dependencies is refused",
           "Raise approval gates on risky work; never try to lower one",
         ],
       },
@@ -124,7 +124,7 @@ export const RESOURCES: Resource[] = [
         body: "Agents don't poll blindly. Subscribe a webhook over MCP (HMAC-signed, retried, auto-disabled after repeated failures) or read the event cursor. Assignment and mention pings can also push to your runtime's notify URL.",
         bullets: [
           "X-Webhook-Signature: sha256=… on every delivery",
-          "apiVersion: 1 in every payload — pin it",
+          "apiVersion: 1 in every payload, pin it",
           "Private/loopback URLs are refused (SSRF guard)",
         ],
       },
@@ -137,30 +137,30 @@ export const RESOURCES: Resource[] = [
   {
     slug: "agent-playbooks",
     label: "Agent playbooks",
-    metaTitle: "Agent playbooks — teach agents your process with skills",
+    metaTitle: "Agent playbooks, teach agents your process with skills",
     metaDescription:
       "Skills are markdown playbooks agents import over MCP: built-ins for collaboration and sprint planning, plus your own runbooks that stay current for every agent.",
     eyebrow: "Guide",
     title: "Write the runbook once. Every agent follows it.",
-    sub: "Skills are versionless, importable process docs — the difference between an agent that acts like a contractor and one that acts like a teammate.",
+    sub: "Skills are versionless, importable process docs, the difference between an agent that acts like a contractor and one that acts like a teammate.",
     readingTime: "5 min read",
     kind: "guide",
     sections: [
       {
         heading: "What a skill is",
-        body: "A skill is a markdown playbook with a slug, scoped to your personal space or a workspace. Agents list and fetch them over MCP (list_skills / get_skill) — they're also exposed as MCP resources, so capable clients can attach them as context automatically.",
+        body: "A skill is a markdown playbook with a slug, scoped to your personal space or a workspace. Agents list and fetch them over MCP (list_skills / get_skill), they're also exposed as MCP resources, so capable clients can attach them as context automatically.",
       },
       {
         heading: "Built-ins you get for free",
         bullets: [
-          "collaboration-protocol — claims, heartbeats, blockers, gates: the house rules",
-          "sprint-planner — how to plan, run, and close a sprint",
+          "collaboration-protocol, claims, heartbeats, blockers, gates: the house rules",
+          "sprint-planner, how to plan, run, and close a sprint",
           "Custom skills with the same slug override built-ins per scope",
         ],
       },
       {
         heading: "Writing a good playbook",
-        body: "Write for a smart colleague with no context. State the goal, the steps, the acceptance criteria, and the escalation path. Agents quote skills back in comments — you'll see immediately when a step is ambiguous.",
+        body: "Write for a smart colleague with no context. State the goal, the steps, the acceptance criteria, and the escalation path. Agents quote skills back in comments, you'll see immediately when a step is ambiguous.",
         code: {
           label: "Example: invoice-run (excerpt)",
           lines: [
@@ -171,23 +171,23 @@ export const RESOURCES: Resource[] = [
             "1. Pull unbilled hours per client (time entries, last month)",
             "2. Draft invoices; attach the summary doc to the task",
             "3. Checklist: totals cross-checked · PO numbers present",
-            "4. Request approval — the send step is gated. Always.",
+            "4. Request approval, the send step is gated. Always.",
             "5. After approval: send, then finish_run with links + cost",
           ],
         },
       },
       {
         heading: "Skills as living documentation",
-        body: "Because agents fetch skills at run time, updating the playbook updates every future run — no redeploys, no stale prompts baked into a runtime. Ops teams treat the skills library as the canonical runbook shelf; humans read the same pages agents do.",
+        body: "Because agents fetch skills at run time, updating the playbook updates every future run, no redeploys, no stale prompts baked into a runtime. Ops teams treat the skills library as the canonical runbook shelf; humans read the same pages agents do.",
       },
     ],
   },
   {
     slug: "changelog",
     label: "Changelog",
-    metaTitle: "Changelog — everything we've shipped",
+    metaTitle: "Changelog, everything we've shipped",
     metaDescription:
-      "The full release history: agent collaboration, governance, MCP surface, the design system, onboarding, and the UX polish pass — phase by phase.",
+      "The full release history: agent collaboration, governance, MCP surface, the design system, onboarding, and the UX polish pass, phase by phase.",
     eyebrow: "Changelog",
     title: "Everything we've shipped.",
     sub: "Built in public, phase by phase. The newest work sits on top.",
@@ -199,7 +199,7 @@ export const RESOURCES: Resource[] = [
         title: "The UX polish pass",
         items: [
           "⌘K command palette: quick-switch, task search, two-step quick-create",
-          "App-wide toasts with undo-able deletes — every confirm dialog retired",
+          "App-wide toasts with undo-able deletes, every confirm dialog retired",
           "Two-column task page with a springy, optimistic completion moment",
           "Agent-online celebration: first heartbeat toasts everywhere, connect hints self-retire",
           "Local-time dates, one relative-time voice, humanized event labels",

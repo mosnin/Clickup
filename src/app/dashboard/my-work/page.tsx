@@ -8,6 +8,12 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { Stagger, StaggerItem } from "@/components/motion";
+import {
+  PriorityChip,
+  PriorityDot,
+  type TaskPriority,
+} from "@/components/dashboard/priority";
+import { EmptyState } from "@/components/dashboard/empty-state";
 
 // "My Work": every open task assigned to me across my personal space and
 // every workspace I belong to, grouped by urgency — Overdue, Today, This week,
@@ -19,25 +25,12 @@ type Row = {
   listId: Id<"lists">;
   listName: string;
   dueDate?: number;
-  priority?: "urgent" | "high" | "normal" | "low";
+  priority?: TaskPriority;
   statusId: Id<"listStatuses">;
   statusName: string;
   statusColor: string;
   requiresApproval?: boolean;
   approvedAt?: number;
-};
-
-const PRIORITY_COLOR: Record<string, string> = {
-  urgent: "#f2b3ab",
-  high: "#f2c291",
-  normal: "#a9c6f2",
-  low: "#c9ccd4",
-};
-const PRIORITY_LABEL: Record<string, string> = {
-  urgent: "Urgent",
-  high: "High",
-  normal: "Normal",
-  low: "Low",
 };
 
 function startOfDay(ts: number): number {
@@ -49,7 +42,7 @@ function startOfDay(ts: number): number {
 type Bucket = "overdue" | "today" | "week" | "later" | "none";
 
 const BUCKET_META: { key: Bucket; label: string; hint: string }[] = [
-  { key: "overdue", label: "Overdue", hint: "Past due — needs attention" },
+  { key: "overdue", label: "Overdue", hint: "Past due, needs attention" },
   { key: "today", label: "Today", hint: "Due today" },
   { key: "week", label: "This week", hint: "Due in the next 7 days" },
   { key: "later", label: "Later", hint: "Further out" },
@@ -100,12 +93,10 @@ export default function MyWorkPage() {
       {rows === undefined ? (
         <MyWorkSkeleton />
       ) : total === 0 ? (
-        <div className="rounded-2xl bento p-10 text-center">
-          <p className="text-sm text-muted-foreground">
-            When someone assigns you a task — or you assign one to yourself —
-            it shows up here, grouped by when it&apos;s due.
-          </p>
-        </div>
+        <EmptyState
+          title="A clear plate"
+          message="Tasks assigned to you, from every space and workspace, show up here grouped by when they're due."
+        />
       ) : (
         <div className="space-y-8">
           {BUCKET_META.map(({ key, label, hint }) => {
@@ -118,7 +109,7 @@ export default function MyWorkPage() {
                     className={cn(
                       "text-sm font-semibold uppercase tracking-wider",
                       key === "overdue"
-                        ? "text-[#c2453a]"
+                        ? "text-danger"
                         : "text-muted-foreground",
                     )}
                   >
@@ -181,24 +172,20 @@ function TaskRow({ row, overdue }: { row: Row; overdue: boolean }) {
       )}
 
       {row.priority && (
-        <span
-          className="hidden flex-shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium text-foreground/80 sm:inline-flex"
-          style={{ backgroundColor: `${PRIORITY_COLOR[row.priority]}66` }}
-        >
-          <span
-            aria-hidden
-            className="h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: PRIORITY_COLOR[row.priority] }}
+        <>
+          <PriorityChip
+            priority={row.priority}
+            className="hidden sm:inline-flex"
           />
-          {PRIORITY_LABEL[row.priority]}
-        </span>
+          <PriorityDot priority={row.priority} className="sm:hidden" />
+        </>
       )}
 
       {row.dueDate !== undefined && (
         <span
           className={cn(
             "flex-shrink-0 text-xs font-medium tabular-nums",
-            overdue ? "text-[#c2453a]" : "text-muted-foreground",
+            overdue ? "text-danger" : "text-muted-foreground",
           )}
         >
           {formatDue(row.dueDate)}

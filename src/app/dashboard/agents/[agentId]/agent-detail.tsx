@@ -158,7 +158,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
               </li>
             ))}
             {claimed.length === 0 && assigned.length === 0 && (
-              <li className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+              <li className="rounded-2xl bento p-4 text-center text-sm text-muted-foreground">
                 No open work assigned.
               </li>
             )}
@@ -174,9 +174,9 @@ export function AgentDetail({ agentId }: { agentId: string }) {
               <RunRow key={run._id} run={run} />
             ))}
             {runs.length === 0 && (
-              <li className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-                No runs reported yet. Agents report sessions via the
-                start_run / finish_run MCP tools.
+              <li className="rounded-2xl bento p-6 text-center text-sm text-muted-foreground">
+                No work sessions yet. They&apos;ll appear here once this agent
+                starts working on tasks.
               </li>
             )}
           </ul>
@@ -205,7 +205,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
             </li>
           ))}
           {events.length === 0 && (
-            <li className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+            <li className="rounded-2xl bento p-4 text-center text-sm text-muted-foreground">
               Nothing yet.
             </li>
           )}
@@ -216,7 +216,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
 }
 
 function fmtMs(ms: number | null): string {
-  if (ms === null) return "—";
+  if (ms === null) return "-";
   const m = Math.round(ms / 60000);
   if (m < 60) return `${m}m`;
   return `${Math.round(m / 6) / 10}h`;
@@ -274,7 +274,9 @@ function GovernancePanel({
   const { toast } = useToast();
   const [limitDraft, setLimitDraft] = useState(String(usageLimit));
   const [notifyDraft, setNotifyDraft] = useState(agent.notifyUrl ?? "");
-  const [secretDraft, setSecretDraft] = useState(agent.notifySecret ?? "");
+  // The stored secret is never rendered back — like API keys, it's write-only
+  // from the UI. An empty field means "unchanged"; typing replaces it.
+  const [secretDraft, setSecretDraft] = useState("");
   const usagePct = Math.min(100, Math.round((usageToday / usageLimit) * 100));
 
   // Blur-saving fields confirm themselves — silence reads as "did that
@@ -379,22 +381,43 @@ function GovernancePanel({
               Ping signing secret (optional)
             </span>
             <input
+              type="password"
+              autoComplete="off"
               value={secretDraft}
               onChange={(e) => setSecretDraft(e.currentTarget.value)}
               onBlur={() => {
-                if (secretDraft !== (agent.notifySecret ?? "")) {
+                if (secretDraft.trim()) {
                   save(
                     {
                       agentId: agent._id,
-                      notifySecret: secretDraft.trim() || null,
+                      notifySecret: secretDraft.trim(),
                     },
                     "Signing secret",
                   );
+                  setSecretDraft("");
                 }
               }}
-              placeholder="pings get X-Ping-Signature when set"
+              placeholder={
+                agent.notifySecret
+                  ? "Secret set. Type to replace it."
+                  : "Add a secret to sign pings"
+              }
               className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
             />
+            {agent.notifySecret && (
+              <button
+                type="button"
+                onClick={() =>
+                  save(
+                    { agentId: agent._id, notifySecret: null },
+                    "Signing secret",
+                  )
+                }
+                className="mt-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Remove secret
+              </button>
+            )}
           </label>
         </div>
       </div>

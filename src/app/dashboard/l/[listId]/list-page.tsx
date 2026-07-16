@@ -14,6 +14,7 @@ import { ListView } from "./views/list-view";
 import { BoardView } from "./views/board-view";
 import { CalendarView } from "./views/calendar-view";
 import { GanttView } from "./views/gantt-view";
+import { TaskPeekPortal } from "@/components/dashboard/task-peek";
 
 // Quick filters, persisted in the URL (?f=mine,active,blocked&pri=high) so
 // a filtered view is shareable and survives reload. Applied in one place
@@ -143,6 +144,8 @@ export function ListPage({
       {view === "gantt" && (
         <GanttView listId={list._id} tasks={topLevelTasks} statuses={statuses} />
       )}
+
+      <TaskPeekPortal listId={list._id} />
     </div>
   );
 }

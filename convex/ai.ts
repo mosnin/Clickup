@@ -227,7 +227,7 @@ export const writerContinue = action({
         {
           role: "system",
           content:
-            "You are an inline writing assistant. Continue the user's document in the same voice. Output prose only — no preamble, no quotation marks, no markdown headings unless the document already uses them.",
+            "You are an inline writing assistant. Continue the user's document in the same voice. Output prose only, no preamble, no quotation marks, no markdown headings unless the document already uses them.",
         },
         ...(context
           ? [
@@ -260,7 +260,7 @@ export const taskAutofill = action({
         {
           role: "system",
           content:
-            "You expand task titles into a 1–3 sentence description that explains the work. Be concrete, no fluff. Output description only — no headings.",
+            "You expand task titles into a 1–3 sentence description that explains the work. Be concrete, no fluff. Output description only, no headings.",
         },
         { role: "user", content: `Task title: ${title}` },
       ],

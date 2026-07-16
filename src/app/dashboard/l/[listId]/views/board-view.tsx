@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { TaskBadges } from "@/components/dashboard/task-badges";
@@ -29,14 +30,14 @@ import { CalendarDays, GripVertical } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { taskPeekHref } from "@/components/dashboard/task-peek";
 import { EASE, motion } from "@/components/motion";
 
-const PRIORITY_COLOR: Record<string, string> = {
-  urgent: "#f2b3ab",
-  high: "#f2c291",
-  normal: "#a9c6f2",
-  low: "#c9ccd4",
-};
+import {
+  PRIORITY_LABEL,
+  PriorityDot,
+  type TaskPriority,
+} from "@/components/dashboard/priority";
 
 export function BoardView({
   listId,
@@ -247,8 +248,8 @@ function Column({
       ref={setNodeRef}
       aria-label={status.name}
       className={cn(
-        "flex w-72 flex-shrink-0 flex-col rounded-2xl border border-border bg-muted/30",
-        isOver && "border-brand-500",
+        "flex w-72 flex-shrink-0 flex-col rounded-2xl bg-muted/40 transition-shadow",
+        isOver && "ring-2 ring-foreground/20",
       )}
     >
       <header className="flex items-center justify-between gap-2 px-3 py-2">
@@ -266,10 +267,10 @@ function Column({
         items={tasks.map((t) => t._id)}
         strategy={verticalListSortingStrategy}
       >
-        <ul className="flex-1 space-y-2 px-2 pb-3">
+        <ul className="flex-1 space-y-2 px-2 pb-1">
           {tasks.length === 0 && (
-            <li className="rounded-2xl border border-dashed border-border bg-background/50 px-3 py-6 text-center text-xs text-muted-foreground">
-              Drop tasks here
+            <li className="px-3 py-6 text-center text-xs text-muted-foreground">
+              Drop a task here, or add one below.
             </li>
           )}
           {tasks.map((task) => (
@@ -277,17 +278,73 @@ function Column({
           ))}
         </ul>
       </SortableContext>
+      <ColumnAdd listId={listId} statusId={status._id} />
     </section>
+  );
+}
+
+// Per-column quick add: every column can create a task directly into its
+// status, so Board is as writable as List.
+function ColumnAdd({
+  listId,
+  statusId,
+}: {
+  listId: Id<"lists">;
+  statusId: Id<"listStatuses">;
+}) {
+  const create = useMutation(api.tasks.create);
+  const [title, setTitle] = useState("");
+  const [open, setOpen] = useState(false);
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const t = title.trim();
+    if (!t) return;
+    setTitle("");
+    await create({ listId, title: t, statusId });
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mx-2 mb-2 flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+      >
+        + Add task
+      </button>
+    );
+  }
+  return (
+    <form onSubmit={submit} className="px-2 pb-2">
+      <input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.currentTarget.value)}
+        onBlur={() => {
+          if (!title.trim()) setOpen(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setTitle("");
+            setOpen(false);
+          }
+        }}
+        placeholder="Task title, then Enter"
+        className="soft-field w-full px-2.5 py-1.5 text-sm"
+        aria-label="New task title"
+      />
+    </form>
   );
 }
 
 function Card({
   task,
-  listId,
 }: {
   task: Doc<"tasks">;
   listId: Id<"lists">;
 }) {
+  const searchParams = useSearchParams();
   const {
     attributes,
     listeners,
@@ -320,7 +377,8 @@ function Card({
           <GripVertical className="h-4 w-4" />
         </button>
         <Link
-          href={`/dashboard/l/${listId}/t/${task._id}`}
+          href={taskPeekHref(searchParams, task._id)}
+          scroll={false}
           className="block flex-1 text-sm font-medium hover:underline"
         >
           {task.title}
@@ -362,12 +420,8 @@ function CardMeta({ task }: { task: Doc<"tasks"> }) {
     <div className="flex items-center gap-2 px-3 pb-3 text-xs text-muted-foreground">
       {task.priority && (
         <span className="inline-flex items-center gap-1">
-          <span
-            aria-hidden
-            className="inline-block h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: PRIORITY_COLOR[task.priority] }}
-          />
-          {task.priority}
+          <PriorityDot priority={task.priority as TaskPriority} className="h-1.5 w-1.5" />
+          {PRIORITY_LABEL[task.priority as TaskPriority]}
         </span>
       )}
       {task.dueDate && (

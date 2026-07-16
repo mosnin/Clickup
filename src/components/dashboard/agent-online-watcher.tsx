@@ -22,7 +22,7 @@ export function AgentOnlineWatcher() {
     if (prev) {
       for (const a of all) {
         if (a.lastSeenAt !== undefined && prev.get(a._id) === false) {
-          toast(`${a.emoji ?? "🤖"} ${a.name} is online — first connection!`, {
+          toast(`${a.emoji ?? "🤖"} ${a.name} is online, first connection!`, {
             duration: 6000,
           });
         }

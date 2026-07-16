@@ -293,9 +293,9 @@ function SlackIntegration({
   const { toast } = useToast();
   const [disconnecting, setDisconnecting] = useState(false);
 
-  const [draftUrl, setDraftUrl] = useState(
-    integration?.config.webhookUrl ?? "",
-  );
+  // The stored webhook URL is a secret (anyone holding it can post to the
+  // channel), so it is never rendered back. Empty field = unchanged.
+  const [draftUrl, setDraftUrl] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -363,8 +363,12 @@ function SlackIntegration({
           type="url"
           value={draftUrl}
           onChange={(e) => setDraftUrl(e.currentTarget.value)}
-          placeholder="https://hooks.slack.com/services/T0…"
-          className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm font-mono"
+          placeholder={
+            integration
+              ? "Connected. Paste a new URL to replace it."
+              : "https://hooks.slack.com/services/T0…"
+          }
+          className="soft-field w-full px-3 py-1.5 font-mono text-sm"
         />
         {error && <p className="text-xs text-red-700">{error}</p>}
         <div className="flex flex-wrap items-center gap-2">

@@ -160,10 +160,12 @@ function TaskEditor({
           whileTap={{ scale: 0.85 }}
           className={cn(
             "tap-target mt-1 inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors sm:mt-1.5",
-            isDone
-              ? "border-emerald-500 bg-emerald-500 text-white"
-              : "border-border text-transparent hover:border-emerald-400 hover:text-emerald-400",
+            isDone ? "text-white" : "text-transparent",
           )}
+          style={{
+            borderColor: currentStatus?.color ?? "var(--color-border)",
+            backgroundColor: isDone ? currentStatus?.color : "transparent",
+          }}
         >
           <motion.span
             initial={false}

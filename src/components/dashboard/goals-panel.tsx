@@ -53,7 +53,7 @@ export function GoalsPanel({
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {goals.length === 0
-            ? "No goals yet."
+            ? "Track an outcome: set a target and watch progress roll up as the team works."
             : `${goals.filter((g) => g.status === "open").length} open · ${goals.filter((g) => g.status === "complete").length} complete`}
         </p>
         <Button
@@ -123,7 +123,7 @@ function CreateGoalForm({
           setPending(false);
         }
       }}
-      className="space-y-2 rounded-2xl border border-dashed border-border p-3"
+      className="space-y-2 rounded-2xl bento p-3"
     >
       <input
         type="text"

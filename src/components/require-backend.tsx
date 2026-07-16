@@ -28,7 +28,7 @@ export function RequireBackend({ children }: { children: React.ReactNode }) {
             <code className="rounded bg-muted px-1 py-0.5 text-xs">
               https://&lt;deployment&gt;.convex.cloud
             </code>
-            ) in your hosting environment variables, then redeploy — the value
+            ) in your hosting environment variables, then redeploy, the value
             is inlined at build time.
           </p>
         </div>

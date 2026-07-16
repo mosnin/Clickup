@@ -159,7 +159,9 @@ export function CommandPalette() {
 
     const statics: Item[] = [
       { key: "home", group: "Go to", label: "Home", icon: Home, run: nav("/dashboard") },
+      { key: "my-work", group: "Go to", label: "My work", icon: SquareCheck, run: nav("/dashboard/my-work") },
       { key: "inbox", group: "Go to", label: "Inbox", icon: Inbox, run: nav("/dashboard/inbox") },
+      { key: "personal", group: "Go to", label: "Personal space", icon: Home, run: nav("/dashboard/personal") },
       { key: "agents", group: "Go to", label: "Agents", icon: Bot, run: nav("/dashboard/agents") },
       { key: "brain", group: "Go to", label: "Brain", icon: Sparkles, run: nav("/dashboard/brain") },
     ];
@@ -243,17 +245,24 @@ export function CommandPalette() {
     }
 
     // Quick-create is always reachable; with text typed it carries the text
-    // through as the task title.
-    out.push({
+    // through as the task title. When nothing strongly matches what was
+    // typed, creating IS the primary intent, so it goes first and plain
+    // Enter creates. (⌘Enter always creates, regardless of highlight.)
+    const createItem: Item = {
       key: "new-task",
       group: "Actions",
       label: q ? `New task “${query.trim()}”` : "New task…",
+      hint: q ? "⌘↵" : undefined,
       icon: Plus,
       run: () => {
         setCreateTitle(query.trim() || "");
         setQuery("");
       },
-    });
+    };
+    const strongMatch =
+      !q || out.some((item) => item.label.toLowerCase().startsWith(q));
+    if (strongMatch) out.push(createItem);
+    else out.unshift(createItem);
 
     return out.slice(0, 24);
   }, [query, createTitle, tree, agents, taskHits, allLists, router, close, createTask, toast]);
@@ -267,6 +276,12 @@ export function CommandPalette() {
       setHighlight((h) => Math.max(h - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
+      // ⌘Enter / Ctrl+Enter: create a task from the typed text, always.
+      if ((e.metaKey || e.ctrlKey) && createTitle === null) {
+        setCreateTitle(query.trim() || "");
+        setQuery("");
+        return;
+      }
       // In create mode with no title yet, Enter locks in the title.
       if (createTitle === "" && query.trim()) {
         setCreateTitle(query.trim());
@@ -345,7 +360,7 @@ export function CommandPalette() {
               {awaitingTitle ? (
                 <p className="px-3 py-6 text-center text-sm text-muted-foreground">
                   Type the task title and press{" "}
-                  <CornerDownLeft className="inline h-3 w-3" /> — you&apos;ll
+                  <CornerDownLeft className="inline h-3 w-3" />, you&apos;ll
                   pick the list next.
                 </p>
               ) : items.length === 0 ? (
@@ -368,7 +383,7 @@ export function CommandPalette() {
                         type="button"
                         data-highlighted={i === highlight}
                         onClick={() => item.run()}
-                        onMouseEnter={() => setHighlight(i)}
+                        onMouseMove={() => setHighlight(i)}
                         className={cn(
                           "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm",
                           i === highlight && "bg-muted",

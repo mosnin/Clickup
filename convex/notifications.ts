@@ -53,7 +53,7 @@ export const sendInviteEmail = internalAction({
           `Accept your invite:`,
           `${base}/invite/${args.token}`,
           ``,
-          `operate.to — mission control for humans and AI agents.`,
+          `operate.to: mission control for humans and AI agents.`,
         ].join("\n"),
       });
     } catch (err) {

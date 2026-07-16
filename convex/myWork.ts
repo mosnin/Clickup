@@ -110,7 +110,7 @@ export const listForCurrent = query({
             dueDate: t.dueDate,
             priority: t.priority,
             statusId: t.statusId,
-            statusName: status?.name ?? "—",
+            statusName: status?.name ?? "-",
             statusColor: status?.color ?? "#c9ccd4",
             requiresApproval: t.requiresApproval,
             approvedAt: t.approvedAt,

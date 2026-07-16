@@ -13,7 +13,7 @@ export function TaskBadges({ task }: { task: Doc<"tasks"> }) {
   return (
     <span className="ml-1 inline-flex items-center gap-1 align-middle">
       {task.claimedByActorId && (
-        <span title="Claimed — someone is actively working on this">
+        <span title="Claimed, someone is actively working on this">
           <Lock className="h-3 w-3 text-amber-600" aria-hidden />
         </span>
       )}

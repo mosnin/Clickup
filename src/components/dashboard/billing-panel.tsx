@@ -173,11 +173,10 @@ function ScopeBilling({ scope }: { scope: Scope }) {
           How agents top up
         </p>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          Agents pay for platform usage themselves over the{" "}
-          <span className="font-medium text-foreground">x402</span> protocol —
-          no human in the loop. When a metered action can&apos;t be covered,
-          the platform returns a standard HTTP 402 challenge and the agent
-          settles it on-chain to buy credits.
+          Your agents can pay for their own usage, with no card and no human
+          in the loop. When an agent runs low, it buys more credits by itself
+          using the open x402 payment standard. The steps below are what the
+          agent does; you never have to.
         </p>
         <ol className="mt-4 space-y-2.5">
           {[
@@ -195,7 +194,7 @@ function ScopeBilling({ scope }: { scope: Scope }) {
             },
             {
               t: "Credits land",
-              d: "On settlement the wallet is credited — replay-protected, so each payment counts once — and metered work resumes.",
+              d: "On settlement the wallet is credited, replay-protected, so each payment counts once, and metered work resumes.",
             },
           ].map((step, i) => (
             <li key={step.t} className="flex gap-3">
@@ -217,8 +216,8 @@ function ScopeBilling({ scope }: { scope: Scope }) {
           Payments
         </h3>
         {wallet.payments.length === 0 ? (
-          <div className="mt-3 rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            No payments yet. When an agent tops up via x402, each settlement
+          <div className="mt-3 rounded-2xl bento p-8 text-center text-sm text-muted-foreground">
+            No payments yet. When an agent tops up its wallet, each payment
             shows here.
           </div>
         ) : (
@@ -244,7 +243,7 @@ function ScopeBilling({ scope }: { scope: Scope }) {
                     <td className="px-4 py-2.5 font-medium tabular-nums">
                       {p.status === "settled"
                         ? `+${p.creditsGranted.toLocaleString()}`
-                        : "—"}
+                        : "-"}
                     </td>
                     <td className="px-4 py-2.5 tabular-nums text-muted-foreground">
                       {p.status === "settled"
@@ -255,7 +254,7 @@ function ScopeBilling({ scope }: { scope: Scope }) {
                               ? pricing.assetSymbol
                               : p.asset,
                           )
-                        : "—"}
+                        : "-"}
                     </td>
                     <td className="px-4 py-2.5">
                       <span
@@ -275,7 +274,7 @@ function ScopeBilling({ scope }: { scope: Scope }) {
                       )}
                     </td>
                     <td className="hidden px-4 py-2.5 font-mono text-xs text-muted-foreground sm:table-cell">
-                      {p.txReference ? truncMiddle(p.txReference, 8) : "—"}
+                      {p.txReference ? truncMiddle(p.txReference, 8) : "-"}
                     </td>
                     <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">
                       {timeAgo(p.createdAt)}

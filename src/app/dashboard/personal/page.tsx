@@ -41,7 +41,7 @@ export default function PersonalPage() {
       </header>
 
       {personal.folders.length === 0 && directLists.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-10 text-center">
+        <div className="rounded-2xl bento p-10 text-center">
           <p className="text-sm text-muted-foreground">
             No lists yet. Use the <span className="font-medium">+</span> next to{" "}
             <span className="font-medium">{personal.name}</span> in the sidebar

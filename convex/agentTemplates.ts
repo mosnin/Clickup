@@ -85,7 +85,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     emoji: "🛰️",
     tagline: "Read-only monitor",
     description:
-      "A safe, read-only observer: polls the event stream, watches for overdue work and stalled agents, and reports — but never writes.",
+      "A safe, read-only observer: polls the event stream, watches for overdue work and stalled agents, and reports, but never writes.",
     role: "readonly",
     dailyActionLimit: 2000,
     recommendedSkills: ["collaboration-protocol"],

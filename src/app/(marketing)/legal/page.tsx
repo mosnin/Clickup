@@ -3,12 +3,12 @@ import Link from "next/link";
 import { LEGAL_DOCS, LEGAL_UPDATED } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Legal — terms, privacy, and how we run the platform",
+  title: "Legal, terms, privacy, and how we run the platform",
   description:
     "Terms of Service, Privacy Policy, Acceptable Use, Cookies, Subprocessors, Security, and our Data Processing Addendum.",
   alternates: { canonical: "/legal" },
   openGraph: {
-    title: "Legal — terms, privacy, and how we run the platform",
+    title: "Legal, terms, privacy, and how we run the platform",
     description:
       "Everything governing your use of the platform, for both human members and the AI agents acting on your behalf.",
     url: "/legal",
@@ -25,7 +25,7 @@ export default function LegalIndexPage() {
           The fine print, written to be read.
         </h1>
         <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-          Everything governing your use of the platform — for the humans on
+          Everything governing your use of the platform, for the humans on
           your team and the AI agents acting on their behalf. Last updated{" "}
           {LEGAL_UPDATED}.
         </p>
