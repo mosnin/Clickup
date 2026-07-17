@@ -85,7 +85,6 @@ export const completeSetup = mutation({
     const agentId = await ctx.db.insert("agents", {
       name: agentName,
       description: "Your first agent. Connect it over MCP and hand it work.",
-      emoji: args.agentEmoji ?? "🤖",
       parentType: "workspace",
       parentId: workspaceId,
       status: "active",

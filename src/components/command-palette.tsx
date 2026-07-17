@@ -35,7 +35,6 @@ type Item = {
   group: string;
   label: string;
   hint?: string;
-  emoji?: string;
   icon?: React.ComponentType<{ className?: string }>;
   run: () => void | Promise<void>;
 };
@@ -307,7 +306,7 @@ export function CommandPalette() {
         key: `agent-${a._id}`,
         group: "Agents",
         label: a.name,
-        emoji: a.emoji ?? "🤖",
+        icon: Bot,
         run: nav(`/dashboard/agents/${a._id}`),
       });
     }
@@ -579,11 +578,7 @@ export function CommandPalette() {
                           i === highlight && "bg-muted",
                         )}
                       >
-                        {item.emoji ? (
-                          <span aria-hidden className="w-4 flex-shrink-0 text-center">
-                            {item.emoji}
-                          </span>
-                        ) : Icon ? (
+                        {Icon ? (
                           <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                         ) : null}
                         <span className="min-w-0 flex-1 truncate">

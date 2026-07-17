@@ -149,7 +149,7 @@ export const listMentionableUsers = query({
     for (const a of agents) {
       people.push({
         clerkId: a._id,
-        name: `${a.emoji ?? "🤖"} ${a.name}`,
+        name: a.name,
         email: "",
         isAgent: true,
       });

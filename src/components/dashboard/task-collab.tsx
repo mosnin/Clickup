@@ -8,6 +8,7 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
+import { Monogram } from "@/components/dashboard/monogram";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
 
@@ -81,9 +82,7 @@ export function TaskBanners({
           <span className="min-w-0 flex-1">
             Claimed by{" "}
             <span className="font-medium">
-              {claimant
-                ? `${claimant.kind === "agent" ? "🤖 " : ""}${claimant.name}`
-                : "someone"}
+              {claimant ? claimant.name : "someone"}
             </span>{" "}
 , they&apos;re actively working on this.
           </span>
@@ -144,7 +143,9 @@ export function TaskAssignees({
             key={id}
             className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-sm"
           >
-            {person?.kind === "agent" ? (person.emoji ?? "🤖") : null}
+            {person?.kind === "agent" && (
+              <Monogram name={person.name} size="sm" />
+            )}
             <span>{person?.name ?? "Someone"}</span>
             <button
               type="button"
@@ -172,7 +173,6 @@ export function TaskAssignees({
           .map((a) => ({
             id: a.id,
             label: a.name,
-            emoji: a.kind === "agent" ? (a.emoji ?? "🤖") : undefined,
             hint: a.kind === "agent" ? "agent" : undefined,
           }))}
         onSelect={(id) =>

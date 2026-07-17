@@ -23,6 +23,7 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
+import { Monogram } from "@/components/dashboard/monogram";
 import { BillingTab } from "@/components/dashboard/billing-panel";
 import { ConnectSnippet } from "@/components/dashboard/connect-snippet";
 import { TerminalSurface } from "@/components/terminal-surface";
@@ -331,7 +332,7 @@ function FleetSpend() {
                 key={a.name}
                 className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs"
               >
-                <span aria-hidden>{a.emoji ?? "🤖"}</span>
+                <Monogram name={a.name} size="sm" />
                 {a.name}
                 <span className="tabular-nums text-muted-foreground">
                   ${a.cost.toFixed(2)}
@@ -437,9 +438,7 @@ function TemplateGallery({
               className="lift flex h-full w-full flex-col rounded-2xl bento p-4 text-left disabled:opacity-60"
             >
               <span className="flex items-center gap-2">
-                <span className="text-2xl" aria-hidden>
-                  {t.emoji}
-                </span>
+                <Monogram name={t.name} />
                 <span className="font-medium">{t.name}</span>
                 {pendingSlug === t.slug && (
                   <span className="ml-auto text-xs text-muted-foreground">
@@ -492,7 +491,6 @@ function CreateAgentForm({
   const mintKey = useAction(api.agentKeys.createKey);
   const { user } = useUser();
   const [name, setName] = useState("");
-  const [emoji, setEmoji] = useState("🤖");
   const [description, setDescription] = useState("");
   const [scope, setScope] = useState("personal");
   const [pending, setPending] = useState(false);
@@ -554,7 +552,6 @@ function CreateAgentForm({
         try {
           const agentId = await create({
             name: name.trim(),
-            emoji: emoji || undefined,
             description: description.trim() || undefined,
             parentType: scope === "personal" ? "user" : "workspace",
             parentId: scope === "personal" ? user.id : scope,
@@ -566,18 +563,7 @@ function CreateAgentForm({
         }
       }}
     >
-      <div className="grid gap-3 sm:grid-cols-[80px_1fr_1fr]">
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Emoji
-          </span>
-          <input
-            value={emoji}
-            onChange={(e) => setEmoji(e.currentTarget.value)}
-            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-center text-sm"
-            maxLength={4}
-          />
-        </label>
+      <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Name
@@ -686,9 +672,7 @@ function AgentCard({
   return (
     <div className="lift rounded-2xl bento p-4">
       <div className="flex items-start gap-3">
-        <span className="text-2xl" aria-hidden>
-          {agent.emoji ?? "🤖"}
-        </span>
+        <Monogram name={agent.name} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Link
@@ -938,7 +922,6 @@ export function ActivityFeed({
                   : "bg-muted text-foreground",
             )}
           >
-            {e.actorType === "agent" ? "🤖 " : ""}
             {e.actorName}
           </span>
           <span className="min-w-0 flex-1 truncate">
@@ -1099,7 +1082,7 @@ function WebhooksTab() {
             </span>
             {s.ownerType === "agent" && (
               <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] uppercase tracking-wider text-brand-700">
-                🤖 {agentNameById.get(s.ownerId) ?? "agent"}
+                {agentNameById.get(s.ownerId) ?? "agent"}
               </span>
             )}
             {s.failureCount > 0 && (

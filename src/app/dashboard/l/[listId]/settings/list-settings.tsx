@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useToast } from "@/components/toast";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -466,7 +466,7 @@ function DropdownOptionsEditor({
               className="text-xs text-muted-foreground hover:text-foreground"
               aria-label={`Remove ${opt.label}`}
             >
-              ✕
+              <X className="h-3 w-3" />
             </button>
           </li>
         ))}
@@ -766,7 +766,6 @@ function ActionEditor({
           options={(assignable ?? []).map((a) => ({
             id: a.id,
             label: a.name,
-            emoji: a.emoji,
             hint: a.kind === "agent" ? "agent" : undefined,
           }))}
           onSelect={(id) => onChange({ kind: "assign_user", clerkId: id })}

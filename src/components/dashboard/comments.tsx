@@ -7,6 +7,7 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
+import { Monogram } from "@/components/dashboard/monogram";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { useToast } from "@/components/toast";
@@ -395,22 +396,11 @@ function Avatar({
   clerkId: string;
   small?: boolean;
 }) {
-  const size = small ? "h-6 w-6 text-[10px]" : "h-8 w-8 text-xs";
-  // Array.from is code-point-aware so agent names prefixed with an emoji
-  // ("🤖 Scout") render the full emoji instead of half a surrogate pair.
-  const initial = (
-    Array.from((user?.name ?? clerkId.slice(-2) ?? "?").trim())[0] ?? "?"
-  ).toUpperCase();
   return (
-    <span
-      aria-hidden
-      className={cn(
-        "inline-flex flex-shrink-0 items-center justify-center rounded-full bg-brand-600 font-medium text-white",
-        size,
-      )}
-    >
-      {initial}
-    </span>
+    <Monogram
+      name={user?.name ?? clerkId.slice(-2) ?? "?"}
+      size={small ? "sm" : "md"}
+    />
   );
 }
 
@@ -573,7 +563,6 @@ function Composer({
                 ...members.map((m) => ({
                   id: m.clerkId,
                   label: m.name ?? m.email,
-                  emoji: m.isAgent ? "🤖" : undefined,
                   hint: m.isAgent ? "agent" : undefined,
                 })),
               ]}

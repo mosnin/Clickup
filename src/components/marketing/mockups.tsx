@@ -56,8 +56,11 @@ export function AgentCardMock({ className }: { className?: string }) {
     <MockShell label="Agents, live" className={className}>
       <div className="p-3.5">
         <div className="flex items-center gap-2.5">
-          <span className="text-xl" aria-hidden>
-            🤖
+          <span
+            aria-hidden
+            className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-ember-100 text-sm font-semibold text-ember-700"
+          >
+            S
           </span>
           <div className="min-w-0">
             <p className="text-[13px] font-semibold leading-tight">Scout</p>
@@ -97,7 +100,7 @@ export function AgentCardMock({ className }: { className?: string }) {
 
 // ── Task rows: the top task checks itself off on a loop ────────────────
 const TASK_ROWS = [
-  { title: "Ship weekly digest email", chip: "🤖 Scout", chipBg: "bg-ember-100 text-ember-700" },
+  { title: "Ship weekly digest email", chip: "Scout", chipBg: "bg-ember-100 text-ember-700" },
   { title: "QA the onboarding flow", chip: "Sprint 12", chipBg: "bg-black/[0.05] text-foreground/60" },
   { title: "Refresh pricing page copy", chip: "Due Fri", chipBg: "bg-black/[0.05] text-foreground/60" },
 ];
@@ -155,10 +158,10 @@ export function TaskListMock({ className }: { className?: string }) {
 
 // ── Activity feed: events slide in on a loop ───────────────────────────
 const FEED = [
-  { actor: "🤖 Scout", verb: "completed task", entity: "Draft release notes" },
+  { actor: "Scout", verb: "completed task", entity: "Draft release notes" },
   { actor: "Maya", verb: "approved", entity: "Send pricing email" },
-  { actor: "🤖 Atlas", verb: "claimed task", entity: "Fix flaky test" },
-  { actor: "🤖 Scout", verb: "commented on", entity: "Q3 launch plan" },
+  { actor: "Atlas", verb: "claimed task", entity: "Fix flaky test" },
+  { actor: "Scout", verb: "commented on", entity: "Q3 launch plan" },
   { actor: "Maya", verb: "started sprint", entity: "Sprint 12" },
 ];
 
@@ -265,7 +268,7 @@ export function BoardMock({ className }: { className?: string }) {
                     Migrate billing cron
                   </p>
                   <p className="mt-0.5 text-[9px] text-muted-foreground">
-                    🤖 Atlas
+                    Atlas
                   </p>
                 </motion.div>
               )}
@@ -329,7 +332,7 @@ export function BudgetMock({ className }: { className?: string }) {
     <MockShell label="Daily action budget" className={className}>
       <div className="space-y-2 p-3.5">
         <div className="flex items-baseline justify-between text-[11px]">
-          <span className="font-semibold">🤖 Atlas</span>
+          <span className="font-semibold">Atlas</span>
           <span className="tabular-nums text-muted-foreground">
             {Math.round(pct * 20)} / 2,000 actions
           </span>
@@ -397,7 +400,7 @@ export function HandoffMock({ step, className }: { step: number; className?: str
               Draft the Acme renewal email
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              {step === 0 ? "Created by you · just now" : "Assigned · 🤖 Scout"}
+              {step === 0 ? "Created by you · just now" : "Assigned · Scout"}
             </p>
           </div>
           <AnimatePresence>
@@ -472,9 +475,9 @@ export function HandoffMock({ step, className }: { step: number; className?: str
             >
               <span
                 aria-hidden
-                className="mt-0.5 inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-foreground text-[9px] text-white"
+                className="mt-0.5 inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-foreground text-[9px] font-semibold text-white"
               >
-                🤖
+                S
               </span>
               <p className="min-w-0 flex-1 rounded-xl rounded-tl-md border border-border bg-white px-2.5 py-1.5 text-[11px] leading-snug">
                 {step >= 4
@@ -584,7 +587,7 @@ export function DocAiMock({ className }: { className?: string }) {
         />
       </div>
       <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-black/[0.05] px-2 py-0.5 text-[9px] font-medium text-foreground/60">
-        ✦ AI continuing…
+        AI continuing…
       </span>
     </div>
   );
@@ -609,7 +612,7 @@ export function SprintMiniMock({ className }: { className?: string }) {
         />
       </div>
       <p className="mt-2 text-[9px] text-muted-foreground">
-        {Math.round(pct / 7)}/12 done · 🤖 2 agents on it
+        {Math.round(pct / 7)}/12 done · 2 agents on it
       </p>
     </div>
   );

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -553,9 +553,9 @@ function TaskRow({
               onExpire: () => remove({ taskId: task._id }),
             });
           }}
-          className="tap-target text-xs text-muted-foreground hover:text-foreground"
+          className="tap-target inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
         >
-          ✕
+          <X className="h-3.5 w-3.5" />
         </button>
       </td>
     </motion.tr>

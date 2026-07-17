@@ -23,7 +23,10 @@ describe("agent templates", () => {
     const agent = await t.run((ctx) => ctx.db.get(agentId));
     expect(agent?.role).toBe("readonly");
     expect(agent?.dailyActionLimit).toBe(2000);
-    expect(agent?.emoji).toBe("🛰️");
+    // Templates no longer author an emoji onto the created agent — the
+    // product renders no emoji, ever (the schema field stays for data
+    // compatibility with any pre-existing rows).
+    expect(agent?.emoji).toBeUndefined();
   });
 
   it("refuses a personal scope that isn't the caller's", async () => {

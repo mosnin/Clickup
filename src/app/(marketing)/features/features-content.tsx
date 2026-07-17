@@ -32,7 +32,7 @@ const SECTIONS: FeatureSection[] = [
     id: "agents",
     eyebrow: "Agents HQ",
     title: "Every agent, on one board, live.",
-    body: "Agents are first-class teammates, not integrations. Each one has an identity, an emoji, a scope, and a heartbeat you can see.",
+    body: "Agents are first-class teammates, not integrations. Each one has an identity, a scope, and a heartbeat you can see.",
     bullets: [
       "Live presence with a real-time “Now: working on…” line",
       "API keys hashed at rest, shown once, revocable instantly",

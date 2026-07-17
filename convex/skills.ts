@@ -121,7 +121,7 @@ Produce a report a busy human can read in 60 seconds.
 2. **Movement**: \`list_events\` for the period, completed tasks (call out who/what), new tasks created, anything reopened.
 3. **Risks**: overdue tasks, tasks blocked >2 days, unassigned urgent tasks, agents that haven't heartbeat in >1h while holding claims.
 4. **Next**: top 5 upcoming tasks by priority/due date.
-5. Deliver as a workspace-chat comment (or \`create_doc\` if >40 lines) with sections: ✅ Shipped / 🏃 In flight / ⚠️ At risk / ⏭ Next.`,
+5. Deliver as a workspace-chat comment (or \`create_doc\` if >40 lines) with sections: Shipped / In flight / At risk / Next.`,
   },
 ];
 

@@ -20,6 +20,7 @@ import {
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Monogram } from "@/components/dashboard/monogram";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { useToast } from "@/components/toast";
@@ -345,9 +346,7 @@ function AgentsTab() {
           key={a._id}
           className="flex flex-wrap items-center gap-3 rounded-2xl bento px-4 py-3"
         >
-          <span className="text-xl" aria-hidden>
-            {a.emoji ?? "🤖"}
-          </span>
+          <Monogram name={a.name} />
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 truncate text-sm font-medium">
               {a.name}

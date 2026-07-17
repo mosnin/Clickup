@@ -42,7 +42,7 @@ export const USE_CASES: UseCase[] = [
       },
     ],
     day: [
-      { time: "09:00", actor: "human", text: "Sprint 12 starts. Tech lead drags eight tickets in, assigns three to 🤖 Atlas." },
+      { time: "09:00", actor: "human", text: "Sprint 12 starts. Tech lead drags eight tickets in, assigns three to Atlas." },
       { time: "09:02", actor: "agent", text: "Atlas calls next_task, claims “Fix flaky auth test”, heartbeats “Now: reproducing failure”." },
       { time: "10:40", actor: "agent", text: "Atlas finishes the run. PR link and token cost attached, and completes the task. Recurrence and automations fire like they would for anyone." },
       { time: "11:15", actor: "agent", text: "Next ticket touches the billing cron. Atlas raises an approval gate and posts what it plans to change." },
@@ -99,7 +99,7 @@ export const USE_CASES: UseCase[] = [
       },
     ],
     day: [
-      { time: "08:30", actor: "agent", text: "🤖 Drafter works through the content calendar list: three blog drafts, each as a doc linked to its task." },
+      { time: "08:30", actor: "agent", text: "Drafter works through the content calendar list: three blog drafts, each as a doc linked to its task." },
       { time: "09:15", actor: "human", text: "Account manager reviews drafts, edits one, checks off acceptance criteria on the checklist." },
       { time: "12:00", actor: "agent", text: "Drafter hits the “publish newsletter” task, it's gated. Requests approval and moves on to the next item." },
       { time: "13:00", actor: "human", text: "AM approves from the Inbox. The agent's webhook fires; it finishes the job." },
@@ -155,7 +155,7 @@ export const USE_CASES: UseCase[] = [
       },
     ],
     day: [
-      { time: "Mon 09:00", actor: "agent", text: "The “weekly newsletter” schedule fires on cron and creates the task. 🤖 Scout claims it." },
+      { time: "Mon 09:00", actor: "agent", text: "The “weekly newsletter” schedule fires on cron and creates the task. Scout claims it." },
       { time: "Mon 09:20", actor: "agent", text: "Scout drafts in a doc attached to the task, runs the checklist (subject lines ×3, CTA, links checked)." },
       { time: "Mon 10:00", actor: "human", text: "Content lead polishes the draft, the AI writer continues her rewrite in place." },
       { time: "Mon 10:30", actor: "human", text: "Send task is gated; she approves it after the final read." },
@@ -211,7 +211,7 @@ export const USE_CASES: UseCase[] = [
       },
     ],
     day: [
-      { time: "07:00", actor: "agent", text: "Monthly “invoice batch” schedule creates the task. 🤖 Ledger claims it and imports the invoicing skill, the team's actual runbook." },
+      { time: "07:00", actor: "agent", text: "Monthly “invoice batch” schedule creates the task. Ledger claims it and imports the invoicing skill, the team's actual runbook." },
       { time: "07:20", actor: "agent", text: "Ledger prepares 240 invoices, checks them against the checklist, and requests approval on the gated send step." },
       { time: "08:30", actor: "human", text: "Finance lead spot-checks five, approves. Ledger sends and attaches the summary to the run." },
       { time: "11:00", actor: "agent", text: "A data-hygiene agent goes quiet mid-task. The watchdog flags it stalled and releases its claim, the next agent picks it up." },
@@ -267,7 +267,7 @@ export const USE_CASES: UseCase[] = [
       },
     ],
     day: [
-      { time: "06:30", actor: "agent", text: "🤖 Scout triages overnight signups and support tickets into the right lists, tags priorities." },
+      { time: "06:30", actor: "agent", text: "Scout triages overnight signups and support tickets into the right lists, tags priorities." },
       { time: "09:00", actor: "human", text: "You review the morning over coffee: one approval pending (a refund), two drafts to polish." },
       { time: "13:00", actor: "agent", text: "Scout drafts the weekly changelog from completed tasks, links it in the doc tree." },
       { time: "22:00", actor: "agent", text: "Scout hits its daily action budget and stops, by design. The rest waits for tomorrow." },
@@ -322,7 +322,7 @@ export const USE_CASES: UseCase[] = [
       },
     ],
     day: [
-      { time: "08:00", actor: "human", text: "⌘K → “new task: research payment providers” → assigned to 🤖 Sidekick before your tea brews." },
+      { time: "08:00", actor: "human", text: "⌘K → “new task: research payment providers” → assigned to Sidekick before your tea brews." },
       { time: "08:05", actor: "agent", text: "Sidekick claims it, works the checklist, drops a comparison doc next to the task." },
       { time: "19:00", actor: "human", text: "Evening review: the feed shows four completions. You approve the one gated item (a tweet, honestly)." },
       { time: "23:00", actor: "agent", text: "The nightly “inbox zero” schedule fires. Sidekick files, tags, and queues tomorrow." },
