@@ -10,6 +10,7 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { ViewTabs, type ViewKey, isViewKey } from "./view-tabs";
+import { OverviewView } from "./views/overview-view";
 import { ListView } from "./views/list-view";
 import { BoardView } from "./views/board-view";
 import { CalendarView } from "./views/calendar-view";
@@ -34,6 +35,19 @@ const FLAGS: { key: Flag; label: string }[] = [
 ];
 
 const PRIORITIES = ["urgent", "high", "normal", "low"] as const;
+
+// Project health chip shown in the page header — same labels/colors as the
+// Overview tab's Status card and the Home project cards, so the signal
+// reads consistently everywhere it appears.
+const PROJECT_STATUS_CHIP: Record<
+  "on_track" | "at_risk" | "off_track" | "paused",
+  { label: string; className: string }
+> = {
+  on_track: { label: "On track", className: "bg-pastel-green" },
+  at_risk: { label: "At risk", className: "bg-pastel-yellow" },
+  off_track: { label: "Off track", className: "bg-pastel-red" },
+  paused: { label: "Paused", className: "bg-muted" },
+};
 
 export function ListPage({
   listId,
@@ -104,15 +118,32 @@ export function ListPage({
   return (
     <div className="space-y-6">
       <header className="title-rule flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-            {list.name}
-          </h1>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              {list.name}
+            </h1>
+            {list.projectStatus && (
+              <span
+                className={cn(
+                  "flex-shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium text-foreground",
+                  PROJECT_STATUS_CHIP[list.projectStatus].className,
+                )}
+              >
+                {PROJECT_STATUS_CHIP[list.projectStatus].label}
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {filtered
               ? `${topLevelTasks.length} of ${allTop.length} task${allTop.length === 1 ? "" : "s"}`
               : `${allTop.length} task${allTop.length === 1 ? "" : "s"}`}
           </p>
+          {list.description && (
+            <p className="mt-1 max-w-xl truncate text-sm text-muted-foreground">
+              {list.description}
+            </p>
+          )}
         </div>
         <Link
           href={`/dashboard/l/${list._id}/settings`}
@@ -133,6 +164,14 @@ export function ListPage({
 
       <FilterBar activeFlags={activeFlags} priority={priorityFilter} />
 
+      {view === "overview" && (
+        <OverviewView
+          listId={list._id}
+          list={list}
+          tasks={topLevelTasks}
+          statuses={statuses}
+        />
+      )}
       {view === "list" && (
         <ListView
           listId={list._id}

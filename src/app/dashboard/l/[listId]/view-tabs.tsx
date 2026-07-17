@@ -6,6 +6,7 @@ import {
   Calendar,
   Columns3,
   GanttChart,
+  LayoutDashboard,
   List as ListIcon,
   Table2,
   Users,
@@ -14,6 +15,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 
 export type ViewKey =
+  | "overview"
   | "list"
   | "board"
   | "calendar"
@@ -22,6 +24,7 @@ export type ViewKey =
   | "workload";
 
 const VIEW_KEYS: ViewKey[] = [
+  "overview",
   "list",
   "board",
   "calendar",
@@ -35,6 +38,7 @@ export function isViewKey(value: unknown): value is ViewKey {
 }
 
 const VIEWS: { key: ViewKey; label: string; Icon: typeof ListIcon }[] = [
+  { key: "overview", label: "Overview", Icon: LayoutDashboard },
   { key: "list", label: "List", Icon: ListIcon },
   { key: "board", label: "Board", Icon: Columns3 },
   { key: "calendar", label: "Calendar", Icon: Calendar },
