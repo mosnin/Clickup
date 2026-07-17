@@ -93,6 +93,45 @@ export const rename = mutation({
   },
 });
 
+// Project metadata: description, health status, owner, notes, target date.
+// null clears an optional field; omitted fields stay untouched.
+export const updateMeta = mutation({
+  args: {
+    listId: v.id("lists"),
+    description: v.optional(v.union(v.string(), v.null())),
+    projectStatus: v.optional(
+      v.union(
+        v.literal("on_track"),
+        v.literal("at_risk"),
+        v.literal("off_track"),
+        v.literal("paused"),
+        v.null(),
+      ),
+    ),
+    ownerActorId: v.optional(v.union(v.string(), v.null())),
+    notes: v.optional(v.union(v.string(), v.null())),
+    targetDate: v.optional(v.union(v.number(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const { list } = await requireListAccess(ctx, args.listId);
+    const patch: Record<string, unknown> = {};
+    for (const key of [
+      "description",
+      "projectStatus",
+      "ownerActorId",
+      "notes",
+      "targetDate",
+    ] as const) {
+      if (args[key] !== undefined) {
+        patch[key] = args[key] === null ? undefined : args[key];
+      }
+    }
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(list._id, patch);
+    }
+  },
+});
+
 export const remove = mutation({
   args: { listId: v.id("lists") },
   handler: async (ctx, { listId }) => {

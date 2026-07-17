@@ -87,6 +87,24 @@ export default defineSchema({
     parentId: v.string(),
     position: v.number(),
     createdAt: v.number(),
+    // ── Project metadata (a list IS a project) ──
+    // One-line summary shown on Home cards and the project header.
+    description: v.optional(v.string()),
+    // Health signal, set by the owner; drives status chips everywhere.
+    projectStatus: v.optional(
+      v.union(
+        v.literal("on_track"),
+        v.literal("at_risk"),
+        v.literal("off_track"),
+        v.literal("paused"),
+      ),
+    ),
+    // Accountable human (clerkId) or agent (agent doc id).
+    ownerActorId: v.optional(v.string()),
+    // Freeform project notes: decisions, links, context. Plain text.
+    notes: v.optional(v.string()),
+    // Target completion date (local-midnight ms).
+    targetDate: v.optional(v.number()),
   })
     .index("by_parent", ["parentType", "parentId"]),
 
@@ -786,8 +804,10 @@ export default defineSchema({
     view: v.union(
       v.literal("list"),
       v.literal("board"),
+      v.literal("table"),
       v.literal("calendar"),
       v.literal("gantt"),
+      v.literal("workload"),
     ),
     // Mirrors of the URL params: ?f= (comma flags) and ?pri=.
     flags: v.optional(v.string()),

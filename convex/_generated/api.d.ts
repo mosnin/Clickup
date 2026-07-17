@@ -30,6 +30,7 @@ import type * as docs from "../docs.js";
 import type * as events from "../events.js";
 import type * as folders from "../folders.js";
 import type * as goals from "../goals.js";
+import type * as homeOverview from "../homeOverview.js";
 import type * as http from "../http.js";
 import type * as integrations from "../integrations.js";
 import type * as invites from "../invites.js";
@@ -92,6 +93,7 @@ declare const fullApi: ApiFromModules<{
   events: typeof events;
   folders: typeof folders;
   goals: typeof goals;
+  homeOverview: typeof homeOverview;
   http: typeof http;
   integrations: typeof integrations;
   invites: typeof invites;

@@ -31,8 +31,10 @@ export const create = mutation({
     view: v.union(
       v.literal("list"),
       v.literal("board"),
+      v.literal("table"),
       v.literal("calendar"),
       v.literal("gantt"),
+      v.literal("workload"),
     ),
     flags: v.optional(v.string()),
     priority: v.optional(v.string()),
