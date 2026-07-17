@@ -14,6 +14,8 @@ import { ListView } from "./views/list-view";
 import { BoardView } from "./views/board-view";
 import { CalendarView } from "./views/calendar-view";
 import { GanttView } from "./views/gantt-view";
+import { TableView } from "./views/table-view";
+import { WorkloadView } from "./views/workload-view";
 import { TaskPeekPortal } from "@/components/dashboard/task-peek";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { useToast } from "@/components/toast";
@@ -152,6 +154,21 @@ export function ListPage({
       )}
       {view === "gantt" && (
         <GanttView listId={list._id} tasks={topLevelTasks} statuses={statuses} />
+      )}
+      {view === "table" && (
+        <TableView
+          listId={list._id}
+          tasks={topLevelTasks}
+          statuses={statuses}
+          fields={fields}
+        />
+      )}
+      {view === "workload" && (
+        <WorkloadView
+          listId={list._id}
+          tasks={topLevelTasks}
+          statuses={statuses}
+        />
       )}
 
       <TaskPeekPortal listId={list._id} />

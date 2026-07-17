@@ -2,13 +2,33 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Calendar, Columns3, GanttChart, List as ListIcon } from "lucide-react";
+import {
+  Calendar,
+  Columns3,
+  GanttChart,
+  List as ListIcon,
+  Table2,
+  Users,
+} from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 
-export type ViewKey = "list" | "board" | "calendar" | "gantt";
+export type ViewKey =
+  | "list"
+  | "board"
+  | "calendar"
+  | "gantt"
+  | "table"
+  | "workload";
 
-const VIEW_KEYS: ViewKey[] = ["list", "board", "calendar", "gantt"];
+const VIEW_KEYS: ViewKey[] = [
+  "list",
+  "board",
+  "calendar",
+  "gantt",
+  "table",
+  "workload",
+];
 
 export function isViewKey(value: unknown): value is ViewKey {
   return typeof value === "string" && (VIEW_KEYS as string[]).includes(value);
@@ -19,6 +39,8 @@ const VIEWS: { key: ViewKey; label: string; Icon: typeof ListIcon }[] = [
   { key: "board", label: "Board", Icon: Columns3 },
   { key: "calendar", label: "Calendar", Icon: Calendar },
   { key: "gantt", label: "Gantt", Icon: GanttChart },
+  { key: "table", label: "Table", Icon: Table2 },
+  { key: "workload", label: "Workload", Icon: Users },
 ];
 
 export function ViewTabs({
