@@ -802,6 +802,7 @@ export default defineSchema({
     listId: v.id("lists"),
     name: v.string(),
     view: v.union(
+      v.literal("overview"),
       v.literal("list"),
       v.literal("board"),
       v.literal("table"),
