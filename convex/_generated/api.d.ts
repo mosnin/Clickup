@@ -44,6 +44,7 @@ import type * as notificationCenter from "../notificationCenter.js";
 import type * as notifications from "../notifications.js";
 import type * as onboarding from "../onboarding.js";
 import type * as reports from "../reports.js";
+import type * as savedViews from "../savedViews.js";
 import type * as scheduledTasks from "../scheduledTasks.js";
 import type * as sidebar from "../sidebar.js";
 import type * as skills from "../skills.js";
@@ -105,6 +106,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   onboarding: typeof onboarding;
   reports: typeof reports;
+  savedViews: typeof savedViews;
   scheduledTasks: typeof scheduledTasks;
   sidebar: typeof sidebar;
   skills: typeof skills;

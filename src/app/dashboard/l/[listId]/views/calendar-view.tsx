@@ -19,6 +19,7 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { parseQuickAdd } from "@/lib/quick-add";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
 import {
   PriorityDot,
@@ -208,10 +209,13 @@ export function CalendarView({
                         <li onClick={(e) => e.stopPropagation()}>
                           <QuickAdd
                             onSubmit={async (title) => {
+                              const parsed = parseQuickAdd(title);
                               await create({
                                 listId,
-                                title,
+                                title: parsed.title || title,
+                                // The clicked day owns the date.
                                 dueDate: dayTimestamp(day),
+                                priority: parsed.priority,
                               });
                             }}
                             onClose={() => setComposing(null)}

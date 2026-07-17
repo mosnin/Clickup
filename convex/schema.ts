@@ -776,6 +776,26 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_task", ["taskId"]),
 
+  // Named filter presets per list: a saved view captures the active view
+  // (list/board/calendar/gantt) plus the URL filter state, so a team can
+  // one-click into "Active board" or "My urgent". Anyone with list access
+  // can create and delete them (they're navigation, not data).
+  savedViews: defineTable({
+    listId: v.id("lists"),
+    name: v.string(),
+    view: v.union(
+      v.literal("list"),
+      v.literal("board"),
+      v.literal("calendar"),
+      v.literal("gantt"),
+    ),
+    // Mirrors of the URL params: ?f= (comma flags) and ?pri=.
+    flags: v.optional(v.string()),
+    priority: v.optional(v.string()),
+    createdByClerkId: v.string(),
+    createdAt: v.number(),
+  }).index("by_list", ["listId"]),
+
   // ── x402 agent payments ─────────────────────────────────────────────
   //
   // A prepaid credit wallet per billing scope (a user's personal space or a

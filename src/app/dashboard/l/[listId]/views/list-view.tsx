@@ -18,6 +18,8 @@ import {
 } from "@/components/dashboard/priority";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
+import { parseQuickAdd } from "@/lib/quick-add";
+import { QuickAddChips } from "@/components/dashboard/quick-add-chips";
 import { useToast } from "@/components/toast";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
 
@@ -564,13 +566,21 @@ function NewTaskRow({ listId }: { listId: Id<"lists"> }) {
   const [title, setTitle] = useState("");
   const create = useMutation(api.tasks.create);
   const [pending, setPending] = useState(false);
+  // Natural-language grammar: "tomorrow", "friday", "!high" parse into
+  // real fields; chips preview what was understood.
+  const parsed = useMemo(() => parseQuickAdd(title), [title]);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!parsed.title) return;
     setPending(true);
     try {
-      await create({ listId, title: title.trim() });
+      await create({
+        listId,
+        title: parsed.title,
+        dueDate: parsed.dueDate,
+        priority: parsed.priority,
+      });
       setTitle("");
     } finally {
       setPending(false);
@@ -578,24 +588,29 @@ function NewTaskRow({ listId }: { listId: Id<"lists"> }) {
   }
 
   return (
-    <form onSubmit={submit} className="flex items-center gap-2 px-4 py-3">
-      <Plus className="h-4 w-4 text-muted-foreground" aria-hidden />
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Add a task and press Enter"
-        disabled={pending}
-        className="flex-1 bg-transparent text-sm focus:outline-none disabled:opacity-50"
-      />
-      <Button
-        type="submit"
-        size="sm"
-        variant="ghost"
-        disabled={!title.trim() || pending}
-      >
-        Add
-      </Button>
+    <form onSubmit={submit} className="px-4 py-3">
+      <div className="flex items-center gap-2">
+        <Plus className="h-4 w-4 text-muted-foreground" aria-hidden />
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Add a task… try “ship the deck tomorrow !high”"
+          disabled={pending}
+          className="flex-1 bg-transparent text-sm focus:outline-none disabled:opacity-50"
+        />
+        <Button
+          type="submit"
+          size="sm"
+          variant="ghost"
+          disabled={!parsed.title || pending}
+        >
+          Add
+        </Button>
+      </div>
+      <div className="pl-6">
+        <QuickAddChips parsed={parsed} />
+      </div>
     </form>
   );
 }

@@ -30,6 +30,7 @@ import { CalendarDays, GripVertical } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { parseQuickAdd } from "@/lib/quick-add";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
 import { EASE, motion } from "@/components/motion";
 
@@ -298,10 +299,16 @@ function ColumnAdd({
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const t = title.trim();
-    if (!t) return;
+    const parsed = parseQuickAdd(title);
+    if (!parsed.title) return;
     setTitle("");
-    await create({ listId, title: t, statusId });
+    await create({
+      listId,
+      title: parsed.title,
+      statusId,
+      dueDate: parsed.dueDate,
+      priority: parsed.priority,
+    });
   }
 
   if (!open) {

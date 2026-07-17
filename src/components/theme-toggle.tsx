@@ -24,6 +24,18 @@ function apply(choice: Choice) {
   document.documentElement.dataset.theme = resolve(choice);
 }
 
+/** Persist + apply a theme choice from anywhere (e.g. the command palette). */
+export function setTheme(choice: Choice) {
+  try {
+    if (choice === "system") localStorage.removeItem("theme");
+    else localStorage.setItem("theme", choice);
+  } catch {
+    /* ignore */
+  }
+  apply(choice);
+}
+export type ThemeChoice = Choice;
+
 export function ThemeToggle({ collapsed }: { collapsed?: boolean }) {
   const [choice, setChoice] = useState<Choice>("system");
   const [mounted, setMounted] = useState(false);
