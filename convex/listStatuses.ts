@@ -29,10 +29,15 @@ export const DEFAULT_STATUSES = [
 export async function seedDefaultStatuses(
   ctx: MutationCtx,
   listId: Id<"lists">,
+  // Space-level default statuses (ClickUp-style): when provided, new lists
+  // in that space inherit these instead of the global four.
+  overrides?: { name: string; color: string; category: "open" | "in_progress" | "complete" | "closed" }[],
 ): Promise<Id<"listStatuses">[]> {
+  const defs =
+    overrides && overrides.length > 0 ? overrides : DEFAULT_STATUSES;
   const ids: Id<"listStatuses">[] = [];
-  for (let i = 0; i < DEFAULT_STATUSES.length; i++) {
-    const def = DEFAULT_STATUSES[i];
+  for (let i = 0; i < defs.length; i++) {
+    const def = defs[i];
     const id = await ctx.db.insert("listStatuses", {
       listId,
       name: def.name,

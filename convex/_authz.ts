@@ -60,7 +60,20 @@ export async function canAccessSpace(
         .eq("workspaceId", space.parentId as Id<"workspaces">),
     )
     .unique();
-  return membership !== null;
+  if (membership === null) return false;
+
+  // Private spaces: only the creator, listed members, and the workspace
+  // owner see inside — everyone else in the workspace is locked out even
+  // though they can access the workspace itself. (Agents authenticate via
+  // workspace scope in _agentAuth and are governed by their own list
+  // restrictions, not this human-side gate.)
+  if (space.private) {
+    if (space.createdByClerkId === identity.subject) return true;
+    if (space.memberClerkIds?.includes(identity.subject)) return true;
+    const ws = await ctx.db.get(space.parentId as Id<"workspaces">);
+    return ws?.ownerClerkId === identity.subject;
+  }
+  return true;
 }
 
 export async function getSpaceForList(

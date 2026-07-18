@@ -69,6 +69,34 @@ export default defineSchema({
     parentId: v.string(),
     position: v.number(),
     createdAt: v.number(),
+    // ── ClickUp-style Space identity + governance ──
+    description: v.optional(v.string()),
+    // Private: visible only to the creator, the listed members, and the
+    // workspace owner (so a departing member can't strand content).
+    // Enforced in _authz.canAccessSpace for every human read/write that
+    // resolves through the hierarchy. Personal spaces are private by nature.
+    private: v.optional(v.boolean()),
+    memberClerkIds: v.optional(v.array(v.string())),
+    createdByClerkId: v.optional(v.string()),
+    // Archived spaces disappear from the sidebar/home but keep their data;
+    // un-archive from space settings.
+    archivedAt: v.optional(v.number()),
+    // Default workflow statuses for NEW lists created in this space.
+    // When unset, lists seed the global 4 defaults.
+    defaultStatuses: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          color: v.string(),
+          category: v.union(
+            v.literal("open"),
+            v.literal("in_progress"),
+            v.literal("complete"),
+            v.literal("closed"),
+          ),
+        }),
+      ),
+    ),
   })
     .index("by_parent", ["parentType", "parentId"]),
 

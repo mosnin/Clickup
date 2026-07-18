@@ -77,6 +77,7 @@ export const tree = query({
         _id: space._id,
         name: space.name,
         color: space.color,
+        private: space.private ?? false,
         folders: folderNodes,
         lists: directLists.sort((a, b) => a.position - b.position),
         docs: docs.sort((a, b) => b.updatedAt - a.updatedAt).map((d) => ({
@@ -99,8 +100,20 @@ export const tree = query({
               q.eq("parentType", "workspace").eq("parentId", workspace._id),
             )
             .collect();
+          // Archived spaces leave the sidebar; private spaces only appear
+          // to the creator, listed members, and the workspace owner.
+          const ownerClerkId = workspace.ownerClerkId;
+          const visible = spaces.filter((sp) => {
+            if (sp.archivedAt) return false;
+            if (!sp.private) return true;
+            return (
+              sp.createdByClerkId === subject ||
+              (sp.memberClerkIds ?? []).includes(subject) ||
+              ownerClerkId === subject
+            );
+          });
           const spaceNodes = await Promise.all(
-            spaces
+            visible
               .sort((a, b) => a.position - b.position)
               .map(buildSpaceNode),
           );

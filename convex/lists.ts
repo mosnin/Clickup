@@ -60,10 +60,16 @@ export const create = mutation({
     parentId: v.string(),
   },
   handler: async (ctx, args) => {
+    let spaceId: Id<"spaces">;
     if (args.parentType === "space") {
       await requireSpaceAccess(ctx, args.parentId as Id<"spaces">);
+      spaceId = args.parentId as Id<"spaces">;
     } else {
-      await requireFolderAccess(ctx, args.parentId as Id<"folders">);
+      const { folder } = await requireFolderAccess(
+        ctx,
+        args.parentId as Id<"folders">,
+      );
+      spaceId = folder.spaceId;
     }
 
     const siblings = await ctx.db
@@ -79,7 +85,8 @@ export const create = mutation({
       createdAt: Date.now(),
     });
 
-    await seedDefaultStatuses(ctx, listId);
+    const space = await ctx.db.get(spaceId);
+    await seedDefaultStatuses(ctx, listId, space?.defaultStatuses);
 
     return listId;
   },
