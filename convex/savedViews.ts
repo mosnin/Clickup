@@ -35,6 +35,7 @@ export const create = mutation({
       v.literal("table"),
       v.literal("calendar"),
       v.literal("gantt"),
+      v.literal("timeline"),
       v.literal("workload"),
     ),
     flags: v.optional(v.string()),

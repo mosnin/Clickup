@@ -130,6 +130,14 @@ export const updateMeta = mutation({
         v.null(),
       ),
     ),
+    features: v.optional(
+      v.object({
+        sprints: v.optional(v.boolean()),
+        timeTracking: v.optional(v.boolean()),
+        goals: v.optional(v.boolean()),
+        whiteboards: v.optional(v.boolean()),
+      }),
+    ),
   },
   handler: async (ctx, args) => {
     const { space, identity } = await requireSpaceAccess(ctx, args.spaceId);
@@ -177,6 +185,7 @@ export const updateMeta = mutation({
     if (args.defaultStatuses !== undefined) {
       patch.defaultStatuses = args.defaultStatuses ?? undefined;
     }
+    if (args.features !== undefined) patch.features = args.features;
     if (Object.keys(patch).length > 0) await ctx.db.patch(space._id, patch);
   },
 });

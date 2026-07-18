@@ -81,6 +81,16 @@ export default defineSchema({
     // Archived spaces disappear from the sidebar/home but keep their data;
     // un-archive from space settings.
     archivedAt: v.optional(v.number()),
+    // ClickApps-style feature toggles: when a key is explicitly false the
+    // matching surface hides for this space's lists (UI-gated; data stays).
+    features: v.optional(
+      v.object({
+        sprints: v.optional(v.boolean()),
+        timeTracking: v.optional(v.boolean()),
+        goals: v.optional(v.boolean()),
+        whiteboards: v.optional(v.boolean()),
+      }),
+    ),
     // Default workflow statuses for NEW lists created in this space.
     // When unset, lists seed the global 4 defaults.
     defaultStatuses: v.optional(
@@ -381,6 +391,8 @@ export default defineSchema({
   // user (same `parentType` discriminant pattern as spaces). `content`
   // is Tiptap/ProseMirror JSON.
   docs: defineTable({
+    // Wiki nesting: a doc may live under another doc as a subpage.
+    parentDocId: v.optional(v.id("docs")),
     parentType: v.union(
       v.literal("user"),
       v.literal("workspace"),
@@ -822,6 +834,36 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_task", ["taskId"]),
 
+  // Public intake forms: a tokenized form per list that outsiders can
+  // submit without an account; each submission becomes a task. Token is a
+  // capability URL segment; disabled forms 404.
+  forms: defineTable({
+    listId: v.id("lists"),
+    token: v.string(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    // Which task fields the form asks for beyond the title.
+    askDescription: v.optional(v.boolean()),
+    askPriority: v.optional(v.boolean()),
+    askEmail: v.optional(v.boolean()),
+    enabled: v.boolean(),
+    createdByClerkId: v.string(),
+    createdAt: v.number(),
+    submissionCount: v.optional(v.number()),
+  })
+    .index("by_list", ["listId"])
+    .index("by_token", ["token"]),
+
+  // Precomputed per-list task rollups, maintained inside the task write
+  // cores so Home/Space overviews read counters instead of scanning tasks.
+  listRollups: defineTable({
+    listId: v.id("lists"),
+    total: v.number(),
+    done: v.number(),
+    inProgress: v.number(),
+    updatedAt: v.number(),
+  }).index("by_list", ["listId"]),
+
   // Named filter presets per list: a saved view captures the active view
   // (list/board/calendar/gantt) plus the URL filter state, so a team can
   // one-click into "Active board" or "My urgent". Anyone with list access
@@ -836,6 +878,7 @@ export default defineSchema({
       v.literal("table"),
       v.literal("calendar"),
       v.literal("gantt"),
+      v.literal("timeline"),
       v.literal("workload"),
     ),
     // Mirrors of the URL params: ?f= (comma flags) and ?pri=.
