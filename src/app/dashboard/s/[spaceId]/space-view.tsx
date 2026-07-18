@@ -92,6 +92,7 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
   }
 
   const { space, lists, docs, whiteboards, members, canGovern } = overview;
+  const showWhiteboards = space.features?.whiteboards !== false;
 
   return (
     <div className="space-y-6">
@@ -132,6 +133,7 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
           lists={lists}
           docs={docs}
           whiteboards={whiteboards}
+          showWhiteboards={showWhiteboards}
         />
       ) : (
         <SettingsTab
@@ -247,11 +249,13 @@ function OverviewTab({
   lists,
   docs,
   whiteboards,
+  showWhiteboards,
 }: {
   spaceId: Id<"spaces">;
   lists: Overview["lists"];
   docs: Overview["docs"];
   whiteboards: Overview["whiteboards"];
+  showWhiteboards: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -273,20 +277,31 @@ function OverviewTab({
 
       <section>
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Docs &amp; whiteboards
+          {showWhiteboards ? "Docs & whiteboards" : "Docs"}
         </h2>
-        {docs.length === 0 && whiteboards.length === 0 ? (
+        {docs.length === 0 && (!showWhiteboards || whiteboards.length === 0) ? (
           <div className="mt-3 rounded-2xl bento">
             <EmptyState
               compact
               title="Nothing here yet"
-              message="Create a doc or whiteboard to start writing or sketching inside this Space."
+              message={
+                showWhiteboards
+                  ? "Create a doc or whiteboard to start writing or sketching inside this Space."
+                  : "Create a doc to start writing inside this Space."
+              }
             />
           </div>
         ) : (
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div
+            className={cn(
+              "mt-3 grid gap-3",
+              showWhiteboards && "sm:grid-cols-2",
+            )}
+          >
             <DocList spaceId={spaceId} docs={docs} />
-            <WhiteboardList spaceId={spaceId} whiteboards={whiteboards} />
+            {showWhiteboards && (
+              <WhiteboardList spaceId={spaceId} whiteboards={whiteboards} />
+            )}
           </div>
         )}
       </section>
@@ -555,6 +570,7 @@ function SettingsTab({
     <div className="space-y-6">
       <IdentityCard spaceId={spaceId} space={space} />
       <DefaultStatusesCard spaceId={spaceId} space={space} />
+      <FeaturesCard spaceId={spaceId} space={space} />
       {space.parentType === "workspace" && (
         <PrivacyCard
           spaceId={spaceId}
@@ -779,6 +795,73 @@ function DefaultStatusesCard({
           Reset to defaults
         </button>
       )}
+    </section>
+  );
+}
+
+type SpaceFeatures = NonNullable<SpaceDoc["features"]>;
+type FeatureKey = keyof SpaceFeatures;
+
+const FEATURE_ROWS: { key: FeatureKey; label: string; description: string }[] = [
+  { key: "sprints", label: "Sprints", description: "Timebox work into sprints." },
+  {
+    key: "timeTracking",
+    label: "Time tracking",
+    description: "Track time on tasks.",
+  },
+  { key: "goals", label: "Goals", description: "Set and measure goals." },
+  {
+    key: "whiteboards",
+    label: "Whiteboards",
+    description: "Collaborative whiteboards.",
+  },
+];
+
+function FeaturesCard({
+  spaceId,
+  space,
+}: {
+  spaceId: Id<"spaces">;
+  space: SpaceDoc;
+}) {
+  const update = useMutation(api.spaces.updateMeta);
+  const { toast } = useToast();
+  const features: SpaceFeatures = space.features ?? {};
+
+  async function toggle(key: FeatureKey, checked: boolean) {
+    try {
+      await update({ spaceId, features: { ...features, [key]: checked } });
+      toast("Saved");
+    } catch (e) {
+      toast(errorMessage(e, "Couldn't save features"), { kind: "error" });
+    }
+  }
+
+  return (
+    <section className="rounded-2xl bento p-5">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Features
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Turning a feature off hides it for this Space. Nothing is deleted.
+      </p>
+      <ul className="mt-4 space-y-3">
+        {FEATURE_ROWS.map((row) => (
+          <li key={row.key} className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{row.label}</p>
+              <p className="text-xs text-muted-foreground">{row.description}</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={features[row.key] !== false}
+              onChange={(e) => toggle(row.key, e.currentTarget.checked)}
+              aria-label={row.label}
+              className="h-4 w-4 flex-shrink-0 accent-[var(--color-foreground)]"
+            />
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

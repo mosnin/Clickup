@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useToast } from "@/components/toast";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Copy, Plus, Trash2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -81,6 +81,7 @@ export function ListSettings({ listId }: { listId: string }) {
         statuses={statuses}
       />
       <ScheduledTasksSection listId={list._id} />
+      <FormsSection listId={list._id} />
     </div>
   );
 }
@@ -859,5 +860,205 @@ function CreateAutomationForm({
         <Plus className="h-4 w-4" /> Add automation
       </Button>
     </form>
+  );
+}
+
+// Keep in sync with MAX_FORMS_PER_LIST in convex/forms.ts — this only
+// hides the "Add form" affordance early; the server is the real limit.
+const MAX_FORMS_PER_LIST = 5;
+
+function FormsSection({ listId }: { listId: Id<"lists"> }) {
+  const forms = useQuery(api.forms.listForList, { listId });
+  const create = useMutation(api.forms.create);
+  const update = useMutation(api.forms.update);
+  const remove = useMutation(api.forms.remove);
+  const [title, setTitle] = useState("");
+  const [pending, setPending] = useState(false);
+
+  return (
+    <section>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Form
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Share a public link that lets anyone submit a request without an
+        account — each submission becomes a task on this list.
+      </p>
+
+      {forms === undefined ? (
+        <div className="mt-4 h-16 animate-pulse rounded-2xl bg-muted" />
+      ) : (
+        <>
+          <ul className="mt-4 space-y-2">
+            {forms.length === 0 && (
+              <li className="rounded-2xl bento p-4 text-center text-sm text-muted-foreground">
+                No forms yet.
+              </li>
+            )}
+            {forms.map((form) => (
+              <FormRow
+                key={form._id}
+                form={form}
+                onUpdate={(patch) => update({ formId: form._id, ...patch })}
+                onDelete={() => remove({ formId: form._id })}
+              />
+            ))}
+          </ul>
+
+          {forms.length < MAX_FORMS_PER_LIST && (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!title.trim()) return;
+                setPending(true);
+                try {
+                  await create({ listId, title: title.trim() });
+                  setTitle("");
+                } finally {
+                  setPending(false);
+                }
+              }}
+              className="mt-3 flex flex-col gap-2 rounded-2xl bento p-3 sm:flex-row sm:items-center"
+            >
+              <input
+                type="text"
+                placeholder="New form title"
+                value={title}
+                onChange={(e) => setTitle(e.currentTarget.value)}
+                className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              />
+              <Button
+                type="submit"
+                size="sm"
+                disabled={!title.trim() || pending}
+              >
+                <Plus className="h-4 w-4" /> Add form
+              </Button>
+            </form>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function FormRow({
+  form,
+  onUpdate,
+  onDelete,
+}: {
+  form: Doc<"forms">;
+  onUpdate: (patch: {
+    title?: string;
+    askDescription?: boolean;
+    askPriority?: boolean;
+    askEmail?: boolean;
+    enabled?: boolean;
+  }) => Promise<unknown>;
+  onDelete: () => Promise<unknown>;
+}) {
+  const [title, setTitle] = useState(form.title);
+  const [copied, setCopied] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
+  if (deleting) return null;
+
+  const path = `/f/${form.token}`;
+
+  return (
+    <li className="rounded-2xl bento p-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <input
+          type="checkbox"
+          checked={form.enabled}
+          onChange={(e) => onUpdate({ enabled: e.currentTarget.checked })}
+          aria-label="Form enabled"
+        />
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.currentTarget.value)}
+          onBlur={() => {
+            if (title.trim() && title !== form.title) {
+              onUpdate({ title: title.trim() });
+            } else if (!title.trim()) {
+              setTitle(form.title);
+            }
+          }}
+          className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+        />
+        <Link
+          href={path}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          {path}
+        </Link>
+        <button
+          type="button"
+          aria-label="Copy form link"
+          onClick={async () => {
+            await navigator.clipboard.writeText(
+              `${window.location.origin}${path}`,
+            );
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+          className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          {copied ? (
+            <Check className="h-4 w-4 text-positive" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
+        </button>
+        <button
+          type="button"
+          aria-label="Delete form"
+          onClick={() => {
+            setDeleting(true);
+            toast(`"${form.title}" deleted`, {
+              action: { label: "Undo", onClick: () => setDeleting(false) },
+              onExpire: () => onDelete(),
+            });
+          }}
+          className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-4 border-t border-border pt-3 text-xs text-muted-foreground">
+        <label className="flex items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={form.askDescription ?? false}
+            onChange={(e) =>
+              onUpdate({ askDescription: e.currentTarget.checked })
+            }
+          />
+          Ask for description
+        </label>
+        <label className="flex items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={form.askPriority ?? false}
+            onChange={(e) =>
+              onUpdate({ askPriority: e.currentTarget.checked })
+            }
+          />
+          Ask for priority
+        </label>
+        <label className="flex items-center gap-1.5">
+          <input
+            type="checkbox"
+            checked={form.askEmail ?? false}
+            onChange={(e) => onUpdate({ askEmail: e.currentTarget.checked })}
+          />
+          Ask for email
+        </label>
+      </div>
+    </li>
   );
 }
