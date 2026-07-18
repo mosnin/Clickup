@@ -18,6 +18,7 @@ import {
   LayoutGrid,
   List as ListIcon,
   ListTodo,
+  Lock,
   Menu,
   PanelLeft,
   Plus,
@@ -1084,7 +1085,12 @@ function WorkspaceRow({
             </button>
           )}
           {workspace.spaces.map((space) => (
-            <SpaceRow key={space._id} space={space} onNavigate={onNavigate} />
+            <SpaceRow
+              key={space._id}
+              space={space}
+              onNavigate={onNavigate}
+              linkHref={`/dashboard/s/${space._id}`}
+            />
           ))}
         </div>
       )}
@@ -1248,11 +1254,17 @@ function SpaceRow({
           >
             {dot}
             <span className="truncate">{space.name}</span>
+            {space.private && (
+              <Lock className="h-3 w-3 flex-shrink-0 text-muted-foreground" aria-hidden />
+            )}
           </Link>
         ) : (
           <span className="flex flex-1 items-center gap-2 truncate rounded-lg px-2.5 py-1 text-sm">
             {dot}
             <span className="truncate">{space.name}</span>
+            {space.private && (
+              <Lock className="h-3 w-3 flex-shrink-0 text-muted-foreground" aria-hidden />
+            )}
           </span>
         )}
         <SpaceCreateMenu
