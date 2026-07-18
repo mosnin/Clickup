@@ -1,6 +1,7 @@
 import { query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
+import { getRollup } from "./rollups";
 
 // The Home page's single live subscription: where every project stands
 // right now, plus the numbers that matter today. Convex queries are
@@ -158,46 +159,74 @@ export const get = query({
     for (const sc of scopes) {
       const lists = await listsForSpace(ctx, sc.space._id);
       for (const list of lists) {
-        const statuses = await ctx.db
-          .query("listStatuses")
-          .withIndex("by_list", (q) => q.eq("listId", list._id))
-          .collect();
-        const doneIds = new Set(
-          statuses
-            .filter(
-              (s) => s.category === "complete" || s.category === "closed",
-            )
-            .map((s) => s._id),
-        );
-        const inProgressIds = new Set(
-          statuses
-            .filter((s) => s.category === "in_progress")
-            .map((s) => s._id),
-        );
-        const tasks = await ctx.db
-          .query("tasks")
-          .withIndex("by_list", (q) => q.eq("listId", list._id))
-          .collect();
+        const rollup = await getRollup(ctx, list._id);
 
-        let done = 0;
-        let inProgress = 0;
+        let total: number;
+        let done: number;
+        let inProgress: number;
         let overdue = 0;
         let dueSoon = 0;
-        for (const t of tasks) {
-          const isDone = doneIds.has(t.statusId);
-          if (isDone) done += 1;
-          else if (inProgressIds.has(t.statusId)) inProgress += 1;
-          if (!isDone && t.dueDate) {
-            if (t.dueDate < now) overdue += 1;
-            else if (t.dueDate < weekAhead) dueSoon += 1;
-          }
-          if (!isDone && t.assigneeClerkIds.includes(subject)) {
-            myOpen += 1;
-            if (t.dueDate) {
-              if (t.dueDate < now) myOverdue += 1;
-              else if (t.dueDate <= todayEnd.getTime()) myDueToday += 1;
+
+        // Total/done/inProgress come from the maintained rollup. Overdue,
+        // due-soon, and "my" numbers need per-task due dates/assignees, so
+        // they still require a scan — but only of lists that actually have
+        // open tasks. A list the rollup shows as fully done/closed can't
+        // contribute anything overdue/due-soon/mine, so we skip the query
+        // entirely; that's the real reduction from the old O(all tasks)
+        // shape (most workspaces accumulate far more done lists than open
+        // ones over time).
+        const needsScan = !rollup || rollup.total - rollup.done > 0;
+        if (needsScan) {
+          const statuses = await ctx.db
+            .query("listStatuses")
+            .withIndex("by_list", (q) => q.eq("listId", list._id))
+            .collect();
+          const doneIds = new Set(
+            statuses
+              .filter(
+                (s) => s.category === "complete" || s.category === "closed",
+              )
+              .map((s) => s._id),
+          );
+          const inProgressIds = new Set(
+            statuses
+              .filter((s) => s.category === "in_progress")
+              .map((s) => s._id),
+          );
+          const tasks = await ctx.db
+            .query("tasks")
+            .withIndex("by_list", (q) => q.eq("listId", list._id))
+            .collect();
+
+          let scannedDone = 0;
+          let scannedInProgress = 0;
+          for (const t of tasks) {
+            const isDone = doneIds.has(t.statusId);
+            if (isDone) scannedDone += 1;
+            else if (inProgressIds.has(t.statusId)) scannedInProgress += 1;
+            if (!isDone && t.dueDate) {
+              if (t.dueDate < now) overdue += 1;
+              else if (t.dueDate < weekAhead) dueSoon += 1;
+            }
+            if (!isDone && t.assigneeClerkIds.includes(subject)) {
+              myOpen += 1;
+              if (t.dueDate) {
+                if (t.dueDate < now) myOverdue += 1;
+                else if (t.dueDate <= todayEnd.getTime()) myDueToday += 1;
+              }
             }
           }
+          // Queries can't write, so a missing rollup row is only ever
+          // filled in by tasks.ts on the next write or by the
+          // rollups.backfillAll one-shot — fall back to the scan's own
+          // counts rather than trying to persist anything here.
+          total = rollup ? rollup.total : tasks.length;
+          done = rollup ? rollup.done : scannedDone;
+          inProgress = rollup ? rollup.inProgress : scannedInProgress;
+        } else {
+          total = rollup.total;
+          done = rollup.done;
+          inProgress = rollup.inProgress;
         }
 
         projects.push({
@@ -207,7 +236,7 @@ export const get = query({
           description: list.description,
           projectStatus: list.projectStatus,
           targetDate: list.targetDate,
-          total: tasks.length,
+          total,
           done,
           inProgress,
           overdue,
