@@ -325,6 +325,19 @@ export function CommandPalette() {
     // Creation + theme actions, reachable by name.
     const actionItems: Item[] = [
       {
+        key: "search-everything",
+        group: "Actions",
+        label: q ? `Search everything for “${query.trim()}”` : "Search everything…",
+        icon: Search,
+        run: () => {
+          const target = query.trim()
+            ? `/dashboard/search?q=${encodeURIComponent(query.trim())}`
+            : "/dashboard/search";
+          router.push(target);
+          close();
+        },
+      },
+      {
         key: "new-doc",
         group: "Actions",
         label: "New doc…",
@@ -385,7 +398,11 @@ export function CommandPalette() {
         },
       },
     ];
-    out.push(...actionItems.filter((a) => match(a.label)));
+    out.push(
+      ...actionItems.filter(
+        (a) => a.key === "search-everything" ? true : match(a.label),
+      ),
+    );
 
     // Quick-create is always reachable; with text typed it carries the text
     // through as the task title. When nothing strongly matches what was
