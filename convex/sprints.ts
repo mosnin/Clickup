@@ -290,6 +290,131 @@ export const summary = query({
   },
 });
 
+// Burndown for one sprint: an ideal (straight-line total→0) and an actual
+// remaining-tasks-per-day series, so the Sprints tab can show whether a
+// sprint is on track.
+//
+// Timing source: tasks don't need to be reconstructed from the events log —
+// `tasks.completedAt` (set by both `tasks.updateTaskCore` and the
+// `set_status` automation action, see convex/tasks.ts + convex/listAutomations.ts)
+// already carries the exact moment a task last entered a complete/closed
+// category, and it's cleared the moment a task leaves one. That's a more
+// reliable source than mining `events` for `task.status_changed`/
+// `task.completed` rows: events are pruned after 90 days
+// (`maintenance.prune`), so an older sprint's completion history could
+// already be gone from the log while the task's own `completedAt` survives
+// forever. The one gap `completedAt` can't cover is a task that is
+// currently in a complete/closed status but has no `completedAt` (e.g. a
+// row seeded directly into a complete status by a template or an external
+// write) — for those we still count them as done "now" but can't place
+// them on a specific day, so we fall back to bucketing them at the most
+// recent day instead of guessing a history. That's the "possibly partial"
+// case: the current (today) data point is always accurate, but a handful
+// of early days could under-count completions if such rows exist.
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_BURNDOWN_DAYS = 180;
+
+export const burndown = query({
+  args: { sprintId: v.id("sprints") },
+  handler: async (ctx, { sprintId }) => {
+    const sprint = await ctx.db.get(sprintId);
+    if (!sprint) return null;
+    try {
+      await requireWorkspaceMember(ctx, sprint.workspaceId);
+    } catch {
+      return null;
+    }
+
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_sprint", (q) => q.eq("sprintId", sprintId))
+      .collect();
+
+    const totalTasks = tasks.length;
+    let doneTasks = 0;
+    const completions: number[] = [];
+    const now = Date.now();
+    for (const t of tasks) {
+      const status = await ctx.db.get(t.statusId);
+      const isDone =
+        status?.category === "complete" || status?.category === "closed";
+      if (isDone) {
+        doneTasks++;
+        // Fallback for a done task with no completedAt on record (see the
+        // note above): treat it as completed "now" so it still lands in
+        // range rather than being dropped from the reconstruction.
+        completions.push(t.completedAt ?? now);
+      }
+    }
+
+    const startAt = sprint.startDate;
+    const endAt = sprint.endDate;
+    const days: { dayStart: number; remaining: number | null }[] = [];
+    const ideal: { dayStart: number; remaining: number }[] = [];
+
+    if (totalTasks > 0 && endAt > startAt) {
+      const span = endAt - startAt;
+      const dayCount = Math.min(
+        MAX_BURNDOWN_DAYS,
+        Math.max(1, Math.ceil(span / ONE_DAY_MS)) + 1,
+      );
+      for (let i = 0; i < dayCount; i++) {
+        const dayStart = Math.min(startAt + i * ONE_DAY_MS, endAt);
+        const remaining =
+          dayStart > now
+            ? null
+            : totalTasks -
+              completions.filter((c) => c < dayStart + ONE_DAY_MS).length;
+        days.push({ dayStart, remaining });
+        const t = Math.min(1, Math.max(0, (dayStart - startAt) / span));
+        ideal.push({ dayStart, remaining: Math.round(totalTasks * (1 - t)) });
+        if (dayStart >= endAt) break;
+      }
+    }
+
+    return { totalTasks, doneTasks, startAt, endAt, days, ideal };
+  },
+});
+
+// Completed-task counts for the last (up to) 5 completed sprints in a
+// workspace, oldest first, so the Sprints tab can show a velocity trend.
+export const velocity = query({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    try {
+      await requireWorkspaceMember(ctx, workspaceId);
+    } catch {
+      return [];
+    }
+    const sprints = await ctx.db
+      .query("sprints")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+    const recent = sprints
+      .filter((s) => s.status === "complete")
+      .sort((a, b) => b.endDate - a.endDate)
+      .slice(0, 5);
+
+    const out: { sprintId: Id<"sprints">; name: string; completed: number }[] =
+      [];
+    for (const s of recent) {
+      const tasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_sprint", (q) => q.eq("sprintId", s._id))
+        .collect();
+      let completed = 0;
+      for (const t of tasks) {
+        const status = await ctx.db.get(t.statusId);
+        if (status?.category === "complete" || status?.category === "closed") {
+          completed++;
+        }
+      }
+      out.push({ sprintId: s._id, name: s.name, completed });
+    }
+    return out.reverse();
+  },
+});
+
 export const create = mutation({
   args: {
     workspaceId: v.id("workspaces"),

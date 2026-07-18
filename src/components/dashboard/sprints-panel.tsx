@@ -30,6 +30,8 @@ const STATUS_STYLE: Record<string, string> = {
   complete: "bg-brand-50 text-brand-700",
 };
 
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
 export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const sprints = useQuery(api.sprints.listForWorkspace, { workspaceId });
   const [creating, setCreating] = useState(false);
@@ -56,6 +58,8 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
           onDone={() => setCreating(false)}
         />
       )}
+
+      <VelocityStrip workspaceId={workspaceId} />
 
       {sprints.length === 0 && !creating && (
         <div className="rounded-2xl bento px-6 py-14 text-center">
@@ -282,13 +286,21 @@ function SprintCard({
 
       <AnimatePresence initial={false}>
       {open && summary && (
-        <motion.ul
-          key="tasks"
+        <motion.div
+          key="expanded"
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: "auto" }}
           exit={{ opacity: 0, height: 0 }}
           transition={{ duration: 0.4, ease: EASE }}
-          className="mt-3 space-y-1 overflow-hidden pl-7">
+          className="mt-3 space-y-3 overflow-hidden pl-7">
+          {sprint.status !== "planned" && (
+            <BurndownCard
+              sprintId={sprint._id}
+              endDate={sprint.endDate}
+              status={sprint.status}
+            />
+          )}
+          <ul className="space-y-1">
           {summary.tasks.length === 0 && (
             <li className="text-xs text-muted-foreground">
               No tasks in this sprint yet. Add them from a task&apos;s Sprint
@@ -338,9 +350,224 @@ function SprintCard({
               </span>
             </li>
           ))}
-        </motion.ul>
+          </ul>
+        </motion.div>
       )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+// ── Burndown ────────────────────────────────────────────────────────────
+
+function xAt(i: number, n: number, padX: number, w: number) {
+  return n <= 1 ? padX : padX + (i / (n - 1)) * (w - 2 * padX);
+}
+
+function yAt(remaining: number, total: number, padY: number, h: number) {
+  if (total <= 0) return h - padY;
+  return padY + (1 - remaining / total) * (h - 2 * padY);
+}
+
+function toPath(points: ({ x: number; y: number } | null)[]) {
+  let d = "";
+  let drawing = false;
+  for (const p of points) {
+    if (!p) {
+      drawing = false;
+      continue;
+    }
+    d += `${drawing ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)} `;
+    drawing = true;
+  }
+  return d.trim();
+}
+
+type BurndownData = {
+  totalTasks: number;
+  doneTasks: number;
+  startAt: number;
+  endAt: number;
+  days: { dayStart: number; remaining: number | null }[];
+  ideal: { dayStart: number; remaining: number }[];
+};
+
+function BurndownSvg({ burndown }: { burndown: BurndownData }) {
+  const { totalTasks, days, ideal } = burndown;
+  const w = 320;
+  const h = 96;
+  const padX = 6;
+  const padY = 10;
+  const n = days.length;
+
+  const idealPts = ideal.map((d, i) => ({
+    x: xAt(i, n, padX, w),
+    y: yAt(d.remaining, totalTasks, padY, h),
+  }));
+  const actualPts = days.map((d, i) =>
+    d.remaining === null
+      ? null
+      : { x: xAt(i, n, padX, w), y: yAt(d.remaining, totalTasks, padY, h) },
+  );
+  const idealPath = toPath(idealPts);
+  const actualPath = toPath(actualPts);
+  const gridEvery = n <= 21 ? 1 : Math.ceil(n / 20);
+
+  return (
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      width="100%"
+      height={h}
+      className="block"
+      role="img"
+      aria-label={`Burndown chart: ${burndown.doneTasks} of ${totalTasks} tasks done, tracked against an ideal pace over ${n} day${n === 1 ? "" : "s"}.`}
+    >
+      {days.map(
+        (_, i) =>
+          i % gridEvery === 0 && (
+            <line
+              key={i}
+              x1={xAt(i, n, padX, w)}
+              x2={xAt(i, n, padX, w)}
+              y1={padY}
+              y2={h - padY}
+              stroke="var(--color-border)"
+              strokeWidth={1}
+            />
+          ),
+      )}
+      <path
+        d={idealPath}
+        fill="none"
+        stroke="var(--color-muted-foreground)"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity={0.7}
+      />
+      <path
+        d={actualPath}
+        fill="none"
+        stroke="var(--color-foreground)"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {actualPts.map(
+        (p, i) =>
+          p && (
+            <circle key={i} cx={p.x} cy={p.y} r={2.5} fill="var(--color-foreground)" />
+          ),
+      )}
+    </svg>
+  );
+}
+
+function BurndownCard({
+  sprintId,
+  endDate,
+  status,
+}: {
+  sprintId: Id<"sprints">;
+  endDate: number;
+  status: "planned" | "active" | "complete";
+}) {
+  const burndown = useQuery(api.sprints.burndown, { sprintId });
+
+  if (burndown === undefined) {
+    return <div className="h-28 animate-pulse rounded-2xl bg-muted/40" />;
+  }
+  if (!burndown || burndown.totalTasks === 0) {
+    return (
+      <div className="rounded-2xl bento-tile px-4 py-6 text-center">
+        <p className="text-xs text-muted-foreground">
+          No tasks in this sprint yet — the burndown fills in once work
+          joins.
+        </p>
+      </div>
+    );
+  }
+
+  const { totalTasks, doneTasks, days, ideal } = burndown;
+  const lastKnown = [...days].reverse().find((d) => d.remaining !== null);
+  const idealAtSame = lastKnown
+    ? ideal.find((i) => i.dayStart === lastKnown.dayStart)
+    : undefined;
+  const behind =
+    !!lastKnown &&
+    !!idealAtSame &&
+    totalTasks > 0 &&
+    (lastKnown.remaining! - idealAtSame.remaining) / totalTasks > 0.2;
+  const ended = status === "complete" || Date.now() > endDate;
+  const daysLeft = Math.max(0, Math.ceil((endDate - Date.now()) / ONE_DAY_MS));
+
+  return (
+    <div className="rounded-2xl bento-tile p-4">
+      <BurndownSvg burndown={burndown} />
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span className="flex items-center gap-3 text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="h-0.5 w-3 rounded-full bg-foreground" />
+            Actual
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              aria-hidden
+              className="h-0.5 w-3 rounded-full bg-muted-foreground"
+            />
+            Ideal
+          </span>
+        </span>
+        <span
+          className={cn(
+            "font-medium",
+            behind ? "text-danger" : "text-muted-foreground",
+          )}
+        >
+          {doneTasks} of {totalTasks} done ·{" "}
+          {ended
+            ? "sprint ended"
+            : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function VelocityStrip({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
+  const velocity = useQuery(api.sprints.velocity, { workspaceId });
+  if (!velocity || velocity.length < 2) return null;
+
+  const max = Math.max(1, ...velocity.map((v) => v.completed));
+  const avg = Math.round(
+    velocity.reduce((sum, v) => sum + v.completed, 0) / velocity.length,
+  );
+
+  return (
+    <div className="rounded-2xl bento p-4">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Velocity
+      </p>
+      <div className="mt-3 flex h-14 items-end gap-2">
+        {velocity.map((v) => (
+          <div
+            key={v.sprintId}
+            title={v.name}
+            className="flex flex-1 flex-col items-center justify-end gap-1"
+          >
+            <div
+              className="w-full rounded-t-md bg-brand-200"
+              style={{ height: `${Math.max(4, (v.completed / max) * 40)}px` }}
+            />
+            <span className="text-[10px] text-muted-foreground">
+              {v.completed}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        avg {avg} task{avg === 1 ? "" : "s"} per sprint
+      </p>
     </div>
   );
 }
