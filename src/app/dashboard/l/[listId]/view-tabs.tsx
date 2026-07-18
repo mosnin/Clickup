@@ -8,6 +8,7 @@ import {
   GanttChart,
   LayoutDashboard,
   List as ListIcon,
+  Rows3,
   Table2,
   Users,
 } from "lucide-react";
@@ -20,6 +21,7 @@ export type ViewKey =
   | "board"
   | "calendar"
   | "gantt"
+  | "timeline"
   | "table"
   | "workload";
 
@@ -29,6 +31,7 @@ const VIEW_KEYS: ViewKey[] = [
   "board",
   "calendar",
   "gantt",
+  "timeline",
   "table",
   "workload",
 ];
@@ -43,6 +46,7 @@ const VIEWS: { key: ViewKey; label: string; Icon: typeof ListIcon }[] = [
   { key: "board", label: "Board", Icon: Columns3 },
   { key: "calendar", label: "Calendar", Icon: Calendar },
   { key: "gantt", label: "Gantt", Icon: GanttChart },
+  { key: "timeline", label: "Timeline", Icon: Rows3 },
   { key: "table", label: "Table", Icon: Table2 },
   { key: "workload", label: "Workload", Icon: Users },
 ];
