@@ -1009,11 +1009,13 @@ function WorkspaceRow({
 }) {
   const pathname = usePathname();
   const [expanded, setExpanded] = useWorkspaceExpanded(workspace._id);
+  const [addingSpace, setAddingSpace] = useState(false);
+  const createSpace = useMutation(api.spaces.create);
   const active = pathname === `/dashboard/w/${workspace._id}`;
 
   return (
     <div>
-      <div className="flex items-center gap-1">
+      <div className="group/ws flex items-center gap-1">
         <button
           type="button"
           aria-label={expanded ? "Collapse" : "Expand"}
@@ -1042,12 +1044,44 @@ function WorkspaceRow({
             {workspace.role}
           </span>
         </Link>
+        <button
+          type="button"
+          aria-label={`New space in ${workspace.name}`}
+          title="New space"
+          onClick={() => {
+            setExpanded(true);
+            setAddingSpace(true);
+          }}
+          className="tap-target inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/ws:opacity-100"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       {expanded && (
         <div className="mt-1 space-y-1 pl-5">
-          {workspace.spaces.length === 0 && (
-            <p className="px-2.5 py-1 text-xs text-muted-foreground">No spaces yet.</p>
+          {addingSpace && (
+            <InlineCreate
+              placeholder="Space name…"
+              onCancel={() => setAddingSpace(false)}
+              onSubmit={async (name) => {
+                await createSpace({
+                  name,
+                  parentType: "workspace",
+                  parentId: workspace._id,
+                });
+                setAddingSpace(false);
+              }}
+            />
+          )}
+          {workspace.spaces.length === 0 && !addingSpace && (
+            <button
+              type="button"
+              onClick={() => setAddingSpace(true)}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <Plus className="h-3 w-3" /> New space
+            </button>
           )}
           {workspace.spaces.map((space) => (
             <SpaceRow key={space._id} space={space} onNavigate={onNavigate} />

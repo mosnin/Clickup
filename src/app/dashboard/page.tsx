@@ -376,7 +376,7 @@ function LiveTile({ ticker }: { ticker: TickerItem[] }) {
         <ul className="mt-3 space-y-3">
           <AnimatePresence initial={false}>
             {visible.map((e) => {
-              const key = `${e.createdAt}-${e.type}-${e.entityTitle ?? ""}`;
+              const key = e.id;
               const body = (
                 <>
                   <span className="font-medium">{e.actorName}</span>{" "}

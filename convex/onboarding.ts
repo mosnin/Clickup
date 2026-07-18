@@ -26,7 +26,6 @@ export const completeSetup = mutation({
   args: {
     workspaceName: v.string(),
     agentName: v.string(),
-    agentEmoji: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();

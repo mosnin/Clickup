@@ -109,6 +109,7 @@ export const get = query({
     // ── Recent events per scope: recency + the live ticker ──
     const scopeKeys = new Set<string>();
     const ticker: {
+      id: string;
       type: string;
       entityTitle?: string;
       actorName: string;
@@ -134,6 +135,7 @@ export const get = query({
           if (e.createdAt > cur) lastEventByList.set(e.listId, e.createdAt);
         }
         ticker.push({
+          id: e._id,
           type: e.type,
           entityTitle: e.entityTitle,
           actorName: e.actorName,

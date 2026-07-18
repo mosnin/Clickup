@@ -168,7 +168,7 @@ export function ListPage({
         <OverviewView
           listId={list._id}
           list={list}
-          tasks={topLevelTasks}
+          tasks={allTop}
           statuses={statuses}
         />
       )}
