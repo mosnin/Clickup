@@ -36,12 +36,24 @@ export const listForWorkspace = query({
       .unique();
     if (!membership) return [];
 
-    return await ctx.db
+    const spaces = await ctx.db
       .query("spaces")
       .withIndex("by_parent", (q) =>
         q.eq("parentType", "workspace").eq("parentId", workspaceId),
       )
       .collect();
+    // Private spaces are visible only to the creator, listed members, and
+    // the workspace owner — same rule the sidebar tree applies. Never hand
+    // back memberClerkIds/description of a space the caller can't enter.
+    const ws = await ctx.db.get(workspaceId);
+    return spaces.filter((sp) => {
+      if (!sp.private) return true;
+      return (
+        sp.createdByClerkId === identity.subject ||
+        (sp.memberClerkIds ?? []).includes(identity.subject) ||
+        ws?.ownerClerkId === identity.subject
+      );
+    });
   },
 });
 
@@ -316,7 +328,9 @@ export const overview = query({
     return {
       space,
       lists,
-      docs: docs.map((d) => ({ docId: d._id, title: d.title })),
+      docs: docs
+        .filter((d) => d.parentDocId === undefined)
+        .map((d) => ({ docId: d._id, title: d.title })),
       whiteboards: whiteboards.map((w) => ({
         whiteboardId: w._id,
         title: w.title,

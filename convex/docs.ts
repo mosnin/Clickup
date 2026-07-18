@@ -216,6 +216,31 @@ export const move = mutation({
       throw new Error("Maximum nesting depth reached");
     }
 
+    // The doc's own descendants move with it — their depths shift too.
+    // Height of the moved subtree (0 = leaf), bounded by the small cap.
+    const subtreeHeight = async (id: typeof docId, depth: number): Promise<number> => {
+      if (depth > MAX_DOC_DEPTH) return depth;
+      const kids = await ctx.db
+        .query("docs")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", doc.parentType).eq("parentId", doc.parentId),
+        )
+        .collect();
+      const direct = kids.filter((k) => k.parentDocId === id);
+      if (direct.length === 0) return 0;
+      let deepest = 0;
+      for (const k of direct) {
+        deepest = Math.max(deepest, 1 + (await subtreeHeight(k._id, depth + 1)));
+      }
+      return deepest;
+    };
+    const height = await subtreeHeight(docId, 0);
+    if (parentDepth + 1 + height > MAX_DOC_DEPTH) {
+      throw new Error(
+        "Moving this doc here would push its subpages past the nesting limit",
+      );
+    }
+
     await ctx.db.patch(docId, { parentDocId });
   },
 });

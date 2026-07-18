@@ -420,7 +420,12 @@ export function CommandPalette() {
       },
     };
     const strongMatch =
-      !q || out.some((item) => item.label.toLowerCase().startsWith(q));
+      !q ||
+      out.some(
+        (item) =>
+          item.key !== "search-everything" &&
+          item.label.toLowerCase().startsWith(q),
+      );
     if (strongMatch) out.push(createItem);
     else out.unshift(createItem);
 

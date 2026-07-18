@@ -162,6 +162,41 @@ export const everything = query({
       }
     }
 
+    // Docs also attach directly to the user or a workspace (not just to
+    // spaces) — cover both so personal and workspace-level docs are
+    // findable too.
+    if (docsOut.length < CAP) {
+      const personalDocs = await ctx.db
+        .query("docs")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "user").eq("parentId", subject),
+        )
+        .collect();
+      for (const d of personalDocs) {
+        if (docsOut.length >= CAP) break;
+        if (matches(d.title)) {
+          docsOut.push({ docId: d._id, title: d.title, spaceName: "Personal" });
+        }
+      }
+    }
+    for (const m of memberships) {
+      if (docsOut.length >= CAP) break;
+      const ws = await ctx.db.get(m.workspaceId);
+      if (!ws) continue;
+      const wsDocs = await ctx.db
+        .query("docs")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "workspace").eq("parentId", m.workspaceId),
+        )
+        .collect();
+      for (const d of wsDocs) {
+        if (docsOut.length >= CAP) break;
+        if (matches(d.title)) {
+          docsOut.push({ docId: d._id, title: d.title, spaceName: ws.name });
+        }
+      }
+    }
+
     return {
       tasks: tasksOut,
       docs: docsOut,

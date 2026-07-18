@@ -188,7 +188,7 @@ export function PublicFormClient({ token }: { token: string }) {
                 </div>
               )}
 
-              {error && <p className="text-sm text-[#c2453a]">{error}</p>}
+              {error && <p className="text-sm text-danger">{error}</p>}
 
               <Button
                 type="submit"

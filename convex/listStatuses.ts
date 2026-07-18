@@ -110,6 +110,12 @@ export const update = mutation({
     if (args.color !== undefined) patch.color = args.color;
     if (args.category !== undefined) patch.category = args.category;
     await ctx.db.patch(args.statusId, patch);
+
+    // Re-categorizing a status flips every task in it between rollup
+    // buckets without touching the task cores — recount inline.
+    if (args.category !== undefined && args.category !== status.category) {
+      await computeRollup(ctx, status.listId);
+    }
   },
 });
 

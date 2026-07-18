@@ -80,10 +80,14 @@ export const tree = query({
         private: space.private ?? false,
         folders: folderNodes,
         lists: directLists.sort((a, b) => a.position - b.position),
-        docs: docs.sort((a, b) => b.updatedAt - a.updatedAt).map((d) => ({
-          _id: d._id,
-          title: d.title,
-        })),
+        docs: docs
+          // Subpages live under their parent doc, not as flat tree rows.
+          .filter((d) => d.parentDocId === undefined)
+          .sort((a, b) => b.updatedAt - a.updatedAt)
+          .map((d) => ({
+            _id: d._id,
+            title: d.title,
+          })),
         whiteboards: whiteboards
           .sort((a, b) => b.updatedAt - a.updatedAt)
           .map((w) => ({ _id: w._id, title: w.title })),

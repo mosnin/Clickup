@@ -77,7 +77,7 @@ export default function InvitePage({
               </span>
               .
             </p>
-            {error && <p className="mt-4 text-sm text-[#c2453a]">{error}</p>}
+            {error && <p className="mt-4 text-sm text-danger">{error}</p>}
             <div className="mt-6 flex items-center justify-center gap-3">
               <Button type="button" onClick={accept} disabled={pending}>
                 {pending ? "Joining…" : `Join ${invite.workspaceName}`}

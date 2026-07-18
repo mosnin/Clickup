@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useConvex, useMutation, useQuery } from "convex/react";
-import { Download, Trash2, UserPlus } from "lucide-react";
+import { Download, Trash2, Upload, UserPlus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
+import { ImportDialog } from "@/components/dashboard/import-dialog";
 
 export function WorkspaceSettings({
   workspaceId,
@@ -27,6 +28,8 @@ export function WorkspaceSettings({
   return (
     <div className="space-y-8">
       <MembersSection workspaceId={workspaceId} />
+
+      <ImportSection />
 
       <section>
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -217,6 +220,33 @@ function PendingInviteRow({
         <Trash2 className="h-4 w-4" />
       </button>
     </div>
+  );
+}
+
+// CSV import: opens the mapping dialog; the mutation enforces list access.
+function ImportSection() {
+  const [open, setOpen] = useState(false);
+  return (
+    <section>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Import
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Bring work in from ClickUp or any CSV export.
+      </p>
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bento p-4">
+        <div>
+          <p className="text-sm font-medium">Import tasks from CSV</p>
+          <p className="text-xs text-muted-foreground">
+            Map your columns, preview, and import into any list.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+          <Upload className="h-3.5 w-3.5" /> Import CSV
+        </Button>
+      </div>
+      <ImportDialog open={open} onClose={() => setOpen(false)} />
+    </section>
   );
 }
 

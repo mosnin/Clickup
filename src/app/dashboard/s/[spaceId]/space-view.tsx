@@ -804,11 +804,6 @@ type FeatureKey = keyof SpaceFeatures;
 
 const FEATURE_ROWS: { key: FeatureKey; label: string; description: string }[] = [
   { key: "sprints", label: "Sprints", description: "Timebox work into sprints." },
-  {
-    key: "timeTracking",
-    label: "Time tracking",
-    description: "Track time on tasks.",
-  },
   { key: "goals", label: "Goals", description: "Set and measure goals." },
   {
     key: "whiteboards",

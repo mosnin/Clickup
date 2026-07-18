@@ -752,14 +752,21 @@ export async function removeTaskCore(
   const task = await ctx.db.get(taskId);
   if (!task) return;
 
-  const subtasks = await ctx.db
-    .query("tasks")
-    .withIndex("by_parent_task", (q) => q.eq("parentTaskId", taskId))
-    .collect();
-  for (const s of subtasks) {
-    await cleanupTaskArtifacts(ctx, s._id);
-    await decrementRollupForTask(ctx, s);
-    await ctx.db.delete(s._id);
+  // Full-depth cascade: the UI allows nested subtasks, so a one-level
+  // sweep would orphan grandchildren (invisible rows + rollup drift).
+  const queue = [taskId];
+  while (queue.length > 0) {
+    const parentId = queue.shift()!;
+    const subtasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_parent_task", (q) => q.eq("parentTaskId", parentId))
+      .collect();
+    for (const s of subtasks) {
+      queue.push(s._id);
+      await cleanupTaskArtifacts(ctx, s._id);
+      await decrementRollupForTask(ctx, s);
+      await ctx.db.delete(s._id);
+    }
   }
 
   await cleanupTaskArtifacts(ctx, taskId);
