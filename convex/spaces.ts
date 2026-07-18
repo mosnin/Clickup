@@ -6,6 +6,7 @@ import {
   requireIdentity,
   requireSpaceAccess,
 } from "./_authz";
+import { getRollup } from "./rollups";
 
 export const personal = query({
   args: {},
@@ -231,6 +232,31 @@ export const overview = query({
 
     const lists = await Promise.all(
       [...direct, ...nested].map(async (list) => {
+        const rollup = await getRollup(ctx, list._id);
+        const folder =
+          list.parentType === "folder"
+            ? folderName.get(list.parentId) ?? null
+            : null;
+
+        // total/done come from the maintained rollup (convex/rollups.ts,
+        // kept up to date by tasks.ts's *Core write paths). Overdue still
+        // needs per-task due dates, so only scan tasks when the rollup
+        // shows open ones exist (or there's no rollup row yet to trust —
+        // queries can't write, so that case just falls back to a plain
+        // scan without persisting anything).
+        if (rollup && rollup.total - rollup.done <= 0) {
+          return {
+            listId: list._id,
+            name: list.name,
+            folder,
+            projectStatus: list.projectStatus,
+            description: list.description,
+            total: rollup.total,
+            done: rollup.done,
+            overdue: 0,
+          };
+        }
+
         const statuses = await ctx.db
           .query("listStatuses")
           .withIndex("by_list", (q) => q.eq("listId", list._id))
@@ -244,24 +270,21 @@ export const overview = query({
           .query("tasks")
           .withIndex("by_list", (q) => q.eq("listId", list._id))
           .collect();
-        let done = 0;
+        let scannedDone = 0;
         let overdue = 0;
         for (const t of tasks) {
           const isDone = doneIds.has(t.statusId);
-          if (isDone) done += 1;
+          if (isDone) scannedDone += 1;
           else if (t.dueDate && t.dueDate < now) overdue += 1;
         }
         return {
           listId: list._id,
           name: list.name,
-          folder:
-            list.parentType === "folder"
-              ? folderName.get(list.parentId) ?? null
-              : null,
+          folder,
           projectStatus: list.projectStatus,
           description: list.description,
-          total: tasks.length,
-          done,
+          total: rollup ? rollup.total : tasks.length,
+          done: rollup ? rollup.done : scannedDone,
           overdue,
         };
       }),

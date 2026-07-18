@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { requireListAccess } from "./_authz";
+import { computeRollup } from "./rollups";
 
 const categoryValidator = v.union(
   v.literal("open"),
@@ -143,6 +144,13 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(statusId);
+
+    // The reassignment above bypasses the task cores, so if the deleted
+    // and replacement statuses sit in different categories the counters
+    // would drift — recount inline instead.
+    if (tasksToReassign.length > 0 && status.category !== replacement.category) {
+      await computeRollup(ctx, status.listId);
+    }
   },
 });
 

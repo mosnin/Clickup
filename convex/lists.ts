@@ -180,6 +180,12 @@ export const remove = mutation({
       .collect();
     for (const st of schedules) await ctx.db.delete(st._id);
 
+    const rollup = await ctx.db
+      .query("listRollups")
+      .withIndex("by_list", (q) => q.eq("listId", list._id))
+      .unique();
+    if (rollup) await ctx.db.delete(rollup._id);
+
     await ctx.db.delete(list._id);
   },
 });
