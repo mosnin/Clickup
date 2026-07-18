@@ -11,6 +11,7 @@ import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { Clips } from "@/components/dashboard/clips";
 import { Attachments } from "@/components/dashboard/attachments";
 import { Comments } from "@/components/dashboard/comments";
+import { Subtasks } from "@/components/dashboard/subtasks";
 import {
   TaskAssignees,
   TaskBanners,
@@ -116,6 +117,11 @@ function TaskEditor({
   const [description, setDescription] = useState(task.description ?? "");
   const [aiPending, setAiPending] = useState(false);
 
+  const parentTask = useQuery(
+    api.tasks.get,
+    task.parentTaskId ? { taskId: task.parentTaskId } : "skip",
+  );
+
   useEffect(() => setTitle(task.title), [task.title]);
   useEffect(() => setDescription(task.description ?? ""), [task.description]);
 
@@ -149,6 +155,15 @@ function TaskEditor({
       >
         <ArrowLeft className="h-4 w-4" /> {listName}
       </Link>
+
+      {parentTask && (
+        <Link
+          href={`/dashboard/l/${listId}/t/${parentTask._id}`}
+          className="inline-block text-sm text-muted-foreground hover:text-foreground hover:underline"
+        >
+          Subtask of {parentTask.title}
+        </Link>
+      )}
 
       <div className="flex items-start gap-3">
         {/* The completion moment: a springy check that fills in and
@@ -244,6 +259,8 @@ function TaskEditor({
           </div>
 
           <TaskChecklist task={task} />
+
+          <Subtasks taskId={task._id} listId={listId} />
 
           <section>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
