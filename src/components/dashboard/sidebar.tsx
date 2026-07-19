@@ -13,6 +13,7 @@ import {
   Columns3,
   FileText,
   Folder,
+  FolderKanban,
   Home,
   Inbox,
   LayoutGrid,
@@ -25,6 +26,7 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Star,
   X,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -36,6 +38,7 @@ import { RunningTimerChip } from "@/components/dashboard/running-timer-chip";
 import { TemplatePicker } from "@/components/dashboard/template-picker";
 import { NewWorkspaceDialog } from "@/components/dashboard/new-workspace-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useToast } from "@/components/toast";
 
 type SidebarTree = NonNullable<ReturnType<typeof useTreeQuery>>;
 type SpaceNode = SidebarTree["workspaces"][number]["spaces"][number];
@@ -320,6 +323,14 @@ export function DashboardSidebar() {
             collapsed={collapsed}
             onNavigate={close}
           />
+          <NavLink
+            href="/dashboard/projects"
+            label="Projects"
+            icon={FolderKanban}
+            active={pathname === "/dashboard/projects"}
+            collapsed={collapsed}
+            onNavigate={close}
+          />
           <InboxLink onNavigate={close} collapsed={collapsed} />
           <NavLink
             href="/dashboard/agents"
@@ -360,7 +371,10 @@ export function DashboardSidebar() {
               Sign in to see your spaces.
             </p>
           ) : (
-            <SidebarTreeView tree={tree} onNavigate={close} />
+            <>
+              <FavoritesSection onNavigate={close} />
+              <SidebarTreeView tree={tree} onNavigate={close} />
+            </>
           )}
         </nav>
 
@@ -912,6 +926,76 @@ function SectionHeader({ label }: { label: string }) {
     <h3 className="px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
       {label}
     </h3>
+  );
+}
+
+// Compact pinned shortcuts, shown above the Personal/Workspaces tree and
+// only when the user actually has favorites (an empty section would just
+// be dead space). Skipped entirely in the collapsed icon rail — there's no
+// room to do it justice there, and the rail already surfaces the
+// personal space + workspace tiles as one-click shortcuts.
+function FavoritesSection({ onNavigate }: { onNavigate: () => void }) {
+  const pathname = usePathname();
+  const favorites = useQuery(api.favorites.listForCurrentUser, {});
+  const toggleFavorite = useMutation(api.favorites.toggle);
+  const { toast } = useToast();
+
+  if (!favorites || favorites.length === 0) return null;
+
+  return (
+    <div className="mb-6">
+      <SectionHeader label="Favorites" />
+      <ul className="mt-1 space-y-0.5">
+        {favorites.map((f) => {
+          const active = pathname === f.href;
+          return (
+            <li key={`${f.entityType}:${f.entityId}`} className="group/fav flex items-center gap-1">
+              <Link
+                href={f.href}
+                onClick={onNavigate}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex flex-1 items-center gap-2 truncate rounded-lg px-2.5 py-1 text-sm transition-colors",
+                  active
+                    ? "bg-muted font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {f.color ? (
+                  <span
+                    aria-hidden
+                    className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
+                    style={{ backgroundColor: f.color }}
+                  />
+                ) : (
+                  <Star className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+                )}
+                <span className="truncate">{f.name}</span>
+              </Link>
+              <button
+                type="button"
+                aria-label={`Remove ${f.name} from favorites`}
+                title="Remove from favorites"
+                onClick={async () => {
+                  try {
+                    await toggleFavorite({
+                      entityType: f.entityType,
+                      entityId: f.entityId,
+                    });
+                    toast("Removed from favorites");
+                  } catch {
+                    toast("Couldn't update favorites", { kind: "error" });
+                  }
+                }}
+                className="tap-target inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover/fav:opacity-100 focus-visible:opacity-100"
+              >
+                <Star className="h-3.5 w-3.5 fill-current" aria-hidden />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

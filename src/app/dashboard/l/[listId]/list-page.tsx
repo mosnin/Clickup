@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
-import { Plus, Settings, X } from "lucide-react";
+import { Plus, Settings, Star, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
@@ -63,7 +63,13 @@ export function ListPage({
   const tasks = useQuery(api.tasks.listForList, { listId: id });
   const statuses = useQuery(api.listStatuses.listForList, { listId: id });
   const fields = useQuery(api.customFields.listForList, { listId: id });
+  const isFavorited = useQuery(api.favorites.isFavorite, {
+    entityType: "list",
+    entityId: id,
+  });
+  const toggleFavorite = useMutation(api.favorites.toggle);
   const { user } = useUser();
+  const { toast } = useToast();
   const searchParams = useSearchParams();
 
   const view: ViewKey = isViewKey(initialView) ? initialView : "list";
@@ -147,12 +153,45 @@ export function ListPage({
             </p>
           )}
         </div>
-        <Link
-          href={`/dashboard/l/${list._id}/settings`}
-          className="inline-flex h-9 items-center gap-1 rounded-full border border-border bg-background px-3 text-sm hover:bg-muted"
-        >
-          <Settings className="h-4 w-4" /> Settings
-        </Link>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <button
+            type="button"
+            aria-label={
+              isFavorited ? "Remove from favorites" : "Add to favorites"
+            }
+            aria-pressed={!!isFavorited}
+            onClick={async () => {
+              try {
+                const result = await toggleFavorite({
+                  entityType: "list",
+                  entityId: list._id,
+                });
+                toast(
+                  result.favorited
+                    ? "Added to favorites"
+                    : "Removed from favorites",
+                );
+              } catch {
+                toast("Couldn't update favorites", { kind: "error" });
+              }
+            }}
+            className={cn(
+              "tap-target inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-muted",
+              isFavorited ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            <Star
+              className={cn("h-4 w-4", isFavorited && "fill-current")}
+              aria-hidden
+            />
+          </button>
+          <Link
+            href={`/dashboard/l/${list._id}/settings`}
+            className="inline-flex h-9 items-center gap-1 rounded-full border border-border bg-background px-3 text-sm hover:bg-muted"
+          >
+            <Settings className="h-4 w-4" /> Settings
+          </Link>
+        </div>
       </header>
 
       <ViewTabs listId={list._id} active={view} />
