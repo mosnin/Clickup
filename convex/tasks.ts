@@ -287,6 +287,8 @@ export type CreateTaskArgs = {
   sprintId?: Id<"sprints">;
   checklist?: { id: string; text: string; done: boolean }[];
   requiresApproval?: boolean;
+  estimatePoints?: number;
+  milestone?: boolean;
 };
 
 export async function createTaskCore(
@@ -336,6 +338,8 @@ export async function createTaskCore(
     sprintId: args.sprintId,
     checklist: args.checklist,
     requiresApproval: args.requiresApproval || undefined,
+    estimatePoints: args.estimatePoints,
+    milestone: args.milestone || undefined,
     createdByClerkId: actor.id,
     position: siblings.length,
     createdAt: Date.now(),
@@ -391,6 +395,8 @@ export type UpdateTaskArgs = {
   blockedByTaskIds?: Id<"tasks">[];
   checklist?: { id: string; text: string; done: boolean }[];
   requiresApproval?: boolean;
+  estimatePoints?: number | null;
+  milestone?: boolean;
 };
 
 export async function updateTaskCore(
@@ -498,6 +504,14 @@ export async function updateTaskCore(
   if (args.checklist !== undefined) {
     patch.checklist = args.checklist.length > 0 ? args.checklist : undefined;
     changedFields.push("checklist");
+  }
+  if (args.estimatePoints !== undefined) {
+    patch.estimatePoints = args.estimatePoints ?? undefined;
+    changedFields.push("estimate");
+  }
+  if (args.milestone !== undefined) {
+    patch.milestone = args.milestone || undefined;
+    changedFields.push("milestone");
   }
   if (args.requiresApproval !== undefined) {
     // Agents may raise the gate but never lower it — otherwise the gate
@@ -980,6 +994,8 @@ export const create = mutation({
     recurrence: v.optional(recurrenceValidator),
     sprintId: v.optional(v.id("sprints")),
     requiresApproval: v.optional(v.boolean()),
+    estimatePoints: v.optional(v.number()),
+    milestone: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { identity } = await requireListAccess(ctx, args.listId);
@@ -999,6 +1015,8 @@ export const create = mutation({
         recurrence: args.recurrence,
         sprintId: args.sprintId,
         requiresApproval: args.requiresApproval,
+        estimatePoints: args.estimatePoints,
+        milestone: args.milestone,
       },
       actor,
     );
@@ -1020,6 +1038,8 @@ export const update = mutation({
     blockedByTaskIds: v.optional(v.array(v.id("tasks"))),
     checklist: v.optional(checklistValidator),
     requiresApproval: v.optional(v.boolean()),
+    estimatePoints: v.optional(v.union(v.number(), v.null())),
+    milestone: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { identity } = await requireTaskAccess(ctx, args.taskId);
@@ -1040,6 +1060,8 @@ export const update = mutation({
         blockedByTaskIds: args.blockedByTaskIds,
         checklist: args.checklist,
         requiresApproval: args.requiresApproval,
+        estimatePoints: args.estimatePoints,
+        milestone: args.milestone,
       },
       actor,
     );

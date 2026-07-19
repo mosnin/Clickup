@@ -55,6 +55,7 @@ export async function createSprintCore(
     goal?: string;
     startDate: number;
     endDate: number;
+    capacityPoints?: number;
   },
   actor: Actor,
 ): Promise<Id<"sprints">> {
@@ -69,6 +70,7 @@ export async function createSprintCore(
     startDate: args.startDate,
     endDate: args.endDate,
     status: "planned",
+    capacityPoints: args.capacityPoints,
     createdByActorId: actor.id,
     createdAt: Date.now(),
   });
@@ -86,6 +88,8 @@ export async function updateSprintCore(
     startDate?: number;
     endDate?: number;
     status?: "planned" | "active" | "complete";
+    capacityPoints?: number | null;
+    retrospective?: string;
   },
   actor: Actor,
 ): Promise<void> {
@@ -97,6 +101,15 @@ export async function updateSprintCore(
   if (args.startDate !== undefined) patch.startDate = args.startDate;
   if (args.endDate !== undefined) patch.endDate = args.endDate;
   if (args.status !== undefined) patch.status = args.status;
+  if (args.capacityPoints !== undefined) {
+    patch.capacityPoints =
+      args.capacityPoints === null || args.capacityPoints <= 0
+        ? undefined
+        : args.capacityPoints;
+  }
+  if (args.retrospective !== undefined) {
+    patch.retrospective = args.retrospective.trim() || undefined;
+  }
   await ctx.db.patch(args.sprintId, patch);
   const updated = (await ctx.db.get(args.sprintId))!;
   if (args.status !== undefined && args.status !== sprint.status) {
@@ -422,6 +435,7 @@ export const create = mutation({
     goal: v.optional(v.string()),
     startDate: v.number(),
     endDate: v.number(),
+    capacityPoints: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const subject = await requireWorkspaceMember(ctx, args.workspaceId);
@@ -444,6 +458,8 @@ export const update = mutation({
         v.literal("complete"),
       ),
     ),
+    capacityPoints: v.optional(v.union(v.number(), v.null())),
+    retrospective: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const sprint = await ctx.db.get(args.sprintId);

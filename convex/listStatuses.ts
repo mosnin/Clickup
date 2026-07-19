@@ -75,6 +75,7 @@ export const create = mutation({
     name: v.string(),
     color: v.string(),
     category: categoryValidator,
+    wipLimit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireListAccess(ctx, args.listId);
@@ -87,6 +88,7 @@ export const create = mutation({
       name: args.name,
       color: args.color,
       category: args.category,
+      wipLimit: args.wipLimit,
       position: siblings.length,
       createdAt: Date.now(),
     });
@@ -99,6 +101,8 @@ export const update = mutation({
     name: v.optional(v.string()),
     color: v.optional(v.string()),
     category: v.optional(categoryValidator),
+    // null clears the WIP limit.
+    wipLimit: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
     const status = await ctx.db.get(args.statusId);
@@ -109,6 +113,12 @@ export const update = mutation({
     if (args.name !== undefined) patch.name = args.name;
     if (args.color !== undefined) patch.color = args.color;
     if (args.category !== undefined) patch.category = args.category;
+    if (args.wipLimit !== undefined) {
+      patch.wipLimit =
+        args.wipLimit === null || args.wipLimit <= 0
+          ? undefined
+          : Math.floor(args.wipLimit);
+    }
     await ctx.db.patch(args.statusId, patch);
 
     // Re-categorizing a status flips every task in it between rollup

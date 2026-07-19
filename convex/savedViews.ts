@@ -37,6 +37,7 @@ export const create = mutation({
       v.literal("gantt"),
       v.literal("timeline"),
       v.literal("workload"),
+      v.literal("network"),
     ),
     flags: v.optional(v.string()),
     priority: v.optional(v.string()),

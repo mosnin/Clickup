@@ -8,6 +8,7 @@ import {
   GanttChart,
   LayoutDashboard,
   List as ListIcon,
+  Network,
   Rows3,
   Table2,
   Users,
@@ -23,7 +24,8 @@ export type ViewKey =
   | "gantt"
   | "timeline"
   | "table"
-  | "workload";
+  | "workload"
+  | "network";
 
 const VIEW_KEYS: ViewKey[] = [
   "overview",
@@ -34,6 +36,7 @@ const VIEW_KEYS: ViewKey[] = [
   "timeline",
   "table",
   "workload",
+  "network",
 ];
 
 export function isViewKey(value: unknown): value is ViewKey {
@@ -49,6 +52,7 @@ const VIEWS: { key: ViewKey; label: string; Icon: typeof ListIcon }[] = [
   { key: "timeline", label: "Timeline", Icon: Rows3 },
   { key: "table", label: "Table", Icon: Table2 },
   { key: "workload", label: "Workload", Icon: Users },
+  { key: "network", label: "Network", Icon: Network },
 ];
 
 export function ViewTabs({

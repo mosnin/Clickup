@@ -18,6 +18,7 @@ import { GanttView } from "./views/gantt-view";
 import { TimelineView } from "./views/timeline-view";
 import { TableView } from "./views/table-view";
 import { WorkloadView } from "./views/workload-view";
+import { NetworkView } from "./views/network-view";
 import { TaskPeekPortal } from "@/components/dashboard/task-peek";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { useToast } from "@/components/toast";
@@ -216,6 +217,9 @@ export function ListPage({
           tasks={topLevelTasks}
           statuses={statuses}
         />
+      )}
+      {view === "network" && (
+        <NetworkView listId={list._id} tasks={allTop} statuses={statuses} />
       )}
 
       <TaskPeekPortal listId={list._id} />

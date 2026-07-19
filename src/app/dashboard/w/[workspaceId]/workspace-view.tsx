@@ -11,6 +11,7 @@ import { InlineCreate } from "@/components/dashboard/inline-create";
 import { GoalsPanel } from "@/components/dashboard/goals-panel";
 import { ReportsPanel } from "@/components/dashboard/reports-panel";
 import { SprintsPanel } from "@/components/dashboard/sprints-panel";
+import { PortfolioTimeline } from "@/components/dashboard/portfolio-timeline";
 import { TeamHub } from "@/components/dashboard/team-hub";
 import { WorkspaceSettings } from "@/components/dashboard/workspace-settings";
 import { ActivityFeed } from "@/app/dashboard/agents/agents-view";
@@ -22,6 +23,7 @@ type Tab =
   | "team"
   | "chat"
   | "sprints"
+  | "portfolio"
   | "activity"
   | "goals"
   | "reports"
@@ -32,6 +34,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "team", label: "Team" },
   { key: "chat", label: "Chat" },
   { key: "sprints", label: "Sprints" },
+  { key: "portfolio", label: "Portfolio" },
   { key: "activity", label: "Activity" },
   { key: "goals", label: "Goals" },
   { key: "reports", label: "Reports" },
@@ -49,6 +52,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
     if (
       raw === "chat" ||
       raw === "sprints" ||
+      raw === "portfolio" ||
       raw === "activity" ||
       raw === "goals" ||
       raw === "reports" ||
@@ -229,6 +233,10 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
       ) : tab === "sprints" ? (
         <section>
           <SprintsPanel workspaceId={workspace._id as Id<"workspaces">} />
+        </section>
+      ) : tab === "portfolio" ? (
+        <section>
+          <PortfolioTimeline workspaceId={workspace._id as Id<"workspaces">} />
         </section>
       ) : tab === "activity" ? (
         <section>

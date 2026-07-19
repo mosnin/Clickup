@@ -162,6 +162,10 @@ export default defineSchema({
       v.literal("complete"),
       v.literal("closed"),
     ),
+    // Kanban WIP limit for this column. Advisory: the Board highlights a
+    // column over its limit rather than refusing the drop — matching the
+    // task-claim philosophy (signal, don't block).
+    wipLimit: v.optional(v.number()),
     position: v.number(),
     createdAt: v.number(),
   }).index("by_list", ["listId"]),
@@ -262,6 +266,13 @@ export default defineSchema({
     requiresApproval: v.optional(v.boolean()),
     approvedByClerkId: v.optional(v.string()),
     approvedAt: v.optional(v.number()),
+    // Phase F — scrum planning:
+    //   - estimatePoints: story-point estimate; sums drive sprint capacity
+    //     bars, points-based velocity, and workload balancing.
+    //   - milestone: marks a date-anchored deliverable; Gantt/timeline
+    //     render it as a diamond marker instead of a duration bar.
+    estimatePoints: v.optional(v.number()),
+    milestone: v.optional(v.boolean()),
     // Set by the watchdog when it emits task.overdue, so each task nags
     // at most once per overdue period.
     overdueNotifiedAt: v.optional(v.number()),
@@ -689,6 +700,11 @@ export default defineSchema({
       v.literal("active"),
       v.literal("complete"),
     ),
+    // Planned capacity in story points; the planning view compares the
+    // sum of committed tasks' estimatePoints against this.
+    capacityPoints: v.optional(v.number()),
+    // Retro notes captured when the sprint completes.
+    retrospective: v.optional(v.string()),
     createdByActorId: v.string(),
     createdAt: v.number(),
   }).index("by_workspace", ["workspaceId"]),
@@ -880,6 +896,7 @@ export default defineSchema({
       v.literal("gantt"),
       v.literal("timeline"),
       v.literal("workload"),
+      v.literal("network"),
     ),
     // Mirrors of the URL params: ?f= (comma flags) and ?pri=.
     flags: v.optional(v.string()),
@@ -887,6 +904,36 @@ export default defineSchema({
     createdByClerkId: v.string(),
     createdAt: v.number(),
   }).index("by_list", ["listId"]),
+
+  // Per-user starred items: the Favorites rail in the sidebar and the
+  // pinned row on the Projects directory. Navigation state, not data —
+  // rows point at entities by raw id string and are dropped if stale.
+  favorites: defineTable({
+    userClerkId: v.string(),
+    entityType: v.union(
+      v.literal("list"),
+      v.literal("space"),
+      v.literal("doc"),
+      v.literal("whiteboard"),
+    ),
+    entityId: v.string(),
+    position: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userClerkId"])
+    .index("by_user_entity", ["userClerkId", "entityType", "entityId"]),
+
+  // Reusable checklist playbooks ("Definition of done", "Release steps").
+  // Scoped like skills to a user or workspace; applying one copies its
+  // items onto a task's embedded checklist.
+  checklistTemplates: defineTable({
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    name: v.string(),
+    items: v.array(v.string()),
+    createdByActorId: v.string(),
+    createdAt: v.number(),
+  }).index("by_scope", ["scopeType", "scopeId"]),
 
   // ── x402 agent payments ─────────────────────────────────────────────
   //
