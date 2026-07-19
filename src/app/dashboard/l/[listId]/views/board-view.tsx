@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { useMutation } from "convex/react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { TaskBadges } from "@/components/dashboard/task-badges";
+import { ChecklistChip } from "@/components/dashboard/checklist";
+import { Monogram } from "@/components/dashboard/monogram";
+import { useToast } from "@/components/toast";
 import {
   DndContext,
   DragOverlay,
@@ -26,19 +29,52 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarDays, GripVertical } from "lucide-react";
+import { CalendarDays, Ellipsis, GripVertical } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { parseQuickAdd } from "@/lib/quick-add";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
-import { EASE, motion } from "@/components/motion";
+import { AnimatePresence, EASE, motion } from "@/components/motion";
 
 import {
   PRIORITY_LABEL,
+  PRIORITY_ORDER,
+  PriorityChip,
   PriorityDot,
   type TaskPriority,
 } from "@/components/dashboard/priority";
+
+// Swimlanes: group the same status columns into horizontal bands. "none" is
+// the original single-row board — its layout and DnD wiring stay byte-for-
+// byte the same as before this feature; lane modes reuse the exact same
+// `columns` (grouped by status across the WHOLE list) for drag math, and
+// only filter what's rendered per band. Cross-lane drops therefore always
+// resolve to a status-only change, never a silent reassignment.
+type LaneMode = "none" | "assignee" | "priority";
+
+function parseLaneMode(value: string | null): LaneMode {
+  return value === "assignee" || value === "priority" ? value : "none";
+}
+
+function laneKeyFor(task: Doc<"tasks">, mode: LaneMode): string {
+  if (mode === "assignee") return task.assigneeClerkIds[0] ?? "__unassigned";
+  if (mode === "priority") return task.priority ?? "__none";
+  return "__all";
+}
+
+// Empty-column droppable ids are namespaced by lane so @dnd-kit sees a
+// distinct target per (lane, status) pair; task ids never need namespacing
+// since a task belongs to exactly one lane already.
+function columnDomId(laneKey: string | null, statusId: Id<"listStatuses">): string {
+  return laneKey === null ? statusId : `${laneKey}::${statusId}`;
+}
+
+type LaneDescriptor = {
+  key: string;
+  label: string;
+  priority?: TaskPriority | null;
+};
 
 export function BoardView({
   listId,
@@ -58,12 +94,17 @@ export function BoardView({
 
   const reorder = useMutation(api.tasks.reorder);
 
+  const searchParams = useSearchParams();
+  const laneMode = parseLaneMode(searchParams.get("lane"));
+
   const sortedStatuses = useMemo(
     () => [...statuses].sort((a, b) => a.position - b.position),
     [statuses],
   );
 
-  // Group tasks by statusId, sorted by position.
+  // Group tasks by statusId, sorted by position — across the whole list,
+  // regardless of lane. This is the single source of truth for drag math;
+  // lane bands just filter what subset of each bucket they render.
   const columns = useMemo(() => {
     const map = new Map<Id<"listStatuses">, Doc<"tasks">[]>();
     for (const status of sortedStatuses) map.set(status._id, []);
@@ -76,6 +117,68 @@ export function BoardView({
       bucket.sort((a, b) => a.position - b.position);
     return map;
   }, [orderedTasks, sortedStatuses]);
+
+  // Resolve display names for assignee lanes. Only fetched in assignee mode.
+  const assigneeIds = useMemo(() => {
+    if (laneMode !== "assignee") return [];
+    const set = new Set<string>();
+    for (const t of orderedTasks) {
+      const id = t.assigneeClerkIds[0];
+      if (id) set.add(id);
+    }
+    return [...set];
+  }, [orderedTasks, laneMode]);
+  const assigneeUsers = useQuery(
+    api.users.listByClerkIds,
+    laneMode === "assignee" ? { clerkIds: assigneeIds } : "skip",
+  );
+
+  const lanes = useMemo<LaneDescriptor[] | null>(() => {
+    if (laneMode === "none") return null;
+    if (laneMode === "priority") {
+      const withCounts = [...PRIORITY_ORDER, null].map((p) => ({
+        key: p ?? "__none",
+        label: p ? PRIORITY_LABEL[p] : "No priority",
+        priority: p,
+      }));
+      return withCounts.filter((lane) =>
+        orderedTasks.some((t) => laneKeyFor(t, laneMode) === lane.key),
+      );
+    }
+    // assignee
+    const nameFor = (clerkId: string) => {
+      const u = assigneeUsers?.find((u) => u.clerkId === clerkId);
+      return u?.name || u?.email || "Teammate";
+    };
+    const keys = new Set<string>();
+    for (const t of orderedTasks) keys.add(laneKeyFor(t, laneMode));
+    const people = [...keys]
+      .filter((k) => k !== "__unassigned")
+      .map((k) => ({ key: k, label: nameFor(k) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    const result: LaneDescriptor[] = [...people];
+    if (keys.has("__unassigned")) {
+      result.push({ key: "__unassigned", label: "Unassigned" });
+    }
+    return result;
+  }, [laneMode, orderedTasks, assigneeUsers]);
+
+  // Maps every rendered droppable column id (namespaced by lane) back to its
+  // real status id, so dropping on an empty column resolves correctly in
+  // both plain and lane modes.
+  const emptyColumnIds = useMemo(() => {
+    const map = new Map<string, Id<"listStatuses">>();
+    if (laneMode === "none") {
+      for (const s of sortedStatuses) map.set(columnDomId(null, s._id), s._id);
+    } else {
+      for (const lane of lanes ?? []) {
+        for (const s of sortedStatuses) {
+          map.set(columnDomId(lane.key, s._id), s._id);
+        }
+      }
+    }
+    return map;
+  }, [laneMode, lanes, sortedStatuses]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -102,8 +205,9 @@ export function BoardView({
 
     const activeColumn = findColumnFor(activeId);
     let overColumn: Id<"listStatuses"> | null = null;
-    if (sortedStatuses.some((s) => s._id === overId)) {
-      overColumn = overId as Id<"listStatuses">;
+    const mapped = emptyColumnIds.get(overId as string);
+    if (mapped) {
+      overColumn = mapped;
     } else {
       overColumn = findColumnFor(overId as Id<"tasks">);
     }
@@ -128,9 +232,10 @@ export function BoardView({
     let targetStatus: Id<"listStatuses"> = activeTask.statusId;
     let insertIndex = -1;
 
-    if (sortedStatuses.some((s) => s._id === overId)) {
+    const mapped = emptyColumnIds.get(overId as string);
+    if (mapped) {
       // Dropped on an empty column — append.
-      targetStatus = overId as Id<"listStatuses">;
+      targetStatus = mapped;
       const bucket = columns.get(targetStatus) ?? [];
       insertIndex = bucket.length;
     } else {
@@ -199,37 +304,160 @@ export function BoardView({
           </button>
         </div>
       )}
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCorners}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDragEnd={onDragEnd}
-    >
-      <div className="flex gap-3 overflow-x-auto pb-2">
-        {sortedStatuses.map((status, i) => {
-          const columnTasks = columns.get(status._id) ?? [];
-          return (
-            <motion.div
-              key={status._id}
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, ease: EASE, delay: i * 0.06 }}
-            >
-              <Column
-                listId={listId}
-                status={status}
-                tasks={columnTasks}
-              />
-            </motion.div>
-          );
-        })}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <LaneToggle mode={laneMode} />
       </div>
-      <DragOverlay>
-        {activeTask && <CardChrome task={activeTask} dragging />}
-      </DragOverlay>
-    </DndContext>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+      >
+        {laneMode === "none" ? (
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {sortedStatuses.map((status, i) => {
+              const columnTasks = columns.get(status._id) ?? [];
+              return (
+                <motion.div
+                  key={status._id}
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, ease: EASE, delay: i * 0.06 }}
+                >
+                  <Column
+                    listId={listId}
+                    status={status}
+                    tasks={columnTasks}
+                    domId={columnDomId(null, status._id)}
+                  />
+                </motion.div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {(lanes ?? []).map((lane, li) => (
+              <motion.section
+                key={lane.key}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: EASE, delay: li * 0.05 }}
+                aria-label={lane.label}
+                className="bento-tile p-3"
+              >
+                <LaneHeader lane={lane} laneMode={laneMode} />
+                <div className="flex gap-3 overflow-x-auto pb-1 pt-2">
+                  {sortedStatuses.map((status) => {
+                    const bucket = (columns.get(status._id) ?? []).filter(
+                      (t) => laneKeyFor(t, laneMode) === lane.key,
+                    );
+                    return (
+                      <Column
+                        key={status._id}
+                        listId={listId}
+                        status={status}
+                        tasks={bucket}
+                        domId={columnDomId(lane.key, status._id)}
+                      />
+                    );
+                  })}
+                </div>
+              </motion.section>
+            ))}
+            {(lanes ?? []).length === 0 && (
+              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                No tasks yet.
+              </p>
+            )}
+          </div>
+        )}
+        <DragOverlay>
+          {activeTask && <CardChrome task={activeTask} dragging />}
+        </DragOverlay>
+      </DndContext>
     </>
+  );
+}
+
+// Segmented "No lanes / Assignee / Priority" control, persisted in the URL
+// (?lane=assignee|priority, absent = none) so the grouping is shareable and
+// survives reload, matching the rest of the board/list's URL-driven state.
+function LaneToggle({ mode }: { mode: LaneMode }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  function setLane(next: LaneMode) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "none") params.delete("lane");
+    else params.set("lane", next);
+    const qs = params.toString();
+    router.replace(qs ? `?${qs}` : "?", { scroll: false });
+  }
+
+  const options: { key: LaneMode; label: string }[] = [
+    { key: "none", label: "No lanes" },
+    { key: "assignee", label: "Assignee" },
+    { key: "priority", label: "Priority" },
+  ];
+
+  return (
+    <div role="tablist" aria-label="Swimlanes" className="segmented text-sm">
+      {options.map((o) => (
+        <button
+          key={o.key}
+          type="button"
+          role="tab"
+          aria-selected={mode === o.key}
+          onClick={() => setLane(o.key)}
+          className={cn(
+            "rounded-full px-3 py-1.5 transition-colors",
+            mode === o.key
+              ? "segmented-on font-medium text-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function LaneHeader({
+  lane,
+  laneMode,
+}: {
+  lane: LaneDescriptor;
+  laneMode: LaneMode;
+}) {
+  if (laneMode === "assignee") {
+    if (lane.key === "__unassigned") {
+      return (
+        <div className="flex items-center gap-2 px-1">
+          <span className="text-sm font-semibold text-muted-foreground">
+            Unassigned
+          </span>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2 px-1">
+        <Monogram name={lane.label} size="sm" />
+        <span className="text-sm font-semibold">{lane.label}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2 px-1">
+      {lane.priority ? (
+        <PriorityChip priority={lane.priority} />
+      ) : (
+        <span className="text-sm font-semibold text-muted-foreground">
+          No priority
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -237,12 +465,21 @@ function Column({
   listId,
   status,
   tasks,
+  domId,
 }: {
   listId: Id<"lists">;
   status: Doc<"listStatuses">;
   tasks: Doc<"tasks">[];
+  domId: string;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: status._id });
+  const { setNodeRef, isOver } = useDroppable({ id: domId });
+
+  const wipLimit = status.wipLimit;
+  const overLimit = typeof wipLimit === "number" && tasks.length > wipLimit;
+  const pointsTotal = tasks.reduce(
+    (sum, t) => sum + (t.estimatePoints ?? 0),
+    0,
+  );
 
   return (
     <section
@@ -254,15 +491,38 @@ function Column({
       )}
     >
       <header className="flex items-center justify-between gap-2 px-3 py-2">
-        <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="inline-flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           <span
             aria-hidden
-            className="inline-block h-2 w-2 rounded-full"
+            className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
             style={{ backgroundColor: status.color }}
           />
-          {status.name}
+          <span className="truncate">{status.name}</span>
         </span>
-        <span className="text-xs text-muted-foreground">{tasks.length}</span>
+        <span className="flex flex-shrink-0 items-center gap-1.5">
+          {pointsTotal > 0 && (
+            <span className="text-[11px] font-normal normal-case text-muted-foreground">
+              {pointsTotal} pts
+            </span>
+          )}
+          {overLimit && (
+            <span className="rounded-full bg-pastel-red px-1.5 py-0.5 text-[10px] font-medium normal-case text-foreground">
+              Over WIP
+            </span>
+          )}
+          <span
+            className={cn(
+              "text-xs font-normal normal-case",
+              overLimit
+                ? "font-semibold text-danger"
+                : "text-muted-foreground",
+            )}
+          >
+            {tasks.length}
+            {typeof wipLimit === "number" ? `/${wipLimit}` : ""}
+          </span>
+          <ColumnMenu status={status} />
+        </span>
       </header>
       <SortableContext
         items={tasks.map((t) => t._id)}
@@ -281,6 +541,108 @@ function Column({
       </SortableContext>
       <ColumnAdd listId={listId} statusId={status._id} />
     </section>
+  );
+}
+
+// Per-column WIP limit menu. Advisory only — never blocks drops, just flags
+// the column header when a limit is set and exceeded.
+function ColumnMenu({ status }: { status: Doc<"listStatuses"> }) {
+  const update = useMutation(api.listStatuses.update);
+  const { toast } = useToast();
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(
+    status.wipLimit ? String(status.wipLimit) : "",
+  );
+
+  useEffect(() => {
+    if (open) setValue(status.wipLimit ? String(status.wipLimit) : "");
+  }, [open, status.wipLimit]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: PointerEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  async function save(next: number | null) {
+    try {
+      await update({ statusId: status._id, wipLimit: next });
+      toast(next ? `WIP limit set to ${next}` : "WIP limit cleared");
+      setOpen(false);
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const msg =
+        raw.split("Uncaught Error:").pop()?.trim().slice(0, 200) ||
+        "Couldn't update the limit";
+      toast(msg, { kind: "error" });
+    }
+  }
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        aria-label={`${status.name} column options`}
+        aria-expanded={open}
+        aria-haspopup="true"
+        onClick={() => setOpen((v) => !v)}
+        className="tap-target inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+      >
+        <Ellipsis className="h-3.5 w-3.5" />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.98 }}
+            transition={{ duration: 0.18, ease: EASE }}
+            className="absolute right-0 top-full z-30 mt-1.5 w-52 rounded-2xl bg-background p-3 normal-case shadow-lg"
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              WIP limit
+            </p>
+            <form
+              className="mt-2 flex items-center gap-1.5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const n = Number(value);
+                save(Number.isFinite(n) && n > 0 ? Math.floor(n) : null);
+              }}
+            >
+              <input
+                type="number"
+                min={1}
+                value={value}
+                onChange={(e) => setValue(e.currentTarget.value)}
+                placeholder="None"
+                aria-label={`WIP limit for ${status.name}`}
+                className="soft-field w-full px-2.5 py-1.5 text-sm"
+              />
+              <button
+                type="submit"
+                className="flex-shrink-0 rounded-full bg-foreground px-2.5 py-1.5 text-xs font-medium text-background"
+              >
+                Save
+              </button>
+            </form>
+            {status.wipLimit !== undefined && (
+              <button
+                type="button"
+                onClick={() => save(null)}
+                className="mt-2 text-xs text-muted-foreground hover:text-danger"
+              >
+                Clear limit
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -386,10 +748,19 @@ function Card({
         <Link
           href={taskPeekHref(searchParams, task._id)}
           scroll={false}
-          className="block flex-1 text-sm font-medium hover:underline"
+          className="flex flex-1 items-start gap-1.5 text-sm font-medium hover:underline"
         >
-          {task.title}
-          <TaskBadges task={task} />
+          {task.milestone && (
+            <span
+              aria-hidden
+              title="Milestone"
+              className="mt-1 h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/50"
+            />
+          )}
+          <span className="min-w-0">
+            {task.title}
+            <TaskBadges task={task} />
+          </span>
         </Link>
       </div>
       <CardMeta task={task} />
@@ -411,9 +782,18 @@ function CardChrome({
         dragging && "rotate-2",
       )}
     >
-      <p className="text-sm font-medium">
-        {task.title}
-        <TaskBadges task={task} />
+      <p className="flex items-start gap-1.5 text-sm font-medium">
+        {task.milestone && (
+          <span
+            aria-hidden
+            title="Milestone"
+            className="mt-1 h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/50"
+          />
+        )}
+        <span className="min-w-0">
+          {task.title}
+          <TaskBadges task={task} />
+        </span>
       </p>
       <CardMeta task={task} />
     </div>
@@ -421,10 +801,13 @@ function CardChrome({
 }
 
 function CardMeta({ task }: { task: Doc<"tasks"> }) {
-  const showFooter = task.priority || task.dueDate;
+  const hasChecklist = (task.checklist?.length ?? 0) > 0;
+  const hasEstimate =
+    typeof task.estimatePoints === "number" && task.estimatePoints > 0;
+  const showFooter = task.priority || task.dueDate || hasEstimate || hasChecklist;
   if (!showFooter) return null;
   return (
-    <div className="flex items-center gap-2 px-3 pb-3 text-xs text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-2 px-3 pb-3 text-xs text-muted-foreground">
       {task.priority && (
         <span className="inline-flex items-center gap-1">
           <PriorityDot priority={task.priority as TaskPriority} className="h-1.5 w-1.5" />
@@ -440,6 +823,12 @@ function CardMeta({ task }: { task: Doc<"tasks"> }) {
           })}
         </span>
       )}
+      {hasEstimate && (
+        <span className="inline-flex items-center rounded-full bg-pastel-blue px-1.5 py-0.5 text-[11px] font-medium text-foreground/80">
+          {task.estimatePoints} pts
+        </span>
+      )}
+      <ChecklistChip checklist={task.checklist} />
     </div>
   );
 }
