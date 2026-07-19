@@ -482,7 +482,7 @@ function TitleCell({ task, isDone }: { task: Doc<"tasks">; isDone: boolean }) {
         <span
           aria-hidden
           title="Milestone"
-          className="mr-1.5 inline-block h-2 w-2 flex-shrink-0 rotate-45 border-[1.5px] border-foreground/70"
+          className="mr-1.5 inline-block h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/60"
         />
       )}
       <a

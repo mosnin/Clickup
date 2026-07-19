@@ -215,3 +215,82 @@ describe("scrum board", () => {
     ).toBe(true);
   });
 });
+
+describe("private-space privacy", () => {
+  it("board hides tasks from a private space the viewer can't access", async () => {
+    const t = convexTest(schema, modules);
+    const workspaceId = await seed(t);
+    const owner = t.withIdentity(OWNER);
+
+    // Private space created by a third party; OWNER still sees it via the
+    // workspace-owner bypass, plain MEMBER must not.
+    const { privateListId, publicListId } = await t.run(async (ctx) => {
+      const privateSpaceId = await ctx.db.insert("spaces", {
+        name: "Secret",
+        parentType: "workspace",
+        parentId: workspaceId,
+        position: 0,
+        createdAt: Date.now(),
+        private: true,
+        createdByClerkId: "user_third",
+        memberClerkIds: ["user_third"],
+      });
+      const publicSpaceId = await ctx.db.insert("spaces", {
+        name: "Open",
+        parentType: "workspace",
+        parentId: workspaceId,
+        position: 1,
+        createdAt: Date.now(),
+      });
+      const mkList = async (spaceId: Id<"spaces">, name: string) => {
+        const listId = await ctx.db.insert("lists", {
+          name,
+          parentType: "space",
+          parentId: spaceId,
+          position: 0,
+          createdAt: Date.now(),
+        });
+        await ctx.db.insert("listStatuses", {
+          listId,
+          name: "To Do",
+          color: "#aaa",
+          category: "open",
+          position: 0,
+          createdAt: Date.now(),
+        });
+        return listId;
+      };
+      return {
+        privateListId: await mkList(privateSpaceId, "Secret list"),
+        publicListId: await mkList(publicSpaceId, "Open list"),
+      };
+    });
+
+    const sprintId = await owner.mutation(api.sprints.create, {
+      workspaceId,
+      name: "Sprint 1",
+      startDate: Date.now(),
+      endDate: Date.now() + 14 * 86_400_000,
+    });
+    await owner.mutation(api.tasks.create, {
+      listId: privateListId,
+      title: "Secret work",
+      sprintId,
+    });
+    await owner.mutation(api.tasks.create, {
+      listId: publicListId,
+      title: "Open work",
+      sprintId,
+    });
+
+    const ownerBoard = await owner.query(api.scrumBoard.board, { sprintId });
+    expect(ownerBoard?.tasks.map((x) => x.title).sort()).toEqual([
+      "Open work",
+      "Secret work",
+    ]);
+
+    const member = t.withIdentity(MEMBER);
+    const memberBoard = await member.query(api.scrumBoard.board, { sprintId });
+    expect(memberBoard?.tasks.map((x) => x.title)).toEqual(["Open work"]);
+  });
+});

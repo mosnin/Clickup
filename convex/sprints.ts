@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireIdentity, requireListAccess } from "./_authz";
+import { canAccessSpace, requireIdentity, requireListAccess } from "./_authz";
 import type { Actor } from "./_agentAuth";
 import { emitEvent, scopeForList, userActor } from "./events";
 
@@ -127,9 +127,16 @@ export async function updateSprintCore(
 
 // Task rollup for one sprint: totals by status category plus per-assignee
 // counts. Cheap at our scale (walks the sprint's tasks once).
+//
+// When `viewerSubject` is provided (the human-facing summary query),
+// tasks living in spaces that viewer can't access — private spaces they
+// aren't in — are dropped entirely, titles and counts both. Agent-key
+// callers pass no subject: agent visibility is governed separately by
+// role/allowedListIds in _agentAuth, not by human space membership.
 export async function sprintSummaryCore(
   ctx: QueryCtx | MutationCtx,
   sprintId: Id<"sprints">,
+  viewerSubject?: string,
 ) {
   const sprint = await ctx.db.get(sprintId);
   if (!sprint) return null;
@@ -137,12 +144,34 @@ export async function sprintSummaryCore(
     .query("tasks")
     .withIndex("by_sprint", (q) => q.eq("sprintId", sprintId))
     .collect();
+  const spaceOkCache = new Map<Id<"spaces">, boolean>();
+  async function visibleToViewer(listId: Id<"lists">): Promise<boolean> {
+    if (viewerSubject === undefined) return true;
+    const list = await ctx.db.get(listId);
+    if (!list) return false;
+    let spaceId: Id<"spaces">;
+    if (list.parentType === "space") {
+      spaceId = list.parentId as Id<"spaces">;
+    } else {
+      const folder = await ctx.db.get(list.parentId as Id<"folders">);
+      if (!folder) return false;
+      spaceId = folder.spaceId;
+    }
+    const cached = spaceOkCache.get(spaceId);
+    if (cached !== undefined) return cached;
+    const space = await ctx.db.get(spaceId);
+    const ok =
+      !!space && (await canAccessSpace(ctx, space, { subject: viewerSubject }));
+    spaceOkCache.set(spaceId, ok);
+    return ok;
+  }
   let open = 0;
   let inProgress = 0;
   let done = 0;
   const byAssignee: Record<string, number> = {};
   const items = [];
   for (const t of tasks) {
+    if (!(await visibleToViewer(t.listId))) continue;
     const status = await ctx.db.get(t.statusId);
     const category = status?.category ?? "open";
     if (category === "complete" || category === "closed") done++;
@@ -164,7 +193,7 @@ export async function sprintSummaryCore(
   }
   return {
     sprint,
-    totals: { total: tasks.length, open, inProgress, done },
+    totals: { total: items.length, open, inProgress, done },
     byAssignee,
     tasks: items,
   };
@@ -237,8 +266,9 @@ export const addableTasks = query({
   handler: async (ctx, { sprintId }) => {
     const sprint = await ctx.db.get(sprintId);
     if (!sprint) return [];
+    let subject: string;
     try {
-      await requireWorkspaceMember(ctx, sprint.workspaceId);
+      subject = await requireWorkspaceMember(ctx, sprint.workspaceId);
     } catch {
       return [];
     }
@@ -250,6 +280,10 @@ export const addableTasks = query({
       )
       .collect();
     for (const space of spaces) {
+      // Skip archived spaces and private spaces the caller can't access —
+      // same per-viewer gate as sprintPlanning's backlog walk.
+      if (space.archivedAt !== undefined) continue;
+      if (!(await canAccessSpace(ctx, space, { subject }))) continue;
       const parents: { type: "space" | "folder"; id: string }[] = [
         { type: "space", id: space._id },
       ];
@@ -294,12 +328,13 @@ export const summary = query({
   handler: async (ctx, { sprintId }) => {
     const sprint = await ctx.db.get(sprintId);
     if (!sprint) return null;
+    let subject: string;
     try {
-      await requireWorkspaceMember(ctx, sprint.workspaceId);
+      subject = await requireWorkspaceMember(ctx, sprint.workspaceId);
     } catch {
       return null;
     }
-    return await sprintSummaryCore(ctx, sprintId);
+    return await sprintSummaryCore(ctx, sprintId, subject);
   },
 });
 

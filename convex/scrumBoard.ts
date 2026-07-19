@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireIdentity, requireTaskAccess } from "./_authz";
+import { canAccessSpace, requireIdentity, requireTaskAccess } from "./_authz";
 import { updateTaskCore } from "./tasks";
 import { userActor } from "./events";
 
@@ -63,8 +63,9 @@ export const board = query({
   handler: async (ctx, { sprintId }) => {
     const sprint = await ctx.db.get(sprintId);
     if (!sprint) return null;
+    let subject: string;
     try {
-      await requireWorkspaceMember(ctx, sprint.workspaceId);
+      subject = await requireWorkspaceMember(ctx, sprint.workspaceId);
     } catch {
       return null;
     }
@@ -80,6 +81,27 @@ export const board = query({
       Doc<"listStatuses"> | null
     >();
 
+    // Per-viewer space gate: a task committed to the sprint from a
+    // private space must stay invisible to members who can't access that
+    // space — workspace membership alone isn't enough to see its title.
+    const spaceOkCache = new Map<Id<"spaces">, boolean>();
+    async function spaceVisible(spaceId: Id<"spaces">): Promise<boolean> {
+      const cached = spaceOkCache.get(spaceId);
+      if (cached !== undefined) return cached;
+      const space = await ctx.db.get(spaceId);
+      const ok = !!space && (await canAccessSpace(ctx, space, { subject }));
+      spaceOkCache.set(spaceId, ok);
+      return ok;
+    }
+    async function listVisible(list: Doc<"lists"> | null): Promise<boolean> {
+      if (!list) return false;
+      if (list.parentType === "space") {
+        return await spaceVisible(list.parentId as Id<"spaces">);
+      }
+      const folder = await ctx.db.get(list.parentId as Id<"folders">);
+      return !!folder && (await spaceVisible(folder.spaceId));
+    }
+
     const out: ScrumBoardTask[] = [];
     for (const t of tasks) {
       let list = listCache.get(t.listId);
@@ -87,6 +109,7 @@ export const board = query({
         list = await ctx.db.get(t.listId);
         listCache.set(t.listId, list);
       }
+      if (!(await listVisible(list))) continue;
       let status = statusCache.get(t.statusId);
       if (status === undefined) {
         status = await ctx.db.get(t.statusId);

@@ -494,7 +494,7 @@ function NodeCard({
           <span
             aria-label="Milestone"
             title="Milestone"
-            className="mt-0.5 h-2 w-2 flex-shrink-0 rotate-45 bg-foreground/70"
+            className="mt-0.5 h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/60"
           />
         )}
       </div>

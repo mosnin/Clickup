@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireIdentity, requireTaskAccess } from "./_authz";
+import { canAccessSpace, requireIdentity, requireTaskAccess } from "./_authz";
 import { updateTaskCore } from "./tasks";
 import { userActor } from "./events";
 
@@ -90,14 +90,48 @@ export const planning = query({
   handler: async (ctx, { sprintId }) => {
     const sprint = await ctx.db.get(sprintId);
     if (!sprint) return null;
+    let subject: string;
     try {
-      await requireWorkspaceMember(ctx, sprint.workspaceId);
+      subject = await requireWorkspaceMember(ctx, sprint.workspaceId);
     } catch {
       return null;
     }
 
     const listNameCache = new Map<Id<"lists">, string>();
     const sprintNameCache = new Map<Id<"sprints">, string>();
+
+    // Per-viewer space gate: tasks in a private space the caller can't
+    // access must not surface here (title leak), even though the caller
+    // is a workspace member. Cached per space; committed tasks resolve
+    // their space through the list's parent chain.
+    const spaceOkCache = new Map<Id<"spaces">, boolean>();
+    async function spaceVisible(spaceId: Id<"spaces">): Promise<boolean> {
+      const cached = spaceOkCache.get(spaceId);
+      if (cached !== undefined) return cached;
+      const space = await ctx.db.get(spaceId);
+      const ok =
+        !!space &&
+        space.archivedAt === undefined &&
+        (await canAccessSpace(ctx, space, { subject }));
+      spaceOkCache.set(spaceId, ok);
+      return ok;
+    }
+    const listSpaceCache = new Map<Id<"lists">, Id<"spaces"> | null>();
+    async function taskListVisible(listId: Id<"lists">): Promise<boolean> {
+      let spaceId = listSpaceCache.get(listId);
+      if (spaceId === undefined) {
+        const list = await ctx.db.get(listId);
+        if (!list) spaceId = null;
+        else if (list.parentType === "space") {
+          spaceId = list.parentId as Id<"spaces">;
+        } else {
+          const folder = await ctx.db.get(list.parentId as Id<"folders">);
+          spaceId = folder ? folder.spaceId : null;
+        }
+        listSpaceCache.set(listId, spaceId);
+      }
+      return spaceId !== null && (await spaceVisible(spaceId));
+    }
 
     const committedTasks = await ctx.db
       .query("tasks")
@@ -107,6 +141,7 @@ export const planning = query({
     let committedPoints = 0;
     let committedUnestimated = 0;
     for (const t of committedTasks) {
+      if (!(await taskListVisible(t.listId))) continue;
       const row = await toPlanningTask(ctx, t, listNameCache, sprintNameCache);
       committed.push(row);
       if (typeof t.estimatePoints === "number") {
@@ -124,6 +159,7 @@ export const planning = query({
       )
       .collect();
     outer: for (const space of spaces) {
+      if (!(await spaceVisible(space._id))) continue;
       const parents: { type: "space" | "folder"; id: string }[] = [
         { type: "space", id: space._id },
       ];

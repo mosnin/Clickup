@@ -442,13 +442,17 @@ export function GanttView({
       if (!task) return;
 
       // A milestone is a single point in time, not a range — dragging it
-      // (move only, no edge handles exist) always writes the one date it's
-      // anchored on.
+      // (move only, no edge handles exist) moves that point. Keep BOTH
+      // date fields on the same day when both exist, otherwise the stale
+      // startDate would silently disagree with the diamond's position
+      // (and skew portfolio's earliest-start math).
       if (task.milestone) {
         const newAnchor = cur.startOffset + cur.delta;
+        const anchorTs = addDays(start, newAnchor).getTime();
         void update({
           taskId: cur.taskId,
-          dueDate: addDays(start, newAnchor).getTime(),
+          dueDate: anchorTs,
+          ...(task.startDate !== undefined ? { startDate: anchorTs } : {}),
         });
         return;
       }

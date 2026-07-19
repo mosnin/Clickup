@@ -500,7 +500,7 @@ function TaskRow({
             <span
               aria-hidden
               title="Milestone"
-              className="h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/40"
+              className="h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/60"
             />
           )}
           <Link

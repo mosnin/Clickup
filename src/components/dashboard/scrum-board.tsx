@@ -462,7 +462,7 @@ function CardContent({
           <span
             aria-label="Milestone"
             title="Milestone"
-            className="mt-1 h-2 w-2 flex-shrink-0 rotate-45 bg-foreground"
+            className="mt-1 h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/60"
           />
         )}
       </div>
@@ -490,7 +490,7 @@ function CardContent({
         task.blockedOpenCount > 0) && (
         <div className="flex flex-wrap items-center gap-1.5">
           {task.estimatePoints !== undefined && (
-            <span className="rounded-full bg-pastel-blue px-2 py-0.5 text-[11px] font-medium text-foreground/80">
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
               {task.estimatePoints} pts
             </span>
           )}

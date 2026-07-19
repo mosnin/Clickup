@@ -359,6 +359,7 @@ export function BoardView({
                         status={status}
                         tasks={bucket}
                         domId={columnDomId(lane.key, status._id)}
+                        totalInStatus={(columns.get(status._id) ?? []).length}
                       />
                     );
                   })}
@@ -466,16 +467,23 @@ function Column({
   status,
   tasks,
   domId,
+  totalInStatus,
 }: {
   listId: Id<"lists">;
   status: Doc<"listStatuses">;
   tasks: Doc<"tasks">[];
   domId: string;
+  // Full column size across ALL lanes. WIP is a property of the status
+  // column, not of one swimlane's slice — without this, switching into
+  // lane mode would silently change (and usually hide) what "over WIP"
+  // means.
+  totalInStatus?: number;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: domId });
 
   const wipLimit = status.wipLimit;
-  const overLimit = typeof wipLimit === "number" && tasks.length > wipLimit;
+  const wipCount = totalInStatus ?? tasks.length;
+  const overLimit = typeof wipLimit === "number" && wipCount > wipLimit;
   const pointsTotal = tasks.reduce(
     (sum, t) => sum + (t.estimatePoints ?? 0),
     0,
@@ -517,9 +525,15 @@ function Column({
                 ? "font-semibold text-danger"
                 : "text-muted-foreground",
             )}
+            title={
+              typeof wipLimit === "number" && totalInStatus !== undefined
+                ? `${wipCount} in this column across all lanes (limit ${wipLimit})`
+                : undefined
+            }
           >
-            {tasks.length}
-            {typeof wipLimit === "number" ? `/${wipLimit}` : ""}
+            {typeof wipLimit === "number"
+              ? `${wipCount}/${wipLimit}`
+              : tasks.length}
           </span>
           <ColumnMenu status={status} />
         </span>
@@ -754,7 +768,7 @@ function Card({
             <span
               aria-hidden
               title="Milestone"
-              className="mt-1 h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/50"
+              className="mt-1 h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/60"
             />
           )}
           <span className="min-w-0">
@@ -787,7 +801,7 @@ function CardChrome({
           <span
             aria-hidden
             title="Milestone"
-            className="mt-1 h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/50"
+            className="mt-1 h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/60"
           />
         )}
         <span className="min-w-0">
@@ -824,7 +838,7 @@ function CardMeta({ task }: { task: Doc<"tasks"> }) {
         </span>
       )}
       {hasEstimate && (
-        <span className="inline-flex items-center rounded-full bg-pastel-blue px-1.5 py-0.5 text-[11px] font-medium text-foreground/80">
+        <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
           {task.estimatePoints} pts
         </span>
       )}

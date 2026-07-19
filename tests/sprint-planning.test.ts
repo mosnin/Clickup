@@ -206,6 +206,99 @@ describe("velocityPoints", () => {
   });
 });
 
+describe("private-space privacy", () => {
+  it("planning hides private-space tasks (committed AND backlog) from a plain member", async () => {
+    const { t, owner, workspaceId, listId } = await setup();
+    const MEMBER = { subject: "user_member", email: "member@team.com" };
+    const { privateListId } = await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        clerkId: MEMBER.subject,
+        email: MEMBER.email,
+      });
+      await ctx.db.insert("memberships", {
+        workspaceId,
+        userClerkId: MEMBER.subject,
+        role: "member",
+        joinedAt: Date.now(),
+      });
+      // Private space created by a third user — neither OWNER-created nor
+      // member-listed, but OWNER still sees it as workspace owner.
+      const privateSpaceId = await ctx.db.insert("spaces", {
+        name: "Secret",
+        parentType: "workspace",
+        parentId: workspaceId,
+        position: 1,
+        createdAt: Date.now(),
+        private: true,
+        createdByClerkId: "user_third",
+        memberClerkIds: ["user_third"],
+      });
+      const privateListId = await ctx.db.insert("lists", {
+        name: "Secret plans",
+        parentType: "space",
+        parentId: privateSpaceId,
+        position: 0,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("listStatuses", {
+        listId: privateListId,
+        name: "To Do",
+        color: "#aaa",
+        category: "open",
+        position: 0,
+        createdAt: Date.now(),
+      });
+      return { privateListId };
+    });
+
+    const sprintId = await owner.mutation(api.sprints.create, {
+      workspaceId,
+      name: "Sprint 1",
+      startDate: Date.now(),
+      endDate: Date.now() + 7 * 86_400_000,
+    });
+    const secretCommitted = await owner.mutation(api.tasks.create, {
+      listId: privateListId,
+      title: "Secret committed",
+      estimatePoints: 8,
+    });
+    await owner.mutation(api.sprintPlanning.commit, {
+      sprintId,
+      taskId: secretCommitted,
+    });
+    await owner.mutation(api.tasks.create, {
+      listId: privateListId,
+      title: "Secret backlog",
+    });
+    const publicTask = await owner.mutation(api.tasks.create, {
+      listId,
+      title: "Public backlog",
+    });
+
+    // The workspace owner sees everything (owner bypass on private spaces).
+    const ownerView = await owner.query(api.sprintPlanning.planning, {
+      sprintId,
+    });
+    expect(ownerView?.committed.map((r) => r.taskId)).toEqual([
+      secretCommitted,
+    ]);
+    expect(ownerView?.backlog.map((r) => r.title).sort()).toEqual([
+      "Public backlog",
+      "Secret backlog",
+    ]);
+
+    // A plain member must see NO trace of the private space: no committed
+    // row, no backlog row, no points from the hidden task.
+    const member = t.withIdentity(MEMBER);
+    const memberView = await member.query(api.sprintPlanning.planning, {
+      sprintId,
+    });
+    expect(memberView?.committed).toEqual([]);
+    expect(memberView?.committedPoints).toBe(0);
+    expect(memberView?.backlog.map((r) => r.taskId)).toEqual([publicTask]);
+  });
+});
+
 describe("access control", () => {
   it("planning returns null for a non-member", async () => {
     const { t, owner, workspaceId, listId } = await setup();
