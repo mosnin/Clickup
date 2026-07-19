@@ -11,6 +11,8 @@ import { Picker } from "@/components/ui/picker";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { useToast } from "@/components/toast";
+import { ScrumBoard } from "@/components/dashboard/scrum-board";
+import { SprintPlanning } from "@/components/dashboard/sprint-planning";
 import {
   AnimatedBar,
   AnimatePresence,
@@ -23,6 +25,10 @@ import {
 // Sprints tab on the workspace page: create timeboxes, watch progress,
 // and drill into the per-task rollup. Tasks join a sprint from the task
 // detail page (Sprint select) or when an agent sets sprintId over MCP.
+// Each sprint's expanded detail carries an Overview / Board / Planning
+// sub-nav — Overview keeps the rollup + burndown, Board is the scrum
+// board workstream's per-status swimlanes, Planning is the backlog vs.
+// committed capacity view (convex/sprintPlanning.ts).
 
 const STATUS_STYLE: Record<string, string> = {
   planned: "bg-muted text-muted-foreground",
@@ -31,6 +37,13 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+const DETAIL_TABS = [
+  { key: "overview", label: "Overview" },
+  { key: "board", label: "Board" },
+  { key: "planning", label: "Planning" },
+] as const;
+type DetailTab = (typeof DETAIL_TABS)[number]["key"];
 
 export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const sprints = useQuery(api.sprints.listForWorkspace, { workspaceId });
@@ -74,7 +87,7 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
       <Stagger className="space-y-3">
         {sprints.map((s) => (
           <StaggerItem key={s._id}>
-            <SprintCard sprint={s} />
+            <SprintCard sprint={s} workspaceId={workspaceId} />
           </StaggerItem>
         ))}
       </Stagger>
@@ -172,6 +185,7 @@ function CreateSprintForm({
 
 function SprintCard({
   sprint,
+  workspaceId,
 }: {
   sprint: {
     _id: Id<"sprints">;
@@ -182,9 +196,12 @@ function SprintCard({
     status: "planned" | "active" | "complete";
     taskCount: number;
     doneCount: number;
+    retrospective?: string;
   };
+  workspaceId: Id<"workspaces">;
 }) {
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<DetailTab>("overview");
   const [deleting, setDeleting] = useState(false);
   const update = useMutation(api.sprints.update);
   const remove = useMutation(api.sprints.remove);
@@ -248,12 +265,16 @@ function SprintCard({
           <Button
             size="sm"
             variant="outline"
-            onClick={() =>
-              update({
-                sprintId: sprint._id,
-                status: sprint.status === "planned" ? "active" : "complete",
-              })
-            }
+            onClick={async () => {
+              const nextStatus =
+                sprint.status === "planned" ? "active" : "complete";
+              await update({ sprintId: sprint._id, status: nextStatus });
+              if (nextStatus === "complete") {
+                setOpen(true);
+                setTab("overview");
+                toast("Sprint completed — add a retrospective");
+              }
+            }}
           >
             {sprint.status === "planned" ? "Start" : "Complete"}
           </Button>
@@ -285,7 +306,7 @@ function SprintCard({
       />
 
       <AnimatePresence initial={false}>
-      {open && summary && (
+      {open && (
         <motion.div
           key="expanded"
           initial={{ opacity: 0, height: 0 }}
@@ -293,67 +314,135 @@ function SprintCard({
           exit={{ opacity: 0, height: 0 }}
           transition={{ duration: 0.4, ease: EASE }}
           className="mt-3 space-y-3 overflow-hidden pl-7">
-          {sprint.status !== "planned" && (
-            <BurndownCard
-              sprintId={sprint._id}
-              endDate={sprint.endDate}
-              status={sprint.status}
-            />
-          )}
-          <ul className="space-y-1">
-          {summary.tasks.length === 0 && (
-            <li className="text-xs text-muted-foreground">
-              No tasks in this sprint yet. Add them from a task&apos;s Sprint
-              field.
-            </li>
-          )}
-          {sprint.status !== "complete" && (
-            <li>
-              <Picker
-                label="+ Add task to sprint…"
-                dashed
-                options={(addable ?? []).map((t) => ({
-                  id: t.taskId,
-                  label: t.title,
-                }))}
-                onSelect={(id) =>
-                  updateTask({
-                    taskId: id as Id<"tasks">,
-                    sprintId: sprint._id,
-                  })
-                }
-              />
-            </li>
-          )}
-          {summary.tasks.map((t) => (
-            <li key={t._id} className="flex items-center gap-2 text-sm">
-              <span
-                aria-hidden
+          <div className="segmented w-fit text-xs">
+            {DETAIL_TABS.map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
                 className={cn(
-                  "h-1.5 w-1.5 flex-shrink-0 rounded-full",
-                  t.statusCategory === "complete" ||
-                    t.statusCategory === "closed"
-                    ? "bg-emerald-500"
-                    : t.statusCategory === "in_progress"
-                      ? "bg-blue-500"
-                      : "bg-muted-foreground",
+                  "rounded-full px-3 py-1.5 transition-colors",
+                  tab === key
+                    ? "segmented-on font-medium text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
-              />
-              <Link
-                href={`/dashboard/l/${t.listId}/t/${t._id}`}
-                className="min-w-0 flex-1 truncate hover:underline"
               >
-                {t.title}
-              </Link>
-              <span className="text-xs text-muted-foreground">
-                {t.statusName}
-              </span>
-            </li>
-          ))}
-          </ul>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === "overview" &&
+            (summary ? (
+              <div className="space-y-3">
+                {sprint.status !== "planned" && (
+                  <BurndownCard
+                    sprintId={sprint._id}
+                    endDate={sprint.endDate}
+                    status={sprint.status}
+                  />
+                )}
+                <ul className="space-y-1">
+                  {summary.tasks.length === 0 && (
+                    <li className="text-xs text-muted-foreground">
+                      No tasks in this sprint yet. Add them from a task&apos;s
+                      Sprint field.
+                    </li>
+                  )}
+                  {sprint.status !== "complete" && (
+                    <li>
+                      <Picker
+                        label="+ Add task to sprint…"
+                        dashed
+                        options={(addable ?? []).map((t) => ({
+                          id: t.taskId,
+                          label: t.title,
+                        }))}
+                        onSelect={(id) =>
+                          updateTask({
+                            taskId: id as Id<"tasks">,
+                            sprintId: sprint._id,
+                          })
+                        }
+                      />
+                    </li>
+                  )}
+                  {summary.tasks.map((t) => (
+                    <li key={t._id} className="flex items-center gap-2 text-sm">
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "h-1.5 w-1.5 flex-shrink-0 rounded-full",
+                          t.statusCategory === "complete" ||
+                            t.statusCategory === "closed"
+                            ? "bg-emerald-500"
+                            : t.statusCategory === "in_progress"
+                              ? "bg-blue-500"
+                              : "bg-muted-foreground",
+                        )}
+                      />
+                      <Link
+                        href={`/dashboard/l/${t.listId}/t/${t._id}`}
+                        className="min-w-0 flex-1 truncate hover:underline"
+                      >
+                        {t.title}
+                      </Link>
+                      <span className="text-xs text-muted-foreground">
+                        {t.statusName}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {sprint.status === "complete" && (
+                  <RetrospectiveField sprint={sprint} />
+                )}
+              </div>
+            ) : (
+              <div className="h-24 animate-pulse rounded-2xl bg-muted/40" />
+            ))}
+
+          {tab === "board" && (
+            <ScrumBoard sprintId={sprint._id} workspaceId={workspaceId} />
+          )}
+
+          {tab === "planning" && (
+            <SprintPlanning sprintId={sprint._id} workspaceId={workspaceId} />
+          )}
         </motion.div>
       )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+// Blur-saved retro notes, shown on the Overview tab once a sprint
+// completes — the nudge toast on Complete points people back here.
+function RetrospectiveField({
+  sprint,
+}: {
+  sprint: { _id: Id<"sprints">; retrospective?: string };
+}) {
+  const update = useMutation(api.sprints.update);
+  const { toast } = useToast();
+
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Retrospective
+      </p>
+      <textarea
+        key={sprint._id}
+        defaultValue={sprint.retrospective ?? ""}
+        placeholder="What went well? What would you change next sprint?"
+        rows={3}
+        onBlur={(e) => {
+          const value = e.currentTarget.value;
+          if (value === (sprint.retrospective ?? "")) return;
+          update({ sprintId: sprint._id, retrospective: value });
+          toast("Saved");
+        }}
+        className="soft-field mt-2 w-full resize-none px-3 py-2 text-sm"
+      />
     </div>
   );
 }
@@ -534,39 +623,47 @@ function BurndownCard({
   );
 }
 
+// Points-based velocity: how many story points the last completed sprints
+// actually closed out, so planning can lean on a real trend instead of a
+// guess. Falls back to nothing until there are at least two completed
+// sprints to compare.
 function VelocityStrip({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
-  const velocity = useQuery(api.sprints.velocity, { workspaceId });
+  const velocity = useQuery(api.sprintPlanning.velocityPoints, { workspaceId });
   if (!velocity || velocity.length < 2) return null;
 
-  const max = Math.max(1, ...velocity.map((v) => v.completed));
-  const avg = Math.round(
-    velocity.reduce((sum, v) => sum + v.completed, 0) / velocity.length,
-  );
+  const max = Math.max(1, ...velocity.map((v) => v.completedPoints));
+  const totalPoints = velocity.reduce((sum, v) => sum + v.completedPoints, 0);
+  const totalTasks = velocity.reduce((sum, v) => sum + v.completedCount, 0);
+  const avgPoints = Math.round(totalPoints / velocity.length);
 
   return (
     <div className="rounded-2xl bento p-4">
       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Velocity
       </p>
-      <div className="mt-3 flex h-14 items-end gap-2">
+      <div className="mt-3 space-y-2">
         {velocity.map((v) => (
-          <div
-            key={v.sprintId}
-            title={v.name}
-            className="flex flex-1 flex-col items-center justify-end gap-1"
-          >
-            <div
-              className="w-full rounded-t-md bg-brand-200"
-              style={{ height: `${Math.max(4, (v.completed / max) * 40)}px` }}
+          <div key={v.sprintId} className="flex items-center gap-3">
+            <span
+              title={v.name}
+              className="w-24 flex-shrink-0 truncate text-xs text-muted-foreground"
+            >
+              {v.name}
+            </span>
+            <AnimatedBar
+              pct={(v.completedPoints / max) * 100}
+              className="h-2 flex-1 overflow-hidden rounded-full bg-muted"
+              barClassName="h-full rounded-full bg-brand-200"
             />
-            <span className="text-[10px] text-muted-foreground">
-              {v.completed}
+            <span className="w-14 flex-shrink-0 text-right text-xs text-muted-foreground">
+              {v.completedPoints} pt{v.completedPoints === 1 ? "" : "s"}
             </span>
           </div>
         ))}
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
-        avg {avg} task{avg === 1 ? "" : "s"} per sprint
+        avg {avgPoints} pt{avgPoints === 1 ? "" : "s"} per sprint · {totalTasks}{" "}
+        task{totalTasks === 1 ? "" : "s"} completed
       </p>
     </div>
   );
