@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { EASE, motion } from "@/components/motion";
+import { useToast } from "@/components/toast";
 
 // Dense spreadsheet-style TABLE view — the power-user surface. Every cell is
 // directly editable in place; the header row sorts client-side. This mirrors
@@ -25,7 +26,7 @@ import { EASE, motion } from "@/components/motion";
 // toggleComplete + inline soft-field editors) but trades ListView's mobile
 // affordances for maximum information density.
 
-type SortKey = "title" | "status" | "priority" | "start" | "due";
+type SortKey = "title" | "status" | "priority" | "start" | "due" | "points";
 
 export function TableView({
   listId,
@@ -74,6 +75,8 @@ export function TableView({
           return t.startDate ?? Infinity;
         case "due":
           return t.dueDate ?? Infinity;
+        case "points":
+          return t.estimatePoints ?? Infinity;
         default:
           return 0;
       }
@@ -149,6 +152,14 @@ export function TableView({
                 dir={sortDir}
                 onClick={toggleSort}
                 className="min-w-[120px]"
+              />
+              <SortHeader
+                label="Points"
+                sortKey="points"
+                active={sortKey}
+                dir={sortDir}
+                onClick={toggleSort}
+                className="min-w-[90px] text-right"
               />
               {fields.map((f) => (
                 <th key={f._id} scope="col" className="min-w-[140px]">
@@ -392,6 +403,9 @@ function TableRow({
           className="soft-field px-2 py-1 text-xs"
         />
       </td>
+      <td className="py-1.5 text-right">
+        <PointsCell task={task} />
+      </td>
       {fields.map((f) => (
         <td key={f._id} className="py-1.5">
           <CustomFieldInput
@@ -464,6 +478,13 @@ function TitleCell({ task, isDone }: { task: Doc<"tasks">; isDone: boolean }) {
 
   return (
     <span className="flex items-center">
+      {task.milestone && (
+        <span
+          aria-hidden
+          title="Milestone"
+          className="mr-1.5 inline-block h-2 w-2 flex-shrink-0 rotate-45 border-[1.5px] border-foreground/70"
+        />
+      )}
       <a
         href={taskPeekHref(searchParams, task._id)}
         onClick={(e) => {
@@ -493,6 +514,68 @@ function TitleCell({ task, isDone }: { task: Doc<"tasks">; isDone: boolean }) {
       </a>
       <TaskBadges task={task} />
     </span>
+  );
+}
+
+// Blur-committed points editor, same shape as TitleCell's inline rename:
+// local draft state so keystrokes don't spam mutations, committed on blur.
+function PointsCell({ task }: { task: Doc<"tasks"> }) {
+  const update = useMutation(api.tasks.update);
+  const { toast } = useToast();
+  const [draft, setDraft] = useState(
+    task.estimatePoints !== undefined ? String(task.estimatePoints) : "",
+  );
+
+  useEffect(
+    () =>
+      setDraft(
+        task.estimatePoints !== undefined ? String(task.estimatePoints) : "",
+      ),
+    [task.estimatePoints],
+  );
+
+  async function commit() {
+    const trimmed = draft.trim();
+    let next: number | null;
+    if (trimmed === "") {
+      if (task.estimatePoints === undefined) return;
+      next = null;
+    } else {
+      const n = Number(trimmed);
+      if (!Number.isFinite(n) || n < 0) {
+        setDraft(
+          task.estimatePoints !== undefined ? String(task.estimatePoints) : "",
+        );
+        return;
+      }
+      if (n === task.estimatePoints) return;
+      next = n;
+    }
+    try {
+      await update({ taskId: task._id, estimatePoints: next });
+      toast("Saved");
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const msg = raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim();
+      toast(msg || "Couldn't update points", { kind: "error" });
+    }
+  }
+
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      min={0}
+      aria-label="Points"
+      placeholder="—"
+      value={draft}
+      onChange={(e) => setDraft(e.currentTarget.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
+      }}
+      className="soft-field w-16 px-2 py-1 text-right text-xs"
+    />
   );
 }
 

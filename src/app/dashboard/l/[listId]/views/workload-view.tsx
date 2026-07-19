@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { Minus } from "lucide-react";
@@ -14,9 +14,12 @@ import {
   type TaskPriority,
 } from "@/components/dashboard/priority";
 import { AnimatedBar, Stagger, StaggerItem } from "@/components/motion";
+import { cn } from "@/lib/utils";
 
 const UNASSIGNED_ID = "__unassigned__";
 const MAX_CHIPS = 5;
+
+type WorkloadMode = "tasks" | "points";
 
 type Bucket = {
   id: string;
@@ -25,6 +28,8 @@ type Bucket = {
   openTasks: Doc<"tasks">[];
   doneCount: number;
   overdueCount: number;
+  pointsTotal: number;
+  unestimatedCount: number;
 };
 
 // Per-person capacity view: who is carrying what right now, humans and
@@ -42,6 +47,18 @@ export function WorkloadView({
   statuses: Doc<"listStatuses">[];
 }) {
   const people = useQuery(api.agents.listAssignableForList, { listId });
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const mode: WorkloadMode =
+    searchParams.get("wl") === "points" ? "points" : "tasks";
+
+  function setMode(next: WorkloadMode) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "points") params.set("wl", "points");
+    else params.delete("wl");
+    const qs = params.toString();
+    router.replace(qs ? `?${qs}` : "?", { scroll: false });
+  }
 
   const doneStatusIds = useMemo(
     () =>
@@ -63,6 +80,8 @@ export function WorkloadView({
         openTasks: [],
         doneCount: 0,
         overdueCount: 0,
+        pointsTotal: 0,
+        unestimatedCount: 0,
       });
     }
     const unassigned: Bucket = {
@@ -72,6 +91,8 @@ export function WorkloadView({
       openTasks: [],
       doneCount: 0,
       overdueCount: 0,
+      pointsTotal: 0,
+      unestimatedCount: 0,
     };
 
     const now = Date.now();
@@ -85,6 +106,11 @@ export function WorkloadView({
         else {
           unassigned.openTasks.push(t);
           if (overdue) unassigned.overdueCount += 1;
+          if (t.estimatePoints !== undefined) {
+            unassigned.pointsTotal += t.estimatePoints;
+          } else {
+            unassigned.unestimatedCount += 1;
+          }
         }
         continue;
       }
@@ -101,6 +127,8 @@ export function WorkloadView({
             openTasks: [],
             doneCount: 0,
             overdueCount: 0,
+            pointsTotal: 0,
+            unestimatedCount: 0,
           };
           map.set(id, bucket);
         }
@@ -108,6 +136,11 @@ export function WorkloadView({
         else {
           bucket.openTasks.push(t);
           if (overdue) bucket.overdueCount += 1;
+          if (t.estimatePoints !== undefined) {
+            bucket.pointsTotal += t.estimatePoints;
+          } else {
+            bucket.unestimatedCount += 1;
+          }
         }
       }
     }
@@ -117,6 +150,16 @@ export function WorkloadView({
     );
     return { rows, unassigned };
   }, [people, tasks, doneStatusIds]);
+
+  const maxPoints = useMemo(
+    () =>
+      Math.max(
+        1,
+        buckets.unassigned.pointsTotal,
+        ...buckets.rows.map((b) => b.pointsTotal),
+      ),
+    [buckets],
+  );
 
   if (tasks.length === 0) {
     return (
@@ -143,32 +186,69 @@ export function WorkloadView({
     buckets.unassigned.openTasks.length > 0 || buckets.unassigned.doneCount > 0;
 
   return (
-    <Stagger className="space-y-3">
-      {buckets.rows.map((bucket) => (
-        <StaggerItem key={bucket.id}>
-          <PersonRow bucket={bucket} />
-        </StaggerItem>
-      ))}
-      {hasUnassigned && (
-        <StaggerItem>
-          <PersonRow bucket={buckets.unassigned} unassigned />
-        </StaggerItem>
-      )}
-    </Stagger>
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <div className="segmented text-sm">
+          {(["tasks", "points"] as WorkloadMode[]).map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMode(key)}
+              aria-pressed={mode === key}
+              className={cn(
+                "rounded-full px-3 py-1.5 capitalize transition-colors",
+                mode === key
+                  ? "segmented-on font-medium text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {key}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <Stagger className="space-y-3">
+        {buckets.rows.map((bucket) => (
+          <StaggerItem key={bucket.id}>
+            <PersonRow bucket={bucket} mode={mode} maxPoints={maxPoints} />
+          </StaggerItem>
+        ))}
+        {hasUnassigned && (
+          <StaggerItem>
+            <PersonRow
+              bucket={buckets.unassigned}
+              unassigned
+              mode={mode}
+              maxPoints={maxPoints}
+            />
+          </StaggerItem>
+        )}
+      </Stagger>
+    </div>
   );
 }
 
 function PersonRow({
   bucket,
   unassigned = false,
+  mode,
+  maxPoints,
 }: {
   bucket: Bucket;
   unassigned?: boolean;
+  mode: WorkloadMode;
+  maxPoints: number;
 }) {
   const searchParams = useSearchParams();
   const openCount = bucket.openTasks.length;
   const total = openCount + bucket.doneCount;
-  const pct = total > 0 ? (bucket.doneCount / total) * 100 : 0;
+  const pct =
+    mode === "points"
+      ? (bucket.pointsTotal / maxPoints) * 100
+      : total > 0
+        ? (bucket.doneCount / total) * 100
+        : 0;
   const shown = bucket.openTasks.slice(0, MAX_CHIPS);
   const extra = openCount - shown.length;
   const initial = bucket.name.trim().charAt(0).toUpperCase() || "?";
@@ -216,11 +296,18 @@ function PersonRow({
         </div>
       </div>
 
-      <AnimatedBar
-        pct={pct}
-        className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted"
-        barClassName="h-full rounded-full bg-brand-600"
-      />
+      <div className="mt-3 flex items-center gap-2">
+        <AnimatedBar
+          pct={pct}
+          className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"
+          barClassName="h-full rounded-full bg-brand-600"
+        />
+        {mode === "points" && bucket.unestimatedCount > 0 && (
+          <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            {bucket.unestimatedCount} unestimated
+          </span>
+        )}
+      </div>
 
       {shown.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -229,12 +316,17 @@ function PersonRow({
               key={task._id}
               href={taskPeekHref(searchParams, task._id)}
               scroll={false}
-              className="inline-flex max-w-[12rem] items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs text-foreground/80 hover:bg-muted/70"
+              className="inline-flex max-w-[13rem] items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs text-foreground/80 hover:bg-muted/70"
             >
               {task.priority && (
                 <PriorityDot priority={task.priority as TaskPriority} />
               )}
               <span className="truncate">{task.title}</span>
+              {mode === "points" && task.estimatePoints !== undefined && (
+                <span className="flex-shrink-0 rounded-full bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  {task.estimatePoints}
+                </span>
+              )}
             </Link>
           ))}
           {extra > 0 && (
