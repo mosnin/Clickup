@@ -10,6 +10,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { TaskBadges } from "@/components/dashboard/task-badges";
+import { ChecklistChip } from "@/components/dashboard/checklist";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
 import {
   PRIORITY_LABEL,
@@ -495,6 +496,13 @@ function TaskRow({
               />
             </button>
           )}
+          {task.milestone && (
+            <span
+              aria-hidden
+              title="Milestone"
+              className="h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/40"
+            />
+          )}
           <Link
             href={taskPeekHref(searchParams, task._id)}
             scroll={false}
@@ -506,6 +514,12 @@ function TaskRow({
             {task.title}
           </Link>
           <TaskBadges task={task} />
+          <ChecklistChip checklist={task.checklist} />
+          {task.estimatePoints != null && (
+            <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {task.estimatePoints} pts
+            </span>
+          )}
           {subtasks.length > 0 && (
             <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
               {subtasks.length}
