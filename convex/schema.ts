@@ -69,6 +69,44 @@ export default defineSchema({
     parentId: v.string(),
     position: v.number(),
     createdAt: v.number(),
+    // ── ClickUp-style Space identity + governance ──
+    description: v.optional(v.string()),
+    // Private: visible only to the creator, the listed members, and the
+    // workspace owner (so a departing member can't strand content).
+    // Enforced in _authz.canAccessSpace for every human read/write that
+    // resolves through the hierarchy. Personal spaces are private by nature.
+    private: v.optional(v.boolean()),
+    memberClerkIds: v.optional(v.array(v.string())),
+    createdByClerkId: v.optional(v.string()),
+    // Archived spaces disappear from the sidebar/home but keep their data;
+    // un-archive from space settings.
+    archivedAt: v.optional(v.number()),
+    // ClickApps-style feature toggles: when a key is explicitly false the
+    // matching surface hides for this space's lists (UI-gated; data stays).
+    features: v.optional(
+      v.object({
+        sprints: v.optional(v.boolean()),
+        timeTracking: v.optional(v.boolean()),
+        goals: v.optional(v.boolean()),
+        whiteboards: v.optional(v.boolean()),
+      }),
+    ),
+    // Default workflow statuses for NEW lists created in this space.
+    // When unset, lists seed the global 4 defaults.
+    defaultStatuses: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          color: v.string(),
+          category: v.union(
+            v.literal("open"),
+            v.literal("in_progress"),
+            v.literal("complete"),
+            v.literal("closed"),
+          ),
+        }),
+      ),
+    ),
   })
     .index("by_parent", ["parentType", "parentId"]),
 
@@ -87,6 +125,24 @@ export default defineSchema({
     parentId: v.string(),
     position: v.number(),
     createdAt: v.number(),
+    // ── Project metadata (a list IS a project) ──
+    // One-line summary shown on Home cards and the project header.
+    description: v.optional(v.string()),
+    // Health signal, set by the owner; drives status chips everywhere.
+    projectStatus: v.optional(
+      v.union(
+        v.literal("on_track"),
+        v.literal("at_risk"),
+        v.literal("off_track"),
+        v.literal("paused"),
+      ),
+    ),
+    // Accountable human (clerkId) or agent (agent doc id).
+    ownerActorId: v.optional(v.string()),
+    // Freeform project notes: decisions, links, context. Plain text.
+    notes: v.optional(v.string()),
+    // Target completion date (local-midnight ms).
+    targetDate: v.optional(v.number()),
   })
     .index("by_parent", ["parentType", "parentId"]),
 
@@ -106,6 +162,10 @@ export default defineSchema({
       v.literal("complete"),
       v.literal("closed"),
     ),
+    // Kanban WIP limit for this column. Advisory: the Board highlights a
+    // column over its limit rather than refusing the drop — matching the
+    // task-claim philosophy (signal, don't block).
+    wipLimit: v.optional(v.number()),
     position: v.number(),
     createdAt: v.number(),
   }).index("by_list", ["listId"]),
@@ -206,6 +266,13 @@ export default defineSchema({
     requiresApproval: v.optional(v.boolean()),
     approvedByClerkId: v.optional(v.string()),
     approvedAt: v.optional(v.number()),
+    // Phase F — scrum planning:
+    //   - estimatePoints: story-point estimate; sums drive sprint capacity
+    //     bars, points-based velocity, and workload balancing.
+    //   - milestone: marks a date-anchored deliverable; Gantt/timeline
+    //     render it as a diamond marker instead of a duration bar.
+    estimatePoints: v.optional(v.number()),
+    milestone: v.optional(v.boolean()),
     // Set by the watchdog when it emits task.overdue, so each task nags
     // at most once per overdue period.
     overdueNotifiedAt: v.optional(v.number()),
@@ -335,6 +402,8 @@ export default defineSchema({
   // user (same `parentType` discriminant pattern as spaces). `content`
   // is Tiptap/ProseMirror JSON.
   docs: defineTable({
+    // Wiki nesting: a doc may live under another doc as a subpage.
+    parentDocId: v.optional(v.id("docs")),
     parentType: v.union(
       v.literal("user"),
       v.literal("workspace"),
@@ -631,6 +700,11 @@ export default defineSchema({
       v.literal("active"),
       v.literal("complete"),
     ),
+    // Planned capacity in story points; the planning view compares the
+    // sum of committed tasks' estimatePoints against this.
+    capacityPoints: v.optional(v.number()),
+    // Retro notes captured when the sprint completes.
+    retrospective: v.optional(v.string()),
     createdByActorId: v.string(),
     createdAt: v.number(),
   }).index("by_workspace", ["workspaceId"]),
@@ -775,6 +849,91 @@ export default defineSchema({
     uploadedByActorId: v.string(),
     createdAt: v.number(),
   }).index("by_task", ["taskId"]),
+
+  // Public intake forms: a tokenized form per list that outsiders can
+  // submit without an account; each submission becomes a task. Token is a
+  // capability URL segment; disabled forms 404.
+  forms: defineTable({
+    listId: v.id("lists"),
+    token: v.string(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    // Which task fields the form asks for beyond the title.
+    askDescription: v.optional(v.boolean()),
+    askPriority: v.optional(v.boolean()),
+    askEmail: v.optional(v.boolean()),
+    enabled: v.boolean(),
+    createdByClerkId: v.string(),
+    createdAt: v.number(),
+    submissionCount: v.optional(v.number()),
+  })
+    .index("by_list", ["listId"])
+    .index("by_token", ["token"]),
+
+  // Precomputed per-list task rollups, maintained inside the task write
+  // cores so Home/Space overviews read counters instead of scanning tasks.
+  listRollups: defineTable({
+    listId: v.id("lists"),
+    total: v.number(),
+    done: v.number(),
+    inProgress: v.number(),
+    updatedAt: v.number(),
+  }).index("by_list", ["listId"]),
+
+  // Named filter presets per list: a saved view captures the active view
+  // (list/board/calendar/gantt) plus the URL filter state, so a team can
+  // one-click into "Active board" or "My urgent". Anyone with list access
+  // can create and delete them (they're navigation, not data).
+  savedViews: defineTable({
+    listId: v.id("lists"),
+    name: v.string(),
+    view: v.union(
+      v.literal("overview"),
+      v.literal("list"),
+      v.literal("board"),
+      v.literal("table"),
+      v.literal("calendar"),
+      v.literal("gantt"),
+      v.literal("timeline"),
+      v.literal("workload"),
+      v.literal("network"),
+    ),
+    // Mirrors of the URL params: ?f= (comma flags) and ?pri=.
+    flags: v.optional(v.string()),
+    priority: v.optional(v.string()),
+    createdByClerkId: v.string(),
+    createdAt: v.number(),
+  }).index("by_list", ["listId"]),
+
+  // Per-user starred items: the Favorites rail in the sidebar and the
+  // pinned row on the Projects directory. Navigation state, not data —
+  // rows point at entities by raw id string and are dropped if stale.
+  favorites: defineTable({
+    userClerkId: v.string(),
+    entityType: v.union(
+      v.literal("list"),
+      v.literal("space"),
+      v.literal("doc"),
+      v.literal("whiteboard"),
+    ),
+    entityId: v.string(),
+    position: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userClerkId"])
+    .index("by_user_entity", ["userClerkId", "entityType", "entityId"]),
+
+  // Reusable checklist playbooks ("Definition of done", "Release steps").
+  // Scoped like skills to a user or workspace; applying one copies its
+  // items onto a task's embedded checklist.
+  checklistTemplates: defineTable({
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    name: v.string(),
+    items: v.array(v.string()),
+    createdByActorId: v.string(),
+    createdAt: v.number(),
+  }).index("by_scope", ["scopeType", "scopeId"]),
 
   // ── x402 agent payments ─────────────────────────────────────────────
   //

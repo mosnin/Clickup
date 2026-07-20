@@ -11,6 +11,7 @@ import { InlineCreate } from "@/components/dashboard/inline-create";
 import { GoalsPanel } from "@/components/dashboard/goals-panel";
 import { ReportsPanel } from "@/components/dashboard/reports-panel";
 import { SprintsPanel } from "@/components/dashboard/sprints-panel";
+import { PortfolioTimeline } from "@/components/dashboard/portfolio-timeline";
 import { TeamHub } from "@/components/dashboard/team-hub";
 import { WorkspaceSettings } from "@/components/dashboard/workspace-settings";
 import { ActivityFeed } from "@/app/dashboard/agents/agents-view";
@@ -22,6 +23,7 @@ type Tab =
   | "team"
   | "chat"
   | "sprints"
+  | "portfolio"
   | "activity"
   | "goals"
   | "reports"
@@ -32,6 +34,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "team", label: "Team" },
   { key: "chat", label: "Chat" },
   { key: "sprints", label: "Sprints" },
+  { key: "portfolio", label: "Portfolio" },
   { key: "activity", label: "Activity" },
   { key: "goals", label: "Goals" },
   { key: "reports", label: "Reports" },
@@ -40,12 +43,16 @@ const TABS: { key: Tab; label: string }[] = [
 
 export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
   const tree = useQuery(api.sidebar.tree, {});
+  const spaces = useQuery(api.spaces.listForWorkspace, {
+    workspaceId: workspaceId as Id<"workspaces">,
+  });
   const searchParams = useSearchParams();
-  const tab: Tab = (() => {
+  const rawTab: Tab = (() => {
     const raw = searchParams.get("tab");
     if (
       raw === "chat" ||
       raw === "sprints" ||
+      raw === "portfolio" ||
       raw === "activity" ||
       raw === "goals" ||
       raw === "reports" ||
@@ -56,6 +63,33 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
     }
     return "overview";
   })();
+
+  // A Space's Features settings can turn Sprints/Goals off entirely. Hide
+  // the tab only when EVERY space in the workspace has the feature
+  // explicitly off — any space still using it keeps the tab visible. No
+  // spaces (or the query still loading) defaults to showing everything.
+  const sprintsHidden =
+    !!spaces &&
+    spaces.length > 0 &&
+    spaces.every((s) => s.features?.sprints === false);
+  const goalsHidden =
+    !!spaces &&
+    spaces.length > 0 &&
+    spaces.every((s) => s.features?.goals === false);
+
+  const visibleTabs = TABS.filter(
+    (t) =>
+      (t.key !== "sprints" || !sprintsHidden) &&
+      (t.key !== "goals" || !goalsHidden),
+  );
+
+  // If the active tab's feature just got switched off, fall back to
+  // Overview rather than render a gated panel with no matching nav pill.
+  const tab: Tab =
+    (rawTab === "sprints" && sprintsHidden) ||
+    (rawTab === "goals" && goalsHidden)
+      ? "overview"
+      : rawTab;
 
   if (tree === undefined) {
     return <Skeleton />;
@@ -101,7 +135,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
           aria-label="Workspace tabs"
           className="segmented whitespace-nowrap text-sm"
         >
-          {TABS.map(({ key, label }) => (
+          {visibleTabs.map(({ key, label }) => (
             <Link
               key={key}
               href={
@@ -199,6 +233,10 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
       ) : tab === "sprints" ? (
         <section>
           <SprintsPanel workspaceId={workspace._id as Id<"workspaces">} />
+        </section>
+      ) : tab === "portfolio" ? (
+        <section>
+          <PortfolioTimeline workspaceId={workspace._id as Id<"workspaces">} />
         </section>
       ) : tab === "activity" ? (
         <section>

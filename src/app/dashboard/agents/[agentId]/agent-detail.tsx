@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { eventLabel } from "@/lib/event-labels";
 import { useToast } from "@/components/toast";
+import { Monogram } from "@/components/dashboard/monogram";
 import { AnimatedBar, Stagger, StaggerItem } from "@/components/motion";
 
 // Per-agent drill-down: live status, governance controls (role, budget,
@@ -83,9 +84,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
       </Link>
 
       <header className="flex items-start gap-3">
-        <span className="text-3xl" aria-hidden>
-          {agent.emoji ?? "🤖"}
-        </span>
+        <Monogram name={agent.name} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
@@ -236,7 +235,7 @@ function StatsRow({
     { label: "Comments · 7d", value: String(stats.comments7d) },
     {
       label: "Runs · 7d",
-      value: `${stats.runsSucceeded7d}✓ ${stats.runsFailed7d}✗`,
+      value: `${stats.runsSucceeded7d} ok / ${stats.runsFailed7d} failed`,
     },
     { label: "Avg run", value: fmtMs(stats.avgRunMs) },
     { label: "Time logged · 7d", value: fmtMs(stats.timeLoggedMs7d) },

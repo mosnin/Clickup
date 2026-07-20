@@ -45,7 +45,7 @@ export function ReportsPanel({
   for (const a of agents ?? []) {
     memberByClerkId.set(a._id, {
       clerkId: a._id,
-      name: `${a.emoji ?? "🤖"} ${a.name}`,
+      name: a.name,
     });
   }
 

@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireIdentity, requireListAccess } from "./_authz";
+import { canAccessSpace, requireIdentity, requireListAccess } from "./_authz";
 import type { Actor } from "./_agentAuth";
 import { emitEvent, scopeForList, userActor } from "./events";
 
@@ -55,6 +55,7 @@ export async function createSprintCore(
     goal?: string;
     startDate: number;
     endDate: number;
+    capacityPoints?: number;
   },
   actor: Actor,
 ): Promise<Id<"sprints">> {
@@ -69,6 +70,7 @@ export async function createSprintCore(
     startDate: args.startDate,
     endDate: args.endDate,
     status: "planned",
+    capacityPoints: args.capacityPoints,
     createdByActorId: actor.id,
     createdAt: Date.now(),
   });
@@ -86,6 +88,8 @@ export async function updateSprintCore(
     startDate?: number;
     endDate?: number;
     status?: "planned" | "active" | "complete";
+    capacityPoints?: number | null;
+    retrospective?: string;
   },
   actor: Actor,
 ): Promise<void> {
@@ -97,6 +101,15 @@ export async function updateSprintCore(
   if (args.startDate !== undefined) patch.startDate = args.startDate;
   if (args.endDate !== undefined) patch.endDate = args.endDate;
   if (args.status !== undefined) patch.status = args.status;
+  if (args.capacityPoints !== undefined) {
+    patch.capacityPoints =
+      args.capacityPoints === null || args.capacityPoints <= 0
+        ? undefined
+        : args.capacityPoints;
+  }
+  if (args.retrospective !== undefined) {
+    patch.retrospective = args.retrospective.trim() || undefined;
+  }
   await ctx.db.patch(args.sprintId, patch);
   const updated = (await ctx.db.get(args.sprintId))!;
   if (args.status !== undefined && args.status !== sprint.status) {
@@ -114,9 +127,16 @@ export async function updateSprintCore(
 
 // Task rollup for one sprint: totals by status category plus per-assignee
 // counts. Cheap at our scale (walks the sprint's tasks once).
+//
+// When `viewerSubject` is provided (the human-facing summary query),
+// tasks living in spaces that viewer can't access — private spaces they
+// aren't in — are dropped entirely, titles and counts both. Agent-key
+// callers pass no subject: agent visibility is governed separately by
+// role/allowedListIds in _agentAuth, not by human space membership.
 export async function sprintSummaryCore(
   ctx: QueryCtx | MutationCtx,
   sprintId: Id<"sprints">,
+  viewerSubject?: string,
 ) {
   const sprint = await ctx.db.get(sprintId);
   if (!sprint) return null;
@@ -124,12 +144,34 @@ export async function sprintSummaryCore(
     .query("tasks")
     .withIndex("by_sprint", (q) => q.eq("sprintId", sprintId))
     .collect();
+  const spaceOkCache = new Map<Id<"spaces">, boolean>();
+  async function visibleToViewer(listId: Id<"lists">): Promise<boolean> {
+    if (viewerSubject === undefined) return true;
+    const list = await ctx.db.get(listId);
+    if (!list) return false;
+    let spaceId: Id<"spaces">;
+    if (list.parentType === "space") {
+      spaceId = list.parentId as Id<"spaces">;
+    } else {
+      const folder = await ctx.db.get(list.parentId as Id<"folders">);
+      if (!folder) return false;
+      spaceId = folder.spaceId;
+    }
+    const cached = spaceOkCache.get(spaceId);
+    if (cached !== undefined) return cached;
+    const space = await ctx.db.get(spaceId);
+    const ok =
+      !!space && (await canAccessSpace(ctx, space, { subject: viewerSubject }));
+    spaceOkCache.set(spaceId, ok);
+    return ok;
+  }
   let open = 0;
   let inProgress = 0;
   let done = 0;
   const byAssignee: Record<string, number> = {};
   const items = [];
   for (const t of tasks) {
+    if (!(await visibleToViewer(t.listId))) continue;
     const status = await ctx.db.get(t.statusId);
     const category = status?.category ?? "open";
     if (category === "complete" || category === "closed") done++;
@@ -151,7 +193,7 @@ export async function sprintSummaryCore(
   }
   return {
     sprint,
-    totals: { total: tasks.length, open, inProgress, done },
+    totals: { total: items.length, open, inProgress, done },
     byAssignee,
     tasks: items,
   };
@@ -224,8 +266,9 @@ export const addableTasks = query({
   handler: async (ctx, { sprintId }) => {
     const sprint = await ctx.db.get(sprintId);
     if (!sprint) return [];
+    let subject: string;
     try {
-      await requireWorkspaceMember(ctx, sprint.workspaceId);
+      subject = await requireWorkspaceMember(ctx, sprint.workspaceId);
     } catch {
       return [];
     }
@@ -237,6 +280,10 @@ export const addableTasks = query({
       )
       .collect();
     for (const space of spaces) {
+      // Skip archived spaces and private spaces the caller can't access —
+      // same per-viewer gate as sprintPlanning's backlog walk.
+      if (space.archivedAt !== undefined) continue;
+      if (!(await canAccessSpace(ctx, space, { subject }))) continue;
       const parents: { type: "space" | "folder"; id: string }[] = [
         { type: "space", id: space._id },
       ];
@@ -281,12 +328,138 @@ export const summary = query({
   handler: async (ctx, { sprintId }) => {
     const sprint = await ctx.db.get(sprintId);
     if (!sprint) return null;
+    let subject: string;
+    try {
+      subject = await requireWorkspaceMember(ctx, sprint.workspaceId);
+    } catch {
+      return null;
+    }
+    return await sprintSummaryCore(ctx, sprintId, subject);
+  },
+});
+
+// Burndown for one sprint: an ideal (straight-line total→0) and an actual
+// remaining-tasks-per-day series, so the Sprints tab can show whether a
+// sprint is on track.
+//
+// Timing source: tasks don't need to be reconstructed from the events log —
+// `tasks.completedAt` (set by both `tasks.updateTaskCore` and the
+// `set_status` automation action, see convex/tasks.ts + convex/listAutomations.ts)
+// already carries the exact moment a task last entered a complete/closed
+// category, and it's cleared the moment a task leaves one. That's a more
+// reliable source than mining `events` for `task.status_changed`/
+// `task.completed` rows: events are pruned after 90 days
+// (`maintenance.prune`), so an older sprint's completion history could
+// already be gone from the log while the task's own `completedAt` survives
+// forever. The one gap `completedAt` can't cover is a task that is
+// currently in a complete/closed status but has no `completedAt` (e.g. a
+// row seeded directly into a complete status by a template or an external
+// write) — for those we still count them as done "now" but can't place
+// them on a specific day, so we fall back to bucketing them at the most
+// recent day instead of guessing a history. That's the "possibly partial"
+// case: the current (today) data point is always accurate, but a handful
+// of early days could under-count completions if such rows exist.
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_BURNDOWN_DAYS = 180;
+
+export const burndown = query({
+  args: { sprintId: v.id("sprints") },
+  handler: async (ctx, { sprintId }) => {
+    const sprint = await ctx.db.get(sprintId);
+    if (!sprint) return null;
     try {
       await requireWorkspaceMember(ctx, sprint.workspaceId);
     } catch {
       return null;
     }
-    return await sprintSummaryCore(ctx, sprintId);
+
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_sprint", (q) => q.eq("sprintId", sprintId))
+      .collect();
+
+    const totalTasks = tasks.length;
+    let doneTasks = 0;
+    const completions: number[] = [];
+    const now = Date.now();
+    for (const t of tasks) {
+      const status = await ctx.db.get(t.statusId);
+      const isDone =
+        status?.category === "complete" || status?.category === "closed";
+      if (isDone) {
+        doneTasks++;
+        // Fallback for a done task with no completedAt on record (see the
+        // note above): treat it as completed "now" so it still lands in
+        // range rather than being dropped from the reconstruction.
+        completions.push(t.completedAt ?? now);
+      }
+    }
+
+    const startAt = sprint.startDate;
+    const endAt = sprint.endDate;
+    const days: { dayStart: number; remaining: number | null }[] = [];
+    const ideal: { dayStart: number; remaining: number }[] = [];
+
+    if (totalTasks > 0 && endAt > startAt) {
+      const span = endAt - startAt;
+      const dayCount = Math.min(
+        MAX_BURNDOWN_DAYS,
+        Math.max(1, Math.ceil(span / ONE_DAY_MS)) + 1,
+      );
+      for (let i = 0; i < dayCount; i++) {
+        const dayStart = Math.min(startAt + i * ONE_DAY_MS, endAt);
+        const remaining =
+          dayStart > now
+            ? null
+            : totalTasks -
+              completions.filter((c) => c < dayStart + ONE_DAY_MS).length;
+        days.push({ dayStart, remaining });
+        const t = Math.min(1, Math.max(0, (dayStart - startAt) / span));
+        ideal.push({ dayStart, remaining: Math.round(totalTasks * (1 - t)) });
+        if (dayStart >= endAt) break;
+      }
+    }
+
+    return { totalTasks, doneTasks, startAt, endAt, days, ideal };
+  },
+});
+
+// Completed-task counts for the last (up to) 5 completed sprints in a
+// workspace, oldest first, so the Sprints tab can show a velocity trend.
+export const velocity = query({
+  args: { workspaceId: v.id("workspaces") },
+  handler: async (ctx, { workspaceId }) => {
+    try {
+      await requireWorkspaceMember(ctx, workspaceId);
+    } catch {
+      return [];
+    }
+    const sprints = await ctx.db
+      .query("sprints")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+    const recent = sprints
+      .filter((s) => s.status === "complete")
+      .sort((a, b) => b.endDate - a.endDate)
+      .slice(0, 5);
+
+    const out: { sprintId: Id<"sprints">; name: string; completed: number }[] =
+      [];
+    for (const s of recent) {
+      const tasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_sprint", (q) => q.eq("sprintId", s._id))
+        .collect();
+      let completed = 0;
+      for (const t of tasks) {
+        const status = await ctx.db.get(t.statusId);
+        if (status?.category === "complete" || status?.category === "closed") {
+          completed++;
+        }
+      }
+      out.push({ sprintId: s._id, name: s.name, completed });
+    }
+    return out.reverse();
   },
 });
 
@@ -297,6 +470,7 @@ export const create = mutation({
     goal: v.optional(v.string()),
     startDate: v.number(),
     endDate: v.number(),
+    capacityPoints: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const subject = await requireWorkspaceMember(ctx, args.workspaceId);
@@ -319,6 +493,8 @@ export const update = mutation({
         v.literal("complete"),
       ),
     ),
+    capacityPoints: v.optional(v.union(v.number(), v.null())),
+    retrospective: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const sprint = await ctx.db.get(args.sprintId);

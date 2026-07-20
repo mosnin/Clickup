@@ -60,10 +60,16 @@ export const create = mutation({
     parentId: v.string(),
   },
   handler: async (ctx, args) => {
+    let spaceId: Id<"spaces">;
     if (args.parentType === "space") {
       await requireSpaceAccess(ctx, args.parentId as Id<"spaces">);
+      spaceId = args.parentId as Id<"spaces">;
     } else {
-      await requireFolderAccess(ctx, args.parentId as Id<"folders">);
+      const { folder } = await requireFolderAccess(
+        ctx,
+        args.parentId as Id<"folders">,
+      );
+      spaceId = folder.spaceId;
     }
 
     const siblings = await ctx.db
@@ -79,7 +85,8 @@ export const create = mutation({
       createdAt: Date.now(),
     });
 
-    await seedDefaultStatuses(ctx, listId);
+    const space = await ctx.db.get(spaceId);
+    await seedDefaultStatuses(ctx, listId, space?.defaultStatuses);
 
     return listId;
   },
@@ -90,6 +97,45 @@ export const rename = mutation({
   handler: async (ctx, { listId, name }) => {
     const { list } = await requireListAccess(ctx, listId);
     await ctx.db.patch(list._id, { name });
+  },
+});
+
+// Project metadata: description, health status, owner, notes, target date.
+// null clears an optional field; omitted fields stay untouched.
+export const updateMeta = mutation({
+  args: {
+    listId: v.id("lists"),
+    description: v.optional(v.union(v.string(), v.null())),
+    projectStatus: v.optional(
+      v.union(
+        v.literal("on_track"),
+        v.literal("at_risk"),
+        v.literal("off_track"),
+        v.literal("paused"),
+        v.null(),
+      ),
+    ),
+    ownerActorId: v.optional(v.union(v.string(), v.null())),
+    notes: v.optional(v.union(v.string(), v.null())),
+    targetDate: v.optional(v.union(v.number(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const { list } = await requireListAccess(ctx, args.listId);
+    const patch: Record<string, unknown> = {};
+    for (const key of [
+      "description",
+      "projectStatus",
+      "ownerActorId",
+      "notes",
+      "targetDate",
+    ] as const) {
+      if (args[key] !== undefined) {
+        patch[key] = args[key] === null ? undefined : args[key];
+      }
+    }
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(list._id, patch);
+    }
   },
 });
 
@@ -133,6 +179,12 @@ export const remove = mutation({
       .withIndex("by_list", (q) => q.eq("listId", list._id))
       .collect();
     for (const st of schedules) await ctx.db.delete(st._id);
+
+    const rollup = await ctx.db
+      .query("listRollups")
+      .withIndex("by_list", (q) => q.eq("listId", list._id))
+      .unique();
+    if (rollup) await ctx.db.delete(rollup._id);
 
     await ctx.db.delete(list._id);
   },

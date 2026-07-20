@@ -1,15 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Hand, Lock, Plus, ShieldCheck, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
+import { Monogram } from "@/components/dashboard/monogram";
+import { InlineCreate } from "@/components/dashboard/inline-create";
+import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
-import { AnimatePresence, EASE, motion } from "@/components/motion";
+import { AnimatedBar, AnimatePresence, EASE, motion } from "@/components/motion";
 
 // Collaboration sections for the task detail page: approval/claim banners,
 // assignees (humans AND agents), sprint membership, acceptance-criteria
@@ -81,9 +84,7 @@ export function TaskBanners({
           <span className="min-w-0 flex-1">
             Claimed by{" "}
             <span className="font-medium">
-              {claimant
-                ? `${claimant.kind === "agent" ? "🤖 " : ""}${claimant.name}`
-                : "someone"}
+              {claimant ? claimant.name : "someone"}
             </span>{" "}
 , they&apos;re actively working on this.
           </span>
@@ -144,7 +145,9 @@ export function TaskAssignees({
             key={id}
             className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-sm"
           >
-            {person?.kind === "agent" ? (person.emoji ?? "🤖") : null}
+            {person?.kind === "agent" && (
+              <Monogram name={person.name} size="sm" />
+            )}
             <span>{person?.name ?? "Someone"}</span>
             <button
               type="button"
@@ -172,7 +175,6 @@ export function TaskAssignees({
           .map((a) => ({
             id: a.id,
             label: a.name,
-            emoji: a.kind === "agent" ? (a.emoji ?? "🤖") : undefined,
             hint: a.kind === "agent" ? "agent" : undefined,
           }))}
         onSelect={(id) =>
@@ -311,6 +313,7 @@ export function TaskChecklist({ task }: { task: Doc<"tasks"> }) {
   const [newItem, setNewItem] = useState("");
   const items = task.checklist ?? [];
   const doneCount = items.filter((i) => i.done).length;
+  const pct = items.length > 0 ? (doneCount / items.length) * 100 : 0;
 
   function commit(next: { id: string; text: string; done: boolean }[]) {
     update({ taskId: task._id, checklist: next });
@@ -319,8 +322,23 @@ export function TaskChecklist({ task }: { task: Doc<"tasks"> }) {
   return (
     <section>
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Checklist{items.length > 0 && ` · ${doneCount}/${items.length}`}
+        Checklist
       </h2>
+      {items.length > 0 && (
+        <div className="mb-2 flex items-center gap-2">
+          <AnimatedBar
+            pct={pct}
+            className="h-1 flex-1 overflow-hidden rounded-full bg-muted"
+            barClassName={cn(
+              "h-full rounded-full",
+              pct === 100 ? "bg-pastel-green" : "bg-foreground/70",
+            )}
+          />
+          <span className="flex-shrink-0 text-xs tabular-nums text-muted-foreground">
+            {doneCount} of {items.length} done
+          </span>
+        </div>
+      )}
       <ul className="space-y-1">
         <AnimatePresence initial={false}>
           {items.map((item) => (
@@ -396,6 +414,181 @@ export function TaskChecklist({ task }: { task: Doc<"tasks"> }) {
           <Plus className="h-3.5 w-3.5" /> Add
         </Button>
       </form>
+      <ChecklistTemplates task={task} hasItems={items.length > 0} />
     </section>
+  );
+}
+
+// Quiet "Templates" affordance beneath the checklist: apply a saved
+// playbook (its items append as fresh, unchecked entries) or snapshot the
+// current checklist into a new one. Both round-trip through
+// checklistTemplates.ts, never a raw db.patch, so agents over MCP see the
+// exact same state.
+function ChecklistTemplates({
+  task,
+  hasItems,
+}: {
+  task: Doc<"tasks">;
+  hasItems: boolean;
+}) {
+  const templates = useQuery(api.checklistTemplates.listForTask, {
+    taskId: task._id,
+  });
+  const applyTemplate = useMutation(api.checklistTemplates.applyToTask);
+  const saveTemplate = useMutation(api.checklistTemplates.saveFromTask);
+  const removeTemplate = useMutation(api.checklistTemplates.remove);
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // Undo-able delete: rows hide locally first; the mutation only runs
+  // when the toast's undo window closes (CLAUDE.md feedback system).
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: PointerEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  async function apply(templateId: Id<"checklistTemplates">) {
+    try {
+      await applyTemplate({ taskId: task._id, templateId });
+      toast("Checklist items added");
+      setOpen(false);
+    } catch (err) {
+      toast(
+        err instanceof Error ? err.message : "Couldn't apply template",
+        { kind: "error" },
+      );
+    }
+  }
+
+  function remove(templateId: Id<"checklistTemplates">) {
+    setHiddenIds((prev) => new Set(prev).add(templateId));
+    toast("Template deleted", {
+      action: {
+        label: "Undo",
+        onClick: () =>
+          setHiddenIds((prev) => {
+            const next = new Set(prev);
+            next.delete(templateId);
+            return next;
+          }),
+      },
+      onExpire: () => {
+        void removeTemplate({ templateId }).catch((err) => {
+          setHiddenIds((prev) => {
+            const next = new Set(prev);
+            next.delete(templateId);
+            return next;
+          });
+          toast(
+            err instanceof Error ? err.message : "Couldn't delete template",
+            { kind: "error" },
+          );
+        });
+      },
+    });
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div ref={rootRef} className="relative">
+        <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
+          Templates
+        </Button>
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ opacity: 0, y: 4, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 4, scale: 0.98 }}
+              transition={{ duration: 0.18, ease: EASE }}
+              className="absolute left-0 top-full z-30 mt-1.5 w-64 overflow-hidden rounded-2xl bg-background p-1 shadow-lg"
+            >
+              {templates === undefined ||
+              templates.filter((t) => !hiddenIds.has(t._id)).length === 0 ? (
+                <p className="px-2.5 py-2 text-xs text-muted-foreground">
+                  No checklist templates yet in this scope.
+                </p>
+              ) : (
+                <ul className="max-h-60 overflow-y-auto">
+                  {templates
+                    .filter((t) => !hiddenIds.has(t._id))
+                    .map((t) => (
+                    <li
+                      key={t._id}
+                      className="flex items-center gap-0.5 rounded-lg hover:bg-muted"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => void apply(t._id)}
+                        className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm"
+                      >
+                        <span className="min-w-0 flex-1 truncate">
+                          {t.name}
+                        </span>
+                        <span className="flex-shrink-0 text-[10px] text-muted-foreground">
+                          {t.items.length} item
+                          {t.items.length === 1 ? "" : "s"}
+                        </span>
+                        {t.source === "personal" && (
+                          <span className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                            Personal
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Delete template ${t.name}`}
+                        onClick={() => void remove(t._id)}
+                        className="tap-target flex-shrink-0 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+      {saving ? (
+        <InlineCreate
+          placeholder="Template name…"
+          className="w-48"
+          onSubmit={async (name) => {
+            try {
+              await saveTemplate({ taskId: task._id, name });
+              toast("Saved as template");
+            } catch (err) {
+              toast(
+                err instanceof Error
+                  ? err.message
+                  : "Couldn't save template",
+                { kind: "error" },
+              );
+            } finally {
+              setSaving(false);
+            }
+          }}
+          onCancel={() => setSaving(false)}
+        />
+      ) : (
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={!hasItems}
+          onClick={() => setSaving(true)}
+        >
+          Save as template
+        </Button>
+      )}
+    </div>
   );
 }

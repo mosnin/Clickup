@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
+import { SITE_NAME } from "@/lib/marketing-nav";
 import { CompanyContent } from "./company-content";
 
 export const metadata: Metadata = {
-  title: "Company, why we're building mission control for agents",
+  title: "Company — operate",
   description:
-    "We believe the next great teams will be part human, part agent, and that the missing piece isn't a smarter model, it's a coordination layer both can trust.",
+    "operate is the shared operating layer for hybrid teams — where people and their AI agents plan, work and stay accountable, with humans keeping the keys.",
   alternates: { canonical: "/company" },
   openGraph: {
-    title: "Company, why we're building mission control for agents",
+    title: "Company — operate",
     description:
-      "The next great teams will be part human, part agent. We're building the coordination layer both can trust.",
+      "The shared operating layer for hybrid teams. Humans keep the keys.",
     url: "/company",
+    siteName: SITE_NAME,
     type: "website",
   },
 };

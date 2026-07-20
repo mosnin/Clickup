@@ -41,6 +41,7 @@ import { createChannelCore } from "./channels";
 import { applyListTemplateCore, templateCatalog } from "./templates";
 import { seedDefaultStatuses } from "./listStatuses";
 import { emitEvent, scopeForList } from "./events";
+import { getRollup } from "./rollups";
 
 // The agent-facing API: every function here authenticates with an agent
 // API key instead of Clerk, resolves the agent's scope (personal space or
@@ -115,6 +116,65 @@ async function requireDocAccessForAgent(
     throw new Error("Forbidden");
   }
   return doc;
+}
+
+// Walk every list in the agent's scope (spaces → folders → lists),
+// respecting allowedListIds the same way listTasks/nextTask/searchTasks do.
+// Shared by the sprint-planning backlog scan and the portfolio tool so
+// there's exactly one "walk my whole scope" implementation to keep in sync
+// with list-restriction rules.
+async function listsInScope(
+  ctx: QueryCtx | MutationCtx,
+  agent: Doc<"agents">,
+  opts?: { skipArchived?: boolean },
+): Promise<{ list: Doc<"lists">; spaceName: string }[]> {
+  const out: { list: Doc<"lists">; spaceName: string }[] = [];
+  const spaces = await ctx.db
+    .query("spaces")
+    .withIndex("by_parent", (q) =>
+      q.eq("parentType", agent.parentType).eq("parentId", agent.parentId),
+    )
+    .collect();
+  for (const space of spaces) {
+    if (opts?.skipArchived && space.archivedAt !== undefined) continue;
+    const parents: { type: "space" | "folder"; id: string }[] = [
+      { type: "space", id: space._id },
+    ];
+    const folders = await ctx.db
+      .query("folders")
+      .withIndex("by_space", (q) => q.eq("spaceId", space._id))
+      .collect();
+    for (const f of folders) parents.push({ type: "folder", id: f._id });
+    for (const p of parents) {
+      const lists = await ctx.db
+        .query("lists")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", p.type).eq("parentId", p.id),
+        )
+        .collect();
+      for (const l of lists) {
+        if (!agentCanTouchList(agent, l._id)) continue;
+        out.push({ list: l, spaceName: space.name });
+      }
+    }
+  }
+  return out;
+}
+
+// Open (non-complete, non-closed) blockers for a task, with just enough
+// detail for planning/network tools.
+async function openBlockerCount(
+  ctx: QueryCtx | MutationCtx,
+  task: Doc<"tasks">,
+): Promise<number> {
+  let count = 0;
+  for (const id of task.blockedByTaskIds ?? []) {
+    const blocker = await ctx.db.get(id);
+    if (!blocker) continue;
+    const bs = await ctx.db.get(blocker.statusId);
+    if (bs?.category !== "complete" && bs?.category !== "closed") count++;
+  }
+  return count;
 }
 
 async function taskView(ctx: QueryCtx | MutationCtx, task: Doc<"tasks">) {
@@ -550,6 +610,8 @@ export const createTask = mutation({
     sprintId: v.optional(v.id("sprints")),
     checklist: v.optional(checklistValidator),
     requiresApproval: v.optional(v.boolean()),
+    estimatePoints: v.optional(v.number()),
+    milestone: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
@@ -582,12 +644,33 @@ export const updateTask = mutation({
     blockedByTaskIds: v.optional(v.array(v.id("tasks"))),
     checklist: v.optional(checklistValidator),
     requiresApproval: v.optional(v.boolean()),
+    estimatePoints: v.optional(v.union(v.number(), v.null())),
+    milestone: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     await requireTaskAccessForAgent(ctx, args.taskId, agent);
     const { apiKey: _apiKey, ...rest } = args;
     await updateTaskCore(ctx, rest, agentActor(agent));
+  },
+});
+
+// Thin wrapper for the common "just set the estimate" case, so agents don't
+// need to round-trip the full updateTask shape for one field.
+export const setEstimate = mutation({
+  args: {
+    apiKey: v.string(),
+    taskId: v.id("tasks"),
+    points: v.union(v.number(), v.null()),
+  },
+  handler: async (ctx, { apiKey, taskId, points }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
+    await requireTaskAccessForAgent(ctx, taskId, agent);
+    await updateTaskCore(
+      ctx,
+      { taskId, estimatePoints: points },
+      agentActor(agent),
+    );
   },
 });
 
@@ -962,6 +1045,175 @@ export const sprintSummary = query({
       throw new Error("Sprint not found");
     }
     return await sprintSummaryCore(ctx, sprintId);
+  },
+});
+
+export const setSprintCapacity = mutation({
+  args: {
+    apiKey: v.string(),
+    sprintId: v.id("sprints"),
+    points: v.union(v.number(), v.null()),
+  },
+  handler: async (ctx, { apiKey, sprintId, points }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
+    const workspaceId = requireWorkspaceAgent(agent);
+    const sprint = await ctx.db.get(sprintId);
+    if (!sprint || sprint.workspaceId !== workspaceId) {
+      throw new Error("Sprint not found");
+    }
+    await updateSprintCore(
+      ctx,
+      { sprintId, capacityPoints: points },
+      agentActor(agent),
+    );
+  },
+});
+
+export const setSprintRetrospective = mutation({
+  args: { apiKey: v.string(), sprintId: v.id("sprints"), text: v.string() },
+  handler: async (ctx, { apiKey, sprintId, text }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
+    const workspaceId = requireWorkspaceAgent(agent);
+    const sprint = await ctx.db.get(sprintId);
+    if (!sprint || sprint.workspaceId !== workspaceId) {
+      throw new Error("Sprint not found");
+    }
+    await updateSprintCore(
+      ctx,
+      { sprintId, retrospective: text },
+      agentActor(agent),
+    );
+  },
+});
+
+// Board data for one sprint: every task in it (respecting list
+// restrictions) with enough detail to render/reason about a Kanban board —
+// status, assignees, estimate, milestone flag, and how many open blockers
+// stand in the way.
+export const getSprintBoard = query({
+  args: { apiKey: v.string(), sprintId: v.id("sprints") },
+  handler: async (ctx, { apiKey, sprintId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const workspaceId = requireWorkspaceAgent(agent);
+    const sprint = await ctx.db.get(sprintId);
+    if (!sprint || sprint.workspaceId !== workspaceId) {
+      throw new Error("Sprint not found");
+    }
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_sprint", (q) => q.eq("sprintId", sprintId))
+      .collect();
+    const listNames = new Map<Id<"lists">, string>();
+    const out = [];
+    for (const t of tasks) {
+      if (!agentCanTouchList(agent, t.listId)) continue;
+      if (!listNames.has(t.listId)) {
+        const list = await ctx.db.get(t.listId);
+        listNames.set(t.listId, list?.name ?? "?");
+      }
+      const status = await ctx.db.get(t.statusId);
+      out.push({
+        taskId: t._id,
+        title: t.title,
+        listId: t.listId,
+        listName: listNames.get(t.listId)!,
+        status: status
+          ? { statusId: status._id, name: status.name, category: status.category }
+          : null,
+        assigneeIds: t.assigneeClerkIds,
+        estimatePoints: t.estimatePoints,
+        milestone: t.milestone ?? false,
+        openBlockerCount: await openBlockerCount(ctx, t),
+      });
+    }
+    return { sprint, tasks: out };
+  },
+});
+
+// Planning view for one sprint: what's already committed (with a points
+// total and how many committed tasks still need an estimate), plus a
+// sample of open backlog work not yet pulled in, so an agent can propose
+// what to add without walking the whole scope itself.
+export const getSprintPlanning = query({
+  args: { apiKey: v.string(), sprintId: v.id("sprints") },
+  handler: async (ctx, { apiKey, sprintId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const workspaceId = requireWorkspaceAgent(agent);
+    const sprint = await ctx.db.get(sprintId);
+    if (!sprint || sprint.workspaceId !== workspaceId) {
+      throw new Error("Sprint not found");
+    }
+
+    const sprintTasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_sprint", (q) => q.eq("sprintId", sprintId))
+      .collect();
+    let committedPoints = 0;
+    let committedUnestimated = 0;
+    const committed = [];
+    for (const t of sprintTasks) {
+      if (!agentCanTouchList(agent, t.listId)) continue;
+      if (t.estimatePoints !== undefined) committedPoints += t.estimatePoints;
+      else committedUnestimated++;
+      const status = await ctx.db.get(t.statusId);
+      committed.push({
+        taskId: t._id,
+        title: t.title,
+        listId: t.listId,
+        estimatePoints: t.estimatePoints,
+        milestone: t.milestone ?? false,
+        status: status
+          ? { statusId: status._id, name: status.name, category: status.category }
+          : null,
+      });
+    }
+
+    const backlogSample: {
+      taskId: Id<"tasks">;
+      title: string;
+      listId: Id<"lists">;
+      estimatePoints: number | undefined;
+      priority: "urgent" | "high" | "normal" | "low" | undefined;
+    }[] = [];
+    const lists = await listsInScope(ctx, agent);
+    outer: for (const { list } of lists) {
+      const listTasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_list", (q) => q.eq("listId", list._id))
+        .collect();
+      for (const t of listTasks) {
+        if (t.sprintId === sprintId) continue;
+        const status = await ctx.db.get(t.statusId);
+        if (status?.category === "complete" || status?.category === "closed") {
+          continue;
+        }
+        backlogSample.push({
+          taskId: t._id,
+          title: t.title,
+          listId: t.listId,
+          estimatePoints: t.estimatePoints,
+          priority: t.priority,
+        });
+        if (backlogSample.length >= 100) break outer;
+      }
+    }
+
+    return {
+      sprint: {
+        sprintId: sprint._id,
+        name: sprint.name,
+        goal: sprint.goal,
+        startDate: sprint.startDate,
+        endDate: sprint.endDate,
+        status: sprint.status,
+        capacityPoints: sprint.capacityPoints,
+        retrospective: sprint.retrospective,
+      },
+      committedPoints,
+      committedUnestimated,
+      committed,
+      backlogSample,
+    };
   },
 });
 
@@ -2071,6 +2323,166 @@ export const clearTaskFieldValue = mutation({
       )
       .unique();
     if (existing) await ctx.db.delete(existing._id);
+  },
+});
+
+// ── Checklist templates ─────────────────────────────────────────────────
+// Reusable playbooks ("Definition of done", "Release steps") scoped like
+// skills, to my personal space or workspace. Applying one copies its items
+// onto a task's embedded checklist.
+
+export const listChecklistTemplates = query({
+  args: { apiKey: v.string() },
+  handler: async (ctx, { apiKey }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const templates = await ctx.db
+      .query("checklistTemplates")
+      .withIndex("by_scope", (q) =>
+        q.eq("scopeType", agent.parentType).eq("scopeId", agent.parentId),
+      )
+      .collect();
+    return templates.map((t) => ({
+      templateId: t._id,
+      name: t.name,
+      items: t.items,
+      createdByActorId: t.createdByActorId,
+      createdAt: t.createdAt,
+    }));
+  },
+});
+
+export const createChecklistTemplate = mutation({
+  args: { apiKey: v.string(), name: v.string(), items: v.array(v.string()) },
+  handler: async (ctx, { apiKey, name, items }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
+    requireUnrestricted(agent);
+    if (!name.trim()) throw new Error("Name is required");
+    const cleanItems = items.map((i) => i.trim()).filter(Boolean);
+    if (cleanItems.length === 0) {
+      throw new Error("At least one checklist item is required");
+    }
+    return await ctx.db.insert("checklistTemplates", {
+      scopeType: agent.parentType,
+      scopeId: agent.parentId,
+      name: name.trim(),
+      items: cleanItems,
+      createdByActorId: agent._id,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+// Appends the template's items onto the task's existing checklist (doesn't
+// replace it) so applying a second template — or a human's own items —
+// composes rather than clobbers.
+export const applyChecklistTemplate = mutation({
+  args: {
+    apiKey: v.string(),
+    taskId: v.id("tasks"),
+    templateId: v.id("checklistTemplates"),
+  },
+  handler: async (ctx, { apiKey, taskId, templateId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
+    const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
+    const template = await ctx.db.get(templateId);
+    if (
+      !template ||
+      template.scopeType !== agent.parentType ||
+      template.scopeId !== agent.parentId
+    ) {
+      throw new Error("Checklist template not found");
+    }
+    const existing = task.checklist ?? [];
+    const additions = template.items.map((text, i) => ({
+      id: `tpl-${templateId}-${Date.now()}-${i}`,
+      text,
+      done: false,
+    }));
+    await updateTaskCore(
+      ctx,
+      { taskId, checklist: [...existing, ...additions] },
+      agentActor(agent),
+    );
+  },
+});
+
+// ── Portfolio & dependency network ──────────────────────────────────────
+
+// One row per list in my scope (skipping archived spaces), with the
+// project metadata a portfolio view needs. Uses the precomputed rollup
+// when available and falls back to a direct scan of that one list
+// otherwise (same fallback rule as the human Home/Space overview).
+export const getPortfolio = query({
+  args: { apiKey: v.string() },
+  handler: async (ctx, { apiKey }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const lists = await listsInScope(ctx, agent, { skipArchived: true });
+    const out = [];
+    for (const { list, spaceName } of lists) {
+      const rollup = await getRollup(ctx, list._id);
+      let total: number;
+      let done: number;
+      let inProgress: number;
+      if (rollup) {
+        ({ total, done, inProgress } = rollup);
+      } else {
+        const tasks = await ctx.db
+          .query("tasks")
+          .withIndex("by_list", (q) => q.eq("listId", list._id))
+          .collect();
+        total = tasks.length;
+        done = 0;
+        inProgress = 0;
+        for (const t of tasks) {
+          const status = await ctx.db.get(t.statusId);
+          if (status?.category === "complete" || status?.category === "closed") {
+            done++;
+          } else if (status?.category === "in_progress") {
+            inProgress++;
+          }
+        }
+      }
+      out.push({
+        listId: list._id,
+        name: list.name,
+        spaceName,
+        projectStatus: list.projectStatus,
+        targetDate: list.targetDate,
+        total,
+        done,
+        inProgress,
+      });
+    }
+    return out;
+  },
+});
+
+// A list's tasks with their blocked-by edges and status categories, so an
+// agent can reason about dependency order (what's ready to start, what's
+// gating what) without fetching every task individually.
+export const getTaskNetwork = query({
+  args: { apiKey: v.string(), listId: v.id("lists") },
+  handler: async (ctx, { apiKey, listId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    await requireListAccessForAgent(ctx, listId, agent);
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_list", (q) => q.eq("listId", listId))
+      .collect();
+    const out = [];
+    for (const t of tasks) {
+      const status = await ctx.db.get(t.statusId);
+      out.push({
+        taskId: t._id,
+        title: t.title,
+        status: status
+          ? { statusId: status._id, name: status.name, category: status.category }
+          : null,
+        blockedByTaskIds: t.blockedByTaskIds ?? [],
+        milestone: t.milestone ?? false,
+      });
+    }
+    return out;
   },
 });
 

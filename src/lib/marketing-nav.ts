@@ -18,7 +18,7 @@ export const FEATURE_LINKS: NavLeaf[] = [
   {
     href: "/features#mcp",
     label: "MCP server",
-    description: "63 tools your agents call over one hosted endpoint",
+    description: "80+ tools your agents call over one hosted endpoint",
   },
   {
     href: "/features#governance",
@@ -120,6 +120,6 @@ export const PLAIN_LINKS: { href: string; label: string }[] = [
 ];
 
 export const SITE_NAME = "operate.to";
-export const SITE_TAGLINE = "Mission control for humans and AI agents";
+export const SITE_TAGLINE = "The operating system for AI agent workforces";
 export const SITE_URL =
   process.env.NEXT_PUBLIC_APP_URL ?? "https://operate.to";

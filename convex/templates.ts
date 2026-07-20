@@ -52,7 +52,7 @@ const LIST_TEMPLATES: ListTemplate[] = [
   {
     id: "software-sprint",
     name: "Software sprint",
-    emoji: "🛠️",
+    emoji: "",
     color: "#c6bcf2",
     description:
       "Backlog → In Progress → Review → Done with story points and sprint tags.",
@@ -83,7 +83,7 @@ const LIST_TEMPLATES: ListTemplate[] = [
   {
     id: "marketing-campaign",
     name: "Marketing campaign",
-    emoji: "📣",
+    emoji: "",
     color: "#f2c291",
     description:
       "Brief → Drafting → Review → Published, with a Channel dropdown.",
@@ -113,7 +113,7 @@ const LIST_TEMPLATES: ListTemplate[] = [
   {
     id: "personal-todo",
     name: "Personal to-do",
-    emoji: "✅",
+    emoji: "",
     color: "#a9dcbd",
     description: "A simple personal list with starter tasks.",
     tasks: [
@@ -125,7 +125,7 @@ const LIST_TEMPLATES: ListTemplate[] = [
   {
     id: "sales-pipeline",
     name: "Sales pipeline",
-    emoji: "💼",
+    emoji: "",
     color: "#a9c6f2",
     description:
       "Leads → Qualified → Proposal → Closed Won / Lost with Deal Value.",

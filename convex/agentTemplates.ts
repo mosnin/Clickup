@@ -27,7 +27,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
   {
     slug: "triage",
     name: "Triage",
-    emoji: "🗂️",
+    emoji: "",
     tagline: "Keeps the backlog clean",
     description:
       "Sorts new tasks into the right lists, sets priorities, and flags stale or duplicate work so humans start each day on a tidy board.",
@@ -38,7 +38,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
   {
     slug: "sprint-planner",
     name: "Sprint Planner",
-    emoji: "🗓️",
+    emoji: "",
     tagline: "Plans and runs the sprint",
     description:
       "Proposes sprint scope from the backlog, opens the sprint, keeps the rollup honest, and closes it with a summary at the end of the timebox.",
@@ -49,7 +49,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
   {
     slug: "qa-reviewer",
     name: "QA Reviewer",
-    emoji: "🔍",
+    emoji: "",
     tagline: "Reviews completed work",
     description:
       "Checks acceptance criteria on finished tasks, comments with what's missing, and re-opens anything that doesn't meet the checklist.",
@@ -60,7 +60,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
   {
     slug: "docs-writer",
     name: "Docs Writer",
-    emoji: "✍️",
+    emoji: "",
     tagline: "Drafts and maintains docs",
     description:
       "Turns completed work into changelogs and docs, keeps the knowledge tree current, and drafts the weekly digest from the activity feed.",
@@ -71,7 +71,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
   {
     slug: "research-analyst",
     name: "Research Analyst",
-    emoji: "📚",
+    emoji: "",
     tagline: "Searches and summarizes",
     description:
       "Runs semantic search across tasks and docs to answer questions, then writes findings into a linked doc with sources.",
@@ -82,7 +82,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
   {
     slug: "watchtower",
     name: "Watchtower",
-    emoji: "🛰️",
+    emoji: "",
     tagline: "Read-only monitor",
     description:
       "A safe, read-only observer: polls the event stream, watches for overdue work and stalled agents, and reports, but never writes.",
@@ -130,7 +130,6 @@ export const createFromTemplate = mutation({
     const agentId = await ctx.db.insert("agents", {
       name: (nameOverride ?? tpl.name).trim() || tpl.name,
       description: tpl.description,
-      emoji: tpl.emoji,
       parentType,
       parentId,
       status: "active",

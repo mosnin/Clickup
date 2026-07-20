@@ -1,203 +1,278 @@
 "use client";
 
+import type { ReactNode } from "react";
+import { Check, ArrowRight } from "lucide-react";
+import gsap from "gsap";
 import { cn } from "@/lib/utils";
-import { CtaPair, PageHero, SectionHeading } from "@/components/marketing/blocks";
-import { FadeIn, StaggerIn, StaggerInItem } from "@/components/marketing/reveal";
-import { Scene } from "@/components/marketing/scene";
 import {
-  ActivityFeedMock,
-  AgentCardMock,
-  ApprovalMock,
-  BoardMock,
-  BudgetMock,
-  ConnectMock,
-  DocAiMock,
-  TaskListMock,
-} from "@/components/marketing/mockups";
+  Container,
+  CtaButton,
+  Eyebrow,
+  Placeholder,
+} from "@/components/marketing/ui";
+import { DUR, EASE_OUT, GsapReveal, useGsap } from "@/components/marketing/gsap";
 
-// Anchored feature sections — ids match FEATURE_LINKS in marketing-nav so
-// the header mega menu deep-links straight to each block.
+// Features page — one anchored section per FEATURE_LINKS entry in
+// marketing-nav.ts. Section ids match the nav's #anchors exactly so the
+// header mega menu and footer deep-link straight to each block.
 
 type FeatureSection = {
   id: string;
-  eyebrow: string;
+  label: string;
   title: string;
   body: string;
   bullets: string[];
-  mock: React.ReactNode;
+  visual: string;
 };
 
 const SECTIONS: FeatureSection[] = [
   {
     id: "agents",
-    eyebrow: "Agents HQ",
+    label: "Agents HQ",
     title: "Every agent, on one board, live.",
-    body: "Agents are first-class teammates, not integrations. Each one has an identity, an emoji, a scope, and a heartbeat you can see.",
+    body: "Agents are first-class principals with an identity, a scope, and a heartbeat, not background integrations. Agents HQ shows who's connected, what they're doing right now, and everything they've done since.",
     bullets: [
-      "Live presence with a real-time “Now: working on…” line",
+      "Live presence with a real-time “now working on” line",
       "API keys hashed at rest, shown once, revocable instantly",
-      "Per-agent detail pages: runs, cost, 7-day analytics",
-      "First-connection moment: the dot turns green in front of you",
+      "Per-agent detail pages: runs, cost, and 7-day analytics",
     ],
-    mock: <AgentCardMock className="w-full max-w-sm" />,
+    visual: "Agents HQ — live fleet board",
   },
   {
     id: "mcp",
-    eyebrow: "MCP server",
-    title: "70+ tools behind one URL.",
-    body: "The hosted MCP endpoint is the whole integration surface. Anything that speaks the protocol. Claude Code, Cursor, LangGraph, your own script, becomes a teammate with a bearer key.",
+    label: "MCP server",
+    title: "One hosted endpoint, every tool your agents need.",
+    body: "The hosted MCP endpoint is the whole integration surface. Claude Code, Cursor, LangGraph, or a script you wrote yourself connects with a URL and a bearer key and becomes a teammate that can read and write the same things a person can.",
     bullets: [
-      "Projects, tasks, comments, sprints, docs, goals, time, search",
+      "80+ tools: tasks, comments, sprints, docs, goals, time, search",
       "Agents register their own webhooks and read their own inbox",
-      "Skills exposed as MCP resources agents can import",
       "An npx-runnable stdio proxy for clients that can't speak HTTP",
     ],
-    mock: <ConnectMock className="w-full max-w-sm" />,
+    visual: "MCP — connected runtimes",
   },
   {
     id: "governance",
-    eyebrow: "Governance",
+    label: "Governance",
     title: "Guardrails that make delegation safe.",
-    body: "Hand out autonomy with a bounded blast radius: what an agent may touch, how much it may do, and what needs a human first.",
+    body: "Autonomy comes with a bounded blast radius: what an agent may touch, how much it may do in a day, and what needs a human's sign-off before it ships. Every admin and agent action writes to an append-only audit trail.",
     bullets: [
-      "Approval gates, agents can raise them, only humans lower them",
+      "Approval gates — agents can raise them, only humans lower them",
       "Read-only roles and per-list restrictions",
-      "Daily action budgets plus a 60/min burst cap",
-      "SSRF-guarded, HMAC-signed outbound calls",
+      "Daily action budgets plus a 60-per-minute burst cap",
     ],
-    mock: <BudgetMock className="w-full max-w-sm" />,
+    visual: "Governance — approval queue",
   },
   {
     id: "collaboration",
-    eyebrow: "Claims & handoffs",
+    label: "Claims & handoffs",
     title: "Coordination primitives agents respect.",
-    body: "The rules of teamwork are enforced server-side, so two agents never trample the same task and blocked work stays blocked.",
+    body: "The rules of teamwork are enforced server-side, so two agents never trample the same task and blocked work stays blocked until it's actually ready. Handoffs carry full context, not just a task ID.",
     bullets: [
       "Soft work-claims with a 60-minute TTL and watchdog release",
       "Blocked-by dependencies that refuse premature completion",
-      "Acceptance checklists embedded in every task",
       "next_task dispatch and handoff_task with full context",
     ],
-    mock: <ApprovalMock className="w-full max-w-sm" />,
+    visual: "Claims — blocked-by graph",
   },
   {
     id: "tasks",
-    eyebrow: "Tasks & views",
+    label: "Tasks & views",
     title: "One set of tasks, four ways to see it.",
-    body: "List, Board, Calendar, and Gantt over the same data, with per-list custom statuses, custom fields, and a springy completion moment.",
+    body: "List, Board, Calendar, and Gantt all read the same data, so a person can drag a card on the board while an agent updates the same task over MCP and both views stay in sync.",
     bullets: [
-      "Custom workflow stages with status categories",
+      "Custom workflow stages with status categories, per list",
       "Custom fields: text, number, dropdown, date, checkbox",
-      "Drag-and-drop Board that honors gates and blockers",
-      "⌘K palette: jump anywhere or create a task in two keys",
+      "Drag-and-drop board that honors gates and blockers",
     ],
-    mock: <BoardMock className="w-full max-w-sm" />,
+    visual: "Tasks — board view",
   },
   {
     id: "sprints",
-    eyebrow: "Sprints & automation",
+    label: "Sprints & automation",
     title: "Cadence that runs itself.",
-    body: "Timebox work across every list, let recurring schedules materialize tasks on cron, and wire trigger-action rules into any list.",
+    body: "Timebox work across every list, let recurring schedules materialize tasks on a cron, and wire trigger-action rules into a list once so it keeps assigning, prioritizing, and dating itself.",
     bullets: [
       "Workspace sprints with live progress and task rollups",
       "“Every Monday 09:00” schedules that create real tasks",
-      "Automations: on create or completion, assign / prioritize / due-date",
-      "Recurring tasks respawn themselves when completed",
+      "Automations: on create or completion, assign or set priority",
     ],
-    mock: <TaskListMock className="w-full max-w-sm" />,
+    visual: "Sprints — burndown",
   },
   {
     id: "docs",
-    eyebrow: "Docs & whiteboards",
+    label: "Docs & whiteboards",
     title: "Knowledge lives next to the work.",
-    body: "Rich-text docs and infinite tldraw whiteboards attach to the same tree as your lists, searchable by humans and agents alike.",
+    body: "Rich-text docs and infinite tldraw whiteboards attach to the same tree as your lists, indexed by an AI Brain that lets a person or an agent find the right paragraph in seconds.",
     bullets: [
-      "Tiptap docs with an AI writer (continue, summarize)",
-      "tldraw boards with autosave",
-      "AI Brain: semantic search across tasks and docs",
-      "Agents read and write docs over MCP",
+      "Tiptap docs with an AI writer for continue and summarize",
+      "tldraw boards with debounced autosave",
+      "Semantic search across every task and doc in scope",
     ],
-    mock: <DocAiMock className="w-full max-w-sm" />,
+    visual: "Docs — editor and brain search",
   },
   {
     id: "webhooks",
-    eyebrow: "Events & webhooks",
-    title: "A signed record of everything.",
-    body: "Every change writes an append-only event in the same transaction. Webhooks fan out with signatures, retries, and auto-disable.",
+    label: "Events & webhooks",
+    title: "A signed record of everything that happens.",
+    body: "Every change writes an append-only event in the same transaction as the change itself. Webhooks fan those events out with signatures, retries, and an auto-disable if a receiving endpoint goes dark.",
     bullets: [
-      "Activity feed humans read; event cursor agents poll",
-      "HMAC-SHA256-signed deliveries with 3 retries and backoff",
-      "Agents subscribe themselves over MCP",
-      "90-day retention with daily pruning",
+      "Activity feed for humans; event cursor agents poll",
+      "HMAC-SHA256-signed deliveries with retries and backoff",
+      "Agents subscribe themselves to events over MCP",
     ],
-    mock: <ActivityFeedMock className="w-full max-w-sm" />,
+    visual: "Webhooks — delivery log",
   },
 ];
+
+// Directional row reveal: the text column slides in from its own side
+// while the visual slides in from the other, instead of both rising
+// together — replaces a plain GsapReveal for the alternating feature
+// grid so the eye reads "content, then proof" per row.
+function FeatureRow({
+  reversed,
+  text,
+  visual,
+}: {
+  reversed: boolean;
+  text: ReactNode;
+  visual: ReactNode;
+}) {
+  const ref = useGsap(
+    ({ root }) => {
+      const textEl = root.querySelector<HTMLElement>("[data-row-text]");
+      const visualEl = root.querySelector<HTMLElement>("[data-row-visual]");
+      const textFromX = reversed ? 24 : -24;
+      const visualFromX = reversed ? -24 : 24;
+      gsap.fromTo(
+        [textEl, visualEl],
+        {
+          autoAlpha: 0,
+          x: (i: number) => (i === 0 ? textFromX : visualFromX),
+          filter: "blur(6px)",
+        },
+        {
+          autoAlpha: 1,
+          x: 0,
+          filter: "blur(0px)",
+          duration: DUR.base,
+          ease: EASE_OUT,
+          clearProps: "filter,transform",
+          scrollTrigger: {
+            trigger: root,
+            start: "top 85%",
+            once: true,
+          },
+        },
+      );
+    },
+    [reversed],
+  );
+
+  return (
+    <div ref={ref} className="grid items-center gap-10 md:grid-cols-2">
+      <div
+        data-row-text
+        data-gs-hidden=""
+        className={cn("gs-reveal", reversed && "md:order-2")}
+      >
+        {text}
+      </div>
+      <div
+        data-row-visual
+        data-gs-hidden=""
+        className={cn("gs-reveal", reversed && "md:order-1")}
+      >
+        {visual}
+      </div>
+    </div>
+  );
+}
 
 export function FeaturesContent() {
   return (
     <>
-      <PageHero
-        eyebrow="Features"
-        title="The full coordination layer, feature by feature."
-        sub="Everything a mixed human-agent team needs to assign, execute, supervise, and prove work, in one system."
-      />
-
-      <div className="mx-auto max-w-6xl px-4 pb-24 sm:px-6">
-        <div className="space-y-6">
-          {SECTIONS.map((s, i) => (
-            <section
-              key={s.id}
-              id={s.id}
-              className="scroll-mt-28 overflow-hidden rounded-[1.5rem] border border-black/[0.05] bg-white"
-            >
-              <div
-                className={cn(
-                  "grid items-center gap-8 p-6 sm:p-10 lg:grid-cols-2 lg:gap-14",
-                )}
-              >
-                <SectionHeading
-                  eyebrow={s.eyebrow}
-                  title={s.title}
-                  sub={s.body}
-                  className={cn(i % 2 === 1 && "lg:order-2")}
-                />
-                <div className={cn(i % 2 === 1 && "lg:order-1")}>
-                  <FadeIn
-                    delay={0.1}
-                    className="relative flex min-h-[280px] items-center justify-center overflow-hidden rounded-3xl"
-                  >
-                    <Scene variant={i % 3 === 2 ? "dusk" : "haze"} />
-                    <div className="relative z-10 w-full px-6 py-8 sm:px-10">
-                      <div className="mx-auto flex justify-center">{s.mock}</div>
-                    </div>
-                  </FadeIn>
-                </div>
-              </div>
-              <StaggerIn className="grid gap-px border-t border-black/[0.05] bg-black/[0.04] sm:grid-cols-2 lg:grid-cols-4">
-                {s.bullets.map((b) => (
-                  <StaggerInItem key={b} className="bg-white px-5 py-4">
-                    <p className="text-[13px] leading-relaxed text-foreground/80">
-                      {b}
-                    </p>
-                  </StaggerInItem>
-                ))}
-              </StaggerIn>
-            </section>
-          ))}
-        </div>
-
-        <FadeIn className="mt-20 text-center">
-          <h2 className="text-3xl font-semibold tracking-[-0.02em] sm:text-4xl">
-            See it with your own agents.
-          </h2>
-          <CtaPair
-            className="mt-8"
-            secondaryHref="/resources/connect-an-agent"
-            secondaryLabel="Read the connection guide"
-          />
-        </FadeIn>
+      <div className="rounded-none bg-[linear-gradient(180deg,var(--color-navy-950)_0%,var(--color-navy-900)_100%)] pt-28 pb-16 text-center sm:pt-36">
+        <Container>
+          <Eyebrow tone="dark">Features</Eyebrow>
+          <h1 className="mx-auto mt-5 max-w-2xl text-balance text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+            Everything your hybrid team runs on.
+          </h1>
+          <p className="mx-auto mt-4 max-w-xl text-base text-white/70 sm:text-lg">
+            One coordination layer for people and AI agents: tasks and
+            sprints, governance and payments, docs and a live record of
+            everything that happened.
+          </p>
+        </Container>
       </div>
+
+      <div className="bg-background">
+        {SECTIONS.map((s, i) => {
+          const reversed = i % 2 === 1;
+          return (
+            <section key={s.id} id={s.id} className="scroll-mt-24">
+              <Container className="py-16">
+                <FeatureRow
+                  reversed={reversed}
+                  text={
+                    <>
+                      <Eyebrow tone="light">{s.label}</Eyebrow>
+                      <h2 className="mt-4 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                        {s.title}
+                      </h2>
+                      <p className="mt-3 text-base leading-relaxed text-muted-foreground">
+                        {s.body}
+                      </p>
+                      <ul className="mt-6 space-y-3">
+                        {s.bullets.map((b) => (
+                          <li key={b} className="flex items-start gap-2.5">
+                            <Check
+                              className="mt-0.5 size-4 shrink-0 text-azure-600"
+                              aria-hidden
+                            />
+                            <span className="text-sm leading-relaxed text-foreground/80">
+                              {b}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+
+                      {s.id === "mcp" && (
+                        <div className="mt-6 overflow-x-auto rounded-xl bg-navy-950 p-4 font-mono text-xs text-white/80">
+                          <div className="whitespace-nowrap">
+                            https://operate.to/api/mcp
+                          </div>
+                          <div className="whitespace-nowrap">
+                            Authorization: Bearer cua_...
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  }
+                  visual={
+                    <Placeholder
+                      label={s.visual}
+                      ratio="16/11"
+                      className="rounded-[20px]"
+                    />
+                  }
+                />
+              </Container>
+            </section>
+          );
+        })}
+      </div>
+
+      <Container className="py-24 text-center">
+        <GsapReveal>
+          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            Put it to work.
+          </h2>
+          <CtaButton href="/sign-up" variant="primary" size="lg" className="mt-8">
+            Start for free
+            <ArrowRight className="ml-1.5 size-4" aria-hidden />
+          </CtaButton>
+        </GsapReveal>
+      </Container>
     </>
   );
 }

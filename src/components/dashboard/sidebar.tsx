@@ -1,42 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { UserButton } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import {
-  Activity,
-  BarChart3,
-  BookOpen,
   Bot,
-  Calendar,
   ChevronDown,
   ChevronRight,
   Columns3,
   FileText,
   Folder,
-  GanttChart,
+  FolderKanban,
   Home,
   Inbox,
-  LayoutDashboard,
   LayoutGrid,
   List as ListIcon,
   ListTodo,
+  Lock,
   Menu,
-  MessageSquare,
   PanelLeft,
   Plus,
   Search,
-  Settings,
   ShieldCheck,
   Sparkles,
-  Target,
-  Users,
-  Wallet,
-  Webhook,
+  Star,
   X,
-  Zap,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -47,6 +38,7 @@ import { RunningTimerChip } from "@/components/dashboard/running-timer-chip";
 import { TemplatePicker } from "@/components/dashboard/template-picker";
 import { NewWorkspaceDialog } from "@/components/dashboard/new-workspace-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useToast } from "@/components/toast";
 
 type SidebarTree = NonNullable<ReturnType<typeof useTreeQuery>>;
 type SpaceNode = SidebarTree["workspaces"][number]["spaces"][number];
@@ -90,12 +82,111 @@ function RailTip({ label }: { label: string }) {
   );
 }
 
+// ── Anchored portal menu ─────────────────────────────────────────────────
+//
+// The sidebar's <aside> always carries a translate-x transform (mobile
+// drawer + desktop resting state alike), which becomes the containing
+// block for any descendant position:fixed element. Any dropdown that needs
+// to escape the sidebar's clipping/scroll region — the New menu, the
+// per-space "+" menu — portals to <body> and positions itself from the
+// trigger's live bounding rect instead.
+
+type MenuPlacement = "bottom-start" | "bottom-end" | "right-start";
+
+function menuStyle(placement: MenuPlacement, rect: DOMRect): React.CSSProperties {
+  if (placement === "right-start") {
+    return { top: rect.top, left: rect.right + 8 };
+  }
+  if (placement === "bottom-end") {
+    return {
+      top: rect.bottom + 6,
+      right: Math.max(8, window.innerWidth - rect.right),
+    };
+  }
+  return { top: rect.bottom + 6, left: rect.left };
+}
+
+function AnchoredMenu({
+  open,
+  anchorRef,
+  onClose,
+  onEscape,
+  placement = "bottom-start",
+  widthClassName = "w-64",
+  children,
+}: {
+  open: boolean;
+  anchorRef: React.RefObject<HTMLElement | null>;
+  onClose: () => void;
+  onEscape?: () => void;
+  placement?: MenuPlacement;
+  widthClassName?: string;
+  children: React.ReactNode;
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    function update() {
+      setRect(anchorRef.current?.getBoundingClientRect() ?? null);
+    }
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open, anchorRef]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        (onEscape ?? onClose)();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose, onEscape]);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {open && rect && (
+        <>
+          <div aria-hidden className="fixed inset-0 z-[60]" onClick={onClose} />
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={{ duration: 0.15 }}
+            style={menuStyle(placement, rect)}
+            className={cn(
+              "fixed z-[61] overflow-hidden rounded-xl border border-border bg-background p-1 shadow-lg",
+              widthClassName,
+            )}
+          >
+            {children}
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>,
+    document.body,
+  );
+}
+
 // ── Root ────────────────────────────────────────────────────────────────────
 
 export function DashboardSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useCollapsed();
   const tree = useTreeQuery();
+  const pathname = usePathname();
   const close = () => setMobileOpen(false);
 
   return (
@@ -131,7 +222,7 @@ export function DashboardSidebar() {
         )}
         aria-label="Sidebar"
       >
-        {/* Header */}
+        {/* 1. Header */}
         <div
           className={cn(
             "flex shrink-0 items-center px-4 pb-2 pt-4",
@@ -183,9 +274,10 @@ export function DashboardSidebar() {
           </button>
         </div>
 
-        {/* Fixed nav band, stays put while the tree scrolls. */}
+        {/* Fixed nav band: search, primary nav, New button. Stays put while
+            the tree below scrolls. */}
         <div className={cn("shrink-0 px-3 pt-3", collapsed && "md:px-2")}>
-          {!collapsed && <RunningTimerChip />}
+          {/* 2. Search */}
           <button
             type="button"
             onClick={() => {
@@ -214,22 +306,56 @@ export function DashboardSidebar() {
             {collapsed && <RailTip label="Search  ⌘K" />}
           </button>
 
-          <HomeLink onNavigate={close} collapsed={collapsed} />
-          <MyWorkLink onNavigate={close} collapsed={collapsed} />
+          {/* 3. Primary nav */}
+          <NavLink
+            href="/dashboard"
+            label="Home"
+            icon={Home}
+            active={pathname === "/dashboard"}
+            collapsed={collapsed}
+            onNavigate={close}
+          />
+          <NavLink
+            href="/dashboard/my-work"
+            label="My work"
+            icon={ListTodo}
+            active={pathname === "/dashboard/my-work"}
+            collapsed={collapsed}
+            onNavigate={close}
+          />
+          <NavLink
+            href="/dashboard/projects"
+            label="Projects"
+            icon={FolderKanban}
+            active={pathname === "/dashboard/projects"}
+            collapsed={collapsed}
+            onNavigate={close}
+          />
           <InboxLink onNavigate={close} collapsed={collapsed} />
-          <BrainLink onNavigate={close} collapsed={collapsed} />
-          <AgentsGroup onNavigate={close} collapsed={collapsed} />
+          <NavLink
+            href="/dashboard/agents"
+            label="Agents"
+            icon={Bot}
+            active={pathname.startsWith("/dashboard/agents")}
+            collapsed={collapsed}
+            onNavigate={close}
+          />
+          <NavLink
+            href="/dashboard/brain"
+            label="Brain"
+            icon={Sparkles}
+            active={pathname === "/dashboard/brain"}
+            collapsed={collapsed}
+            onNavigate={close}
+          />
 
+          {/* 4. New */}
           <div className="mt-1">
-            <NewButton
-              tree={tree}
-              collapsed={collapsed}
-              onNavigate={close}
-            />
+            <NewButton tree={tree} collapsed={collapsed} onNavigate={close} />
           </div>
         </div>
 
-        {/* Scrolling tree */}
+        {/* 5. Scrolling tree */}
         <nav
           className={cn(
             "mt-2 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-3",
@@ -245,31 +371,36 @@ export function DashboardSidebar() {
               Sign in to see your spaces.
             </p>
           ) : (
-            <SidebarTreeView tree={tree} onNavigate={close} />
+            <>
+              <FavoritesSection onNavigate={close} />
+              <SidebarTreeView tree={tree} onNavigate={close} />
+            </>
           )}
         </nav>
 
-        <AdminLink onNavigate={close} collapsed={collapsed} />
-
+        {/* 6. Footer */}
         <div
           className={cn(
-            "shrink-0 px-3 pb-4 pt-2",
+            "shrink-0 space-y-2.5 px-3 pb-4 pt-2",
             collapsed && "md:px-2",
           )}
         >
           {collapsed ? (
             <div className="flex flex-col items-center gap-2">
               <ThemeToggle collapsed />
+              <AdminLink onNavigate={close} collapsed />
               <UserButton afterSignOutUrl="/" />
             </div>
           ) : (
-            <div className="space-y-2.5">
+            <>
+              <RunningTimerChip />
+              <AdminLink onNavigate={close} collapsed={false} />
               <ThemeToggle />
               <div className="flex items-center gap-3 px-1">
                 <UserButton afterSignOutUrl="/" />
                 <span className="text-xs text-muted-foreground">Account</span>
               </div>
-            </div>
+            </>
           )}
         </div>
       </aside>
@@ -287,7 +418,6 @@ function NavLink({
   collapsed,
   onNavigate,
   badge,
-  className,
 }: {
   href: string;
   label: string;
@@ -296,7 +426,6 @@ function NavLink({
   collapsed: boolean;
   onNavigate: () => void;
   badge?: React.ReactNode;
-  className?: string;
 }) {
   return (
     <Link
@@ -311,7 +440,6 @@ function NavLink({
         active
           ? "text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
-        className,
       )}
     >
       {active && (
@@ -329,72 +457,12 @@ function NavLink({
       >
         <Icon className="h-4 w-4" />
       </motion.span>
-      <span className={cn("relative z-10 flex-1", collapsed && "md:hidden")}>
+      <span className={cn("relative z-10 flex-1 truncate", collapsed && "md:hidden")}>
         {label}
       </span>
       {badge}
       {collapsed && <RailTip label={label} />}
     </Link>
-  );
-}
-
-function HomeLink({
-  onNavigate,
-  collapsed,
-}: {
-  onNavigate: () => void;
-  collapsed: boolean;
-}) {
-  const pathname = usePathname();
-  return (
-    <NavLink
-      href="/dashboard"
-      label="Home"
-      icon={Home}
-      active={pathname === "/dashboard"}
-      collapsed={collapsed}
-      onNavigate={onNavigate}
-    />
-  );
-}
-
-function MyWorkLink({
-  onNavigate,
-  collapsed,
-}: {
-  onNavigate: () => void;
-  collapsed: boolean;
-}) {
-  const pathname = usePathname();
-  return (
-    <NavLink
-      href="/dashboard/my-work"
-      label="My work"
-      icon={ListTodo}
-      active={pathname === "/dashboard/my-work"}
-      collapsed={collapsed}
-      onNavigate={onNavigate}
-    />
-  );
-}
-
-function BrainLink({
-  onNavigate,
-  collapsed,
-}: {
-  onNavigate: () => void;
-  collapsed: boolean;
-}) {
-  const pathname = usePathname();
-  return (
-    <NavLink
-      href="/dashboard/brain"
-      label="Brain"
-      icon={Sparkles}
-      active={pathname === "/dashboard/brain"}
-      collapsed={collapsed}
-      onNavigate={onNavigate}
-    />
   );
 }
 
@@ -437,114 +505,6 @@ function InboxLink({
   );
 }
 
-// Agents: an expandable group whose sub-rows deep-link to the page tabs.
-const AGENT_SUBLINKS = [
-  { key: "", label: "Mission control", Icon: LayoutDashboard },
-  { key: "activity", label: "Activity", Icon: Activity },
-  { key: "billing", label: "Billing", Icon: Wallet },
-  { key: "webhooks", label: "Webhooks", Icon: Webhook },
-  { key: "skills", label: "Skills", Icon: BookOpen },
-] as const;
-
-function AgentsGroup({
-  onNavigate,
-  collapsed,
-}: {
-  onNavigate: () => void;
-  collapsed: boolean;
-}) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const onAgents = pathname.startsWith("/dashboard/agents");
-  const [expanded, setExpanded] = useState(onAgents);
-  useEffect(() => {
-    if (onAgents) setExpanded(true);
-  }, [onAgents]);
-
-  if (collapsed) {
-    return (
-      <NavLink
-        href="/dashboard/agents"
-        label="Agents"
-        icon={Bot}
-        active={onAgents}
-        collapsed={collapsed}
-        onNavigate={onNavigate}
-      />
-    );
-  }
-
-  const activeTab = pathname === "/dashboard/agents" ? searchParams.get("tab") : null;
-
-  return (
-    <div className="mb-1">
-      <div className="flex items-center">
-        <button
-          type="button"
-          aria-label={expanded ? "Collapse Agents" : "Expand Agents"}
-          onClick={() => setExpanded((v) => !v)}
-          className="tap-target inline-flex h-7 w-5 flex-shrink-0 items-center justify-center text-muted-foreground"
-        >
-          <motion.span
-            animate={{ rotate: expanded ? 90 : 0 }}
-            transition={SPRING}
-            className="inline-flex"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </motion.span>
-        </button>
-        <Link
-          href="/dashboard/agents"
-          onClick={onNavigate}
-          className={cn(
-            "group relative flex flex-1 items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
-            pathname === "/dashboard/agents"
-              ? "text-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground",
-          )}
-        >
-          {pathname === "/dashboard/agents" && (
-            <motion.span
-              layoutId="sidebar-active"
-              className="absolute inset-0 rounded-lg bg-muted"
-              transition={SPRING}
-            />
-          )}
-          <span className="relative z-10 inline-flex">
-            <Bot className="h-4 w-4" />
-          </span>
-          <span className="relative z-10 flex-1">Agents</span>
-        </Link>
-      </div>
-
-      {expanded && (
-        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border/50 pl-2">
-          {AGENT_SUBLINKS.map(({ key, label, Icon }) => {
-            const isActive = onAgents && (activeTab ?? "") === key;
-            return (
-              <li key={key || "home"}>
-                <Link
-                  href={key ? `/dashboard/agents?tab=${key}` : "/dashboard/agents"}
-                  onClick={onNavigate}
-                  className={cn(
-                    "flex items-center gap-2 rounded-lg px-2.5 py-1 text-sm transition-colors",
-                    isActive
-                      ? "bg-muted font-medium text-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-                  <span className="truncate">{label}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 // ── Create ("New") menu ──────────────────────────────────────────────────────
 
 type NewStep =
@@ -577,22 +537,33 @@ function NewButton({
   const createList = useMutation(api.lists.create);
   const createDoc = useMutation(api.docs.create);
   const createWhiteboard = useMutation(api.whiteboards.create);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<NewStep>({ kind: "menu" });
   const [templateSpace, setTemplateSpace] = useState<Id<"spaces"> | null>(null);
   const [wsDialog, setWsDialog] = useState(false);
 
+  // Always start fresh at the top of the menu whenever it (re)opens.
+  useEffect(() => {
+    if (open) setStep({ kind: "menu" });
+  }, [open]);
+
   const spaces = tree ? allSpaces(tree) : [];
 
-  function reset() {
+  function close() {
     setOpen(false);
-    setStep({ kind: "menu" });
   }
 
-  async function createIn(
-    action: "doc" | "board",
-    spaceId: Id<"spaces">,
-  ) {
+  function stepBackOrClose() {
+    setStep((s) => {
+      if (s.kind === "space") return { kind: "menu" };
+      if (s.kind === "name") return { kind: "space", action: "list" };
+      close();
+      return s;
+    });
+  }
+
+  async function createIn(action: "doc" | "board", spaceId: Id<"spaces">) {
     if (action === "doc") {
       const docId = await createDoc({
         parentType: "space",
@@ -610,12 +581,13 @@ function NewButton({
       onNavigate();
       router.push(`/dashboard/wb/${wbId}`);
     }
-    reset();
+    close();
   }
 
   return (
-    <div className="relative">
+    <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
@@ -628,9 +600,7 @@ function NewButton({
         )}
       >
         <Plus className="h-4 w-4 flex-shrink-0" />
-        <span className={cn("flex-1 text-left", collapsed && "md:hidden")}>
-          New
-        </span>
+        <span className={cn("flex-1 text-left", collapsed && "md:hidden")}>New</span>
         <ChevronDown
           className={cn(
             "h-3.5 w-3.5 text-muted-foreground transition-transform",
@@ -641,141 +611,123 @@ function NewButton({
         {collapsed && <RailTip label="New" />}
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <>
-            <div
-              aria-hidden
-              className="fixed inset-0 z-40"
-              onClick={reset}
+      <AnchoredMenu
+        open={open}
+        anchorRef={triggerRef}
+        onClose={close}
+        onEscape={stepBackOrClose}
+        placement={collapsed ? "right-start" : "bottom-start"}
+        widthClassName="w-60"
+      >
+        {step.kind === "menu" && (
+          <MenuList>
+            <MenuItem
+              icon={ListIcon}
+              label="New task"
+              hint="⌘K"
+              onClick={() => {
+                close();
+                window.dispatchEvent(new CustomEvent("open-command-palette"));
+              }}
             />
-            <motion.div
-              initial={{ opacity: 0, y: -4, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -4, scale: 0.98 }}
-              transition={{ duration: 0.15 }}
-              className={cn(
-                "absolute z-50 mt-1 w-60 overflow-hidden rounded-xl border border-border bg-background p-1 shadow-lg",
-                collapsed ? "left-full ml-2 top-0" : "left-0 top-full",
-              )}
-            >
-              {step.kind === "menu" && (
-                <MenuList>
-                  <MenuItem
-                    icon={ListIcon}
-                    label="New task"
-                    hint="⌘K"
-                    onClick={() => {
-                      reset();
-                      window.dispatchEvent(
-                        new CustomEvent("open-command-palette"),
-                      );
-                    }}
-                  />
-                  <MenuItem
-                    icon={ListIcon}
-                    label="New list"
-                    onClick={() => setStep({ kind: "space", action: "list" })}
-                  />
-                  <MenuItem
-                    icon={FileText}
-                    label="New doc"
-                    onClick={() => setStep({ kind: "space", action: "doc" })}
-                  />
-                  <MenuItem
-                    icon={LayoutGrid}
-                    label="New whiteboard"
-                    onClick={() => setStep({ kind: "space", action: "board" })}
-                  />
-                  <MenuItem
-                    icon={Columns3}
-                    label="List from template"
-                    onClick={() =>
-                      setStep({ kind: "space", action: "template" })
-                    }
-                  />
-                  <div className="my-1 h-px bg-border" />
-                  <MenuItem
-                    icon={Plus}
-                    label="New workspace"
-                    onClick={() => {
-                      reset();
-                      setWsDialog(true);
-                    }}
-                  />
-                </MenuList>
-              )}
-
-              {step.kind === "space" && (
-                <div>
-                  <MenuHeader
-                    label={`Create ${
-                      step.action === "board"
-                        ? "whiteboard"
-                        : step.action === "template"
-                          ? "list"
-                          : step.action
-                    } in…`}
-                    onBack={() => setStep({ kind: "menu" })}
-                  />
-                  <MenuList>
-                    {spaces.length === 0 && (
-                      <p className="px-3 py-2 text-xs text-muted-foreground">
-                        No spaces yet.
-                      </p>
-                    )}
-                    {spaces.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => {
-                          if (step.action === "list")
-                            setStep({ kind: "name", spaceId: s.id });
-                          else if (step.action === "template") {
-                            setTemplateSpace(s.id);
-                            reset();
-                          } else createIn(step.action, s.id);
-                        }}
-                        className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-muted"
-                      >
-                        <span className="truncate">{s.label}</span>
-                        <span className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
-                          {s.sub}
-                        </span>
-                      </button>
-                    ))}
-                  </MenuList>
-                </div>
-              )}
-
-              {step.kind === "name" && (
-                <div className="p-1.5">
-                  <MenuHeader
-                    label="Name your list"
-                    onBack={() => setStep({ kind: "space", action: "list" })}
-                  />
-                  <div className="px-1 pt-1">
-                    <InlineCreate
-                      placeholder="List name…"
-                      onCancel={reset}
-                      onSubmit={async (name) => {
-                        const listId = await createList({
-                          name,
-                          parentType: "space",
-                          parentId: step.spaceId,
-                        });
-                        onNavigate();
-                        router.push(`/dashboard/l/${listId}`);
-                        reset();
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          </>
+            <MenuItem
+              icon={ListIcon}
+              label="New list"
+              onClick={() => setStep({ kind: "space", action: "list" })}
+            />
+            <MenuItem
+              icon={FileText}
+              label="New doc"
+              onClick={() => setStep({ kind: "space", action: "doc" })}
+            />
+            <MenuItem
+              icon={LayoutGrid}
+              label="New whiteboard"
+              onClick={() => setStep({ kind: "space", action: "board" })}
+            />
+            <MenuItem
+              icon={Columns3}
+              label="From template"
+              onClick={() => setStep({ kind: "space", action: "template" })}
+            />
+            <div className="my-1 h-px bg-border" />
+            <MenuItem
+              icon={Plus}
+              label="New workspace"
+              onClick={() => {
+                close();
+                setWsDialog(true);
+              }}
+            />
+          </MenuList>
         )}
-      </AnimatePresence>
+
+        {step.kind === "space" && (
+          <div>
+            <MenuHeader
+              label={`Create ${
+                step.action === "board"
+                  ? "whiteboard"
+                  : step.action === "template"
+                    ? "list from template"
+                    : step.action
+              } in…`}
+              onBack={() => setStep({ kind: "menu" })}
+            />
+            <MenuList>
+              {spaces.length === 0 && (
+                <p className="px-3 py-2 text-xs text-muted-foreground">
+                  No spaces yet.
+                </p>
+              )}
+              {spaces.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    if (step.action === "list") setStep({ kind: "name", spaceId: s.id });
+                    else if (step.action === "template") {
+                      setTemplateSpace(s.id);
+                      close();
+                    } else createIn(step.action, s.id);
+                  }}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-muted"
+                >
+                  <span className="truncate">{s.label}</span>
+                  <span className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {s.sub}
+                  </span>
+                </button>
+              ))}
+            </MenuList>
+          </div>
+        )}
+
+        {step.kind === "name" && (
+          <div className="p-1.5">
+            <MenuHeader
+              label="Name your list"
+              onBack={() => setStep({ kind: "space", action: "list" })}
+            />
+            <div className="px-1 pt-1">
+              <InlineCreate
+                placeholder="List name…"
+                onCancel={() => setStep({ kind: "space", action: "list" })}
+                onSubmit={async (name) => {
+                  const listId = await createList({
+                    name,
+                    parentType: "space",
+                    parentId: step.spaceId,
+                  });
+                  onNavigate();
+                  router.push(`/dashboard/l/${listId}`);
+                  close();
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </AnchoredMenu>
 
       {templateSpace && (
         <TemplatePicker
@@ -790,7 +742,7 @@ function NewButton({
         />
       )}
       <NewWorkspaceDialog open={wsDialog} onClose={() => setWsDialog(false)} />
-    </div>
+    </>
   );
 }
 
@@ -855,39 +807,42 @@ function AdminLink({
   const me = useQuery(api.admin.me, {});
   if (!me) return null;
   const active = pathname.startsWith("/dashboard/admin");
-  return (
-    <div className={cn("shrink-0 px-3 pb-1 pt-2", collapsed && "md:px-2")}>
+
+  if (collapsed) {
+    return (
       <Link
         href="/dashboard/admin"
         onClick={onNavigate}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "group relative flex items-center gap-2 rounded-lg text-sm transition-colors",
-          collapsed
-            ? "md:justify-center md:px-0 md:py-2 px-2.5 py-1.5"
-            : "px-2.5 py-1.5",
-          active
-            ? "bg-muted text-foreground"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          "group relative inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
+          active ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
         )}
       >
-        <span className="inline-flex">
-          <ShieldCheck className="h-4 w-4" />
-        </span>
-        <span className={cn("flex-1", collapsed && "md:hidden")}>
-          Admin console
-        </span>
-        <span
-          className={cn(
-            "rounded-full bg-foreground/90 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-background",
-            collapsed && "md:hidden",
-          )}
-        >
-          {me.role === "superadmin" ? "Super" : "Admin"}
-        </span>
-        {collapsed && <RailTip label="Admin console" />}
+        <ShieldCheck className="h-4 w-4" />
+        <RailTip label="Admin console" />
       </Link>
-    </div>
+    );
+  }
+
+  return (
+    <Link
+      href="/dashboard/admin"
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+        active
+          ? "bg-muted text-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+      <span className="flex-1 truncate">Admin console</span>
+      <span className="rounded-full bg-foreground/90 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-background">
+        {me.role === "superadmin" ? "Super" : "Admin"}
+      </span>
+    </Link>
   );
 }
 
@@ -910,9 +865,7 @@ function CollapsedWorkspaceTiles({
           onClick={onNavigate}
           className={cn(
             "group relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-sm transition-colors",
-            pathname === "/dashboard/personal"
-              ? "bg-muted"
-              : "hover:bg-muted",
+            pathname === "/dashboard/personal" ? "bg-muted" : "hover:bg-muted",
           )}
         >
           <span
@@ -976,6 +929,76 @@ function SectionHeader({ label }: { label: string }) {
   );
 }
 
+// Compact pinned shortcuts, shown above the Personal/Workspaces tree and
+// only when the user actually has favorites (an empty section would just
+// be dead space). Skipped entirely in the collapsed icon rail — there's no
+// room to do it justice there, and the rail already surfaces the
+// personal space + workspace tiles as one-click shortcuts.
+function FavoritesSection({ onNavigate }: { onNavigate: () => void }) {
+  const pathname = usePathname();
+  const favorites = useQuery(api.favorites.listForCurrentUser, {});
+  const toggleFavorite = useMutation(api.favorites.toggle);
+  const { toast } = useToast();
+
+  if (!favorites || favorites.length === 0) return null;
+
+  return (
+    <div className="mb-6">
+      <SectionHeader label="Favorites" />
+      <ul className="mt-1 space-y-0.5">
+        {favorites.map((f) => {
+          const active = pathname === f.href;
+          return (
+            <li key={`${f.entityType}:${f.entityId}`} className="group/fav flex items-center gap-1">
+              <Link
+                href={f.href}
+                onClick={onNavigate}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex flex-1 items-center gap-2 truncate rounded-lg px-2.5 py-1 text-sm transition-colors",
+                  active
+                    ? "bg-muted font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {f.color ? (
+                  <span
+                    aria-hidden
+                    className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
+                    style={{ backgroundColor: f.color }}
+                  />
+                ) : (
+                  <Star className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+                )}
+                <span className="truncate">{f.name}</span>
+              </Link>
+              <button
+                type="button"
+                aria-label={`Remove ${f.name} from favorites`}
+                title="Remove from favorites"
+                onClick={async () => {
+                  try {
+                    await toggleFavorite({
+                      entityType: f.entityType,
+                      entityId: f.entityId,
+                    });
+                    toast("Removed from favorites");
+                  } catch {
+                    toast("Couldn't update favorites", { kind: "error" });
+                  }
+                }}
+                className="tap-target inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover/fav:opacity-100 focus-visible:opacity-100"
+              >
+                <Star className="h-3.5 w-3.5 fill-current" aria-hidden />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function SidebarTreeView({
   tree,
   onNavigate,
@@ -989,7 +1012,7 @@ function SidebarTreeView({
       <NewWorkspaceDialog open={wsDialog} onClose={() => setWsDialog(false)} />
       <SectionHeader label="Personal" />
       {tree.personal ? (
-        <SpaceBranch
+        <SpaceRow
           space={tree.personal}
           onNavigate={onNavigate}
           linkHref="/dashboard/personal"
@@ -999,17 +1022,17 @@ function SidebarTreeView({
       )}
 
       <div className="mt-6 flex items-center justify-between">
-        <SectionHeader label="Team workspaces" />
+        <SectionHeader label="Workspaces" />
         <button
           type="button"
-          className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
           aria-label="Create workspace"
           onClick={() => setWsDialog(true)}
         >
           <Plus className="h-4 w-4" />
         </button>
       </div>
-      <ul className="mt-1 space-y-2">
+      <ul className="mt-1 space-y-1">
         {tree.workspaces.length === 0 && (
           <li>
             <button
@@ -1023,7 +1046,7 @@ function SidebarTreeView({
         )}
         {tree.workspaces.map((ws) => (
           <li key={ws._id}>
-            <WorkspaceBranch workspace={ws} onNavigate={onNavigate} />
+            <WorkspaceRow workspace={ws} onNavigate={onNavigate} />
           </li>
         ))}
       </ul>
@@ -1031,59 +1054,7 @@ function SidebarTreeView({
   );
 }
 
-// Order + keys mirror workspace-view.tsx TABS exactly (load-bearing).
-const WS_FEATURES = [
-  { key: "overview", label: "Overview", Icon: LayoutDashboard },
-  { key: "team", label: "Team", Icon: Users },
-  { key: "chat", label: "Chat", Icon: MessageSquare },
-  { key: "sprints", label: "Sprints", Icon: Zap },
-  { key: "activity", label: "Activity", Icon: Activity },
-  { key: "goals", label: "Goals", Icon: Target },
-  { key: "reports", label: "Reports", Icon: BarChart3 },
-  { key: "settings", label: "Settings", Icon: Settings },
-] as const;
-
-function WorkspaceFeatureGrid({
-  workspaceId,
-}: {
-  workspaceId: string;
-}) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const onWs = pathname === `/dashboard/w/${workspaceId}`;
-  const activeTab = onWs ? (searchParams.get("tab") ?? "overview") : null;
-
-  return (
-    <div className="mt-1 grid grid-cols-2 gap-0.5">
-      {WS_FEATURES.map(({ key, label, Icon }) => {
-        const active = activeTab === key;
-        const href =
-          key === "overview"
-            ? `/dashboard/w/${workspaceId}`
-            : `/dashboard/w/${workspaceId}?tab=${key}`;
-        return (
-          <Link
-            key={key}
-            href={href}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors",
-              active
-                ? "bg-muted font-medium text-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="truncate">{label}</span>
-          </Link>
-        );
-      })}
-    </div>
-  );
-}
-
-function useWorkspaceExpanded(
-  workspaceId: string,
-): [boolean, (v: boolean) => void] {
+function useWorkspaceExpanded(workspaceId: string): [boolean, (v: boolean) => void] {
   const pathname = usePathname();
   const onThisWs = pathname.startsWith(`/dashboard/w/${workspaceId}`);
   const [expanded, setExpandedState] = useState(true);
@@ -1111,20 +1082,25 @@ function useWorkspaceExpanded(
   return [expanded, setExpanded];
 }
 
-function WorkspaceBranch({
+// A workspace is a single row: chevron to expand, name links to its page.
+// No feature-tab grid here — Overview/Team/Chat/Sprints/etc. are tabs on
+// the workspace page itself.
+function WorkspaceRow({
   workspace,
   onNavigate,
 }: {
   workspace: SidebarTree["workspaces"][number];
   onNavigate: () => void;
 }) {
+  const pathname = usePathname();
   const [expanded, setExpanded] = useWorkspaceExpanded(workspace._id);
   const [addingSpace, setAddingSpace] = useState(false);
   const createSpace = useMutation(api.spaces.create);
+  const active = pathname === `/dashboard/w/${workspace._id}`;
 
   return (
     <div>
-      <div className="flex items-center gap-1">
+      <div className="group/ws flex items-center gap-1">
         <button
           type="button"
           aria-label={expanded ? "Collapse" : "Expand"}
@@ -1142,137 +1118,133 @@ function WorkspaceBranch({
         <Link
           href={`/dashboard/w/${workspace._id}`}
           onClick={onNavigate}
-          className="flex flex-1 items-center gap-1 truncate rounded-lg px-2.5 py-1 text-sm font-medium hover:bg-muted"
+          aria-current={active ? "page" : undefined}
+          className={cn(
+            "flex flex-1 items-center gap-1 truncate rounded-lg px-2.5 py-1 text-sm font-medium transition-colors",
+            active ? "bg-muted text-foreground" : "hover:bg-muted",
+          )}
         >
           <span className="truncate">{workspace.name}</span>
-          <span className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground">
+          <span className="ml-auto flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
             {workspace.role}
           </span>
         </Link>
         <button
           type="button"
+          aria-label={`New space in ${workspace.name}`}
+          title="New space"
           onClick={() => {
             setExpanded(true);
             setAddingSpace(true);
           }}
-          aria-label="Add space"
-          title="Add space"
-          className="tap-target inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/ws:opacity-100"
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
 
       {expanded && (
-        <div className="ml-4 mt-1 border-l border-border/50 pl-2">
-          <WorkspaceFeatureGrid workspaceId={workspace._id} />
-
-          <ul className="mt-1 space-y-2">
-            {addingSpace && (
-              <li>
-                <InlineCreate
-                  placeholder="Space name…"
-                  onCancel={() => setAddingSpace(false)}
-                  onSubmit={async (name) => {
-                    await createSpace({
-                      name,
-                      parentType: "workspace",
-                      parentId: workspace._id,
-                    });
-                    setAddingSpace(false);
-                  }}
-                />
-              </li>
-            )}
-            {workspace.spaces.length === 0 && !addingSpace && (
-              <li>
-                <button
-                  type="button"
-                  onClick={() => setAddingSpace(true)}
-                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Add a space
-                </button>
-              </li>
-            )}
-            {workspace.spaces.map((space) => (
-              <li key={space._id}>
-                <SpaceBranch space={space} onNavigate={onNavigate} />
-              </li>
-            ))}
-          </ul>
+        <div className="mt-1 space-y-1 pl-5">
+          {addingSpace && (
+            <InlineCreate
+              placeholder="Space name…"
+              onCancel={() => setAddingSpace(false)}
+              onSubmit={async (name) => {
+                await createSpace({
+                  name,
+                  parentType: "workspace",
+                  parentId: workspace._id,
+                });
+                setAddingSpace(false);
+              }}
+            />
+          )}
+          {workspace.spaces.length === 0 && !addingSpace && (
+            <button
+              type="button"
+              onClick={() => setAddingSpace(true)}
+              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <Plus className="h-3 w-3" /> New space
+            </button>
+          )}
+          {workspace.spaces.map((space) => (
+            <SpaceRow
+              key={space._id}
+              space={space}
+              onNavigate={onNavigate}
+              linkHref={`/dashboard/s/${space._id}`}
+            />
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-// Small dropdown menu for a space's "+" (create List/Doc/Whiteboard/…).
+// Small portaled menu for a space's "+" (create List/Doc/Whiteboard/Folder,
+// or start From template). This plus the top-level New button are the only
+// two create entry points anywhere in the sidebar.
+const SPACE_CREATE_ITEMS = [
+  { k: "list" as const, icon: ListIcon, label: "List" },
+  { k: "doc" as const, icon: FileText, label: "Doc" },
+  { k: "board" as const, icon: LayoutGrid, label: "Whiteboard" },
+  { k: "template" as const, icon: Columns3, label: "From template" },
+  { k: "folder" as const, icon: Folder, label: "Folder" },
+];
+
 function SpaceCreateMenu({
   onPick,
 }: {
   onPick: (kind: "list" | "doc" | "board" | "template" | "folder") => void;
 }) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
   return (
-    <div className="relative">
+    <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="Add to space"
+        aria-expanded={open}
         title="Add"
-        className="tap-target inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+        className={cn(
+          "tap-target inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100",
+          open && "opacity-100",
+        )}
       >
         <Plus className="h-3.5 w-3.5" />
       </button>
-      <AnimatePresence>
-        {open && (
-          <>
-            <div
-              aria-hidden
-              className="fixed inset-0 z-40"
-              onClick={() => setOpen(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, y: -4, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -4, scale: 0.98 }}
-              transition={{ duration: 0.15 }}
-              className="absolute right-0 top-full z-50 mt-1 w-48 overflow-hidden rounded-xl border border-border bg-background p-1 shadow-lg"
+      <AnchoredMenu
+        open={open}
+        anchorRef={triggerRef}
+        onClose={() => setOpen(false)}
+        placement="bottom-end"
+        widthClassName="w-48"
+      >
+        <MenuList>
+          {SPACE_CREATE_ITEMS.map(({ k, icon: Icon, label }) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onPick(k);
+              }}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-muted"
             >
-              {[
-                { k: "list" as const, icon: ListIcon, label: "List" },
-                { k: "doc" as const, icon: FileText, label: "Doc" },
-                { k: "board" as const, icon: LayoutGrid, label: "Whiteboard" },
-                {
-                  k: "template" as const,
-                  icon: Columns3,
-                  label: "List from template",
-                },
-                { k: "folder" as const, icon: Folder, label: "Folder" },
-              ].map(({ k, icon: Icon, label }) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => {
-                    setOpen(false);
-                    onPick(k);
-                  }}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-muted"
-                >
-                  <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                  {label}
-                </button>
-              ))}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    </div>
+              <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+              {label}
+            </button>
+          ))}
+        </MenuList>
+      </AnchoredMenu>
+    </>
   );
 }
 
-function SpaceBranch({
+function SpaceRow({
   space,
   onNavigate,
   linkHref,
@@ -1285,9 +1257,9 @@ function SpaceBranch({
   const router = useRouter();
   const [expanded, setExpanded] = useState(true);
   const [templateOpen, setTemplateOpen] = useState(false);
-  const [adding, setAdding] = useState<
-    "folder" | "list" | "doc" | "board" | null
-  >(null);
+  const [adding, setAdding] = useState<"folder" | "list" | "doc" | "board" | null>(
+    null,
+  );
   const createFolder = useMutation(api.folders.create);
   const createList = useMutation(api.lists.create);
   const createDoc = useMutation(api.docs.create);
@@ -1299,11 +1271,7 @@ function SpaceBranch({
     } else if (adding === "list") {
       await createList({ name, parentType: "space", parentId: space._id });
     } else if (adding === "doc") {
-      const docId = await createDoc({
-        parentType: "space",
-        parentId: space._id,
-        title: name,
-      });
+      const docId = await createDoc({ parentType: "space", parentId: space._id, title: name });
       onNavigate();
       router.push(`/dashboard/d/${docId}`);
     } else if (adding === "board") {
@@ -1341,7 +1309,7 @@ function SpaceBranch({
 
   return (
     <div>
-      <div className="flex items-center gap-1">
+      <div className="group flex items-center gap-1">
         <button
           type="button"
           aria-label={expanded ? "Collapse" : "Expand"}
@@ -1360,6 +1328,7 @@ function SpaceBranch({
           <Link
             href={linkHref}
             onClick={onNavigate}
+            aria-current={pathname === linkHref ? "page" : undefined}
             className={cn(
               "flex flex-1 items-center gap-2 truncate rounded-lg px-2.5 py-1 text-sm transition-colors",
               pathname === linkHref
@@ -1369,11 +1338,17 @@ function SpaceBranch({
           >
             {dot}
             <span className="truncate">{space.name}</span>
+            {space.private && (
+              <Lock className="h-3 w-3 flex-shrink-0 text-muted-foreground" aria-hidden />
+            )}
           </Link>
         ) : (
           <span className="flex flex-1 items-center gap-2 truncate rounded-lg px-2.5 py-1 text-sm">
             {dot}
             <span className="truncate">{space.name}</span>
+            {space.private && (
+              <Lock className="h-3 w-3 flex-shrink-0 text-muted-foreground" aria-hidden />
+            )}
           </span>
         )}
         <SpaceCreateMenu
@@ -1386,62 +1361,44 @@ function SpaceBranch({
       </div>
 
       {expanded && (
-        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border/50 pl-2">
+        <div className="mt-0.5 space-y-0.5 pl-5">
           {adding && (
-            <li className="py-1">
+            <div className="py-1">
               <InlineCreate
                 placeholder={ADD_PLACEHOLDER[adding]}
                 onCancel={() => setAdding(null)}
                 onSubmit={submitAdd}
               />
-            </li>
+            </div>
           )}
           {isEmpty && !adding && (
-            <li>
-              <button
-                type="button"
-                onClick={() => setAdding("list")}
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <Plus className="h-3.5 w-3.5" /> Add a list
-              </button>
-            </li>
+            <p className="px-2.5 py-1 text-xs text-muted-foreground">Nothing here yet.</p>
           )}
           {space.folders.map((folder) => (
-            <li key={folder._id}>
-              <FolderBranch folder={folder} onNavigate={onNavigate} />
-            </li>
+            <FolderRow key={folder._id} folder={folder} onNavigate={onNavigate} />
           ))}
           {space.lists.map((list) => (
-            <li key={list._id}>
-              <ListLink
-                listId={list._id}
-                name={list.name}
-                onNavigate={onNavigate}
-              />
-            </li>
+            <ListRow key={list._id} listId={list._id} name={list.name} onNavigate={onNavigate} />
           ))}
           {space.docs.map((doc) => (
-            <li key={doc._id}>
-              <DocLink
-                docId={doc._id}
-                title={doc.title}
-                active={pathname === `/dashboard/d/${doc._id}`}
-                onNavigate={onNavigate}
-              />
-            </li>
+            <DocRow
+              key={doc._id}
+              docId={doc._id}
+              title={doc.title}
+              active={pathname === `/dashboard/d/${doc._id}`}
+              onNavigate={onNavigate}
+            />
           ))}
           {space.whiteboards.map((wb) => (
-            <li key={wb._id}>
-              <WhiteboardLink
-                whiteboardId={wb._id}
-                title={wb.title}
-                active={pathname === `/dashboard/wb/${wb._id}`}
-                onNavigate={onNavigate}
-              />
-            </li>
+            <WhiteboardRow
+              key={wb._id}
+              whiteboardId={wb._id}
+              title={wb.title}
+              active={pathname === `/dashboard/wb/${wb._id}`}
+              onNavigate={onNavigate}
+            />
           ))}
-        </ul>
+        </div>
       )}
       <TemplatePicker
         open={templateOpen}
@@ -1457,7 +1414,7 @@ function SpaceBranch({
   );
 }
 
-function FolderBranch({
+function FolderRow({
   folder,
   onNavigate,
 }: {
@@ -1470,7 +1427,7 @@ function FolderBranch({
 
   return (
     <div>
-      <div className="flex items-center gap-1">
+      <div className="group flex items-center gap-1">
         <button
           type="button"
           aria-label={expanded ? "Collapse" : "Expand"}
@@ -1485,8 +1442,9 @@ function FolderBranch({
             <ChevronRight className="h-3.5 w-3.5" />
           </motion.span>
         </button>
-        <span className="flex flex-1 items-center truncate rounded-lg px-2.5 py-1 text-sm text-muted-foreground">
-          {folder.name}
+        <span className="flex flex-1 items-center gap-2 truncate rounded-lg px-2.5 py-1 text-sm text-muted-foreground">
+          <Folder className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+          <span className="truncate">{folder.name}</span>
         </span>
         <button
           type="button"
@@ -1496,110 +1454,38 @@ function FolderBranch({
           }}
           aria-label="Add list"
           title="Add list"
-          className="tap-target inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
       {expanded && (
-        <ul className="ml-4 mt-0.5 space-y-0.5 border-l border-border/50 pl-2">
+        <div className="mt-0.5 space-y-0.5 pl-5">
           {addingList && (
-            <li className="py-1">
+            <div className="py-1">
               <InlineCreate
                 placeholder="List name…"
                 onCancel={() => setAddingList(false)}
                 onSubmit={async (name) => {
-                  await createList({
-                    name,
-                    parentType: "folder",
-                    parentId: folder._id,
-                  });
+                  await createList({ name, parentType: "folder", parentId: folder._id });
                   setAddingList(false);
                 }}
               />
-            </li>
+            </div>
           )}
           {folder.lists.map((list) => (
-            <li key={list._id}>
-              <ListLink
-                listId={list._id}
-                name={list.name}
-                onNavigate={onNavigate}
-              />
-            </li>
+            <ListRow key={list._id} listId={list._id} name={list.name} onNavigate={onNavigate} />
           ))}
           {folder.lists.length === 0 && !addingList && (
-            <li>
-              <button
-                type="button"
-                onClick={() => setAddingList(true)}
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <Plus className="h-3 w-3" /> Add list
-              </button>
-            </li>
+            <p className="px-2.5 py-1 text-xs text-muted-foreground">No lists yet.</p>
           )}
-        </ul>
+        </div>
       )}
     </div>
   );
 }
 
-// The four list views + settings, mirroring view-tabs.tsx. Shown inline under
-// the active list so board/calendar/gantt are one click away.
-const LIST_VIEWS = [
-  { key: "list", label: "List", Icon: ListIcon },
-  { key: "board", label: "Board", Icon: Columns3 },
-  { key: "calendar", label: "Calendar", Icon: Calendar },
-  { key: "gantt", label: "Gantt", Icon: GanttChart },
-] as const;
-
-function ListViewRail({ listId }: { listId: Id<"lists"> }) {
-  const searchParams = useSearchParams();
-  const activeView = searchParams.get("view") ?? "list";
-
-  function href(key: string): string {
-    const params = new URLSearchParams(searchParams.toString());
-    if (key === "list") params.delete("view");
-    else params.set("view", key);
-    const qs = params.toString();
-    return qs ? `/dashboard/l/${listId}?${qs}` : `/dashboard/l/${listId}`;
-  }
-
-  return (
-    <div className="ml-6 mt-0.5 flex items-center gap-0.5">
-      <div className="segmented p-0.5">
-        {LIST_VIEWS.map(({ key, label, Icon }) => (
-          <Link
-            key={key}
-            href={href(key)}
-            aria-label={label}
-            title={label}
-            aria-current={activeView === key ? "page" : undefined}
-            className={cn(
-              "inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors",
-              activeView === key
-                ? "segmented-on text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Icon className="h-3.5 w-3.5" />
-          </Link>
-        ))}
-      </div>
-      <Link
-        href={`/dashboard/l/${listId}/settings`}
-        aria-label="List settings"
-        title="List settings"
-        className="tap-target inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-      >
-        <Settings className="h-3.5 w-3.5" />
-      </Link>
-    </div>
-  );
-}
-
-function ListLink({
+function ListRow({
   listId,
   name,
   onNavigate,
@@ -1612,26 +1498,24 @@ function ListLink({
   // Active on the list page and its sub-routes (settings, task detail).
   const active = pathname.startsWith(`/dashboard/l/${listId}`);
   return (
-    <div>
-      <Link
-        href={`/dashboard/l/${listId}`}
-        onClick={onNavigate}
-        className={cn(
-          "flex items-center gap-2 rounded-lg px-2.5 py-1 text-sm transition-colors",
-          active
-            ? "bg-muted text-foreground"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground",
-        )}
-      >
-        <ListIcon className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
-        <span className="truncate">{name}</span>
-      </Link>
-      {active && <ListViewRail listId={listId} />}
-    </div>
+    <Link
+      href={`/dashboard/l/${listId}`}
+      onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex items-center gap-2 rounded-lg px-2.5 py-1 text-sm transition-colors",
+        active
+          ? "bg-muted text-foreground"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <ListIcon className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+      <span className="truncate">{name}</span>
+    </Link>
   );
 }
 
-function DocLink({
+function DocRow({
   docId,
   title,
   active,
@@ -1646,6 +1530,7 @@ function DocLink({
     <Link
       href={`/dashboard/d/${docId}`}
       onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
       className={cn(
         "flex items-center gap-2 rounded-lg px-2.5 py-1 text-sm transition-colors",
         active
@@ -1659,7 +1544,7 @@ function DocLink({
   );
 }
 
-function WhiteboardLink({
+function WhiteboardRow({
   whiteboardId,
   title,
   active,
@@ -1674,6 +1559,7 @@ function WhiteboardLink({
     <Link
       href={`/dashboard/wb/${whiteboardId}`}
       onClick={onNavigate}
+      aria-current={active ? "page" : undefined}
       className={cn(
         "flex items-center gap-2 rounded-lg px-2.5 py-1 text-sm transition-colors",
         active

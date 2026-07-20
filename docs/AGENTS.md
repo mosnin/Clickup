@@ -178,7 +178,46 @@ crews.
   `X-Ping-Signature` HMAC header. Use signed webhook subscriptions for
   the reliable channel; all payloads carry `apiVersion: 1`.
 
-## 10. Full tool surface
+## 10. Sprint planning and portfolio
+
+Tools for scrum-style planning and cross-project status, all governed the
+same way as everything else here — a `readonly` agent can call the reads,
+`allowedListIds` still confines which tasks a list-restricted agent can
+see, and sprint tools are workspace-only (a personal-space agent gets a
+clear error, same as `create_sprint`).
+
+- `set_estimate` — set (or clear with `null`) a task's `estimatePoints`.
+  Shortcut over `update_task`, which also accepts `estimatePoints` and
+  `milestone` directly on create/update.
+- `get_sprint_board` — one sprint's tasks with list, status, assignees,
+  `estimatePoints`, `milestone`, and open-blocker count. The Kanban read.
+- `get_sprint_planning` — the sprint (`capacityPoints`, `retrospective`,
+  `goal`, dates, status), what's already committed (points total +
+  unestimated count), and up to 100 open backlog tasks not yet pulled in.
+  The planning read.
+- `set_sprint_capacity` — set (or clear) `capacityPoints`, the team's
+  committed-points ceiling.
+- `set_sprint_retrospective` — write the sprint's retro notes.
+- `list_checklist_templates` / `create_checklist_template` — reusable
+  playbooks ("Definition of done", "Release steps") scoped like skills to
+  my personal space or workspace.
+- `apply_checklist_template` — append a template's items onto a task's
+  existing checklist (composes, doesn't replace).
+- `get_portfolio` — every list (project) in my scope, skipping archived
+  spaces: name, space, `projectStatus`, `targetDate`, task totals.
+  Cross-project status in one call.
+- `get_task_network` — a list's tasks with their blocked-by edges and
+  status categories, to reason about dependency order without fetching
+  every task individually.
+
+A typical scrum loop, one tool per beat: `get_sprint_planning` (see the
+backlog and the current commitment) → `set_estimate` on unsized backlog
+tasks → `update_task` with `sprintId` to commit them → `get_sprint_board`
+during the sprint to check state and blockers → `complete_task` as work
+finishes → `set_sprint_retrospective` once `update_sprint` moves it to
+`complete`.
+
+## 11. Full tool surface
 
 Beyond §2: time (`log_time`, `list_time_entries`), goals (`list_goals`,
 `create_goal`, `set_goal_progress`), automations (`list_automations`,
@@ -187,10 +226,10 @@ Beyond §2: time (`log_time`, `list_time_entries`), goals (`list_goals`,
 `clear_task_field`), comment management (`update_comment`,
 `delete_comment`, `resolve_comment`), runs (`start_run`, `finish_run`,
 `report_error`), dispatch (`next_task`, `handoff_task`), channels
-(`list_channels`, `create_channel`). Skills are also exposed as MCP
-resources (`skill://<slug>`).
+(`list_channels`, `create_channel`), sprint planning and portfolio (§10).
+Skills are also exposed as MCP resources (`skill://<slug>`).
 
-## 11. Smoke test
+## 12. Smoke test
 
 After deploying, verify the endpoint end-to-end:
 

@@ -11,6 +11,7 @@ import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { Clips } from "@/components/dashboard/clips";
 import { Attachments } from "@/components/dashboard/attachments";
 import { Comments } from "@/components/dashboard/comments";
+import { Subtasks } from "@/components/dashboard/subtasks";
 import {
   TaskAssignees,
   TaskBanners,
@@ -33,6 +34,7 @@ const RECURRENCE_LABEL: Record<TaskRecurrence, string> = {
   weekly: "Weekly",
   monthly: "Monthly",
 };
+const ESTIMATE_CHIPS = [1, 2, 3, 5, 8, 13];
 
 export function TaskDetail({
   listId,
@@ -115,9 +117,48 @@ function TaskEditor({
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
   const [aiPending, setAiPending] = useState(false);
+  const [estimateDraft, setEstimateDraft] = useState(
+    task.estimatePoints !== undefined ? String(task.estimatePoints) : "",
+  );
+
+  const parentTask = useQuery(
+    api.tasks.get,
+    task.parentTaskId ? { taskId: task.parentTaskId } : "skip",
+  );
 
   useEffect(() => setTitle(task.title), [task.title]);
   useEffect(() => setDescription(task.description ?? ""), [task.description]);
+  useEffect(
+    () =>
+      setEstimateDraft(
+        task.estimatePoints !== undefined ? String(task.estimatePoints) : "",
+      ),
+    [task.estimatePoints],
+  );
+
+  async function saveEstimate(value: number | null) {
+    const current = task.estimatePoints ?? null;
+    if (value === current) return;
+    try {
+      await update({ taskId: task._id, estimatePoints: value });
+      toast(value === null ? "Estimate cleared" : "Saved");
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const msg = raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim();
+      toast(msg || "Couldn't update estimate", { kind: "error" });
+    }
+  }
+
+  async function saveMilestone(value: boolean) {
+    try {
+      await update({ taskId: task._id, milestone: value });
+      toast("Saved");
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const msg = raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim();
+      toast(msg || "Couldn't update milestone", { kind: "error" });
+    }
+  }
 
   const valuesByField = useMemo(() => {
     const map = new Map<string, Doc<"taskFieldValues">>();
@@ -150,6 +191,15 @@ function TaskEditor({
         <ArrowLeft className="h-4 w-4" /> {listName}
       </Link>
 
+      {parentTask && (
+        <Link
+          href={`/dashboard/l/${listId}/t/${parentTask._id}`}
+          className="inline-block text-sm text-muted-foreground hover:text-foreground hover:underline"
+        >
+          Subtask of {parentTask.title}
+        </Link>
+      )}
+
       <div className="flex items-start gap-3">
         {/* The completion moment: a springy check that fills in and
             strikes the title through. */}
@@ -176,6 +226,13 @@ function TaskEditor({
             <Check className="h-4 w-4" strokeWidth={3} />
           </motion.span>
         </motion.button>
+        {task.milestone && (
+          <span
+            aria-hidden
+            title="Milestone"
+            className="mt-3 inline-block h-2.5 w-2.5 flex-shrink-0 rotate-45 border-[1.5px] border-foreground/70 sm:mt-3.5"
+          />
+        )}
         <input
           type="text"
           value={title}
@@ -245,6 +302,8 @@ function TaskEditor({
 
           <TaskChecklist task={task} />
 
+          <Subtasks taskId={task._id} listId={listId} />
+
           <section>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Attachments
@@ -309,6 +368,65 @@ function TaskEditor({
             </select>
           </Field>
 
+          <Field label="Estimate">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="segmented">
+                {ESTIMATE_CHIPS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    aria-pressed={task.estimatePoints === p}
+                    onClick={() => saveEstimate(p)}
+                    className={cn(
+                      "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                      task.estimatePoints === p
+                        ? "segmented-on text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                aria-label="Custom estimate"
+                placeholder="Custom"
+                value={estimateDraft}
+                onChange={(e) => setEstimateDraft(e.currentTarget.value)}
+                onBlur={() => {
+                  const trimmed = estimateDraft.trim();
+                  if (trimmed === "") {
+                    if (task.estimatePoints !== undefined) saveEstimate(null);
+                    return;
+                  }
+                  const n = Number(trimmed);
+                  if (!Number.isFinite(n) || n < 0) {
+                    setEstimateDraft(
+                      task.estimatePoints !== undefined
+                        ? String(task.estimatePoints)
+                        : "",
+                    );
+                    return;
+                  }
+                  saveEstimate(n);
+                }}
+                className="soft-field w-16 px-2 py-1 text-xs focus:outline-none"
+              />
+              {task.estimatePoints !== undefined && (
+                <button
+                  type="button"
+                  onClick={() => saveEstimate(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </Field>
+
           <div className="grid grid-cols-2 gap-3">
             <Field label="Start date">
               <input
@@ -337,6 +455,26 @@ function TaskEditor({
               />
             </Field>
           </div>
+
+          <Field label="Milestone">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={!!task.milestone}
+              onClick={() => saveMilestone(!task.milestone)}
+              className={cn(
+                "relative h-6 w-11 flex-shrink-0 rounded-full transition-colors",
+                task.milestone ? "bg-foreground" : "bg-border",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-0.5 h-5 w-5 rounded-full bg-background shadow-sm transition-transform",
+                  task.milestone ? "translate-x-[1.375rem]" : "translate-x-0.5",
+                )}
+              />
+            </button>
+          </Field>
 
           <section>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">

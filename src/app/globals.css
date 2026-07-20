@@ -48,22 +48,26 @@
   --color-danger: #c2453a;
   --color-unread: #101012;
 
-  /* Marketing palette — the logged-out site lives on warm cream with an
-     ember (amber→coral) accent ramp and cocoa darks (golden-hour
-     scenes), while ink stays shared with the app. Never use these
-     inside /dashboard. */
-  --color-cream: #f8f6f2;
-  --color-cream-deep: #f1ede5;
-  --color-ember-100: #faeee1;
-  --color-ember-200: #f6ddc4;
-  --color-ember-300: #efc096;
-  --color-ember-400: #e59e65;
-  --color-ember-500: #d87c3e;
-  --color-ember-600: #b45a25;
-  --color-ember-700: #8a441d;
-  --color-cocoa-800: #3b2d21;
-  --color-cocoa-900: #2b2018;
-  --color-cocoa-950: #1e1712;
+  /* Marketing v2 palette — electric azure over deep navy for the hero
+     band, white content sections on the shared neutral tokens. Never use
+     these inside /dashboard. */
+  --color-azure-100: #dbe7ff;
+  --color-azure-200: #b7cfff;
+  --color-azure-300: #85abff;
+  --color-azure-400: #4d82fb;
+  --color-azure-500: #2563eb;
+  --color-azure-600: #1d4ed8;
+  --color-azure-700: #1a3bb8;
+  --color-navy-800: #101d52;
+  --color-navy-900: #0a1238;
+  --color-navy-950: #060b24;
+  /* Warm accent pair for the closing "simpler" panel (reference's pink to
+     peach card). Marketing-owned — the dashboard pastels stay dashboard-only. */
+  --color-blush: #ffdfec;
+  --color-peach: #ffeedb;
+  /* Placeholder visuals: solid red so provided graphics/video slots are
+     unmissable. Every raster asset ships as a red Placeholder block. */
+  --color-placeholder: #e11d1d;
 
   --radius-pill: 9999px;
 }
@@ -71,6 +75,14 @@
 html,
 body {
   height: 100%;
+}
+
+/* GSAP reveal targets start hidden before hydration so scroll-reveals
+   never flash. The motion kit (components/marketing/gsap.tsx) removes
+   the attribute on mount — animated or not. */
+.gs-reveal[data-gs-hidden],
+[data-gs-hidden] .gs-reveal {
+  visibility: hidden;
 }
 
 /* Honor iOS safe areas for the PWA. */
@@ -256,29 +268,6 @@ body {
 
 /* ── Marketing-site utilities (logged-out pages only) ─────────────────── */
 
-/* The warm brand gradient — headline accents and CTA washes. */
-.text-warm {
-  background: linear-gradient(115deg, #d8843f 0%, #cd5f36 55%, #b8452e 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-.bg-warm {
-  background: linear-gradient(115deg, #efab6b 0%, #e07a48 55%, #cd5636 100%);
-}
-
-/* Film-grain overlay that sells the "photographic" gradient scenes.
-   Apply to a relatively-positioned container. */
-.grain::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.5;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
-}
-
 /* Endless horizontal marquee. Duplicate the track's children once and the
    -50% translate loops seamlessly. */
 @keyframes marquee-x {
@@ -306,7 +295,7 @@ body {
    token values flip here — because the whole design system is token-based
    (bg-background / text-foreground / bg-muted / border-border), overriding
    these cascades to nearly every surface. The marketing site keeps its own
-   warm cream palette and never reads these.
+   azure/navy palette and never reads these.
 
    Soft shadows are near-invisible on a dark canvas, so bento surfaces gain a
    hairline border in dark to stay legible as discrete panels. */

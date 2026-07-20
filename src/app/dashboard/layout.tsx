@@ -25,8 +25,10 @@ export default async function DashboardLayout({
         <CommandPalette />
         <AgentOnlineWatcher />
         <DashboardSidebar />
+        {/* Full-bleed working canvas: the app uses the whole screen. Content
+            gets breathing room from its own padding, not a centered column. */}
         <main className="min-w-0 flex-1 overflow-x-hidden">
-          <div className="mx-auto w-full max-w-7xl px-4 py-8 pt-16 sm:px-8 md:pt-8">
+          <div className="w-full px-4 py-6 pt-16 sm:px-6 md:pt-6 lg:px-8">
             {children}
           </div>
         </main>

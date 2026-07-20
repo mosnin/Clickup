@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { requireListAccess } from "./_authz";
+import { computeRollup } from "./rollups";
 
 const categoryValidator = v.union(
   v.literal("open"),
@@ -29,10 +30,15 @@ export const DEFAULT_STATUSES = [
 export async function seedDefaultStatuses(
   ctx: MutationCtx,
   listId: Id<"lists">,
+  // Space-level default statuses (ClickUp-style): when provided, new lists
+  // in that space inherit these instead of the global four.
+  overrides?: { name: string; color: string; category: "open" | "in_progress" | "complete" | "closed" }[],
 ): Promise<Id<"listStatuses">[]> {
+  const defs =
+    overrides && overrides.length > 0 ? overrides : DEFAULT_STATUSES;
   const ids: Id<"listStatuses">[] = [];
-  for (let i = 0; i < DEFAULT_STATUSES.length; i++) {
-    const def = DEFAULT_STATUSES[i];
+  for (let i = 0; i < defs.length; i++) {
+    const def = defs[i];
     const id = await ctx.db.insert("listStatuses", {
       listId,
       name: def.name,
@@ -69,6 +75,7 @@ export const create = mutation({
     name: v.string(),
     color: v.string(),
     category: categoryValidator,
+    wipLimit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireListAccess(ctx, args.listId);
@@ -81,6 +88,7 @@ export const create = mutation({
       name: args.name,
       color: args.color,
       category: args.category,
+      wipLimit: args.wipLimit,
       position: siblings.length,
       createdAt: Date.now(),
     });
@@ -93,6 +101,8 @@ export const update = mutation({
     name: v.optional(v.string()),
     color: v.optional(v.string()),
     category: v.optional(categoryValidator),
+    // null clears the WIP limit.
+    wipLimit: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
     const status = await ctx.db.get(args.statusId);
@@ -103,7 +113,19 @@ export const update = mutation({
     if (args.name !== undefined) patch.name = args.name;
     if (args.color !== undefined) patch.color = args.color;
     if (args.category !== undefined) patch.category = args.category;
+    if (args.wipLimit !== undefined) {
+      patch.wipLimit =
+        args.wipLimit === null || args.wipLimit <= 0
+          ? undefined
+          : Math.floor(args.wipLimit);
+    }
     await ctx.db.patch(args.statusId, patch);
+
+    // Re-categorizing a status flips every task in it between rollup
+    // buckets without touching the task cores — recount inline.
+    if (args.category !== undefined && args.category !== status.category) {
+      await computeRollup(ctx, status.listId);
+    }
   },
 });
 
@@ -138,6 +160,13 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(statusId);
+
+    // The reassignment above bypasses the task cores, so if the deleted
+    // and replacement statuses sit in different categories the counters
+    // would drift — recount inline instead.
+    if (tasksToReassign.length > 0 && status.category !== replacement.category) {
+      await computeRollup(ctx, status.listId);
+    }
   },
 });
 

@@ -26,7 +26,6 @@ export const completeSetup = mutation({
   args: {
     workspaceName: v.string(),
     agentName: v.string(),
-    agentEmoji: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -85,7 +84,6 @@ export const completeSetup = mutation({
     const agentId = await ctx.db.insert("agents", {
       name: agentName,
       description: "Your first agent. Connect it over MCP and hand it work.",
-      emoji: args.agentEmoji ?? "🤖",
       parentType: "workspace",
       parentId: workspaceId,
       status: "active",

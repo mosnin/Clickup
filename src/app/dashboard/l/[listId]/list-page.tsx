@@ -1,20 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { useQuery } from "convex/react";
-import { Settings, X } from "lucide-react";
+import { useMutation, useQuery } from "convex/react";
+import { Plus, Settings, Star, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { ViewTabs, type ViewKey, isViewKey } from "./view-tabs";
+import { OverviewView } from "./views/overview-view";
 import { ListView } from "./views/list-view";
 import { BoardView } from "./views/board-view";
 import { CalendarView } from "./views/calendar-view";
 import { GanttView } from "./views/gantt-view";
+import { TimelineView } from "./views/timeline-view";
+import { TableView } from "./views/table-view";
+import { WorkloadView } from "./views/workload-view";
+import { NetworkView } from "./views/network-view";
 import { TaskPeekPortal } from "@/components/dashboard/task-peek";
+import { InlineCreate } from "@/components/dashboard/inline-create";
+import { useToast } from "@/components/toast";
 
 // Quick filters, persisted in the URL (?f=mine,active,blocked&pri=high) so
 // a filtered view is shareable and survives reload. Applied in one place
@@ -31,6 +38,19 @@ const FLAGS: { key: Flag; label: string }[] = [
 
 const PRIORITIES = ["urgent", "high", "normal", "low"] as const;
 
+// Project health chip shown in the page header — same labels/colors as the
+// Overview tab's Status card and the Home project cards, so the signal
+// reads consistently everywhere it appears.
+const PROJECT_STATUS_CHIP: Record<
+  "on_track" | "at_risk" | "off_track" | "paused",
+  { label: string; className: string }
+> = {
+  on_track: { label: "On track", className: "bg-pastel-green" },
+  at_risk: { label: "At risk", className: "bg-pastel-yellow" },
+  off_track: { label: "Off track", className: "bg-pastel-red" },
+  paused: { label: "Paused", className: "bg-muted" },
+};
+
 export function ListPage({
   listId,
   initialView,
@@ -43,7 +63,13 @@ export function ListPage({
   const tasks = useQuery(api.tasks.listForList, { listId: id });
   const statuses = useQuery(api.listStatuses.listForList, { listId: id });
   const fields = useQuery(api.customFields.listForList, { listId: id });
+  const isFavorited = useQuery(api.favorites.isFavorite, {
+    entityType: "list",
+    entityId: id,
+  });
+  const toggleFavorite = useMutation(api.favorites.toggle);
   const { user } = useUser();
+  const { toast } = useToast();
   const searchParams = useSearchParams();
 
   const view: ViewKey = isViewKey(initialView) ? initialView : "list";
@@ -100,28 +126,93 @@ export function ListPage({
   return (
     <div className="space-y-6">
       <header className="title-rule flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-            {list.name}
-          </h1>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+              {list.name}
+            </h1>
+            {list.projectStatus && (
+              <span
+                className={cn(
+                  "flex-shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium text-foreground",
+                  PROJECT_STATUS_CHIP[list.projectStatus].className,
+                )}
+              >
+                {PROJECT_STATUS_CHIP[list.projectStatus].label}
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
             {filtered
               ? `${topLevelTasks.length} of ${allTop.length} task${allTop.length === 1 ? "" : "s"}`
               : `${allTop.length} task${allTop.length === 1 ? "" : "s"}`}
           </p>
+          {list.description && (
+            <p className="mt-1 max-w-xl truncate text-sm text-muted-foreground">
+              {list.description}
+            </p>
+          )}
         </div>
-        <Link
-          href={`/dashboard/l/${list._id}/settings`}
-          className="inline-flex h-9 items-center gap-1 rounded-full border border-border bg-background px-3 text-sm hover:bg-muted"
-        >
-          <Settings className="h-4 w-4" /> Settings
-        </Link>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <button
+            type="button"
+            aria-label={
+              isFavorited ? "Remove from favorites" : "Add to favorites"
+            }
+            aria-pressed={!!isFavorited}
+            onClick={async () => {
+              try {
+                const result = await toggleFavorite({
+                  entityType: "list",
+                  entityId: list._id,
+                });
+                toast(
+                  result.favorited
+                    ? "Added to favorites"
+                    : "Removed from favorites",
+                );
+              } catch {
+                toast("Couldn't update favorites", { kind: "error" });
+              }
+            }}
+            className={cn(
+              "tap-target inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-muted",
+              isFavorited ? "text-foreground" : "text-muted-foreground",
+            )}
+          >
+            <Star
+              className={cn("h-4 w-4", isFavorited && "fill-current")}
+              aria-hidden
+            />
+          </button>
+          <Link
+            href={`/dashboard/l/${list._id}/settings`}
+            className="inline-flex h-9 items-center gap-1 rounded-full border border-border bg-background px-3 text-sm hover:bg-muted"
+          >
+            <Settings className="h-4 w-4" /> Settings
+          </Link>
+        </div>
       </header>
 
       <ViewTabs listId={list._id} active={view} />
 
+      <SavedViewsBar
+        listId={list._id}
+        view={view}
+        flags={[...activeFlags].sort().join(",")}
+        priority={priorityFilter}
+      />
+
       <FilterBar activeFlags={activeFlags} priority={priorityFilter} />
 
+      {view === "overview" && (
+        <OverviewView
+          listId={list._id}
+          list={list}
+          tasks={allTop}
+          statuses={statuses}
+        />
+      )}
       {view === "list" && (
         <ListView
           listId={list._id}
@@ -144,8 +235,170 @@ export function ListPage({
       {view === "gantt" && (
         <GanttView listId={list._id} tasks={topLevelTasks} statuses={statuses} />
       )}
+      {view === "timeline" && (
+        <TimelineView
+          listId={list._id}
+          tasks={topLevelTasks}
+          statuses={statuses}
+        />
+      )}
+      {view === "table" && (
+        <TableView
+          listId={list._id}
+          tasks={topLevelTasks}
+          statuses={statuses}
+          fields={fields}
+        />
+      )}
+      {view === "workload" && (
+        <WorkloadView
+          listId={list._id}
+          tasks={topLevelTasks}
+          statuses={statuses}
+        />
+      )}
+      {view === "network" && (
+        <NetworkView listId={list._id} tasks={allTop} statuses={statuses} />
+      )}
 
       <TaskPeekPortal listId={list._id} />
+    </div>
+  );
+}
+
+// Saved views: named one-click presets of view + filters, shared with
+// everyone on the list. The active chip reflects the current URL state.
+function SavedViewsBar({
+  listId,
+  view,
+  flags,
+  priority,
+}: {
+  listId: Id<"lists">;
+  view: ViewKey;
+  flags: string;
+  priority: string;
+}) {
+  const router = useRouter();
+  const views = useQuery(api.savedViews.listForList, { listId });
+  const create = useMutation(api.savedViews.create);
+  const remove = useMutation(api.savedViews.remove);
+  const { toast } = useToast();
+  const [naming, setNaming] = useState(false);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  if (views === undefined) return null;
+  const visible = views.filter((sv) => !hidden.has(sv._id));
+
+  function hrefFor(sv: {
+    view: string;
+    flags?: string;
+    priority?: string;
+  }): string {
+    const params = new URLSearchParams();
+    if (sv.view !== "list") params.set("view", sv.view);
+    if (sv.flags) params.set("f", sv.flags);
+    if (sv.priority) params.set("pri", sv.priority);
+    const qs = params.toString();
+    return qs ? `/dashboard/l/${listId}?${qs}` : `/dashboard/l/${listId}`;
+  }
+
+  const isActive = (sv: { view: string; flags?: string; priority?: string }) =>
+    sv.view === view &&
+    (sv.flags ?? "") === flags &&
+    (sv.priority ?? "") === priority;
+
+  // Nothing saved and not naming: a single quiet affordance.
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {visible.length > 0 && (
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Views
+        </span>
+      )}
+      {visible.map((sv) => {
+        const active = isActive(sv);
+        return (
+          <span key={sv._id} className="group/sv relative inline-flex">
+            <button
+              type="button"
+              onClick={() => router.replace(hrefFor(sv), { scroll: false })}
+              aria-pressed={active}
+              className={cn(
+                "rounded-full px-3 py-1 pr-6 text-xs font-medium transition-colors",
+                active
+                  ? "bg-foreground text-background"
+                  : "bg-muted text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {sv.name}
+            </button>
+            <button
+              type="button"
+              aria-label={`Delete view ${sv.name}`}
+              onClick={() => {
+                setHidden((prev) => new Set([...prev, sv._id]));
+                toast(`View "${sv.name}" deleted`, {
+                  action: {
+                    label: "Undo",
+                    onClick: () =>
+                      setHidden((prev) => {
+                        const next = new Set(prev);
+                        next.delete(sv._id);
+                        return next;
+                      }),
+                  },
+                  onExpire: () => remove({ savedViewId: sv._id }),
+                });
+              }}
+              className={cn(
+                "absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 opacity-0 transition-opacity group-hover/sv:opacity-100",
+                active
+                  ? "text-background/70 hover:text-background"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        );
+      })}
+      {naming ? (
+        <div className="w-44">
+          <InlineCreate
+            placeholder="View name…"
+            onCancel={() => setNaming(false)}
+            onSubmit={async (name) => {
+              try {
+                await create({
+                  listId,
+                  name,
+                  view,
+                  flags: flags || undefined,
+                  priority: priority || undefined,
+                });
+                toast(`View "${name.trim()}" saved`);
+              } catch (e) {
+                const raw = e instanceof Error ? e.message : String(e);
+                toast(
+                  raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() ||
+                    "Couldn't save view",
+                  { kind: "error" },
+                );
+              }
+              setNaming(false);
+            }}
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setNaming(true)}
+          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Plus className="h-3 w-3" /> Save view
+        </button>
+      )}
     </div>
   );
 }

@@ -187,6 +187,14 @@ const TOOLS: ToolDef[] = [
         .boolean()
         .optional()
         .describe("gate completion behind human approval"),
+      estimatePoints: z
+        .number()
+        .optional()
+        .describe("story points / sizing for sprint planning"),
+      milestone: z
+        .boolean()
+        .optional()
+        .describe("flag as a milestone on the Gantt/roadmap"),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.createTask), {
@@ -217,6 +225,12 @@ const TOOLS: ToolDef[] = [
         .boolean()
         .optional()
         .describe("true = gate completion behind human approval (only a human can set false)"),
+      estimatePoints: z
+        .number()
+        .nullable()
+        .optional()
+        .describe("story points / sizing; null clears it"),
+      milestone: z.boolean().optional(),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.updateTask), {
@@ -225,6 +239,14 @@ const TOOLS: ToolDef[] = [
         startDate: ms(a.startDate),
         dueDate: ms(a.dueDate),
       }),
+  },
+  {
+    name: "set_estimate",
+    description:
+      "Set (or clear with null) a task's estimatePoints. Thin shortcut over update_task for the common case of sizing during planning.",
+    shape: { taskId: z.string(), points: z.number().nullable() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.setEstimate), { apiKey: k, ...a }),
   },
   {
     name: "complete_task",
@@ -413,6 +435,44 @@ const TOOLS: ToolDef[] = [
     shape: { sprintId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.sprintSummary), { apiKey: k, ...a }),
+  },
+  {
+    name: "set_sprint_capacity",
+    description:
+      "Set (or clear with null) a sprint's capacityPoints, the team's committed-points ceiling for planning.",
+    shape: { sprintId: z.string(), points: z.number().nullable() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.setSprintCapacity), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "set_sprint_retrospective",
+    description:
+      "Write (or overwrite) a sprint's retrospective notes. Do this after the sprint completes.",
+    shape: { sprintId: z.string(), text: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.setSprintRetrospective), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "get_sprint_board",
+    description:
+      "Board view of one sprint: every task in it with list, status, assignees, estimatePoints, milestone flag, and open-blocker count. Use to render or reason about a Kanban-style sprint board.",
+    shape: { sprintId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getSprintBoard), { apiKey: k, ...a }),
+  },
+  {
+    name: "get_sprint_planning",
+    description:
+      "Planning view for one sprint: the sprint itself (capacityPoints, retrospective, goal, dates, status), what's already committed (with a points total and an unestimated count), and up to 100 open backlog tasks not yet in the sprint. Use to propose what to pull in and flag over/under-capacity.",
+    shape: { sprintId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getSprintPlanning), { apiKey: k, ...a }),
   },
 
   // ── Scheduled recurring tasks ────────────────────────────────────
@@ -829,6 +889,55 @@ const TOOLS: ToolDef[] = [
         apiKey: k,
         ...a,
       }),
+  },
+
+  // ── Checklist templates ──────────────────────────────────────────
+  {
+    name: "list_checklist_templates",
+    description:
+      "Reusable checklist playbooks ('Definition of done', 'Release steps') in my scope. Apply one to a task with apply_checklist_template.",
+    shape: {},
+    run: (c, k) =>
+      c.query(asQuery(api.agentApi.listChecklistTemplates), { apiKey: k }),
+  },
+  {
+    name: "apply_checklist_template",
+    description:
+      "Append a checklist template's items onto a task's existing checklist (doesn't replace it).",
+    shape: { taskId: z.string(), templateId: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.applyChecklistTemplate), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "create_checklist_template",
+    description:
+      "Author a new checklist template in my scope so it can be applied to tasks going forward.",
+    shape: { name: z.string(), items: z.array(z.string()) },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.createChecklistTemplate), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+
+  // ── Portfolio & dependency network ───────────────────────────────
+  {
+    name: "get_portfolio",
+    description:
+      "Every list (project) in my scope, skipping archived spaces: name, space, projectStatus, targetDate, and task totals (total/done/inProgress). Use for a cross-project status rollup.",
+    shape: {},
+    run: (c, k) => c.query(asQuery(api.agentApi.getPortfolio), { apiKey: k }),
+  },
+  {
+    name: "get_task_network",
+    description:
+      "A list's tasks with their blocked-by edges and status categories, so I can reason about dependency order (what's ready to start, what's gating what) without fetching every task individually.",
+    shape: { listId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getTaskNetwork), { apiKey: k, ...a }),
   },
 
   // ── Comment management ───────────────────────────────────────────

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAction, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Button } from "@/components/ui/button";
+import { Monogram } from "@/components/dashboard/monogram";
 import { cn } from "@/lib/utils";
 import {
   AnimatePresence,
@@ -20,8 +21,6 @@ import {
 // type, a build sequence where your mission control comes alive, and the
 // agent's first key presented once. Deliberately icon-free: everything is
 // carried by type, motion, gradient, and presence.
-
-const AGENT_EMOJI = ["🤖", "🦾", "🛰️", "⚡", "🔭", "🧠"];
 
 type BuildState =
   | { phase: "building"; step: number }
@@ -41,7 +40,6 @@ export function OnboardingFlow({ firstName }: { firstName: string }) {
   const [step, setStep] = useState(-1);
   const [workspaceName, setWorkspaceName] = useState("");
   const [agentName, setAgentName] = useState("Scout");
-  const [agentEmoji, setAgentEmoji] = useState("🤖");
 
   return (
     <MotionConfig reducedMotion="user">
@@ -91,7 +89,6 @@ export function OnboardingFlow({ firstName }: { firstName: string }) {
                       <LivePreview
                         workspaceName={workspaceName}
                         agentName={agentName}
-                        agentEmoji={agentEmoji}
                         stage="workspace"
                       />
                     }
@@ -112,16 +109,13 @@ export function OnboardingFlow({ firstName }: { firstName: string }) {
                       <LivePreview
                         workspaceName={workspaceName}
                         agentName={agentName}
-                        agentEmoji={agentEmoji}
                         stage="agent"
                       />
                     }
                   >
                     <AgentStep
                       name={agentName}
-                      emoji={agentEmoji}
                       onName={setAgentName}
-                      onEmoji={setAgentEmoji}
                       onNext={() => setStep(2)}
                     />
                   </SplitStep>
@@ -133,7 +127,6 @@ export function OnboardingFlow({ firstName }: { firstName: string }) {
                   <BuildStep
                     workspaceName={workspaceName}
                     agentName={agentName}
-                    agentEmoji={agentEmoji}
                   />
                 </Screen>
               )}
@@ -356,15 +349,11 @@ function WorkspaceStep({
 
 function AgentStep({
   name,
-  emoji,
   onName,
-  onEmoji,
   onNext,
 }: {
   name: string;
-  emoji: string;
   onName: (v: string) => void;
-  onEmoji: (v: string) => void;
   onNext: () => void;
 }) {
   return (
@@ -380,30 +369,7 @@ function AgentStep({
         assign it work, watch it live, and approve what ships.
       </p>
 
-      <div className="mt-8 flex items-center gap-2">
-        {AGENT_EMOJI.map((e) => (
-          <motion.button
-            key={e}
-            type="button"
-            onClick={() => onEmoji(e)}
-            whileTap={{ scale: 0.9 }}
-            animate={{ scale: emoji === e ? 1.12 : 1 }}
-            transition={SPRING}
-            className={cn(
-              "inline-flex h-12 w-12 items-center justify-center rounded-full border text-2xl transition-colors",
-              emoji === e
-                ? "border-foreground bg-foreground/5"
-                : "border-border hover:border-foreground/25",
-            )}
-            aria-pressed={emoji === e}
-            aria-label={`Agent avatar ${e}`}
-          >
-            {e}
-          </motion.button>
-        ))}
-      </div>
-
-      <div className="mt-6">
+      <div className="mt-8">
         <HeroInput
           value={name}
           onChange={onName}
@@ -426,12 +392,10 @@ function AgentStep({
 function LivePreview({
   workspaceName,
   agentName,
-  agentEmoji,
   stage,
 }: {
   workspaceName: string;
   agentName: string;
-  agentEmoji: string;
   stage: "workspace" | "agent" | "live";
 }) {
   const ws = workspaceName.trim() || "Your workspace";
@@ -486,9 +450,7 @@ function LivePreview({
             className="mt-4 overflow-hidden"
           >
             <div className="flex items-center gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5">
-              <span className="text-xl" aria-hidden>
-                {agentEmoji}
-              </span>
+              <Monogram name={agentName.trim() || "Your agent"} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">
                   {agentName.trim() || "Your agent"}
@@ -509,11 +471,9 @@ function LivePreview({
 function BuildStep({
   workspaceName,
   agentName,
-  agentEmoji,
 }: {
   workspaceName: string;
   agentName: string;
-  agentEmoji: string;
 }) {
   const router = useRouter();
   const completeSetup = useMutation(api.onboarding.completeSetup);
@@ -538,7 +498,6 @@ function BuildStep({
         const result = await completeSetup({
           workspaceName,
           agentName,
-          agentEmoji,
         });
         resultRef.current = {
           workspaceId: result.workspaceId,
@@ -556,7 +515,7 @@ function BuildStep({
         message: err instanceof Error ? err.message : "Setup failed",
       });
     }
-  }, [agentEmoji, agentName, completeSetup, createKey, workspaceName]);
+  }, [agentName, completeSetup, createKey, workspaceName]);
 
   useEffect(() => {
     if (started.current) return;
@@ -604,7 +563,7 @@ function BuildStep({
             className="text-4xl font-bold tracking-[-0.02em] sm:text-5xl"
           >
             {done
-              ? `${agentEmoji} ${agentName} is online.`
+              ? `${agentName} is online.`
               : "Building your mission control…"}
           </motion.h1>
         </AnimatePresence>
@@ -693,7 +652,6 @@ function BuildStep({
         <LivePreview
           workspaceName={workspaceName}
           agentName={agentName}
-          agentEmoji={agentEmoji}
           stage={done ? "live" : "agent"}
         />
       </div>

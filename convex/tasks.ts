@@ -9,6 +9,7 @@ import type { Actor } from "./_agentAuth";
 import { emitEvent, scopeForList, userActor } from "./events";
 import { createMessageCore } from "./messages";
 import { notify } from "./notificationCenter";
+import { adjustRollup } from "./rollups";
 
 // Task CRUD. Since Phase 12 the write paths are factored into *Core
 // functions that take an explicit Actor, so the Clerk-authenticated
@@ -257,6 +258,19 @@ async function openBlockers(
   return out;
 }
 
+// Which listRollups buckets a status category contributes to. `done`
+// covers both complete and closed (matches every other "is this task
+// done" check in this file); `inProgress` mirrors the in_progress
+// category only.
+function categoryBuckets(
+  category: string | undefined,
+): { done: number; inProgress: number } {
+  return {
+    done: category === "complete" || category === "closed" ? 1 : 0,
+    inProgress: category === "in_progress" ? 1 : 0,
+  };
+}
+
 // ── Core write paths (shared with the agent API) ───────────────────────
 
 export type CreateTaskArgs = {
@@ -273,6 +287,8 @@ export type CreateTaskArgs = {
   sprintId?: Id<"sprints">;
   checklist?: { id: string; text: string; done: boolean }[];
   requiresApproval?: boolean;
+  estimatePoints?: number;
+  milestone?: boolean;
 };
 
 export async function createTaskCore(
@@ -322,6 +338,8 @@ export async function createTaskCore(
     sprintId: args.sprintId,
     checklist: args.checklist,
     requiresApproval: args.requiresApproval || undefined,
+    estimatePoints: args.estimatePoints,
+    milestone: args.milestone || undefined,
     createdByClerkId: actor.id,
     position: siblings.length,
     createdAt: Date.now(),
@@ -331,6 +349,17 @@ export async function createTaskCore(
   if (created) {
     await applyAutomations(ctx, created, "task_created");
     const finalTask = (await ctx.db.get(taskId))!;
+    // Rollup accounting happens after applyAutomations (not against the
+    // just-inserted `created` doc) so a task_created automation that sets
+    // statusId (see listAutomations.ts's set_status action) lands the new
+    // task in the right bucket the first time, with no drift to repair.
+    const finalStatus = await ctx.db.get(finalTask.statusId);
+    const buckets = categoryBuckets(finalStatus?.category);
+    await adjustRollup(ctx, finalTask.listId, {
+      total: 1,
+      done: buckets.done,
+      inProgress: buckets.inProgress,
+    });
     await scheduleAssignmentNotifications(
       ctx,
       finalTask,
@@ -366,6 +395,8 @@ export type UpdateTaskArgs = {
   blockedByTaskIds?: Id<"tasks">[];
   checklist?: { id: string; text: string; done: boolean }[];
   requiresApproval?: boolean;
+  estimatePoints?: number | null;
+  milestone?: boolean;
 };
 
 export async function updateTaskCore(
@@ -474,6 +505,14 @@ export async function updateTaskCore(
     patch.checklist = args.checklist.length > 0 ? args.checklist : undefined;
     changedFields.push("checklist");
   }
+  if (args.estimatePoints !== undefined) {
+    patch.estimatePoints = args.estimatePoints ?? undefined;
+    changedFields.push("estimate");
+  }
+  if (args.milestone !== undefined) {
+    patch.milestone = args.milestone || undefined;
+    changedFields.push("milestone");
+  }
   if (args.requiresApproval !== undefined) {
     // Agents may raise the gate but never lower it — otherwise the gate
     // is meaningless.
@@ -526,6 +565,31 @@ export async function updateTaskCore(
     await emitTaskEvent(ctx, updated, "task.completed", actor);
     await applyAutomations(ctx, updated, "status_changed_to_complete");
     await spawnRecurringInstance(ctx, updated);
+  }
+
+  // Rollup accounting: only status changes move a task between buckets
+  // (total is unaffected by an update). Re-read the task instead of
+  // trusting `newStatusName`/`willBeComplete` directly, because the
+  // status_changed_to_complete automations above (and any set_status
+  // action inside them — see listAutomations.ts) may have moved statusId
+  // again after our own patch. Diffing actual old-category vs
+  // actual-final-category means the rollup lands correctly however many
+  // patches statusId went through in this call, with nothing left to
+  // repair.
+  if (args.statusId !== undefined) {
+    const finalTask = (await ctx.db.get(args.taskId)) ?? updated;
+    const finalStatus = await ctx.db.get(finalTask.statusId);
+    const oldBuckets = categoryBuckets(oldStatus?.category);
+    const newBuckets = categoryBuckets(finalStatus?.category);
+    if (
+      oldBuckets.done !== newBuckets.done ||
+      oldBuckets.inProgress !== newBuckets.inProgress
+    ) {
+      await adjustRollup(ctx, list._id, {
+        done: newBuckets.done - oldBuckets.done,
+        inProgress: newBuckets.inProgress - oldBuckets.inProgress,
+      });
+    }
   }
 
   if (args.title !== undefined || args.description !== undefined) {
@@ -621,6 +685,23 @@ export async function handoffTaskCore(
   );
 }
 
+// Remove a task's contribution from its list's rollup row before the task
+// itself is deleted. Reads the task's status as it stood at delete time
+// (removeTaskCore doesn't mutate statusId first), so no extra lookups are
+// needed beyond the status doc.
+async function decrementRollupForTask(
+  ctx: MutationCtx,
+  task: Doc<"tasks">,
+): Promise<void> {
+  const status = await ctx.db.get(task.statusId);
+  const buckets = categoryBuckets(status?.category);
+  await adjustRollup(ctx, task.listId, {
+    total: -1,
+    done: -buckets.done,
+    inProgress: -buckets.inProgress,
+  });
+}
+
 // Delete everything hanging off a task: field values, comments (and
 // their mentions), time entries, and clips (including their stored
 // bytes). Shared by removeTaskCore and lists.remove so no path orphans
@@ -685,16 +766,25 @@ export async function removeTaskCore(
   const task = await ctx.db.get(taskId);
   if (!task) return;
 
-  const subtasks = await ctx.db
-    .query("tasks")
-    .withIndex("by_parent_task", (q) => q.eq("parentTaskId", taskId))
-    .collect();
-  for (const s of subtasks) {
-    await cleanupTaskArtifacts(ctx, s._id);
-    await ctx.db.delete(s._id);
+  // Full-depth cascade: the UI allows nested subtasks, so a one-level
+  // sweep would orphan grandchildren (invisible rows + rollup drift).
+  const queue = [taskId];
+  while (queue.length > 0) {
+    const parentId = queue.shift()!;
+    const subtasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_parent_task", (q) => q.eq("parentTaskId", parentId))
+      .collect();
+    for (const s of subtasks) {
+      queue.push(s._id);
+      await cleanupTaskArtifacts(ctx, s._id);
+      await decrementRollupForTask(ctx, s);
+      await ctx.db.delete(s._id);
+    }
   }
 
   await cleanupTaskArtifacts(ctx, taskId);
+  await decrementRollupForTask(ctx, task);
 
   await emitTaskEvent(ctx, task, "task.deleted", actor);
   await ctx.db.delete(taskId);
@@ -904,6 +994,8 @@ export const create = mutation({
     recurrence: v.optional(recurrenceValidator),
     sprintId: v.optional(v.id("sprints")),
     requiresApproval: v.optional(v.boolean()),
+    estimatePoints: v.optional(v.number()),
+    milestone: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { identity } = await requireListAccess(ctx, args.listId);
@@ -923,6 +1015,8 @@ export const create = mutation({
         recurrence: args.recurrence,
         sprintId: args.sprintId,
         requiresApproval: args.requiresApproval,
+        estimatePoints: args.estimatePoints,
+        milestone: args.milestone,
       },
       actor,
     );
@@ -944,6 +1038,8 @@ export const update = mutation({
     blockedByTaskIds: v.optional(v.array(v.id("tasks"))),
     checklist: v.optional(checklistValidator),
     requiresApproval: v.optional(v.boolean()),
+    estimatePoints: v.optional(v.union(v.number(), v.null())),
+    milestone: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { identity } = await requireTaskAccess(ctx, args.taskId);
@@ -964,6 +1060,8 @@ export const update = mutation({
         blockedByTaskIds: args.blockedByTaskIds,
         checklist: args.checklist,
         requiresApproval: args.requiresApproval,
+        estimatePoints: args.estimatePoints,
+        milestone: args.milestone,
       },
       actor,
     );

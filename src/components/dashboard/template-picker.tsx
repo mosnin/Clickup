@@ -14,6 +14,26 @@ type ParentSpec =
   | { kind: "space"; spaceId: Id<"spaces"> }
   | { kind: "folder"; folderId: Id<"folders"> };
 
+// `templates.list` only returns id/name/emoji/description today. If it ever
+// grows richer counts (statuses/fields/sample tasks), surface them here as
+// the quiet meta line — until then the line simply doesn't render.
+type TemplateMeta = {
+  id: string;
+  name: string;
+  description: string;
+  statusCount?: number;
+  fieldCount?: number;
+  hasSampleTasks?: boolean;
+};
+
+function metaLine(t: TemplateMeta): string | null {
+  const parts: string[] = [];
+  if (t.statusCount) parts.push(`${t.statusCount} statuses`);
+  if (t.fieldCount) parts.push(`${t.fieldCount} fields`);
+  if (t.hasSampleTasks) parts.push("sample tasks");
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 export function TemplatePicker({
   open,
   parent,
@@ -60,6 +80,7 @@ export function TemplatePicker({
     <div
       role="dialog"
       aria-modal="true"
+      aria-label="Start from a template"
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
     >
       <div
@@ -67,67 +88,73 @@ export function TemplatePicker({
         onClick={onClose}
         className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
       />
-      <div className="relative w-full max-w-2xl rounded-2xl bento shadow-xl">
-        <div className="flex items-center justify-between border-b border-border px-5 py-3">
-          <h2 className="text-sm font-semibold">Pick a list template</h2>
+      <div className="bento relative flex w-full max-w-2xl flex-col rounded-2xl p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Start from a template</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Seeds a list with statuses, custom fields, and a few sample tasks.
+            </p>
+          </div>
           <button
             type="button"
             aria-label="Close"
             onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted"
+            className="tap-target inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="grid gap-2 p-5 sm:grid-cols-2">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
           {templates === undefined && (
-            <p className="col-span-full text-sm text-muted-foreground">
-              Loading templates…
-            </p>
+            <p className="col-span-full text-sm text-muted-foreground">Loading templates…</p>
           )}
-          {templates?.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => {
-                setSelected(t.id);
-                if (!name) setName(t.name);
-              }}
-              className={cn(
-                "rounded-2xl border p-4 text-left transition-colors",
-                selected === t.id
-                  ? "border-brand-500 bg-brand-50/50"
-                  : "border-border bg-background hover:border-foreground/25",
-              )}
-            >
-              <div className="flex items-baseline gap-2">
-                <span aria-hidden className="text-base">
-                  {t.emoji}
-                </span>
-                <span className="font-medium">{t.name}</span>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t.description}
-              </p>
-            </button>
-          ))}
+          {templates?.map((t) => {
+            const meta = metaLine(t);
+            const isSelected = selected === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => {
+                  setSelected(t.id);
+                  if (!name) setName(t.name);
+                }}
+                aria-pressed={isSelected}
+                className={cn(
+                  "lift rounded-2xl p-4 text-left transition-colors",
+                  isSelected
+                    ? "bento ring-2 ring-foreground/15"
+                    : "bento-tile hover:bg-border/40",
+                )}
+              >
+                <span className="block font-medium">{t.name}</span>
+                <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">
+                  {t.description}
+                </p>
+                {meta && (
+                  <span className="mt-2 block text-xs text-muted-foreground">{meta}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        <div className="border-t border-border px-5 py-3">
-          <label className="block text-xs text-muted-foreground">
+        <div className="mt-6">
+          <label className="block text-xs font-medium text-muted-foreground">
             List name
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.currentTarget.value)}
               placeholder={chosen?.name ?? "New list"}
-              className="mt-1 w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              className="soft-field mt-1.5 w-full px-3.5 py-2.5 text-sm"
             />
           </label>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+        <div className="mt-6 flex justify-end gap-2">
           <Button type="button" variant="ghost" size="sm" onClick={onClose}>
             Cancel
           </Button>
@@ -143,8 +170,7 @@ export function TemplatePicker({
                   templateId: chosen.id,
                   name: name.trim() || chosen.name,
                   parentType: parent.kind,
-                  parentId:
-                    parent.kind === "space" ? parent.spaceId : parent.folderId,
+                  parentId: parent.kind === "space" ? parent.spaceId : parent.folderId,
                 });
                 onCreated(listId);
               } finally {

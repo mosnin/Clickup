@@ -12,7 +12,7 @@ import { AnimatePresence, EASE, motion } from "@/components/motion";
 export type PickerOption = {
   id: string;
   label: string;
-  /** Leading emoji/avatar glyph (e.g. an agent's emoji). */
+  /** @deprecated no longer rendered — the product renders no emoji, ever. */
   emoji?: string;
   /** Muted trailing hint (e.g. "agent", "active"). */
   hint?: string;
@@ -149,11 +149,6 @@ export function Picker({
                       i === highlight && "bg-muted",
                     )}
                   >
-                    {o.emoji && (
-                      <span aria-hidden className="flex-shrink-0">
-                        {o.emoji}
-                      </span>
-                    )}
                     <span className="min-w-0 flex-1 truncate">{o.label}</span>
                     {o.hint && (
                       <span className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">

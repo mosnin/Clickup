@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { RESOURCES, getResource } from "@/lib/resources";
+import { SITE_NAME } from "@/lib/marketing-nav";
 import { ResourceContent } from "../resource-content";
 
 export function generateStaticParams() {
@@ -23,6 +24,7 @@ export async function generateMetadata({
       title: r.metaTitle,
       description: r.metaDescription,
       url: `/resources/${r.slug}`,
+      siteName: SITE_NAME,
       type: "article",
     },
   };

@@ -20,6 +20,8 @@ import {
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { parseQuickAdd } from "@/lib/quick-add";
+import { setTheme } from "@/components/theme-toggle";
 import { useToast } from "@/components/toast";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
 
@@ -33,7 +35,6 @@ type Item = {
   group: string;
   label: string;
   hint?: string;
-  emoji?: string;
   icon?: React.ComponentType<{ className?: string }>;
   run: () => void | Promise<void>;
 };
@@ -47,6 +48,11 @@ export function CommandPalette() {
   // null = normal mode; a string = "new task" mode with that title,
   // where the input now filters lists to create the task in.
   const [createTitle, setCreateTitle] = useState<string | null>(null);
+  // "New doc/whiteboard/list" flows: pick a space, then (lists only) a name.
+  const [spacePick, setSpacePick] = useState<"doc" | "board" | "list" | null>(
+    null,
+  );
+  const [listNameSpace, setListNameSpace] = useState<Id<"spaces"> | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
 
@@ -59,11 +65,16 @@ export function CommandPalette() {
       : "skip",
   );
   const createTask = useMutation(api.tasks.create);
+  const createDoc = useMutation(api.docs.create);
+  const createWhiteboard = useMutation(api.whiteboards.create);
+  const createList = useMutation(api.lists.create);
 
   const close = useCallback(() => {
     setOpen(false);
     setQuery("");
     setCreateTitle(null);
+    setSpacePick(null);
+    setListNameSpace(null);
   }, []);
 
   // Global shortcuts: ⌘K / Ctrl+K toggles; "open-command-palette" event
@@ -93,7 +104,10 @@ export function CommandPalette() {
   useEffect(() => {
     if (open) requestAnimationFrame(() => inputRef.current?.focus());
   }, [open]);
-  useEffect(() => setHighlight(0), [query, open, createTitle]);
+  useEffect(
+    () => setHighlight(0),
+    [query, open, createTitle, spacePick, listNameSpace],
+  );
 
   // Every list in the tree, used both for navigation and for the
   // create-task list picker.
@@ -123,6 +137,17 @@ export function CommandPalette() {
     return out;
   }, [tree]);
 
+  const allSpaces = useMemo(() => {
+    if (!tree) return [];
+    const out: { id: Id<"spaces">; name: string; place: string }[] = [];
+    if (tree.personal)
+      out.push({ id: tree.personal._id, name: tree.personal.name, place: "Personal" });
+    for (const w of tree.workspaces)
+      for (const sp of w.spaces)
+        out.push({ id: sp._id, name: sp.name, place: w.name });
+    return out;
+  }, [tree]);
+
   const items = useMemo<Item[]>(() => {
     const q = query.trim().toLowerCase();
     const nav = (href: string) => () => {
@@ -130,21 +155,28 @@ export function CommandPalette() {
       close();
     };
 
-    // ── Create mode: the list picker ──
+    // ── Create mode: the list picker. The title runs through the
+    //    quick-add grammar ("tomorrow", "!high") so dates and priority
+    //    typed in the title become real fields. ──
     if (createTitle !== null) {
+      const parsed = parseQuickAdd(createTitle);
+      const extras = parsed.matched.map((m) => m.label).join(" · ");
+      const group = `New task: “${parsed.title || createTitle}”${extras ? ` · ${extras}` : ""}`;
       return allLists
         .filter((l) => !q || l.name.toLowerCase().includes(q))
         .slice(0, 8)
         .map((l) => ({
           key: `create-${l.id}`,
-          group: `New task: “${createTitle}”`,
+          group,
           label: l.name,
           hint: l.place,
           icon: List,
           run: async () => {
             const taskId = await createTask({
               listId: l.id,
-              title: createTitle,
+              title: parsed.title || createTitle,
+              dueDate: parsed.dueDate,
+              priority: parsed.priority,
             });
             close();
             toast(`Task created in ${l.name}`);
@@ -152,6 +184,52 @@ export function CommandPalette() {
           },
         }));
     }
+
+    // ── Space picker for New doc / whiteboard / list ──
+    if (spacePick !== null) {
+      const label =
+        spacePick === "doc"
+          ? "New doc in…"
+          : spacePick === "board"
+            ? "New whiteboard in…"
+            : "New list in…";
+      return allSpaces
+        .filter((sp) => !q || sp.name.toLowerCase().includes(q))
+        .slice(0, 8)
+        .map((sp) => ({
+          key: `space-${sp.id}`,
+          group: label,
+          label: sp.name,
+          hint: sp.place,
+          icon: Home,
+          run: async () => {
+            if (spacePick === "doc") {
+              const docId = await createDoc({
+                parentType: "space",
+                parentId: sp.id,
+                title: "Untitled",
+              });
+              close();
+              router.push(`/dashboard/d/${docId}`);
+            } else if (spacePick === "board") {
+              const wbId = await createWhiteboard({
+                parentType: "space",
+                parentId: sp.id,
+                title: "Untitled board",
+              });
+              close();
+              router.push(`/dashboard/wb/${wbId}`);
+            } else {
+              setSpacePick(null);
+              setListNameSpace(sp.id);
+              setQuery("");
+            }
+          },
+        }));
+    }
+
+    // ── List-name step: no items; Enter creates. ──
+    if (listNameSpace !== null) return [];
 
     // ── Normal mode ──
     const out: Item[] = [];
@@ -228,7 +306,7 @@ export function CommandPalette() {
         key: `agent-${a._id}`,
         group: "Agents",
         label: a.name,
-        emoji: a.emoji ?? "🤖",
+        icon: Bot,
         run: nav(`/dashboard/agents/${a._id}`),
       });
     }
@@ -243,6 +321,88 @@ export function CommandPalette() {
         run: nav(`/dashboard/l/${t.listId}/t/${t.taskId}`),
       });
     }
+
+    // Creation + theme actions, reachable by name.
+    const actionItems: Item[] = [
+      {
+        key: "search-everything",
+        group: "Actions",
+        label: q ? `Search everything for “${query.trim()}”` : "Search everything…",
+        icon: Search,
+        run: () => {
+          const target = query.trim()
+            ? `/dashboard/search?q=${encodeURIComponent(query.trim())}`
+            : "/dashboard/search";
+          router.push(target);
+          close();
+        },
+      },
+      {
+        key: "new-doc",
+        group: "Actions",
+        label: "New doc…",
+        icon: FileText,
+        run: () => {
+          setSpacePick("doc");
+          setQuery("");
+        },
+      },
+      {
+        key: "new-wb",
+        group: "Actions",
+        label: "New whiteboard…",
+        icon: LayoutGrid,
+        run: () => {
+          setSpacePick("board");
+          setQuery("");
+        },
+      },
+      {
+        key: "new-list",
+        group: "Actions",
+        label: "New list…",
+        icon: List,
+        run: () => {
+          setSpacePick("list");
+          setQuery("");
+        },
+      },
+      {
+        key: "theme-light",
+        group: "Actions",
+        label: "Theme: light",
+        icon: Sparkles,
+        run: () => {
+          setTheme("light");
+          close();
+        },
+      },
+      {
+        key: "theme-dark",
+        group: "Actions",
+        label: "Theme: dark",
+        icon: Sparkles,
+        run: () => {
+          setTheme("dark");
+          close();
+        },
+      },
+      {
+        key: "theme-system",
+        group: "Actions",
+        label: "Theme: follow system",
+        icon: Sparkles,
+        run: () => {
+          setTheme("system");
+          close();
+        },
+      },
+    ];
+    out.push(
+      ...actionItems.filter(
+        (a) => a.key === "search-everything" ? true : match(a.label),
+      ),
+    );
 
     // Quick-create is always reachable; with text typed it carries the text
     // through as the task title. When nothing strongly matches what was
@@ -260,12 +420,33 @@ export function CommandPalette() {
       },
     };
     const strongMatch =
-      !q || out.some((item) => item.label.toLowerCase().startsWith(q));
+      !q ||
+      out.some(
+        (item) =>
+          item.key !== "search-everything" &&
+          item.label.toLowerCase().startsWith(q),
+      );
     if (strongMatch) out.push(createItem);
     else out.unshift(createItem);
 
     return out.slice(0, 24);
-  }, [query, createTitle, tree, agents, taskHits, allLists, router, close, createTask, toast]);
+  }, [
+    query,
+    createTitle,
+    spacePick,
+    listNameSpace,
+    tree,
+    agents,
+    taskHits,
+    allLists,
+    allSpaces,
+    router,
+    close,
+    createTask,
+    createDoc,
+    createWhiteboard,
+    toast,
+  ]);
 
   function onInputKeyDown(e: React.KeyboardEvent) {
     if (e.key === "ArrowDown") {
@@ -276,8 +457,27 @@ export function CommandPalette() {
       setHighlight((h) => Math.max(h - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
+      // Naming a new list: Enter creates it in the picked space.
+      if (listNameSpace !== null) {
+        const name = query.trim();
+        if (!name) return;
+        void (async () => {
+          const listId = await createList({
+            name,
+            parentType: "space",
+            parentId: listNameSpace,
+          });
+          close();
+          router.push(`/dashboard/l/${listId}`);
+        })();
+        return;
+      }
       // ⌘Enter / Ctrl+Enter: create a task from the typed text, always.
-      if ((e.metaKey || e.ctrlKey) && createTitle === null) {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        createTitle === null &&
+        spacePick === null
+      ) {
         setCreateTitle(query.trim() || "");
         setQuery("");
         return;
@@ -291,7 +491,14 @@ export function CommandPalette() {
       items[highlight]?.run();
     } else if (e.key === "Escape") {
       e.preventDefault();
-      if (createTitle !== null) {
+      if (listNameSpace !== null) {
+        setListNameSpace(null);
+        setSpacePick("list");
+        setQuery("");
+      } else if (spacePick !== null) {
+        setSpacePick(null);
+        setQuery("");
+      } else if (createTitle !== null) {
         setCreateTitle(null);
         setQuery("");
       } else {
@@ -344,10 +551,14 @@ export function CommandPalette() {
                 onKeyDown={onInputKeyDown}
                 placeholder={
                   awaitingTitle
-                    ? "Task title, then Enter…"
+                    ? "Task title… try “ship the deck tomorrow !high”"
                     : createTitle
                       ? "Pick a list…"
-                      : "Search or jump to…"
+                      : listNameSpace !== null
+                        ? "List name, then Enter…"
+                        : spacePick !== null
+                          ? "Pick a space…"
+                          : "Search or jump to…"
                 }
                 className="w-full bg-transparent text-sm focus:outline-none"
               />
@@ -389,11 +600,7 @@ export function CommandPalette() {
                           i === highlight && "bg-muted",
                         )}
                       >
-                        {item.emoji ? (
-                          <span aria-hidden className="w-4 flex-shrink-0 text-center">
-                            {item.emoji}
-                          </span>
-                        ) : Icon ? (
+                        {Icon ? (
                           <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                         ) : null}
                         <span className="min-w-0 flex-1 truncate">

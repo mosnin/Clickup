@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Plus } from "lucide-react";
+import { ChevronRight, Plus, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { TaskBadges } from "@/components/dashboard/task-badges";
+import { ChecklistChip } from "@/components/dashboard/checklist";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
 import {
   PRIORITY_LABEL,
@@ -18,6 +19,8 @@ import {
 } from "@/components/dashboard/priority";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
+import { parseQuickAdd } from "@/lib/quick-add";
+import { QuickAddChips } from "@/components/dashboard/quick-add-chips";
 import { useToast } from "@/components/toast";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
 
@@ -39,6 +42,23 @@ export function ListView({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Rows hidden while a bulk-delete undo toast is live.
   const [pendingDelete, setPendingDelete] = useState<Set<string>>(new Set());
+
+  // `tasks` here is already filtered to top-level rows by the list page.
+  // Subtasks (tasks.parentTaskId) come from the same tasks.listForList
+  // subscription queried directly — Convex dedupes it against the list
+  // page's identical query, so this doesn't add a second round-trip.
+  const allTasks = useQuery(api.tasks.listForList, { listId });
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string, Doc<"tasks">[]>();
+    for (const t of allTasks ?? []) {
+      if (!t.parentTaskId) continue;
+      const arr = map.get(t.parentTaskId) ?? [];
+      arr.push(t);
+      map.set(t.parentTaskId, arr);
+    }
+    for (const arr of map.values()) arr.sort((a, b) => a.position - b.position);
+    return map;
+  }, [allTasks]);
   const shown = useMemo(
     () => tasks.filter((t) => !pendingDelete.has(t._id)),
     [tasks, pendingDelete],
@@ -118,6 +138,7 @@ export function ListView({
               index={i}
               selected={selected.has(task._id)}
               onToggleSelect={() => toggleSelect(task._id)}
+              subtasks={childrenByParent.get(task._id) ?? []}
             />
           ))}
         </tbody>
@@ -333,6 +354,7 @@ function TaskRow({
   index,
   selected,
   onToggleSelect,
+  subtasks,
 }: {
   task: Doc<"tasks">;
   listId: Id<"lists">;
@@ -341,8 +363,10 @@ function TaskRow({
   index: number;
   selected: boolean;
   onToggleSelect: () => void;
+  subtasks: Doc<"tasks">[];
 }) {
   const searchParams = useSearchParams();
+  const [expanded, setExpanded] = useState(false);
   const update = useMutation(api.tasks.update);
   // Optimistic: the check fills instantly, before the server round-trip.
   // The server result reconciles it (and reverts if a blocker/approval
@@ -391,16 +415,17 @@ function TaskRow({
   if (deleting) return null;
 
   return (
-    <motion.tr
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{
-        duration: 0.4,
-        ease: EASE,
-        delay: Math.min(index * 0.03, 0.3),
-      }}
-      className={cn("align-middle", selected && "bg-muted/60")}
-    >
+    <>
+      <motion.tr
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          duration: 0.4,
+          ease: EASE,
+          delay: Math.min(index * 0.03, 0.3),
+        }}
+        className={cn("align-middle", selected && "bg-muted/60")}
+      >
       <td>
         <input
           type="checkbox"
@@ -454,7 +479,30 @@ function TaskRow({
         </motion.button>
       </td>
       <td>
-        <span className="flex items-center">
+        <span className="flex items-center gap-1">
+          {subtasks.length > 0 && (
+            <button
+              type="button"
+              aria-label={expanded ? "Collapse subtasks" : "Expand subtasks"}
+              aria-expanded={expanded}
+              onClick={() => setExpanded((v) => !v)}
+              className="tap-target inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <ChevronRight
+                className={cn(
+                  "h-3.5 w-3.5 transition-transform",
+                  expanded && "rotate-90",
+                )}
+              />
+            </button>
+          )}
+          {task.milestone && (
+            <span
+              aria-hidden
+              title="Milestone"
+              className="h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/60"
+            />
+          )}
           <Link
             href={taskPeekHref(searchParams, task._id)}
             scroll={false}
@@ -466,6 +514,17 @@ function TaskRow({
             {task.title}
           </Link>
           <TaskBadges task={task} />
+          <ChecklistChip checklist={task.checklist} />
+          {task.estimatePoints != null && (
+            <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {task.estimatePoints} pts
+            </span>
+          )}
+          {subtasks.length > 0 && (
+            <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {subtasks.length}
+            </span>
+          )}
         </span>
       </td>
       <td className="hidden sm:table-cell">
@@ -551,10 +610,144 @@ function TaskRow({
               onExpire: () => remove({ taskId: task._id }),
             });
           }}
-          className="tap-target text-xs text-muted-foreground hover:text-foreground"
+          className="tap-target inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
         >
-          ✕
+          <X className="h-3.5 w-3.5" />
         </button>
+      </td>
+      </motion.tr>
+      <AnimatePresence initial={false}>
+        {expanded &&
+          subtasks.map((child) => (
+            <ChildTaskRow
+              key={child._id}
+              task={child}
+              listId={listId}
+              statuses={statuses}
+              colSpan={5 + fields.length}
+            />
+          ))}
+      </AnimatePresence>
+    </>
+  );
+}
+
+// A subtask, indented beneath its parent row. Deliberately minimal — just
+// enough to see progress and jump to the subtask's own page; full editing
+// (status, priority, fields, delete) happens on the task page or in the
+// Subtasks section there.
+function ChildTaskRow({
+  task,
+  listId,
+  statuses,
+  colSpan,
+}: {
+  task: Doc<"tasks">;
+  listId: Id<"lists">;
+  statuses: Doc<"listStatuses">[];
+  colSpan: number;
+}) {
+  const searchParams = useSearchParams();
+  const toggleComplete = useMutation(
+    api.tasks.toggleComplete,
+  ).withOptimisticUpdate((localStore, args) => {
+    const current = localStore.getQuery(api.tasks.listForList, { listId });
+    if (!current) return;
+    const sorted = [...statuses].sort((a, b) => a.position - b.position);
+    localStore.setQuery(
+      api.tasks.listForList,
+      { listId },
+      current.map((t) => {
+        if (t._id !== args.taskId) return t;
+        const cur = statuses.find((s) => s._id === t.statusId);
+        const done =
+          cur?.category === "complete" || cur?.category === "closed";
+        const next = done
+          ? (sorted.find((s) => s.category === "open") ?? sorted[0])
+          : (sorted.find((s) => s.category === "complete") ?? sorted[0]);
+        return next ? { ...t, statusId: next._id } : t;
+      }),
+    );
+  });
+  const { toast } = useToast();
+
+  const status = statuses.find((s) => s._id === task.statusId);
+  const isDone =
+    status?.category === "complete" || status?.category === "closed";
+
+  return (
+    <motion.tr
+      layout
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={{ duration: 0.25, ease: EASE }}
+      className="bg-muted/20 align-middle"
+    >
+      <td />
+      <td>
+        <motion.button
+          type="button"
+          aria-label={isDone ? "Mark subtask open" : "Mark subtask complete"}
+          onClick={async () => {
+            try {
+              await toggleComplete({ taskId: task._id });
+            } catch (err) {
+              const raw = err instanceof Error ? err.message : String(err);
+              const msg = raw
+                .split("Uncaught Error:")
+                .pop()
+                ?.split("\n")[0]
+                ?.trim();
+              toast(msg || "Couldn't complete this subtask", {
+                kind: "error",
+              });
+            }
+          }}
+          whileTap={{ scale: 0.8 }}
+          className="tap-target inline-flex h-4 w-4 items-center justify-center rounded-full border-2 transition-colors"
+          style={{
+            borderColor: status?.color ?? "var(--color-border)",
+            backgroundColor: isDone ? status?.color : "transparent",
+          }}
+        >
+          <motion.svg
+            viewBox="0 0 16 16"
+            className="h-2.5 w-2.5 text-white"
+            aria-hidden
+            initial={false}
+            animate={{ scale: isDone ? 1 : 0, opacity: isDone ? 1 : 0 }}
+            transition={{ type: "spring", stiffness: 500, damping: 22 }}
+          >
+            <path
+              d="M3 8.5l3 3 7-7"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </motion.svg>
+        </motion.button>
+      </td>
+      <td colSpan={colSpan}>
+        <span className="flex items-center gap-2 pl-4">
+          <Link
+            href={taskPeekHref(searchParams, task._id)}
+            scroll={false}
+            className={cn(
+              "truncate text-xs hover:underline",
+              isDone && "text-muted-foreground line-through",
+            )}
+          >
+            {task.title}
+          </Link>
+          {task.dueDate && (
+            <span className="flex-shrink-0 text-[11px] text-muted-foreground">
+              {toDateInputValue(task.dueDate)}
+            </span>
+          )}
+        </span>
       </td>
     </motion.tr>
   );
@@ -564,13 +757,21 @@ function NewTaskRow({ listId }: { listId: Id<"lists"> }) {
   const [title, setTitle] = useState("");
   const create = useMutation(api.tasks.create);
   const [pending, setPending] = useState(false);
+  // Natural-language grammar: "tomorrow", "friday", "!high" parse into
+  // real fields; chips preview what was understood.
+  const parsed = useMemo(() => parseQuickAdd(title), [title]);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!parsed.title) return;
     setPending(true);
     try {
-      await create({ listId, title: title.trim() });
+      await create({
+        listId,
+        title: parsed.title,
+        dueDate: parsed.dueDate,
+        priority: parsed.priority,
+      });
       setTitle("");
     } finally {
       setPending(false);
@@ -578,24 +779,29 @@ function NewTaskRow({ listId }: { listId: Id<"lists"> }) {
   }
 
   return (
-    <form onSubmit={submit} className="flex items-center gap-2 px-4 py-3">
-      <Plus className="h-4 w-4 text-muted-foreground" aria-hidden />
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Add a task and press Enter"
-        disabled={pending}
-        className="flex-1 bg-transparent text-sm focus:outline-none disabled:opacity-50"
-      />
-      <Button
-        type="submit"
-        size="sm"
-        variant="ghost"
-        disabled={!title.trim() || pending}
-      >
-        Add
-      </Button>
+    <form onSubmit={submit} className="px-4 py-3">
+      <div className="flex items-center gap-2">
+        <Plus className="h-4 w-4 text-muted-foreground" aria-hidden />
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Add a task… try “ship the deck tomorrow !high”"
+          disabled={pending}
+          className="flex-1 bg-transparent text-sm focus:outline-none disabled:opacity-50"
+        />
+        <Button
+          type="submit"
+          size="sm"
+          variant="ghost"
+          disabled={!parsed.title || pending}
+        >
+          Add
+        </Button>
+      </div>
+      <div className="pl-6">
+        <QuickAddChips parsed={parsed} />
+      </div>
     </form>
   );
 }

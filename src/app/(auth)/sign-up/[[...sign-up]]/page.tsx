@@ -17,6 +17,17 @@ export default function SignUpPage() {
         process.env.NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL ??
         "/dashboard"
       }
+      appearance={{
+        variables: {
+          colorPrimary: "var(--color-azure-600)",
+          colorText: "var(--color-foreground)",
+          colorBackground: "var(--color-background)",
+          borderRadius: "1rem",
+        },
+        elements: {
+          card: "shadow-xl",
+        },
+      }}
     />
   );
 }
