@@ -1,154 +1,196 @@
 "use client";
 
-// Shared template for the industry use-case pages. Content comes from
-// src/lib/use-cases.ts; each page is the same narrative arc: pains →
-// a day in the life → the plays → proof → CTA.
+// Shared template for the industry use-case pages (marketing v2). Content
+// comes from src/lib/use-cases.ts verbatim; the narrative arc is the same
+// for every industry: pains -> a day in the life -> the plays -> proof ->
+// CTA, rendered in the navy-hero / white-content v2 grammar.
 
+import { ArrowRight } from "lucide-react";
+import gsap from "gsap";
 import { cn } from "@/lib/utils";
 import type { UseCase } from "@/lib/use-cases";
 import {
-  CtaPair,
-  PageHero,
-  QuoteCard,
+  Container,
+  CtaButton,
+  Eyebrow,
+  Placeholder,
   SectionHeading,
-} from "@/components/marketing/blocks";
-import { FadeIn, StaggerIn, StaggerInItem } from "@/components/marketing/reveal";
-import { Scene } from "@/components/marketing/scene";
-import {
-  ActivityFeedMock,
-  AgentCardMock,
-  ApprovalMock,
-  BoardMock,
-  BudgetMock,
-  ConnectMock,
-  TaskListMock,
-} from "@/components/marketing/mockups";
+} from "@/components/marketing/ui";
+import { GsapReveal, useGsap, EASE_OUT } from "@/components/marketing/gsap";
 
-const MOCKS = {
-  agent: AgentCardMock,
-  approval: ApprovalMock,
-  board: BoardMock,
-  feed: ActivityFeedMock,
-  tasks: TaskListMock,
-  budget: BudgetMock,
-  connect: ConnectMock,
-} as const;
+// Compact hero mount-timeline (eyebrow -> H1 -> sub), a lighter echo of the
+// home hero's entrance: same y/blur/autoAlpha language, ~0.12s stagger,
+// done well under 1.2s.
+function UseCaseHero({ uc }: { uc: UseCase }) {
+  const ref = useGsap(({ root }) => {
+    const tl = gsap.timeline({ defaults: { ease: EASE_OUT } });
+    tl.fromTo(
+      root.querySelector("[data-hero-eyebrow]"),
+      { autoAlpha: 0, y: 20, filter: "blur(6px)" },
+      { autoAlpha: 1, y: 0, filter: "blur(0px)", duration: 0.5, clearProps: "filter" },
+      0,
+    )
+      .fromTo(
+        root.querySelector("[data-hero-title]"),
+        { autoAlpha: 0, y: 20, filter: "blur(6px)" },
+        { autoAlpha: 1, y: 0, filter: "blur(0px)", duration: 0.6, clearProps: "filter" },
+        0.12,
+      )
+      .fromTo(
+        root.querySelector("[data-hero-sub]"),
+        { autoAlpha: 0, y: 20, filter: "blur(6px)" },
+        { autoAlpha: 1, y: 0, filter: "blur(0px)", duration: 0.55, clearProps: "filter" },
+        0.24,
+      );
+  });
+
+  return (
+    <section
+      ref={ref}
+      data-gs-hidden=""
+      className="gs-reveal bg-[linear-gradient(180deg,var(--color-navy-950)_0%,var(--color-navy-900)_100%)] pt-28 pb-16 sm:pt-36"
+    >
+      <Container>
+        <div className="mx-auto max-w-2xl text-center">
+          <span data-hero-eyebrow className="inline-block">
+            <Eyebrow tone="dark">{uc.eyebrow}</Eyebrow>
+          </span>
+          <h1
+            data-hero-title
+            className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-5xl"
+          >
+            {uc.title}
+          </h1>
+          <p data-hero-sub className="mt-4 text-base text-white/70 sm:text-lg">
+            {uc.sub}
+          </p>
+        </div>
+      </Container>
+    </section>
+  );
+}
 
 export function UseCaseContent({ uc }: { uc: UseCase }) {
-  const Mock = MOCKS[uc.mock];
   return (
     <>
-      <PageHero eyebrow={uc.eyebrow} title={uc.title} sub={uc.sub}>
-        <CtaPair
-          className="mt-10"
-          secondaryHref="/features"
-          secondaryLabel="Explore features"
-        />
-      </PageHero>
-
-      {/* Live illustration on a haze scene */}
-      <section className="px-4 sm:px-6">
-        <FadeIn className="relative mx-auto flex max-w-4xl items-center justify-center overflow-hidden rounded-[2rem] py-14">
-          <Scene variant="haze" />
-          <div className="relative z-10 w-full max-w-sm px-6">
-            <Mock />
-          </div>
-        </FadeIn>
-      </section>
+      <UseCaseHero uc={uc} />
 
       {/* Pains */}
-      <section className="px-4 py-20 sm:px-6 sm:py-24">
-        <div className="mx-auto max-w-6xl">
-          <SectionHeading
-            eyebrow="The problem"
-            title="Where it breaks today."
-          />
-          <StaggerIn className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-black/[0.05] bg-black/[0.05] md:grid-cols-3">
+      <section className="bg-background py-16 sm:py-20">
+        <Container>
+          <GsapReveal>
+            <SectionHeading eyebrow="The problem" title="Where it breaks today." />
+          </GsapReveal>
+          <GsapReveal stagger className="mt-12 grid gap-5 md:grid-cols-3">
             {uc.pains.map((p) => (
-              <StaggerInItem key={p.title} className="bg-white p-7">
-                <h3 className="text-lg font-semibold tracking-[-0.02em]">{p.title}</h3>
+              <div key={p.title} className="rounded-2xl bg-muted p-7">
+                <h3 className="text-base font-semibold tracking-tight text-foreground">
+                  {p.title}
+                </h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {p.body}
                 </p>
-              </StaggerInItem>
+              </div>
             ))}
-          </StaggerIn>
-        </div>
+          </GsapReveal>
+        </Container>
       </section>
 
       {/* A day in the life */}
-      <section className="border-y border-black/[0.06] bg-cream-deep/60 px-4 py-20 sm:px-6 sm:py-24">
-        <div className="mx-auto max-w-3xl">
-          <SectionHeading
-            eyebrow="A day on mission control"
-            title="How the work actually flows."
-          />
-          <StaggerIn className="relative mt-12 space-y-3">
-            <span
-              aria-hidden
-              className="absolute bottom-4 left-[4.5rem] top-4 hidden w-px bg-black/10 sm:block"
+      <section className="bg-muted/60 py-16 sm:py-20">
+        <Container className="max-w-3xl">
+          <GsapReveal>
+            <SectionHeading
+              eyebrow="A day on mission control"
+              title="How the work actually flows."
             />
+          </GsapReveal>
+          <GsapReveal stagger className="mt-12 space-y-3">
             {uc.day.map((d, i) => (
-              <StaggerInItem key={i}>
-                <div className="relative flex items-start gap-4 rounded-xl border border-black/[0.05] bg-white p-4 sm:gap-6">
-                  <span className="w-14 flex-shrink-0 pt-0.5 text-right text-xs font-semibold tabular-nums text-muted-foreground">
-                    {d.time}
-                  </span>
-                  <span
-                    className={cn(
-                      "mt-0.5 flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
-                      d.actor === "agent"
-                        ? "bg-ember-100 text-ember-700"
-                        : "bg-black/[0.05] text-foreground/60",
-                    )}
-                  >
-                    {d.actor}
-                  </span>
-                  <p className="min-w-0 flex-1 text-sm leading-relaxed">
-                    {d.text}
-                  </p>
-                </div>
-              </StaggerInItem>
+              <div
+                key={i}
+                className="flex items-start gap-4 rounded-2xl bg-background p-4 ring-1 ring-border sm:gap-6"
+              >
+                <span className="w-16 flex-shrink-0 pt-0.5 text-right text-xs font-semibold tabular-nums text-muted-foreground">
+                  {d.time}
+                </span>
+                <span
+                  className={cn(
+                    "mt-0.5 flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                    d.actor === "agent"
+                      ? "bg-azure-100 text-azure-700"
+                      : "bg-muted text-foreground/60",
+                  )}
+                >
+                  {d.actor}
+                </span>
+                <p className="min-w-0 flex-1 text-sm leading-relaxed text-foreground/85">
+                  {d.text}
+                </p>
+              </div>
             ))}
-          </StaggerIn>
-        </div>
+          </GsapReveal>
+        </Container>
       </section>
 
       {/* Plays */}
-      <section className="px-4 py-20 sm:px-6 sm:py-24">
-        <div className="mx-auto max-w-6xl">
-          <SectionHeading
-            eyebrow="The plays"
-            title="What makes it work here."
-          />
-          <StaggerIn className="mt-12 grid gap-4 sm:grid-cols-2">
+      <section className="bg-background py-16 sm:py-20">
+        <Container>
+          <GsapReveal>
+            <SectionHeading eyebrow="The plays" title="What makes it work here." />
+          </GsapReveal>
+          <GsapReveal stagger className="mt-12 grid gap-5 sm:grid-cols-2">
             {uc.plays.map((p) => (
-              <StaggerInItem key={p.title}>
-                <div className="h-full rounded-2xl border border-black/[0.05] bg-white p-7">
-                  <h3 className="text-lg font-semibold tracking-[-0.02em]">{p.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              <div
+                key={p.title}
+                className="rounded-[20px] bg-muted p-2 transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+              >
+                <Placeholder
+                  label={`${p.title} illustration`}
+                  ratio="16/10"
+                  className="rounded-[14px]"
+                />
+                <div className="px-5 py-4">
+                  <h3 className="text-base font-semibold tracking-tight text-foreground">
+                    {p.title}
+                  </h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                     {p.body}
                   </p>
                 </div>
-              </StaggerInItem>
+              </div>
             ))}
-          </StaggerIn>
-        </div>
+          </GsapReveal>
+        </Container>
       </section>
 
-      {/* Quote + CTA */}
-      <section className="px-4 pb-24 sm:px-6">
-        <div className="mx-auto max-w-2xl">
-          <FadeIn>
-            <QuoteCard {...uc.quote} />
-          </FadeIn>
-          <FadeIn delay={0.15} className="mt-12 text-center">
-            <h2 className="text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
+      {/* Quote */}
+      <section className="bg-muted/60 py-16 sm:py-20">
+        <Container className="max-w-2xl">
+          <GsapReveal className="rounded-[28px] bg-navy-950 px-8 py-12 text-center sm:px-14 sm:py-14">
+            <p className="text-xl font-medium leading-relaxed tracking-[-0.01em] text-white sm:text-2xl">
+              &quot;{uc.quote.quote}&quot;
+            </p>
+            <p className="mt-6 text-sm text-white/60">
+              {uc.quote.name} — {uc.quote.role}
+            </p>
+          </GsapReveal>
+        </Container>
+      </section>
+
+      {/* CTA strip */}
+      <section className="bg-background py-16 sm:py-20">
+        <Container className="text-center">
+          <GsapReveal>
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               Put your first agent on the board today.
             </h2>
-            <CtaPair className="mt-8" />
-          </FadeIn>
-        </div>
+            <CtaButton href="/sign-up" variant="primary" size="lg" className="mt-8">
+              Start for free
+              <ArrowRight className="ml-1.5 size-4" aria-hidden="true" />
+            </CtaButton>
+          </GsapReveal>
+        </Container>
       </section>
     </>
   );

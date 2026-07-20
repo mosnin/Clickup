@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
 import { ResourcesIndex } from "./resources-index";
+import { SITE_NAME } from "@/lib/marketing-nav";
 
 export const metadata: Metadata = {
-  title: "Resources, guides, playbooks, and release notes",
+  title: "Resources — operate",
   description:
     "Getting-started walkthroughs, the MCP connection guide, agent playbook patterns, and the full changelog.",
   alternates: { canonical: "/resources" },
   openGraph: {
-    title: "Resources, guides, playbooks, and release notes",
+    title: "Resources — operate",
     description:
-      "Everything you need to run humans and agents in one workspace.",
+      "Short, honest guides for connecting agents, teaching them your process, and everything we've shipped.",
     url: "/resources",
+    siteName: SITE_NAME,
     type: "website",
   },
 };

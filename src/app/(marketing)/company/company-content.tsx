@@ -1,111 +1,137 @@
 "use client";
 
-import { CtaPair, PageHero, SectionHeading } from "@/components/marketing/blocks";
-import { FadeIn, StaggerIn, StaggerInItem } from "@/components/marketing/reveal";
-import { Scene } from "@/components/marketing/scene";
+import gsap from "gsap";
+import { Container, CtaButton, Eyebrow } from "@/components/marketing/ui";
+import { GsapReveal, useGsap, EASE_OUT } from "@/components/marketing/gsap";
 
-const PRINCIPLES = [
+// Company (marketing v2). Navy hero band, then a short manifesto, a
+// principles grid, and a contact strip — all white sections, all on the
+// shared GsapReveal scroll-in vocabulary.
+
+const MANIFESTO = [
+  "A couple of years ago, agents were background scripts you kicked off and forgot about. Somewhere in the last few, they became coworkers — they take on tasks, hit deadlines, and leave a trail of decisions behind them. Most teams have already hired their first one; few have a place to actually manage it.",
+  "The hard part was never getting an agent to do a task. It was knowing which task, in what order, with what visibility, and who gets to say no. Coordination, not capability, is the bottleneck now — and it gets worse every time a new agent joins the roster.",
+  "operate is the shared operating layer for that roster: tasks, sprints, docs and chat that a person or an agent can pick up the same way, with budgets, approvals and an audit trail built in from the start. Humans keep the keys. Every agent works inside limits a person set, and every action stays visible to the people it affects.",
+];
+
+const VALUES = [
   {
-    title: "Agents are teammates, not features",
-    body: "One identity system, one write path, one activity feed. If a human can do it in the UI, an agent can do it over MCP, through the exact same rules.",
+    title: "Humans in command",
+    body: "Agents propose, execute and report; people set the roles, budgets and approval gates that bound them. Autonomy only scales as far as the guardrails do.",
   },
   {
-    title: "Autonomy needs brakes",
-    body: "Approval gates, budgets, roles, and audit trails aren't enterprise add-ons. They're the reason delegation is possible at all.",
+    title: "One workflow for everyone",
+    body: "Tasks, sprints, docs and chat run through the same rules whether a person or an agent picks up the work. No agent-only shortcut, no human-only dead end.",
   },
   {
-    title: "Visible beats clever",
-    body: "A live presence dot and an honest feed build more trust than any benchmark. You should never wonder what your agents did today.",
-  },
-  {
-    title: "The protocol is the moat",
-    body: "We bet on open standards. Anything that speaks MCP is a first-class citizen here, today's runtimes and the ones that don't exist yet.",
+    title: "Boring reliability",
+    body: "Claims expire, budgets reset, stalled work gets flagged automatically. The platform should be the least interesting part of your day.",
   },
 ];
 
-const MILESTONES = [
-  { tag: "Foundation", text: "A full work platform first: tasks, views, docs, sprints, goals, the place real work already lives." },
-  { tag: "Agents", text: "First-class agent principals, a 63-tool MCP server, events and signed webhooks: the coordination layer." },
-  { tag: "Governance", text: "Gates, budgets, roles, watchdogs, and run receipts, autonomy made safe enough to hand out." },
-  { tag: "Craft", text: "The rebrand, the motion language, the two-minute first run. Software you actually want to live in." },
-];
+// Mount-timeline entrance (eyebrow -> H1 -> sub), a lighter echo of the home
+// hero's feel: same y/blur/autoAlpha language, ~0.12s stagger, under 1.2s.
+function CompanyHero() {
+  const ref = useGsap(({ root }) => {
+    const tl = gsap.timeline({ defaults: { ease: EASE_OUT } });
+    tl.fromTo(
+      root.querySelector("[data-hero-eyebrow]"),
+      { autoAlpha: 0, y: 20, filter: "blur(6px)" },
+      { autoAlpha: 1, y: 0, filter: "blur(0px)", duration: 0.5, clearProps: "filter" },
+      0,
+    )
+      .fromTo(
+        root.querySelector("[data-hero-title]"),
+        { autoAlpha: 0, y: 20, filter: "blur(6px)" },
+        { autoAlpha: 1, y: 0, filter: "blur(0px)", duration: 0.6, clearProps: "filter" },
+        0.12,
+      )
+      .fromTo(
+        root.querySelector("[data-hero-sub]"),
+        { autoAlpha: 0, y: 20, filter: "blur(6px)" },
+        { autoAlpha: 1, y: 0, filter: "blur(0px)", duration: 0.55, clearProps: "filter" },
+        0.24,
+      );
+  });
+
+  return (
+    <section
+      ref={ref}
+      data-gs-hidden=""
+      className="gs-reveal bg-navy-900 pt-28 pb-14 sm:pt-36 sm:pb-16"
+    >
+      <Container>
+        <div className="mx-auto max-w-2xl text-center">
+          <span data-hero-eyebrow className="inline-block">
+            <Eyebrow tone="dark">Company</Eyebrow>
+          </span>
+          <h1
+            data-hero-title
+            className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-5xl"
+          >
+            We think every team is about to be a hybrid team.
+          </h1>
+          <p data-hero-sub className="mt-4 text-base text-white/70 sm:text-lg">
+            People and AI agents, working the same tasks under the same
+            rules. We&apos;re building the layer that makes that ordinary.
+          </p>
+        </div>
+      </Container>
+    </section>
+  );
+}
 
 export function CompanyContent() {
   return (
     <>
-      <PageHero
-        eyebrow="Company"
-        title="The next great teams will be part human, part agent."
-        sub="We're building the place where that team works: not a smarter model, not another runtime, the coordination layer both sides can trust."
-      />
+      <CompanyHero />
 
-      <section className="px-3 sm:px-6">
-        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem]">
-          <Scene variant="meadow" />
-          <div className="relative z-10 px-6 py-16 text-white sm:px-12 sm:py-20">
-            <FadeIn className="max-w-2xl">
-              <p className="text-lg leading-relaxed text-white/85 sm:text-2xl sm:leading-relaxed">
-                Every generation of work tools organized humans.{" "}
-                <span className="font-semibold text-white">
-                  This one has to organize humans and machines together
-                </span>{" "}
-, same board, same rules, same accountability. That&apos;s the whole
-                company, in one sentence.
+      <section className="bg-background py-24 sm:py-28">
+        <Container>
+          <GsapReveal className="mx-auto max-w-2xl space-y-5">
+            {MANIFESTO.map((p) => (
+              <p key={p} className="text-base leading-relaxed text-muted-foreground">
+                {p}
               </p>
-            </FadeIn>
-          </div>
-        </div>
+            ))}
+          </GsapReveal>
+        </Container>
       </section>
 
-      <section className="px-4 py-20 sm:px-6 sm:py-28">
-        <div className="mx-auto max-w-6xl">
-          <SectionHeading
-            eyebrow="Principles"
-            title="How we decide what to build."
-          />
-          <StaggerIn className="mt-12 grid gap-4 sm:grid-cols-2">
-            {PRINCIPLES.map((p) => (
-              <StaggerInItem key={p.title}>
-                <div className="h-full rounded-2xl border border-black/[0.05] bg-white p-7">
-                  <h3 className="text-lg font-semibold tracking-[-0.02em]">{p.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    {p.body}
-                  </p>
-                </div>
-              </StaggerInItem>
+      <section className="bg-background pb-24 sm:pb-28">
+        <Container>
+          <h2 className="sr-only">What we believe</h2>
+          <GsapReveal stagger className="grid gap-6 md:grid-cols-3">
+            {VALUES.map((v) => (
+              <div key={v.title} className="rounded-[20px] bg-muted p-6">
+                <h3 className="font-semibold text-foreground">{v.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  {v.body}
+                </p>
+              </div>
             ))}
-          </StaggerIn>
-        </div>
-      </section>
+          </GsapReveal>
 
-      <section className="border-t border-black/[0.06] bg-cream-deep/60 px-4 py-20 sm:px-6 sm:py-24">
-        <div className="mx-auto max-w-3xl">
-          <SectionHeading eyebrow="The road here" title="Built in public, in phases." />
-          <StaggerIn className="mt-12 space-y-3">
-            {MILESTONES.map((m) => (
-              <StaggerInItem key={m.tag}>
-                <div className="flex items-start gap-4 rounded-xl border border-black/[0.05] bg-white p-5">
-                  <span className="mt-0.5 flex-shrink-0 rounded-full bg-ember-100 px-2.5 py-0.5 text-[11px] font-medium text-ember-700">
-                    {m.tag}
-                  </span>
-                  <p className="text-sm leading-relaxed text-foreground/80">
-                    {m.text}
-                  </p>
-                </div>
-              </StaggerInItem>
-            ))}
-          </StaggerIn>
-          <FadeIn className="mt-14 text-center">
-            <h2 className="text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
-              Come see what your agents can do.
-            </h2>
-            <CtaPair
-              className="mt-8"
-              secondaryHref="/resources/changelog"
-              secondaryLabel="Read the changelog"
-            />
-          </FadeIn>
-        </div>
+          <GsapReveal className="mt-6 flex flex-col items-start justify-between gap-4 rounded-[20px] bg-muted px-7 py-6 sm:flex-row sm:items-center">
+            <div>
+              <p className="font-semibold text-foreground">Talk to us</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Questions about Scale, security, or rolling agents out to a
+                bigger team? Reach us at{" "}
+                <a
+                  href="mailto:hello@operate.to"
+                  className="text-azure-600 hover:underline"
+                >
+                  hello@operate.to
+                </a>{" "}
+                and a person will answer.
+              </p>
+            </div>
+            <CtaButton href="/sign-up" variant="primary">
+              Start free
+            </CtaButton>
+          </GsapReveal>
+        </Container>
       </section>
     </>
   );

@@ -1,16 +1,25 @@
 import type { Metadata } from "next";
-import { HomeContent } from "./home-content";
-import { SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/marketing-nav";
+import { SITE_NAME, SITE_URL } from "@/lib/marketing-nav";
+import { Hero } from "./sections/hero";
+import { SocialProof } from "./sections/social-proof";
+import { OpsStack } from "./sections/ops-stack";
+import { Showcase } from "./sections/showcase";
+import { Bento } from "./sections/bento";
+import { MiniFeatures } from "./sections/mini-features";
+import { CtaPanel } from "./sections/cta-panel";
+import { PricingSection } from "./sections/pricing-section";
+import { Faq } from "./sections/faq";
+import { Simpler } from "./sections/simpler";
 
 export const metadata: Metadata = {
-  title: `${SITE_NAME}, ${SITE_TAGLINE}`,
+  title: `${SITE_NAME} — recruit, direct and scale your AI agent workforce`,
   description:
-    "The all-in-one workspace where AI agents work like teammates: tasks, docs, and sprints for humans, plus MCP access, API keys, budgets, approval gates, and a live activity feed for agents.",
+    "operate is the operating system for hybrid teams: task orchestration, governance and payments for people and AI agents working side by side.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: `${SITE_NAME}, ${SITE_TAGLINE}`,
+    title: `${SITE_NAME} — recruit, direct and scale your AI agent workforce`,
     description:
-      "Tasks, docs, and sprints for your team. Keys, budgets, and approval gates for your agents. One live view of everything getting done.",
+      "Task orchestration, governance and payments for people and AI agents working side by side.",
     url: "/",
     siteName: SITE_NAME,
     type: "website",
@@ -22,7 +31,7 @@ export const metadata: Metadata = {
     "AI agent collaboration",
     "human in the loop",
     "agent orchestration",
-    "project management for AI agents",
+    "sprint planning for AI agents",
   ],
 };
 
@@ -34,10 +43,15 @@ const JSON_LD = {
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web",
   description:
-    "Mission control for humans and AI agents: tasks, docs, sprints, an MCP server with 70+ tools, approval gates, budgets, and a live activity feed.",
+    "The operating system for AI agent workforces: tasks, sprints, governance, observability and x402 payments, with a hosted MCP server.",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   url: SITE_URL,
 };
+
+// Home (marketing v2) — section order mirrors the reference layout 1:1:
+// blue band (hero + social proof), then white ops-stack/showcase/bento
+// sections, dark CTA panel, pricing, FAQ, "simpler" closing panel. Copy
+// lives in src/lib/marketing-content.ts; sections own their backgrounds.
 
 export default function HomePage() {
   return (
@@ -46,7 +60,24 @@ export default function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
       />
-      <HomeContent />
+      {/* Continuous band behind hero + social proof: near-black navy with a
+          blue cast through the nav/headline zone, an azure glow that peaks
+          at ~55-66% down the band (the hero screenshot sits ~33-55% down,
+          so the glow crests right behind/under it before the social-proof
+          screenshot picks it back up), then settling back to deep navy
+          through social proof ahead of the white announce strip. */}
+      <div className="bg-[linear-gradient(180deg,var(--color-navy-950)_0%,var(--color-navy-900)_26%,var(--color-azure-600)_55%,var(--color-azure-500)_66%,var(--color-navy-900)_92%,var(--color-navy-950)_100%)]">
+        <Hero />
+        <SocialProof />
+      </div>
+      <OpsStack />
+      <Showcase />
+      <Bento />
+      <MiniFeatures />
+      <CtaPanel />
+      <PricingSection />
+      <Faq />
+      <Simpler />
     </>
   );
 }

@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
+import { SITE_NAME } from "@/lib/marketing-nav";
 import { PricingContent } from "./pricing-content";
 
 export const metadata: Metadata = {
-  title: "Pricing, free for your first agents",
+  title: "Pricing — operate",
   description:
-    "Start free with unlimited tasks, docs, and your first agents. Upgrade when the fleet grows: higher budgets, more workspaces, and priority support.",
+    "Priced per human member — agents ride along free. Start free with up to 3 agents, upgrade to Team for unlimited agents and sprints, or talk to us for Scale.",
   alternates: { canonical: "/pricing" },
   openGraph: {
-    title: "Pricing, free for your first agents",
+    title: "Pricing — operate",
     description:
-      "Unlimited tasks and docs free. Upgrade when the agent fleet grows.",
+      "Priced per human member. Agents ride along free on every plan.",
     url: "/pricing",
+    siteName: SITE_NAME,
     type: "website",
   },
 };

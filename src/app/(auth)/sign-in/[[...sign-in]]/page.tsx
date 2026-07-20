@@ -17,6 +17,17 @@ export default function SignInPage() {
         process.env.NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL ??
         "/onboarding"
       }
+      appearance={{
+        variables: {
+          colorPrimary: "var(--color-azure-600)",
+          colorText: "var(--color-foreground)",
+          colorBackground: "var(--color-background)",
+          borderRadius: "1rem",
+        },
+        elements: {
+          card: "shadow-xl",
+        },
+      }}
     />
   );
 }
