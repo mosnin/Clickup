@@ -128,6 +128,12 @@ function ScopeBilling({ scope }: { scope: Scope }) {
   if (wallet === null) return null;
 
   const { pricing, metering } = wallet;
+  // A metered agent stops acting the moment its wallet can't cover even one
+  // more action — surface that before an operator has to go digging through
+  // run failures to find out why.
+  const lowBalance =
+    metering.enabled && wallet.balance < Math.max(metering.actionCredits, 1);
+  const zeroBalance = wallet.balance <= 0;
 
   return (
     <div className="space-y-4">
@@ -137,25 +143,39 @@ function ScopeBilling({ scope }: { scope: Scope }) {
           <CardDescription className="text-[11px] font-medium uppercase tracking-wider">
             Credit balance
           </CardDescription>
-          <p className="mt-2 text-5xl font-bold tracking-tight tabular-nums">
+          <p
+            className={cn(
+              "mt-2 text-5xl font-bold tracking-tight tabular-nums",
+              lowBalance && "text-destructive",
+            )}
+          >
             <AnimatedNumber value={wallet.balance} />
           </p>
           <p className="mt-3 text-xs text-muted-foreground">
             {wallet.lifetimeCredits.toLocaleString()} purchased ·{" "}
             {wallet.lifetimeSpent.toLocaleString()} spent
           </p>
-          <Badge
-            className={cn(
-              "mt-4 w-fit border-transparent",
-              metering.enabled
-                ? "bg-pastel-green text-foreground dark:text-black"
-                : "bg-muted text-muted-foreground",
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            <Badge
+              className={cn(
+                "w-fit border-transparent",
+                metering.enabled
+                  ? "bg-pastel-green text-foreground dark:text-black"
+                  : "bg-muted text-muted-foreground",
+              )}
+            >
+              {metering.enabled
+                ? `Metering on · ${metering.actionCredits} credit${metering.actionCredits === 1 ? "" : "s"}/action`
+                : "Metering off · actions are free"}
+            </Badge>
+            {lowBalance && (
+              <Badge className="w-fit border-transparent bg-pastel-red text-foreground dark:text-black">
+                {zeroBalance
+                  ? "Out of credits · metered agents can't act"
+                  : "Low balance · top up soon"}
+              </Badge>
             )}
-          >
-            {metering.enabled
-              ? `Metering on · ${metering.actionCredits} credit${metering.actionCredits === 1 ? "" : "s"}/action`
-              : "Metering off · actions are free"}
-          </Badge>
+          </div>
         </Card>
 
         {/* Pricing */}

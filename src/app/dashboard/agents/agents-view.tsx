@@ -436,6 +436,11 @@ function compactNumber(n: number): string {
   return String(n);
 }
 
+// Templates whose persona needs a workspace to function (e.g. sprints are
+// workspace-scoped — see convex/sprints.ts and convex/agentTemplates.ts).
+// Not encoded on the template itself, so kept as a small allowlist here.
+const WORKSPACE_ONLY_TEMPLATE_SLUGS = new Set(["sprint-planner"]);
+
 // One-click, pre-governed agent presets. Picks a target scope once, then
 // each card spins up an agent with its role + budget already set.
 function TemplateGallery({
@@ -500,47 +505,67 @@ function TemplateGallery({
         </label>
       </div>
       <Stagger className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {(templates ?? []).map((t) => (
-          <StaggerItem key={t.slug}>
-            <button
-              type="button"
-              disabled={pendingSlug !== null}
-              onClick={() => spawn(t.slug, t.name)}
-              className="lift flex h-full w-full flex-col rounded-2xl bento-tile p-4 text-left disabled:opacity-60"
-            >
-              <span className="flex items-center gap-2">
-                <Monogram name={t.name} />
-                <span className="font-medium">{t.name}</span>
-                {pendingSlug === t.slug && (
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    Creating…
+        {(templates ?? []).map((t) => {
+          const needsWorkspace = WORKSPACE_ONLY_TEMPLATE_SLUGS.has(t.slug);
+          const blocked = needsWorkspace && scope === "personal";
+          return (
+            <StaggerItem key={t.slug}>
+              <button
+                type="button"
+                disabled={pendingSlug !== null || blocked}
+                title={
+                  blocked
+                    ? "This persona needs a team workspace — switch \"Create in\" above."
+                    : undefined
+                }
+                onClick={() => spawn(t.slug, t.name)}
+                className="lift flex h-full w-full flex-col rounded-2xl bento-tile p-4 text-left disabled:opacity-60"
+              >
+                <span className="flex items-center gap-2">
+                  <Monogram name={t.name} />
+                  <span className="font-medium">{t.name}</span>
+                  {pendingSlug === t.slug && (
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      Creating…
+                    </span>
+                  )}
+                </span>
+                <span className="mt-1 text-xs text-muted-foreground">
+                  {t.tagline}
+                </span>
+                <span className="mt-3 line-clamp-2 flex-1 text-xs leading-relaxed text-muted-foreground">
+                  {t.description}
+                </span>
+                <span className="mt-3 flex flex-wrap gap-1.5">
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider",
+                      t.role === "readonly"
+                        ? "bg-pastel-yellow text-foreground dark:text-neutral-900"
+                        : "bg-pastel-blue text-foreground dark:text-neutral-900",
+                    )}
+                  >
+                    {t.role}
+                  </span>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {t.dailyActionLimit.toLocaleString()}/day
+                  </span>
+                  {needsWorkspace && (
+                    <span className="rounded-full bg-pastel-yellow px-2 py-0.5 text-[10px] uppercase tracking-wider text-foreground dark:text-neutral-900">
+                      Needs a workspace
+                    </span>
+                  )}
+                </span>
+                {blocked && (
+                  <span className="mt-2 text-xs text-amber-600">
+                    Can&apos;t be created in Personal space — pick a team
+                    workspace above.
                   </span>
                 )}
-              </span>
-              <span className="mt-1 text-xs text-muted-foreground">
-                {t.tagline}
-              </span>
-              <span className="mt-3 line-clamp-2 flex-1 text-xs leading-relaxed text-muted-foreground">
-                {t.description}
-              </span>
-              <span className="mt-3 flex flex-wrap gap-1.5">
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider",
-                    t.role === "readonly"
-                      ? "bg-pastel-yellow text-foreground dark:text-neutral-900"
-                      : "bg-pastel-blue text-foreground dark:text-neutral-900",
-                  )}
-                >
-                  {t.role}
-                </span>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                  {t.dailyActionLimit.toLocaleString()}/day
-                </span>
-              </span>
-            </button>
-          </StaggerItem>
-        ))}
+              </button>
+            </StaggerItem>
+          );
+        })}
       </Stagger>
       <div className="mt-3 flex justify-end">
         <Button size="sm" variant="ghost" onClick={onDone}>
@@ -1078,18 +1103,27 @@ function WebhooksTab() {
         onSubmit={async (e) => {
           e.preventDefault();
           if (!url.trim() || !user) return;
-          const res = await create({
-            scopeType: scope === "personal" ? "user" : "workspace",
-            scopeId: scope === "personal" ? user.id : scope,
-            url: url.trim(),
-            eventTypes: types
-              .split(",")
-              .map((t) => t.trim())
-              .filter(Boolean),
-          });
-          setFreshSecret(res.secret);
-          setUrl("");
-          setTypes("");
+          try {
+            const res = await create({
+              scopeType: scope === "personal" ? "user" : "workspace",
+              scopeId: scope === "personal" ? user.id : scope,
+              url: url.trim(),
+              eventTypes: types
+                .split(",")
+                .map((t) => t.trim())
+                .filter(Boolean),
+            });
+            setFreshSecret(res.secret);
+            setUrl("");
+            setTypes("");
+          } catch (e) {
+            const raw = e instanceof Error ? e.message : String(e);
+            toast(
+              raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() ||
+                "Couldn't add webhook",
+              { kind: "error" },
+            );
+          }
         }}
       >
         <label className="block min-w-52 flex-1">
@@ -1391,6 +1425,7 @@ function CreateSkillForm({
   onDone: () => void;
 }) {
   const create = useMutation(api.skills.create);
+  const { toast } = useToast();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [content, setContent] = useState("");
@@ -1401,14 +1436,23 @@ function CreateSkillForm({
       onSubmit={async (e) => {
         e.preventDefault();
         if (!name.trim() || !content.trim()) return;
-        await create({
-          ...scopeArgs,
-          slug: name,
-          name: name.trim(),
-          description: description.trim(),
-          content,
-        });
-        onDone();
+        try {
+          await create({
+            ...scopeArgs,
+            slug: name,
+            name: name.trim(),
+            description: description.trim(),
+            content,
+          });
+          onDone();
+        } catch (err) {
+          const raw = err instanceof Error ? err.message : String(err);
+          toast(
+            raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() ||
+              "Couldn't create skill",
+            { kind: "error" },
+          );
+        }
       }}
     >
       <div className="grid gap-3 sm:grid-cols-2">
