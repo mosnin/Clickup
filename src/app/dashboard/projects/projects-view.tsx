@@ -105,7 +105,7 @@ export function ProjectsView() {
               placeholder="Search projects…"
               className="h-8 w-40 sm:w-56"
             />
-            <nav aria-label="Health filter" className="segmented text-sm">
+            <nav aria-label="Health filter" className="flex items-center gap-1 text-sm">
               {STATUS_FILTERS.map((f) => (
                 <button
                   key={f.key || "all"}
@@ -113,10 +113,10 @@ export function ProjectsView() {
                   onClick={() => setStatus(f.key)}
                   aria-pressed={status === f.key}
                   className={cn(
-                    "rounded-full px-3 py-1.5 transition-colors",
+                    "rounded-md px-3 py-1.5 transition-colors",
                     status === f.key
-                      ? "segmented-on font-medium text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
+                      ? "bg-accent font-medium text-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                   )}
                 >
                   {f.label}
@@ -270,7 +270,7 @@ function ProjectsSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {[0, 1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className="rounded-2xl bento p-5">
+        <div key={i} className="rounded-2xl panel p-5">
           <div className="h-4 w-2/3 animate-pulse rounded-full bg-muted" />
           <div className="mt-2 h-3 w-1/3 animate-pulse rounded-full bg-muted/60" />
           <div className="mt-6 h-1.5 w-full animate-pulse rounded-full bg-muted" />

@@ -394,7 +394,7 @@ function TaskEditor({
 
           <Field label="Estimate">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="segmented">
+              <div className="flex flex-wrap items-center gap-1">
                 {ESTIMATE_CHIPS.map((p) => (
                   <button
                     key={p}
@@ -404,8 +404,8 @@ function TaskEditor({
                     className={cn(
                       "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
                       task.estimatePoints === p
-                        ? "segmented-on text-foreground"
-                        : "text-muted-foreground hover:text-foreground",
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                     )}
                   >
                     {p}

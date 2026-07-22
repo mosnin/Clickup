@@ -97,7 +97,7 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
               <StaggerItem key={t.taskId}>
                 <Link
                   href={`/dashboard/l/${t.listId}/t/${t.taskId}`}
-                  className="lift flex items-center justify-between gap-3 rounded-2xl bento px-4 py-3"
+                  className="lift flex items-center justify-between gap-3 rounded-2xl panel px-4 py-3"
                 >
                   <span className="min-w-0 truncate text-sm font-medium">{t.title}</span>
                   <span className="flex-shrink-0 truncate text-xs text-muted-foreground">
@@ -115,7 +115,7 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
                 <StaggerItem key={l.listId}>
                   <Link
                     href={`/dashboard/l/${l.listId}`}
-                    className="lift flex items-center justify-between gap-3 rounded-2xl bento px-4 py-3"
+                    className="lift flex items-center justify-between gap-3 rounded-2xl panel px-4 py-3"
                   >
                     <span className="min-w-0 truncate text-sm font-medium">{l.name}</span>
                     <span className="flex flex-shrink-0 items-center gap-2">
@@ -144,7 +144,7 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
               <StaggerItem key={d.docId}>
                 <Link
                   href={`/dashboard/d/${d.docId}`}
-                  className="lift flex items-center justify-between gap-3 rounded-2xl bento px-4 py-3"
+                  className="lift flex items-center justify-between gap-3 rounded-2xl panel px-4 py-3"
                 >
                   <span className="min-w-0 truncate text-sm font-medium">{d.title}</span>
                   <span className="flex-shrink-0 truncate text-xs text-muted-foreground">
@@ -160,7 +160,7 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
               <StaggerItem key={s.spaceId}>
                 <Link
                   href={`/dashboard/s/${s.spaceId}`}
-                  className="lift flex items-center gap-2 rounded-2xl bento px-4 py-3"
+                  className="lift flex items-center gap-2 rounded-2xl panel px-4 py-3"
                 >
                   {s.private && (
                     <Lock className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" aria-hidden />

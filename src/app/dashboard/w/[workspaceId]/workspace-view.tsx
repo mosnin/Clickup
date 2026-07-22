@@ -347,7 +347,7 @@ function ChatWithChannels({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
           <button
             type="button"
             onClick={() => setAddingChannel(true)}
-            className="rounded-full bento px-3 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="rounded-full panel px-3 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             + channel
           </button>
