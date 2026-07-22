@@ -269,7 +269,6 @@ export function CommandPalette() {
       { key: "inbox", group: "Go to", label: "Inbox", icon: Inbox, run: nav("/dashboard/inbox") },
       { key: "personal", group: "Go to", label: "Personal space", icon: Home, run: nav("/dashboard/personal") },
       { key: "agents", group: "Go to", label: "Agents", icon: Bot, run: nav("/dashboard/agents") },
-      { key: "brain", group: "Go to", label: "Brain", icon: Sparkles, run: nav("/dashboard/brain") },
     ];
     out.push(...statics.filter((s) => match(s.label)));
 

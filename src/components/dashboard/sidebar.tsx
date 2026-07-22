@@ -24,7 +24,6 @@ import {
   Plus,
   Search,
   ShieldCheck,
-  Sparkles,
   Star,
   Trash2,
 } from "lucide-react";
@@ -245,13 +244,6 @@ function SidebarContentBody() {
               label="Agents"
               icon={Bot}
               iconColor="text-violet-500"
-            />
-            <NavMenuItem
-              href="/dashboard/brain"
-              label="Brain"
-              icon={Sparkles}
-              iconColor="text-rose-500"
-              exact
             />
           </SidebarMenu>
         </SidebarGroupContent>

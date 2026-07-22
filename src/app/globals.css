@@ -139,6 +139,114 @@ body {
   );
 }
 
+/* ── Card resize transition (Transitions.dev) ─────────────────────────────
+   Put .t-resize on an element and tween explicit width/height changes
+   (directly, or via a state class such as .is-small). */
+:root {
+  --resize-dur: 300ms;
+  --resize-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+.t-resize {
+  transition:
+    width var(--resize-dur) var(--resize-ease),
+    height var(--resize-dur) var(--resize-ease);
+  will-change: width, height;
+}
+
+/* ── Agent orb ────────────────────────────────────────────────────────────
+   A glowing, slowly-swirling gradient sphere. Colors come from per-agent
+   CSS vars (a deterministic random hue), so every agent reads as its own
+   living orb. Compose: <span class="orb"><span class="orb-core"/><span
+   class="orb-sheen"/></span>. */
+.orb {
+  position: relative;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: var(--orb-a, #8b8bff);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.1) inset,
+    0 4px 14px -4px var(--orb-b, #8b8bff);
+}
+.orb-core {
+  position: absolute;
+  inset: -35%;
+  background: conic-gradient(
+    from 0deg,
+    var(--orb-a),
+    var(--orb-b),
+    var(--orb-c),
+    var(--orb-a)
+  );
+  filter: blur(5px);
+  animation: orb-spin 7s linear infinite;
+}
+.orb-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at 32% 26%,
+    rgb(255 255 255 / 0.6),
+    transparent 46%
+  );
+}
+@keyframes orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Border beam ──────────────────────────────────────────────────────────
+   A light that travels around an element's border — signals "alive /
+   listening." The parent must be position:relative with a border-radius;
+   render <BorderBeam/> as its last child. */
+.border-beam {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  border: var(--bb-width, 1.5px) solid transparent;
+  mask:
+    linear-gradient(transparent, transparent),
+    linear-gradient(#000, #000);
+  mask-clip: padding-box, border-box;
+  mask-composite: intersect;
+}
+.border-beam::after {
+  content: "";
+  position: absolute;
+  aspect-ratio: 1;
+  width: var(--bb-size, 64px);
+  background: linear-gradient(
+    to left,
+    var(--bb-from, var(--color-azure-400, #5aa8ff)),
+    var(--bb-to, var(--color-azure-600, #2b6fff)),
+    transparent
+  );
+  offset-path: rect(0 auto auto 0 round var(--bb-size, 64px));
+  offset-anchor: 90% 50%;
+  animation: border-beam-travel var(--bb-duration, 7s) linear infinite;
+  animation-delay: var(--bb-delay, 0s);
+}
+@keyframes border-beam-travel {
+  to {
+    offset-distance: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-resize {
+    transition: none !important;
+  }
+  .orb-core {
+    animation: none;
+  }
+  .border-beam::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 /* GSAP reveal targets start hidden before hydration so scroll-reveals
    never flash. The motion kit (components/marketing/gsap.tsx) removes
    the attribute on mount — animated or not. */
