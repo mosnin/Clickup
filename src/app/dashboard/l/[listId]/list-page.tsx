@@ -5,10 +5,13 @@ import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
-import { Plus, Settings, Star, X } from "lucide-react";
+import { Folder, Plus, Settings, Star, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { ViewTabs, type ViewKey, isViewKey } from "./view-tabs";
 import { OverviewView } from "./views/overview-view";
 import { ListView } from "./views/list-view";
@@ -125,85 +128,91 @@ export function ListPage({
 
   return (
     <div className="space-y-6">
-      <header className="title-rule flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-              {list.name}
-            </h1>
+      <PageHeader
+        icon={Folder}
+        title={list.name}
+        context={
+          <>
             {list.projectStatus && (
-              <span
+              <Badge
+                variant="outline"
                 className={cn(
-                  "flex-shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium text-foreground",
+                  "flex-shrink-0 border-transparent text-foreground",
                   PROJECT_STATUS_CHIP[list.projectStatus].className,
                 )}
               >
                 {PROJECT_STATUS_CHIP[list.projectStatus].label}
+              </Badge>
+            )}
+            <span className="flex-shrink-0">
+              {filtered
+                ? `${topLevelTasks.length} of ${allTop.length} task${allTop.length === 1 ? "" : "s"}`
+                : `${allTop.length} task${allTop.length === 1 ? "" : "s"}`}
+            </span>
+            {list.description && (
+              <span className="truncate" title={list.description}>
+                {list.description}
               </span>
             )}
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {filtered
-              ? `${topLevelTasks.length} of ${allTop.length} task${allTop.length === 1 ? "" : "s"}`
-              : `${allTop.length} task${allTop.length === 1 ? "" : "s"}`}
-          </p>
-          {list.description && (
-            <p className="mt-1 max-w-xl truncate text-sm text-muted-foreground">
-              {list.description}
-            </p>
-          )}
-        </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
-          <button
-            type="button"
-            aria-label={
-              isFavorited ? "Remove from favorites" : "Add to favorites"
-            }
-            aria-pressed={!!isFavorited}
-            onClick={async () => {
-              try {
-                const result = await toggleFavorite({
-                  entityType: "list",
-                  entityId: list._id,
-                });
-                toast(
-                  result.favorited
-                    ? "Added to favorites"
-                    : "Removed from favorites",
-                );
-              } catch {
-                toast("Couldn't update favorites", { kind: "error" });
+          </>
+        }
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={
+                isFavorited ? "Remove from favorites" : "Add to favorites"
               }
-            }}
-            className={cn(
-              "tap-target inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-muted",
-              isFavorited ? "text-foreground" : "text-muted-foreground",
-            )}
-          >
-            <Star
-              className={cn("h-4 w-4", isFavorited && "fill-current")}
-              aria-hidden
+              aria-pressed={!!isFavorited}
+              onClick={async () => {
+                try {
+                  const result = await toggleFavorite({
+                    entityType: "list",
+                    entityId: list._id,
+                  });
+                  toast(
+                    result.favorited
+                      ? "Added to favorites"
+                      : "Removed from favorites",
+                  );
+                } catch {
+                  toast("Couldn't update favorites", { kind: "error" });
+                }
+              }}
+              className={cn(
+                "tap-target",
+                isFavorited ? "text-foreground" : "text-muted-foreground",
+              )}
+            >
+              <Star
+                className={cn("h-4 w-4", isFavorited && "fill-current")}
+                aria-hidden
+              />
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/dashboard/l/${list._id}/settings`}>
+                <Settings className="h-4 w-4" />
+                Settings
+              </Link>
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-2 pt-1 pb-3">
+          <ViewTabs listId={list._id} active={view} />
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <SavedViewsBar
+              listId={list._id}
+              view={view}
+              flags={[...activeFlags].sort().join(",")}
+              priority={priorityFilter}
             />
-          </button>
-          <Link
-            href={`/dashboard/l/${list._id}/settings`}
-            className="inline-flex h-9 items-center gap-1 rounded-full border border-border bg-background px-3 text-sm hover:bg-muted"
-          >
-            <Settings className="h-4 w-4" /> Settings
-          </Link>
+            <FilterBar activeFlags={activeFlags} priority={priorityFilter} />
+          </div>
         </div>
-      </header>
-
-      <ViewTabs listId={list._id} active={view} />
-
-      <SavedViewsBar
-        listId={list._id}
-        view={view}
-        flags={[...activeFlags].sort().join(",")}
-        priority={priorityFilter}
-      />
-
-      <FilterBar activeFlags={activeFlags} priority={priorityFilter} />
+      </PageHeader>
 
       {view === "overview" && (
         <OverviewView

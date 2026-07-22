@@ -72,17 +72,20 @@ export function ViewTabs({
     return qs ? `/dashboard/l/${listId}?${qs}` : `/dashboard/l/${listId}`;
   }
   return (
-    <nav aria-label="Views" className="segmented text-sm">
+    <nav
+      aria-label="Views"
+      className="flex items-center gap-1 overflow-x-auto text-sm"
+    >
       {VIEWS.map(({ key, label, Icon }) => (
         <Link
           key={key}
           href={href(key)}
           aria-current={active === key ? "page" : undefined}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 transition-colors",
+            "inline-flex flex-shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors",
             active === key
-              ? "segmented-on font-medium text-foreground"
-              : "text-muted-foreground hover:text-foreground",
+              ? "bg-accent font-medium text-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
           )}
         >
           <Icon className="h-4 w-4" />
