@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useConvex, useMutation, useQuery } from "convex/react";
-import { Download, Trash2, Upload, UserPlus } from "lucide-react";
+import { Copy, Download, LogOut, Trash2, Upload, UserPlus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -90,15 +91,83 @@ function TableCard({ children }: { children: React.ReactNode }) {
 // only subscribe to it when the current user manages the workspace.
 function MembersSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const { user } = useUser();
+  const router = useRouter();
   const members = useQuery(api.workspaces.listMembers, { workspaceId });
+  const updateMemberRole = useMutation(api.workspaces.updateMemberRole);
+  const removeMember = useMutation(api.workspaces.removeMember);
+  const leaveWorkspace = useMutation(api.workspaces.leaveWorkspace);
+  const { toast } = useToast();
 
   const myRole = members?.find((m) => m.clerkId === user?.id)?.role;
   const canManage = myRole === "owner" || myRole === "admin";
+  const ownerCount = members?.filter((m) => m.role === "owner").length ?? 0;
 
   const invites = useQuery(
     api.invites.listForWorkspace,
     canManage ? { workspaceId } : "skip",
   );
+
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+
+  function hide(memberId: string) {
+    setHiddenIds((prev) => new Set(prev).add(memberId));
+  }
+  function unhide(memberId: string) {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.delete(memberId);
+      return next;
+    });
+  }
+
+  function errorMessage(err: unknown, fallback: string): string {
+    if (!(err instanceof Error)) return fallback;
+    return (
+      err.message.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() ||
+      fallback
+    );
+  }
+
+  async function onChangeRole(
+    memberClerkId: string,
+    role: "owner" | "admin" | "member",
+  ) {
+    try {
+      await updateMemberRole({ workspaceId, memberClerkId, role });
+      toast("Saved");
+    } catch (err) {
+      toast(errorMessage(err, "Couldn't change role"), { kind: "error" });
+    }
+  }
+
+  function onRemove(memberClerkId: string, name: string) {
+    hide(memberClerkId);
+    toast(`${name} removed from the workspace`, {
+      action: { label: "Undo", onClick: () => unhide(memberClerkId) },
+      onExpire: async () => {
+        try {
+          await removeMember({ workspaceId, memberClerkId });
+        } catch (err) {
+          unhide(memberClerkId);
+          toast(errorMessage(err, "Couldn't remove member"), {
+            kind: "error",
+          });
+        }
+      },
+    });
+  }
+
+  async function onLeave() {
+    try {
+      await leaveWorkspace({ workspaceId });
+      toast("You left the workspace");
+      router.push("/dashboard");
+    } catch (err) {
+      toast(errorMessage(err, "Couldn't leave the workspace"), {
+        kind: "error",
+      });
+    }
+  }
 
   return (
     <section>
@@ -123,41 +192,115 @@ function MembersSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
                 <TableRow>
                   <TableHead>Member</TableHead>
                   <TableHead className="text-right">Role</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {members.map((m) => (
-                  <TableRow key={m._id}>
-                    <TableCell className="whitespace-normal">
-                      <div className="flex items-center gap-3">
-                        <Monogram name={m.name || m.email} size="md" />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {m.name || m.email}
-                            {m.clerkId === user?.id && (
-                              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                                (you)
-                              </span>
-                            )}
-                          </p>
-                          {m.name && (
-                            <p className="truncate text-xs text-muted-foreground">
-                              {m.email}
-                            </p>
+                {members
+                  .filter((m) => !hiddenIds.has(m.clerkId))
+                  .map((m) => {
+                    const isSelf = m.clerkId === user?.id;
+                    // Owners/admins may retarget anyone else's role, but
+                    // only an owner may touch another owner's role — same
+                    // gate the server enforces in workspaces.updateMemberRole.
+                    const canEditThisRole =
+                      canManage &&
+                      !isSelf &&
+                      (myRole === "owner" || m.role !== "owner");
+                    const isLastOwner = m.role === "owner" && ownerCount <= 1;
+                    return (
+                      <TableRow key={m._id}>
+                        <TableCell className="whitespace-normal">
+                          <div className="flex items-center gap-3">
+                            <Monogram name={m.name || m.email} size="md" />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">
+                                {m.name || m.email}
+                                {isSelf && (
+                                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                                    (you)
+                                  </span>
+                                )}
+                              </p>
+                              {m.name && (
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {m.email}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {canEditThisRole ? (
+                            <select
+                              value={m.role}
+                              onChange={(e) =>
+                                onChangeRole(
+                                  m.clerkId,
+                                  e.currentTarget.value as
+                                    | "owner"
+                                    | "admin"
+                                    | "member",
+                                )
+                              }
+                              className={SELECT_CLASS}
+                              aria-label={`Role for ${m.name || m.email}`}
+                            >
+                              <option value="member">Member</option>
+                              <option value="admin">Admin</option>
+                              {myRole === "owner" && (
+                                <option value="owner">Owner</option>
+                              )}
+                            </select>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="uppercase tracking-wider text-muted-foreground"
+                            >
+                              {m.role}
+                            </Badge>
                           )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge
-                        variant="outline"
-                        className="uppercase tracking-wider text-muted-foreground"
-                      >
-                        {m.role}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {isSelf ? (
+                            <button
+                              type="button"
+                              aria-label="Leave workspace"
+                              title={
+                                isLastOwner
+                                  ? "You're the only owner — promote someone else first"
+                                  : "Leave workspace"
+                              }
+                              disabled={isLastOwner}
+                              onClick={onLeave}
+                              className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <LogOut className="h-4 w-4" />
+                            </button>
+                          ) : (
+                            canEditThisRole && (
+                              <button
+                                type="button"
+                                aria-label={`Remove ${m.name || m.email}`}
+                                title={
+                                  isLastOwner
+                                    ? "Can't remove the last owner"
+                                    : "Remove from workspace"
+                                }
+                                disabled={isLastOwner}
+                                onClick={() =>
+                                  onRemove(m.clerkId, m.name || m.email)
+                                }
+                                className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
               </TableBody>
             </Table>
           </TableCard>
@@ -186,6 +329,7 @@ function MembersSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
                       inviteId={inv._id}
                       email={inv.email}
                       role={inv.role}
+                      token={inv.token}
                     />
                   ))}
                 </TableBody>
@@ -256,15 +400,27 @@ function PendingInviteRow({
   inviteId,
   email,
   role,
+  token,
 }: {
   inviteId: Id<"invites">;
   email: string;
   role: string;
+  token: string;
 }) {
   const revoke = useMutation(api.invites.revoke);
   const { toast } = useToast();
   const [revoked, setRevoked] = useState(false);
   if (revoked) return null;
+
+  async function copyLink() {
+    const link = `${window.location.origin}/invite/${token}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast("Invite link copied");
+    } catch {
+      toast("Couldn't copy the link", { kind: "error" });
+    }
+  }
 
   return (
     <TableRow>
@@ -273,20 +429,31 @@ function PendingInviteRow({
         {role}
       </TableCell>
       <TableCell className="text-right">
-        <button
-          type="button"
-          aria-label={`Revoke invite for ${email}`}
-          onClick={() => {
-            setRevoked(true);
-            toast("Invite revoked", {
-              action: { label: "Undo", onClick: () => setRevoked(false) },
-              onExpire: () => revoke({ inviteId }),
-            });
-          }}
-          className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <div className="flex items-center justify-end gap-1">
+          <button
+            type="button"
+            aria-label={`Copy invite link for ${email}`}
+            title="Copy invite link — useful if the invite email never arrives"
+            onClick={copyLink}
+            className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <Copy className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label={`Revoke invite for ${email}`}
+            onClick={() => {
+              setRevoked(true);
+              toast("Invite revoked", {
+                action: { label: "Undo", onClick: () => setRevoked(false) },
+                onExpire: () => revoke({ inviteId }),
+              });
+            }}
+            className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </TableCell>
     </TableRow>
   );

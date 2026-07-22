@@ -211,6 +211,7 @@ function SprintCard({
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<DetailTab>("overview");
   const [deleting, setDeleting] = useState(false);
+  const [confirmComplete, setConfirmComplete] = useState(false);
   const update = useMutation(api.sprints.update);
   const remove = useMutation(api.sprints.remove);
   const updateTask = useMutation(api.tasks.update);
@@ -231,6 +232,19 @@ function SprintCard({
     sprint.taskCount === 0
       ? 0
       : Math.round((sprint.doneCount / sprint.taskCount) * 100);
+  const openCount = sprint.taskCount - sprint.doneCount;
+
+  async function completeSprint() {
+    await update({ sprintId: sprint._id, status: "complete" });
+    setConfirmComplete(false);
+    setOpen(true);
+    setTab("overview");
+    toast(
+      openCount > 0
+        ? `Sprint completed with ${openCount} task${openCount === 1 ? "" : "s"} still open — add a retrospective`
+        : "Sprint completed — add a retrospective",
+    );
+  }
   const fmt = (ts: number) =>
     new Date(ts).toLocaleDateString(undefined, {
       month: "short",
@@ -269,23 +283,42 @@ function SprintCard({
         <span className="ml-auto text-xs text-muted-foreground">
           {sprint.doneCount}/{sprint.taskCount} done
         </span>
-        {sprint.status !== "complete" && (
+        {sprint.status !== "complete" && !confirmComplete && (
           <Button
             size="sm"
             variant="outline"
             onClick={async () => {
-              const nextStatus =
-                sprint.status === "planned" ? "active" : "complete";
-              await update({ sprintId: sprint._id, status: nextStatus });
-              if (nextStatus === "complete") {
-                setOpen(true);
-                setTab("overview");
-                toast("Sprint completed — add a retrospective");
+              if (sprint.status === "planned") {
+                await update({ sprintId: sprint._id, status: "active" });
+                return;
               }
+              if (openCount > 0) {
+                setConfirmComplete(true);
+                return;
+              }
+              await completeSprint();
             }}
           >
             {sprint.status === "planned" ? "Start" : "Complete"}
           </Button>
+        )}
+        {confirmComplete && (
+          <span className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-muted-foreground">
+              {openCount} task{openCount === 1 ? "" : "s"} still open — they&apos;ll
+              stay in this sprint.
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setConfirmComplete(false)}
+            >
+              Cancel
+            </Button>
+            <Button size="sm" onClick={completeSprint}>
+              Complete anyway
+            </Button>
+          </span>
         )}
         <button
           type="button"
