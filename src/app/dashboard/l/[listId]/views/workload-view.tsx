@@ -13,7 +13,10 @@ import {
   PriorityDot,
   type TaskPriority,
 } from "@/components/dashboard/priority";
-import { AnimatedBar, Stagger, StaggerItem } from "@/components/motion";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Stagger, StaggerItem } from "@/components/motion";
 import { cn } from "@/lib/utils";
 
 const UNASSIGNED_ID = "__unassigned__";
@@ -37,6 +40,9 @@ type Bucket = {
 // with multiple assignees counts toward every one of them) — there's no
 // dedicated backend aggregation for this yet, and the list sizes this
 // targets make that fine.
+//
+// Renders on the vendored Square shell's Card/Progress/Badge primitives
+// (Phase H); the bucketing logic underneath is unchanged.
 export function WorkloadView({
   listId,
   tasks,
@@ -163,12 +169,10 @@ export function WorkloadView({
 
   if (tasks.length === 0) {
     return (
-      <div className="rounded-2xl bento">
-        <EmptyState
-          title="Nobody has work here yet"
-          message="Assign a task to a teammate or agent to see their workload here."
-        />
-      </div>
+      <EmptyState
+        title="Nobody has work here yet"
+        message="Assign a task to a teammate or agent to see their workload here."
+      />
     );
   }
 
@@ -188,7 +192,7 @@ export function WorkloadView({
   return (
     <div className="space-y-3">
       <div className="flex justify-end">
-        <div className="segmented text-sm">
+        <div className="inline-flex items-center gap-1 text-sm">
           {(["tasks", "points"] as WorkloadMode[]).map((key) => (
             <button
               key={key}
@@ -196,10 +200,10 @@ export function WorkloadView({
               onClick={() => setMode(key)}
               aria-pressed={mode === key}
               className={cn(
-                "rounded-full px-3 py-1.5 capitalize transition-colors",
+                "rounded-md px-3 py-1.5 capitalize transition-colors",
                 mode === key
-                  ? "segmented-on font-medium text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "bg-accent font-medium text-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
               )}
             >
               {key}
@@ -249,12 +253,13 @@ function PersonRow({
       : total > 0
         ? (bucket.doneCount / total) * 100
         : 0;
+  const clampedPct = Math.min(100, Math.max(0, pct));
   const shown = bucket.openTasks.slice(0, MAX_CHIPS);
   const extra = openCount - shown.length;
   const initial = bucket.name.trim().charAt(0).toUpperCase() || "?";
 
   return (
-    <div className="rounded-2xl bento p-4">
+    <Card className="gap-3 rounded-2xl p-4">
       <div className="flex items-center gap-3">
         {unassigned ? (
           <span
@@ -275,9 +280,9 @@ function PersonRow({
           <div className="flex items-center gap-2">
             <p className="truncate text-sm font-medium">{bucket.name}</p>
             {bucket.kind === "agent" && (
-              <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              <Badge variant="secondary" className="uppercase tracking-wider text-[10px]">
                 Agent
-              </span>
+              </Badge>
             )}
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -296,21 +301,17 @@ function PersonRow({
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        <AnimatedBar
-          pct={pct}
-          className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"
-          barClassName="h-full rounded-full bg-brand-600"
-        />
+      <div className="flex items-center gap-2">
+        <Progress value={clampedPct} className="h-1.5 flex-1" />
         {mode === "points" && bucket.unestimatedCount > 0 && (
-          <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+          <Badge variant="secondary" className="flex-shrink-0 text-[10px]">
             {bucket.unestimatedCount} unestimated
-          </span>
+          </Badge>
         )}
       </div>
 
       {shown.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {shown.map((task) => (
             <Link
               key={task._id}
@@ -336,6 +337,6 @@ function PersonRow({
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }

@@ -15,6 +15,17 @@ import {
   PRIORITY_ORDER,
   type TaskPriority,
 } from "@/components/dashboard/priority";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { EASE, motion } from "@/components/motion";
@@ -25,8 +36,17 @@ import { useToast } from "@/components/toast";
 // ListView's data flow (same tasks/statuses/fields props, same optimistic
 // toggleComplete + inline soft-field editors) but trades ListView's mobile
 // affordances for maximum information density.
+//
+// Renders on the vendored Square shell's Table/Card primitives (Phase H);
+// the sort/edit logic underneath is unchanged.
 
 type SortKey = "title" | "status" | "priority" | "start" | "due" | "points";
+
+// Vendored TableRow's own class string, applied by hand to the body rows
+// because those rows are `motion.tr` (framer-motion needs the real DOM
+// element for the entrance animation, not the TableRow wrapper component).
+const BODY_ROW_CLASS =
+  "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors align-middle";
 
 export function TableView({
   listId,
@@ -94,98 +114,101 @@ export function TableView({
 
   if (tasks.length === 0) {
     return (
-      <div className="rounded-2xl bento">
-        <EmptyState
-          title="Nothing here yet"
-          message="Add a task from List or Board view to see it in the table."
-        />
-      </div>
+      <EmptyState
+        title="Nothing here yet"
+        message="Add a task from List or Board view to see it in the table."
+      />
     );
   }
 
   return (
-    <div className="rounded-2xl bento">
-      <div className="overflow-x-auto">
-        <table className="sheet-table w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-background">
-            <tr>
-              <th scope="col" className="w-10"></th>
-              <SortHeader
-                label="Title"
-                sortKey="title"
-                active={sortKey}
-                dir={sortDir}
-                onClick={toggleSort}
-                className="min-w-[220px]"
-              />
-              <SortHeader
-                label="Status"
-                sortKey="status"
-                active={sortKey}
-                dir={sortDir}
-                onClick={toggleSort}
-                className="min-w-[140px]"
-              />
-              <SortHeader
-                label="Priority"
-                sortKey="priority"
-                active={sortKey}
-                dir={sortDir}
-                onClick={toggleSort}
-                className="min-w-[120px]"
-              />
-              <th scope="col" className="min-w-[160px]">
-                Assignees
-              </th>
-              <SortHeader
-                label="Start"
-                sortKey="start"
-                active={sortKey}
-                dir={sortDir}
-                onClick={toggleSort}
-                className="min-w-[120px]"
-              />
-              <SortHeader
-                label="Due"
-                sortKey="due"
-                active={sortKey}
-                dir={sortDir}
-                onClick={toggleSort}
-                className="min-w-[120px]"
-              />
-              <SortHeader
-                label="Points"
-                sortKey="points"
-                active={sortKey}
-                dir={sortDir}
-                onClick={toggleSort}
-                className="min-w-[90px] text-right"
-              />
-              {fields.map((f) => (
-                <th key={f._id} scope="col" className="min-w-[140px]">
-                  {f.name}
-                </th>
+    <Card className="gap-0 overflow-hidden rounded-2xl py-0">
+      <CardContent className="px-0 py-0">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-background">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-10"></TableHead>
+                <SortHeader
+                  label="Title"
+                  sortKey="title"
+                  active={sortKey}
+                  dir={sortDir}
+                  onClick={toggleSort}
+                  className="min-w-[220px]"
+                />
+                <SortHeader
+                  label="Status"
+                  sortKey="status"
+                  active={sortKey}
+                  dir={sortDir}
+                  onClick={toggleSort}
+                  className="min-w-[140px]"
+                />
+                <SortHeader
+                  label="Priority"
+                  sortKey="priority"
+                  active={sortKey}
+                  dir={sortDir}
+                  onClick={toggleSort}
+                  className="min-w-[120px]"
+                />
+                <TableHead className="min-w-[160px] text-xs uppercase tracking-wider text-muted-foreground">
+                  Assignees
+                </TableHead>
+                <SortHeader
+                  label="Start"
+                  sortKey="start"
+                  active={sortKey}
+                  dir={sortDir}
+                  onClick={toggleSort}
+                  className="min-w-[120px]"
+                />
+                <SortHeader
+                  label="Due"
+                  sortKey="due"
+                  active={sortKey}
+                  dir={sortDir}
+                  onClick={toggleSort}
+                  className="min-w-[120px]"
+                />
+                <SortHeader
+                  label="Points"
+                  sortKey="points"
+                  active={sortKey}
+                  dir={sortDir}
+                  onClick={toggleSort}
+                  className="min-w-[90px] text-right"
+                />
+                {fields.map((f) => (
+                  <TableHead
+                    key={f._id}
+                    className="min-w-[140px] text-xs uppercase tracking-wider text-muted-foreground"
+                  >
+                    {f.name}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sorted.map((task, i) => (
+                <TableRowContent
+                  key={task._id}
+                  task={task}
+                  listId={listId}
+                  statuses={statuses}
+                  fields={fields}
+                  index={i}
+                />
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((task, i) => (
-              <TableRow
-                key={task._id}
-                task={task}
-                listId={listId}
-                statuses={statuses}
-                fields={fields}
-                index={i}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="px-4 py-2 text-xs text-muted-foreground">
-        {tasks.length} task{tasks.length === 1 ? "" : "s"}
-      </div>
-    </div>
+            </TableBody>
+          </Table>
+        </div>
+        <div className="border-t border-border px-4 py-2 text-xs text-muted-foreground">
+          {tasks.length} task{tasks.length === 1 ? "" : "s"}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -206,13 +229,15 @@ function SortHeader({
 }) {
   const isActive = active === sortKey;
   return (
-    <th scope="col" className={className}>
-      <button
+    <TableHead className={className}>
+      <Button
         type="button"
+        variant="ghost"
+        size="sm"
         onClick={() => onClick(sortKey)}
         className={cn(
-          "inline-flex items-center gap-1 uppercase tracking-wider transition-colors",
-          isActive ? "text-foreground" : "hover:text-foreground",
+          "h-auto gap-1 px-2 py-1 text-xs uppercase tracking-wider hover:bg-accent/60",
+          isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",
         )}
       >
         {label}
@@ -222,12 +247,12 @@ function SortHeader({
           ) : (
             <ArrowDown className="h-3 w-3" aria-hidden />
           ))}
-      </button>
-    </th>
+      </Button>
+    </TableHead>
   );
 }
 
-function TableRow({
+function TableRowContent({
   task,
   listId,
   statuses,
@@ -293,9 +318,9 @@ function TableRow({
         ease: EASE,
         delay: Math.min(index * 0.02, 0.24),
       }}
-      className="align-middle"
+      className={BODY_ROW_CLASS}
     >
-      <td className="py-1.5">
+      <TableCell>
         <motion.button
           type="button"
           aria-label={isDone ? "Mark task open" : "Mark task complete"}
@@ -325,11 +350,11 @@ function TableRow({
             />
           </motion.svg>
         </motion.button>
-      </td>
-      <td className="py-1.5">
+      </TableCell>
+      <TableCell>
         <TitleCell task={task} isDone={isDone} />
-      </td>
-      <td className="py-1.5">
+      </TableCell>
+      <TableCell>
         <select
           aria-label="Status"
           value={task.statusId}
@@ -350,8 +375,8 @@ function TableRow({
             </option>
           ))}
         </select>
-      </td>
-      <td className="py-1.5">
+      </TableCell>
+      <TableCell>
         <select
           aria-label="Priority"
           value={task.priority ?? ""}
@@ -371,11 +396,11 @@ function TableRow({
             </option>
           ))}
         </select>
-      </td>
-      <td className="py-1.5">
+      </TableCell>
+      <TableCell>
         <AssigneeStack ids={task.assigneeClerkIds} byId={byId} />
-      </td>
-      <td className="py-1.5">
+      </TableCell>
+      <TableCell>
         <input
           type="date"
           aria-label="Start date"
@@ -388,8 +413,8 @@ function TableRow({
           }
           className="soft-field px-2 py-1 text-xs"
         />
-      </td>
-      <td className="py-1.5">
+      </TableCell>
+      <TableCell>
         <input
           type="date"
           aria-label="Due date"
@@ -402,12 +427,12 @@ function TableRow({
           }
           className="soft-field px-2 py-1 text-xs"
         />
-      </td>
-      <td className="py-1.5 text-right">
+      </TableCell>
+      <TableCell className="text-right">
         <PointsCell task={task} />
-      </td>
+      </TableCell>
       {fields.map((f) => (
-        <td key={f._id} className="py-1.5">
+        <TableCell key={f._id}>
           <CustomFieldInput
             field={f}
             value={valuesByField.get(f._id)}
@@ -419,7 +444,7 @@ function TableRow({
               }
             }}
           />
-        </td>
+        </TableCell>
       ))}
     </motion.tr>
   );
@@ -458,7 +483,7 @@ function TitleCell({ task, isDone }: { task: Doc<"tasks">; isDone: boolean }) {
 
   if (editing) {
     return (
-      <input
+      <Input
         autoFocus
         value={draft}
         onChange={(e) => setDraft(e.currentTarget.value)}
@@ -471,7 +496,7 @@ function TitleCell({ task, isDone }: { task: Doc<"tasks">; isDone: boolean }) {
           }
         }}
         aria-label="Task title"
-        className="soft-field w-full px-2 py-1 text-sm"
+        className="h-8 w-full text-sm"
       />
     );
   }
@@ -562,7 +587,7 @@ function PointsCell({ task }: { task: Doc<"tasks"> }) {
   }
 
   return (
-    <input
+    <Input
       type="number"
       inputMode="numeric"
       min={0}
@@ -574,7 +599,7 @@ function PointsCell({ task }: { task: Doc<"tasks"> }) {
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.currentTarget as HTMLInputElement).blur();
       }}
-      className="soft-field w-16 px-2 py-1 text-right text-xs"
+      className="h-8 w-16 text-right text-xs"
     />
   );
 }
