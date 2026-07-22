@@ -24,6 +24,8 @@ import { Monogram } from "@/components/dashboard/monogram";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { PriorityDot, type TaskPriority } from "@/components/dashboard/priority";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 // Sprint scrum board: every task committed to one sprint, arranged in the
 // four coarse status categories (open/in_progress/complete/closed) as
@@ -193,15 +195,15 @@ export function ScrumBoard({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <div className="segmented">
+        <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => setLaneMode("none")}
             className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+              "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
               laneMode === "none"
-                ? "segmented-on"
-                : "text-muted-foreground hover:text-foreground",
+                ? "bg-accent text-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
             )}
           >
             No lanes
@@ -210,10 +212,10 @@ export function ScrumBoard({
             type="button"
             onClick={() => setLaneMode("assignee")}
             className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+              "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
               laneMode === "assignee"
-                ? "segmented-on"
-                : "text-muted-foreground hover:text-foreground",
+                ? "bg-accent text-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
             )}
           >
             By assignee
@@ -329,7 +331,7 @@ function Column({
       ref={setNodeRef}
       aria-label={label}
       className={cn(
-        "flex w-72 flex-shrink-0 flex-col rounded-2xl bg-muted/40 transition-shadow",
+        "flex w-72 flex-shrink-0 flex-col rounded-lg bg-muted/50 transition-shadow",
         isOver && "ring-2 ring-foreground/20",
       )}
     >
@@ -388,7 +390,7 @@ function ClosedCollapsed({
       type="button"
       onClick={onExpand}
       className={cn(
-        "flex w-10 flex-shrink-0 flex-col items-center gap-1.5 rounded-2xl bg-muted/40 py-3 text-xs text-muted-foreground transition-shadow hover:text-foreground",
+        "flex w-10 flex-shrink-0 flex-col items-center gap-1.5 rounded-lg bg-muted/50 py-3 text-xs text-muted-foreground transition-shadow hover:text-foreground",
         isOver && "ring-2 ring-foreground/20",
       )}
       aria-label={`Show Closed column (${count})`}
@@ -439,9 +441,9 @@ function CardContent({
   dragging?: boolean;
 }) {
   return (
-    <div
+    <Card
       className={cn(
-        "bento-tile cursor-grab space-y-2 rounded-xl p-3 active:cursor-grabbing",
+        "cursor-grab gap-2 rounded-xl p-3 active:cursor-grabbing",
         dragging && "rotate-1 shadow-lg",
       )}
     >
@@ -490,23 +492,23 @@ function CardContent({
         task.blockedOpenCount > 0) && (
         <div className="flex flex-wrap items-center gap-1.5">
           {task.estimatePoints !== undefined && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <Badge variant="secondary" className="text-[11px] font-medium">
               {task.estimatePoints} pts
-            </span>
+            </Badge>
           )}
           {task.checklistTotal > 0 && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <Badge variant="secondary" className="text-[11px] font-medium">
               {task.checklistDone}/{task.checklistTotal}
-            </span>
+            </Badge>
           )}
           {task.blockedOpenCount > 0 && (
-            <span className="rounded-full bg-pastel-red px-2 py-0.5 text-[11px] font-medium text-danger">
+            <Badge variant="destructive" className="text-[11px] font-medium">
               Blocked
-            </span>
+            </Badge>
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -516,7 +518,7 @@ function BoardSkeleton() {
       {COLUMNS.map((c) => (
         <div
           key={c.key}
-          className="w-72 flex-shrink-0 space-y-2 rounded-2xl bg-muted/40 p-3"
+          className="w-72 flex-shrink-0 space-y-2 rounded-lg bg-muted/50 p-3"
         >
           <div className="h-4 w-20 animate-pulse rounded-full bg-muted" />
           {[0, 1, 2].map((i) => (
