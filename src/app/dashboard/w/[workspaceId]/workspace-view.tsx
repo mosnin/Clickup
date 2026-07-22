@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { Building2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Comments } from "@/components/dashboard/comments";
@@ -15,6 +16,8 @@ import { PortfolioTimeline } from "@/components/dashboard/portfolio-timeline";
 import { TeamHub } from "@/components/dashboard/team-hub";
 import { WorkspaceSettings } from "@/components/dashboard/workspace-settings";
 import { ActivityFeed } from "@/app/dashboard/agents/agents-view";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { EASE, motion, Stagger, StaggerItem } from "@/components/motion";
 
@@ -44,6 +47,9 @@ const TABS: { key: Tab; label: string }[] = [
 export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
   const tree = useQuery(api.sidebar.tree, {});
   const spaces = useQuery(api.spaces.listForWorkspace, {
+    workspaceId: workspaceId as Id<"workspaces">,
+  });
+  const members = useQuery(api.workspaces.listMembers, {
     workspaceId: workspaceId as Id<"workspaces">,
   });
   const searchParams = useSearchParams();
@@ -116,46 +122,52 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
 
   return (
     <div className="space-y-6">
-      <header className="title-rule">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-            {workspace.name}
-          </h1>
-          <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs uppercase tracking-wider text-muted-foreground">
-            {workspace.role}
-          </span>
+      <PageHeader
+        icon={Building2}
+        title={workspace.name}
+        context={
+          <>
+            {members !== undefined && (
+              <span>
+                {members.length} member{members.length === 1 ? "" : "s"}
+              </span>
+            )}
+            <Badge variant="outline" className="uppercase tracking-wider">
+              {workspace.role}
+            </Badge>
+          </>
+        }
+      >
+        {/* Scrolls horizontally on narrow screens instead of wrapping into a
+            two-row pile, the negative margin lets the row bleed to the
+            header's own edge padding. */}
+        <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <nav
+            aria-label="Workspace tabs"
+            className="flex items-center gap-1 whitespace-nowrap text-sm"
+          >
+            {visibleTabs.map(({ key, label }) => (
+              <Link
+                key={key}
+                href={
+                  key === "overview"
+                    ? `/dashboard/w/${workspace._id}`
+                    : `/dashboard/w/${workspace._id}?tab=${key}`
+                }
+                aria-current={tab === key ? "page" : undefined}
+                className={cn(
+                  "rounded-md px-3 py-1.5 font-medium transition-colors",
+                  tab === key
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                )}
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
         </div>
-      </header>
-
-      {/* Scrolls horizontally on narrow screens instead of wrapping into a
-          two-row pile, the full-bleed negative margin lets the row bleed
-          to the screen edge. */}
-      <div className="-mx-4 overflow-x-auto px-4 sm:-mx-8 sm:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <nav
-          aria-label="Workspace tabs"
-          className="segmented whitespace-nowrap text-sm"
-        >
-          {visibleTabs.map(({ key, label }) => (
-            <Link
-              key={key}
-              href={
-                key === "overview"
-                  ? `/dashboard/w/${workspace._id}`
-                  : `/dashboard/w/${workspace._id}?tab=${key}`
-              }
-              aria-current={tab === key ? "page" : undefined}
-              className={cn(
-                "rounded-full px-3 py-1.5 transition-colors",
-                tab === key
-                  ? "segmented-on font-medium text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {label}
-            </Link>
-          ))}
-        </nav>
-      </div>
+      </PageHeader>
 
       <motion.div
         key={tab}
@@ -165,7 +177,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
       >
       {tab === "overview" ? (
         workspace.spaces.length === 0 ? (
-          <div className="rounded-2xl bento p-10 text-center">
+          <div className="rounded-2xl panel p-10 text-center">
             <p className="text-sm text-muted-foreground">
               No spaces yet. Use the <span className="font-medium">+</span> next
               to <span className="font-medium">{workspace.name}</span> in the
@@ -185,7 +197,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
                 ];
                 return (
                   <StaggerItem key={space._id}>
-                    <div id={space._id} className="rounded-2xl bento p-5">
+                    <div id={space._id} className="rounded-2xl panel p-5">
                       <div className="flex items-center gap-2">
                         <span
                           aria-hidden
