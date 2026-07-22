@@ -104,8 +104,6 @@ export function DashboardSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      {/* Matching brand strip along the sidebar's top edge. */}
-      <div aria-hidden className="gradient-strip shrink-0" />
       <SidebarHeaderSwitcher />
       <SidebarContentBody />
       <SidebarFooterBody />
