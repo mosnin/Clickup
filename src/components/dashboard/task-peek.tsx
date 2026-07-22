@@ -78,7 +78,7 @@ export function TaskPeekPortal({ listId }: { listId: Id<"lists"> }) {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ duration: 0.35, ease: EASE }}
-            className="bento fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col overflow-y-auto bg-background sm:inset-y-3 sm:right-3 sm:rounded-2xl"
+            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col overflow-y-auto border-l border-border bg-card shadow-lg"
           >
             <TaskPeekBody
               taskId={taskParam as Id<"tasks">}

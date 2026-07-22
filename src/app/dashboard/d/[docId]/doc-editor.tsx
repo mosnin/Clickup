@@ -9,9 +9,9 @@ import { useAction } from "convex/react";
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
-  ArrowLeft,
   Bold,
   Code,
+  FileText,
   FolderTree,
   Heading1,
   Heading2,
@@ -26,6 +26,7 @@ import {
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { useToast } from "@/components/toast";
@@ -154,69 +155,67 @@ export function DocEditor({ docId }: { docId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Dashboard
-        </Link>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {savedAt && <span>Saved {timeAgo(savedAt)}</span>}
-          <button
-            ref={moveTriggerRef}
-            type="button"
-            onClick={() => setMoveOpen((o) => !o)}
-            className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <FolderTree className="h-3.5 w-3.5" /> Move
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              router.push("/dashboard");
-              toast("Doc deleted", {
-                action: {
-                  label: "Undo",
-                  onClick: () => router.push(`/dashboard/d/${id}`),
-                },
-                onExpire: () => remove({ docId: id }),
-              });
-            }}
-            className="rounded-full px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            Delete
-          </button>
-          <MoveMenu
-            open={moveOpen}
-            anchorRef={moveTriggerRef}
-            onClose={() => setMoveOpen(false)}
-            doc={doc}
-            scopeDocs={scopeDocs}
-            onMove={moveTo}
-          />
-        </div>
-      </div>
-
-      {breadcrumbs && breadcrumbs.length > 0 && (
-        <nav
-          aria-label="Breadcrumb"
-          className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground"
-        >
-          {breadcrumbs.map((crumb) => (
-            <span key={crumb._id} className="flex items-center gap-1.5">
-              <Link
-                href={`/dashboard/d/${crumb._id}`}
-                className="hover:text-foreground hover:underline"
-              >
-                {crumb.title}
-              </Link>
-              <span aria-hidden>/</span>
-            </span>
-          ))}
-          <span className="text-foreground">{doc.title}</span>
-        </nav>
-      )}
+      <PageHeader
+        icon={FileText}
+        title={doc.title || "Untitled"}
+        context={
+          breadcrumbs && breadcrumbs.length > 0 ? (
+            <nav
+              aria-label="Breadcrumb"
+              className="flex min-w-0 items-center gap-1.5 truncate"
+            >
+              {breadcrumbs.map((crumb) => (
+                <span key={crumb._id} className="flex items-center gap-1.5">
+                  <Link
+                    href={`/dashboard/d/${crumb._id}`}
+                    className="hover:text-foreground hover:underline"
+                  >
+                    {crumb.title}
+                  </Link>
+                  <span aria-hidden>/</span>
+                </span>
+              ))}
+            </nav>
+          ) : undefined
+        }
+        actions={
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {savedAt && <span>Saved {timeAgo(savedAt)}</span>}
+            <button
+              ref={moveTriggerRef}
+              type="button"
+              onClick={() => setMoveOpen((o) => !o)}
+              className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <FolderTree className="h-3.5 w-3.5" /> Move
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                router.push("/dashboard");
+                toast("Doc deleted", {
+                  action: {
+                    label: "Undo",
+                    onClick: () => router.push(`/dashboard/d/${id}`),
+                  },
+                  onExpire: () => remove({ docId: id }),
+                });
+              }}
+              className="rounded-full px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              Delete
+            </button>
+            <MoveMenu
+              open={moveOpen}
+              anchorRef={moveTriggerRef}
+              onClose={() => setMoveOpen(false)}
+              doc={doc}
+              scopeDocs={scopeDocs}
+              onMove={moveTo}
+            />
+          </div>
+        }
+      />
 
       <input
         type="text"
@@ -255,7 +254,7 @@ export function DocEditor({ docId }: { docId: string }) {
       </div>
 
       <Toolbar editor={editor} />
-      <div className="rounded-2xl bento p-6">
+      <div className="panel rounded-xl p-6">
         <EditorContent editor={editor} />
       </div>
       <AiWriterRow editor={editor} />
@@ -573,10 +572,13 @@ function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
 function DocSkeleton() {
   return (
     <div className="space-y-4">
-      <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
+      <div className="-mx-4 flex min-h-[52px] items-center gap-2.5 border-b border-border py-2 sm:-mx-6 sm:px-6">
+        <div className="h-4 w-4 animate-pulse rounded-full bg-muted" />
+        <div className="h-4 w-32 animate-pulse rounded-full bg-muted" />
+      </div>
       <div className="h-12 w-2/3 animate-pulse rounded-full bg-muted" />
       <div className="h-9 w-full animate-pulse rounded-full bg-muted" />
-      <div className="h-64 w-full animate-pulse rounded-2xl bg-muted/40" />
+      <div className="h-64 w-full animate-pulse rounded-xl bg-muted/40" />
     </div>
   );
 }
