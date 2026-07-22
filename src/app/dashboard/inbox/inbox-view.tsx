@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
+import { Inbox as InboxIcon } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { parseMentionBody } from "@/lib/mentions";
 import { cn } from "@/lib/utils";
@@ -40,10 +43,7 @@ export function Inbox() {
   if (mentions === undefined || updates === undefined) {
     return (
       <div className="space-y-6">
-        <div className="space-y-2 pb-4">
-          <div className="h-8 w-32 animate-pulse rounded-full bg-muted" />
-          <div className="h-4 w-48 animate-pulse rounded-full bg-muted/70" />
-        </div>
+        <PageHeader icon={InboxIcon} title="Inbox" />
         <div className="space-y-2">
           {[0, 1, 2].map((i) => (
             <div key={i} className="h-16 animate-pulse rounded-2xl bg-muted/40" />
@@ -62,31 +62,30 @@ export function Inbox() {
     (approvals?.length ?? 0) === 0;
 
   return (
-    <div className="space-y-10">
-      <header className="title-rule flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-            Inbox
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {totalUnread === 0
-              ? "All caught up."
-              : `${totalUnread} thing${totalUnread === 1 ? "" : "s"} waiting for you.`}
-          </p>
-        </div>
-        {totalUnread > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              void markMentionsRead({});
-              void markUpdatesRead({});
-            }}
-          >
-            Mark all read
-          </Button>
-        )}
-      </header>
+    <div className="space-y-8">
+      <PageHeader
+        icon={InboxIcon}
+        title="Inbox"
+        context={
+          totalUnread === 0
+            ? "All caught up"
+            : `${totalUnread} unread`
+        }
+        actions={
+          totalUnread > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void markMentionsRead({});
+                void markUpdatesRead({});
+              }}
+            >
+              Mark all read
+            </Button>
+          ) : undefined
+        }
+      />
 
       {isEmpty ? (
         <EmptyState
@@ -187,29 +186,33 @@ function ApprovalsQueue({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: 24, height: 0, marginBottom: 0 }}
               transition={{ duration: 0.35, ease: EASE }}
-              className="flex flex-wrap items-center gap-3 overflow-hidden rounded-2xl bento px-4 py-3 text-sm"
+              className="overflow-hidden"
             >
-              <Link
-                href={`/dashboard/l/${a.listId}/t/${a.taskId}`}
-                className="min-w-0 flex-1 truncate font-medium hover:underline"
-              >
-                {a.title}
-              </Link>
-              {a.checklistTotal > 0 && (
-                <span
-                  className={cn(
-                    "text-xs",
-                    a.checklistDone === a.checklistTotal
-                      ? "text-positive"
-                      : "text-muted-foreground",
+              <Card className="gap-0 rounded-2xl py-0">
+                <CardContent className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+                  <Link
+                    href={`/dashboard/l/${a.listId}/t/${a.taskId}`}
+                    className="min-w-0 flex-1 truncate font-medium hover:underline"
+                  >
+                    {a.title}
+                  </Link>
+                  {a.checklistTotal > 0 && (
+                    <span
+                      className={cn(
+                        "text-xs",
+                        a.checklistDone === a.checklistTotal
+                          ? "text-positive"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {a.checklistDone}/{a.checklistTotal} checklist
+                    </span>
                   )}
-                >
-                  {a.checklistDone}/{a.checklistTotal} checklist
-                </span>
-              )}
-              <Button size="sm" onClick={() => approve({ taskId: a.taskId })}>
-                Approve
-              </Button>
+                  <Button size="sm" onClick={() => approve({ taskId: a.taskId })}>
+                    Approve
+                  </Button>
+                </CardContent>
+              </Card>
             </motion.li>
           ))}
         </AnimatePresence>
@@ -263,7 +266,11 @@ function MentionItem({ mention }: { mention: MentionRow }) {
   // A mention whose target no longer exists stays informative but quiet:
   // no dead link, no silent mark-read on click.
   if (!mention.href) {
-    return <div className="rounded-2xl bento p-4 opacity-70">{inner}</div>;
+    return (
+      <Card className="gap-0 rounded-2xl py-0 opacity-70">
+        <CardContent className="p-4">{inner}</CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -272,9 +279,11 @@ function MentionItem({ mention }: { mention: MentionRow }) {
       onClick={() => {
         if (!mention.readAt) markRead({ mentionId: mention._id });
       }}
-      className="lift block rounded-2xl bento p-4"
+      className="lift block"
     >
-      {inner}
+      <Card className="gap-0 rounded-2xl py-0">
+        <CardContent className="p-4">{inner}</CardContent>
+      </Card>
     </Link>
   );
 }
@@ -291,29 +300,30 @@ function UpdateItem({ n }: { n: Doc<"notifications"> }) {
         if (unread) void markRead({ notificationId: n._id });
         if (n.href) router.push(n.href);
       }}
-      className={cn(
-        "lift block w-full rounded-2xl bento p-4 text-left",
-        !n.href && "cursor-default",
-      )}
+      className={cn("lift block w-full text-left", !n.href && "cursor-default")}
     >
-      <div className="flex items-start gap-3">
-        <UnreadDot visible={unread} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className={cn("truncate text-sm", unread && "font-medium")}>
-              {n.title}
-            </span>
-            <span className="flex-shrink-0 text-xs text-muted-foreground">
-              {timeAgo(n.createdAt)}
-            </span>
+      <Card className="gap-0 rounded-2xl py-0">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <UnreadDot visible={unread} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className={cn("truncate text-sm", unread && "font-medium")}>
+                  {n.title}
+                </span>
+                <span className="flex-shrink-0 text-xs text-muted-foreground">
+                  {timeAgo(n.createdAt)}
+                </span>
+              </div>
+              {n.body && (
+                <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                  {n.body}
+                </p>
+              )}
+            </div>
           </div>
-          {n.body && (
-            <p className="mt-0.5 truncate text-sm text-muted-foreground">
-              {n.body}
-            </p>
-          )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </button>
   );
 }

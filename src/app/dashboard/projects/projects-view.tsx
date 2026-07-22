@@ -3,10 +3,15 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Star } from "lucide-react";
+import { FolderKanban, Star } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { AnimatedBar, Stagger, StaggerItem } from "@/components/motion";
+import { Stagger, StaggerItem } from "@/components/motion";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
@@ -84,43 +89,43 @@ export function ProjectsView() {
 
   return (
     <div className="space-y-6">
-      <header className="title-rule">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          Projects
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {data === undefined
-            ? "Gathering every project you can see…"
-            : `${data.totalCount} project${data.totalCount === 1 ? "" : "s"} across your personal space and workspaces.`}
-        </p>
-      </header>
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <input
-          value={raw}
-          onChange={(e) => setRaw(e.currentTarget.value)}
-          placeholder="Search projects…"
-          className="soft-field w-full px-3.5 py-2 text-sm sm:max-w-xs"
-        />
-        <nav aria-label="Health filter" className="segmented text-sm">
-          {STATUS_FILTERS.map((f) => (
-            <button
-              key={f.key || "all"}
-              type="button"
-              onClick={() => setStatus(f.key)}
-              aria-pressed={status === f.key}
-              className={cn(
-                "rounded-full px-3 py-1.5 transition-colors",
-                status === f.key
-                  ? "segmented-on font-medium text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {f.label}
-            </button>
-          ))}
-        </nav>
-      </div>
+      <PageHeader
+        icon={FolderKanban}
+        title="Projects"
+        context={
+          data === undefined
+            ? undefined
+            : `${data.totalCount} project${data.totalCount === 1 ? "" : "s"}`
+        }
+        actions={
+          <>
+            <Input
+              value={raw}
+              onChange={(e) => setRaw(e.currentTarget.value)}
+              placeholder="Search projects…"
+              className="h-8 w-40 sm:w-56"
+            />
+            <nav aria-label="Health filter" className="segmented text-sm">
+              {STATUS_FILTERS.map((f) => (
+                <button
+                  key={f.key || "all"}
+                  type="button"
+                  onClick={() => setStatus(f.key)}
+                  aria-pressed={status === f.key}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 transition-colors",
+                    status === f.key
+                      ? "segmented-on font-medium text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </nav>
+          </>
+        }
+      />
 
       {data === undefined ? (
         <ProjectsSkeleton />
@@ -178,93 +183,85 @@ function ProjectCard({
     hasOpenWork;
 
   return (
-    <Link
-      href={`/dashboard/l/${project.listId}`}
-      className="lift block rounded-2xl bento p-5 hover:border-foreground/25"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            {project.color && (
-              <span
-                aria-hidden
-                className="h-2 w-2 flex-shrink-0 rounded-full"
-                style={{ backgroundColor: project.color }}
-              />
-            )}
-            <p className="truncate font-semibold">{project.name}</p>
+    <Link href={`/dashboard/l/${project.listId}`} className="lift block">
+      <Card className="gap-0 rounded-2xl py-5">
+        <CardContent className="px-5">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                {project.color && (
+                  <span
+                    aria-hidden
+                    className="h-2 w-2 flex-shrink-0 rounded-full"
+                    style={{ backgroundColor: project.color }}
+                  />
+                )}
+                <p className="truncate font-semibold">{project.name}</p>
+              </div>
+              <p className="truncate text-xs text-muted-foreground">
+                {project.place}
+              </p>
+            </div>
+            <div className="flex flex-shrink-0 items-center gap-1">
+              {chip && (
+                <Badge className={cn("text-[10px] text-foreground", chip.className)}>
+                  {chip.label}
+                </Badge>
+              )}
+              <button
+                type="button"
+                aria-label={
+                  favorited
+                    ? `Remove ${project.name} from favorites`
+                    : `Add ${project.name} to favorites`
+                }
+                aria-pressed={favorited}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onToggleFavorite(project.listId, favorited);
+                }}
+                className={cn(
+                  "tap-target inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full transition-colors",
+                  favorited
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Star
+                  className={cn("h-4 w-4", favorited && "fill-current")}
+                  aria-hidden
+                />
+              </button>
+            </div>
           </div>
-          <p className="truncate text-xs text-muted-foreground">
-            {project.place}
-          </p>
-        </div>
-        <div className="flex flex-shrink-0 items-center gap-1">
-          {chip && (
-            <span
+
+          {project.description && (
+            <p className="mt-2 line-clamp-1 text-sm text-muted-foreground">
+              {project.description}
+            </p>
+          )}
+
+          <div className="mt-4">
+            <Progress value={pct} className="h-1.5" />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {project.done} of {project.total} task
+              {project.total === 1 ? "" : "s"}
+            </p>
+          </div>
+
+          {project.targetDate !== undefined && (
+            <p
               className={cn(
-                "rounded-full px-2 py-0.5 text-[10px] font-medium text-foreground",
-                chip.className,
+                "mt-3 text-xs",
+                overdue ? "font-medium text-danger" : "text-muted-foreground",
               )}
             >
-              {chip.label}
-            </span>
+              Target {formatTargetDate(project.targetDate)}
+            </p>
           )}
-          <button
-            type="button"
-            aria-label={
-              favorited
-                ? `Remove ${project.name} from favorites`
-                : `Add ${project.name} to favorites`
-            }
-            aria-pressed={favorited}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onToggleFavorite(project.listId, favorited);
-            }}
-            className={cn(
-              "tap-target inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full transition-colors",
-              favorited
-                ? "text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Star
-              className={cn("h-4 w-4", favorited && "fill-current")}
-              aria-hidden
-            />
-          </button>
-        </div>
-      </div>
-
-      {project.description && (
-        <p className="mt-2 line-clamp-1 text-sm text-muted-foreground">
-          {project.description}
-        </p>
-      )}
-
-      <div className="mt-4">
-        <AnimatedBar
-          pct={pct}
-          className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
-          barClassName="block h-full rounded-full bg-foreground"
-        />
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          {project.done} of {project.total} task
-          {project.total === 1 ? "" : "s"}
-        </p>
-      </div>
-
-      {project.targetDate !== undefined && (
-        <p
-          className={cn(
-            "mt-3 text-xs",
-            overdue ? "font-medium text-danger" : "text-muted-foreground",
-          )}
-        >
-          Target {formatTargetDate(project.targetDate)}
-        </p>
-      )}
+        </CardContent>
+      </Card>
     </Link>
   );
 }

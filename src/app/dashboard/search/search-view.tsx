@@ -7,6 +7,8 @@ import { useQuery } from "convex/react";
 import { Lock, Search } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { Stagger, StaggerItem } from "@/components/motion";
+import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { cn } from "@/lib/utils";
 
@@ -54,27 +56,30 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
 
   return (
     <div className="space-y-8">
-      <header className="title-rule">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Search</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Find tasks, projects, docs, and spaces across everything you can see.
-        </p>
-      </header>
-
-      <div className="relative">
-        <Search
-          className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
-        <input
-          ref={inputRef}
-          autoFocus
-          value={raw}
-          onChange={(e) => setRaw(e.currentTarget.value)}
-          placeholder="Search everything…"
-          className="soft-field w-full py-4 pl-12 pr-4 text-lg"
-        />
-      </div>
+      <PageHeader
+        icon={Search}
+        title="Search"
+        context={
+          active && results !== undefined
+            ? `${total} result${total === 1 ? "" : "s"}`
+            : undefined
+        }
+      >
+        <div className="relative pb-3 pt-1">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            ref={inputRef}
+            autoFocus
+            value={raw}
+            onChange={(e) => setRaw(e.currentTarget.value)}
+            placeholder="Search everything…"
+            className="pl-9"
+          />
+        </div>
+      </PageHeader>
 
       {!active ? (
         <EmptyState
