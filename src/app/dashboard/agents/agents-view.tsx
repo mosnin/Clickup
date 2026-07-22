@@ -23,9 +23,20 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Monogram } from "@/components/dashboard/monogram";
 import { BillingTab } from "@/components/dashboard/billing-panel";
 import { ConnectSnippet } from "@/components/dashboard/connect-snippet";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { TerminalSurface } from "@/components/terminal-surface";
 import TextType from "@/components/text-type";
 import { cn } from "@/lib/utils";
@@ -33,9 +44,11 @@ import { timeAgo } from "@/lib/time";
 import { eventHref, eventLabel } from "@/lib/event-labels";
 import { useToast } from "@/components/toast";
 import {
+  AnimatedNumber,
   AnimatePresence,
   EASE,
   motion,
+  PresenceDot,
   Stagger,
   StaggerItem,
 } from "@/components/motion";
@@ -55,6 +68,8 @@ const TABS: { key: Tab; label: string; icon: typeof Bot }[] = [
   { key: "skills", label: "Skills", icon: BookOpen },
 ];
 
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+
 export function AgentsView() {
   // Tab is URL-addressable (?tab=) so the sidebar can deep-link to Activity/
   // Billing/Webhooks/Skills; the "agents" tab is the bare /dashboard/agents.
@@ -64,46 +79,88 @@ export function AgentsView() {
     ? (rawTab as Tab)
     : "agents";
   const [tab, setTab] = useState<Tab>(initialTab);
+  // Create/template flows are lifted here so the "New agent" trigger can
+  // live in the sticky PageHeader while the form itself renders inside the
+  // Agents tab, exactly where it always has.
+  const [creating, setCreating] = useState(false);
+  const [templating, setTemplating] = useState(false);
+
+  const agentsData = useQuery(api.agents.listForCurrentUser, {});
+  const { onlineCount, totalCount } = useMemo(() => {
+    if (!agentsData) return { onlineCount: 0, totalCount: 0 };
+    const all = [
+      ...agentsData.personal,
+      ...agentsData.workspaces.flatMap((w) => w.agents),
+    ];
+    const online = all.filter(
+      (a) =>
+        a.status === "active" &&
+        a.lastSeenAt !== undefined &&
+        Date.now() - a.lastSeenAt < ONLINE_WINDOW_MS,
+    ).length;
+    return { onlineCount: online, totalCount: all.length };
+  }, [agentsData]);
 
   return (
     <div className="space-y-6">
-      <header className="title-rule">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          Agents
-        </h1>
-        <TextType
-          as="p"
-          className="mt-1 text-sm text-muted-foreground"
-          text="Mission control for the AI agents working in your spaces. See what they're doing live, hand them work, and manage their access."
-          typingSpeed={22}
-          loop={false}
-        />
-      </header>
-
-      <div className="-mx-4 overflow-x-auto px-4 sm:-mx-8 sm:px-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <PageHeader
+        icon={Bot}
+        title="Agents"
+        context={
+          totalCount > 0 && (
+            <span className="inline-flex items-center gap-1.5">
+              <PresenceDot online={onlineCount > 0} />
+              {onlineCount} online
+            </span>
+          )
+        }
+        actions={
+          tab === "agents" && (
+            <Button
+              size="sm"
+              onClick={() => {
+                setCreating(true);
+                setTemplating(false);
+              }}
+            >
+              <Plus className="h-4 w-4" /> New agent
+            </Button>
+          )
+        }
+      >
         <nav
           aria-label="Agents tabs"
-          className="segmented whitespace-nowrap text-sm"
+          className="-mx-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          {TABS.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              aria-current={tab === key ? "page" : undefined}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 transition-colors",
-                tab === key
-                  ? "segmented-on font-medium text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))}
+          <div className="segmented whitespace-nowrap text-sm">
+            {TABS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
+                aria-current={tab === key ? "page" : undefined}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 transition-colors",
+                  tab === key
+                    ? "segmented-on font-medium text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
         </nav>
-      </div>
+      </PageHeader>
+
+      <TextType
+        as="p"
+        className="text-sm text-muted-foreground"
+        text="Mission control for the AI agents working in your spaces. See what they're doing live, hand them work, and manage their access."
+        typingSpeed={22}
+        loop={false}
+      />
 
       <motion.div
         key={tab}
@@ -112,7 +169,12 @@ export function AgentsView() {
         transition={{ duration: 0.35, ease: EASE }}
       >
         {tab === "agents" ? (
-          <AgentsTab />
+          <AgentsTab
+            creating={creating}
+            setCreating={setCreating}
+            templating={templating}
+            setTemplating={setTemplating}
+          />
         ) : tab === "activity" ? (
           <ActivityFeed />
         ) : tab === "billing" ? (
@@ -129,10 +191,18 @@ export function AgentsView() {
 
 // ── Agents tab ─────────────────────────────────────────────────────────
 
-function AgentsTab() {
+function AgentsTab({
+  creating,
+  setCreating,
+  templating,
+  setTemplating,
+}: {
+  creating: boolean;
+  setCreating: (v: boolean) => void;
+  templating: boolean;
+  setTemplating: (v: boolean) => void;
+}) {
   const data = useQuery(api.agents.listForCurrentUser, {});
-  const [creating, setCreating] = useState(false);
-  const [templating, setTemplating] = useState(false);
 
   const allAgents = useMemo(() => {
     if (!data) return [];
@@ -168,20 +238,11 @@ function AgentsTab() {
             size="sm"
             variant="outline"
             onClick={() => {
-              setTemplating((v) => !v);
+              setTemplating(!templating);
               setCreating(false);
             }}
           >
             <Sparkles className="h-4 w-4" /> From template
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => {
-              setCreating(true);
-              setTemplating(false);
-            }}
-          >
-            <Plus className="h-4 w-4" /> New agent
           </Button>
         </div>
       </div>
@@ -311,51 +372,63 @@ function FleetSpend() {
   const spend = useQuery(api.agents.fleetSpend, {});
   if (!spend || spend.runs7 === 0) return null;
   return (
-    <div className="rounded-2xl bento p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-6">
+    <div className="space-y-3">
+      <Stagger className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StaggerItem>
           <SpendStat label="Spend · 7d" value={`$${spend.cost7.toFixed(2)}`} />
-          <SpendStat label="Spend · 30d" value={`$${spend.cost30.toFixed(2)}`} />
+        </StaggerItem>
+        <StaggerItem>
+          <SpendStat
+            label="Spend · 30d"
+            value={`$${spend.cost30.toFixed(2)}`}
+          />
+        </StaggerItem>
+        <StaggerItem>
           <SpendStat
             label="Tokens · 7d"
             value={compactNumber(spend.tokens7)}
           />
-          <SpendStat label="Runs · 7d" value={String(spend.runs7)} />
-        </div>
-        {spend.topSpenders.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Top spend
-            </span>
-            {spend.topSpenders.map((a) => (
-              <span
-                key={a.name}
-                className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs"
-              >
-                <Monogram name={a.name} size="sm" />
-                {a.name}
-                <span className="tabular-nums text-muted-foreground">
-                  ${a.cost.toFixed(2)}
-                </span>
+        </StaggerItem>
+        <StaggerItem>
+          {/* The only genuinely integer value here — the others are
+              pre-formatted currency/compact strings, so only this one
+              springs via AnimatedNumber. */}
+          <SpendStat label="Runs · 7d" value={spend.runs7} />
+        </StaggerItem>
+      </Stagger>
+      {spend.topSpenders.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Top spend
+          </span>
+          {spend.topSpenders.map((a) => (
+            <span
+              key={a.name}
+              className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs"
+            >
+              <Monogram name={a.name} size="sm" />
+              {a.name}
+              <span className="tabular-nums text-muted-foreground">
+                ${a.cost.toFixed(2)}
               </span>
-            ))}
-          </div>
-        )}
-      </div>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function SpendStat({ label, value }: { label: string; value: string }) {
+function SpendStat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div>
+    <Card className="gap-1 rounded-2xl p-3">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
       <p className="mt-0.5 text-xl font-bold tabular-nums tracking-tight">
-        {value}
+        <AnimatedNumber value={value} />
       </p>
-    </div>
+    </Card>
   );
 }
 
@@ -643,8 +716,6 @@ function AgentGroup({
   );
 }
 
-const ONLINE_WINDOW_MS = 5 * 60 * 1000;
-
 function AgentCard({
   agent,
   taskTitles,
@@ -669,8 +740,16 @@ function AgentCard({
   // only commits once the undo window closes.
   if (deleting) return null;
 
+  const statusLabel = agent.status === "paused"
+    ? "Paused"
+    : online
+      ? "Online"
+      : agent.lastSeenAt
+        ? `Seen ${timeAgo(agent.lastSeenAt)}`
+        : "Never connected";
+
   return (
-    <div className="lift rounded-2xl bento p-4">
+    <Card className="lift gap-3 rounded-2xl p-4">
       <div className="flex items-start gap-3">
         <Monogram name={agent.name} size="lg" />
         <div className="min-w-0 flex-1">
@@ -681,37 +760,18 @@ function AgentCard({
             >
               {agent.name}
             </Link>
-            <span
+            <Badge
+              variant="secondary"
               className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider",
-                agent.status === "paused"
-                  ? "bg-muted text-muted-foreground"
-                  : online
-                    ? "bg-emerald-100 text-emerald-700"
-                    : "bg-muted text-muted-foreground",
+                "gap-1.5 uppercase tracking-wider",
+                agent.status === "active" &&
+                  online &&
+                  "bg-pastel-green text-foreground",
               )}
             >
-              <span aria-hidden className="relative inline-flex h-1.5 w-1.5">
-                {agent.status === "active" && online && (
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/60" />
-                )}
-                <span
-                  className={cn(
-                    "relative inline-flex h-1.5 w-1.5 rounded-full",
-                    agent.status === "active" && online
-                      ? "bg-emerald-500"
-                      : "bg-muted-foreground",
-                  )}
-                />
-              </span>
-              {agent.status === "paused"
-                ? "Paused"
-                : online
-                  ? "Online"
-                  : agent.lastSeenAt
-                    ? `Seen ${timeAgo(agent.lastSeenAt)}`
-                    : "Never connected"}
-            </span>
+              <PresenceDot online={agent.status === "active" && online} />
+              {statusLabel}
+            </Badge>
           </div>
           {agent.description && (
             <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -784,7 +844,7 @@ function AgentCard({
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </Card>
   );
 }
 
@@ -822,39 +882,60 @@ function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
           </div>
         </motion.div>
       )}
-      <ul className="space-y-1 text-xs">
-        {(keys ?? []).map((k) => (
-          <li key={k._id} className="flex items-center gap-2">
-            <code className="rounded bg-muted px-1.5 py-0.5">
-              {k.keyPrefix}…
-            </code>
-            <span className="text-muted-foreground">
-              {k.revokedAt
-                ? "revoked"
-                : k.lastUsedAt
-                  ? `last used ${timeAgo(k.lastUsedAt)}`
-                  : "never used"}
-            </span>
-            {!k.revokedAt && (
-              <button
-                type="button"
-                onClick={() =>
-                  toast(`Key ${k.keyPrefix}… will be revoked`, {
-                    action: { label: "Undo", onClick: () => {} },
-                    onExpire: () => revokeKey({ keyId: k._id }),
-                  })
-                }
-                className="ml-auto rounded-full px-2 py-0.5 text-muted-foreground hover:bg-muted hover:text-danger"
-              >
-                Revoke
-              </button>
-            )}
-          </li>
-        ))}
-        {keys !== undefined && keys.length === 0 && (
-          <li className="text-muted-foreground">No keys yet.</li>
-        )}
-      </ul>
+      {(keys ?? []).length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-[11px] uppercase tracking-wider">
+                  Key
+                </TableHead>
+                <TableHead className="text-[11px] uppercase tracking-wider">
+                  Status
+                </TableHead>
+                <TableHead className="text-right text-[11px] uppercase tracking-wider">
+                  Action
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {keys!.map((k) => (
+                <TableRow key={k._id}>
+                  <TableCell className="font-mono text-xs">
+                    {k.keyPrefix}…
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {k.revokedAt
+                      ? "revoked"
+                      : k.lastUsedAt
+                        ? `last used ${timeAgo(k.lastUsedAt)}`
+                        : "never used"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {!k.revokedAt && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          toast(`Key ${k.keyPrefix}… will be revoked`, {
+                            action: { label: "Undo", onClick: () => {} },
+                            onExpire: () => revokeKey({ keyId: k._id }),
+                          })
+                        }
+                        className="rounded-full px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-danger"
+                      >
+                        Revoke
+                      </button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+      {keys !== undefined && keys.length === 0 && (
+        <p className="text-xs text-muted-foreground">No keys yet.</p>
+      )}
       <Button
         size="sm"
         variant="outline"
@@ -1068,61 +1149,90 @@ function WebhooksTab() {
         </div>
       )}
 
-      <ul className="space-y-2">
-        {(subs ?? []).map((s) => (
-          <li
-            key={s._id}
-            className="flex flex-wrap items-center gap-2 rounded-2xl bento px-4 py-3 text-sm"
-          >
-            <code className="min-w-0 flex-1 truncate text-xs">{s.url}</code>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-              {s.eventTypes.length === 0
-                ? "all events"
-                : s.eventTypes.join(", ")}
-            </span>
-            {s.ownerType === "agent" && (
-              <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] uppercase tracking-wider text-brand-700">
-                {agentNameById.get(s.ownerId) ?? "agent"}
-              </span>
-            )}
-            {s.failureCount > 0 && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] text-amber-700">
-                {s.failureCount} fail{s.failureCount === 1 ? "" : "s"}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => update({ subscriptionId: s._id, enabled: !s.enabled })}
-              className={cn(
-                "rounded-full px-2.5 py-0.5 text-xs",
-                s.enabled
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-muted text-muted-foreground",
-              )}
-            >
-              {s.enabled ? "Enabled" : "Disabled"}
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                toast("Webhook deleted", {
-                  action: { label: "Undo", onClick: () => {} },
-                  onExpire: () => remove({ subscriptionId: s._id }),
-                })
-              }
-              className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger"
-              title="Delete"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </li>
-        ))}
-        {subs !== undefined && subs.length === 0 && (
-          <li className="rounded-2xl bento p-6 text-center text-sm text-muted-foreground">
-            No webhooks yet.
-          </li>
-        )}
-      </ul>
+      {(subs ?? []).length > 0 && (
+        <div className="overflow-hidden rounded-2xl bento">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Endpoint</TableHead>
+                <TableHead>Events</TableHead>
+                <TableHead>Owner</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Delete</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {subs!.map((s) => (
+                <TableRow key={s._id}>
+                  <TableCell className="max-w-[16rem] truncate font-mono text-xs">
+                    {s.url}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="uppercase tracking-wider">
+                      {s.eventTypes.length === 0
+                        ? "all events"
+                        : s.eventTypes.join(", ")}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {s.ownerType === "agent" ? (
+                      <Badge className="bg-brand-50 text-brand-700 uppercase tracking-wider">
+                        {agentNameById.get(s.ownerId) ?? "agent"}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">You</span>
+                    )}
+                    {s.failureCount > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="ml-1.5 bg-amber-100 text-amber-700"
+                      >
+                        {s.failureCount} fail{s.failureCount === 1 ? "" : "s"}
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        update({ subscriptionId: s._id, enabled: !s.enabled })
+                      }
+                      className={cn(
+                        "rounded-full px-2.5 py-0.5 text-xs",
+                        s.enabled
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {s.enabled ? "Enabled" : "Disabled"}
+                    </button>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        toast("Webhook deleted", {
+                          action: { label: "Undo", onClick: () => {} },
+                          onExpire: () => remove({ subscriptionId: s._id }),
+                        })
+                      }
+                      className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+      {subs !== undefined && subs.length === 0 && (
+        <div className="rounded-2xl bento p-6 text-center text-sm text-muted-foreground">
+          No webhooks yet.
+        </div>
+      )}
     </div>
   );
 }
