@@ -104,9 +104,9 @@ export function Picker({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.98 }}
             transition={{ duration: 0.18, ease: EASE }}
-            className="absolute left-0 top-full z-30 mt-1.5 w-64 overflow-hidden rounded-2xl border border-border bg-background shadow-lg"
+            className="absolute left-0 top-full z-30 mt-1.5 w-64 overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-lg"
           >
-            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+            <div className="flex items-center gap-2 border-b border-border px-3 py-2 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
               <Search className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
               <input
                 ref={inputRef}
@@ -146,7 +146,7 @@ export function Picker({
                     onMouseEnter={() => setHighlight(i)}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm",
-                      i === highlight && "bg-muted",
+                      i === highlight && "bg-accent text-accent-foreground",
                     )}
                   >
                     <span className="min-w-0 flex-1 truncate">{o.label}</span>
