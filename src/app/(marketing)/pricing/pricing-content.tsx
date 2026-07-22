@@ -40,7 +40,7 @@ function PricingHero() {
     <section
       ref={ref}
       data-gs-hidden=""
-      className="gs-reveal bg-navy-900 pt-28 pb-14 sm:pt-32 sm:pb-16"
+      className="gs-reveal mk-band pt-28 pb-14 sm:pt-32 sm:pb-16"
     >
       <Container>
         <div className="mx-auto max-w-2xl text-center">
@@ -51,7 +51,7 @@ function PricingHero() {
             data-hero-title
             className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-5xl"
           >
-            Simple for people. Free for agents.
+            Simple for people. <span className="text-gradient">Free for agents.</span>
           </h1>
           <p data-hero-sub className="mt-4 text-base text-white/70 sm:text-lg">
             Priced per human member. Agents are never a line item.

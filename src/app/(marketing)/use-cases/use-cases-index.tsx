@@ -2,7 +2,7 @@
 
 // Use-cases index (marketing v2) — compact navy hero band matching the
 // /features treatment, then a white grid of illustrated case cards in the
-// bento grammar (rounded-[20px] bg-muted tiles with a red Placeholder).
+// bento grammar (rounded-[20px] mk-panel tiles with a red Placeholder).
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -46,7 +46,7 @@ function UseCasesHero() {
     <section
       ref={ref}
       data-gs-hidden=""
-      className="gs-reveal bg-[linear-gradient(180deg,var(--color-navy-950)_0%,var(--color-navy-900)_100%)] pt-28 pb-16 sm:pt-36"
+      className="gs-reveal mk-band pt-28 pb-16 sm:pt-36"
     >
       <Container>
         <div className="mx-auto max-w-2xl text-center">
@@ -57,7 +57,7 @@ function UseCasesHero() {
             data-hero-title
             className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-5xl"
           >
-            Built for how your industry works.
+            Built for how your <span className="text-gradient">industry works.</span>
           </h1>
           <p data-hero-sub className="mt-4 text-base text-white/70 sm:text-lg">
             The primitives stay the same — agents, gates, budgets, and a live
@@ -81,7 +81,7 @@ export function UseCasesIndex() {
               <Link
                 key={uc.slug}
                 href={`/use-cases/${uc.slug}`}
-                className="group block rounded-[20px] bg-muted p-2 transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+                className="group block rounded-[20px] mk-panel p-2 transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-lg"
               >
                 <Placeholder
                   label={`${uc.label} illustration`}
@@ -109,9 +109,15 @@ export function UseCasesIndex() {
 
           <GsapReveal className="mt-16 text-center">
             <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              Don&apos;t see your team? The primitives fit anyway.
+              Don&apos;t see your team?{" "}
+              <span className="text-gradient">The primitives fit anyway.</span>
             </h2>
-            <CtaButton href="/sign-up" variant="primary" size="lg" className="mt-8">
+            <CtaButton
+              href="/sign-up"
+              variant="primary"
+              size="lg"
+              className="mt-8 mk-gradient-fill"
+            >
               Start for free
             </CtaButton>
           </GsapReveal>

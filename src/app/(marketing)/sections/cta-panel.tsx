@@ -58,7 +58,7 @@ export function CtaPanel() {
   return (
     <section className="bg-background py-24">
       <Container>
-        <div className="relative overflow-hidden rounded-[28px] bg-navy-950 ring-1 ring-white/10">
+        <div className="relative overflow-hidden rounded-[28px] mk-band ring-1 ring-white/10">
           <svg
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.04]"
@@ -93,7 +93,16 @@ export function CtaPanel() {
                 data-cta-item
                 className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl"
               >
-                {CTA_PANEL.title}
+                {CTA_PANEL.title.split(" ").map((word, i, words) => {
+                  const bare = word.replace(/[.,]/g, "").toLowerCase();
+                  const emphasize = bare === "agent" || bare === "free";
+                  return (
+                    <span key={i} className={emphasize ? "text-gradient" : undefined}>
+                      {word}
+                      {i < words.length - 1 ? " " : ""}
+                    </span>
+                  );
+                })}
               </h2>
               <p data-cta-item className="mt-4 max-w-md text-sm leading-relaxed text-white/70 sm:text-base">
                 {CTA_PANEL.sub}
@@ -103,7 +112,7 @@ export function CtaPanel() {
                   href={CTA_PANEL.primaryCta.href}
                   variant="primary"
                   size="lg"
-                  className="w-full sm:w-auto"
+                  className="mk-gradient-fill w-full transition-opacity hover:opacity-90 sm:w-auto"
                 >
                   {CTA_PANEL.primaryCta.label}
                 </CtaButton>
@@ -120,9 +129,13 @@ export function CtaPanel() {
               </p>
             </div>
 
+            <div
+              aria-hidden
+              className="mk-glow pointer-events-none absolute right-0 top-1/2 -z-10 h-[70%] w-[55%] -translate-y-1/2 rounded-full"
+            />
             <div className="px-8 pb-0 translate-y-6 md:translate-x-10 md:translate-y-8 md:self-end md:px-0 md:pb-0">
               <div data-cta-shot>
-                <ScreenshotFrame label={CTA_PANEL.screenshot} ratio="4/3" tone="light" />
+                <ScreenshotFrame label={CTA_PANEL.screenshot} ratio="4/3" tone="dark" />
               </div>
             </div>
           </div>

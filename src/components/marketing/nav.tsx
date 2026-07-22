@@ -135,7 +135,7 @@ export function MarketingNav() {
           "fixed inset-x-0 top-0 z-50 transition-colors duration-300",
           transparent
             ? "bg-transparent"
-            : "border-b border-white/10 bg-navy-900/85 backdrop-blur-md",
+            : "border-b border-white/10 bg-background/85 backdrop-blur-md",
         )}
       >
         <Container>
@@ -254,7 +254,7 @@ function ProductsDropdown({
   return (
     <div
       ref={rootRef}
-      className="absolute left-0 top-full mt-2 w-[26rem] rounded-2xl bg-navy-900/95 p-2 shadow-2xl ring-1 ring-white/10 backdrop-blur-xl"
+      className="absolute left-0 top-full mt-2 w-[26rem] rounded-2xl mk-panel-2 p-2 shadow-2xl backdrop-blur-xl"
     >
       {PRODUCTS_MENU.items.map((item) => {
         const Icon = PRODUCT_ICONS[item.title] ?? LayoutGrid;
@@ -424,7 +424,7 @@ function MobileOverlay({
           href="/sign-in"
           onClick={onClose}
           data-gs-item
-          className="flex h-12 items-center justify-center rounded-full bg-white/10 text-sm font-medium text-white ring-1 ring-inset ring-white/25"
+          className="flex h-12 items-center justify-center rounded-full bg-white/10 text-sm font-medium text-white ring-1 ring-inset ring-white/15"
         >
           Log in
         </Link>

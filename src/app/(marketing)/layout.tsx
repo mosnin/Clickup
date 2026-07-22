@@ -1,11 +1,12 @@
 import { MarketingNav } from "@/components/marketing/nav";
 import { MarketingFooter } from "@/components/marketing/footer";
 
-// Logged-out shell (marketing v2): white canvas, fixed nav that reads
-// correctly over both the hero's azure band and white sections, navy
-// footer. Sections own their full-bleed backgrounds; pages don't pad for
-// the fixed header — each page's hero accounts for it in its own top
-// spacing.
+// Logged-out shell (marketing v3): dark charcoal canvas with vibrant
+// gradient accents + gradient text (see .marketing-shell in globals.css),
+// fixed nav that reads over the hero and every band, charcoal footer.
+// Same layout as before — only the color scheme changed. Sections own their
+// full-bleed backgrounds; pages don't pad for the fixed header — each page's
+// hero accounts for it in its own top spacing.
 
 export default function MarketingLayout({
   children,
@@ -13,7 +14,7 @@ export default function MarketingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-dvh flex-col bg-background text-foreground antialiased">
+    <div className="marketing-shell flex min-h-dvh flex-col bg-background text-foreground antialiased">
       {/* Progressive enhancement: GSAP reveals start content hidden via
           [data-gs-hidden] (see globals.css). Without JavaScript that
           attribute is never removed — so force everything visible. */}

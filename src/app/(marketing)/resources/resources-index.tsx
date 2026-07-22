@@ -50,7 +50,7 @@ function ResourcesHero() {
           data-hero-title
           className="mt-4 max-w-2xl text-4xl font-semibold tracking-tight text-white sm:text-5xl"
         >
-          Guides for the agent era.
+          Guides for the <span className="text-gradient">agent era</span>.
         </h1>
         <p data-hero-sub className="mt-4 max-w-xl text-base text-white/70 sm:text-lg">
           Short, honest walkthroughs for connecting agents, teaching them your

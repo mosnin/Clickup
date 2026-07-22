@@ -60,13 +60,11 @@ export default function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
       />
-      {/* Continuous band behind hero + social proof: near-black navy with a
-          blue cast through the nav/headline zone, an azure glow that peaks
-          at ~55-66% down the band (the hero screenshot sits ~33-55% down,
-          so the glow crests right behind/under it before the social-proof
-          screenshot picks it back up), then settling back to deep navy
-          through social proof ahead of the white announce strip. */}
-      <div className="bg-[linear-gradient(180deg,var(--color-navy-950)_0%,var(--color-navy-900)_26%,var(--color-azure-600)_55%,var(--color-azure-500)_66%,var(--color-navy-900)_92%,var(--color-navy-950)_100%)]">
+      {/* Continuous band behind hero + social proof: the shared deep-charcoal
+          `.mk-band` gradient (charcoal fill + a soft azure glow crested near
+          the top), carrying the hero + social-proof screenshots through to
+          the announce strip. */}
+      <div className="mk-band">
         <Hero />
         <SocialProof />
       </div>

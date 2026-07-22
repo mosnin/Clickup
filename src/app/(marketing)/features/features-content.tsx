@@ -191,11 +191,11 @@ function FeatureRow({
 export function FeaturesContent() {
   return (
     <>
-      <div className="rounded-none bg-[linear-gradient(180deg,var(--color-navy-950)_0%,var(--color-navy-900)_100%)] pt-28 pb-16 text-center sm:pt-36">
+      <div className="rounded-none mk-band pt-28 pb-16 text-center sm:pt-36">
         <Container>
           <Eyebrow tone="dark">Features</Eyebrow>
           <h1 className="mx-auto mt-5 max-w-2xl text-balance text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-            Everything your hybrid team runs on.
+            Everything your <span className="text-gradient">hybrid team runs on.</span>
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-base text-white/70 sm:text-lg">
             One coordination layer for people and AI agents: tasks and
@@ -237,7 +237,7 @@ export function FeaturesContent() {
                       </ul>
 
                       {s.id === "mcp" && (
-                        <div className="mt-6 overflow-x-auto rounded-xl bg-navy-950 p-4 font-mono text-xs text-white/80">
+                        <div className="mt-6 overflow-x-auto rounded-xl mk-panel-2 p-4 font-mono text-xs text-white/80">
                           <div className="whitespace-nowrap">
                             https://operate.to/api/mcp
                           </div>
@@ -265,9 +265,14 @@ export function FeaturesContent() {
       <Container className="py-24 text-center">
         <GsapReveal>
           <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Put it to work.
+            Put it <span className="text-gradient">to work.</span>
           </h2>
-          <CtaButton href="/sign-up" variant="primary" size="lg" className="mt-8">
+          <CtaButton
+            href="/sign-up"
+            variant="primary"
+            size="lg"
+            className="mt-8 mk-gradient-fill"
+          >
             Start for free
             <ArrowRight className="ml-1.5 size-4" aria-hidden />
           </CtaButton>

@@ -58,7 +58,7 @@ function CompanyHero() {
     <section
       ref={ref}
       data-gs-hidden=""
-      className="gs-reveal bg-navy-900 pt-28 pb-14 sm:pt-36 sm:pb-16"
+      className="gs-reveal mk-band pt-28 pb-14 sm:pt-36 sm:pb-16"
     >
       <Container>
         <div className="mx-auto max-w-2xl text-center">
@@ -69,7 +69,8 @@ function CompanyHero() {
             data-hero-title
             className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-5xl"
           >
-            We think every team is about to be a hybrid team.
+            We think every team is about to be a{" "}
+            <span className="text-gradient">hybrid team.</span>
           </h1>
           <p data-hero-sub className="mt-4 text-base text-white/70 sm:text-lg">
             People and AI agents, working the same tasks under the same
@@ -103,7 +104,7 @@ export function CompanyContent() {
           <h2 className="sr-only">What we believe</h2>
           <GsapReveal stagger className="grid gap-6 md:grid-cols-3">
             {VALUES.map((v) => (
-              <div key={v.title} className="rounded-[20px] bg-muted p-6">
+              <div key={v.title} className="rounded-[20px] mk-panel p-6">
                 <h3 className="font-semibold text-foreground">{v.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {v.body}
@@ -112,7 +113,7 @@ export function CompanyContent() {
             ))}
           </GsapReveal>
 
-          <GsapReveal className="mt-6 flex flex-col items-start justify-between gap-4 rounded-[20px] bg-muted px-7 py-6 sm:flex-row sm:items-center">
+          <GsapReveal className="mt-6 flex flex-col items-start justify-between gap-4 rounded-[20px] mk-panel px-7 py-6 sm:flex-row sm:items-center">
             <div>
               <p className="font-semibold text-foreground">Talk to us</p>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -127,7 +128,7 @@ export function CompanyContent() {
                 and a person will answer.
               </p>
             </div>
-            <CtaButton href="/sign-up" variant="primary">
+            <CtaButton href="/sign-up" variant="primary" className="mk-gradient-fill">
               Start free
             </CtaButton>
           </GsapReveal>

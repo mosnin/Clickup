@@ -94,6 +94,7 @@ export function PricingSection() {
     <section className="bg-background py-24 sm:py-28">
       <Container>
         <SectionHeading
+          tone="dark"
           eyebrow={PRICING.eyebrow}
           title={PRICING.title}
           sub={PRICING.sub}
@@ -114,7 +115,7 @@ export function PricingSection() {
               className={cn(
                 "inline-flex min-h-11 items-center justify-center rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
                 billing === "monthly"
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "mk-panel-2 text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -128,13 +129,13 @@ export function PricingSection() {
               className={cn(
                 "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
                 billing === "annual"
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "mk-panel-2 text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
               Annual
               {teamAnnualNote && (
-                <span className="inline-flex items-center rounded-full bg-azure-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-azure-700">
+                <span className="mk-gradient-fill inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                   {teamAnnualNote}
                 </span>
               )}
@@ -155,7 +156,7 @@ export function PricingSection() {
                 className={cn(
                   "relative flex flex-col rounded-[20px] p-7",
                   tier.featured
-                    ? "bg-navy-900 text-white shadow-2xl ring-1 ring-navy-800 lg:-translate-y-2"
+                    ? "mk-panel-2 text-white shadow-2xl lg:-translate-y-2"
                     : "bg-background ring-1 ring-border",
                 )}
               >
@@ -224,7 +225,12 @@ export function PricingSection() {
                   <CtaButton
                     href={tier.href}
                     variant={tier.featured ? "primary" : "ghostLight"}
-                    className="w-full"
+                    className={cn(
+                      "w-full",
+                      tier.featured
+                        ? "mk-gradient-fill transition-opacity hover:opacity-90"
+                        : "mk-panel transition-[filter] hover:brightness-125",
+                    )}
                   >
                     {tier.cta}
                   </CtaButton>
@@ -254,7 +260,11 @@ export function PricingSection() {
               {PRICING.enterprise.body}
             </p>
           </div>
-          <CtaButton href={PRICING.enterprise.cta.href} variant="primary">
+          <CtaButton
+            href={PRICING.enterprise.cta.href}
+            variant="primary"
+            className="mk-gradient-fill transition-opacity hover:opacity-90"
+          >
             {PRICING.enterprise.cta.label}
           </CtaButton>
         </div>

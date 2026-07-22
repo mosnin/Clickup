@@ -12,7 +12,7 @@ export function OpsStack() {
     <section className="bg-background py-24 sm:py-28">
       <Container>
         <SectionHeading
-          tone="light"
+          tone="dark"
           eyebrow={OPS_STACK.eyebrow}
           title={OPS_STACK.title}
           sub={OPS_STACK.sub}

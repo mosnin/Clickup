@@ -56,7 +56,12 @@ export function MiniFeatures() {
       <Container>
         <div ref={headingRef} className="gs-reveal" data-gs-hidden="">
           <h2 className="max-w-md text-3xl font-semibold tracking-tight sm:text-4xl">
-            {DETAILS.title}
+            {DETAILS.title.split(" ").map((word, i, words) => (
+              <span key={i} className={i === 0 ? "text-gradient" : undefined}>
+                {word}
+                {i < words.length - 1 ? " " : ""}
+              </span>
+            ))}
           </h2>
         </div>
 
@@ -68,7 +73,7 @@ export function MiniFeatures() {
           {DETAILS.cards.map((card) => (
             <div
               key={card.title}
-              className="mb-5 break-inside-avoid rounded-[20px] bg-muted/70 p-6 text-center ring-1 ring-black/[0.04]"
+              className="mb-5 break-inside-avoid rounded-[20px] bg-muted/70 p-6 text-center ring-1 ring-white/[0.06]"
             >
               <h3 className="text-[15px] font-semibold tracking-tight text-foreground">
                 {card.title}

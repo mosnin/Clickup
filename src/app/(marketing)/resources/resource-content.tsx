@@ -55,7 +55,7 @@ function ResourceHero({ resource }: { resource: Resource }) {
           data-hero-title
           className="mt-4 max-w-2xl text-4xl font-semibold tracking-tight text-white sm:text-5xl"
         >
-          {resource.title}
+          <span className="text-gradient">{resource.title}</span>
         </h1>
         <p data-hero-sub className="mt-4 max-w-xl text-base text-white/70 sm:text-lg">
           {resource.sub}
@@ -135,8 +135,8 @@ function Guide({ resource }: { resource: Resource }) {
             </ul>
           )}
           {s.code && (
-            <div className="mt-5 overflow-hidden rounded-2xl bg-navy-950">
-              <p className="border-b border-white/10 px-4 py-2 text-[11px] font-medium uppercase tracking-widest text-white/40">
+            <div className="mt-5 overflow-hidden rounded-2xl mk-panel">
+              <p className="border-b border-border px-4 py-2 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
                 {s.code.label}
               </p>
               <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed text-azure-200">
