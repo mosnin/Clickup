@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -20,7 +20,6 @@ import {
   List as ListIcon,
   ListTodo,
   Lock,
-  Menu,
   Plus,
   Search,
   ShieldCheck,
@@ -47,7 +46,8 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
@@ -79,41 +79,36 @@ function initialOf(name: string): string {
 // ── Root ─────────────────────────────────────────────────────────────────
 //
 // Rebuilt on the vendored Square dashboard-5 sidebar primitives
-// (src/components/ui/sidebar.tsx). SidebarProvider is instantiated right
-// here — className="contents" so its wrapper div never claims a box of its
-// own — rather than in the dashboard layout, so this file stays a
-// self-contained drop-in. Offcanvas-on-mobile (Sheet) + icon-rail-on-desktop
-// collapse + cookie persistence all come from the primitive for free; the
-// old hand-rolled drawer/backdrop/rail/localStorage logic is gone.
+// (src/components/ui/sidebar.tsx). There is exactly ONE SidebarProvider for
+// the whole dashboard shell — it lives in src/app/dashboard/layout.tsx and
+// wraps both this sidebar and the SidebarInset. This component only renders
+// the <Sidebar> itself and consumes the outer provider's context; it must
+// never instantiate a second SidebarProvider (that would double the
+// open/openMobile state and the ⌘/Ctrl+B keydown listener). Offcanvas-on-
+// mobile (Sheet) + icon-rail-on-desktop collapse + cookie persistence all
+// come from the primitive for free; the old hand-rolled drawer/backdrop/
+// rail/localStorage logic is gone. The mobile "open navigation" affordance
+// lives inside PageHeader (src/components/dashboard/page-header.tsx) rather
+// than as a floating button here, so it never overlaps page content.
 
 export function DashboardSidebar() {
-  return (
-    <SidebarProvider className="contents">
-      <MobileSidebarTrigger />
-      <Sidebar collapsible="icon">
-        <SidebarHeaderSwitcher />
-        <SidebarContentBody />
-        <SidebarFooterBody />
-      </Sidebar>
-    </SidebarProvider>
-  );
-}
+  const pathname = usePathname();
+  const { setOpenMobile } = useSidebar();
 
-// A floating hamburger that opens the sheet on mobile — the vendored
-// Sidebar's own SidebarTrigger lives wherever a header mounts it, but this
-// sidebar has no header to share, so it keeps a small trigger of its own
-// (same spot the old hand-rolled one used).
-function MobileSidebarTrigger() {
-  const { toggleSidebar } = useSidebar();
+  // Close the mobile drawer on every navigation — covers every link in the
+  // tree (nav items, favorites, spaces/folders/lists, docs, whiteboards,
+  // admin) without wiring each one individually.
+  useEffect(() => {
+    setOpenMobile(false);
+  }, [pathname, setOpenMobile]);
+
   return (
-    <button
-      type="button"
-      aria-label="Open navigation"
-      onClick={toggleSidebar}
-      className="panel fixed left-3 top-3 z-40 inline-flex h-10 w-10 items-center justify-center rounded-full md:hidden"
-    >
-      <Menu className="h-5 w-5" />
-    </button>
+    <Sidebar collapsible="icon">
+      <SidebarHeaderSwitcher />
+      <SidebarContentBody />
+      <SidebarFooterBody />
+      <SidebarRail />
+    </Sidebar>
   );
 }
 
@@ -299,7 +294,7 @@ function NavMenuItem({
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild isActive={active} tooltip={label}>
-        <Link href={href}>
+        <Link href={href} aria-current={active ? "page" : undefined}>
           <Icon className={iconColor} />
           <span>{label}</span>
         </Link>
@@ -319,7 +314,7 @@ function InboxMenuItem() {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild isActive={active} tooltip="Inbox">
-        <Link href="/dashboard/inbox">
+        <Link href="/dashboard/inbox" aria-current={active ? "page" : undefined}>
           <Inbox className="text-cyan-500" />
           <span>Inbox</span>
         </Link>
@@ -351,7 +346,7 @@ function FavoritesGroup() {
             return (
               <SidebarMenuItem key={`${f.entityType}:${f.entityId}`}>
                 <SidebarMenuButton asChild isActive={active} tooltip={f.name}>
-                  <Link href={f.href}>
+                  <Link href={f.href} aria-current={active ? "page" : undefined}>
                     {f.color ? (
                       <span
                         aria-hidden
@@ -590,7 +585,7 @@ function SpaceTree({ space, linkHref }: { space: SpaceNode; linkHref: string }) 
           />
         </button>
         <SidebarMenuButton asChild isActive={active} tooltip={space.name} className="min-w-0 flex-1">
-          <Link href={linkHref}>
+          <Link href={linkHref} aria-current={active ? "page" : undefined}>
             <span
               aria-hidden
               className="inline-block size-2 flex-shrink-0 rounded-full"
@@ -719,7 +714,7 @@ function ListSubItem({ listId, name }: { listId: Id<"lists">; name: string }) {
   return (
     <SidebarMenuSubItem>
       <SidebarMenuSubButton asChild isActive={active}>
-        <Link href={`/dashboard/l/${listId}`}>
+        <Link href={`/dashboard/l/${listId}`} aria-current={active ? "page" : undefined}>
           <ListIcon aria-hidden />
           <span className="truncate">{name}</span>
         </Link>
@@ -734,7 +729,7 @@ function DocSubItem({ docId, title }: { docId: Id<"docs">; title: string }) {
   return (
     <SidebarMenuSubItem>
       <SidebarMenuSubButton asChild isActive={active}>
-        <Link href={`/dashboard/d/${docId}`}>
+        <Link href={`/dashboard/d/${docId}`} aria-current={active ? "page" : undefined}>
           <FileText aria-hidden />
           <span className="truncate">{title}</span>
         </Link>
@@ -755,7 +750,7 @@ function WhiteboardSubItem({
   return (
     <SidebarMenuSubItem>
       <SidebarMenuSubButton asChild isActive={active}>
-        <Link href={`/dashboard/wb/${whiteboardId}`}>
+        <Link href={`/dashboard/wb/${whiteboardId}`} aria-current={active ? "page" : undefined}>
           <LayoutGrid aria-hidden />
           <span className="truncate">{title}</span>
         </Link>
@@ -767,20 +762,32 @@ function WhiteboardSubItem({
 // ── Footer: timer + admin + theme + user ─────────────────────────────────
 
 function SidebarFooterBody() {
+  // Collapsed icon rail: fall back to ThemeToggle's own compact single-
+  // button variant instead of hiding the control outright (mobile always
+  // renders the full sheet, so it never reports "collapsed").
+  const { state, isMobile } = useSidebar();
+  const collapsed = !isMobile && state === "collapsed";
+
   return (
     <SidebarFooter>
       <div className="group-data-[collapsible=icon]:hidden">
         <RunningTimerChip />
       </div>
       <AdminMenuItem />
-      <div className="group-data-[collapsible=icon]:hidden">
-        <ThemeToggle />
+      <div className="px-1">
+        <ThemeToggle collapsed={collapsed} />
       </div>
-      <div className="flex items-center gap-3 px-1 group-data-[collapsible=icon]:justify-center">
+      <div className="flex items-center gap-2 px-1 group-data-[collapsible=icon]:justify-center">
         <UserButton afterSignOutUrl="/" />
-        <span className="text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+        <span className="flex-1 truncate text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
           Account
         </span>
+        {/* Desktop collapse affordance (M4) — mobile gets its own trigger
+            inside PageHeader, so this stays md+ only. */}
+        <SidebarTrigger
+          aria-label="Toggle sidebar"
+          className="hidden shrink-0 text-muted-foreground md:inline-flex group-data-[collapsible=icon]:hidden"
+        />
       </div>
     </SidebarFooter>
   );
@@ -796,7 +803,7 @@ function AdminMenuItem() {
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton asChild isActive={active} tooltip="Admin console">
-          <Link href="/dashboard/admin">
+          <Link href="/dashboard/admin" aria-current={active ? "page" : undefined}>
             <ShieldCheck className="text-muted-foreground" />
             <span className="flex-1 truncate">Admin console</span>
             <span className="rounded-full bg-sidebar-primary px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-sidebar-primary-foreground group-data-[collapsible=icon]:hidden">
