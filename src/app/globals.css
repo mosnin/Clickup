@@ -247,6 +247,98 @@ body {
   }
 }
 
+/* ── Marketing v3 — dark charcoal recolor ─────────────────────────────────
+   The logged-out site flips from white-canvas / azure-over-navy to a deep
+   charcoal canvas with vibrant gradient accents and gradient text. Scoped
+   to `.marketing-shell` (set on the marketing layout root) so the dashboard
+   keeps its own theming untouched. This is a COLOR change only — same
+   layout, same structure. Redefining the shared tokens here flips every
+   token-based surface (bg-background/text-foreground/border-border) and the
+   navy band tokens become deep-charcoal, so the layout's rhythm survives. */
+.marketing-shell {
+  --color-background: #0a0a0d;
+  --color-foreground: #f4f4f7;
+  --color-border: #24242c;
+  --color-muted: #131318;
+  --color-muted-foreground: #a2a2ad;
+
+  /* Former navy bands → deep charcoal (kept as tokens so bg-navy-* flips). */
+  --color-navy-800: #16161c;
+  --color-navy-900: #0f0f14;
+  --color-navy-950: #08080b;
+
+  /* Vibrant accent trio for gradients that pop on charcoal. Azure stays the
+     lead; violet + cyan are the companions. Lighten azure text for contrast
+     on the dark canvas. */
+  --color-azure-300: #9cc4ff;
+  --color-azure-400: #7aa8ff;
+  --color-azure-600: #6aa8ff;
+  --color-azure-700: #8ec0ff;
+  --mk-panel: #131318;
+  --mk-panel-2: #1a1a21;
+
+  /* Ambient charcoal base with faint azure/violet glow so it never reads
+     flat. Section backgrounds paint over it; transparent sections let it
+     show through. */
+  background:
+    radial-gradient(75rem 38rem at 50% -8%, rgb(106 168 255 / 0.1), transparent 60%),
+    radial-gradient(55rem 40rem at 88% 8%, rgb(167 139 250 / 0.08), transparent 55%),
+    var(--color-background);
+}
+
+/* Gradient text that pops on charcoal. Apply to a heading span; it clips the
+   gradient to the glyphs. */
+.text-gradient {
+  background-image: linear-gradient(100deg, #8ec5ff 0%, #a78bfa 48%, #5ce1e6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.text-gradient-soft {
+  background-image: linear-gradient(100deg, #f4f4f7 0%, #c9d6ff 55%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Lifted charcoal panel — the dark-mode replacement for the old white card
+   (fill + hairline). Pair with a rounded-* utility. */
+.mk-panel {
+  background: var(--mk-panel);
+  border: 1px solid var(--color-border);
+}
+.mk-panel-2 {
+  background: var(--mk-panel-2);
+  border: 1px solid var(--color-border);
+}
+
+/* Subtle gradient band for full-bleed sections that used to be navy — keeps
+   section rhythm via a charcoal gradient plus a top edge glow. */
+.mk-band {
+  background:
+    radial-gradient(60rem 28rem at 50% 0%, rgb(106 168 255 / 0.08), transparent 60%),
+    linear-gradient(180deg, #0f0f14, #08080b);
+}
+
+/* Vibrant gradient fill for primary CTAs and accent chips. */
+.mk-gradient-fill {
+  background-image: linear-gradient(100deg, #2563eb 0%, #7c3aed 55%, #06b6d4 100%);
+  color: #ffffff;
+}
+
+/* A soft radial glow blob for behind hero art / feature mocks. */
+.mk-glow {
+  background: radial-gradient(
+    closest-side,
+    rgb(106 168 255 / 0.35),
+    rgb(167 139 250 / 0.18) 55%,
+    transparent 100%
+  );
+  filter: blur(20px);
+}
+
 /* GSAP reveal targets start hidden before hydration so scroll-reveals
    never flash. The motion kit (components/marketing/gsap.tsx) removes
    the attribute on mount — animated or not. */
