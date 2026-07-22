@@ -8,6 +8,17 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/toast";
+
+// Same shape as the helper in space-view.tsx: Convex wraps thrown
+// ConvexError/Error messages in "Uncaught Error: …"; strip that noise so
+// the toast shows the server's actual reason.
+function errorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
+  );
+}
 
 // Lightweight modal — no Radix dependency. Backdrop click + Esc close.
 type ParentSpec =
@@ -47,6 +58,7 @@ export function TemplatePicker({
 }) {
   const templates = useQuery(api.templates.list, open ? {} : "skip");
   const apply = useMutation(api.templates.applyListTemplate);
+  const { toast } = useToast();
 
   const [selected, setSelected] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -173,6 +185,10 @@ export function TemplatePicker({
                   parentId: parent.kind === "space" ? parent.spaceId : parent.folderId,
                 });
                 onCreated(listId);
+              } catch (e) {
+                toast(errorMessage(e, "Couldn't create list from template"), {
+                  kind: "error",
+                });
               } finally {
                 setPending(false);
               }

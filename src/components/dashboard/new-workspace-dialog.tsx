@@ -5,8 +5,20 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
+import { useToast } from "@/components/toast";
+
+// Same shape as the helper in space-view.tsx: Convex wraps thrown
+// ConvexError/Error messages in "Uncaught Error: …"; strip that noise so
+// the toast shows the server's actual reason.
+function errorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
+  );
+}
 
 // Creating a second workspace is one field, not a ceremony. (First-run
 // onboarding stays reserved for first-run.) Portaled to <body> because
@@ -22,6 +34,7 @@ export function NewWorkspaceDialog({
   const create = useMutation(api.workspaces.create);
   const createSpace = useMutation(api.spaces.create);
   const router = useRouter();
+  const { toast } = useToast();
   const [name, setName] = useState("");
   const [pending, setPending] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -42,13 +55,33 @@ export function NewWorkspaceDialog({
     if (!n || pending) return;
     setPending(true);
     try {
-      const workspaceId = await create({ name: n });
-      // A workspace needs one space to be usable; seed "HQ" quietly.
-      await createSpace({
-        name: "HQ",
-        parentType: "workspace",
-        parentId: workspaceId,
-      });
+      let workspaceId: Id<"workspaces">;
+      try {
+        workspaceId = await create({ name: n });
+      } catch (err) {
+        toast(errorMessage(err, "Couldn't create workspace"), {
+          kind: "error",
+        });
+        return;
+      }
+      // A workspace needs one space to be usable; seed "HQ" quietly. If
+      // this step fails, keep the partial workspace (no rollback) but tell
+      // the user, so they aren't left with an unexplained empty workspace.
+      try {
+        await createSpace({
+          name: "HQ",
+          parentType: "workspace",
+          parentId: workspaceId,
+        });
+      } catch (err) {
+        toast(
+          errorMessage(
+            err,
+            "Workspace created, but its first space couldn't be set up",
+          ),
+          { kind: "error" },
+        );
+      }
       setName("");
       onClose();
       router.push(`/dashboard/w/${workspaceId}`);
