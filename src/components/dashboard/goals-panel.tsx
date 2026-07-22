@@ -6,6 +6,9 @@ import { Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +28,12 @@ const STATUS_LABEL: Record<GoalStatus, string> = {
   abandoned: "Abandoned",
 };
 
+// Shared native-<select> chrome — matches the shell's Input/Button grammar
+// since there's no vendored Select in play here (options are enums, not
+// people/agents/tasks/sprints, so Picker doesn't apply per the house style).
+const SELECT_CLASS =
+  "h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
+
 export function GoalsPanel({
   parentType,
   parentId,
@@ -39,10 +48,7 @@ export function GoalsPanel({
     return (
       <div className="space-y-3">
         {[0, 1].map((i) => (
-          <div
-            key={i}
-            className="h-20 animate-pulse rounded-2xl bg-muted/40"
-          />
+          <Card key={i} className="h-20 animate-pulse bg-muted/40" />
         ))}
       </div>
     );
@@ -103,79 +109,80 @@ function CreateGoalForm({
   const [pending, setPending] = useState(false);
 
   return (
-    <form
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (!title.trim() || pending) return;
-        setPending(true);
-        try {
-          await create({
-            parentType,
-            parentId,
-            title: title.trim(),
-            targetType,
-            targetValue:
-              targetType === "boolean" ? 1 : Number(targetValue) || 0,
-            unit: unit.trim() || undefined,
-          });
-          onDone();
-        } finally {
-          setPending(false);
-        }
-      }}
-      className="space-y-2 rounded-2xl bento p-3"
-    >
-      <input
-        type="text"
-        placeholder="Goal title"
-        value={title}
-        onChange={(e) => setTitle(e.currentTarget.value)}
-        className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-      />
-      <div className="flex flex-wrap gap-2">
-        <select
-          value={targetType}
-          onChange={(e) => setTargetType(e.currentTarget.value as TargetType)}
-          className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
-        >
-          {(Object.keys(TARGET_LABEL) as TargetType[]).map((t) => (
-            <option key={t} value={t}>
-              {TARGET_LABEL[t]}
-            </option>
-          ))}
-        </select>
-        {targetType !== "boolean" && (
-          <>
-            <input
-              type="number"
-              inputMode="decimal"
-              value={targetValue}
-              onChange={(e) => setTargetValue(e.currentTarget.value)}
-              className="w-28 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-              placeholder="Target"
-            />
-            <input
-              type="text"
-              value={unit}
-              onChange={(e) => setUnit(e.currentTarget.value)}
-              placeholder={targetType === "money" ? "USD" : "tasks"}
-              className="w-28 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-            />
-          </>
-        )}
-        <Button
-          type="submit"
-          size="sm"
-          className="ml-auto"
-          disabled={!title.trim() || pending}
-        >
-          {pending ? "Saving…" : "Save"}
-        </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={onDone}>
-          Cancel
-        </Button>
-      </div>
-    </form>
+    <Card className="p-4">
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!title.trim() || pending) return;
+          setPending(true);
+          try {
+            await create({
+              parentType,
+              parentId,
+              title: title.trim(),
+              targetType,
+              targetValue:
+                targetType === "boolean" ? 1 : Number(targetValue) || 0,
+              unit: unit.trim() || undefined,
+            });
+            onDone();
+          } finally {
+            setPending(false);
+          }
+        }}
+        className="space-y-2"
+      >
+        <Input
+          type="text"
+          placeholder="Goal title"
+          value={title}
+          onChange={(e) => setTitle(e.currentTarget.value)}
+        />
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={targetType}
+            onChange={(e) => setTargetType(e.currentTarget.value as TargetType)}
+            className={SELECT_CLASS}
+          >
+            {(Object.keys(TARGET_LABEL) as TargetType[]).map((t) => (
+              <option key={t} value={t}>
+                {TARGET_LABEL[t]}
+              </option>
+            ))}
+          </select>
+          {targetType !== "boolean" && (
+            <>
+              <Input
+                type="number"
+                inputMode="decimal"
+                value={targetValue}
+                onChange={(e) => setTargetValue(e.currentTarget.value)}
+                className="w-28"
+                placeholder="Target"
+              />
+              <Input
+                type="text"
+                value={unit}
+                onChange={(e) => setUnit(e.currentTarget.value)}
+                placeholder={targetType === "money" ? "USD" : "tasks"}
+                className="w-28"
+              />
+            </>
+          )}
+          <Button
+            type="submit"
+            size="sm"
+            className="ml-auto"
+            disabled={!title.trim() || pending}
+          >
+            {pending ? "Saving…" : "Save"}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" onClick={onDone}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </Card>
   );
 }
 
@@ -193,9 +200,9 @@ function GoalRow({ goal }: { goal: Doc<"goals"> }) {
       : 0;
 
   return (
-    <div
+    <Card
       className={cn(
-        "rounded-2xl bento p-3",
+        "p-4",
         goal.status === "complete" && "border-green-500/40",
         goal.status === "abandoned" && "opacity-60",
       )}
@@ -217,7 +224,7 @@ function GoalRow({ goal }: { goal: Doc<"goals"> }) {
                 status: e.currentTarget.value as GoalStatus,
               })
             }
-            className="rounded-full border border-border bg-background px-2 py-0.5 text-xs"
+            className={cn(SELECT_CLASS, "h-7 px-2 py-0.5 text-xs")}
           >
             {(Object.keys(STATUS_LABEL) as GoalStatus[]).map((s) => (
               <option key={s} value={s}>
@@ -261,7 +268,7 @@ function GoalRow({ goal }: { goal: Doc<"goals"> }) {
           <ProgressEditor goal={goal} progress={progress} />
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -291,14 +298,9 @@ function ProgressEditor({
         </span>
         <span>{Math.round(progress * 100)}%</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full bg-brand-600 transition-all"
-          style={{ width: `${progress * 100}%` }}
-        />
-      </div>
+      <Progress value={progress * 100} className="h-2" />
       <div className="flex items-center gap-2">
-        <input
+        <Input
           type="number"
           inputMode="decimal"
           value={draft}
@@ -313,7 +315,7 @@ function ProgressEditor({
               setProgress({ goalId: goal._id, currentValue: n });
             }
           }}
-          className="w-28 rounded-full border border-border bg-background px-3 py-1 text-xs"
+          className="w-28"
         />
         <span className="text-xs text-muted-foreground">
           Update progress

@@ -7,8 +7,31 @@ import { Download, Trash2, Upload, UserPlus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Monogram } from "@/components/dashboard/monogram";
 import { useToast } from "@/components/toast";
 import { ImportDialog } from "@/components/dashboard/import-dialog";
+
+// Native-<select> chrome for the invite-role picker — matches Input/Button
+// grammar; Picker is reserved for people/agents/tasks/sprints per house
+// style, and "admin | member" is a plain enum.
+const SELECT_CLASS =
+  "h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 export function WorkspaceSettings({
   workspaceId,
@@ -20,7 +43,7 @@ export function WorkspaceSettings({
   });
 
   if (integrations === undefined) {
-    return <div className="h-32 animate-pulse rounded-2xl bg-muted/40" />;
+    return <Card className="h-32 animate-pulse bg-muted/40" />;
   }
 
   const slack = integrations.find((i) => i.kind === "slack") ?? null;
@@ -48,6 +71,16 @@ export function WorkspaceSettings({
 
       <ExportSection workspaceId={workspaceId} />
     </div>
+  );
+}
+
+// Discrete-card wrapper for a data table — same grammar as the admin
+// console's TableCard: card surface, full-bleed table inside.
+function TableCard({ children }: { children: React.ReactNode }) {
+  return (
+    <Card className="gap-0 overflow-hidden py-0">
+      <CardContent className="px-0 py-0">{children}</CardContent>
+    </Card>
   );
 }
 
@@ -80,38 +113,54 @@ function MembersSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
 
       {canManage && <InviteForm workspaceId={workspaceId} />}
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-4">
         {members === undefined ? (
-          <div className="h-12 animate-pulse rounded-2xl bg-muted/40" />
+          <Card className="h-12 animate-pulse bg-muted/40" />
         ) : (
-          members.map((m) => (
-            <div
-              key={m._id}
-              className="flex items-center gap-3 rounded-2xl bento px-4 py-2.5"
-            >
-              <span className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-medium text-white">
-                {(m.name || m.email || "?").slice(0, 1).toUpperCase()}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  {m.name || m.email}
-                  {m.clerkId === user?.id && (
-                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                      (you)
-                    </span>
-                  )}
-                </p>
-                {m.name && (
-                  <p className="truncate text-xs text-muted-foreground">
-                    {m.email}
-                  </p>
-                )}
-              </div>
-              <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                {m.role}
-              </span>
-            </div>
-          ))
+          <TableCard>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Member</TableHead>
+                  <TableHead className="text-right">Role</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {members.map((m) => (
+                  <TableRow key={m._id}>
+                    <TableCell className="whitespace-normal">
+                      <div className="flex items-center gap-3">
+                        <Monogram name={m.name || m.email} size="md" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {m.name || m.email}
+                            {m.clerkId === user?.id && (
+                              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                                (you)
+                              </span>
+                            )}
+                          </p>
+                          {m.name && (
+                            <p className="truncate text-xs text-muted-foreground">
+                              {m.email}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge
+                        variant="outline"
+                        className="uppercase tracking-wider text-muted-foreground"
+                      >
+                        {m.role}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableCard>
         )}
       </div>
 
@@ -120,10 +169,28 @@ function MembersSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Pending invites
           </h3>
-          <div className="mt-2 space-y-2">
-            {invites.map((inv) => (
-              <PendingInviteRow key={inv._id} inviteId={inv._id} email={inv.email} role={inv.role} />
-            ))}
+          <div className="mt-2">
+            <TableCard>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {invites.map((inv) => (
+                    <PendingInviteRow
+                      key={inv._id}
+                      inviteId={inv._id}
+                      email={inv.email}
+                      role={inv.role}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </TableCard>
           </div>
         </div>
       )}
@@ -160,18 +227,18 @@ function InviteForm({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
 
   return (
     <form onSubmit={onSubmit} className="mt-4 flex flex-wrap items-center gap-2">
-      <input
+      <Input
         type="email"
         required
         value={email}
         onChange={(e) => setEmail(e.currentTarget.value)}
         placeholder="teammate@company.com"
-        className="soft-field min-w-0 flex-1 px-3 py-2 text-sm"
+        className="min-w-0 flex-1"
       />
       <select
         value={role}
         onChange={(e) => setRole(e.currentTarget.value as "admin" | "member")}
-        className="soft-field px-3 py-2 text-sm"
+        className={SELECT_CLASS}
         aria-label="Invite role"
       >
         <option value="member">Member</option>
@@ -200,26 +267,28 @@ function PendingInviteRow({
   if (revoked) return null;
 
   return (
-    <div className="flex items-center gap-3 rounded-2xl bento px-4 py-2.5">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm">{email}</p>
-        <p className="text-xs text-muted-foreground">Invited as {role} · pending</p>
-      </div>
-      <button
-        type="button"
-        aria-label={`Revoke invite for ${email}`}
-        onClick={() => {
-          setRevoked(true);
-          toast("Invite revoked", {
-            action: { label: "Undo", onClick: () => setRevoked(false) },
-            onExpire: () => revoke({ inviteId }),
-          });
-        }}
-        className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-      >
-        <Trash2 className="h-4 w-4" />
-      </button>
-    </div>
+    <TableRow>
+      <TableCell className="whitespace-normal text-sm">{email}</TableCell>
+      <TableCell className="capitalize text-muted-foreground">
+        {role}
+      </TableCell>
+      <TableCell className="text-right">
+        <button
+          type="button"
+          aria-label={`Revoke invite for ${email}`}
+          onClick={() => {
+            setRevoked(true);
+            toast("Invite revoked", {
+              action: { label: "Undo", onClick: () => setRevoked(false) },
+              onExpire: () => revoke({ inviteId }),
+            });
+          }}
+          className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -234,7 +303,7 @@ function ImportSection() {
       <p className="mt-1 text-sm text-muted-foreground">
         Bring work in from ClickUp or any CSV export.
       </p>
-      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bento p-4">
+      <Card className="mt-4 flex-row items-center justify-between gap-3 p-4">
         <div>
           <p className="text-sm font-medium">Import tasks from CSV</p>
           <p className="text-xs text-muted-foreground">
@@ -244,7 +313,7 @@ function ImportSection() {
         <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
           <Upload className="h-3.5 w-3.5" /> Import CSV
         </Button>
-      </div>
+      </Card>
       <ImportDialog open={open} onClose={() => setOpen(false)} />
     </section>
   );
@@ -294,7 +363,7 @@ function ExportSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
         configuration as a JSON document. Secrets and API keys are never
         included.
       </p>
-      <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bento p-4">
+      <Card className="mt-4 flex-row items-center justify-between gap-3 p-4">
         <div>
           <p className="text-sm font-medium">Export workspace data</p>
           <p className="text-xs text-muted-foreground">
@@ -305,7 +374,7 @@ function ExportSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
           <Download className="h-3.5 w-3.5" />
           {pending ? "Preparing…" : "Export JSON"}
         </Button>
-      </div>
+      </Card>
     </section>
   );
 }
@@ -330,11 +399,11 @@ function SlackIntegration({
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="rounded-2xl bento p-4">
+    <Card className="p-5">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold">Slack</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <CardTitle className="text-sm font-semibold">Slack</CardTitle>
+          <CardDescription className="mt-1 text-xs">
             When a task is assigned, post a message to a Slack channel via
             an{" "}
             <a
@@ -346,7 +415,7 @@ function SlackIntegration({
               incoming webhook
             </a>
             .
-          </p>
+          </CardDescription>
         </div>
         {integration && !disconnecting && (
           <button
@@ -389,7 +458,7 @@ function SlackIntegration({
         }}
         className="mt-3 space-y-2"
       >
-        <input
+        <Input
           type="url"
           value={draftUrl}
           onChange={(e) => setDraftUrl(e.currentTarget.value)}
@@ -398,7 +467,7 @@ function SlackIntegration({
               ? "Connected. Paste a new URL to replace it."
               : "https://hooks.slack.com/services/T0…"
           }
-          className="soft-field w-full px-3 py-1.5 font-mono text-sm"
+          className="font-mono"
         />
         {error && <p className="text-xs text-red-700">{error}</p>}
         <div className="flex flex-wrap items-center gap-2">
@@ -430,6 +499,6 @@ function SlackIntegration({
           )}
         </div>
       </form>
-    </div>
+    </Card>
   );
 }

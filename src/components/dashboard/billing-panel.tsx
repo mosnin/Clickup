@@ -4,6 +4,16 @@ import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Picker } from "@/components/ui/picker";
+import { Card, CardContent, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { AnimatedNumber } from "@/components/motion";
@@ -11,7 +21,7 @@ import { AnimatedNumber } from "@/components/motion";
 // x402 billing for agents. A prepaid credit wallet per scope (personal space
 // or a workspace); agents top it up by paying via x402 and metered actions
 // consume credits. Deliberately icon-free per the brief — pure typography on
-// the bento surface.
+// the shell's card/table grammar.
 
 type Scope = { type: "user" | "workspace"; id: string; label: string };
 
@@ -31,6 +41,16 @@ function formatAtomic(atomic: string, decimals: number, symbol: string): string 
 function truncMiddle(s: string, keep = 6): string {
   if (s.length <= keep * 2 + 1) return s;
   return `${s.slice(0, keep)}…${s.slice(-4)}`;
+}
+
+// Discrete-card wrapper for a data table — same grammar as the admin
+// console's TableCard: card surface, full-bleed table inside.
+function TableCard({ children }: { children: React.ReactNode }) {
+  return (
+    <Card className="gap-0 overflow-hidden py-0">
+      <CardContent className="px-0 py-0">{children}</CardContent>
+    </Card>
+  );
 }
 
 export function BillingTab() {
@@ -58,8 +78,8 @@ export function BillingTab() {
     return (
       <div className="space-y-4">
         <div className="h-9 w-40 animate-pulse rounded-full bg-muted" />
-        <div className="h-40 animate-pulse rounded-2xl bg-muted/40" />
-        <div className="h-48 animate-pulse rounded-2xl bg-muted/40" />
+        <Card className="h-40 animate-pulse bg-muted/40" />
+        <Card className="h-48 animate-pulse bg-muted/40" />
       </div>
     );
   }
@@ -100,10 +120,7 @@ function ScopeBilling({ scope }: { scope: Scope }) {
     return (
       <div className="grid gap-4 lg:grid-cols-3">
         {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className="h-40 animate-pulse rounded-2xl bg-muted/40"
-          />
+          <Card key={i} className="h-40 animate-pulse bg-muted/40" />
         ))}
       </div>
     );
@@ -116,10 +133,10 @@ function ScopeBilling({ scope }: { scope: Scope }) {
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Balance */}
-        <div className="rounded-2xl bento p-6">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <Card className="gap-2 p-6">
+          <CardDescription className="text-[11px] font-medium uppercase tracking-wider">
             Credit balance
-          </p>
+          </CardDescription>
           <p className="mt-2 text-5xl font-bold tracking-tight tabular-nums">
             <AnimatedNumber value={wallet.balance} />
           </p>
@@ -127,9 +144,9 @@ function ScopeBilling({ scope }: { scope: Scope }) {
             {wallet.lifetimeCredits.toLocaleString()} purchased ·{" "}
             {wallet.lifetimeSpent.toLocaleString()} spent
           </p>
-          <span
+          <Badge
             className={cn(
-              "mt-4 inline-block rounded-full px-2.5 py-1 text-[11px] font-medium",
+              "mt-4 w-fit border-transparent",
               metering.enabled
                 ? "bg-pastel-green text-foreground"
                 : "bg-muted text-muted-foreground",
@@ -138,14 +155,14 @@ function ScopeBilling({ scope }: { scope: Scope }) {
             {metering.enabled
               ? `Metering on · ${metering.actionCredits} credit${metering.actionCredits === 1 ? "" : "s"}/action`
               : "Metering off · actions are free"}
-          </span>
-        </div>
+          </Badge>
+        </Card>
 
         {/* Pricing */}
-        <div className="rounded-2xl bento p-6 lg:col-span-2">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <Card className="gap-2 p-6 lg:col-span-2">
+          <CardDescription className="text-[11px] font-medium uppercase tracking-wider">
             Pricing
-          </p>
+          </CardDescription>
           <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
             <Row label="Network" value={pricing.network} />
             <Row label="Asset" value={pricing.assetSymbol} />
@@ -164,14 +181,14 @@ function ScopeBilling({ scope }: { scope: Scope }) {
             <Row label="Facilitator" value={pricing.facilitator} />
             <Row label="Pay to" value={truncMiddle(pricing.payTo)} mono />
           </dl>
-        </div>
+        </Card>
       </div>
 
       {/* How agents pay */}
-      <div className="rounded-2xl bento p-6">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <Card className="gap-2 p-6">
+        <CardDescription className="text-[11px] font-medium uppercase tracking-wider">
           How agents top up
-        </p>
+        </CardDescription>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
           Your agents can pay for their own usage, with no card and no human
           in the loop. When an agent runs low, it buys more credits by itself
@@ -208,7 +225,7 @@ function ScopeBilling({ scope }: { scope: Scope }) {
             </li>
           ))}
         </ol>
-      </div>
+      </Card>
 
       {/* Ledger */}
       <div>
@@ -216,73 +233,74 @@ function ScopeBilling({ scope }: { scope: Scope }) {
           Payments
         </h3>
         {wallet.payments.length === 0 ? (
-          <div className="mt-3 rounded-2xl bento p-8 text-center text-sm text-muted-foreground">
-            No payments yet. When an agent tops up its wallet, each payment
-            shows here.
-          </div>
+          <Card className="mt-3 items-center py-8 text-center">
+            <CardContent className="text-sm text-muted-foreground">
+              No payments yet. When an agent tops up its wallet, each payment
+              shows here.
+            </CardContent>
+          </Card>
         ) : (
-          <div className="mt-3 overflow-x-auto rounded-2xl bento">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
-                <tr>
-                  <th scope="col" className="px-4 py-2.5">Credits</th>
-                  <th scope="col" className="px-4 py-2.5">Amount</th>
-                  <th scope="col" className="px-4 py-2.5">Status</th>
-                  <th scope="col" className="hidden px-4 py-2.5 sm:table-cell">
-                    Reference
-                  </th>
-                  <th scope="col" className="px-4 py-2.5 text-right">When</th>
-                </tr>
-              </thead>
-              <tbody>
-                {wallet.payments.map((p) => (
-                  <tr
-                    key={p._id}
-                    className="border-b border-border last:border-0"
-                  >
-                    <td className="px-4 py-2.5 font-medium tabular-nums">
-                      {p.status === "settled"
-                        ? `+${p.creditsGranted.toLocaleString()}`
-                        : "-"}
-                    </td>
-                    <td className="px-4 py-2.5 tabular-nums text-muted-foreground">
-                      {p.status === "settled"
-                        ? formatAtomic(
-                            p.amountAtomic,
-                            pricing.assetDecimals,
-                            p.asset === pricing.asset
-                              ? pricing.assetSymbol
-                              : p.asset,
-                          )
-                        : "-"}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <span
-                        className={cn(
-                          "rounded-full px-2 py-0.5 text-[11px] font-medium",
-                          p.status === "settled"
-                            ? "bg-pastel-green text-foreground"
-                            : "bg-pastel-red text-foreground",
+          <div className="mt-3">
+            <TableCard>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Credits</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="hidden sm:table-cell">
+                      Reference
+                    </TableHead>
+                    <TableHead className="text-right">When</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {wallet.payments.map((p) => (
+                    <TableRow key={p._id}>
+                      <TableCell className="font-medium tabular-nums">
+                        {p.status === "settled"
+                          ? `+${p.creditsGranted.toLocaleString()}`
+                          : "-"}
+                      </TableCell>
+                      <TableCell className="tabular-nums text-muted-foreground">
+                        {p.status === "settled"
+                          ? formatAtomic(
+                              p.amountAtomic,
+                              pricing.assetDecimals,
+                              p.asset === pricing.asset
+                                ? pricing.assetSymbol
+                                : p.asset,
+                            )
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={cn(
+                            "border-transparent",
+                            p.status === "settled"
+                              ? "bg-pastel-green text-foreground"
+                              : "bg-pastel-red text-foreground",
+                          )}
+                        >
+                          {p.status}
+                        </Badge>
+                        {p.reason && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            {p.reason}
+                          </span>
                         )}
-                      >
-                        {p.status}
-                      </span>
-                      {p.reason && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          {p.reason}
-                        </span>
-                      )}
-                    </td>
-                    <td className="hidden px-4 py-2.5 font-mono text-xs text-muted-foreground sm:table-cell">
-                      {p.txReference ? truncMiddle(p.txReference, 8) : "-"}
-                    </td>
-                    <td className="px-4 py-2.5 text-right text-xs text-muted-foreground">
-                      {timeAgo(p.createdAt)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </TableCell>
+                      <TableCell className="hidden font-mono text-xs text-muted-foreground sm:table-cell">
+                        {p.txReference ? truncMiddle(p.txReference, 8) : "-"}
+                      </TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">
+                        {timeAgo(p.createdAt)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableCard>
           </div>
         )}
       </div>
