@@ -122,7 +122,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               <span className="min-w-0 flex-1 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
                 {t.message}
               </span>
-              {t.action && (
+              {t.action ? (
+                // Undoable deferred action: the only controls are Undo (cancel
+                // the commit) or letting it auto-expire (commit). No separate X
+                // — a reflexive dismiss must never silently confirm a delete.
                 <button
                   type="button"
                   onClick={() => {
@@ -133,15 +136,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 >
                   {t.action.label}
                 </button>
+              ) : (
+                <button
+                  type="button"
+                  aria-label="Dismiss"
+                  onClick={() => finish(t.id, true)}
+                  className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               )}
-              <button
-                type="button"
-                aria-label="Dismiss"
-                onClick={() => finish(t.id, true)}
-                className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
             </motion.div>
           ))}
         </AnimatePresence>
