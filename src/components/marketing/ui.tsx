@@ -66,7 +66,7 @@ export function Eyebrow({
       className={cn(
         "inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-widest",
         tone === "light"
-          ? "bg-azure-100 text-azure-700"
+          ? "bg-azure-500/15 text-azure-300 ring-1 ring-inset ring-azure-400/25"
           : "bg-white/10 text-white/80",
         className,
       )}
@@ -98,7 +98,7 @@ export function SectionHeading({
           tone === "dark" ? "text-white" : "text-foreground",
         )}
       >
-        {title}
+        <span className="text-gradient">{title}</span>
       </h2>
       {sub && (
         <p
@@ -117,23 +117,22 @@ export function SectionHeading({
 type CtaVariant = "primary" | "onDark" | "ghostDark" | "ghostLight";
 
 const CTA_STYLES: Record<CtaVariant, string> = {
-  // Solid azure pill — appears on both white sections and the dark
-  // navy/azure bands (nav bar, hero, CTA panel, featured pricing card), so
-  // its focus ring can't assume a single background. A tight azure ring
-  // reads clearly against light surfaces; an offset white outline reads
-  // clearly against dark ones — together at least one ring always clears
-  // WCAG 1.4.11's 3:1 non-text contrast minimum, wherever the button lands.
+  // Vibrant gradient pill — appears everywhere on the charcoal canvas (nav
+  // bar, hero, CTA panel, featured pricing card), so its focus ring can't
+  // assume a single background. A white outline plus an azure ring together
+  // clear WCAG 1.4.11's 3:1 non-text contrast minimum on charcoal.
   primary:
-    "bg-azure-500 text-white hover:bg-azure-600 focus-visible:outline-white focus-visible:ring-2 focus-visible:ring-azure-700",
-  // White pill on the blue band (the hero's primary).
+    "mk-gradient-fill hover:brightness-110 focus-visible:outline-white focus-visible:ring-2 focus-visible:ring-azure-400/60",
+  // Same gradient treatment — historically the "light pill on the blue
+  // band" variant; on charcoal it reads identically to primary.
   onDark:
-    "bg-white text-navy-900 hover:bg-azure-100 focus-visible:outline-white",
-  // Translucent pill on the blue band (the hero's secondary).
+    "mk-gradient-fill hover:brightness-110 focus-visible:outline-white focus-visible:ring-2 focus-visible:ring-azure-400/60",
+  // Charcoal secondary pill (hero's secondary CTA).
   ghostDark:
-    "bg-white/10 text-white ring-1 ring-inset ring-white/25 hover:bg-white/20 focus-visible:outline-white",
-  // Quiet pill on white sections.
+    "mk-panel text-foreground hover:bg-white/5 focus-visible:outline-white",
+  // Charcoal secondary pill on regular sections.
   ghostLight:
-    "bg-black/[0.04] text-foreground hover:bg-black/[0.08] focus-visible:outline-azure-500",
+    "mk-panel text-foreground hover:bg-white/5 focus-visible:outline-azure-400",
 };
 
 export function CtaButton({
@@ -184,10 +183,7 @@ export function ScreenshotFrame({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[20px] p-1.5 shadow-2xl",
-        tone === "dark"
-          ? "bg-white/10 ring-1 ring-white/15"
-          : "bg-black/[0.04] ring-1 ring-black/[0.06]",
+        "relative overflow-hidden rounded-[20px] p-1.5 shadow-2xl mk-panel-2",
         className,
       )}
     >
@@ -218,7 +214,7 @@ export function IconDock({
   return (
     <div
       className={cn(
-        "inline-flex items-end gap-2 rounded-2xl bg-white/10 p-2 ring-1 ring-white/15 backdrop-blur",
+        "inline-flex items-end gap-2 rounded-2xl mk-panel-2 p-2 backdrop-blur",
         className,
       )}
     >
