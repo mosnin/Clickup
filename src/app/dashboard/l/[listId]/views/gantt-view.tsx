@@ -489,12 +489,10 @@ export function GanttView({
 
   if (datedTasks.length === 0) {
     return (
-      <div className="rounded-2xl bento">
-        <EmptyState
-          title="Nothing on the timeline yet"
-          message="Give a task a start or due date and it appears here as a bar you can drag to plan."
-        />
-      </div>
+      <EmptyState
+        title="Nothing on the timeline yet"
+        message="Give a task a start or due date and it appears here as a bar you can drag to plan."
+      />
     );
   }
 
@@ -512,13 +510,13 @@ export function GanttView({
       />
 
       {loadingAssigneeLanes ? (
-        <div className="space-y-2 rounded-2xl bento p-4">
+        <div className="space-y-2 rounded-2xl panel p-4">
           {[0, 1, 2].map((i) => (
             <div key={i} className="h-8 animate-pulse rounded-full bg-muted/50" />
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <div className="rounded-2xl bento">
+        <div className="rounded-2xl panel">
           <EmptyState
             compact
             title="No milestones yet"
@@ -526,7 +524,7 @@ export function GanttView({
           />
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl bento">
+        <div className="overflow-x-auto rounded-2xl panel">
           <div
             className="relative"
             style={{ minWidth: HEADER_COL_PX + totalWidth }}
@@ -805,43 +803,40 @@ function GanttToolbar({
   setParam: (key: string, value: string | null) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="segmented text-xs">
-        {ZOOMS.map((z) => (
-          <button
-            key={z.key}
-            type="button"
-            onClick={() => setParam("zoom", z.key === "day" ? null : z.key)}
-            aria-pressed={zoom === z.key}
-            className={cn(
-              "rounded-full px-3 py-1.5 font-medium transition-colors",
-              zoom === z.key
-                ? "segmented-on text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {z.label}
-          </button>
-        ))}
-      </div>
-      <div className="segmented text-xs">
-        {GROUPS.map((g) => (
-          <button
-            key={g.label}
-            type="button"
-            onClick={() => setParam("group", g.key)}
-            aria-pressed={group === g.key}
-            className={cn(
-              "rounded-full px-3 py-1.5 font-medium transition-colors",
-              group === g.key
-                ? "segmented-on text-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {g.label}
-          </button>
-        ))}
-      </div>
+    <div className="flex flex-wrap items-center gap-1 text-xs">
+      {ZOOMS.map((z) => (
+        <button
+          key={z.key}
+          type="button"
+          onClick={() => setParam("zoom", z.key === "day" ? null : z.key)}
+          aria-pressed={zoom === z.key}
+          className={cn(
+            "rounded-md px-3 py-1.5 font-medium transition-colors",
+            zoom === z.key
+              ? "bg-accent text-accent-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+          )}
+        >
+          {z.label}
+        </button>
+      ))}
+      <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />
+      {GROUPS.map((g) => (
+        <button
+          key={g.label}
+          type="button"
+          onClick={() => setParam("group", g.key)}
+          aria-pressed={group === g.key}
+          className={cn(
+            "rounded-md px-3 py-1.5 font-medium transition-colors",
+            group === g.key
+              ? "bg-accent text-accent-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+          )}
+        >
+          {g.label}
+        </button>
+      ))}
       <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />
       <button
         type="button"

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
+import { Card } from "@/components/ui/card";
 import { Picker, type PickerOption } from "@/components/ui/picker";
 import { Monogram } from "@/components/dashboard/monogram";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -93,7 +94,7 @@ function AboutCard({
   }
 
   return (
-    <div className="rounded-2xl bento p-5">
+    <Card className="rounded-2xl p-5">
       <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         About
       </span>
@@ -124,7 +125,7 @@ function AboutCard({
         placeholder="Notes, decisions, links. Everything the team should know."
         className="soft-field mt-2 min-h-40 w-full p-3 text-sm focus:outline-none"
       />
-    </div>
+    </Card>
   );
 }
 
@@ -198,7 +199,7 @@ function ProgressCard({
   const pct = stats.total > 0 ? (stats.done / stats.total) * 100 : 0;
 
   return (
-    <div className="rounded-2xl bento p-5">
+    <Card className="rounded-2xl p-5">
       <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         Progress
       </span>
@@ -265,7 +266,7 @@ function ProgressCard({
           </div>
         </>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -290,7 +291,7 @@ function StatusCard({
   }
 
   return (
-    <div className="rounded-2xl bento p-5">
+    <Card className="rounded-2xl p-5">
       <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         Status
       </span>
@@ -314,7 +315,7 @@ function StatusCard({
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -347,7 +348,7 @@ function OwnerCard({
   }));
 
   return (
-    <div className="rounded-2xl bento p-5">
+    <Card className="rounded-2xl p-5">
       <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         Owner
       </span>
@@ -377,7 +378,7 @@ function OwnerCard({
           onSelect={(id) => void setOwner(id)}
         />
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -401,7 +402,7 @@ function TargetDateCard({
   }
 
   return (
-    <div className="rounded-2xl bento p-5">
+    <Card className="rounded-2xl p-5">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           Target date
@@ -425,7 +426,7 @@ function TargetDateCard({
         }
         className="soft-field mt-3 w-full px-3 py-2 text-sm"
       />
-    </div>
+    </Card>
   );
 }
 

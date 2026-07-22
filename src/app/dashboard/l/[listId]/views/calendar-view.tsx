@@ -128,7 +128,7 @@ export function CalendarView({
         </p>
       )}
 
-      <div className="overflow-hidden rounded-2xl bento">
+      <div className="overflow-hidden rounded-2xl panel">
         <div className="grid grid-cols-7 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
             <div key={d} className="py-2.5">
@@ -232,7 +232,7 @@ export function CalendarView({
       </div>
 
       {undated.length > 0 && (
-        <div className="rounded-2xl bento p-4">
+        <div className="rounded-2xl panel p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             No due date · drag onto a day to schedule
           </p>
