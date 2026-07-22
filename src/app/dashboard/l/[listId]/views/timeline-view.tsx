@@ -13,13 +13,16 @@ import {
 } from "date-fns";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Monogram } from "@/components/dashboard/monogram";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
 import { EmptyState } from "@/components/dashboard/empty-state";
+import { useToast } from "@/components/toast";
 import {
   PriorityDot,
   type TaskPriority,
@@ -283,6 +286,7 @@ export function TimelineView({
       <EmptyState
         title="Nothing on the timeline yet"
         message="Give a task a start or due date and an assignee, and it appears here as a bar in their lane."
+        action={<AddTaskButton listId={listId} />}
       />
     );
   }
@@ -299,6 +303,9 @@ export function TimelineView({
 
   return (
     <div className="space-y-3">
+      <div className="flex justify-end">
+        <AddTaskButton listId={listId} />
+      </div>
       <div className="overflow-x-auto rounded-2xl panel">
         <div style={{ minWidth: HEADER_PX + totalWidth }}>
           <div className="flex">
@@ -447,6 +454,80 @@ export function TimelineView({
         </div>
       )}
     </div>
+  );
+}
+
+// Small in-place create affordance — Timeline had no way to add a task at
+// all before this. A brand-new task has no dates, so it lands in the
+// "No dates" tray below rather than on the axis; give it one from there or
+// drag its chip onto a day.
+function AddTaskButton({ listId }: { listId: Id<"lists"> }) {
+  const create = useMutation(api.tasks.create);
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [pending, setPending] = useState(false);
+
+  if (!open) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(true)}
+      >
+        <Plus className="h-4 w-4" /> Add task
+      </Button>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const t = title.trim();
+        if (!t) {
+          setOpen(false);
+          return;
+        }
+        setPending(true);
+        try {
+          await create({ listId, title: t });
+          setTitle("");
+          setOpen(false);
+        } catch (err) {
+          const raw = err instanceof Error ? err.message : String(err);
+          const msg = raw
+            .split("Uncaught Error:")
+            .pop()
+            ?.split("\n")[0]
+            ?.trim();
+          toast(msg || "Couldn't add task", { kind: "error" });
+        } finally {
+          setPending(false);
+        }
+      }}
+      className="flex items-center gap-2"
+    >
+      <input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.currentTarget.value)}
+        onBlur={() => {
+          if (!title.trim()) setOpen(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setTitle("");
+            setOpen(false);
+          }
+        }}
+        placeholder="Task title, then Enter"
+        aria-label="New task title"
+        disabled={pending}
+        className="soft-field w-56 px-2.5 py-1.5 text-sm"
+      />
+    </form>
   );
 }
 

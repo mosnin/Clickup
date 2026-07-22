@@ -59,15 +59,18 @@ import {
 // `columns` (grouped by status across the WHOLE list) for drag math, and
 // only filter what's rendered per band. Cross-lane drops therefore always
 // resolve to a status-only change, never a silent reassignment.
-type LaneMode = "none" | "assignee" | "priority";
+type LaneMode = "none" | "assignee" | "priority" | "sprint";
 
 function parseLaneMode(value: string | null): LaneMode {
-  return value === "assignee" || value === "priority" ? value : "none";
+  return value === "assignee" || value === "priority" || value === "sprint"
+    ? value
+    : "none";
 }
 
 function laneKeyFor(task: Doc<"tasks">, mode: LaneMode): string {
   if (mode === "assignee") return task.assigneeClerkIds[0] ?? "__unassigned";
   if (mode === "priority") return task.priority ?? "__none";
+  if (mode === "sprint") return task.sprintId ?? "__none";
   return "__all";
 }
 
@@ -82,6 +85,7 @@ type LaneDescriptor = {
   key: string;
   label: string;
   priority?: TaskPriority | null;
+  kind?: "user" | "agent";
 };
 
 export function BoardView({
@@ -126,19 +130,20 @@ export function BoardView({
     return map;
   }, [orderedTasks, sortedStatuses]);
 
-  // Resolve display names for assignee lanes. Only fetched in assignee mode.
-  const assigneeIds = useMemo(() => {
-    if (laneMode !== "assignee") return [];
-    const set = new Set<string>();
-    for (const t of orderedTasks) {
-      const id = t.assigneeClerkIds[0];
-      if (id) set.add(id);
-    }
-    return [...set];
-  }, [orderedTasks, laneMode]);
-  const assigneeUsers = useQuery(
-    api.users.listByClerkIds,
-    laneMode === "assignee" ? { clerkIds: assigneeIds } : "skip",
+  // Resolve display names for assignee lanes — humans AND agents, so an
+  // agent-assigned task gets its real name/badge instead of falling back to
+  // a generic "Teammate" (users.listByClerkIds can't see agents at all).
+  // Only fetched in assignee mode; matches gantt/timeline/workload views.
+  const assignable = useQuery(
+    api.agents.listAssignableForList,
+    laneMode === "assignee" ? { listId } : "skip",
+  );
+
+  // Sprints for the "By sprint" lane mode. Only fetched in sprint mode;
+  // personal-space lists have no sprints, so this comes back empty there.
+  const sprints = useQuery(
+    api.sprints.listForList,
+    laneMode === "sprint" ? { listId } : "skip",
   );
 
   const lanes = useMemo<LaneDescriptor[] | null>(() => {
@@ -153,23 +158,44 @@ export function BoardView({
         orderedTasks.some((t) => laneKeyFor(t, laneMode) === lane.key),
       );
     }
+    if (laneMode === "sprint") {
+      const nameFor = (sprintId: string) =>
+        sprints?.find((s) => s._id === sprintId)?.name ?? "Sprint";
+      const keys = new Set<string>();
+      for (const t of orderedTasks) keys.add(laneKeyFor(t, laneMode));
+      const withSprint = [...keys]
+        .filter((k) => k !== "__none")
+        .map((k) => ({ key: k, label: nameFor(k) }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+      const result: LaneDescriptor[] = [...withSprint];
+      if (keys.has("__none")) {
+        result.push({ key: "__none", label: "No sprint" });
+      }
+      return result;
+    }
     // assignee
-    const nameFor = (clerkId: string) => {
-      const u = assigneeUsers?.find((u) => u.clerkId === clerkId);
-      return u?.name || u?.email || "Teammate";
+    const nameFor = (id: string) => {
+      const p = assignable?.find((a) => a.id === id);
+      return p?.name ?? "Teammate";
     };
+    const kindFor = (id: string) =>
+      assignable?.find((a) => a.id === id)?.kind;
     const keys = new Set<string>();
     for (const t of orderedTasks) keys.add(laneKeyFor(t, laneMode));
     const people = [...keys]
       .filter((k) => k !== "__unassigned")
-      .map((k) => ({ key: k, label: nameFor(k) }))
+      .map((k) => ({
+        key: k,
+        label: nameFor(k),
+        kind: kindFor(k),
+      }))
       .sort((a, b) => a.label.localeCompare(b.label));
     const result: LaneDescriptor[] = [...people];
     if (keys.has("__unassigned")) {
       result.push({ key: "__unassigned", label: "Unassigned" });
     }
     return result;
-  }, [laneMode, orderedTasks, assigneeUsers]);
+  }, [laneMode, orderedTasks, assignable, sprints]);
 
   // Maps every rendered droppable column id (namespaced by lane) back to its
   // real status id, so dropping on an empty column resolves correctly in
@@ -391,9 +417,10 @@ export function BoardView({
   );
 }
 
-// Segmented "No lanes / Assignee / Priority" control, persisted in the URL
-// (?lane=assignee|priority, absent = none) so the grouping is shareable and
-// survives reload, matching the rest of the board/list's URL-driven state.
+// Segmented "No lanes / Assignee / Priority / Sprint" control, persisted in
+// the URL (?lane=assignee|priority|sprint, absent = none) so the grouping is
+// shareable and survives reload, matching the rest of the board/list's
+// URL-driven state.
 function LaneToggle({ mode }: { mode: LaneMode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -410,6 +437,7 @@ function LaneToggle({ mode }: { mode: LaneMode }) {
     { key: "none", label: "No lanes" },
     { key: "assignee", label: "Assignee" },
     { key: "priority", label: "Priority" },
+    { key: "sprint", label: "Sprint" },
   ];
 
   return (
@@ -460,6 +488,28 @@ function LaneHeader({
       <div className="flex items-center gap-2 px-1">
         <Monogram name={lane.label} size="sm" />
         <span className="text-sm font-semibold">{lane.label}</span>
+        {lane.kind === "agent" && (
+          <Badge
+            variant="secondary"
+            className="gap-0 border-transparent bg-muted px-1.5 py-0.5 text-[9px] tracking-wider text-muted-foreground uppercase"
+          >
+            Agent
+          </Badge>
+        )}
+      </div>
+    );
+  }
+  if (laneMode === "sprint") {
+    return (
+      <div className="flex items-center gap-2 px-1">
+        <span
+          className={cn(
+            "text-sm font-semibold",
+            lane.key === "__none" && "text-muted-foreground",
+          )}
+        >
+          {lane.label}
+        </span>
       </div>
     );
   }

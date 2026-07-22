@@ -9,6 +9,7 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
 import { Monogram } from "@/components/dashboard/monogram";
@@ -321,6 +322,11 @@ export function NetworkView(props: {
       <EmptyState
         title="No dependencies yet"
         message="Set “Blocked by” on a task from its task page to connect it to another task here."
+        action={
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/dashboard/l/${props.listId}`}>Open List view</Link>
+          </Button>
+        }
       />
     );
   }
