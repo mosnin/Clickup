@@ -63,7 +63,7 @@ export function PublicFormClient({ token }: { token: string }) {
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-page px-4 py-12">
-      <div className="w-full max-w-lg rounded-2xl bento p-8">
+      <div className="w-full max-w-lg rounded-2xl panel p-8">
         {form === undefined ? (
           <div className="space-y-3">
             <div className="h-6 w-48 animate-pulse rounded-full bg-muted" />

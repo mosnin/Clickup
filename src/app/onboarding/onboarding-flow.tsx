@@ -605,7 +605,7 @@ function BuildStep({
               transition={{ duration: 0.5, ease: EASE, delay: 0.15 }}
               className="mt-10"
             >
-              <div className="rounded-2xl bento p-5">
+              <div className="rounded-2xl panel p-5">
                 <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                   {agentName}&apos;s API key, shown once
                 </p>

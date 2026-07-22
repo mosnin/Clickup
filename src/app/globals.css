@@ -133,35 +133,7 @@ body {
   padding-bottom: 1rem;
 }
 
-/* ── Bento surface system ─────────────────────────────────────────────────
-   The tactile "soft UI" language: white cards that float on the gray canvas
-   with a soft, wide, low shadow instead of a hard hairline; content sits in
-   nested neutral tiles. Rounded generously. This replaces the flat
-   hairline-border card wherever a surface should read as a discrete panel. */
-.bento {
-  background: var(--color-background);
-  box-shadow:
-    0 1px 2px rgb(16 16 18 / 0.04),
-    0 10px 30px -18px rgb(16 16 18 / 0.16);
-}
-/* A slightly softer shadow for dense grids / small tiles. Pair either with a
-   rounded-* utility — they intentionally don't set radius so each card keeps
-   its own. */
-.bento-sm {
-  background: var(--color-background);
-  box-shadow:
-    0 1px 2px rgb(16 16 18 / 0.04),
-    0 8px 22px -16px rgb(16 16 18 / 0.14);
-}
-/* The whole app sheet: a large soft-shadowed panel floating on the gray
-   canvas, no hard frame border (desktop only — full-bleed on mobile). */
-.app-frame {
-  box-shadow:
-    0 1px 2px rgb(16 16 18 / 0.04),
-    0 24px 60px -32px rgb(16 16 18 / 0.28);
-}
-
-/* Nested neutral tile inside a bento card (the reference's material/preview
+/* Nested neutral tile inside a panel card (the reference's material/preview
    wells). Soft inset feel, no border. */
 .bento-tile {
   background: var(--color-muted);
@@ -181,24 +153,6 @@ body {
   flex-shrink: 0;
 }
 
-/* Segmented control: a gray track with a raised white pill for the active
-   segment (Design/Animation, Isometric/Perspective in the reference). Pair
-   the container with .segmented and the active button with .segmented-on. */
-.segmented {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border-radius: 9999px;
-  background: var(--color-muted);
-}
-.segmented-on {
-  background: var(--color-background);
-  box-shadow:
-    0 1px 2px rgb(16 16 18 / 0.06),
-    0 2px 8px -4px rgb(16 16 18 / 0.16);
-}
-
 /* Soft field: the reference's inputs sit on a faint neutral fill with no hard
    border and a gentle focus ring rather than a color outline. */
 .soft-field {
@@ -216,10 +170,10 @@ body {
 }
 
 /* ── Shell fusion panel (Phase H) ─────────────────────────────────────────
-   The Square-style dashboard shell's card: our bento softness on the
+   The Square-style dashboard shell's card: our soft-shadow language on the
    template's discrete-card shape — card fill, hairline border, quiet
-   shadow. Pair with a rounded-* utility (usually rounded-xl). Replaces
-   bare `.bento` on shell surfaces; both remain valid during migration. */
+   shadow. Pair with a rounded-* utility (usually rounded-xl). The one
+   surface treatment for shell panels that aren't a vendored Card. */
 .panel {
   background: var(--color-card);
   border: 1px solid var(--color-border);
@@ -395,17 +349,6 @@ body {
   --color-sidebar-accent-foreground: #f3f3f4;
   --color-sidebar-border: #2b2b31;
   --color-sidebar-ring: #71717a;
-}
-
-:root[data-theme="dark"] .bento,
-:root[data-theme="dark"] .bento-sm,
-:root[data-theme="dark"] .app-frame {
-  border: 1px solid var(--color-border);
-}
-/* The raised-white active segment reads as a lighter tile in dark. */
-:root[data-theme="dark"] .segmented-on {
-  background: #34343b;
-  box-shadow: none;
 }
 
 /* Slow drift for gradient scene blobs. */

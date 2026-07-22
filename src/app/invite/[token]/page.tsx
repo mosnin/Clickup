@@ -42,7 +42,7 @@ export default function InvitePage({
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-page px-4">
-      <div className="w-full max-w-md rounded-2xl bento p-8 text-center">
+      <div className="w-full max-w-md rounded-2xl panel p-8 text-center">
         {invite === undefined ? (
           <div className="space-y-3">
             <div className="mx-auto h-5 w-40 animate-pulse rounded-full bg-muted" />
