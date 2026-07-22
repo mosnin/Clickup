@@ -167,7 +167,7 @@ function OverviewTab() {
   ];
 
   return (
-    <Stagger className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+    <Stagger className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {tiles.map((t) => (
         <StaggerItem key={t.label}>
           <Card className="gap-2 py-5">
@@ -431,7 +431,7 @@ function AgentsTab() {
                           a.status === "paused"
                             ? "bg-muted text-muted-foreground"
                             : a.online
-                              ? "bg-pastel-green text-foreground"
+                              ? "bg-pastel-green text-foreground dark:text-black"
                               : "bg-muted text-muted-foreground",
                         )}
                       >
@@ -483,11 +483,11 @@ function AgentsTab() {
 // ── Audit log ────────────────────────────────────────────────────────────
 
 const ACTION_STYLE: Record<string, string> = {
-  suspended: "bg-pastel-red text-foreground",
-  reactivated: "bg-pastel-green text-foreground",
-  granted: "bg-pastel-blue text-foreground",
-  revoked: "bg-pastel-yellow text-foreground",
-  break_glass: "bg-pastel-yellow text-foreground",
+  suspended: "bg-pastel-red text-foreground dark:text-black",
+  reactivated: "bg-pastel-green text-foreground dark:text-black",
+  granted: "bg-pastel-blue text-foreground dark:text-black",
+  revoked: "bg-pastel-yellow text-foreground dark:text-black",
+  break_glass: "bg-pastel-yellow text-foreground dark:text-black",
 };
 
 function auditTone(action: string): string {
@@ -560,7 +560,7 @@ function BillingAdminTab({ isSuper }: { isSuper: boolean }) {
 
   return (
     <div className="space-y-6">
-      <Stagger className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <Stagger className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <StaggerItem>
           <Card className="gap-1 p-4">
             <CardDescription className="text-[11px] font-medium uppercase tracking-wider">
@@ -708,8 +708,8 @@ function BillingAdminTab({ isSuper }: { isSuper: boolean }) {
                         className={cn(
                           "border-transparent",
                           p.status === "settled"
-                            ? "bg-pastel-green text-foreground"
-                            : "bg-pastel-red text-foreground",
+                            ? "bg-pastel-green text-foreground dark:text-black"
+                            : "bg-pastel-red text-foreground dark:text-black",
                         )}
                       >
                         {p.status}
@@ -748,10 +748,10 @@ function SecurityTab({ isSuper }: { isSuper: boolean }) {
                 className={cn(
                   "mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full",
                   c.status === "pass"
-                    ? "bg-pastel-green text-foreground"
+                    ? "bg-pastel-green text-foreground dark:text-black"
                     : c.status === "warn"
-                      ? "bg-pastel-yellow text-foreground"
-                      : "bg-pastel-red text-foreground",
+                      ? "bg-pastel-yellow text-foreground dark:text-black"
+                      : "bg-pastel-red text-foreground dark:text-black",
                 )}
               >
                 {c.status === "pass" ? (
@@ -1136,7 +1136,7 @@ function SkeletonRows() {
 
 function SkeletonGrid({ n }: { n: number }) {
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: n }, (_, i) => (
         <Card key={i} className="h-28 animate-pulse bg-muted/30" />
       ))}

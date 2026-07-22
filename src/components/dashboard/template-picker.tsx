@@ -86,7 +86,7 @@ export function TemplatePicker({
       <div
         aria-hidden
         onClick={onClose}
-        className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
       />
       <div className="panel relative flex w-full max-w-2xl flex-col rounded-2xl p-6">
         <div className="flex items-start justify-between gap-4">

@@ -67,7 +67,7 @@ export function NewWorkspaceDialog({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="fixed inset-0 z-[70] flex items-start justify-center bg-foreground/30 p-4 pt-[18vh] backdrop-blur-sm"
+          className="fixed inset-0 z-[70] flex items-start justify-center bg-black/30 p-4 pt-[18vh] backdrop-blur-sm"
           onPointerDown={(e) => {
             if (e.target === e.currentTarget) onClose();
           }}

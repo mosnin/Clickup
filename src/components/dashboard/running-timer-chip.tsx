@@ -34,17 +34,17 @@ export function RunningTimerChip() {
     : "/dashboard";
 
   return (
-    <div className="mb-3 rounded-2xl border border-red-300/40 bg-red-50/40 p-2 text-xs">
+    <div className="mb-3 rounded-2xl border border-red-300/40 bg-red-50/40 p-2 text-xs dark:border-red-800/40 dark:bg-red-950/40">
       <div className="flex items-center gap-2">
-        <Timer className="h-3.5 w-3.5 text-red-600" aria-hidden />
-        <span className="font-medium text-red-700">
+        <Timer className="h-3.5 w-3.5 text-red-600 dark:text-red-400" aria-hidden />
+        <span className="font-medium text-red-700 dark:text-red-400">
           {formatDuration(elapsed)}
         </span>
         <button
           type="button"
           onClick={() => stop({})}
           aria-label="Stop timer"
-          className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-red-700 hover:bg-red-100"
+          className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-full text-red-700 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900/40"
         >
           <Pause className="h-3.5 w-3.5" />
         </button>

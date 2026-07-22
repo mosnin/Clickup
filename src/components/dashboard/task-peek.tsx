@@ -68,7 +68,7 @@ export function TaskPeekPortal({ listId }: { listId: Id<"lists"> }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 bg-foreground/20 backdrop-blur-[2px]"
+            className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]"
           />
           <motion.aside
             key="peek-panel"

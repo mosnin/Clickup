@@ -67,9 +67,9 @@ export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
               </dl>
 
               {m.running && (
-                <div className="mt-3 flex items-center gap-2 rounded-2xl border border-red-300/40 bg-red-50/40 p-2 text-xs">
-                  <Timer className="h-3.5 w-3.5 text-red-600" aria-hidden />
-                  <span className="font-medium text-red-700">Now</span>
+                <div className="mt-3 flex items-center gap-2 rounded-2xl border border-red-300/40 bg-red-50/40 p-2 text-xs dark:border-red-800/40 dark:bg-red-950/40">
+                  <Timer className="h-3.5 w-3.5 text-red-600 dark:text-red-400" aria-hidden />
+                  <span className="font-medium text-red-700 dark:text-red-400">Now</span>
                   <RunningTaskLink
                     taskId={m.running.taskId}
                     title={m.running.taskTitle}

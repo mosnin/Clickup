@@ -319,7 +319,7 @@ function EstimateChip({
         className={cn(
           "inline-flex h-6 min-w-6 flex-shrink-0 items-center justify-center rounded-full px-2 text-xs font-medium transition-colors",
           points != null
-            ? "bg-pastel-blue text-foreground/80"
+            ? "bg-pastel-blue text-foreground/80 dark:text-black/80"
             : "bg-muted text-muted-foreground hover:text-foreground",
         )}
       >

@@ -56,7 +56,7 @@ export function TaskBanners({
             className={cn(
               "flex-row items-center gap-2 px-4 py-2.5 text-sm",
               task.approvedAt
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-400"
                 : "border-brand-200 bg-brand-50 text-brand-800",
             )}
           >
@@ -84,7 +84,7 @@ export function TaskBanners({
         </motion.div>
       )}
       {task.claimedByActorId ? (
-        <Card className="flex-row items-center gap-2 border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+        <Card className="flex-row items-center gap-2 border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-800/40 dark:bg-amber-950/40 dark:text-amber-400">
           <Lock className="h-4 w-4 flex-shrink-0" />
           <span className="min-w-0 flex-1">
             Claimed by{" "}

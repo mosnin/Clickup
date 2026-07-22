@@ -35,11 +35,34 @@ type PortfolioData = NonNullable<
 type PortfolioRow = PortfolioData["rows"][number];
 type Health = NonNullable<PortfolioRow["health"]>;
 
-const HEALTH_CHIP: Record<Health, { label: string; className: string }> = {
-  on_track: { label: "On track", className: "bg-pastel-green" },
-  at_risk: { label: "At risk", className: "bg-pastel-yellow" },
-  off_track: { label: "Off track", className: "bg-pastel-red" },
-  paused: { label: "Paused", className: "bg-muted" },
+// textClassName is separate from the background: pastel-* tokens don't
+// have dark-theme values (by design — see globals.css), so their ink must
+// stay pinned dark in both themes; "paused" rides the theme-adaptive
+// bg-muted/text-muted-foreground pair instead and must NOT be pinned.
+const HEALTH_CHIP: Record<
+  Health,
+  { label: string; className: string; textClassName: string }
+> = {
+  on_track: {
+    label: "On track",
+    className: "bg-pastel-green",
+    textClassName: "text-foreground dark:text-black",
+  },
+  at_risk: {
+    label: "At risk",
+    className: "bg-pastel-yellow",
+    textClassName: "text-foreground dark:text-black",
+  },
+  off_track: {
+    label: "Off track",
+    className: "bg-pastel-red",
+    textClassName: "text-foreground dark:text-black",
+  },
+  paused: {
+    label: "Paused",
+    className: "bg-muted",
+    textClassName: "text-muted-foreground",
+  },
 };
 
 const HEALTH_BAR: Record<Health, { track: string; fill: string }> = {
@@ -187,7 +210,10 @@ function SummaryStrip({
       {chips.map((c) => (
         <Badge
           key={c.key}
-          className={cn("border-transparent text-foreground", c.className)}
+          className={cn(
+            "border-transparent text-foreground dark:text-black",
+            c.className,
+          )}
         >
           {c.count} {c.label}
         </Badge>
@@ -225,8 +251,9 @@ function ProjectRow({ row, layout }: { row: PortfolioRow; layout: Layout }) {
         {chip && (
           <Badge
             className={cn(
-              "mt-1.5 border-transparent text-[10px] text-foreground",
+              "mt-1.5 border-transparent text-[10px]",
               chip.className,
+              chip.textClassName,
             )}
           >
             {chip.label}

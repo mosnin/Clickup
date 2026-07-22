@@ -148,7 +148,7 @@ function ScopeBilling({ scope }: { scope: Scope }) {
             className={cn(
               "mt-4 w-fit border-transparent",
               metering.enabled
-                ? "bg-pastel-green text-foreground"
+                ? "bg-pastel-green text-foreground dark:text-black"
                 : "bg-muted text-muted-foreground",
             )}
           >
@@ -278,8 +278,8 @@ function ScopeBilling({ scope }: { scope: Scope }) {
                           className={cn(
                             "border-transparent",
                             p.status === "settled"
-                              ? "bg-pastel-green text-foreground"
-                              : "bg-pastel-red text-foreground",
+                              ? "bg-pastel-green text-foreground dark:text-black"
+                              : "bg-pastel-red text-foreground dark:text-black",
                           )}
                         >
                           {p.status}

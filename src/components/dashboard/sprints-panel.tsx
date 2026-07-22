@@ -33,7 +33,7 @@ import {
 
 const STATUS_STYLE: Record<string, string> = {
   planned: "bg-muted text-muted-foreground",
-  active: "bg-emerald-100 text-emerald-700",
+  active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
   complete: "bg-brand-50 text-brand-700",
 };
 

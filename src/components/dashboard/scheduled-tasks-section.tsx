@@ -82,7 +82,7 @@ export function ScheduledTasksSection({ listId }: { listId: Id<"lists"> }) {
               className={cn(
                 "rounded-full px-2.5 py-0.5 text-xs",
                 st.enabled
-                  ? "bg-emerald-100 text-emerald-700"
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
                   : "bg-muted text-muted-foreground",
               )}
             >

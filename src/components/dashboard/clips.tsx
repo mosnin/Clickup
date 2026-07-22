@@ -185,7 +185,7 @@ function Recorder({ taskId }: { taskId: Id<"tasks"> }) {
       )}
       {state.kind === "error" && (
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-red-700">{state.message}</p>
+          <p className="text-sm text-red-700 dark:text-red-400">{state.message}</p>
           <Button
             type="button"
             size="sm"
