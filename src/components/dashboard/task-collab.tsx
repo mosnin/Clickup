@@ -6,7 +6,9 @@ import { useMutation, useQuery } from "convex/react";
 import { Hand, Lock, Plus, ShieldCheck, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Picker } from "@/components/ui/picker";
 import { Monogram } from "@/components/dashboard/monogram";
 import { InlineCreate } from "@/components/dashboard/inline-create";
@@ -49,37 +51,40 @@ export function TaskBanners({
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: EASE }}
-          className={cn(
-            "flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm",
-            task.approvedAt
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-brand-200 bg-brand-50 text-brand-800",
-          )}
         >
-          <ShieldCheck className="h-4 w-4 flex-shrink-0" />
-          <span className="min-w-0 flex-1">
-            {task.approvedAt
-              ? "Approved, agents may complete this task."
-              : "Approval gate: agents can't complete this task until a human approves."}
-          </span>
-          {!task.approvedAt && (
-            <Button size="sm" onClick={() => approve({ taskId: task._id })}>
-              Approve
-            </Button>
-          )}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() =>
-              update({ taskId: task._id, requiresApproval: false })
-            }
+          <Card
+            className={cn(
+              "flex-row items-center gap-2 px-4 py-2.5 text-sm",
+              task.approvedAt
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-brand-200 bg-brand-50 text-brand-800",
+            )}
           >
-            Remove gate
-          </Button>
+            <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+            <span className="min-w-0 flex-1">
+              {task.approvedAt
+                ? "Approved, agents may complete this task."
+                : "Approval gate: agents can't complete this task until a human approves."}
+            </span>
+            {!task.approvedAt && (
+              <Button size="sm" onClick={() => approve({ taskId: task._id })}>
+                Approve
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                update({ taskId: task._id, requiresApproval: false })
+              }
+            >
+              Remove gate
+            </Button>
+          </Card>
         </motion.div>
       )}
       {task.claimedByActorId ? (
-        <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+        <Card className="flex-row items-center gap-2 border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
           <Lock className="h-4 w-4 flex-shrink-0" />
           <span className="min-w-0 flex-1">
             Claimed by{" "}
@@ -95,7 +100,7 @@ export function TaskBanners({
           >
             Release
           </Button>
-        </div>
+        </Card>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -141,9 +146,10 @@ export function TaskAssignees({
       {task.assigneeClerkIds.map((id) => {
         const person = byId.get(id);
         return (
-          <span
+          <Badge
             key={id}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-sm"
+            variant="outline"
+            className="gap-1.5 py-1 pr-1 pl-3 text-sm font-normal"
           >
             {person?.kind === "agent" && (
               <Monogram name={person.name} size="sm" />
@@ -164,7 +170,7 @@ export function TaskAssignees({
             >
               <X className="h-3 w-3" />
             </button>
-          </span>
+          </Badge>
         );
       })}
       <Picker
@@ -251,9 +257,10 @@ export function TaskBlockedBy({
       </h2>
       <div className="flex flex-wrap items-center gap-2">
         {(task.blockedByTaskIds ?? []).map((id) => (
-          <span
+          <Badge
             key={id}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-sm"
+            variant="outline"
+            className="gap-1.5 py-1 pr-1 pl-3 text-sm font-normal"
           >
             <Link
               href={`/dashboard/l/${listId}/t/${id}`}
@@ -276,7 +283,7 @@ export function TaskBlockedBy({
             >
               <X className="h-3 w-3" />
             </button>
-          </span>
+          </Badge>
         ))}
         <Picker
           label="+ Add blocker…"
@@ -403,7 +410,7 @@ export function TaskChecklist({ task }: { task: Doc<"tasks"> }) {
           value={newItem}
           onChange={(e) => setNewItem(e.currentTarget.value)}
           placeholder="Add acceptance criterion…"
-          className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="soft-field flex-1 px-3 py-1.5 text-sm focus:outline-none"
         />
         <Button
           type="submit"
@@ -508,7 +515,7 @@ function ChecklistTemplates({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 4, scale: 0.98 }}
               transition={{ duration: 0.18, ease: EASE }}
-              className="absolute left-0 top-full z-30 mt-1.5 w-64 overflow-hidden rounded-2xl bg-background p-1 shadow-lg"
+              className="absolute left-0 top-full z-30 mt-1.5 w-64 overflow-hidden rounded-2xl border border-border bg-popover p-1 text-popover-foreground shadow-lg"
             >
               {templates === undefined ||
               templates.filter((t) => !hiddenIds.has(t._id)).length === 0 ? (
@@ -522,7 +529,7 @@ function ChecklistTemplates({
                     .map((t) => (
                     <li
                       key={t._id}
-                      className="flex items-center gap-0.5 rounded-lg hover:bg-muted"
+                      className="flex items-center gap-0.5 rounded-lg hover:bg-accent hover:text-accent-foreground"
                     >
                       <button
                         type="button"

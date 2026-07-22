@@ -5,7 +5,9 @@ import { useMutation, useQuery } from "convex/react";
 import { Pause, Square, Trash2, Video } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/toast";
 import { formatDuration } from "@/lib/duration";
 import { Stagger, StaggerItem } from "@/components/motion";
@@ -166,7 +168,7 @@ function Recorder({ taskId }: { taskId: Id<"tasks"> }) {
   }
 
   return (
-    <div className="rounded-2xl bento p-3">
+    <Card className="p-3">
       {state.kind === "idle" && (
         <Button type="button" size="sm" onClick={start}>
           <Video className="h-3.5 w-3.5" /> Record clip
@@ -194,7 +196,7 @@ function Recorder({ taskId }: { taskId: Id<"tasks"> }) {
           </Button>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -235,7 +237,7 @@ function ClipCard({ clip }: { clip: Doc<"clips"> }) {
   if (deleting) return null;
 
   return (
-    <div className="rounded-2xl bento p-2">
+    <Card className="gap-2 p-2">
       <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black">
         {url ? (
           <video
@@ -250,10 +252,10 @@ function ClipCard({ clip }: { clip: Doc<"clips"> }) {
           </div>
         )}
       </div>
-      <div className="mt-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
-        <span>
+      <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+        <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
           {clip.durationMs ? formatDuration(clip.durationMs) : "-"}
-        </span>
+        </Badge>
         <span className="ml-auto">
           {new Date(clip.createdAt).toLocaleString(undefined, {
             month: "short",
@@ -275,7 +277,7 @@ function ClipCard({ clip }: { clip: Doc<"clips"> }) {
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
-    </div>
+    </Card>
   );
 }
 

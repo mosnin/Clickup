@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { Download, FileText, Image as ImageIcon, Paperclip, Trash2, Upload } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { Stagger, StaggerItem } from "@/components/motion";
@@ -102,17 +103,19 @@ export function Attachments({ taskId }: { taskId: Id<"tasks"> }) {
       </Button>
 
       {files === undefined ? (
-        <div className="h-12 animate-pulse rounded-2xl bg-muted/40" />
+        <div className="h-12 animate-pulse rounded-xl bg-muted/40" />
       ) : files.length === 0 ? (
         <p className="text-sm text-muted-foreground">No attachments yet.</p>
       ) : (
-        <Stagger className="space-y-2">
-          {files.map((f) => (
-            <StaggerItem key={f._id}>
-              <AttachmentCard row={f} />
-            </StaggerItem>
-          ))}
-        </Stagger>
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <Stagger className="divide-y divide-border">
+            {files.map((f) => (
+              <StaggerItem key={f._id}>
+                <AttachmentCard row={f} />
+              </StaggerItem>
+            ))}
+          </Stagger>
+        </div>
       )}
     </div>
   );
@@ -133,7 +136,7 @@ function AttachmentCard({ row }: { row: AttachmentRow }) {
   const isImage = row.mimeType.startsWith("image/");
 
   return (
-    <div className="flex items-center gap-3 rounded-2xl bento px-3 py-2">
+    <div className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/20">
       {isImage && row.url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -153,9 +156,12 @@ function AttachmentCard({ row }: { row: AttachmentRow }) {
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{row.name}</p>
-        <p className="text-xs text-muted-foreground">
+        <Badge
+          variant="outline"
+          className="mt-1 text-[10px] font-normal text-muted-foreground"
+        >
           {formatBytes(row.sizeBytes)}
-        </p>
+        </Badge>
       </div>
 
       {row.url && (

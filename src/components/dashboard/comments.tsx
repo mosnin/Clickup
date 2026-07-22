@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { CheckCircle2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
 import { Monogram } from "@/components/dashboard/monogram";
@@ -78,31 +79,34 @@ export function Comments({
 
   return (
     <div className="space-y-4">
-      {topLevel.length === 0 && (
+      {topLevel.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {emptyHint ?? "No comments yet."}
         </p>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <ul className="divide-y divide-border">
+            {topLevel.map((m) => (
+              <motion.li
+                key={m._id}
+                layout
+                initial={{ opacity: 0, y: 10, scale: 0.99 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.4, ease: EASE }}
+              >
+                <MessageItem
+                  message={m}
+                  replies={repliesByParent.get(m._id) ?? []}
+                  memberByClerkId={memberByClerkId}
+                  members={members}
+                  parentType={parentType}
+                  parentId={parentId}
+                />
+              </motion.li>
+            ))}
+          </ul>
+        </div>
       )}
-      <ul className="space-y-3">
-        {topLevel.map((m) => (
-          <motion.li
-            key={m._id}
-            layout
-            initial={{ opacity: 0, y: 10, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.4, ease: EASE }}
-          >
-            <MessageItem
-              message={m}
-              replies={repliesByParent.get(m._id) ?? []}
-              memberByClerkId={memberByClerkId}
-              members={members}
-              parentType={parentType}
-              parentId={parentId}
-            />
-          </motion.li>
-        ))}
-      </ul>
 
       <Composer
         parentType={parentType}
@@ -155,7 +159,7 @@ function MessageItem({
   return (
     <div
       className={cn(
-        "rounded-2xl bento p-3",
+        "p-4",
         isResolved && "opacity-60",
       )}
     >
@@ -171,26 +175,27 @@ function MessageItem({
               {message.editedAt && " · edited"}
             </span>
             {assignee && (
-              <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] uppercase tracking-wider text-brand-700">
+              <Badge className="bg-brand-50 text-[10px] uppercase tracking-wider text-brand-700">
                 Assigned to {assignee.name ?? "user"}
-              </span>
+              </Badge>
             )}
             <span className="ml-auto flex items-center gap-1">
               {message.assigneeClerkId && (
-                <button
+                <Button
                   type="button"
+                  size="xs"
+                  variant="ghost"
                   onClick={() =>
                     resolve({
                       messageId: message._id,
                       resolved: !isResolved,
                     })
                   }
-                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                   title={isResolved ? "Reopen" : "Mark resolved"}
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   {isResolved ? "Reopen" : "Resolve"}
-                </button>
+                </Button>
               )}
             </span>
           </div>
@@ -528,13 +533,13 @@ function Composer({
       />
 
       {popover && filtered.length > 0 && (
-        <ul className="absolute z-20 mt-0 w-64 overflow-hidden rounded-2xl border border-border bg-background shadow-lg">
+        <ul className="absolute z-20 mt-0 w-64 overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-lg">
           {filtered.map((u) => (
             <li key={u.clerkId}>
               <button
                 type="button"
                 onClick={() => insertMention(u)}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
               >
                 <Avatar user={u} clerkId={u.clerkId} small />
                 <span className="truncate">{u.name ?? u.email}</span>
