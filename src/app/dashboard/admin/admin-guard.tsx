@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { Card } from "@/components/ui/card";
 
 // Client-side gate for the admin console. The REAL security boundary is
 // every admin Convex function calling requirePlatformAdmin — this guard is
@@ -24,7 +25,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
     return (
       <div className="space-y-4">
         <div className="h-8 w-48 animate-pulse rounded-full bg-muted" />
-        <div className="h-64 animate-pulse rounded-2xl border border-border bg-muted/40" />
+        <Card className="h-64 animate-pulse bg-muted/40" />
       </div>
     );
   }
