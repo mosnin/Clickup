@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { parseMentionBody } from "@/lib/mentions";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
+import { useToast } from "@/components/toast";
 import {
   AnimatePresence,
   EASE,
@@ -32,6 +33,13 @@ const CONTEXT_KIND: Record<string, string> = {
   channel: "Channel",
   space: "Chat",
 };
+
+function errorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
+  );
+}
 
 export function Inbox() {
   const mentions = useQuery(api.mentions.feedForCurrent, {});
@@ -173,6 +181,18 @@ function ApprovalsQueue({
   }[];
 }) {
   const approve = useMutation(api.tasks.approve);
+  const { toast } = useToast();
+
+  async function onApprove(taskId: Id<"tasks">) {
+    try {
+      await approve({ taskId });
+    } catch (e) {
+      toast(errorMessage(e, "Couldn't approve this task"), {
+        kind: "error",
+      });
+    }
+  }
+
   return (
     <section>
       <SectionHeading label="Waiting on your approval" unread={approvals.length} />
@@ -208,7 +228,7 @@ function ApprovalsQueue({
                       {a.checklistDone}/{a.checklistTotal} checklist
                     </span>
                   )}
-                  <Button size="sm" onClick={() => approve({ taskId: a.taskId })}>
+                  <Button size="sm" onClick={() => onApprove(a.taskId)}>
                     Approve
                   </Button>
                 </CardContent>

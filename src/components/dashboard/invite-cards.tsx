@@ -78,6 +78,22 @@ function InviteCard({
     }
   }
 
+  async function onDecline() {
+    setPending(true);
+    try {
+      await decline({ inviteId });
+    } catch (e) {
+      toast(
+        e instanceof Error
+          ? e.message.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() ||
+              "Couldn't decline invite"
+          : "Couldn't decline invite",
+        { kind: "error" },
+      );
+      setPending(false);
+    }
+  }
+
   return (
     <div className="flex items-center gap-4 rounded-2xl panel p-5">
       <span className="icon-tile">
@@ -100,7 +116,7 @@ function InviteCard({
           size="sm"
           variant="ghost"
           disabled={pending}
-          onClick={() => void decline({ inviteId })}
+          onClick={onDecline}
         >
           Decline
         </Button>
