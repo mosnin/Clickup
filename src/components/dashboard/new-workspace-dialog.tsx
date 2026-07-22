@@ -67,7 +67,7 @@ export function NewWorkspaceDialog({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="fixed inset-0 z-[70] flex items-start justify-center bg-foreground/30 p-4 pt-[18vh] backdrop-blur-sm"
+          className="fixed inset-0 z-[70] flex items-start justify-center bg-black/30 p-4 pt-[18vh] backdrop-blur-sm"
           onPointerDown={(e) => {
             if (e.target === e.currentTarget) onClose();
           }}
@@ -78,7 +78,7 @@ export function NewWorkspaceDialog({
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.25, ease: EASE }}
             onSubmit={submit}
-            className="bento w-full max-w-sm rounded-2xl bg-background p-6"
+            className="panel w-full max-w-sm rounded-2xl p-6"
             role="dialog"
             aria-label="New workspace"
           >

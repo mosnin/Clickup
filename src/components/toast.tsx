@@ -9,11 +9,10 @@ import {
   useState,
 } from "react";
 import { CheckCircle2, Info, X, XCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { AnimatePresence, motion, SPRING } from "@/components/motion";
 
-// App-wide toast system. One stack, bottom-center, black pills — the same
-// voice everywhere. Two jobs:
+// App-wide toast system. One stack, bottom-center, popover-surface pills —
+// the same voice everywhere. Two jobs:
 //
 //   1. Feedback: toast("Saved") / toast("Couldn't move task", { kind: "error" })
 //   2. Undo-able deletes: instead of window.confirm, hide the row locally,
@@ -111,19 +110,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.97 }}
               transition={SPRING}
-              className={cn(
-                "pointer-events-auto flex max-w-md items-center gap-2.5 rounded-full py-2 pl-4 pr-2 text-sm shadow-lg",
-                t.kind === "error"
-                  ? "bg-danger text-white"
-                  : "bg-foreground text-background",
-              )}
+              className="pointer-events-auto flex max-w-md items-center gap-2.5 rounded-lg border border-border bg-popover py-2 pl-4 pr-2 text-sm text-popover-foreground shadow-lg"
             >
               {t.kind === "success" ? (
-                <CheckCircle2 className="h-4 w-4 flex-shrink-0 opacity-80" />
+                <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-positive" />
               ) : t.kind === "error" ? (
-                <XCircle className="h-4 w-4 flex-shrink-0 opacity-80" />
+                <XCircle className="h-4 w-4 flex-shrink-0 text-destructive" />
               ) : (
-                <Info className="h-4 w-4 flex-shrink-0 opacity-80" />
+                <Info className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
               )}
               <span className="min-w-0 flex-1 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
                 {t.message}
@@ -135,7 +129,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                     t.action?.onClick();
                     finish(t.id, false);
                   }}
-                  className="flex-shrink-0 rounded-full px-3 py-1 font-semibold underline-offset-2 hover:underline"
+                  className="flex-shrink-0 rounded-full px-3 py-1 font-semibold underline-offset-2 hover:bg-accent hover:underline"
                 >
                   {t.action.label}
                 </button>
@@ -144,7 +138,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 type="button"
                 aria-label="Dismiss"
                 onClick={() => finish(t.id, true)}
-                className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full opacity-70 hover:opacity-100"
+                className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-70 hover:bg-accent hover:opacity-100"
               >
                 <X className="h-3.5 w-3.5" />
               </button>

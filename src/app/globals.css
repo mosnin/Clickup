@@ -1,4 +1,10 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+/* Vendored shell primitives (components/ui) style their dark states with
+   `dark:` classes; our theme mechanism is the data-theme attribute the
+   root layout stamps pre-paint — bridge the two. */
+@custom-variant dark (&:is([data-theme="dark"] *));
 
 /*
   Brand system — monochrome editorial + pastel accents.
@@ -69,6 +75,36 @@
      unmissable. Every raster asset ships as a red Placeholder block. */
   --color-placeholder: #e11d1d;
 
+  /* Shell fusion (Phase H): the Square-style shell's full token surface,
+     valued from our brand — monochrome ink primary, neutral accents,
+     pastel chart ramp. The vendored components/ui primitives read these. */
+  --color-card: #ffffff;
+  --color-card-foreground: #101012;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #101012;
+  --color-primary: #131316;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f5f5f6;
+  --color-secondary-foreground: #101012;
+  --color-accent: #f0f0f2;
+  --color-accent-foreground: #101012;
+  --color-destructive: #c2453a;
+  --color-input: #ececee;
+  --color-ring: #8b8b94;
+  --color-chart-1: #d9e8fa;
+  --color-chart-2: #d5efde;
+  --color-chart-3: #faeec7;
+  --color-chart-4: #e6defa;
+  --color-chart-5: #fadcd7;
+  --color-sidebar: #fafafb;
+  --color-sidebar-foreground: #101012;
+  --color-sidebar-primary: #131316;
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: #ededf0;
+  --color-sidebar-accent-foreground: #101012;
+  --color-sidebar-border: #ececee;
+  --color-sidebar-ring: #8b8b94;
+
   --radius-pill: 9999px;
 }
 
@@ -97,35 +133,7 @@ body {
   padding-bottom: 1rem;
 }
 
-/* ── Bento surface system ─────────────────────────────────────────────────
-   The tactile "soft UI" language: white cards that float on the gray canvas
-   with a soft, wide, low shadow instead of a hard hairline; content sits in
-   nested neutral tiles. Rounded generously. This replaces the flat
-   hairline-border card wherever a surface should read as a discrete panel. */
-.bento {
-  background: var(--color-background);
-  box-shadow:
-    0 1px 2px rgb(16 16 18 / 0.04),
-    0 10px 30px -18px rgb(16 16 18 / 0.16);
-}
-/* A slightly softer shadow for dense grids / small tiles. Pair either with a
-   rounded-* utility — they intentionally don't set radius so each card keeps
-   its own. */
-.bento-sm {
-  background: var(--color-background);
-  box-shadow:
-    0 1px 2px rgb(16 16 18 / 0.04),
-    0 8px 22px -16px rgb(16 16 18 / 0.14);
-}
-/* The whole app sheet: a large soft-shadowed panel floating on the gray
-   canvas, no hard frame border (desktop only — full-bleed on mobile). */
-.app-frame {
-  box-shadow:
-    0 1px 2px rgb(16 16 18 / 0.04),
-    0 24px 60px -32px rgb(16 16 18 / 0.28);
-}
-
-/* Nested neutral tile inside a bento card (the reference's material/preview
+/* Nested neutral tile inside a panel card (the reference's material/preview
    wells). Soft inset feel, no border. */
 .bento-tile {
   background: var(--color-muted);
@@ -145,24 +153,6 @@ body {
   flex-shrink: 0;
 }
 
-/* Segmented control: a gray track with a raised white pill for the active
-   segment (Design/Animation, Isometric/Perspective in the reference). Pair
-   the container with .segmented and the active button with .segmented-on. */
-.segmented {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border-radius: 9999px;
-  background: var(--color-muted);
-}
-.segmented-on {
-  background: var(--color-background);
-  box-shadow:
-    0 1px 2px rgb(16 16 18 / 0.06),
-    0 2px 8px -4px rgb(16 16 18 / 0.16);
-}
-
 /* Soft field: the reference's inputs sit on a faint neutral fill with no hard
    border and a gentle focus ring rather than a color outline. */
 .soft-field {
@@ -177,6 +167,22 @@ body {
   outline: none;
   background: var(--color-background);
   box-shadow: 0 0 0 2px var(--color-foreground);
+}
+
+/* ── Shell fusion panel (Phase H) ─────────────────────────────────────────
+   The Square-style dashboard shell's card: our soft-shadow language on the
+   template's discrete-card shape — card fill, hairline border, quiet
+   shadow. Pair with a rounded-* utility (usually rounded-xl). The one
+   surface treatment for shell panels that aren't a vendored Card. */
+.panel {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  box-shadow:
+    0 1px 2px rgb(16 16 18 / 0.03),
+    0 6px 20px -14px rgb(16 16 18 / 0.1);
+}
+:root[data-theme="dark"] .panel {
+  box-shadow: none;
 }
 
 /* Interactive-card hover: a quiet lift with a soft, wide shadow. */
@@ -227,30 +233,6 @@ body {
   display: block;
   width: 100%;
   height: 100%;
-}
-
-/* ── Premium table language ──────────────────────────────────────────────
-   Tables live inside a bento sheet: no cell borders, generous row padding,
-   a whisper of separation between rows, and a soft hover fill. Pair the
-   <table> with .sheet-table. */
-.sheet-table th {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-muted-foreground);
-  text-align: left;
-  padding: 0.75rem 1rem;
-}
-.sheet-table td {
-  padding: 0.8rem 1rem;
-}
-.sheet-table tbody tr {
-  border-top: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
-  transition: background-color 0.15s ease;
-}
-.sheet-table tbody tr:hover {
-  background: color-mix(in srgb, var(--color-muted) 55%, transparent);
 }
 
 /* Expanded touch hit-area for small icon buttons: keeps the compact visual
@@ -319,17 +301,30 @@ body {
 
   --color-danger: #e0685c;
   --color-unread: #f3f3f4;
-}
 
-:root[data-theme="dark"] .bento,
-:root[data-theme="dark"] .bento-sm,
-:root[data-theme="dark"] .app-frame {
-  border: 1px solid var(--color-border);
-}
-/* The raised-white active segment reads as a lighter tile in dark. */
-:root[data-theme="dark"] .segmented-on {
-  background: #34343b;
-  box-shadow: none;
+  /* Shell fusion tones flip with the theme (ink inverts, like the
+     template's dark scheme, kept in our hex language). */
+  --color-card: #161619;
+  --color-card-foreground: #f3f3f4;
+  --color-popover: #1c1c20;
+  --color-popover-foreground: #f3f3f4;
+  --color-primary: #ededf0;
+  --color-primary-foreground: #101012;
+  --color-secondary: #232327;
+  --color-secondary-foreground: #f3f3f4;
+  --color-accent: #26262b;
+  --color-accent-foreground: #f3f3f4;
+  --color-destructive: #e0685c;
+  --color-input: #2b2b31;
+  --color-ring: #71717a;
+  --color-sidebar: #101013;
+  --color-sidebar-foreground: #f3f3f4;
+  --color-sidebar-primary: #ededf0;
+  --color-sidebar-primary-foreground: #101012;
+  --color-sidebar-accent: #232327;
+  --color-sidebar-accent-foreground: #f3f3f4;
+  --color-sidebar-border: #2b2b31;
+  --color-sidebar-ring: #71717a;
 }
 
 /* Slow drift for gradient scene blobs. */

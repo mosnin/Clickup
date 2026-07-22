@@ -16,6 +16,7 @@ import Link from "next/link";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import { Monogram } from "@/components/dashboard/monogram";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -279,18 +280,16 @@ export function TimelineView({
 
   if (datedTasks.length === 0) {
     return (
-      <div className="rounded-2xl bento">
-        <EmptyState
-          title="Nothing on the timeline yet"
-          message="Give a task a start or due date and an assignee, and it appears here as a bar in their lane."
-        />
-      </div>
+      <EmptyState
+        title="Nothing on the timeline yet"
+        message="Give a task a start or due date and an assignee, and it appears here as a bar in their lane."
+      />
     );
   }
 
   if (lanes === null) {
     return (
-      <div className="space-y-2 rounded-2xl bento p-4">
+      <div className="space-y-2 rounded-2xl panel p-4">
         {[0, 1, 2].map((i) => (
           <div key={i} className="h-8 animate-pulse rounded-full bg-muted/50" />
         ))}
@@ -300,7 +299,7 @@ export function TimelineView({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto rounded-2xl bento">
+      <div className="overflow-x-auto rounded-2xl panel">
         <div style={{ minWidth: HEADER_PX + totalWidth }}>
           <div className="flex">
             <div
@@ -345,9 +344,12 @@ export function TimelineView({
                         {lane.name}
                       </p>
                       {lane.kind === "agent" && (
-                        <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+                        <Badge
+                          variant="secondary"
+                          className="flex-shrink-0 gap-0 border-transparent bg-muted px-1.5 py-0.5 text-[9px] tracking-wider text-muted-foreground uppercase"
+                        >
                           Agent
-                        </span>
+                        </Badge>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">
@@ -431,7 +433,7 @@ export function TimelineView({
       </div>
 
       {undated.length > 0 && (
-        <div className="rounded-2xl bento p-4">
+        <div className="rounded-2xl panel p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             No dates · give a task a start or due date to place it here
           </p>

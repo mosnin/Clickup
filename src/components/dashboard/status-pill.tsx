@@ -1,9 +1,12 @@
 import type { Doc } from "@convex/_generated/dataModel";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 // Pastel chip: the status color as a soft fill (hex + alpha) with dark
 // ink on top and a solid dot — matches the brand reference's series
-// labels. Works with any user-chosen hex color.
+// labels. Works with any user-chosen hex color. Rendered on the vendored
+// Badge shell so shape/typography track the shared token grammar; the
+// per-status color is a runtime override on top, never a token.
 export function StatusPill({
   status,
   className,
@@ -12,9 +15,10 @@ export function StatusPill({
   className?: string;
 }) {
   return (
-    <span
+    <Badge
+      variant="outline"
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium text-foreground/80",
+        "gap-1.5 border-transparent font-medium text-foreground/80",
         className,
       )}
       style={{ backgroundColor: `${status.color}4d` }}
@@ -26,6 +30,6 @@ export function StatusPill({
         style={{ backgroundColor: status.color }}
       />
       {status.name}
-    </span>
+    </Badge>
   );
 }

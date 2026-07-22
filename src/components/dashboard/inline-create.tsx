@@ -60,7 +60,7 @@ export function InlineCreate({
           if (!value.trim() && !pending) onCancel();
         }}
         placeholder={placeholder}
-        className="w-full rounded-full border border-border bg-background px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
+        className="w-full rounded-full border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60"
       />
     </motion.form>
   );

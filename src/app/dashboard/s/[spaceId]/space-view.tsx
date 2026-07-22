@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
-import { FileText, LayoutGrid, Lock, Plus, X } from "lucide-react";
+import { Boxes, FileText, LayoutGrid, Lock, Plus, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,9 @@ import { AnimatedBar, Stagger, StaggerItem } from "@/components/motion";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { Monogram } from "@/components/dashboard/monogram";
 import { InlineCreate } from "@/components/dashboard/inline-create";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { Picker } from "@/components/ui/picker";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/toast";
 
 // The Space page: a ClickUp-style Space now has identity (name/color/
@@ -47,9 +49,18 @@ const STATUS_CHIP: Record<
   NonNullable<ListRollup["projectStatus"]>,
   { label: string; className: string }
 > = {
-  on_track: { label: "On track", className: "bg-pastel-green" },
-  at_risk: { label: "At risk", className: "bg-pastel-yellow" },
-  off_track: { label: "Off track", className: "bg-pastel-red" },
+  on_track: {
+    label: "On track",
+    className: "bg-pastel-green dark:text-neutral-900",
+  },
+  at_risk: {
+    label: "At risk",
+    className: "bg-pastel-yellow dark:text-neutral-900",
+  },
+  off_track: {
+    label: "Off track",
+    className: "bg-pastel-red dark:text-neutral-900",
+  },
   paused: { label: "Paused", className: "bg-muted" },
 };
 
@@ -77,7 +88,7 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
   }
   if (overview === null) {
     return (
-      <div className="rounded-2xl bento p-10 text-center">
+      <div className="rounded-2xl panel p-10 text-center">
         <p className="text-sm text-muted-foreground">
           This Space doesn&apos;t exist or you don&apos;t have access to it.
         </p>
@@ -96,36 +107,58 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
 
   return (
     <div className="space-y-6">
-      <SpaceHeader spaceId={id} space={space} />
-
-      <div className="segmented w-fit">
-        <button
-          type="button"
-          onClick={() => setTab("overview")}
-          aria-pressed={tab === "overview"}
-          className={cn(
-            "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-            tab === "overview"
-              ? "segmented-on text-foreground"
-              : "text-muted-foreground hover:text-foreground",
-          )}
+      <PageHeader
+        icon={Boxes}
+        title={space.name}
+        context={
+          (space.private || space.archivedAt) && (
+            <>
+              {space.private && (
+                <Badge variant="outline" className="gap-1">
+                  <Lock className="h-3 w-3" /> Private
+                </Badge>
+              )}
+              {space.archivedAt && (
+                <Badge variant="outline" className="uppercase tracking-wider">
+                  Archived
+                </Badge>
+              )}
+            </>
+          )
+        }
+      >
+        <nav
+          aria-label="Space tabs"
+          className="flex items-center gap-1 pb-2 text-sm"
         >
-          Overview
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("settings")}
-          aria-pressed={tab === "settings"}
-          className={cn(
-            "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-            tab === "settings"
-              ? "segmented-on text-foreground"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          Settings
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => setTab("overview")}
+            aria-pressed={tab === "overview"}
+            className={cn(
+              "rounded-md px-3 py-1.5 font-medium transition-colors",
+              tab === "overview"
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            )}
+          >
+            Overview
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("settings")}
+            aria-pressed={tab === "settings"}
+            className={cn(
+              "rounded-md px-3 py-1.5 font-medium transition-colors",
+              tab === "settings"
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+            )}
+          >
+            Settings
+          </button>
+        </nav>
+      </PageHeader>
 
       {tab === "overview" ? (
         <OverviewTab
@@ -144,101 +177,6 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
         />
       )}
     </div>
-  );
-}
-
-// ── Header ──────────────────────────────────────────────────────────────────
-
-function SpaceHeader({
-  spaceId,
-  space,
-}: {
-  spaceId: Id<"spaces">;
-  space: SpaceDoc;
-}) {
-  const update = useMutation(api.spaces.updateMeta);
-  const { toast } = useToast();
-  const [name, setName] = useState(space.name);
-  const [description, setDescription] = useState(space.description ?? "");
-
-  async function saveName() {
-    const trimmed = name.trim();
-    if (!trimmed || trimmed === space.name) {
-      setName(space.name);
-      return;
-    }
-    try {
-      await update({ spaceId, name: trimmed });
-      toast("Saved");
-    } catch (e) {
-      setName(space.name);
-      toast(errorMessage(e, "Couldn't rename Space"), { kind: "error" });
-    }
-  }
-
-  async function saveDescription() {
-    const trimmed = description.trim();
-    if (trimmed === (space.description ?? "")) return;
-    try {
-      await update({ spaceId, description: trimmed || null });
-      toast("Saved");
-    } catch (e) {
-      setDescription(space.description ?? "");
-      toast(errorMessage(e, "Couldn't save description"), { kind: "error" });
-    }
-  }
-
-  const initial = (Array.from(space.name.trim())[0] ?? "?").toUpperCase();
-
-  return (
-    <header className="title-rule">
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden
-          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-base font-semibold text-white"
-          style={{ backgroundColor: space.color ?? "#a9c6f2" }}
-        >
-          {initial}
-        </span>
-        <div className="min-w-0 flex-1">
-          <input
-            value={name}
-            onChange={(e) => setName(e.currentTarget.value)}
-            onBlur={saveName}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.currentTarget.blur();
-            }}
-            aria-label="Space name"
-            className="w-full rounded-lg bg-transparent text-2xl font-bold tracking-tight focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-3xl"
-          />
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.currentTarget.value)}
-            onBlur={saveDescription}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.currentTarget.blur();
-            }}
-            placeholder="What is this Space for?"
-            aria-label="Space description"
-            className="mt-1 w-full rounded-lg bg-transparent text-sm text-muted-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
-          {(space.private || space.archivedAt) && (
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {space.private && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                  <Lock className="h-3 w-3" /> Private
-                </span>
-              )}
-              {space.archivedAt && (
-                <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                  Archived
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </header>
   );
 }
 
@@ -280,7 +218,7 @@ function OverviewTab({
           {showWhiteboards ? "Docs & whiteboards" : "Docs"}
         </h2>
         {docs.length === 0 && (!showWhiteboards || whiteboards.length === 0) ? (
-          <div className="mt-3 rounded-2xl bento">
+          <div className="mt-3 rounded-2xl panel">
             <EmptyState
               compact
               title="Nothing here yet"
@@ -316,7 +254,7 @@ function ProjectCard({ list }: { list: ListRollup }) {
   return (
     <Link
       href={`/dashboard/l/${list.listId}`}
-      className="lift block rounded-2xl bento p-5 hover:border-foreground/25"
+      className="lift block rounded-2xl panel p-5 hover:border-foreground/25"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -371,7 +309,7 @@ function NewListCard({ spaceId }: { spaceId: Id<"spaces"> }) {
 
   if (adding) {
     return (
-      <div className="flex h-full min-h-[152px] flex-col justify-center rounded-2xl bento p-5">
+      <div className="flex h-full min-h-[152px] flex-col justify-center rounded-2xl panel p-5">
         <InlineCreate
           placeholder="List name…"
           onCancel={() => setAdding(false)}
@@ -420,7 +358,7 @@ function DocList({
   const { toast } = useToast();
 
   return (
-    <div className="rounded-2xl bento p-4">
+    <div className="rounded-2xl panel p-4">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Docs
       </h3>
@@ -493,7 +431,7 @@ function WhiteboardList({
   const { toast } = useToast();
 
   return (
-    <div className="rounded-2xl bento p-4">
+    <div className="rounded-2xl panel p-4">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Whiteboards
       </h3>
@@ -607,7 +545,7 @@ function IdentityCard({
   }
 
   return (
-    <section className="rounded-2xl bento p-5">
+    <section className="rounded-2xl panel p-5">
       <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Identity
       </h2>
@@ -708,7 +646,7 @@ function DefaultStatusesCard({
   }
 
   return (
-    <section className="rounded-2xl bento p-5">
+    <section className="rounded-2xl panel p-5">
       <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Default statuses
       </h2>
@@ -833,7 +771,7 @@ function FeaturesCard({
   }
 
   return (
-    <section className="rounded-2xl bento p-5">
+    <section className="rounded-2xl panel p-5">
       <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Features
       </h2>
@@ -903,7 +841,7 @@ function PrivacyCard({
     .map((u) => ({ id: u.clerkId, label: u.name || u.email || "Member" }));
 
   return (
-    <section className="rounded-2xl bento p-5">
+    <section className="rounded-2xl panel p-5">
       <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Privacy
       </h2>
@@ -1005,7 +943,7 @@ function DangerCard({
   }
 
   return (
-    <section className="rounded-2xl bento p-5">
+    <section className="rounded-2xl panel p-5">
       <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Danger zone
       </h2>

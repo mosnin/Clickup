@@ -17,7 +17,24 @@ import { timeAgo } from "@/lib/time";
 import { eventLabel } from "@/lib/event-labels";
 import { useToast } from "@/components/toast";
 import { Monogram } from "@/components/dashboard/monogram";
-import { AnimatedBar, Stagger, StaggerItem } from "@/components/motion";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  AnimatedBar,
+  AnimatedNumber,
+  PresenceDot,
+  Stagger,
+  StaggerItem,
+} from "@/components/motion";
 
 // Per-agent drill-down: live status, governance controls (role, budget,
 // notify URL), run history, current claims/assignments, and the agent's
@@ -73,6 +90,13 @@ export function AgentDetail({ agentId }: { agentId: string }) {
   const online =
     agent.lastSeenAt !== undefined &&
     Date.now() - agent.lastSeenAt < 5 * 60 * 1000;
+  const statusLabel = agent.status === "paused"
+    ? "Paused"
+    : online
+      ? "Online"
+      : agent.lastSeenAt
+        ? `Seen ${timeAgo(agent.lastSeenAt)}`
+        : "Never connected";
 
   return (
     <div className="space-y-6">
@@ -83,37 +107,34 @@ export function AgentDetail({ agentId }: { agentId: string }) {
         <ArrowLeft className="h-4 w-4" /> Agents
       </Link>
 
+      <PageHeader
+        title={agent.name}
+        context={
+          <>
+            <Badge
+              variant="secondary"
+              className={cn(
+                "gap-1.5 uppercase tracking-wider",
+                agent.status !== "paused" &&
+                  online &&
+                  "bg-pastel-green text-foreground dark:text-neutral-900",
+              )}
+            >
+              <PresenceDot online={agent.status === "active" && online} />
+              {statusLabel}
+            </Badge>
+            <Badge variant="outline" className="uppercase tracking-wider">
+              {(agent.role ?? "member") === "readonly" ? "Read-only" : "Member"}
+            </Badge>
+          </>
+        }
+      />
+
       <header className="flex items-start gap-3">
         <Monogram name={agent.name} size="lg" />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-              {agent.name}
-            </h1>
-            <span
-              className={cn(
-                "rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider",
-                agent.status === "paused"
-                  ? "bg-muted text-muted-foreground"
-                  : online
-                    ? "bg-emerald-100 text-emerald-700"
-                    : "bg-muted text-muted-foreground",
-              )}
-            >
-              {agent.status === "paused"
-                ? "Paused"
-                : online
-                  ? "Online"
-                  : agent.lastSeenAt
-                    ? `Seen ${timeAgo(agent.lastSeenAt)}`
-                    : "Never connected"}
-            </span>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-              {(agent.role ?? "member") === "readonly" ? "Read-only" : "Member"}
-            </span>
-          </div>
           {agent.description && (
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {agent.description}
             </p>
           )}
@@ -145,7 +166,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
               <li key={t.taskId}>
                 <Link
                   href={`/dashboard/l/${t.listId}/t/${t.taskId}`}
-                  className="lift block truncate rounded-2xl bento px-3 py-2 text-sm"
+                  className="lift block truncate rounded-2xl panel px-3 py-2 text-sm"
                 >
                   {t.title}
                   {claimed.some((c) => c.taskId === t.taskId) && (
@@ -157,7 +178,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
               </li>
             ))}
             {claimed.length === 0 && assigned.length === 0 && (
-              <li className="rounded-2xl bento p-4 text-center text-sm text-muted-foreground">
+              <li className="rounded-2xl panel p-4 text-center text-sm text-muted-foreground">
                 No open work assigned.
               </li>
             )}
@@ -168,17 +189,32 @@ export function AgentDetail({ agentId }: { agentId: string }) {
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Recent runs
           </h2>
-          <ul className="space-y-1">
-            {runs.map((run) => (
-              <RunRow key={run._id} run={run} />
-            ))}
-            {runs.length === 0 && (
-              <li className="rounded-2xl bento p-6 text-center text-sm text-muted-foreground">
-                No work sessions yet. They&apos;ll appear here once this agent
-                starts working on tasks.
-              </li>
-            )}
-          </ul>
+          {runs.length > 0 ? (
+            <Card className="gap-0 overflow-hidden rounded-2xl py-0">
+              <CardContent className="px-0 py-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Run</TableHead>
+                    <TableHead>Started</TableHead>
+                    <TableHead className="text-right">Cost</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {runs.map((run) => (
+                    <RunRow key={run._id} run={run} />
+                  ))}
+                </TableBody>
+              </Table>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="rounded-2xl p-6 text-center text-sm text-muted-foreground">
+              No work sessions yet. They&apos;ll appear here once this agent
+              starts working on tasks.
+            </Card>
+          )}
         </section>
       </div>
 
@@ -190,7 +226,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
           {events.map((e) => (
             <li
               key={e._id}
-              className="flex items-baseline gap-2 rounded-2xl bento px-3 py-1.5 text-sm"
+              className="flex items-baseline gap-2 rounded-2xl panel px-3 py-1.5 text-sm"
             >
               <span className="min-w-0 flex-1 truncate">
                 <span className="text-muted-foreground">
@@ -204,7 +240,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
             </li>
           ))}
           {events.length === 0 && (
-            <li className="rounded-2xl bento p-4 text-center text-sm text-muted-foreground">
+            <li className="rounded-2xl panel p-4 text-center text-sm text-muted-foreground">
               Nothing yet.
             </li>
           )}
@@ -229,10 +265,13 @@ function StatsRow({
     ReturnType<typeof useQuery<typeof api.agents.stats>>
   >;
 }) {
-  const tiles: { label: string; value: string }[] = [
-    { label: "Completed · 7d", value: String(stats.completed7d) },
-    { label: "Created · 7d", value: String(stats.created7d) },
-    { label: "Comments · 7d", value: String(stats.comments7d) },
+  // Pure integer counts get the springy AnimatedNumber count-up; the rest
+  // (combined "ok/failed", formatted durations, currency) are pre-formatted
+  // strings and render as plain text via the same component.
+  const tiles: { label: string; value: number | string }[] = [
+    { label: "Completed · 7d", value: stats.completed7d },
+    { label: "Created · 7d", value: stats.created7d },
+    { label: "Comments · 7d", value: stats.comments7d },
     {
       label: "Runs · 7d",
       value: `${stats.runsSucceeded7d} ok / ${stats.runsFailed7d} failed`,
@@ -246,14 +285,15 @@ function StatsRow({
   return (
     <Stagger className="grid grid-cols-3 gap-3 sm:grid-cols-6">
       {tiles.map((t) => (
-        <StaggerItem
-          key={t.label}
-          className="rounded-2xl bento p-3 text-center"
-        >
-          <p className="text-lg font-bold tracking-tight">{t.value}</p>
-          <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-            {t.label}
-          </p>
+        <StaggerItem key={t.label}>
+          <Card className="gap-1 rounded-2xl p-3 text-center">
+            <p className="text-lg font-bold tracking-tight">
+              <AnimatedNumber value={t.value} />
+            </p>
+            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+              {t.label}
+            </p>
+          </Card>
         </StaggerItem>
       ))}
     </Stagger>
@@ -290,7 +330,7 @@ function GovernancePanel({
   }
 
   return (
-    <section className="rounded-2xl bento p-4">
+    <section className="rounded-2xl panel p-4">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Governance
       </h2>
@@ -347,7 +387,7 @@ function GovernancePanel({
             className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"
             barClassName={cn(
               "h-full rounded-full",
-              usagePct > 90 ? "bg-red-500" : "bg-brand-600",
+              usagePct > 90 ? "bg-danger" : "bg-brand-600",
             )}
           />
         </label>
@@ -445,58 +485,64 @@ function RunRow({ run }: { run: Doc<"agentRuns"> }) {
     run.taskId ? { taskId: run.taskId } : "skip",
   );
   return (
-    <li className="rounded-2xl bento px-3 py-2 text-sm">
-      <div className="flex items-center gap-2">
-        <Icon
-          className={cn("h-4 w-4 flex-shrink-0", RUN_COLOR[run.status])}
-          aria-hidden
-        />
-        <span className="min-w-0 flex-1 truncate font-medium">{run.title}</span>
-        <span className="flex-shrink-0 text-xs text-muted-foreground">
-          {timeAgo(run.startedAt)}
-        </span>
-      </div>
-      {(run.summary || run.error) && (
-        <p
+    <TableRow>
+      <TableCell className="align-top">
+        <span
           className={cn(
-            "mt-1 pl-6 text-xs",
-            run.error ? "text-red-600" : "text-muted-foreground",
+            "inline-flex items-center gap-1.5 text-xs font-medium",
+            RUN_COLOR[run.status],
           )}
         >
-          {run.error ?? run.summary}
-        </p>
-      )}
-      {(run.links?.length ?? 0) > 0 && (
-        <ul className="mt-1 space-y-0.5 pl-6">
-          {run.links!.map((l) => (
-            <li key={l}>
-              <a
-                href={l}
-                target="_blank"
-                rel="noreferrer"
-                className="break-all text-xs text-brand-600 hover:underline"
-              >
-                {l}
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
-      {(run.costUsd !== undefined || run.tokensUsed !== undefined) && (
-        <p className="mt-0.5 pl-6 text-xs text-muted-foreground">
-          {run.tokensUsed !== undefined && `${run.tokensUsed} tokens`}
-          {run.tokensUsed !== undefined && run.costUsd !== undefined && " · "}
-          {run.costUsd !== undefined && `$${run.costUsd}`}
-        </p>
-      )}
-      {run.taskId && listId && (
-        <Link
-          href={`/dashboard/l/${listId}/t/${run.taskId}`}
-          className="mt-0.5 block pl-6 text-xs text-brand-600 hover:underline"
-        >
-          View task
-        </Link>
-      )}
-    </li>
+          <Icon className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+          {run.status}
+        </span>
+      </TableCell>
+      <TableCell className="max-w-xs whitespace-normal align-top">
+        <p className="truncate font-medium">{run.title}</p>
+        {(run.summary || run.error) && (
+          <p
+            className={cn(
+              "mt-1 text-xs",
+              run.error ? "text-red-600" : "text-muted-foreground",
+            )}
+          >
+            {run.error ?? run.summary}
+          </p>
+        )}
+        {(run.links?.length ?? 0) > 0 && (
+          <ul className="mt-1 space-y-0.5">
+            {run.links!.map((l) => (
+              <li key={l}>
+                <a
+                  href={l}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="break-all text-xs text-brand-600 hover:underline"
+                >
+                  {l}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+        {run.taskId && listId && (
+          <Link
+            href={`/dashboard/l/${listId}/t/${run.taskId}`}
+            className="mt-0.5 block text-xs text-brand-600 hover:underline"
+          >
+            View task
+          </Link>
+        )}
+      </TableCell>
+      <TableCell className="align-top text-xs text-muted-foreground">
+        {timeAgo(run.startedAt)}
+      </TableCell>
+      <TableCell className="align-top text-right text-xs text-muted-foreground">
+        {run.tokensUsed !== undefined && `${run.tokensUsed} tok`}
+        {run.tokensUsed !== undefined && run.costUsd !== undefined && " · "}
+        {run.costUsd !== undefined && `$${run.costUsd}`}
+        {run.tokensUsed === undefined && run.costUsd === undefined && "-"}
+      </TableCell>
+    </TableRow>
   );
 }

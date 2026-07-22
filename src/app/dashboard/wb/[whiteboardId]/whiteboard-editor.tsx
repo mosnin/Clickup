@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft } from "lucide-react";
+import { Presentation } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { useToast } from "@/components/toast";
 
 // tldraw is ~500 kB; lazy-load so other dashboard routes don't pay for it.
@@ -40,8 +41,12 @@ export function WhiteboardEditor({
   if (wb === undefined) {
     return (
       <div className="space-y-4">
+        <div className="-mx-4 flex min-h-[52px] items-center gap-2.5 border-b border-border py-2 sm:-mx-6 sm:px-6">
+          <div className="h-4 w-4 animate-pulse rounded-full bg-muted" />
+          <div className="h-4 w-32 animate-pulse rounded-full bg-muted" />
+        </div>
         <div className="h-12 w-2/3 animate-pulse rounded-full bg-muted" />
-        <div className="h-[70vh] animate-pulse rounded-2xl bg-muted/40" />
+        <div className="h-[70vh] animate-pulse rounded-xl bg-muted/40" />
       </div>
     );
   }
@@ -63,30 +68,28 @@ export function WhiteboardEditor({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Dashboard
-        </Link>
-        <button
-          type="button"
-          onClick={() => {
-            router.push("/dashboard");
-            toast("Whiteboard deleted", {
-              action: {
-                label: "Undo",
-                onClick: () => router.push(`/dashboard/wb/${id}`),
-              },
-              onExpire: () => remove({ whiteboardId: id }),
-            });
-          }}
-          className="rounded-full px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          Delete
-        </button>
-      </div>
+      <PageHeader
+        icon={Presentation}
+        title={wb.title || "Untitled board"}
+        actions={
+          <button
+            type="button"
+            onClick={() => {
+              router.push("/dashboard");
+              toast("Whiteboard deleted", {
+                action: {
+                  label: "Undo",
+                  onClick: () => router.push(`/dashboard/wb/${id}`),
+                },
+                onExpire: () => remove({ whiteboardId: id }),
+              });
+            }}
+            className="rounded-full px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            Delete
+          </button>
+        }
+      />
 
       <input
         type="text"

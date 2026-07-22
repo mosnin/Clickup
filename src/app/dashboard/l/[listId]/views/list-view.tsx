@@ -8,6 +8,16 @@ import { ChevronRight, Plus, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { TaskBadges } from "@/components/dashboard/task-badges";
 import { ChecklistChip } from "@/components/dashboard/checklist";
@@ -87,63 +97,65 @@ export function ListView({
   }
 
   return (
-    <div className="overflow-x-auto rounded-2xl bento">
-      <table className="sheet-table w-full text-sm">
-        <thead>
-          <tr>
-            <th scope="col" className="w-10">
-              <input
-                type="checkbox"
-                aria-label="Select all tasks"
-                checked={
-                  shown.length > 0 && selectedVisible.length === shown.length
-                }
-                onChange={toggleAll}
-                className="h-3.5 w-3.5 accent-[var(--color-foreground)]"
-              />
-            </th>
-            <th scope="col" className="w-10"></th>
-            <th scope="col">Title</th>
-            <th scope="col" className="hidden sm:table-cell">Status</th>
-            <th scope="col" className="hidden sm:table-cell">Priority</th>
-            <th scope="col" className="hidden md:table-cell">Due</th>
-            {fields.map((f) => (
-              <th key={f._id} scope="col" className="hidden md:table-cell">
-                {f.name}
-              </th>
-            ))}
-            <th scope="col"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {shown.length === 0 && (
-            <tr>
-              <td
-                colSpan={7 + fields.length}
-                className="py-14 text-center text-sm text-muted-foreground"
-              >
-                {filtered
-                  ? "No tasks match these filters."
-                  : "Nothing here yet. Add the first task below."}
-              </td>
-            </tr>
-          )}
-          {shown.map((task, i) => (
-            <TaskRow
-              key={task._id}
-              task={task}
-              listId={listId}
-              statuses={statuses}
-              fields={fields}
-              index={i}
-              selected={selected.has(task._id)}
-              onToggleSelect={() => toggleSelect(task._id)}
-              subtasks={childrenByParent.get(task._id) ?? []}
-            />
-          ))}
-        </tbody>
-      </table>
-      <NewTaskRow listId={listId} />
+    <>
+      <Card className="gap-0 overflow-hidden py-0">
+        <CardContent className="px-0 py-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead scope="col" className="w-10">
+                  <Checkbox
+                    aria-label="Select all tasks"
+                    checked={
+                      shown.length > 0 && selectedVisible.length === shown.length
+                    }
+                    onCheckedChange={toggleAll}
+                  />
+                </TableHead>
+                <TableHead scope="col" className="w-10" />
+                <TableHead scope="col">Title</TableHead>
+                <TableHead scope="col" className="hidden sm:table-cell">Status</TableHead>
+                <TableHead scope="col" className="hidden sm:table-cell">Priority</TableHead>
+                <TableHead scope="col" className="hidden md:table-cell">Due</TableHead>
+                {fields.map((f) => (
+                  <TableHead scope="col" key={f._id} className="hidden md:table-cell">
+                    {f.name}
+                  </TableHead>
+                ))}
+                <TableHead scope="col" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {shown.length === 0 && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell
+                    colSpan={7 + fields.length}
+                    className="whitespace-normal py-14 text-center text-sm text-muted-foreground"
+                  >
+                    {filtered
+                      ? "No tasks match these filters."
+                      : "Nothing here yet. Add the first task below."}
+                  </TableCell>
+                </TableRow>
+              )}
+              {shown.map((task, i) => (
+                <TaskRow
+                  key={task._id}
+                  task={task}
+                  listId={listId}
+                  statuses={statuses}
+                  fields={fields}
+                  index={i}
+                  selected={selected.has(task._id)}
+                  onToggleSelect={() => toggleSelect(task._id)}
+                  subtasks={childrenByParent.get(task._id) ?? []}
+                />
+              ))}
+            </TableBody>
+          </Table>
+          <NewTaskRow listId={listId} />
+        </CardContent>
+      </Card>
 
       <BulkBar
         statuses={statuses}
@@ -160,7 +172,7 @@ export function ListView({
           })
         }
       />
-    </div>
+    </>
   );
 }
 
@@ -232,7 +244,7 @@ function BulkBar({
           transition={{ duration: 0.25, ease: EASE }}
           className="fixed inset-x-0 bottom-6 z-40 flex justify-center px-4"
         >
-          <div className="bento flex flex-wrap items-center gap-2 rounded-full bg-background py-2 pl-4 pr-2 shadow-lg">
+          <Card className="flex-row flex-wrap items-center gap-2 rounded-full py-2 pl-4 pr-2 shadow-lg">
             <span className="text-sm font-medium tabular-nums">
               {count} selected
             </span>
@@ -274,7 +286,7 @@ function BulkBar({
             <Button size="sm" variant="outline" onClick={onClear}>
               Done
             </Button>
-          </div>
+          </Card>
         </motion.div>
       )}
     </AnimatePresence>
@@ -307,7 +319,7 @@ function BulkMenu({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 4, scale: 0.98 }}
               transition={{ duration: 0.15 }}
-              className="absolute bottom-full left-0 z-50 mb-2 w-44 rounded-xl bg-background p-1 shadow-lg"
+              className="absolute bottom-full left-0 z-50 mb-2 w-44 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md"
               onClick={() => setOpen(false)}
             >
               {children}
@@ -424,18 +436,20 @@ function TaskRow({
           ease: EASE,
           delay: Math.min(index * 0.03, 0.3),
         }}
-        className={cn("align-middle", selected && "bg-muted/60")}
+        data-slot="table-row"
+        className={cn(
+          "border-b align-middle transition-colors hover:bg-muted/50",
+          selected && "bg-accent hover:bg-accent",
+        )}
       >
-      <td>
-        <input
-          type="checkbox"
+      <TableCell>
+        <Checkbox
           aria-label={`Select ${task.title}`}
           checked={selected}
-          onChange={onToggleSelect}
-          className="h-3.5 w-3.5 accent-[var(--color-foreground)]"
+          onCheckedChange={onToggleSelect}
         />
-      </td>
-      <td>
+      </TableCell>
+      <TableCell>
         <motion.button
           type="button"
           aria-label={isDone ? "Mark task open" : "Mark task complete"}
@@ -477,8 +491,8 @@ function TaskRow({
             />
           </motion.svg>
         </motion.button>
-      </td>
-      <td>
+      </TableCell>
+      <TableCell>
         <span className="flex items-center gap-1">
           {subtasks.length > 0 && (
             <button
@@ -526,8 +540,8 @@ function TaskRow({
             </span>
           )}
         </span>
-      </td>
-      <td className="hidden sm:table-cell">
+      </TableCell>
+      <TableCell className="hidden sm:table-cell">
         <select
           aria-label="Status"
           value={task.statusId}
@@ -548,8 +562,8 @@ function TaskRow({
             </option>
           ))}
         </select>
-      </td>
-      <td className="hidden sm:table-cell">
+      </TableCell>
+      <TableCell className="hidden sm:table-cell">
         <select
           aria-label="Priority"
           value={task.priority ?? ""}
@@ -569,8 +583,8 @@ function TaskRow({
             </option>
           ))}
         </select>
-      </td>
-      <td className="hidden md:table-cell">
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
         <input
           type="date"
           aria-label="Due date"
@@ -583,9 +597,9 @@ function TaskRow({
           }
           className="soft-field px-2 py-1 text-xs"
         />
-      </td>
+      </TableCell>
       {fields.map((f) => (
-        <td key={f._id} className="hidden md:table-cell">
+        <TableCell key={f._id} className="hidden md:table-cell">
           <CustomFieldInput
             field={f}
             value={valuesByField.get(f._id)}
@@ -597,9 +611,9 @@ function TaskRow({
               }
             }}
           />
-        </td>
+        </TableCell>
       ))}
-      <td className="text-right">
+      <TableCell className="text-right">
         <button
           type="button"
           aria-label="Delete task"
@@ -614,7 +628,7 @@ function TaskRow({
         >
           <X className="h-3.5 w-3.5" />
         </button>
-      </td>
+      </TableCell>
       </motion.tr>
       <AnimatePresence initial={false}>
         {expanded &&
@@ -682,10 +696,11 @@ function ChildTaskRow({
       animate={{ opacity: 1, height: "auto" }}
       exit={{ opacity: 0, height: 0 }}
       transition={{ duration: 0.25, ease: EASE }}
-      className="bg-muted/20 align-middle"
+      data-slot="table-row"
+      className="border-b bg-muted/20 align-middle"
     >
-      <td />
-      <td>
+      <TableCell />
+      <TableCell>
         <motion.button
           type="button"
           aria-label={isDone ? "Mark subtask open" : "Mark subtask complete"}
@@ -729,8 +744,8 @@ function ChildTaskRow({
             />
           </motion.svg>
         </motion.button>
-      </td>
-      <td colSpan={colSpan}>
+      </TableCell>
+      <TableCell colSpan={colSpan} className="whitespace-normal">
         <span className="flex items-center gap-2 pl-4">
           <Link
             href={taskPeekHref(searchParams, task._id)}
@@ -748,7 +763,7 @@ function ChildTaskRow({
             </span>
           )}
         </span>
-      </td>
+      </TableCell>
     </motion.tr>
   );
 }
@@ -779,7 +794,7 @@ function NewTaskRow({ listId }: { listId: Id<"lists"> }) {
   }
 
   return (
-    <form onSubmit={submit} className="px-4 py-3">
+    <form onSubmit={submit} className="border-t border-border px-4 py-3">
       <div className="flex items-center gap-2">
         <Plus className="h-4 w-4 text-muted-foreground" aria-hidden />
         <input

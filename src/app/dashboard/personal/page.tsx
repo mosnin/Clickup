@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useQuery } from "convex/react";
+import { User } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { Stagger, StaggerItem } from "@/components/motion";
+import { PageHeader } from "@/components/dashboard/page-header";
 
 export default function PersonalPage() {
   const tree = useQuery(api.sidebar.tree, {});
@@ -24,24 +26,13 @@ export default function PersonalPage() {
 
   return (
     <div className="space-y-6">
-      <header className="title-rule">
-        <div className="flex items-center gap-2">
-          <span
-            aria-hidden
-            className="inline-block h-3 w-3 rounded-full"
-            style={{ backgroundColor: personal.color ?? "#a9c6f2" }}
-          />
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-            {personal.name}
-          </h1>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Just for you. Nothing in here is shared.
-        </p>
-      </header>
+      <PageHeader icon={User} title="Personal" />
+      <p className="text-sm text-muted-foreground">
+        Just for you. Nothing in here is shared.
+      </p>
 
       {personal.folders.length === 0 && directLists.length === 0 ? (
-        <div className="rounded-2xl bento p-10 text-center">
+        <div className="rounded-2xl panel p-10 text-center">
           <p className="text-sm text-muted-foreground">
             No lists yet. Use the <span className="font-medium">+</span> next to{" "}
             <span className="font-medium">{personal.name}</span> in the sidebar
@@ -90,7 +81,7 @@ function ListCard({
     <StaggerItem>
       <Link
         href={`/dashboard/l/${list._id}`}
-        className="lift block rounded-2xl bento p-5 hover:border-foreground/25"
+        className="lift block rounded-2xl panel p-5 hover:border-foreground/25"
       >
         <div className="flex items-center gap-2">
           <span

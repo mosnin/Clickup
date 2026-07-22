@@ -4,11 +4,30 @@ import Link from "next/link";
 import { useState } from "react";
 import { useToast } from "@/components/toast";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, Check, Copy, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Copy, Plus, Settings, Trash2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Picker } from "@/components/ui/picker";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { ScheduledTasksSection } from "@/components/dashboard/scheduled-tasks-section";
 
 type StatusCategory = Doc<"listStatuses">["category"];
@@ -28,6 +47,26 @@ const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   date: "Date",
   checkbox: "Checkbox",
 };
+
+// Shared shape for a "row list inside a Card" section — a bordered
+// container with divided rows, plus a distinct dashed-border row at the
+// bottom for creating a new entry. Keeps Statuses/Fields/Automations/Forms
+// visually consistent without duplicating the wrapper markup.
+function RowList({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+      {children}
+    </div>
+  );
+}
+
+function EmptyRow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="p-4 text-center text-sm text-muted-foreground">
+      {children}
+    </div>
+  );
+}
 
 export function ListSettings({ listId }: { listId: string }) {
   const id = listId as Id<"lists">;
@@ -55,7 +94,7 @@ export function ListSettings({ listId }: { listId: string }) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <Link
         href={`/dashboard/l/${list._id}`}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -63,15 +102,15 @@ export function ListSettings({ listId }: { listId: string }) {
         <ArrowLeft className="h-4 w-4" /> {list.name}
       </Link>
 
-      <header className="title-rule">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          List settings
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Statuses, custom fields, automations, and schedules for{" "}
-          <span className="font-medium text-foreground">{list.name}</span>.
-        </p>
-      </header>
+      <PageHeader
+        icon={Settings}
+        title={`${list.name} settings`}
+        context={
+          <span className="truncate">
+            Statuses, custom fields, automations, and schedules
+          </span>
+        }
+      />
 
       <StatusesSection listId={list._id} statuses={statuses} />
       <FieldsSection listId={list._id} fields={fields} />
@@ -80,7 +119,11 @@ export function ListSettings({ listId }: { listId: string }) {
         automations={automations}
         statuses={statuses}
       />
-      <ScheduledTasksSection listId={list._id} />
+      <Card className="rounded-2xl">
+        <CardContent>
+          <ScheduledTasksSection listId={list._id} />
+        </CardContent>
+      </Card>
       <FormsSection listId={list._id} />
     </div>
   );
@@ -98,40 +141,41 @@ function StatusesSection({
   const remove = useMutation(api.listStatuses.remove);
 
   return (
-    <section>
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Statuses
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Configure the workflow stages tasks in this list move through.
-      </p>
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Statuses</CardTitle>
+        <CardDescription>
+          Configure the workflow stages tasks in this list move through.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <RowList>
+          {statuses.map((status) => (
+            <StatusRow
+              key={status._id}
+              status={status}
+              otherStatuses={statuses.filter((s) => s._id !== status._id)}
+              onRename={(name) => update({ statusId: status._id, name })}
+              onColorChange={(color) =>
+                update({ statusId: status._id, color })
+              }
+              onCategoryChange={(category) =>
+                update({ statusId: status._id, category })
+              }
+              onDelete={(replaceWithId) =>
+                remove({ statusId: status._id, replaceWithId })
+              }
+            />
+          ))}
+        </RowList>
 
-      <ul className="mt-4 space-y-2">
-        {statuses.map((status) => (
-          <StatusRow
-            key={status._id}
-            status={status}
-            otherStatuses={statuses.filter((s) => s._id !== status._id)}
-            onRename={(name) => update({ statusId: status._id, name })}
-            onColorChange={(color) =>
-              update({ statusId: status._id, color })
-            }
-            onCategoryChange={(category) =>
-              update({ statusId: status._id, category })
-            }
-            onDelete={(replaceWithId) =>
-              remove({ statusId: status._id, replaceWithId })
-            }
-          />
-        ))}
-      </ul>
-
-      <CreateStatusForm
-        onSubmit={(name, color, category) =>
-          create({ listId, name, color, category })
-        }
-      />
-    </section>
+        <CreateStatusForm
+          onSubmit={(name, color, category) =>
+            create({ listId, name, color, category })
+          }
+        />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -155,40 +199,45 @@ function StatusRow({
   const [replaceWith, setReplaceWith] = useState<Id<"listStatuses"> | "">("");
 
   return (
-    <li className="rounded-2xl bento p-3">
+    <div className="p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        {/* Native color input: no vendored equivalent, keep the OS color
+            picker's mechanics as-is. */}
         <input
           type="color"
           aria-label="Status color"
           value={status.color}
           onChange={(e) => onColorChange(e.currentTarget.value)}
-          className="h-8 w-8 cursor-pointer rounded-full border border-border"
+          className="h-8 w-8 flex-shrink-0 cursor-pointer rounded-full border border-border"
         />
-        <input
-          type="text"
+        <Input
           value={name}
           onChange={(e) => setName(e.currentTarget.value)}
           onBlur={() => {
             if (name.trim() && name !== status.name) onRename(name.trim());
             else if (!name.trim()) setName(status.name);
           }}
-          className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="flex-1"
         />
-        <select
+        <Select
           value={status.category}
-          onChange={(e) =>
-            onCategoryChange(e.currentTarget.value as StatusCategory)
-          }
-          className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+          onValueChange={(v) => onCategoryChange(v as StatusCategory)}
         >
-          {(Object.keys(CATEGORY_LABEL) as StatusCategory[]).map((c) => (
-            <option key={c} value={c}>
-              {CATEGORY_LABEL[c]}
-            </option>
-          ))}
-        </select>
-        <button
+          <SelectTrigger size="sm" className="w-36 flex-shrink-0 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(CATEGORY_LABEL) as StatusCategory[]).map((c) => (
+              <SelectItem key={c} value={c}>
+                {CATEGORY_LABEL[c]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           aria-label="Delete status"
           onClick={() => setShowDelete((v) => !v)}
           disabled={otherStatuses.length === 0}
@@ -197,34 +246,35 @@ function StatusRow({
               ? "Add another status before deleting this one"
               : "Delete"
           }
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+          className="tap-target flex-shrink-0 text-muted-foreground hover:text-foreground"
         >
           <Trash2 className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
 
       {showDelete && (
-        <div className="mt-3 rounded-2xl bg-muted p-3">
+        <div className="mt-3 rounded-xl bg-muted p-3">
           <p className="text-xs text-muted-foreground">
             Tasks currently in <strong>{status.name}</strong> will be moved to:
           </p>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-            <select
-              value={replaceWith}
-              onChange={(e) =>
-                setReplaceWith(
-                  (e.currentTarget.value as Id<"listStatuses">) || "",
-                )
+            <Select
+              value={replaceWith || undefined}
+              onValueChange={(v) =>
+                setReplaceWith(v as Id<"listStatuses">)
               }
-              className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
             >
-              <option value="">Pick a replacement…</option>
-              {otherStatuses.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Pick a replacement…" />
+              </SelectTrigger>
+              <SelectContent>
+                {otherStatuses.map((s) => (
+                  <SelectItem key={s._id} value={s._id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               size="sm"
               variant="primary"
@@ -248,7 +298,7 @@ function StatusRow({
           </div>
         </div>
       )}
-    </li>
+    </div>
   );
 }
 
@@ -279,34 +329,42 @@ function CreateStatusForm({
           setPending(false);
         }
       }}
-      className="mt-3 flex flex-col gap-2 rounded-2xl bento p-3 sm:flex-row sm:items-center"
+      className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
     >
       <input
         type="color"
         value={color}
         onChange={(e) => setColor(e.currentTarget.value)}
-        className="h-8 w-8 cursor-pointer rounded-full border border-border"
+        className="h-8 w-8 flex-shrink-0 cursor-pointer rounded-full border border-border"
         aria-label="New status color"
       />
-      <input
-        type="text"
+      <Input
         placeholder="New status name"
         value={name}
         onChange={(e) => setName(e.currentTarget.value)}
-        className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+        className="flex-1"
       />
-      <select
+      <Select
         value={category}
-        onChange={(e) => setCategory(e.currentTarget.value as StatusCategory)}
-        className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+        onValueChange={(v) => setCategory(v as StatusCategory)}
       >
-        {(Object.keys(CATEGORY_LABEL) as StatusCategory[]).map((c) => (
-          <option key={c} value={c}>
-            {CATEGORY_LABEL[c]}
-          </option>
-        ))}
-      </select>
-      <Button type="submit" size="sm" disabled={!name.trim() || pending}>
+        <SelectTrigger size="sm" className="w-40 flex-shrink-0 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(Object.keys(CATEGORY_LABEL) as StatusCategory[]).map((c) => (
+            <SelectItem key={c} value={c}>
+              {CATEGORY_LABEL[c]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        type="submit"
+        size="sm"
+        disabled={!name.trim() || pending}
+        className="flex-shrink-0"
+      >
         <Plus className="h-4 w-4" /> Add
       </Button>
     </form>
@@ -326,39 +384,38 @@ function FieldsSection({
   const remove = useMutation(api.customFields.remove);
 
   return (
-    <section>
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Custom fields
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Add columns to track per-task data beyond the defaults.
-      </p>
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Custom fields</CardTitle>
+        <CardDescription>
+          Add columns to track per-task data beyond the defaults.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <RowList>
+          {fields.length === 0 && (
+            <EmptyRow>No custom fields yet.</EmptyRow>
+          )}
+          {fields.map((field) => (
+            <FieldRow
+              key={field._id}
+              field={field}
+              onRename={(name) => rename({ fieldId: field._id, name })}
+              onUpdateOptions={(options) =>
+                updateOptions({ fieldId: field._id, options })
+              }
+              onDelete={() => remove({ fieldId: field._id })}
+            />
+          ))}
+        </RowList>
 
-      <ul className="mt-4 space-y-2">
-        {fields.length === 0 && (
-          <li className="rounded-2xl bento p-4 text-center text-sm text-muted-foreground">
-            No custom fields yet.
-          </li>
-        )}
-        {fields.map((field) => (
-          <FieldRow
-            key={field._id}
-            field={field}
-            onRename={(name) => rename({ fieldId: field._id, name })}
-            onUpdateOptions={(options) =>
-              updateOptions({ fieldId: field._id, options })
-            }
-            onDelete={() => remove({ fieldId: field._id })}
-          />
-        ))}
-      </ul>
-
-      <CreateFieldForm
-        onSubmit={(name, type, options) =>
-          create({ listId, name, type, options })
-        }
-      />
-    </section>
+        <CreateFieldForm
+          onSubmit={(name, type, options) =>
+            create({ listId, name, type, options })
+          }
+        />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -382,20 +439,22 @@ function FieldRow({
   if (deleting) return null;
 
   return (
-    <li className="rounded-2xl bento p-3">
+    <div className="p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <span className="rounded-full bg-muted px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+        <Badge
+          variant="secondary"
+          className="flex-shrink-0 text-[10px] uppercase tracking-wider"
+        >
           {FIELD_TYPE_LABEL[field.type]}
-        </span>
-        <input
-          type="text"
+        </Badge>
+        <Input
           value={name}
           onChange={(e) => setName(e.currentTarget.value)}
           onBlur={() => {
             if (name.trim() && name !== field.name) onRename(name.trim());
             else if (!name.trim()) setName(field.name);
           }}
-          className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="flex-1"
         />
         {field.type === "dropdown" && (
           <Button
@@ -403,12 +462,15 @@ function FieldRow({
             size="sm"
             variant="ghost"
             onClick={() => setShowOptions((v) => !v)}
+            className="flex-shrink-0"
           >
             Options ({field.options?.length ?? 0})
           </Button>
         )}
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           aria-label="Delete field"
           onClick={() => {
             setDeleting(true);
@@ -417,10 +479,10 @@ function FieldRow({
               onExpire: () => onDelete(),
             });
           }}
-          className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target flex-shrink-0 text-muted-foreground hover:text-foreground"
         >
           <Trash2 className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
 
       {field.type === "dropdown" && showOptions && (
@@ -429,7 +491,7 @@ function FieldRow({
           onChange={onUpdateOptions}
         />
       )}
-    </li>
+    </div>
   );
 }
 
@@ -446,7 +508,7 @@ function DropdownOptionsEditor({
   const [color, setColor] = useState("#a9c6f2");
 
   return (
-    <div className="mt-3 rounded-2xl bg-muted p-3">
+    <div className="mt-3 rounded-xl bg-muted p-3">
       <ul className="space-y-1">
         {options.map((opt, i) => (
           <li
@@ -477,20 +539,20 @@ function DropdownOptionsEditor({
           type="color"
           value={color}
           onChange={(e) => setColor(e.currentTarget.value)}
-          className="h-7 w-7 cursor-pointer rounded-full border border-border"
+          className="h-7 w-7 flex-shrink-0 cursor-pointer rounded-full border border-border"
           aria-label="Option color"
         />
-        <input
-          type="text"
+        <Input
           value={draft}
           onChange={(e) => setDraft(e.currentTarget.value)}
           placeholder="New option"
-          className="flex-1 rounded-full border border-border bg-background px-3 py-1 text-sm"
+          className="h-8 flex-1"
         />
         <Button
           type="button"
           size="sm"
           disabled={!draft.trim()}
+          className="flex-shrink-0"
           onClick={async () => {
             await onChange([
               ...options,
@@ -549,27 +611,32 @@ function CreateFieldForm({
           setPending(false);
         }
       }}
-      className="mt-3 flex flex-col gap-2 rounded-2xl bento p-3 sm:flex-row sm:items-center"
+      className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
     >
-      <input
-        type="text"
+      <Input
         placeholder="New field name"
         value={name}
         onChange={(e) => setName(e.currentTarget.value)}
-        className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+        className="flex-1"
       />
-      <select
-        value={type}
-        onChange={(e) => setType(e.currentTarget.value as FieldType)}
-        className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+      <Select value={type} onValueChange={(v) => setType(v as FieldType)}>
+        <SelectTrigger size="sm" className="w-36 flex-shrink-0 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(Object.keys(FIELD_TYPE_LABEL) as FieldType[]).map((t) => (
+            <SelectItem key={t} value={t}>
+              {FIELD_TYPE_LABEL[t]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        type="submit"
+        size="sm"
+        disabled={!name.trim() || pending}
+        className="flex-shrink-0"
       >
-        {(Object.keys(FIELD_TYPE_LABEL) as FieldType[]).map((t) => (
-          <option key={t} value={t}>
-            {FIELD_TYPE_LABEL[t]}
-          </option>
-        ))}
-      </select>
-      <Button type="submit" size="sm" disabled={!name.trim() || pending}>
         <Plus className="h-4 w-4" /> Add field
       </Button>
     </form>
@@ -592,6 +659,8 @@ const ACTION_LABEL: Record<ActionKind, string> = {
   set_due_in_days: "Set due date in N days",
 };
 
+const PRIORITY_OPTIONS = ["urgent", "high", "normal", "low"] as const;
+
 function AutomationsSection({
   listId,
   automations,
@@ -606,40 +675,39 @@ function AutomationsSection({
   const remove = useMutation(api.listAutomations.remove);
 
   return (
-    <section>
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Automations
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Trigger an action automatically when something happens to a task in
-        this list.
-      </p>
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Automations</CardTitle>
+        <CardDescription>
+          Trigger an action automatically when something happens to a task in
+          this list.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <RowList>
+          {automations.length === 0 && (
+            <EmptyRow>No automations yet.</EmptyRow>
+          )}
+          {automations.map((automation) => (
+            <AutomationRow
+              key={automation._id}
+              listId={listId}
+              automation={automation}
+              statuses={statuses}
+              onChange={(patch) =>
+                update({ automationId: automation._id, ...patch })
+              }
+              onDelete={() => remove({ automationId: automation._id })}
+            />
+          ))}
+        </RowList>
 
-      <ul className="mt-4 space-y-2">
-        {automations.length === 0 && (
-          <li className="rounded-2xl bento p-4 text-center text-sm text-muted-foreground">
-            No automations yet.
-          </li>
-        )}
-        {automations.map((automation) => (
-          <AutomationRow
-            key={automation._id}
-            listId={listId}
-            automation={automation}
-            statuses={statuses}
-            onChange={(patch) =>
-              update({ automationId: automation._id, ...patch })
-            }
-            onDelete={() => remove({ automationId: automation._id })}
-          />
-        ))}
-      </ul>
-
-      <CreateAutomationForm
-        statuses={statuses}
-        onSubmit={(trigger, action) => create({ listId, trigger, action })}
-      />
-    </section>
+        <CreateAutomationForm
+          statuses={statuses}
+          onSubmit={(trigger, action) => create({ listId, trigger, action })}
+        />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -665,42 +733,40 @@ function AutomationRow({
   if (deleting) return null;
 
   return (
-    <li
-      className={
-        automation.enabled
-          ? "rounded-2xl bento p-3"
-          : "rounded-2xl border border-border bg-muted/30 p-3 opacity-60"
-      }
-    >
+    <div className={cn("p-3", !automation.enabled && "bg-muted/30 opacity-60")}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={automation.enabled}
-          onChange={(e) => onChange({ enabled: e.currentTarget.checked })}
+          onCheckedChange={(checked) => onChange({ enabled: checked === true })}
           aria-label="Enabled"
+          className="flex-shrink-0"
         />
-        <select
+        <Select
           value={automation.trigger}
-          onChange={(e) =>
-            onChange({ trigger: e.currentTarget.value as Trigger })
-          }
-          className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+          onValueChange={(v) => onChange({ trigger: v as Trigger })}
         >
-          {(Object.keys(TRIGGER_LABEL) as Trigger[]).map((t) => (
-            <option key={t} value={t}>
-              {TRIGGER_LABEL[t]}
-            </option>
-          ))}
-        </select>
-        <span className="text-xs text-muted-foreground">→</span>
+          <SelectTrigger size="sm" className="w-56 flex-shrink-0 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(TRIGGER_LABEL) as Trigger[]).map((t) => (
+              <SelectItem key={t} value={t}>
+                {TRIGGER_LABEL[t]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="flex-shrink-0 text-xs text-muted-foreground">→</span>
         <ActionEditor
           listId={listId}
           action={automation.action}
           statuses={statuses}
           onChange={(action) => onChange({ action })}
         />
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           aria-label="Delete automation"
           onClick={() => {
             setDeleting(true);
@@ -709,12 +775,12 @@ function AutomationRow({
               onExpire: () => onDelete(),
             });
           }}
-          className="tap-target ml-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target ml-auto flex-shrink-0 text-muted-foreground hover:text-foreground"
         >
           <Trash2 className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
-    </li>
+    </div>
   );
 }
 
@@ -746,17 +812,18 @@ function ActionEditor({
 
   return (
     <div className="flex flex-1 flex-wrap items-center gap-2">
-      <select
-        value={action.kind}
-        onChange={(e) => setKind(e.currentTarget.value as ActionKind)}
-        className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
-      >
-        {(Object.keys(ACTION_LABEL) as ActionKind[]).map((k) => (
-          <option key={k} value={k}>
-            {ACTION_LABEL[k]}
-          </option>
-        ))}
-      </select>
+      <Select value={action.kind} onValueChange={(v) => setKind(v as ActionKind)}>
+        <SelectTrigger size="sm" className="w-48 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(Object.keys(ACTION_LABEL) as ActionKind[]).map((k) => (
+            <SelectItem key={k} value={k}>
+              {ACTION_LABEL[k]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       {action.kind === "assign_user" && (
         <Picker
           label={
@@ -773,43 +840,51 @@ function ActionEditor({
         />
       )}
       {action.kind === "set_priority" && (
-        <select
+        <Select
           value={action.priority}
-          onChange={(e) =>
+          onValueChange={(v) =>
             onChange({
               kind: "set_priority",
-              priority: e.currentTarget.value as "urgent" | "high" | "normal" | "low",
+              priority: v as "urgent" | "high" | "normal" | "low",
             })
           }
-          className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
         >
-          {["urgent", "high", "normal", "low"].map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm" className="w-28 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PRIORITY_OPTIONS.map((p) => (
+              <SelectItem key={p} value={p} className="capitalize">
+                {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
       {action.kind === "set_status" && (
-        <select
+        <Select
           value={action.statusId}
-          onChange={(e) =>
+          onValueChange={(v) =>
             onChange({
               kind: "set_status",
-              statusId: e.currentTarget.value as Id<"listStatuses">,
+              statusId: v as Id<"listStatuses">,
             })
           }
-          className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
         >
-          {statuses.map((s) => (
-            <option key={s._id} value={s._id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm" className="w-40 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {statuses.map((s) => (
+              <SelectItem key={s._id} value={s._id}>
+                {s.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
       {action.kind === "set_due_in_days" && (
-        <input
+        <Input
           type="number"
           value={action.days}
           onChange={(e) =>
@@ -818,7 +893,7 @@ function ActionEditor({
               days: Number(e.currentTarget.value) || 0,
             })
           }
-          className="w-20 rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+          className="h-8 w-20 text-xs"
         />
       )}
     </div>
@@ -854,7 +929,7 @@ function CreateAutomationForm({
           setPending(false);
         }
       }}
-      className="mt-3 flex justify-center"
+      className="flex justify-center"
     >
       <Button type="submit" size="sm" variant="outline" disabled={pending}>
         <Plus className="h-4 w-4" /> Add automation
@@ -876,69 +951,66 @@ function FormsSection({ listId }: { listId: Id<"lists"> }) {
   const [pending, setPending] = useState(false);
 
   return (
-    <section>
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Form
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Share a public link that lets anyone submit a request without an
-        account — each submission becomes a task on this list.
-      </p>
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Form</CardTitle>
+        <CardDescription>
+          Share a public link that lets anyone submit a request without an
+          account — each submission becomes a task on this list.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {forms === undefined ? (
+          <div className="h-16 animate-pulse rounded-xl bg-muted" />
+        ) : (
+          <>
+            <RowList>
+              {forms.length === 0 && <EmptyRow>No forms yet.</EmptyRow>}
+              {forms.map((form) => (
+                <FormRow
+                  key={form._id}
+                  form={form}
+                  onUpdate={(patch) => update({ formId: form._id, ...patch })}
+                  onDelete={() => remove({ formId: form._id })}
+                />
+              ))}
+            </RowList>
 
-      {forms === undefined ? (
-        <div className="mt-4 h-16 animate-pulse rounded-2xl bg-muted" />
-      ) : (
-        <>
-          <ul className="mt-4 space-y-2">
-            {forms.length === 0 && (
-              <li className="rounded-2xl bento p-4 text-center text-sm text-muted-foreground">
-                No forms yet.
-              </li>
-            )}
-            {forms.map((form) => (
-              <FormRow
-                key={form._id}
-                form={form}
-                onUpdate={(patch) => update({ formId: form._id, ...patch })}
-                onDelete={() => remove({ formId: form._id })}
-              />
-            ))}
-          </ul>
-
-          {forms.length < MAX_FORMS_PER_LIST && (
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!title.trim()) return;
-                setPending(true);
-                try {
-                  await create({ listId, title: title.trim() });
-                  setTitle("");
-                } finally {
-                  setPending(false);
-                }
-              }}
-              className="mt-3 flex flex-col gap-2 rounded-2xl bento p-3 sm:flex-row sm:items-center"
-            >
-              <input
-                type="text"
-                placeholder="New form title"
-                value={title}
-                onChange={(e) => setTitle(e.currentTarget.value)}
-                className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-              />
-              <Button
-                type="submit"
-                size="sm"
-                disabled={!title.trim() || pending}
+            {forms.length < MAX_FORMS_PER_LIST && (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!title.trim()) return;
+                  setPending(true);
+                  try {
+                    await create({ listId, title: title.trim() });
+                    setTitle("");
+                  } finally {
+                    setPending(false);
+                  }
+                }}
+                className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
               >
-                <Plus className="h-4 w-4" /> Add form
-              </Button>
-            </form>
-          )}
-        </>
-      )}
-    </section>
+                <Input
+                  placeholder="New form title"
+                  value={title}
+                  onChange={(e) => setTitle(e.currentTarget.value)}
+                  className="flex-1"
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!title.trim() || pending}
+                  className="flex-shrink-0"
+                >
+                  <Plus className="h-4 w-4" /> Add form
+                </Button>
+              </form>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -966,16 +1038,17 @@ function FormRow({
   const path = `/f/${form.token}`;
 
   return (
-    <li className="rounded-2xl bento p-3">
+    <div className="p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={form.enabled}
-          onChange={(e) => onUpdate({ enabled: e.currentTarget.checked })}
+          onCheckedChange={(checked) =>
+            onUpdate({ enabled: checked === true })
+          }
           aria-label="Form enabled"
+          className="flex-shrink-0"
         />
-        <input
-          type="text"
+        <Input
           value={title}
           onChange={(e) => setTitle(e.currentTarget.value)}
           onBlur={() => {
@@ -985,18 +1058,20 @@ function FormRow({
               setTitle(form.title);
             }
           }}
-          className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="flex-1"
         />
         <Link
           href={path}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+          className="flex-shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
         >
           {path}
         </Link>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           aria-label="Copy form link"
           onClick={async () => {
             await navigator.clipboard.writeText(
@@ -1005,16 +1080,18 @@ function FormRow({
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
           }}
-          className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target flex-shrink-0 text-muted-foreground hover:text-foreground"
         >
           {copied ? (
             <Check className="h-4 w-4 text-positive" />
           ) : (
             <Copy className="h-4 w-4" />
           )}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           aria-label="Delete form"
           onClick={() => {
             setDeleting(true);
@@ -1023,42 +1100,41 @@ function FormRow({
               onExpire: () => onDelete(),
             });
           }}
-          className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target flex-shrink-0 text-muted-foreground hover:text-foreground"
         >
           <Trash2 className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
 
       <div className="mt-3 flex flex-wrap gap-4 border-t border-border pt-3 text-xs text-muted-foreground">
         <label className="flex items-center gap-1.5">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={form.askDescription ?? false}
-            onChange={(e) =>
-              onUpdate({ askDescription: e.currentTarget.checked })
+            onCheckedChange={(checked) =>
+              onUpdate({ askDescription: checked === true })
             }
           />
           Ask for description
         </label>
         <label className="flex items-center gap-1.5">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={form.askPriority ?? false}
-            onChange={(e) =>
-              onUpdate({ askPriority: e.currentTarget.checked })
+            onCheckedChange={(checked) =>
+              onUpdate({ askPriority: checked === true })
             }
           />
           Ask for priority
         </label>
         <label className="flex items-center gap-1.5">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={form.askEmail ?? false}
-            onChange={(e) => onUpdate({ askEmail: e.currentTarget.checked })}
+            onCheckedChange={(checked) =>
+              onUpdate({ askEmail: checked === true })
+            }
           />
           Ask for email
         </label>
       </div>
-    </li>
+    </div>
   );
 }

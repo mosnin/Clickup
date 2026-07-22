@@ -524,7 +524,7 @@ export function CommandPalette() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="fixed inset-0 z-[65] bg-foreground/30 backdrop-blur-sm"
+          className="fixed inset-0 z-[65] bg-black/30 backdrop-blur-sm"
           onPointerDown={(e) => {
             if (e.target === e.currentTarget) close();
           }}
@@ -534,7 +534,7 @@ export function CommandPalette() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.25, ease: EASE }}
-            className="mx-auto mt-[12vh] w-[min(560px,calc(100vw-2rem))] overflow-hidden rounded-2xl bento shadow-2xl"
+            className="mx-auto mt-[12vh] w-[min(560px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-2xl"
             role="dialog"
             aria-label="Command palette"
           >
@@ -562,7 +562,7 @@ export function CommandPalette() {
                 }
                 className="w-full bg-transparent text-sm focus:outline-none"
               />
-              <kbd className="hidden flex-shrink-0 rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
+              <kbd className="hidden flex-shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
                 esc
               </kbd>
             </div>
@@ -597,7 +597,7 @@ export function CommandPalette() {
                         onMouseMove={() => setHighlight(i)}
                         className={cn(
                           "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm",
-                          i === highlight && "bg-muted",
+                          i === highlight && "bg-accent text-accent-foreground",
                         )}
                       >
                         {Icon ? (

@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useAction, useQuery } from "convex/react";
-import { Sparkles } from "lucide-react";
+import { Brain as BrainIcon, Sparkles } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription } from "@/components/ui/card";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { Stagger, StaggerItem } from "@/components/motion";
 
 type Scope = { type: "user"; id: string } | { type: "workspace"; id: string };
@@ -40,7 +43,7 @@ export function Brain() {
       <div className="space-y-4">
         <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
         <div className="h-12 w-full animate-pulse rounded-full bg-muted" />
-        <div className="h-32 animate-pulse rounded-2xl bg-muted/40" />
+        <Card className="h-32 animate-pulse bg-muted/40" />
       </div>
     );
   }
@@ -88,29 +91,20 @@ export function Brain() {
 
   return (
     <div className="space-y-6">
-      <header className="title-rule">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-          Brain
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Ask a question about your tasks and docs. Answers cite sources.
-        </p>
-      </header>
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          run(query);
-        }}
-        className="space-y-3"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="text-xs text-muted-foreground">
-            Search in:
+      <PageHeader icon={BrainIcon} title="Brain">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            run(query);
+          }}
+          className="flex flex-col gap-2 pb-3 sm:flex-row sm:items-center"
+        >
+          <label className="flex flex-shrink-0 items-center gap-2 text-xs text-muted-foreground">
+            Search in
             <select
               value={scopeKey}
               onChange={(e) => setScopeKey(e.currentTarget.value)}
-              className="ml-2 rounded-full border border-border bg-background px-3 py-1 text-xs"
+              className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
             >
               {scopeOptions.map((s) => (
                 <option key={s.key} value={s.key}>
@@ -119,29 +113,27 @@ export function Brain() {
               ))}
             </select>
           </label>
-        </div>
-        <div className="flex gap-2">
-          <input
+          <Input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.currentTarget.value)}
             placeholder="What's blocking the launch? Who owns the design review?"
-            className="flex-1 rounded-full border border-border bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="flex-1"
           />
           <Button type="submit" disabled={!query.trim() || pending}>
             <Sparkles className="h-4 w-4" />
             {pending ? "Thinking…" : "Ask"}
           </Button>
-        </div>
-      </form>
+        </form>
+      </PageHeader>
 
       {/* Empty state: guided example prompts, so the page is never a blank
           search box staring back at you. */}
       {idle && (
-        <section className="rounded-2xl bento p-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <Card className="p-6">
+          <CardDescription className="text-xs font-semibold uppercase tracking-wider">
             Try asking
-          </p>
+          </CardDescription>
           <div className="mt-3 flex flex-wrap gap-2">
             {EXAMPLE_PROMPTS.map((p) => (
               <button
@@ -154,29 +146,31 @@ export function Brain() {
               </button>
             ))}
           </div>
-        </section>
+        </Card>
       )}
 
       {pending && (
-        <div className="space-y-2 rounded-2xl bento p-5">
+        <Card className="space-y-2 p-5">
           <div className="h-3 w-4/5 animate-pulse rounded-full bg-muted" />
           <div className="h-3 w-full animate-pulse rounded-full bg-muted" />
           <div className="h-3 w-2/3 animate-pulse rounded-full bg-muted" />
-        </div>
+        </Card>
       )}
 
       {error && (
-        <div className="rounded-2xl border border-red-300/40 bg-red-50/40 p-4 text-sm text-red-700">
-          {error}
-        </div>
+        <Card className="border-destructive/30 bg-destructive/5 p-4">
+          <CardContent className="p-0 text-sm text-destructive">
+            {error}
+          </CardContent>
+        </Card>
       )}
 
       {answer && (
-        <article className="rounded-2xl bento p-5">
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">
+        <Card className="p-5">
+          <CardContent className="whitespace-pre-wrap p-0 text-sm leading-relaxed">
             {answer}
-          </p>
-        </article>
+          </CardContent>
+        </Card>
       )}
 
       {sources.length > 0 && (
@@ -213,19 +207,20 @@ function SourceLink({ index, source }: { index: number; source: Source }) {
         : null;
 
   const inner = (
-    <div className="lift flex items-start gap-3 rounded-2xl bento p-3 hover:border-foreground/25">
+    <Card className="lift flex-row items-start gap-3 px-4 py-3 hover:border-foreground/25">
       <span className="mt-0.5 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-medium text-brand-700">
         {index}
       </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <CardContent className="min-w-0 flex-1 p-0">
+        <CardDescription className="text-xs font-semibold uppercase tracking-wider">
           {source.parentType}
+        </CardDescription>
+        <p className="mt-0.5 truncate text-sm text-foreground">
+          {source.textPreview}
         </p>
-        <p className="mt-0.5 truncate text-sm">{source.textPreview}</p>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 
   return href ? <Link href={href}>{inner}</Link> : inner;
 }
-

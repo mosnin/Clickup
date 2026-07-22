@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { TaskBadges } from "@/components/dashboard/task-badges";
 import { ChecklistChip } from "@/components/dashboard/checklist";
@@ -35,7 +35,15 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { parseQuickAdd } from "@/lib/quick-add";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
-import { AnimatePresence, EASE, motion } from "@/components/motion";
+import { EASE, motion } from "@/components/motion";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 import {
   PRIORITY_LABEL,
@@ -292,17 +300,19 @@ export function BoardView({
   return (
     <>
       {moveError && (
-        <div className="mb-3 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+        <Card className="mb-3 flex-row items-start gap-2 rounded-lg border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           <span className="min-w-0 flex-1">{moveError}</span>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             aria-label="Dismiss"
             onClick={() => setMoveError(null)}
-            className="flex-shrink-0 font-medium hover:underline"
+            className="h-auto flex-shrink-0 px-2 py-1 text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
             Dismiss
-          </button>
-        </div>
+          </Button>
+        </Card>
       )}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <LaneToggle mode={laneMode} />
@@ -403,7 +413,11 @@ function LaneToggle({ mode }: { mode: LaneMode }) {
   ];
 
   return (
-    <div role="tablist" aria-label="Swimlanes" className="segmented text-sm">
+    <div
+      role="tablist"
+      aria-label="Swimlanes"
+      className="flex items-center gap-1 text-sm"
+    >
       {options.map((o) => (
         <button
           key={o.key}
@@ -412,10 +426,10 @@ function LaneToggle({ mode }: { mode: LaneMode }) {
           aria-selected={mode === o.key}
           onClick={() => setLane(o.key)}
           className={cn(
-            "rounded-full px-3 py-1.5 transition-colors",
+            "rounded-md px-3 py-1.5 transition-colors",
             mode === o.key
-              ? "segmented-on font-medium text-foreground"
-              : "text-muted-foreground hover:text-foreground",
+              ? "bg-accent font-medium text-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
           )}
         >
           {o.label}
@@ -494,7 +508,7 @@ function Column({
       ref={setNodeRef}
       aria-label={status.name}
       className={cn(
-        "flex w-72 flex-shrink-0 flex-col rounded-2xl bg-muted/40 transition-shadow",
+        "flex w-72 flex-shrink-0 flex-col rounded-lg bg-muted/50 transition-shadow",
         isOver && "ring-2 ring-foreground/20",
       )}
     >
@@ -514,15 +528,18 @@ function Column({
             </span>
           )}
           {overLimit && (
-            <span className="rounded-full bg-pastel-red px-1.5 py-0.5 text-[10px] font-medium normal-case text-foreground">
+            <Badge
+              variant="destructive"
+              className="px-1.5 py-0.5 text-[10px] normal-case"
+            >
               Over WIP
-            </span>
+            </Badge>
           )}
           <span
             className={cn(
               "text-xs font-normal normal-case",
               overLimit
-                ? "font-semibold text-danger"
+                ? "font-semibold text-destructive"
                 : "text-muted-foreground",
             )}
             title={
@@ -549,7 +566,7 @@ function Column({
             </li>
           )}
           {tasks.map((task) => (
-            <Card key={task._id} task={task} listId={listId} />
+            <TaskCard key={task._id} task={task} listId={listId} />
           ))}
         </ul>
       </SortableContext>
@@ -563,7 +580,6 @@ function Column({
 function ColumnMenu({ status }: { status: Doc<"listStatuses"> }) {
   const update = useMutation(api.listStatuses.update);
   const { toast } = useToast();
-  const rootRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(
     status.wipLimit ? String(status.wipLimit) : "",
@@ -572,15 +588,6 @@ function ColumnMenu({ status }: { status: Doc<"listStatuses"> }) {
   useEffect(() => {
     if (open) setValue(status.wipLimit ? String(status.wipLimit) : "");
   }, [open, status.wipLimit]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(e: PointerEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
 
   async function save(next: number | null) {
     try {
@@ -597,66 +604,58 @@ function ColumnMenu({ status }: { status: Doc<"listStatuses"> }) {
   }
 
   return (
-    <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        aria-label={`${status.name} column options`}
-        aria-expanded={open}
-        aria-haspopup="true"
-        onClick={() => setOpen((v) => !v)}
-        className="tap-target inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-      >
-        <Ellipsis className="h-3.5 w-3.5" />
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 4, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 4, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: EASE }}
-            className="absolute right-0 top-full z-30 mt-1.5 w-52 rounded-2xl bg-background p-3 normal-case shadow-lg"
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${status.name} column options`}
+          className="tap-target inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+        >
+          <Ellipsis className="h-3.5 w-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52 p-3 normal-case">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          WIP limit
+        </p>
+        <form
+          className="mt-2 flex items-center gap-1.5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const n = Number(value);
+            save(Number.isFinite(n) && n > 0 ? Math.floor(n) : null);
+          }}
+        >
+          <input
+            type="number"
+            min={1}
+            value={value}
+            onChange={(e) => setValue(e.currentTarget.value)}
+            placeholder="None"
+            aria-label={`WIP limit for ${status.name}`}
+            className="soft-field w-full px-2.5 py-1.5 text-sm"
+          />
+          <Button
+            type="submit"
+            size="sm"
+            className="flex-shrink-0 rounded-full"
           >
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              WIP limit
-            </p>
-            <form
-              className="mt-2 flex items-center gap-1.5"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const n = Number(value);
-                save(Number.isFinite(n) && n > 0 ? Math.floor(n) : null);
-              }}
-            >
-              <input
-                type="number"
-                min={1}
-                value={value}
-                onChange={(e) => setValue(e.currentTarget.value)}
-                placeholder="None"
-                aria-label={`WIP limit for ${status.name}`}
-                className="soft-field w-full px-2.5 py-1.5 text-sm"
-              />
-              <button
-                type="submit"
-                className="flex-shrink-0 rounded-full bg-foreground px-2.5 py-1.5 text-xs font-medium text-background"
-              >
-                Save
-              </button>
-            </form>
-            {status.wipLimit !== undefined && (
-              <button
-                type="button"
-                onClick={() => save(null)}
-                className="mt-2 text-xs text-muted-foreground hover:text-danger"
-              >
-                Clear limit
-              </button>
-            )}
-          </motion.div>
+            Save
+          </Button>
+        </form>
+        {status.wipLimit !== undefined && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => save(null)}
+            className="mt-2 h-auto px-0 font-normal text-muted-foreground hover:bg-transparent hover:text-destructive"
+          >
+            Clear limit
+          </Button>
         )}
-      </AnimatePresence>
-    </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -721,7 +720,7 @@ function ColumnAdd({
   );
 }
 
-function Card({
+function TaskCard({
   task,
 }: {
   task: Doc<"tasks">;
@@ -744,40 +743,43 @@ function Card({
         transform: CSS.Transform.toString(transform),
         transition,
       }}
-      className={cn(
-        "rounded-2xl bento shadow-sm",
-        isDragging && "opacity-30",
-      )}
     >
-      <div className="flex items-start gap-1 p-3">
-        <button
-          type="button"
-          aria-label="Drag handle"
-          className="cursor-grab touch-none p-0.5 text-muted-foreground"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <Link
-          href={taskPeekHref(searchParams, task._id)}
-          scroll={false}
-          className="flex flex-1 items-start gap-1.5 text-sm font-medium hover:underline"
-        >
-          {task.milestone && (
-            <span
-              aria-hidden
-              title="Milestone"
-              className="mt-1 h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/60"
-            />
-          )}
-          <span className="min-w-0">
-            {task.title}
-            <TaskBadges task={task} />
-          </span>
-        </Link>
-      </div>
-      <CardMeta task={task} />
+      <Card
+        className={cn(
+          "gap-2 rounded-xl p-3 shadow-sm",
+          isDragging && "opacity-30",
+        )}
+      >
+        <div className="flex items-start gap-1">
+          <button
+            type="button"
+            aria-label="Drag handle"
+            className="cursor-grab touch-none p-0.5 text-muted-foreground"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+          <Link
+            href={taskPeekHref(searchParams, task._id)}
+            scroll={false}
+            className="flex flex-1 items-start gap-1.5 text-sm font-medium hover:underline"
+          >
+            {task.milestone && (
+              <span
+                aria-hidden
+                title="Milestone"
+                className="mt-1 h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/60"
+              />
+            )}
+            <span className="min-w-0">
+              {task.title}
+              <TaskBadges task={task} />
+            </span>
+          </Link>
+        </div>
+        <CardMeta task={task} />
+      </Card>
     </li>
   );
 }
@@ -790,9 +792,9 @@ function CardChrome({
   dragging?: boolean;
 }) {
   return (
-    <div
+    <Card
       className={cn(
-        "rounded-2xl bento p-3 shadow-md",
+        "gap-2 rounded-xl p-3 shadow-md",
         dragging && "rotate-2",
       )}
     >
@@ -810,7 +812,7 @@ function CardChrome({
         </span>
       </p>
       <CardMeta task={task} />
-    </div>
+    </Card>
   );
 }
 
@@ -821,7 +823,7 @@ function CardMeta({ task }: { task: Doc<"tasks"> }) {
   const showFooter = task.priority || task.dueDate || hasEstimate || hasChecklist;
   if (!showFooter) return null;
   return (
-    <div className="flex flex-wrap items-center gap-2 px-3 pb-3 text-xs text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
       {task.priority && (
         <span className="inline-flex items-center gap-1">
           <PriorityDot priority={task.priority as TaskPriority} className="h-1.5 w-1.5" />
@@ -838,9 +840,9 @@ function CardMeta({ task }: { task: Doc<"tasks"> }) {
         </span>
       )}
       {hasEstimate && (
-        <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+        <Badge variant="secondary" className="px-1.5 py-0.5 text-[11px] font-medium">
           {task.estimatePoints} pts
-        </span>
+        </Badge>
       )}
       <ChecklistChip checklist={task.checklist} />
     </div>

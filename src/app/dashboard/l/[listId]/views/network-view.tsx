@@ -8,6 +8,7 @@ import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
 import { Monogram } from "@/components/dashboard/monogram";
@@ -285,7 +286,7 @@ export function NetworkView(props: {
 
   if (data === undefined) {
     return (
-      <div className="bento rounded-2xl p-4">
+      <div className="panel rounded-2xl p-4">
         <div className="flex gap-4 overflow-hidden">
           {[0, 1, 2].map((col) => (
             <div key={col} className="flex flex-col gap-4">
@@ -304,12 +305,10 @@ export function NetworkView(props: {
 
   if (data === null || !layout) {
     return (
-      <div className="bento rounded-2xl">
-        <EmptyState
-          title="Can&apos;t load the network"
-          message="You may no longer have access to this list."
-        />
-      </div>
+      <EmptyState
+        title="Can&apos;t load the network"
+        message="You may no longer have access to this list."
+      />
     );
   }
 
@@ -319,18 +318,16 @@ export function NetworkView(props: {
 
   if (totalEdges === 0) {
     return (
-      <div className="bento rounded-2xl">
-        <EmptyState
-          title="No dependencies yet"
-          message="Set “Blocked by” on a task from its task page to connect it to another task here."
-        />
-      </div>
+      <EmptyState
+        title="No dependencies yet"
+        message="Set “Blocked by” on a task from its task page to connect it to another task here."
+      />
     );
   }
 
   return (
     <div className="space-y-3">
-      <div className="bento overflow-auto rounded-2xl p-4">
+      <div className="panel overflow-auto rounded-2xl p-4">
         <div className="mb-3 flex items-center justify-end gap-2">
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="inline-block h-0.5 w-4 rounded-full bg-foreground/70" />
@@ -417,7 +414,7 @@ export function NetworkView(props: {
       </div>
 
       {layout.isolated.length > 0 && (
-        <div className="bento rounded-2xl">
+        <div className="panel rounded-2xl">
           <button
             type="button"
             onClick={() => setShowIsolated((v) => !v)}
@@ -499,8 +496,9 @@ function NodeCard({
         )}
       </div>
 
-      <span
-        className="inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium text-foreground/80"
+      <Badge
+        variant="secondary"
+        className="w-fit gap-1.5 border-transparent text-[11px] text-foreground/80"
         style={{ backgroundColor: `${task.statusColor}4d` }}
       >
         <span
@@ -509,7 +507,7 @@ function NodeCard({
           style={{ backgroundColor: task.statusColor }}
         />
         {task.statusName}
-      </span>
+      </Badge>
 
       <div className="mt-auto flex items-center justify-between gap-1.5">
         <div className="flex items-center gap-1.5">
@@ -517,9 +515,12 @@ function NodeCard({
             <PriorityDot priority={task.priority as TaskPriority} />
           )}
           {task.estimatePoints !== undefined && (
-            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+            <Badge
+              variant="secondary"
+              className="gap-0 border-transparent bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+            >
               {task.estimatePoints} pt{task.estimatePoints === 1 ? "" : "s"}
-            </span>
+            </Badge>
           )}
         </div>
         {shownAssignees.length > 0 && (
@@ -544,23 +545,25 @@ function NodeCard({
       {(node.inCycle || task.crossListBlockers.length > 0) && (
         <div className="flex flex-wrap items-center gap-1">
           {node.inCycle && (
-            <span
-              className="rounded-full px-1.5 py-0.5 text-[10px] font-medium text-foreground/80"
+            <Badge
+              variant="secondary"
+              className="gap-0 border-transparent text-[10px] text-foreground/80 dark:text-neutral-900/80"
               style={{ backgroundColor: "var(--color-pastel-red)" }}
               title="Part of a dependency cycle"
             >
               Cycle
-            </span>
+            </Badge>
           )}
           {task.crossListBlockers.length > 0 && (
-            <span
-              className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+            <Badge
+              variant="secondary"
+              className="gap-0 border-transparent bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
               title={task.crossListBlockers
                 .map((b) => `${b.title} (${b.listName})`)
                 .join(", ")}
             >
               +{task.crossListBlockers.length} external
-            </span>
+            </Badge>
           )}
         </div>
       )}

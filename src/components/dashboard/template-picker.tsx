@@ -86,9 +86,9 @@ export function TemplatePicker({
       <div
         aria-hidden
         onClick={onClose}
-        className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
       />
-      <div className="bento relative flex w-full max-w-2xl flex-col rounded-2xl p-6">
+      <div className="panel relative flex w-full max-w-2xl flex-col rounded-2xl p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold tracking-tight">Start from a template</h2>
@@ -125,7 +125,7 @@ export function TemplatePicker({
                 className={cn(
                   "lift rounded-2xl p-4 text-left transition-colors",
                   isSelected
-                    ? "bento ring-2 ring-foreground/15"
+                    ? "panel ring-2 ring-foreground/15"
                     : "bento-tile hover:bg-border/40",
                 )}
               >

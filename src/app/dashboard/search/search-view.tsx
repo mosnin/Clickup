@@ -7,6 +7,8 @@ import { useQuery } from "convex/react";
 import { Lock, Search } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { Stagger, StaggerItem } from "@/components/motion";
+import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { cn } from "@/lib/utils";
 
@@ -21,9 +23,18 @@ const STATUS_CHIP: Record<
   NonNullable<Results["lists"][number]["projectStatus"]>,
   { label: string; className: string }
 > = {
-  on_track: { label: "On track", className: "bg-pastel-green" },
-  at_risk: { label: "At risk", className: "bg-pastel-yellow" },
-  off_track: { label: "Off track", className: "bg-pastel-red" },
+  on_track: {
+    label: "On track",
+    className: "bg-pastel-green dark:text-neutral-900",
+  },
+  at_risk: {
+    label: "At risk",
+    className: "bg-pastel-yellow dark:text-neutral-900",
+  },
+  off_track: {
+    label: "Off track",
+    className: "bg-pastel-red dark:text-neutral-900",
+  },
   paused: { label: "Paused", className: "bg-muted" },
 };
 
@@ -54,27 +65,30 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
 
   return (
     <div className="space-y-8">
-      <header className="title-rule">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Search</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Find tasks, projects, docs, and spaces across everything you can see.
-        </p>
-      </header>
-
-      <div className="relative">
-        <Search
-          className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
-        <input
-          ref={inputRef}
-          autoFocus
-          value={raw}
-          onChange={(e) => setRaw(e.currentTarget.value)}
-          placeholder="Search everything…"
-          className="soft-field w-full py-4 pl-12 pr-4 text-lg"
-        />
-      </div>
+      <PageHeader
+        icon={Search}
+        title="Search"
+        context={
+          active && results !== undefined
+            ? `${total} result${total === 1 ? "" : "s"}`
+            : undefined
+        }
+      >
+        <div className="relative pb-3 pt-1">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            ref={inputRef}
+            autoFocus
+            value={raw}
+            onChange={(e) => setRaw(e.currentTarget.value)}
+            placeholder="Search everything…"
+            className="pl-9"
+          />
+        </div>
+      </PageHeader>
 
       {!active ? (
         <EmptyState
@@ -92,7 +106,7 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
               <StaggerItem key={t.taskId}>
                 <Link
                   href={`/dashboard/l/${t.listId}/t/${t.taskId}`}
-                  className="lift flex items-center justify-between gap-3 rounded-2xl bento px-4 py-3"
+                  className="lift flex items-center justify-between gap-3 rounded-2xl panel px-4 py-3"
                 >
                   <span className="min-w-0 truncate text-sm font-medium">{t.title}</span>
                   <span className="flex-shrink-0 truncate text-xs text-muted-foreground">
@@ -110,7 +124,7 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
                 <StaggerItem key={l.listId}>
                   <Link
                     href={`/dashboard/l/${l.listId}`}
-                    className="lift flex items-center justify-between gap-3 rounded-2xl bento px-4 py-3"
+                    className="lift flex items-center justify-between gap-3 rounded-2xl panel px-4 py-3"
                   >
                     <span className="min-w-0 truncate text-sm font-medium">{l.name}</span>
                     <span className="flex flex-shrink-0 items-center gap-2">
@@ -139,7 +153,7 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
               <StaggerItem key={d.docId}>
                 <Link
                   href={`/dashboard/d/${d.docId}`}
-                  className="lift flex items-center justify-between gap-3 rounded-2xl bento px-4 py-3"
+                  className="lift flex items-center justify-between gap-3 rounded-2xl panel px-4 py-3"
                 >
                   <span className="min-w-0 truncate text-sm font-medium">{d.title}</span>
                   <span className="flex-shrink-0 truncate text-xs text-muted-foreground">
@@ -155,7 +169,7 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
               <StaggerItem key={s.spaceId}>
                 <Link
                   href={`/dashboard/s/${s.spaceId}`}
-                  className="lift flex items-center gap-2 rounded-2xl bento px-4 py-3"
+                  className="lift flex items-center gap-2 rounded-2xl panel px-4 py-3"
                 >
                   {s.private && (
                     <Lock className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" aria-hidden />

@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { ArrowLeft, Check, Sparkles } from "lucide-react";
+import { Check, Sparkles, SquareCheck } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { Clips } from "@/components/dashboard/clips";
 import { Attachments } from "@/components/dashboard/attachments";
@@ -184,12 +186,34 @@ function TaskEditor({
 
   return (
     <div className="space-y-6">
-      <Link
-        href={`/dashboard/l/${listId}`}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> {listName}
-      </Link>
+      <PageHeader
+        icon={SquareCheck}
+        title={task.title || "Untitled task"}
+        context={
+          <>
+            <Link
+              href={`/dashboard/l/${listId}`}
+              className="truncate hover:text-foreground hover:underline"
+            >
+              {listName}
+            </Link>
+            {currentStatus && (
+              <Badge
+                variant="secondary"
+                className="gap-1.5 border-transparent text-foreground/80"
+                style={{ backgroundColor: `${currentStatus.color}4d` }}
+              >
+                <span
+                  aria-hidden
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: currentStatus.color }}
+                />
+                {currentStatus.name}
+              </Badge>
+            )}
+          </>
+        }
+      />
 
       {parentTask && (
         <Link
@@ -296,7 +320,7 @@ function TaskEditor({
                 }
               }}
               placeholder="Add more details…"
-              className="w-full rounded-2xl bento p-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="panel w-full rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
 
@@ -327,7 +351,7 @@ function TaskEditor({
         </div>
 
         {/* ── State rail ── */}
-        <aside className="mt-8 space-y-5 lg:mt-0 lg:rounded-2xl lg:border lg:border-border lg:bg-muted/20 lg:p-5">
+        <aside className="panel mt-8 space-y-5 rounded-xl p-5 lg:mt-0">
           <Field label="Status">
             <select
               value={task.statusId}
@@ -370,7 +394,7 @@ function TaskEditor({
 
           <Field label="Estimate">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="segmented">
+              <div className="flex flex-wrap items-center gap-1">
                 {ESTIMATE_CHIPS.map((p) => (
                   <button
                     key={p}
@@ -380,8 +404,8 @@ function TaskEditor({
                     className={cn(
                       "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
                       task.estimatePoints === p
-                        ? "segmented-on text-foreground"
-                        : "text-muted-foreground hover:text-foreground",
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                     )}
                   >
                     {p}
@@ -574,20 +598,23 @@ function Field({
   );
 }
 
-// Shaped like the loaded page: breadcrumb, check + title, then the
+// Shaped like the loaded page: sticky header bar, check + title, then the
 // content/rail split — so nothing jumps when data lands.
 function DetailSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="h-4 w-32 animate-pulse rounded-full bg-muted" />
+      <div className="-mx-4 flex min-h-[52px] items-center gap-2.5 border-b border-border py-2 sm:-mx-6 sm:px-6">
+        <div className="h-4 w-4 animate-pulse rounded-full bg-muted" />
+        <div className="h-4 w-40 animate-pulse rounded-full bg-muted" />
+      </div>
       <div className="flex items-center gap-3">
         <div className="h-7 w-7 animate-pulse rounded-full bg-muted" />
         <div className="h-9 w-2/3 animate-pulse rounded-full bg-muted" />
       </div>
       <div className="gap-10 lg:grid lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-4">
-          <div className="h-40 animate-pulse rounded-2xl bg-muted/60" />
-          <div className="h-24 animate-pulse rounded-2xl bg-muted/40" />
+          <div className="h-40 animate-pulse rounded-xl bg-muted/60" />
+          <div className="h-24 animate-pulse rounded-xl bg-muted/40" />
         </div>
         <div className="mt-4 space-y-3 lg:mt-0">
           {[0, 1, 2, 3].map((i) => (

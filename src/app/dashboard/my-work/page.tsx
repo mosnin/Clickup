@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "convex/react";
-import { ShieldAlert } from "lucide-react";
+import { ListChecks, ShieldAlert } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { Stagger, StaggerItem } from "@/components/motion";
+import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/dashboard/page-header";
 import {
   PriorityChip,
   PriorityDot,
@@ -79,16 +81,17 @@ export default function MyWorkPage() {
 
   return (
     <div className="space-y-8">
-      <header className="title-rule">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">My work</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {rows === undefined
-            ? "Gathering everything assigned to you…"
+      <PageHeader
+        icon={ListChecks}
+        title="My work"
+        context={
+          rows === undefined
+            ? undefined
             : total === 0
-              ? "Nothing is assigned to you right now."
-              : `${total} open task${total === 1 ? "" : "s"} assigned to you.`}
-        </p>
-      </header>
+              ? "Nothing assigned"
+              : `${total} open task${total === 1 ? "" : "s"}`
+        }
+      />
 
       {rows === undefined ? (
         <MyWorkSkeleton />
@@ -120,13 +123,19 @@ export default function MyWorkPage() {
                   </h2>
                   <span className="text-xs text-muted-foreground">{hint}</span>
                 </div>
-                <Stagger className="space-y-2">
-                  {items.map((r) => (
-                    <StaggerItem key={r._id}>
-                      <TaskRow row={r} overdue={key === "overdue"} />
-                    </StaggerItem>
-                  ))}
-                </Stagger>
+                <Card className="gap-0 overflow-hidden rounded-2xl py-0">
+                  <Stagger>
+                    {items.map((r, i) => (
+                      <StaggerItem key={r._id}>
+                        <TaskRow
+                          row={r}
+                          overdue={key === "overdue"}
+                          isLast={i === items.length - 1}
+                        />
+                      </StaggerItem>
+                    ))}
+                  </Stagger>
+                </Card>
               </section>
             );
           })}
@@ -143,14 +152,25 @@ function formatDue(ts: number): string {
   });
 }
 
-function TaskRow({ row, overdue }: { row: Row; overdue: boolean }) {
+function TaskRow({
+  row,
+  overdue,
+  isLast,
+}: {
+  row: Row;
+  overdue: boolean;
+  isLast: boolean;
+}) {
   const href = `/dashboard/l/${row.listId as Id<"lists">}/t/${row._id}`;
   const needsApproval =
     row.requiresApproval && row.approvedAt === undefined;
   return (
     <Link
       href={href}
-      className="lift flex items-center gap-3 rounded-2xl bento px-4 py-3 hover:border-foreground/25"
+      className={cn(
+        "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50",
+        !isLast && "border-b border-border",
+      )}
     >
       <span
         aria-hidden
@@ -166,7 +186,7 @@ function TaskRow({ row, overdue }: { row: Row; overdue: boolean }) {
       </div>
 
       {needsApproval && (
-        <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] font-medium text-foreground/80">
+        <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] font-medium text-foreground/80 dark:text-neutral-900/80">
           <ShieldAlert className="h-3 w-3" aria-hidden /> Approval
         </span>
       )}
