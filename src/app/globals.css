@@ -235,30 +235,6 @@ body {
   height: 100%;
 }
 
-/* ── Premium table language ──────────────────────────────────────────────
-   Tables live inside a bento sheet: no cell borders, generous row padding,
-   a whisper of separation between rows, and a soft hover fill. Pair the
-   <table> with .sheet-table. */
-.sheet-table th {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-muted-foreground);
-  text-align: left;
-  padding: 0.75rem 1rem;
-}
-.sheet-table td {
-  padding: 0.8rem 1rem;
-}
-.sheet-table tbody tr {
-  border-top: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
-  transition: background-color 0.15s ease;
-}
-.sheet-table tbody tr:hover {
-  background: color-mix(in srgb, var(--color-muted) 55%, transparent);
-}
-
 /* Expanded touch hit-area for small icon buttons: keeps the compact visual
  * size on desktop while giving coarse pointers a ~44px target. */
 .tap-target {

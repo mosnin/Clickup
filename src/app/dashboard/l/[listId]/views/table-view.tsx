@@ -128,7 +128,7 @@ export function TableView({
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-10"></TableHead>
+                <TableHead scope="col" className="w-10"></TableHead>
                 <SortHeader
                   label="Title"
                   sortKey="title"
@@ -153,7 +153,7 @@ export function TableView({
                   onClick={toggleSort}
                   className="min-w-[120px]"
                 />
-                <TableHead className="min-w-[160px] text-xs uppercase tracking-wider text-muted-foreground">
+                <TableHead scope="col" className="min-w-[160px] text-xs uppercase tracking-wider text-muted-foreground">
                   Assignees
                 </TableHead>
                 <SortHeader
@@ -182,6 +182,7 @@ export function TableView({
                 />
                 {fields.map((f) => (
                   <TableHead
+                    scope="col"
                     key={f._id}
                     className="min-w-[140px] text-xs uppercase tracking-wider text-muted-foreground"
                   >
@@ -229,7 +230,7 @@ function SortHeader({
 }) {
   const isActive = active === sortKey;
   return (
-    <TableHead className={className}>
+    <TableHead scope="col" className={className}>
       <Button
         type="button"
         variant="ghost"

@@ -279,7 +279,7 @@ export function ScrumBoard({
           ))}
         </div>
         <DragOverlay>
-          {activeTask && <CardContent task={activeTask} dragging />}
+          {activeTask && <TaskCardBody task={activeTask} dragging />}
         </DragOverlay>
       </DndContext>
     </div>
@@ -428,12 +428,12 @@ function DraggableCard({ task, index }: { task: DisplayTask; index: number }) {
       {...listeners}
       className={cn("touch-none", isDragging && "opacity-30")}
     >
-      <CardContent task={task} />
+      <TaskCardBody task={task} />
     </motion.div>
   );
 }
 
-function CardContent({
+function TaskCardBody({
   task,
   dragging,
 }: {

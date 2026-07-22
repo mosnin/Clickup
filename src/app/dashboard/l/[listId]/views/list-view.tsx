@@ -103,7 +103,7 @@ export function ListView({
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-10">
+                <TableHead scope="col" className="w-10">
                   <Checkbox
                     aria-label="Select all tasks"
                     checked={
@@ -112,17 +112,17 @@ export function ListView({
                     onCheckedChange={toggleAll}
                   />
                 </TableHead>
-                <TableHead className="w-10" />
-                <TableHead>Title</TableHead>
-                <TableHead className="hidden sm:table-cell">Status</TableHead>
-                <TableHead className="hidden sm:table-cell">Priority</TableHead>
-                <TableHead className="hidden md:table-cell">Due</TableHead>
+                <TableHead scope="col" className="w-10" />
+                <TableHead scope="col">Title</TableHead>
+                <TableHead scope="col" className="hidden sm:table-cell">Status</TableHead>
+                <TableHead scope="col" className="hidden sm:table-cell">Priority</TableHead>
+                <TableHead scope="col" className="hidden md:table-cell">Due</TableHead>
                 {fields.map((f) => (
-                  <TableHead key={f._id} className="hidden md:table-cell">
+                  <TableHead scope="col" key={f._id} className="hidden md:table-cell">
                     {f.name}
                   </TableHead>
                 ))}
-                <TableHead />
+                <TableHead scope="col" />
               </TableRow>
             </TableHeader>
             <TableBody>

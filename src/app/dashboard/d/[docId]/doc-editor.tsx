@@ -159,24 +159,29 @@ export function DocEditor({ docId }: { docId: string }) {
         icon={FileText}
         title={doc.title || "Untitled"}
         context={
-          breadcrumbs && breadcrumbs.length > 0 ? (
-            <nav
-              aria-label="Breadcrumb"
-              className="flex min-w-0 items-center gap-1.5 truncate"
+          <nav
+            aria-label="Breadcrumb"
+            className="flex min-w-0 items-center gap-1.5 truncate"
+          >
+            <Link
+              href="/dashboard"
+              className="hover:text-foreground hover:underline"
             >
-              {breadcrumbs.map((crumb) => (
-                <span key={crumb._id} className="flex items-center gap-1.5">
-                  <Link
-                    href={`/dashboard/d/${crumb._id}`}
-                    className="hover:text-foreground hover:underline"
-                  >
-                    {crumb.title}
-                  </Link>
-                  <span aria-hidden>/</span>
-                </span>
-              ))}
-            </nav>
-          ) : undefined
+              Home
+            </Link>
+            <span aria-hidden>/</span>
+            {(breadcrumbs ?? []).map((crumb) => (
+              <span key={crumb._id} className="flex items-center gap-1.5">
+                <Link
+                  href={`/dashboard/d/${crumb._id}`}
+                  className="hover:text-foreground hover:underline"
+                >
+                  {crumb.title}
+                </Link>
+                <span aria-hidden>/</span>
+              </span>
+            ))}
+          </nav>
         }
         actions={
           <div className="flex items-center gap-2 text-xs text-muted-foreground">

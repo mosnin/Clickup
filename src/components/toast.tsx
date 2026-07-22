@@ -11,8 +11,8 @@ import {
 import { CheckCircle2, Info, X, XCircle } from "lucide-react";
 import { AnimatePresence, motion, SPRING } from "@/components/motion";
 
-// App-wide toast system. One stack, bottom-center, black pills — the same
-// voice everywhere. Two jobs:
+// App-wide toast system. One stack, bottom-center, popover-surface pills —
+// the same voice everywhere. Two jobs:
 //
 //   1. Feedback: toast("Saved") / toast("Couldn't move task", { kind: "error" })
 //   2. Undo-able deletes: instead of window.confirm, hide the row locally,

@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import {
   AlertTriangle,
+  ArrowRight,
   Bot,
   Clock,
   LayoutDashboard,
@@ -29,6 +31,7 @@ import {
   StaggerItem,
 } from "@/components/motion";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { InviteCards } from "@/components/dashboard/invite-cards";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { PriorityDot } from "@/components/dashboard/priority";
 import { Button } from "@/components/ui/button";
@@ -114,6 +117,10 @@ function openCommandPalette() {
 export default function DashboardHome() {
   const overview = useQuery(api.homeOverview.get, {});
   const myWork = useQuery(api.myWork.listForCurrent, {});
+  // Kept solely for the "waiting to connect" card — homeOverview doesn't
+  // expose lastSeenAt, and "never connected" is the one signal that query
+  // doesn't carry.
+  const agents = useQuery(api.agents.listForCurrentUser, {});
   const { user } = useUser();
 
   if (overview === undefined) {
@@ -124,12 +131,58 @@ export default function DashboardHome() {
   }
 
   const agentsOnline = overview.agents.filter((a) => a.online).length;
+  const waiting = agents
+    ? [...agents.personal, ...agents.workspaces.flatMap((w) => w.agents)].filter(
+        (a) => a.status === "active" && a.lastSeenAt === undefined,
+      )
+    : [];
 
   return (
     <div className="space-y-6">
+      <WelcomeReveal />
+
       <PageHeader icon={LayoutDashboard} title="Home" />
 
       <WelcomeSection firstName={user?.firstName ?? undefined} me={overview.me} />
+
+      <InviteCards />
+
+      {/* AnimatePresence so the card resolves with a satisfying collapse
+          the moment the agent's first heartbeat lands (live via Convex). */}
+      <AnimatePresence initial={false}>
+        {waiting.length > 0 && (
+          <motion.div
+            key="waiting-card"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, height: 0, marginTop: 0 }}
+            transition={{ duration: 0.5, ease: EASE }}
+            className="overflow-hidden"
+          >
+            <Link
+              href="/dashboard/agents"
+              className="lift flex items-center gap-4 rounded-2xl panel p-5"
+            >
+              <span className="relative inline-flex h-12 w-12 flex-shrink-0" aria-hidden>
+                <span className="absolute inset-0 animate-ping rounded-full bg-pastel-blue opacity-60" />
+                <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-lg font-semibold text-white">
+                  {waiting[0].name.charAt(0).toUpperCase()}
+                </span>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">
+                  {waiting[0].name} is waiting to connect
+                </span>
+                <span className="block text-sm text-muted-foreground">
+                  Copy its ready-made setup from the Agents page. The dot turns
+                  green the moment it checks in.
+                </span>
+              </span>
+              <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+            </Link>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <StatsCards me={overview.me} agentsOnline={agentsOnline} />
 
@@ -156,6 +209,61 @@ export default function DashboardHome() {
         </div>
       </div>
     </div>
+  );
+}
+
+// One-time reveal after onboarding (?welcome=1): the mark breathes in, one
+// line lands, then the curtain lifts to the greeting. Click anywhere to skip.
+function WelcomeReveal() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const arrived = searchParams.get("welcome") === "1";
+  const [show, setShow] = useState(arrived);
+
+  const dismiss = useMemo(
+    () => () => {
+      setShow(false);
+      router.replace("/dashboard");
+    },
+    [router],
+  );
+
+  useEffect(() => {
+    if (!arrived) return;
+    const t = setTimeout(dismiss, 2600);
+    return () => clearTimeout(t);
+  }, [arrived, dismiss]);
+
+  return (
+    <AnimatePresence>
+      {show && (
+        <motion.button
+          type="button"
+          aria-label="Continue"
+          onClick={dismiss}
+          initial={{ opacity: 1 }}
+          exit={{ opacity: 0, filter: "blur(6px)" }}
+          transition={{ duration: 0.6, ease: EASE }}
+          className="fixed inset-0 z-[60] flex cursor-default flex-col items-center justify-center gap-6 bg-background"
+        >
+          <motion.span
+            aria-hidden
+            initial={{ scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring", stiffness: 200, damping: 18 }}
+            className="inline-block h-8 w-8 rounded-[8px] bg-foreground"
+          />
+          <motion.p
+            initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            transition={{ duration: 0.6, ease: EASE, delay: 0.35 }}
+            className="text-2xl font-bold tracking-tight sm:text-3xl"
+          >
+            Your mission control is ready.
+          </motion.p>
+        </motion.button>
+      )}
+    </AnimatePresence>
   );
 }
 
