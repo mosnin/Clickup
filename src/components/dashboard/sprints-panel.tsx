@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -48,7 +49,10 @@ type DetailTab = (typeof DETAIL_TABS)[number]["key"];
 
 export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const sprints = useQuery(api.sprints.listForWorkspace, { workspaceId });
-  const [creating, setCreating] = useState(false);
+  // ?new=1 deep-links straight into creation (⌘K "New sprint", task-page
+  // "Create the first sprint", etc. land here with the form already open).
+  const searchParams = useSearchParams();
+  const [creating, setCreating] = useState(searchParams.get("new") === "1");
 
   if (sprints === undefined) {
     return <Card className="h-40 animate-pulse bg-muted/30" />;
@@ -82,6 +86,9 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
             A sprint collects tasks into a start-to-finish window, so humans
             and agents burn down the same list together.
           </p>
+          <Button size="sm" className="mt-4" onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4" /> New sprint
+          </Button>
         </div>
       )}
 

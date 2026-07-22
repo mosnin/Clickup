@@ -48,6 +48,9 @@ export function PageHeader({
         className,
       )}
     >
+      {/* Thin brand gradient along the shell's top edge — the one strip of
+          product flair on an otherwise quiet header. */}
+      <div aria-hidden className="gradient-strip absolute inset-x-0 top-0" />
       <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2">
         <div className="flex min-w-0 items-center gap-2.5">
           <button

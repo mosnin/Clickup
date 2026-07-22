@@ -194,7 +194,9 @@ export function TaskAssignees({
   );
 }
 
-// Renders nothing when the list's workspace has no sprints.
+// Personal lists (no workspace) render nothing — sprints are a workspace
+// feature. Workspace lists always render the section, with a create link
+// when no sprint exists yet so the feature is discoverable from the task.
 export function TaskSprintPicker({
   task,
   listId,
@@ -204,7 +206,45 @@ export function TaskSprintPicker({
 }) {
   const update = useMutation(api.tasks.update);
   const sprints = useQuery(api.sprints.listForList, { listId });
-  if (sprints === undefined || sprints.length === 0) return null;
+  // The sidebar keeps this subscription warm app-wide, so resolving the
+  // list's workspace from it is a cache hit, not an extra round-trip.
+  const tree = useQuery(api.sidebar.tree, {});
+  const workspaceId = useMemo(() => {
+    for (const w of tree?.workspaces ?? []) {
+      for (const s of w.spaces) {
+        if (s.lists.some((l) => l._id === listId)) return w._id;
+        for (const f of s.folders) {
+          if (f.lists.some((l) => l._id === listId)) return w._id;
+        }
+      }
+    }
+    return null;
+  }, [tree, listId]);
+
+  if (sprints === undefined) return null;
+
+  const newSprintHref = workspaceId
+    ? `/dashboard/w/${workspaceId}?tab=sprints&new=1`
+    : null;
+
+  if (sprints.length === 0) {
+    // No sprints yet: without a link here the whole feature is invisible
+    // from where people actually work.
+    if (!newSprintHref) return null;
+    return (
+      <section>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Sprint
+        </h2>
+        <Link
+          href={newSprintHref}
+          className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          Create the first sprint
+        </Link>
+      </section>
+    );
+  }
 
   return (
     <section>
@@ -233,6 +273,14 @@ export function TaskSprintPicker({
           })
         }
       />
+      {newSprintHref && (
+        <Link
+          href={newSprintHref}
+          className="mt-1.5 inline-block text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          New sprint
+        </Link>
+      )}
     </section>
   );
 }

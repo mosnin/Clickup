@@ -104,6 +104,8 @@ export function DashboardSidebar() {
 
   return (
     <Sidebar collapsible="icon">
+      {/* Matching brand strip along the sidebar's top edge. */}
+      <div aria-hidden className="gradient-strip shrink-0" />
       <SidebarHeaderSwitcher />
       <SidebarContentBody />
       <SidebarFooterBody />
@@ -777,16 +779,17 @@ function SidebarFooterBody() {
       <div className="px-1">
         <ThemeToggle collapsed={collapsed} />
       </div>
-      <div className="flex items-center gap-2 px-1 group-data-[collapsible=icon]:justify-center">
+      <div className="flex items-center gap-2 px-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:px-0">
         <UserButton afterSignOutUrl="/" />
         <span className="flex-1 truncate text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
           Account
         </span>
-        {/* Desktop collapse affordance (M4) — mobile gets its own trigger
-            inside PageHeader, so this stays md+ only. */}
+        {/* Desktop collapse/expand affordance — stays visible on the icon
+            rail too, otherwise a collapsed sidebar has no obvious way back.
+            Mobile gets its own trigger inside PageHeader. */}
         <SidebarTrigger
           aria-label="Toggle sidebar"
-          className="hidden shrink-0 text-muted-foreground md:inline-flex group-data-[collapsible=icon]:hidden"
+          className="hidden shrink-0 text-muted-foreground md:inline-flex"
         />
       </div>
     </SidebarFooter>

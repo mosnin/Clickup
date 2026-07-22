@@ -367,6 +367,21 @@ export function CommandPalette() {
           setQuery("");
         },
       },
+      // Sprints are workspace-scoped: one action per workspace, landing on
+      // its Sprints tab with the create form already open.
+      ...(tree?.workspaces ?? []).map((w) => ({
+        key: `new-sprint-${w._id}`,
+        group: "Actions",
+        label:
+          (tree?.workspaces.length ?? 0) > 1
+            ? `New sprint in ${w.name}…`
+            : "New sprint…",
+        icon: Plus,
+        run: () => {
+          router.push(`/dashboard/w/${w._id}?tab=sprints&new=1`);
+          close();
+        },
+      })),
       {
         key: "theme-light",
         group: "Actions",
