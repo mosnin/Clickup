@@ -528,8 +528,8 @@ function TemplateGallery({
                   className={cn(
                     "rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider",
                     t.role === "readonly"
-                      ? "bg-pastel-yellow text-foreground"
-                      : "bg-pastel-blue text-foreground",
+                      ? "bg-pastel-yellow text-foreground dark:text-neutral-900"
+                      : "bg-pastel-blue text-foreground dark:text-neutral-900",
                   )}
                 >
                   {t.role}
@@ -764,7 +764,7 @@ function AgentCard({
                 "gap-1.5 uppercase tracking-wider",
                 agent.status === "active" &&
                   online &&
-                  "bg-pastel-green text-foreground",
+                  "bg-pastel-green text-foreground dark:text-neutral-900",
               )}
             >
               <PresenceDot online={agent.status === "active" && online} />
@@ -822,7 +822,7 @@ function AgentCard({
                 onExpire: () => remove({ agentId: agent._id }),
               });
             }}
-            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-600"
+            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -861,8 +861,8 @@ function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
           initial={{ opacity: 0, scale: 0.97, y: -4 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.4, ease: EASE }}
-          className="rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-xs">
-          <p className="font-medium text-emerald-800">
+          className="rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-xs dark:border-emerald-800 dark:bg-emerald-950">
+          <p className="font-medium text-emerald-800 dark:text-emerald-300">
             Copy this key now, it won&apos;t be shown again.
           </p>
           <div className="mt-1 flex items-center gap-2">
@@ -872,7 +872,7 @@ function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
             <button
               type="button"
               onClick={() => navigator.clipboard.writeText(freshKey)}
-              className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-emerald-700 hover:bg-emerald-100"
+              className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-emerald-700 hover:bg-emerald-100 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
               title="Copy"
             >
               <Copy className="h-3.5 w-3.5" />
@@ -1137,8 +1137,8 @@ function WebhooksTab() {
       </form>
 
       {freshSecret && (
-        <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-xs">
-          <p className="font-medium text-emerald-800">
+        <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-xs dark:border-emerald-800 dark:bg-emerald-950">
+          <p className="font-medium text-emerald-800 dark:text-emerald-300">
             Signing secret (copy now, shown once):
           </p>
           <code className="mt-1 block break-all rounded bg-muted px-2 py-1">
@@ -1184,7 +1184,7 @@ function WebhooksTab() {
                     {s.failureCount > 0 && (
                       <Badge
                         variant="secondary"
-                        className="ml-1.5 bg-amber-100 text-amber-700"
+                        className="ml-1.5 bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
                       >
                         {s.failureCount} fail{s.failureCount === 1 ? "" : "s"}
                       </Badge>
@@ -1199,7 +1199,7 @@ function WebhooksTab() {
                       className={cn(
                         "rounded-full px-2.5 py-0.5 text-xs",
                         s.enabled
-                          ? "bg-emerald-100 text-emerald-700"
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
                           : "bg-muted text-muted-foreground",
                       )}
                     >
@@ -1366,7 +1366,7 @@ function SkillRow({
                 });
               }
             }}
-            className="tap-target ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-600"
+            className="tap-target ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger"
             title="Delete skill"
           >
             <Trash2 className="h-3.5 w-3.5" />

@@ -547,7 +547,7 @@ function NodeCard({
           {node.inCycle && (
             <Badge
               variant="secondary"
-              className="gap-0 border-transparent text-[10px] text-foreground/80"
+              className="gap-0 border-transparent text-[10px] text-foreground/80 dark:text-neutral-900/80"
               style={{ backgroundColor: "var(--color-pastel-red)" }}
               title="Part of a dependency cycle"
             >

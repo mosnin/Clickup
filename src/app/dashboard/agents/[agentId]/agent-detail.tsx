@@ -117,7 +117,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
                 "gap-1.5 uppercase tracking-wider",
                 agent.status !== "paused" &&
                   online &&
-                  "bg-pastel-green text-foreground",
+                  "bg-pastel-green text-foreground dark:text-neutral-900",
               )}
             >
               <PresenceDot online={agent.status === "active" && online} />
@@ -387,7 +387,7 @@ function GovernancePanel({
             className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"
             barClassName={cn(
               "h-full rounded-full",
-              usagePct > 90 ? "bg-red-500" : "bg-brand-600",
+              usagePct > 90 ? "bg-danger" : "bg-brand-600",
             )}
           />
         </label>

@@ -26,9 +26,21 @@ import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 type ProjectStatus = "on_track" | "at_risk" | "off_track" | "paused";
 
 const STATUS_CHIPS: { key: ProjectStatus; label: string; className: string }[] = [
-  { key: "on_track", label: "On track", className: "bg-pastel-green" },
-  { key: "at_risk", label: "At risk", className: "bg-pastel-yellow" },
-  { key: "off_track", label: "Off track", className: "bg-pastel-red" },
+  {
+    key: "on_track",
+    label: "On track",
+    className: "bg-pastel-green dark:text-neutral-900",
+  },
+  {
+    key: "at_risk",
+    label: "At risk",
+    className: "bg-pastel-yellow dark:text-neutral-900",
+  },
+  {
+    key: "off_track",
+    label: "Off track",
+    className: "bg-pastel-red dark:text-neutral-900",
+  },
   { key: "paused", label: "Paused", className: "bg-muted" },
 ];
 

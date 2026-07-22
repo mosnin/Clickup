@@ -23,9 +23,18 @@ const STATUS_CHIP: Record<
   NonNullable<Results["lists"][number]["projectStatus"]>,
   { label: string; className: string }
 > = {
-  on_track: { label: "On track", className: "bg-pastel-green" },
-  at_risk: { label: "At risk", className: "bg-pastel-yellow" },
-  off_track: { label: "Off track", className: "bg-pastel-red" },
+  on_track: {
+    label: "On track",
+    className: "bg-pastel-green dark:text-neutral-900",
+  },
+  at_risk: {
+    label: "At risk",
+    className: "bg-pastel-yellow dark:text-neutral-900",
+  },
+  off_track: {
+    label: "Off track",
+    className: "bg-pastel-red dark:text-neutral-900",
+  },
   paused: { label: "Paused", className: "bg-muted" },
 };
 

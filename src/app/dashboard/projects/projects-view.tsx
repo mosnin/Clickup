@@ -39,9 +39,18 @@ const STATUS_CHIP: Record<
   NonNullable<ProjectRow["projectStatus"]>,
   { label: string; className: string }
 > = {
-  on_track: { label: "On track", className: "bg-pastel-green" },
-  at_risk: { label: "At risk", className: "bg-pastel-yellow" },
-  off_track: { label: "Off track", className: "bg-pastel-red" },
+  on_track: {
+    label: "On track",
+    className: "bg-pastel-green dark:text-neutral-900",
+  },
+  at_risk: {
+    label: "At risk",
+    className: "bg-pastel-yellow dark:text-neutral-900",
+  },
+  off_track: {
+    label: "Off track",
+    className: "bg-pastel-red dark:text-neutral-900",
+  },
   paused: { label: "Paused", className: "bg-muted" },
 };
 
@@ -97,35 +106,41 @@ export function ProjectsView() {
             ? undefined
             : `${data.totalCount} project${data.totalCount === 1 ? "" : "s"}`
         }
-        actions={
-          <>
-            <Input
-              value={raw}
-              onChange={(e) => setRaw(e.currentTarget.value)}
-              placeholder="Search projects…"
-              className="h-8 w-40 sm:w-56"
-            />
-            <nav aria-label="Health filter" className="flex items-center gap-1 text-sm">
-              {STATUS_FILTERS.map((f) => (
-                <button
-                  key={f.key || "all"}
-                  type="button"
-                  onClick={() => setStatus(f.key)}
-                  aria-pressed={status === f.key}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 transition-colors",
-                    status === f.key
-                      ? "bg-accent font-medium text-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                  )}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </nav>
-          </>
-        }
-      />
+      >
+        {/* Search + health filter live in the header's own row (not the
+            actions cluster, which sits flush beside the title with no
+            wrap) so they wrap under the title instead of overflowing the
+            page horizontally on narrow screens. */}
+        <div className="flex flex-wrap items-center gap-2 pb-2">
+          <Input
+            value={raw}
+            onChange={(e) => setRaw(e.currentTarget.value)}
+            placeholder="Search projects…"
+            className="h-8 w-40 sm:w-56"
+          />
+          <nav
+            aria-label="Health filter"
+            className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.key || "all"}
+                type="button"
+                onClick={() => setStatus(f.key)}
+                aria-pressed={status === f.key}
+                className={cn(
+                  "flex-shrink-0 rounded-md px-3 py-1.5 transition-colors",
+                  status === f.key
+                    ? "bg-accent font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </PageHeader>
 
       {data === undefined ? (
         <ProjectsSkeleton />
