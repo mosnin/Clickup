@@ -15,6 +15,8 @@ import {
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { AnimatedBar, AnimatedNumber, Stagger, StaggerItem } from "@/components/motion";
 
@@ -81,19 +83,19 @@ export function PortfolioTimeline({
     return (
       <div className="space-y-3">
         <div className="h-6 w-64 animate-pulse rounded-full bg-muted/40" />
-        <div className="h-72 animate-pulse rounded-2xl bg-muted/40" />
+        <Card className="h-72 animate-pulse bg-muted/30" />
       </div>
     );
   }
 
   if (!data || data.rows.length === 0 || !layout) {
     return (
-      <div className="rounded-2xl bento">
+      <Card className="p-0">
         <EmptyState
           title="No projects yet in this workspace"
           message="Give a list a start date, due date, or target date and it will appear here as a bar on the shared timeline."
         />
-      </div>
+      </Card>
     );
   }
 
@@ -110,7 +112,7 @@ export function PortfolioTimeline({
     <div className="space-y-4">
       <SummaryStrip total={rows.length} counts={counts} />
 
-      <div className="overflow-x-auto rounded-2xl bento">
+      <Card className="gap-0 overflow-x-auto p-0">
         <div className="relative" style={{ minWidth: RAIL_PX + layout.totalWidth }}>
           {/* Today line spans header + every row. */}
           <div
@@ -125,7 +127,7 @@ export function PortfolioTimeline({
 
           {/* Month axis header */}
           <div className="relative flex h-10 border-b border-border">
-            <div className="sticky left-0 z-30 w-[220px] flex-shrink-0 bg-background px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="sticky left-0 z-30 w-[220px] flex-shrink-0 bg-card px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Project
             </div>
             <div className="relative" style={{ width: layout.totalWidth }}>
@@ -157,7 +159,7 @@ export function PortfolioTimeline({
             ))}
           </Stagger>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -183,15 +185,12 @@ function SummaryStrip({
         <AnimatedNumber value={total} /> project{total === 1 ? "" : "s"}
       </span>
       {chips.map((c) => (
-        <span
+        <Badge
           key={c.key}
-          className={cn(
-            "rounded-full px-2.5 py-0.5 text-xs font-medium text-foreground",
-            c.className,
-          )}
+          className={cn("border-transparent text-foreground", c.className)}
         >
           {c.count} {c.label}
-        </span>
+        </Badge>
       ))}
     </div>
   );
@@ -212,7 +211,7 @@ function ProjectRow({ row, layout }: { row: PortfolioRow; layout: Layout }) {
       className="flex border-t border-border/60"
       style={{ minHeight: ROW_PX }}
     >
-      <div className="sticky left-0 z-10 w-[220px] flex-shrink-0 bg-background px-4 py-3">
+      <div className="sticky left-0 z-10 w-[220px] flex-shrink-0 bg-card px-4 py-3">
         <Link
           href={`/dashboard/l/${row.listId}`}
           className="block truncate text-sm font-medium hover:underline"
@@ -224,14 +223,14 @@ function ProjectRow({ row, layout }: { row: PortfolioRow; layout: Layout }) {
           {row.spaceName}
         </p>
         {chip && (
-          <span
+          <Badge
             className={cn(
-              "mt-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium text-foreground",
+              "mt-1.5 border-transparent text-[10px] text-foreground",
               chip.className,
             )}
           >
             {chip.label}
-          </span>
+          </Badge>
         )}
       </div>
 

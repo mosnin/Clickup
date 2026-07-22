@@ -7,6 +7,8 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { PriorityDot } from "@/components/dashboard/priority";
 import type { TaskPriority } from "@/components/dashboard/priority";
@@ -58,8 +60,8 @@ export function SprintPlanning({
   if (data === undefined) {
     return (
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="h-56 animate-pulse rounded-2xl bg-muted/40" />
-        <div className="h-56 animate-pulse rounded-2xl bg-muted/40" />
+        <Card className="h-56 animate-pulse bg-muted/30" />
+        <Card className="h-56 animate-pulse bg-muted/30" />
       </div>
     );
   }
@@ -122,14 +124,14 @@ export function SprintPlanning({
           </div>
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
             Capacity
-            <input
+            <Input
               type="number"
               min={0}
               key={capacityPoints ?? "none"}
               defaultValue={capacityPoints ?? ""}
               placeholder="—"
               onBlur={(e) => saveCapacity(e.currentTarget.value)}
-              className="soft-field w-20 px-2 py-1 text-sm text-foreground"
+              className="h-8 w-20 text-sm text-foreground"
             />
           </label>
         </div>
@@ -191,7 +193,7 @@ function Pane({
   onEstimate: (taskId: Id<"tasks">, points: number | null) => void;
 }) {
   return (
-    <div className="rounded-2xl bento p-4">
+    <Card className="gap-0 p-4">
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold">{title}</p>
         <span className="text-xs text-muted-foreground">{tasks.length}</span>
@@ -213,7 +215,7 @@ function Pane({
           </AnimatePresence>
         </ul>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -330,7 +332,7 @@ function EstimateChip({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.98 }}
             transition={{ duration: 0.18, ease: EASE }}
-            className="absolute right-0 top-full z-30 mt-1.5 w-48 rounded-2xl border border-border bg-background p-2.5 shadow-lg"
+            className="absolute right-0 top-full z-30 mt-1.5 w-48 rounded-2xl border border-border bg-popover p-2.5 text-popover-foreground shadow-lg"
           >
             <div className="flex flex-wrap gap-1.5">
               {POINT_CHIPS.map((p) => (

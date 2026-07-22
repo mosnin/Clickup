@@ -7,6 +7,7 @@ import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Picker } from "@/components/ui/picker";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
@@ -50,7 +51,7 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
   const [creating, setCreating] = useState(false);
 
   if (sprints === undefined) {
-    return <div className="h-40 animate-pulse rounded-2xl bg-muted/40" />;
+    return <Card className="h-40 animate-pulse bg-muted/30" />;
   }
 
   return (
@@ -230,7 +231,7 @@ function SprintCard({
     });
 
   return (
-    <div className="rounded-2xl bento p-4">
+    <Card className="gap-0 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -314,23 +315,27 @@ function SprintCard({
           exit={{ opacity: 0, height: 0 }}
           transition={{ duration: 0.4, ease: EASE }}
           className="mt-3 space-y-3 overflow-hidden pl-7">
-          <div className="segmented w-fit text-xs">
+          <nav
+            aria-label="Sprint detail sections"
+            className="flex w-fit items-center gap-1 text-xs"
+          >
             {DETAIL_TABS.map(({ key, label }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setTab(key)}
+                aria-current={tab === key ? "page" : undefined}
                 className={cn(
-                  "rounded-full px-3 py-1.5 transition-colors",
+                  "rounded-md px-3 py-1.5 transition-colors",
                   tab === key
-                    ? "segmented-on font-medium text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "bg-accent font-medium text-accent-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                 )}
               >
                 {label}
               </button>
             ))}
-          </div>
+          </nav>
 
           {tab === "overview" &&
             (summary ? (
@@ -398,7 +403,7 @@ function SprintCard({
                 )}
               </div>
             ) : (
-              <div className="h-24 animate-pulse rounded-2xl bg-muted/40" />
+              <Card className="h-24 animate-pulse bg-muted/30" />
             ))}
 
           {tab === "board" && (
@@ -411,7 +416,7 @@ function SprintCard({
         </motion.div>
       )}
       </AnimatePresence>
-    </div>
+    </Card>
   );
 }
 
@@ -441,7 +446,7 @@ function RetrospectiveField({
           update({ sprintId: sprint._id, retrospective: value });
           toast("Saved");
         }}
-        className="soft-field mt-2 w-full resize-none px-3 py-2 text-sm"
+        className="mt-2 w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
       />
     </div>
   );
@@ -564,16 +569,16 @@ function BurndownCard({
   const burndown = useQuery(api.sprints.burndown, { sprintId });
 
   if (burndown === undefined) {
-    return <div className="h-28 animate-pulse rounded-2xl bg-muted/40" />;
+    return <Card className="h-28 animate-pulse bg-muted/30" />;
   }
   if (!burndown || burndown.totalTasks === 0) {
     return (
-      <div className="rounded-2xl bento-tile px-4 py-6 text-center">
+      <Card className="gap-0 px-4 py-6 text-center">
         <p className="text-xs text-muted-foreground">
           No tasks in this sprint yet — the burndown fills in once work
           joins.
         </p>
-      </div>
+      </Card>
     );
   }
 
@@ -591,7 +596,7 @@ function BurndownCard({
   const daysLeft = Math.max(0, Math.ceil((endDate - Date.now()) / ONE_DAY_MS));
 
   return (
-    <div className="rounded-2xl bento-tile p-4">
+    <Card className="gap-0 p-4">
       <BurndownSvg burndown={burndown} />
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
         <span className="flex items-center gap-3 text-muted-foreground">
@@ -619,7 +624,7 @@ function BurndownCard({
             : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`}
         </span>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -637,7 +642,7 @@ function VelocityStrip({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const avgPoints = Math.round(totalPoints / velocity.length);
 
   return (
-    <div className="rounded-2xl bento p-4">
+    <Card className="gap-0 p-4">
       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Velocity
       </p>
@@ -665,6 +670,6 @@ function VelocityStrip({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
         avg {avgPoints} pt{avgPoints === 1 ? "" : "s"} per sprint · {totalTasks}{" "}
         task{totalTasks === 1 ? "" : "s"} completed
       </p>
-    </div>
+    </Card>
   );
 }
