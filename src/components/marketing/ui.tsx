@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { BorderBeam } from "@/components/ui/border-beam";
 
 // Marketing v2 primitives — the shared visual grammar of the logged-out
 // site. Azure/navy hero band, white content sections, rounded-2xl cards,
@@ -168,17 +169,22 @@ export function ScreenshotFrame({
   label,
   ratio = "16/10",
   tone = "light",
+  beam = false,
   className,
 }: {
   label: string;
   ratio?: string;
   tone?: "light" | "dark";
+  /** Reserve for the one hero-grade instance — draws a slow traveling
+   * light around the frame's border. Not for every screenshot on the
+   * site (see marketing CLAUDE.md border-beam guidance). */
+  beam?: boolean;
   className?: string;
 }) {
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-[20px] p-1.5 shadow-2xl",
+        "relative overflow-hidden rounded-[20px] p-1.5 shadow-2xl",
         tone === "dark"
           ? "bg-white/10 ring-1 ring-white/15"
           : "bg-black/[0.04] ring-1 ring-black/[0.06]",
@@ -186,6 +192,15 @@ export function ScreenshotFrame({
       )}
     >
       <Placeholder label={label} ratio={ratio} className="rounded-[14px]" />
+      {beam && (
+        <BorderBeam
+          size={100}
+          duration={8}
+          width={1.5}
+          from={tone === "dark" ? "var(--color-azure-300)" : undefined}
+          to={tone === "dark" ? "var(--color-azure-500)" : undefined}
+        />
+      )}
     </div>
   );
 }

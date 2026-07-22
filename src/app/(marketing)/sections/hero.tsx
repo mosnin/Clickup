@@ -288,6 +288,7 @@ export function Hero() {
                 tone="dark"
                 ratio="16/9"
                 label={HERO.screenshot}
+                beam
               />
             </div>
           </div>
