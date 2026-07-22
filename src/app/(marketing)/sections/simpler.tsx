@@ -49,7 +49,15 @@ export function Simpler() {
       <Container>
         <GsapReveal className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            {SIMPLER.title}
+            {SIMPLER.title.split(" ").map((word, i, words) => (
+              <span
+                key={i}
+                className={i === words.length - 1 ? "text-gradient" : undefined}
+              >
+                {word}
+                {i < words.length - 1 ? " " : ""}
+              </span>
+            ))}
           </h2>
           <p className="mt-2 text-muted-foreground">{SIMPLER.sub}</p>
         </GsapReveal>
@@ -64,13 +72,21 @@ export function Simpler() {
         >
           <div className="grid items-center gap-8 md:grid-cols-2">
             <div>
-              <h3 className="text-2xl font-semibold tracking-tight text-foreground">
+              {/* This panel keeps its warm light blush/peach fill by design
+                  (see the gradient below), so its ink stays dark literally —
+                  text-foreground now resolves light on the charcoal canvas
+                  and would be unreadable here. */}
+              <h3 className="text-2xl font-semibold tracking-tight text-navy-950">
                 {SIMPLER.panel.title}
               </h3>
-              <p className="mt-3 text-sm leading-relaxed text-foreground/70 sm:text-base">
+              <p className="mt-3 text-sm leading-relaxed text-navy-950/70 sm:text-base">
                 {SIMPLER.panel.body}
               </p>
-              <CtaButton href={SIMPLER.panel.cta.href} variant="primary" className="mt-6">
+              <CtaButton
+                href={SIMPLER.panel.cta.href}
+                variant="primary"
+                className="mk-gradient-fill mt-6 transition-opacity hover:opacity-90"
+              >
                 {SIMPLER.panel.cta.label}
               </CtaButton>
             </div>

@@ -14,7 +14,11 @@ export function Showcase() {
   return (
     <section className="bg-background py-16">
       <Container>
-        <GsapReveal className="mx-auto max-w-5xl">
+        <GsapReveal className="relative mx-auto max-w-5xl">
+          <div
+            aria-hidden
+            className="mk-glow pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[75%] w-[80%] -translate-x-1/2 -translate-y-1/2 rounded-full"
+          />
           <GsapParallax speed={50}>
             <ShowcaseScaleFrame />
           </GsapParallax>
@@ -59,7 +63,7 @@ function ShowcaseScaleFrame() {
       <ScreenshotFrame
         label={SHOWCASE.screenshot}
         ratio="16/9"
-        tone="light"
+        tone="dark"
         className="gs-showcase-frame"
       />
     </div>

@@ -150,7 +150,15 @@ export function SocialProof() {
           <GsapReveal className="text-center">
             <Eyebrow tone="dark">{SOCIAL_PROOF.eyebrow}</Eyebrow>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-              {SOCIAL_PROOF.title}
+              {SOCIAL_PROOF.title.split(" ").map((word, i, words) => (
+                <span
+                  key={i}
+                  className={i === words.length - 1 ? "text-gradient" : undefined}
+                >
+                  {word}
+                  {i < words.length - 1 ? " " : ""}
+                </span>
+              ))}
             </h2>
           </GsapReveal>
 

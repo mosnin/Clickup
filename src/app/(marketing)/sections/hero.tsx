@@ -195,21 +195,28 @@ export function Hero() {
           data-hero-title
           className="mx-auto mt-6 max-w-3xl text-balance text-4xl font-semibold tracking-[-0.02em] text-white sm:text-6xl lg:text-7xl"
         >
-          {TITLE_LEAD_WORDS.map((word, i) => (
-            <Fragment key={word + i}>
-              <span data-hero-word className="inline-block">
-                {word}
-              </span>{" "}
-            </Fragment>
-          ))}
+          {TITLE_LEAD_WORDS.map((word, i) => {
+            const bare = word.replace(/[.,]/g, "").toLowerCase();
+            const emphasize = bare === "ai" || bare === "agent";
+            return (
+              <Fragment key={word + i}>
+                <span
+                  data-hero-word
+                  className={cn("inline-block", emphasize && "text-gradient")}
+                >
+                  {word}
+                </span>{" "}
+              </Fragment>
+            );
+          })}
           <span
             data-hero-glyph
             aria-hidden
-            className="relative mr-2 inline-block size-[0.9em] translate-y-[0.08em] rounded-[10px] bg-azure-500 align-middle ring-1 ring-white/30"
+            className="relative mr-2 inline-block size-[0.9em] translate-y-[0.08em] rounded-[10px] mk-gradient-fill align-middle ring-1 ring-white/30"
           >
             <span className="absolute top-1/2 left-1/2 size-[0.22em] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
           </span>
-          <span data-hero-last-word className="inline-block">
+          <span data-hero-last-word className="inline-block text-gradient">
             {TITLE_LAST_WORD}
           </span>
         </h1>
@@ -225,7 +232,12 @@ export function Hero() {
           data-hero-cta
           className="mt-8 flex flex-wrap items-center justify-center gap-3"
         >
-          <CtaButton href={HERO.primaryCta.href} variant="primary" size="lg">
+          <CtaButton
+            href={HERO.primaryCta.href}
+            variant="primary"
+            size="lg"
+            className="mk-gradient-fill transition-opacity hover:opacity-90"
+          >
             {HERO.primaryCta.label}
             <ArrowRight className="ml-1.5 size-4" aria-hidden />
           </CtaButton>
@@ -280,8 +292,12 @@ export function Hero() {
 
         <GsapParallax
           speed={40}
-          className="mx-auto mt-16 max-w-4xl [perspective:1200px]"
+          className="relative mx-auto mt-16 max-w-4xl [perspective:1200px]"
         >
+          <div
+            aria-hidden
+            className="mk-glow pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[85%] w-[90%] -translate-x-1/2 -translate-y-1/2 rounded-full"
+          />
           <div data-hero-shot-tilt>
             <div data-hero-shot>
               <ScreenshotFrame
