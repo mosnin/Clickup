@@ -69,6 +69,15 @@
      unmissable. Every raster asset ships as a red Placeholder block. */
   --color-placeholder: #e11d1d;
 
+  /* Shell fusion (Phase H): card + sidebar tones for the Square-style
+     dashboard shell, mapped into our existing neutral system so both
+     themes derive from the same source tokens. */
+  --color-card: #ffffff;
+  --color-card-foreground: #101012;
+  --color-sidebar: #fafafb;
+  --color-sidebar-foreground: #101012;
+  --color-sidebar-border: #ececee;
+
   --radius-pill: 9999px;
 }
 
@@ -177,6 +186,22 @@ body {
   outline: none;
   background: var(--color-background);
   box-shadow: 0 0 0 2px var(--color-foreground);
+}
+
+/* ── Shell fusion panel (Phase H) ─────────────────────────────────────────
+   The Square-style dashboard shell's card: our bento softness on the
+   template's discrete-card shape — card fill, hairline border, quiet
+   shadow. Pair with a rounded-* utility (usually rounded-xl). Replaces
+   bare `.bento` on shell surfaces; both remain valid during migration. */
+.panel {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  box-shadow:
+    0 1px 2px rgb(16 16 18 / 0.03),
+    0 6px 20px -14px rgb(16 16 18 / 0.1);
+}
+:root[data-theme="dark"] .panel {
+  box-shadow: none;
 }
 
 /* Interactive-card hover: a quiet lift with a soft, wide shadow. */
@@ -319,6 +344,13 @@ body {
 
   --color-danger: #e0685c;
   --color-unread: #f3f3f4;
+
+  /* Shell fusion tones flip with the theme. */
+  --color-card: #161619;
+  --color-card-foreground: #f3f3f4;
+  --color-sidebar: #101013;
+  --color-sidebar-foreground: #f3f3f4;
+  --color-sidebar-border: #2b2b31;
 }
 
 :root[data-theme="dark"] .bento,
