@@ -16,7 +16,7 @@ export function RequireBackend({ children }: { children: React.ReactNode }) {
   if (!CONFIGURED) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-page p-6">
-        <div className="bento max-w-md overflow-hidden rounded-2xl">
+        <div className="panel max-w-md overflow-hidden rounded-2xl">
           <TerminalSurface
             className="h-24"
             contentClassName="flex h-full items-end px-8 pb-3"

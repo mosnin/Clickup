@@ -97,7 +97,7 @@ export function ThemeToggle({ collapsed }: { collapsed?: boolean }) {
   }
 
   return (
-    <div className="segmented w-full justify-between p-0.5" role="group" aria-label="Theme">
+    <div className="flex w-full items-center justify-between gap-0.5" role="group" aria-label="Theme">
       {OPTIONS.map(({ key, label, Icon }) => (
         <button
           key={key}
@@ -107,10 +107,10 @@ export function ThemeToggle({ collapsed }: { collapsed?: boolean }) {
           title={label}
           onClick={() => pick(key)}
           className={cn(
-            "inline-flex h-6 flex-1 items-center justify-center rounded-full transition-colors",
+            "inline-flex h-6 flex-1 items-center justify-center rounded-md transition-colors",
             mounted && choice === key
-              ? "segmented-on text-foreground"
-              : "text-muted-foreground hover:text-foreground",
+              ? "bg-accent font-medium text-foreground"
+              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
           )}
         >
           <Icon className="h-3.5 w-3.5" />

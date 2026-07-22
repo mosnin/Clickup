@@ -265,8 +265,8 @@ export function DocEditor({ docId }: { docId: string }) {
 // ── Move menu ───────────────────────────────────────────────────────────
 //
 // Portals to <body> and anchors to the trigger's live bounding rect —
-// mirrors the sidebar's AnchoredMenu pattern so the popover escapes any
-// clipping/scroll region the doc page sits in.
+// mirrors the portal-popover pattern used elsewhere in the dashboard so
+// the popover escapes any clipping/scroll region the doc page sits in.
 
 function docDepthWithin(all: Doc<"docs">[], docId: Id<"docs">): number {
   const byId = new Map(all.map((d) => [d._id, d]));

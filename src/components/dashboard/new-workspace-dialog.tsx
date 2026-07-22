@@ -78,7 +78,7 @@ export function NewWorkspaceDialog({
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.25, ease: EASE }}
             onSubmit={submit}
-            className="bento w-full max-w-sm rounded-2xl bg-background p-6"
+            className="panel w-full max-w-sm rounded-2xl p-6"
             role="dialog"
             aria-label="New workspace"
           >

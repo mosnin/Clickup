@@ -98,7 +98,7 @@ export function AdminConsole() {
         }
       >
         {/* Scrollable tab row, template grammar: rounded-md active fill
-            instead of the pill-segmented control. */}
+            instead of a pill-style toggle. */}
         <nav
           aria-label="Admin sections"
           className="flex items-center gap-1 overflow-x-auto pb-3 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"

@@ -29,7 +29,7 @@ export function EmptyState({
       transition={{ duration: 0.45, ease: EASE }}
       className={cn(
         "text-center",
-        // compact = already nested inside a panel/bento surface (every call
+        // compact = already nested inside a panel surface (every call
         // site does this), so it stays bare; the standalone shell owns the
         // panel treatment itself.
         compact ? "px-6 py-10" : "panel rounded-xl px-6 py-20",

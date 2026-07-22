@@ -87,17 +87,17 @@ export function ConnectSnippet({
 
   return (
     <div className={cn("space-y-2.5", className)}>
-      <div className="segmented p-0.5">
+      <div className="flex items-center gap-1 text-sm">
         {RUNTIMES.map((r) => (
           <button
             key={r.key}
             type="button"
             onClick={() => setRuntime(r.key)}
             className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+              "rounded-md px-3 py-1.5 transition-colors",
               runtime === r.key
-                ? "segmented-on text-foreground"
-                : "text-muted-foreground hover:text-foreground",
+                ? "bg-accent font-medium text-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
             )}
           >
             {r.label}

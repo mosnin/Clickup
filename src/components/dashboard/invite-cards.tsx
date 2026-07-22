@@ -79,7 +79,7 @@ function InviteCard({
   }
 
   return (
-    <div className="flex items-center gap-4 rounded-2xl bento p-5">
+    <div className="flex items-center gap-4 rounded-2xl panel p-5">
       <span className="icon-tile">
         <Mail className="h-4 w-4" />
       </span>

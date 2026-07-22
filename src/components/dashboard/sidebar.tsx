@@ -110,7 +110,7 @@ function MobileSidebarTrigger() {
       type="button"
       aria-label="Open navigation"
       onClick={toggleSidebar}
-      className="bento-sm fixed left-3 top-3 z-40 inline-flex h-10 w-10 items-center justify-center rounded-full bg-background md:hidden"
+      className="panel fixed left-3 top-3 z-40 inline-flex h-10 w-10 items-center justify-center rounded-full md:hidden"
     >
       <Menu className="h-5 w-5" />
     </button>

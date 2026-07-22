@@ -309,7 +309,7 @@ export function ImportDialog({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.25, ease: EASE }}
-            className="bento max-h-[76vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-background p-6"
+            className="panel max-h-[76vh] w-full max-w-lg overflow-y-auto rounded-2xl p-6"
             role="dialog"
             aria-label="Import from CSV"
           >

@@ -76,7 +76,7 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
       <VelocityStrip workspaceId={workspaceId} />
 
       {sprints.length === 0 && !creating && (
-        <div className="rounded-2xl bento px-6 py-14 text-center">
+        <div className="rounded-2xl panel px-6 py-14 text-center">
           <p className="text-sm font-semibold">Plan work in timeboxes</p>
           <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
             A sprint collects tasks into a start-to-finish window, so humans
@@ -113,7 +113,7 @@ function CreateSprintForm({
 
   return (
     <form
-      className="flex flex-wrap items-end gap-3 rounded-2xl bento p-4"
+      className="flex flex-wrap items-end gap-3 rounded-2xl panel p-4"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!name.trim()) return;
