@@ -20,7 +20,9 @@ export const listForCurrent = query({
 // The Inbox's fully-resolved feed: each mention arrives with its message
 // preview and a working deep link, so the client renders one subscription
 // instead of three queries per row. Rows whose target no longer resolves
-// return href: null (the UI renders them quietly instead of dead-linking).
+// return href: null (the UI renders them quietly instead of dead-linking);
+// parents with no dedicated page yet (space chat, personal-scoped channels)
+// fall back to the inbox itself rather than a dead link.
 export const feedForCurrent = query({
   args: {},
   handler: async (ctx) => {
@@ -74,9 +76,18 @@ export const feedForCurrent = query({
           );
           if (channel?.scopeType === "workspace") {
             href = `/dashboard/w/${channel.scopeId}?tab=chat&channel=${channel._id}`;
+          } else {
+            // Personal-scoped ("user") channels have no dedicated chat
+            // page yet — fall back to the inbox so the card is still
+            // clickable (mirrors messages.ts mentionHref).
+            href = "/dashboard/inbox";
           }
           contextLabel = channel ? `#${channel.name}` : "Channel";
         } else if (mention.parentType === "space") {
+          // Space chat has no dedicated page yet — fall back to the inbox
+          // so the card is still clickable (mirrors messages.ts
+          // mentionHref).
+          href = "/dashboard/inbox";
           const space = await ctx.db.get(mention.parentId as Id<"spaces">);
           contextLabel = space ? `${space.name} chat` : "Space chat";
         }

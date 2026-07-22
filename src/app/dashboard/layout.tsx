@@ -43,6 +43,13 @@ export default async function DashboardLayout({
           <SidebarInset className="h-full min-w-0 overflow-y-auto">
             <div className="w-full px-4 py-6 sm:px-6">{children}</div>
           </SidebarInset>
+          {/* One continuous brand gradient across the entire viewport's bottom
+              edge — the single strip of product flair, coherent by
+              construction (unlike per-panel strips that restart at seams). */}
+          <div
+            aria-hidden
+            className="gradient-strip pointer-events-none fixed inset-x-0 bottom-0 z-50"
+          />
         </SidebarProvider>
       </ToastProvider>
     </RequireBackend>

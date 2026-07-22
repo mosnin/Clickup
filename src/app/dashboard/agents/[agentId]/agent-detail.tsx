@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   ArrowLeft,
@@ -9,6 +9,7 @@ import {
   CircleDashed,
   XCircle,
   AlertTriangle,
+  X,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
@@ -20,6 +21,7 @@ import { Monogram } from "@/components/dashboard/monogram";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Picker } from "@/components/ui/picker";
 import {
   Table,
   TableBody,
@@ -300,6 +302,28 @@ function StatsRow({
   );
 }
 
+// Lists in the agent's own scope (its personal space, or its workspace) —
+// sourced the same way BillingTab sources scopes: off the current viewer's
+// sidebar.tree, since managing an agent already implies access to its scope.
+function useScopeLists(agent: Doc<"agents">) {
+  const tree = useQuery(api.sidebar.tree, {});
+  return useMemo(() => {
+    if (!tree) return [];
+    function flatten(
+      space: { lists: Doc<"lists">[]; folders: { lists: Doc<"lists">[] }[] } | null,
+    ): Doc<"lists">[] {
+      if (!space) return [];
+      return [...space.lists, ...space.folders.flatMap((f) => f.lists)];
+    }
+    if (agent.parentType === "user") {
+      return flatten(tree.personal);
+    }
+    const ws = tree.workspaces.find((w) => w._id === agent.parentId);
+    if (!ws) return [];
+    return ws.spaces.flatMap((s) => flatten(s));
+  }, [tree, agent.parentType, agent.parentId]);
+}
+
 function GovernancePanel({
   agent,
   usageToday,
@@ -317,6 +341,13 @@ function GovernancePanel({
   // from the UI. An empty field means "unchanged"; typing replaces it.
   const [secretDraft, setSecretDraft] = useState("");
   const usagePct = Math.min(100, Math.round((usageToday / usageLimit) * 100));
+  const scopeLists = useScopeLists(agent);
+  const listNameById = useMemo(
+    () => new Map(scopeLists.map((l) => [l._id as string, l.name])),
+    [scopeLists],
+  );
+  const allowedListIds = agent.allowedListIds ?? [];
+  const isMember = (agent.role ?? "member") === "member";
 
   // Blur-saving fields confirm themselves — silence reads as "did that
   // stick?".
@@ -460,6 +491,69 @@ function GovernancePanel({
           </label>
         </div>
       </div>
+
+      {isMember && (
+        <div className="mt-4 border-t border-border pt-4">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Restricted to lists (optional)
+          </span>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Leave empty for full access to every list in scope. When set,
+            this agent can only read or write these lists — structure-level
+            operations (create list/folder) are refused entirely.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {allowedListIds.map((id) => (
+              <Badge
+                key={id}
+                variant="outline"
+                className="gap-1.5 py-1 pr-1 pl-3 text-sm font-normal"
+              >
+                {listNameById.get(id) ?? "List"}
+                <button
+                  type="button"
+                  aria-label="Remove list restriction"
+                  onClick={() =>
+                    save(
+                      {
+                        agentId: agent._id,
+                        allowedListIds: allowedListIds.filter(
+                          (l) => l !== id,
+                        ),
+                      },
+                      "Restricted lists",
+                    )
+                  }
+                  className="tap-target text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+            <Picker
+              label="+ Add list…"
+              dashed
+              options={scopeLists
+                .filter((l) => !allowedListIds.includes(l._id))
+                .map((l) => ({ id: l._id as string, label: l.name }))}
+              onSelect={(id) =>
+                save(
+                  {
+                    agentId: agent._id,
+                    allowedListIds: [...allowedListIds, id as Id<"lists">],
+                  },
+                  "Restricted lists",
+                )
+              }
+            />
+          </div>
+          {allowedListIds.length === 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Unrestricted — can access every list in scope.
+            </p>
+          )}
+        </div>
+      )}
     </section>
   );
 }

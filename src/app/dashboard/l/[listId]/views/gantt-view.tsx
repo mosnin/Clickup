@@ -19,6 +19,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
 import { EmptyState } from "@/components/dashboard/empty-state";
+import { Button } from "@/components/ui/button";
 
 // A Gantt you can actually plan on: drag a bar to move the whole task in
 // time, drag either edge to change its start or due date. Changes commit on
@@ -491,7 +492,12 @@ export function GanttView({
     return (
       <EmptyState
         title="Nothing on the timeline yet"
-        message="Give a task a start or due date and it appears here as a bar you can drag to plan."
+        message="Set a start or due date on a task in List view and it appears here as a bar you can drag to plan."
+        action={
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/dashboard/l/${listId}`}>Open List view</Link>
+          </Button>
+        }
       />
     );
   }

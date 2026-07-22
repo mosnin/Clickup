@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useToast } from "@/components/toast";
 import { useMutation, useQuery } from "convex/react";
 import { ArrowLeft, Check, Copy, Plus, Settings, Trash2, X } from "lucide-react";
@@ -68,6 +69,13 @@ function EmptyRow({ children }: { children: React.ReactNode }) {
   );
 }
 
+function errorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
+  );
+}
+
 export function ListSettings({ listId }: { listId: string }) {
   const id = listId as Id<"lists">;
   const list = useQuery(api.lists.get, { listId: id });
@@ -112,6 +120,7 @@ export function ListSettings({ listId }: { listId: string }) {
         }
       />
 
+      <IdentityCard listId={list._id} list={list} />
       <StatusesSection listId={list._id} statuses={statuses} />
       <FieldsSection listId={list._id} fields={fields} />
       <AutomationsSection
@@ -125,7 +134,155 @@ export function ListSettings({ listId }: { listId: string }) {
         </CardContent>
       </Card>
       <FormsSection listId={list._id} />
+      <DangerCard list={list} />
     </div>
+  );
+}
+
+// Rename in place — the only list-identity control missing from this page
+// before now (name showed up everywhere but could only ever be set once,
+// at creation).
+function IdentityCard({
+  listId,
+  list,
+}: {
+  listId: Id<"lists">;
+  list: Doc<"lists">;
+}) {
+  const rename = useMutation(api.lists.rename);
+  const { toast } = useToast();
+  const [name, setName] = useState(list.name);
+
+  useEffect(() => setName(list.name), [list.name]);
+
+  async function commit() {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === list.name) {
+      setName(list.name);
+      return;
+    }
+    try {
+      await rename({ listId, name: trimmed });
+      toast("Saved");
+    } catch (e) {
+      setName(list.name);
+      toast(errorMessage(e, "Couldn't rename the list"), { kind: "error" });
+    }
+  }
+
+  return (
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Identity</CardTitle>
+        <CardDescription>Rename this list.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <label className="block text-xs font-medium text-muted-foreground">
+          Name
+          <Input
+            value={name}
+            onChange={(e) => setName(e.currentTarget.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                (e.currentTarget as HTMLInputElement).blur();
+              } else if (e.key === "Escape") {
+                setName(list.name);
+              }
+            }}
+            className="mt-1.5"
+          />
+        </label>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Permanent, cascading delete (convex/lists.ts `remove` — tasks, statuses,
+// fields, automations, schedules all go with it). No native `window.confirm`:
+// an explicit two-step reveal stands in for it, then the same undo-able
+// deferred-commit pattern used for every other destructive action here
+// (hide/route away immediately, commit only once the toast's Undo window
+// closes) — except there's no row to "hide", so we navigate away right away
+// and only run the mutation if the undo window elapses.
+function DangerCard({ list }: { list: Doc<"lists"> }) {
+  const router = useRouter();
+  const remove = useMutation(api.lists.remove);
+  const { toast } = useToast();
+  const [confirming, setConfirming] = useState(false);
+
+  // We only have enough context client-side to resolve straight back to a
+  // Space (parentId IS the spaceId); a folder-parented list has no folder
+  // page to land on yet, so fall back to the dashboard root.
+  const destination =
+    list.parentType === "space"
+      ? `/dashboard/s/${list.parentId}`
+      : "/dashboard";
+
+  function confirmDelete() {
+    setConfirming(false);
+    router.push(destination);
+    toast(`"${list.name}" deleted — its tasks, docs, and history go with it`, {
+      action: {
+        label: "Undo",
+        onClick: () => toast(`"${list.name}" restored`),
+      },
+      onExpire: () => {
+        remove({ listId: list._id }).catch(() => {
+          toast("Couldn't delete the list", { kind: "error" });
+        });
+      },
+    });
+  }
+
+  return (
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Danger zone</CardTitle>
+        <CardDescription>
+          Permanently delete this list and everything in it — tasks,
+          comments, docs, and schedules. This can&apos;t be undone once the
+          undo window below closes.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {confirming ? (
+          <div className="rounded-xl bg-muted p-3">
+            <p className="text-sm text-muted-foreground">
+              Delete <strong>{list.name}</strong> and all of its tasks?
+            </p>
+            <div className="mt-2 flex gap-2">
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={confirmDelete}
+              >
+                Delete list
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirming(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirming(true)}
+            className="text-destructive hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" /> Delete list
+          </Button>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

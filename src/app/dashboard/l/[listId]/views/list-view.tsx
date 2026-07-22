@@ -545,12 +545,20 @@ function TaskRow({
         <select
           aria-label="Status"
           value={task.statusId}
-          onChange={(e) =>
-            update({
-              taskId: task._id,
-              statusId: e.currentTarget.value as Id<"listStatuses">,
-            })
-          }
+          onChange={async (e) => {
+            const nextStatusId = e.currentTarget.value as Id<"listStatuses">;
+            try {
+              await update({ taskId: task._id, statusId: nextStatusId });
+            } catch (err) {
+              const raw = err instanceof Error ? err.message : String(err);
+              const msg = raw
+                .split("Uncaught Error:")
+                .pop()
+                ?.split("\n")[0]
+                ?.trim();
+              toast(msg || "Couldn't update status", { kind: "error" });
+            }
+          }}
           className="soft-field px-2 py-1 text-xs"
           style={{
             backgroundColor: status ? `${status.color}33` : undefined,

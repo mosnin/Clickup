@@ -777,6 +777,8 @@ function FeaturesCard({
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Turning a feature off hides it for this Space. Nothing is deleted.
+        {space.parentType === "workspace" &&
+          " For Sprints and Goals, if every Space in the workspace turns the feature off, the workspace-level tab is hidden too."}
       </p>
       <ul className="mt-4 space-y-3">
         {FEATURE_ROWS.map((row) => (

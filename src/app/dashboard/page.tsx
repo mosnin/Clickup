@@ -34,11 +34,12 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { InviteCards } from "@/components/dashboard/invite-cards";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { PriorityDot } from "@/components/dashboard/priority";
+import { Orb } from "@/components/dashboard/orb";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { BorderBeam } from "@/components/ui/border-beam";
 import {
   Table,
   TableBody,
@@ -161,12 +162,15 @@ export default function DashboardHome() {
           >
             <Link
               href="/dashboard/agents"
-              className="lift flex items-center gap-4 rounded-2xl panel p-5"
+              className="lift relative flex items-center gap-4 rounded-2xl panel p-5"
             >
               <span className="relative inline-flex h-12 w-12 flex-shrink-0" aria-hidden>
-                <span className="absolute inset-0 animate-ping rounded-full bg-pastel-blue opacity-60" />
-                <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-lg font-semibold text-white">
-                  {waiting[0].name.charAt(0).toUpperCase()}
+                <Orb seed={waiting[0]._id} size="lg" />
+                {/* Small pending dot — the "dot" the copy references, which
+                    turns green on first heartbeat. A gentle pulse signals
+                    waiting without the whole avatar strobing. */}
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-card">
+                  <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-pastel-yellow" />
                 </span>
               </span>
               <span className="min-w-0 flex-1">
@@ -179,6 +183,9 @@ export default function DashboardHome() {
                 </span>
               </span>
               <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+              {/* The beam says "listening" while we wait for the first
+                  heartbeat — it's the one live moment on an idle Home. */}
+              <BorderBeam size={72} duration={6} />
             </Link>
           </motion.div>
         )}
@@ -654,7 +661,7 @@ function ProjectsTable({
       {projects.length < totalProjects && (
         <div className="border-t border-border px-4 py-3">
           <Link
-            href="/dashboard/personal"
+            href="/dashboard/projects"
             className="text-sm font-medium hover:underline"
           >
             View all projects
@@ -758,11 +765,7 @@ function AgentsCard({ agents }: { agents: Overview["agents"] }) {
                   href={`/dashboard/agents/${a.agentId}`}
                   className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted"
                 >
-                  <Avatar size="sm">
-                    <AvatarFallback>
-                      {a.name.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  <Orb seed={a.agentId} size="sm" />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5">
                       <span className="truncate text-sm font-medium">

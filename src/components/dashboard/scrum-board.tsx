@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import {
@@ -54,6 +54,7 @@ const COLUMNS: { key: Category; label: string }[] = [
 
 const UNASSIGNED = "__unassigned__";
 const ALL_LANE = "__all__";
+const POINT_CHIPS = [1, 2, 3, 5, 8, 13];
 
 function dropId(lane: string, category: Category): string {
   return `${lane}::${category}`;
@@ -487,28 +488,158 @@ function TaskCardBody({
         </div>
       )}
 
-      {(task.estimatePoints !== undefined ||
-        task.checklistTotal > 0 ||
-        task.blockedOpenCount > 0) && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {task.estimatePoints !== undefined && (
-            <Badge variant="secondary" className="text-[11px] font-medium">
-              {task.estimatePoints} pts
-            </Badge>
-          )}
-          {task.checklistTotal > 0 && (
-            <Badge variant="secondary" className="text-[11px] font-medium">
-              {task.checklistDone}/{task.checklistTotal}
-            </Badge>
-          )}
-          {task.blockedOpenCount > 0 && (
-            <Badge variant="destructive" className="text-[11px] font-medium">
-              Blocked
-            </Badge>
-          )}
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <EstimateBadge
+          taskId={task._id}
+          points={task.estimatePoints}
+          disabled={dragging}
+        />
+        {task.checklistTotal > 0 && (
+          <Badge variant="secondary" className="text-[11px] font-medium">
+            {task.checklistDone}/{task.checklistTotal}
+          </Badge>
+        )}
+        {task.blockedOpenCount > 0 && (
+          <Badge variant="destructive" className="text-[11px] font-medium">
+            Blocked
+          </Badge>
+        )}
+      </div>
     </Card>
+  );
+}
+
+// Clickable points estimate — the same estimate-setting flow as Sprint
+// Planning's EstimateChip (api.sprintPlanning.setEstimate, which routes
+// through updateTaskCore), just reachable from the Board too so points
+// don't require a trip to the Planning sub-tab. Rendered inert in the
+// drag overlay (`disabled`), since that's a non-interactive preview.
+function EstimateBadge({
+  taskId,
+  points,
+  disabled,
+}: {
+  taskId: Id<"tasks">;
+  points: number | undefined;
+  disabled?: boolean;
+}) {
+  const setEstimate = useMutation(api.sprintPlanning.setEstimate);
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState("");
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: PointerEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) setCustom(points != null ? String(points) : "");
+  }, [open, points]);
+
+  async function choose(value: number | null) {
+    setOpen(false);
+    try {
+      await setEstimate({ taskId, points: value });
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const msg = raw.split("Uncaught Error:").pop()?.trim() ?? raw;
+      toast(msg.slice(0, 300), { kind: "error" });
+    }
+  }
+
+  if (disabled) {
+    return points != null ? (
+      <Badge variant="secondary" className="text-[11px] font-medium">
+        {points} pts
+      </Badge>
+    ) : null;
+  }
+
+  return (
+    <div
+      ref={rootRef}
+      className="relative flex-shrink-0"
+      // A card is draggable via @dnd-kit; keep pointer interaction with the
+      // popover trigger from also being interpreted as a drag start.
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <Badge
+        asChild
+        variant="secondary"
+        className="cursor-pointer text-[11px] font-medium hover:bg-accent"
+      >
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-haspopup="true"
+          aria-label="Set story point estimate"
+        >
+          {points != null ? `${points} pts` : "Estimate"}
+        </button>
+      </Badge>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.98 }}
+            transition={{ duration: 0.18, ease: EASE }}
+            className="absolute left-0 top-full z-30 mt-1.5 w-48 rounded-2xl border border-border bg-popover p-2.5 text-popover-foreground shadow-lg"
+          >
+            <div className="flex flex-wrap gap-1.5">
+              {POINT_CHIPS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => choose(p)}
+                  className={cn(
+                    "inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium transition-colors",
+                    points === p
+                      ? "bg-foreground text-background"
+                      : "bg-muted hover:bg-border",
+                  )}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 flex items-center gap-1.5">
+              <input
+                type="number"
+                min={0}
+                value={custom}
+                onChange={(e) => setCustom(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const n = Number(custom);
+                    if (custom.trim() !== "" && Number.isFinite(n) && n >= 0) {
+                      choose(n);
+                    }
+                  }
+                }}
+                placeholder="Custom"
+                className="soft-field h-7 w-full px-2 text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => choose(null)}
+                className="flex-shrink-0 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 

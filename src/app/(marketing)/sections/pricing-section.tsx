@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PRICING } from "@/lib/marketing-content";
 import { Container, CtaButton, SectionHeading } from "@/components/marketing/ui";
+import { BorderBeam } from "@/components/ui/border-beam";
 import { DUR, EASE_OUT, GsapReveal, prefersReducedMotion, useGsap, isHoverCapable } from "@/components/marketing/gsap";
 
 type Billing = "monthly" | "annual";
@@ -152,7 +153,7 @@ export function PricingSection() {
                 onMouseEnter={(e) => handleCardEnter(e, tier.featured)}
                 onMouseLeave={(e) => handleCardLeave(e, tier.featured)}
                 className={cn(
-                  "flex flex-col rounded-[20px] p-7",
+                  "relative flex flex-col rounded-[20px] p-7",
                   tier.featured
                     ? "bg-navy-900 text-white shadow-2xl ring-1 ring-navy-800 lg:-translate-y-2"
                     : "bg-background ring-1 ring-border",
@@ -228,6 +229,16 @@ export function PricingSection() {
                     {tier.cta}
                   </CtaButton>
                 </div>
+
+                {tier.featured && (
+                  <BorderBeam
+                    size={90}
+                    duration={9}
+                    width={1.5}
+                    from="var(--color-azure-300)"
+                    to="var(--color-azure-500)"
+                  />
+                )}
               </div>
             );
           })}

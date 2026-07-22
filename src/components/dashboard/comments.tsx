@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { CheckCircle2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -145,12 +146,17 @@ function MessageItem({
   const remove = useMutation(api.messages.remove);
   const resolve = useMutation(api.messages.resolve);
   const { toast } = useToast();
+  const { user } = useUser();
 
   const author = memberByClerkId.get(message.authorClerkId);
   const assignee = message.assigneeClerkId
     ? memberByClerkId.get(message.assigneeClerkId)
     : null;
   const isResolved = !!message.resolvedAt;
+  // The backend only lets the author edit/delete (agent-authored comments
+  // can never match a human id, so there's no override) — mirror that here
+  // so the controls aren't offered only to be refused.
+  const isOwn = message.authorClerkId === user?.id;
 
   // Hidden while its undo toast is live — the actual delete only commits
   // once the toast expires.
@@ -225,26 +231,43 @@ function MessageItem({
               >
                 Reply
               </button>
-              <button
-                type="button"
-                className="hover:text-foreground"
-                onClick={() => setEditing(true)}
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                className="hover:text-foreground"
-                onClick={() => {
-                  setDeleting(true);
-                  toast("Message deleted", {
-                    action: { label: "Undo", onClick: () => setDeleting(false) },
-                    onExpire: () => remove({ messageId: message._id }),
-                  });
-                }}
-              >
-                Delete
-              </button>
+              {isOwn && (
+                <>
+                  <button
+                    type="button"
+                    className="hover:text-foreground"
+                    onClick={() => setEditing(true)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="hover:text-foreground"
+                    onClick={() => {
+                      setDeleting(true);
+                      toast("Message deleted", {
+                        action: {
+                          label: "Undo",
+                          onClick: () => setDeleting(false),
+                        },
+                        onExpire: () => {
+                          remove({ messageId: message._id }).catch((err) => {
+                            setDeleting(false);
+                            toast(
+                              err instanceof Error
+                                ? err.message
+                                : "Couldn't delete message",
+                              { kind: "error" },
+                            );
+                          });
+                        },
+                      });
+                    }}
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
             </div>
           )}
 
@@ -299,7 +322,9 @@ function ReplyItem({
   const [deleting, setDeleting] = useState(false);
   const remove = useMutation(api.messages.remove);
   const { toast } = useToast();
+  const { user } = useUser();
   const author = memberByClerkId.get(reply.authorClerkId);
+  const isOwn = reply.authorClerkId === user?.id;
 
   if (deleting) return null;
 
@@ -331,28 +356,43 @@ function ReplyItem({
               body={reply.body}
               memberByClerkId={memberByClerkId}
             />
-            <div className="mt-1 flex gap-2 text-xs text-muted-foreground">
-              <button
-                type="button"
-                className="hover:text-foreground"
-                onClick={() => setEditing(true)}
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                className="hover:text-foreground"
-                onClick={() => {
-                  setDeleting(true);
-                  toast("Reply deleted", {
-                    action: { label: "Undo", onClick: () => setDeleting(false) },
-                    onExpire: () => remove({ messageId: reply._id }),
-                  });
-                }}
-              >
-                Delete
-              </button>
-            </div>
+            {isOwn && (
+              <div className="mt-1 flex gap-2 text-xs text-muted-foreground">
+                <button
+                  type="button"
+                  className="hover:text-foreground"
+                  onClick={() => setEditing(true)}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className="hover:text-foreground"
+                  onClick={() => {
+                    setDeleting(true);
+                    toast("Reply deleted", {
+                      action: {
+                        label: "Undo",
+                        onClick: () => setDeleting(false),
+                      },
+                      onExpire: () => {
+                        remove({ messageId: reply._id }).catch((err) => {
+                          setDeleting(false);
+                          toast(
+                            err instanceof Error
+                              ? err.message
+                              : "Couldn't delete reply",
+                            { kind: "error" },
+                          );
+                        });
+                      },
+                    });
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -438,6 +478,7 @@ function Composer({
 
   const create = useMutation(api.messages.create);
   const update = useMutation(api.messages.update);
+  const { toast } = useToast();
 
   const filtered = useMemo(() => {
     if (!popover) return [];
@@ -510,6 +551,11 @@ function Composer({
       setBody("");
       setAssignTo("");
       onDone?.();
+    } catch (err) {
+      toast(
+        err instanceof Error ? err.message : "Couldn't save message",
+        { kind: "error" },
+      );
     } finally {
       setPending(false);
     }

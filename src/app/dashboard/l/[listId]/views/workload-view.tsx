@@ -16,6 +16,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { cn } from "@/lib/utils";
 
@@ -172,6 +173,11 @@ export function WorkloadView({
       <EmptyState
         title="Nobody has work here yet"
         message="Assign a task to a teammate or agent to see their workload here."
+        action={
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/dashboard/l/${listId}`}>Open List view</Link>
+          </Button>
+        }
       />
     );
   }

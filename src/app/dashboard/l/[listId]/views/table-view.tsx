@@ -3,12 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { TaskBadges } from "@/components/dashboard/task-badges";
-import { EmptyState } from "@/components/dashboard/empty-state";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
 import {
   PRIORITY_LABEL,
@@ -28,6 +27,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
+import { parseQuickAdd } from "@/lib/quick-add";
+import { QuickAddChips } from "@/components/dashboard/quick-add-chips";
 import { EASE, motion } from "@/components/motion";
 import { useToast } from "@/components/toast";
 
@@ -112,15 +113,6 @@ export function TableView({
     return sortDir === "asc" ? copy : copy.reverse();
   }, [tasks, sortKey, sortDir, statusPosition]);
 
-  if (tasks.length === 0) {
-    return (
-      <EmptyState
-        title="Nothing here yet"
-        message="Add a task from List or Board view to see it in the table."
-      />
-    );
-  }
-
   return (
     <Card className="gap-0 overflow-hidden rounded-2xl py-0">
       <CardContent className="px-0 py-0">
@@ -192,6 +184,16 @@ export function TableView({
               </TableRow>
             </TableHeader>
             <TableBody>
+              {sorted.length === 0 && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell
+                    colSpan={8 + fields.length}
+                    className="whitespace-normal py-14 text-center text-sm text-muted-foreground"
+                  >
+                    Nothing here yet. Add the first task below.
+                  </TableCell>
+                </TableRow>
+              )}
               {sorted.map((task, i) => (
                 <TableRowContent
                   key={task._id}
@@ -205,11 +207,70 @@ export function TableView({
             </TableBody>
           </Table>
         </div>
+        <AddTaskRow listId={listId} />
         <div className="border-t border-border px-4 py-2 text-xs text-muted-foreground">
           {tasks.length} task{tasks.length === 1 ? "" : "s"}
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// Bottom in-place create row, mirroring ListView's NewTaskRow so Table is as
+// writable as List instead of sending users elsewhere to add a task.
+function AddTaskRow({ listId }: { listId: Id<"lists"> }) {
+  const [title, setTitle] = useState("");
+  const create = useMutation(api.tasks.create);
+  const { toast } = useToast();
+  const [pending, setPending] = useState(false);
+  const parsed = useMemo(() => parseQuickAdd(title), [title]);
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!parsed.title) return;
+    setPending(true);
+    try {
+      await create({
+        listId,
+        title: parsed.title,
+        dueDate: parsed.dueDate,
+        priority: parsed.priority,
+      });
+      setTitle("");
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const msg = raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim();
+      toast(msg || "Couldn't add task", { kind: "error" });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="border-t border-border px-4 py-3">
+      <div className="flex items-center gap-2">
+        <Plus className="h-4 w-4 text-muted-foreground" aria-hidden />
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Add a task… try “ship the deck tomorrow !high”"
+          disabled={pending}
+          className="flex-1 bg-transparent text-sm focus:outline-none disabled:opacity-50"
+        />
+        <Button
+          type="submit"
+          size="sm"
+          variant="ghost"
+          disabled={!parsed.title || pending}
+        >
+          Add
+        </Button>
+      </div>
+      <div className="pl-6">
+        <QuickAddChips parsed={parsed} />
+      </div>
+    </form>
   );
 }
 
@@ -291,6 +352,7 @@ function TableRowContent({
   const setValue = useMutation(api.taskFieldValues.set);
   const clearValue = useMutation(api.taskFieldValues.clear);
   const assignable = useQuery(api.agents.listAssignableForList, { listId });
+  const { toast } = useToast();
 
   const values = useQuery(api.taskFieldValues.listForTask, {
     taskId: task._id,
@@ -325,7 +387,19 @@ function TableRowContent({
         <motion.button
           type="button"
           aria-label={isDone ? "Mark task open" : "Mark task complete"}
-          onClick={() => void toggleComplete({ taskId: task._id })}
+          onClick={async () => {
+            try {
+              await toggleComplete({ taskId: task._id });
+            } catch (err) {
+              const raw = err instanceof Error ? err.message : String(err);
+              const msg = raw
+                .split("Uncaught Error:")
+                .pop()
+                ?.split("\n")[0]
+                ?.trim();
+              toast(msg || "Couldn't complete this task", { kind: "error" });
+            }
+          }}
           whileTap={{ scale: 0.8 }}
           className="tap-target inline-flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors"
           style={{
@@ -359,12 +433,20 @@ function TableRowContent({
         <select
           aria-label="Status"
           value={task.statusId}
-          onChange={(e) =>
-            update({
-              taskId: task._id,
-              statusId: e.currentTarget.value as Id<"listStatuses">,
-            })
-          }
+          onChange={async (e) => {
+            const nextStatusId = e.currentTarget.value as Id<"listStatuses">;
+            try {
+              await update({ taskId: task._id, statusId: nextStatusId });
+            } catch (err) {
+              const raw = err instanceof Error ? err.message : String(err);
+              const msg = raw
+                .split("Uncaught Error:")
+                .pop()
+                ?.split("\n")[0]
+                ?.trim();
+              toast(msg || "Couldn't update status", { kind: "error" });
+            }
+          }}
           className="soft-field px-2 py-1 text-xs"
           style={{
             backgroundColor: status ? `${status.color}33` : undefined,

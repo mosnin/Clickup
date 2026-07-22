@@ -20,11 +20,12 @@ import {
   List as ListIcon,
   ListTodo,
   Lock,
+  Pencil,
   Plus,
   Search,
   ShieldCheck,
-  Sparkles,
   Star,
+  Trash2,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -74,6 +75,16 @@ function useTreeQuery() {
 
 function initialOf(name: string): string {
   return (Array.from(name.trim())[0] ?? "?").toUpperCase();
+}
+
+// Same shape as the helper in space-view.tsx: Convex wraps thrown
+// ConvexError/Error messages in "Uncaught Error: …"; strip that noise so
+// the toast shows the server's actual reason.
+function errorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
+  );
 }
 
 // ── Root ─────────────────────────────────────────────────────────────────
@@ -233,13 +244,6 @@ function SidebarContentBody() {
               label="Agents"
               icon={Bot}
               iconColor="text-violet-500"
-            />
-            <NavMenuItem
-              href="/dashboard/brain"
-              label="Brain"
-              icon={Sparkles}
-              iconColor="text-rose-500"
-              exact
             />
           </SidebarMenu>
         </SidebarGroupContent>
@@ -436,6 +440,7 @@ function WorkspaceTreeGroup({
 }) {
   const [addingSpace, setAddingSpace] = useState(false);
   const createSpace = useMutation(api.spaces.create);
+  const { toast } = useToast();
 
   return (
     <SidebarGroup>
@@ -451,12 +456,19 @@ function WorkspaceTreeGroup({
                 placeholder="Space name…"
                 onCancel={() => setAddingSpace(false)}
                 onSubmit={async (name) => {
-                  await createSpace({
-                    name,
-                    parentType: "workspace",
-                    parentId: workspace._id,
-                  });
-                  setAddingSpace(false);
+                  try {
+                    await createSpace({
+                      name,
+                      parentType: "workspace",
+                      parentId: workspace._id,
+                    });
+                    setAddingSpace(false);
+                  } catch (e) {
+                    toast(errorMessage(e, "Couldn't create space"), {
+                      kind: "error",
+                    });
+                    setAddingSpace(false);
+                  }
                 }}
               />
             </SidebarMenuItem>
@@ -487,6 +499,13 @@ function WorkspaceTreeGroup({
 // The per-space "+" popover (list/doc/whiteboard/template/folder) now rides
 // a Radix DropdownMenu instead of the old hand-rolled AnchoredMenu portal —
 // Radix already handles positioning/escape/outside-click for us.
+
+const ADD_LABEL: Record<string, string> = {
+  folder: "folder",
+  list: "list",
+  doc: "doc",
+  board: "whiteboard",
+};
 
 const SPACE_CREATE_ITEMS = [
   { k: "list" as const, icon: ListIcon, label: "List" },
@@ -535,25 +554,33 @@ function SpaceTree({ space, linkHref }: { space: SpaceNode; linkHref: string }) 
   const createList = useMutation(api.lists.create);
   const createDoc = useMutation(api.docs.create);
   const createWhiteboard = useMutation(api.whiteboards.create);
+  const { toast } = useToast();
 
   async function submitAdd(name: string) {
-    if (adding === "folder") {
-      await createFolder({ spaceId: space._id, name });
-    } else if (adding === "list") {
-      const listId = await createList({ name, parentType: "space", parentId: space._id });
-      router.push(`/dashboard/l/${listId}`);
-    } else if (adding === "doc") {
-      const docId = await createDoc({ parentType: "space", parentId: space._id, title: name });
-      router.push(`/dashboard/d/${docId}`);
-    } else if (adding === "board") {
-      const wbId = await createWhiteboard({
-        parentType: "space",
-        parentId: space._id,
-        title: name,
+    try {
+      if (adding === "folder") {
+        await createFolder({ spaceId: space._id, name });
+      } else if (adding === "list") {
+        const listId = await createList({ name, parentType: "space", parentId: space._id });
+        router.push(`/dashboard/l/${listId}`);
+      } else if (adding === "doc") {
+        const docId = await createDoc({ parentType: "space", parentId: space._id, title: name });
+        router.push(`/dashboard/d/${docId}`);
+      } else if (adding === "board") {
+        const wbId = await createWhiteboard({
+          parentType: "space",
+          parentId: space._id,
+          title: name,
+        });
+        router.push(`/dashboard/wb/${wbId}`);
+      }
+      setAdding(null);
+    } catch (e) {
+      toast(errorMessage(e, `Couldn't create ${ADD_LABEL[adding ?? ""] ?? "item"}`), {
+        kind: "error",
       });
-      router.push(`/dashboard/wb/${wbId}`);
+      setAdding(null);
     }
-    setAdding(null);
   }
 
   const ADD_PLACEHOLDER: Record<string, string> = {
@@ -616,7 +643,15 @@ function SpaceTree({ space, linkHref }: { space: SpaceNode; linkHref: string }) 
             </SidebarMenuSubItem>
           )}
           {isEmpty && !adding && (
-            <p className="px-2 py-1 text-xs text-muted-foreground">Nothing here yet.</p>
+            <SidebarMenuSubItem className="px-1 py-1">
+              <p className="px-1 pb-1 text-xs text-muted-foreground">Nothing here yet.</p>
+              <SidebarMenuSubButton asChild size="sm">
+                <button type="button" onClick={() => setAdding("list")}>
+                  <Plus />
+                  <span>Add a list</span>
+                </button>
+              </SidebarMenuSubButton>
+            </SidebarMenuSubItem>
           )}
           {space.folders.map((folder) => (
             <FolderTree key={folder._id} folder={folder} />
@@ -649,7 +684,17 @@ function SpaceTree({ space, linkHref }: { space: SpaceNode; linkHref: string }) 
 function FolderTree({ folder }: { folder: SpaceNode["folders"][number] }) {
   const [expanded, setExpanded] = useState(true);
   const [addingList, setAddingList] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [hidden, setHidden] = useState(false);
   const createList = useMutation(api.lists.create);
+  const renameFolder = useMutation(api.folders.rename);
+  const removeFolder = useMutation(api.folders.remove);
+  const { toast } = useToast();
+
+  // Deferred delete: hide the row immediately, only actually removing the
+  // folder (and its cascade) once the undo window closes — same pattern as
+  // every other delete in the app (grep `onExpire`).
+  if (hidden) return null;
 
   return (
     <SidebarMenuSubItem>
@@ -664,22 +709,70 @@ function FolderTree({ folder }: { folder: SpaceNode["folders"][number] }) {
             className={cn("size-3 transition-transform duration-200", expanded && "rotate-90")}
           />
         </button>
-        <span className="flex min-w-0 flex-1 items-center gap-2 truncate px-1 text-sm text-sidebar-foreground/80">
-          <Folder className="size-3.5 flex-shrink-0" aria-hidden />
-          <span className="truncate">{folder.name}</span>
-        </span>
-        <button
-          type="button"
-          onClick={() => {
-            setExpanded(true);
-            setAddingList(true);
-          }}
-          aria-label="Add list"
-          title="Add list"
-          className="flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/folder:opacity-100 focus-visible:opacity-100"
-        >
-          <Plus className="size-3.5" />
-        </button>
+        {renaming ? (
+          <InlineCreate
+            placeholder="Folder name…"
+            initialValue={folder.name}
+            className="min-w-0 flex-1"
+            onCancel={() => setRenaming(false)}
+            onSubmit={async (name) => {
+              try {
+                await renameFolder({ folderId: folder._id, name });
+                setRenaming(false);
+              } catch (e) {
+                toast(errorMessage(e, "Couldn't rename folder"), {
+                  kind: "error",
+                });
+                setRenaming(false);
+              }
+            }}
+          />
+        ) : (
+          <span className="flex min-w-0 flex-1 items-center gap-2 truncate px-1 text-sm text-sidebar-foreground/80">
+            <Folder className="size-3.5 flex-shrink-0" aria-hidden />
+            <span className="truncate">{folder.name}</span>
+          </span>
+        )}
+        {!renaming && (
+          <>
+            <button
+              type="button"
+              onClick={() => setRenaming(true)}
+              aria-label="Rename folder"
+              title="Rename folder"
+              className="flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/folder:opacity-100 focus-visible:opacity-100"
+            >
+              <Pencil className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setHidden(true);
+                toast(`"${folder.name}" deleted`, {
+                  action: { label: "Undo", onClick: () => setHidden(false) },
+                  onExpire: () => void removeFolder({ folderId: folder._id }),
+                });
+              }}
+              aria-label="Delete folder"
+              title="Delete folder"
+              className="flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/folder:opacity-100 focus-visible:opacity-100"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setExpanded(true);
+                setAddingList(true);
+              }}
+              aria-label="Add list"
+              title="Add list"
+              className="flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/folder:opacity-100 focus-visible:opacity-100"
+            >
+              <Plus className="size-3.5" />
+            </button>
+          </>
+        )}
       </div>
       {expanded && (
         <SidebarMenuSub>
@@ -689,8 +782,15 @@ function FolderTree({ folder }: { folder: SpaceNode["folders"][number] }) {
                 placeholder="List name…"
                 onCancel={() => setAddingList(false)}
                 onSubmit={async (name) => {
-                  await createList({ name, parentType: "folder", parentId: folder._id });
-                  setAddingList(false);
+                  try {
+                    await createList({ name, parentType: "folder", parentId: folder._id });
+                    setAddingList(false);
+                  } catch (e) {
+                    toast(errorMessage(e, "Couldn't create list"), {
+                      kind: "error",
+                    });
+                    setAddingList(false);
+                  }
                 }}
               />
             </SidebarMenuSubItem>
@@ -699,7 +799,15 @@ function FolderTree({ folder }: { folder: SpaceNode["folders"][number] }) {
             <ListSubItem key={list._id} listId={list._id} name={list.name} />
           ))}
           {folder.lists.length === 0 && !addingList && (
-            <p className="px-2 py-1 text-xs text-muted-foreground">No lists yet.</p>
+            <SidebarMenuSubItem className="px-1 py-1">
+              <p className="px-1 pb-1 text-xs text-muted-foreground">No lists yet.</p>
+              <SidebarMenuSubButton asChild size="sm">
+                <button type="button" onClick={() => setAddingList(true)}>
+                  <Plus />
+                  <span>Add a list</span>
+                </button>
+              </SidebarMenuSubButton>
+            </SidebarMenuSubItem>
           )}
         </SidebarMenuSub>
       )}
@@ -777,16 +885,17 @@ function SidebarFooterBody() {
       <div className="px-1">
         <ThemeToggle collapsed={collapsed} />
       </div>
-      <div className="flex items-center gap-2 px-1 group-data-[collapsible=icon]:justify-center">
+      <div className="flex items-center gap-2 px-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:px-0">
         <UserButton afterSignOutUrl="/" />
         <span className="flex-1 truncate text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
           Account
         </span>
-        {/* Desktop collapse affordance (M4) — mobile gets its own trigger
-            inside PageHeader, so this stays md+ only. */}
+        {/* Desktop collapse/expand affordance — stays visible on the icon
+            rail too, otherwise a collapsed sidebar has no obvious way back.
+            Mobile gets its own trigger inside PageHeader. */}
         <SidebarTrigger
           aria-label="Toggle sidebar"
-          className="hidden shrink-0 text-muted-foreground md:inline-flex group-data-[collapsible=icon]:hidden"
+          className="hidden shrink-0 text-muted-foreground md:inline-flex"
         />
       </div>
     </SidebarFooter>

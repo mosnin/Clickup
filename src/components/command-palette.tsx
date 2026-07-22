@@ -30,6 +30,16 @@ import { AnimatePresence, EASE, motion } from "@/components/motion";
 // once in the dashboard layout; other components can open it by
 // dispatching the "open-command-palette" window event.
 
+// Same shape as the helper in space-view.tsx: Convex wraps thrown
+// ConvexError/Error messages in "Uncaught Error: …"; strip that noise so
+// the toast shows the server's actual reason.
+function errorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
+  );
+}
+
 type Item = {
   key: string;
   group: string;
@@ -172,15 +182,21 @@ export function CommandPalette() {
           hint: l.place,
           icon: List,
           run: async () => {
-            const taskId = await createTask({
-              listId: l.id,
-              title: parsed.title || createTitle,
-              dueDate: parsed.dueDate,
-              priority: parsed.priority,
-            });
-            close();
-            toast(`Task created in ${l.name}`);
-            router.push(`/dashboard/l/${l.id}/t/${taskId}`);
+            try {
+              const taskId = await createTask({
+                listId: l.id,
+                title: parsed.title || createTitle,
+                dueDate: parsed.dueDate,
+                priority: parsed.priority,
+              });
+              close();
+              toast(`Task created in ${l.name}`);
+              router.push(`/dashboard/l/${l.id}/t/${taskId}`);
+            } catch (e) {
+              toast(errorMessage(e, "Couldn't create task"), {
+                kind: "error",
+              });
+            }
           },
         }));
     }
@@ -204,21 +220,33 @@ export function CommandPalette() {
           icon: Home,
           run: async () => {
             if (spacePick === "doc") {
-              const docId = await createDoc({
-                parentType: "space",
-                parentId: sp.id,
-                title: "Untitled",
-              });
-              close();
-              router.push(`/dashboard/d/${docId}`);
+              try {
+                const docId = await createDoc({
+                  parentType: "space",
+                  parentId: sp.id,
+                  title: "Untitled",
+                });
+                close();
+                router.push(`/dashboard/d/${docId}`);
+              } catch (e) {
+                toast(errorMessage(e, "Couldn't create doc"), {
+                  kind: "error",
+                });
+              }
             } else if (spacePick === "board") {
-              const wbId = await createWhiteboard({
-                parentType: "space",
-                parentId: sp.id,
-                title: "Untitled board",
-              });
-              close();
-              router.push(`/dashboard/wb/${wbId}`);
+              try {
+                const wbId = await createWhiteboard({
+                  parentType: "space",
+                  parentId: sp.id,
+                  title: "Untitled board",
+                });
+                close();
+                router.push(`/dashboard/wb/${wbId}`);
+              } catch (e) {
+                toast(errorMessage(e, "Couldn't create whiteboard"), {
+                  kind: "error",
+                });
+              }
             } else {
               setSpacePick(null);
               setListNameSpace(sp.id);
@@ -241,7 +269,6 @@ export function CommandPalette() {
       { key: "inbox", group: "Go to", label: "Inbox", icon: Inbox, run: nav("/dashboard/inbox") },
       { key: "personal", group: "Go to", label: "Personal space", icon: Home, run: nav("/dashboard/personal") },
       { key: "agents", group: "Go to", label: "Agents", icon: Bot, run: nav("/dashboard/agents") },
-      { key: "brain", group: "Go to", label: "Brain", icon: Sparkles, run: nav("/dashboard/brain") },
     ];
     out.push(...statics.filter((s) => match(s.label)));
 
@@ -367,6 +394,21 @@ export function CommandPalette() {
           setQuery("");
         },
       },
+      // Sprints are workspace-scoped: one action per workspace, landing on
+      // its Sprints tab with the create form already open.
+      ...(tree?.workspaces ?? []).map((w) => ({
+        key: `new-sprint-${w._id}`,
+        group: "Actions",
+        label:
+          (tree?.workspaces.length ?? 0) > 1
+            ? `New sprint in ${w.name}…`
+            : "New sprint…",
+        icon: Plus,
+        run: () => {
+          router.push(`/dashboard/w/${w._id}?tab=sprints&new=1`);
+          close();
+        },
+      })),
       {
         key: "theme-light",
         group: "Actions",
@@ -462,13 +504,19 @@ export function CommandPalette() {
         const name = query.trim();
         if (!name) return;
         void (async () => {
-          const listId = await createList({
-            name,
-            parentType: "space",
-            parentId: listNameSpace,
-          });
-          close();
-          router.push(`/dashboard/l/${listId}`);
+          try {
+            const listId = await createList({
+              name,
+              parentType: "space",
+              parentId: listNameSpace,
+            });
+            close();
+            router.push(`/dashboard/l/${listId}`);
+          } catch (e) {
+            toast(errorMessage(e, "Couldn't create list"), {
+              kind: "error",
+            });
+          }
         })();
         return;
       }

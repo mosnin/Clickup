@@ -91,6 +91,12 @@ export function ListPage({
     [searchParams],
   );
   const priorityFilter = searchParams.get("pri") ?? "";
+  // Overview and Network both render the list's full, unfiltered task set
+  // (Overview's stats are meant to reflect the whole project; Network needs
+  // every dependency edge, subtasks included, to draw the graph) — so the
+  // quick filters below have no effect on either. Hide the filter bar there
+  // instead of leaving controls that silently do nothing.
+  const filtersApply = view !== "overview" && view !== "network";
 
   if (
     list === undefined ||
@@ -133,7 +139,9 @@ export function ListPage({
     doneStatusIds,
     user?.id,
   );
-  const filtered = topLevelTasks.length !== allTop.length;
+  // Only claim "filtered" (and show the narrower count) on views that
+  // actually apply these filters — Overview/Network always render allTop.
+  const filtered = filtersApply && topLevelTasks.length !== allTop.length;
 
   return (
     <div className="space-y-6">
@@ -218,7 +226,9 @@ export function ListPage({
               flags={[...activeFlags].sort().join(",")}
               priority={priorityFilter}
             />
-            <FilterBar activeFlags={activeFlags} priority={priorityFilter} />
+            {filtersApply && (
+              <FilterBar activeFlags={activeFlags} priority={priorityFilter} />
+            )}
           </div>
         </div>
       </PageHeader>

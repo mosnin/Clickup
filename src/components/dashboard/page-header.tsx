@@ -44,7 +44,10 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "sticky top-0 z-20 -mx-4 border-b border-border bg-card/95 px-4 backdrop-blur-sm sm:-mx-6 sm:px-6",
+        // -mt-6 cancels the SidebarInset wrapper's top padding so the sticky
+        // header sits flush against the top of the scroll container — no
+        // miscolored bg-background band above it.
+        "sticky top-0 z-20 -mx-4 -mt-6 border-b border-border bg-card/95 px-4 backdrop-blur-sm sm:-mx-6 sm:px-6",
         className,
       )}
     >

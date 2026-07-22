@@ -136,7 +136,7 @@ export function AdminConsole() {
         ) : tab === "workspaces" ? (
           <WorkspacesTab />
         ) : tab === "agents" ? (
-          <AgentsTab />
+          <AgentsTab isSuper={isSuper} />
         ) : tab === "billing" ? (
           <BillingAdminTab isSuper={isSuper} />
         ) : tab === "audit" ? (
@@ -396,7 +396,7 @@ function WorkspacesTab() {
 
 // ── Agents ───────────────────────────────────────────────────────────────
 
-function AgentsTab() {
+function AgentsTab({ isSuper }: { isSuper: boolean }) {
   const rows = useQuery(api.admin.listAgents, {});
   const setStatus = useMutation(api.admin.setAgentStatus);
   const { toast } = useToast();
@@ -452,25 +452,37 @@ function AgentsTab() {
                 {a.lastSeenAt ? timeAgo(a.lastSeenAt) : "Never connected"}
               </TableCell>
               <TableCell className="text-right">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={async () => {
-                    const next = a.status === "active" ? "paused" : "active";
-                    await setStatus({ agentId: a._id, status: next });
-                    toast(`${next === "paused" ? "Paused" : "Resumed"} ${a.name}`);
-                  }}
-                >
-                  {a.status === "active" ? (
-                    <>
-                      <Pause className="h-3.5 w-3.5" /> Pause
-                    </>
-                  ) : (
-                    <>
-                      <Play className="h-3.5 w-3.5" /> Resume
-                    </>
-                  )}
-                </Button>
+                {isSuper ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      const next = a.status === "active" ? "paused" : "active";
+                      try {
+                        await setStatus({ agentId: a._id, status: next });
+                        toast(
+                          `${next === "paused" ? "Paused" : "Resumed"} ${a.name}`,
+                        );
+                      } catch (e) {
+                        toast(errMsg(e), { kind: "error" });
+                      }
+                    }}
+                  >
+                    {a.status === "active" ? (
+                      <>
+                        <Pause className="h-3.5 w-3.5" /> Pause
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-3.5 w-3.5" /> Resume
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    Superadmin only
+                  </span>
+                )}
               </TableCell>
             </TableRow>
           ))}
@@ -791,7 +803,7 @@ function SettingsPanel({ settings }: { settings: Record<string, unknown> }) {
         <div className="space-y-4">
           <NumberSetting
             label="Session idle timeout (minutes)"
-            hint="0 disables the platform-wide idle policy."
+            hint="Stored for future use — not yet enforced anywhere in the app."
             value={idle}
             onSave={async (v) => {
               await setSetting({ key: "session_idle_minutes", value: v });
@@ -801,7 +813,7 @@ function SettingsPanel({ settings }: { settings: Record<string, unknown> }) {
           <Separator />
           <NumberSetting
             label="Max agents per workspace"
-            hint="0 means unlimited."
+            hint="Stored for future use — not yet enforced anywhere in the app."
             value={maxAgents}
             onSave={async (v) => {
               await setSetting({ key: "max_agents_per_workspace", value: v });

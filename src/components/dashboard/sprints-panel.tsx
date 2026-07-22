@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -48,7 +49,10 @@ type DetailTab = (typeof DETAIL_TABS)[number]["key"];
 
 export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const sprints = useQuery(api.sprints.listForWorkspace, { workspaceId });
-  const [creating, setCreating] = useState(false);
+  // ?new=1 deep-links straight into creation (⌘K "New sprint", task-page
+  // "Create the first sprint", etc. land here with the form already open).
+  const searchParams = useSearchParams();
+  const [creating, setCreating] = useState(searchParams.get("new") === "1");
 
   if (sprints === undefined) {
     return <Card className="h-40 animate-pulse bg-muted/30" />;
@@ -82,6 +86,9 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
             A sprint collects tasks into a start-to-finish window, so humans
             and agents burn down the same list together.
           </p>
+          <Button size="sm" className="mt-4" onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4" /> New sprint
+          </Button>
         </div>
       )}
 
@@ -204,6 +211,7 @@ function SprintCard({
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<DetailTab>("overview");
   const [deleting, setDeleting] = useState(false);
+  const [confirmComplete, setConfirmComplete] = useState(false);
   const update = useMutation(api.sprints.update);
   const remove = useMutation(api.sprints.remove);
   const updateTask = useMutation(api.tasks.update);
@@ -224,6 +232,19 @@ function SprintCard({
     sprint.taskCount === 0
       ? 0
       : Math.round((sprint.doneCount / sprint.taskCount) * 100);
+  const openCount = sprint.taskCount - sprint.doneCount;
+
+  async function completeSprint() {
+    await update({ sprintId: sprint._id, status: "complete" });
+    setConfirmComplete(false);
+    setOpen(true);
+    setTab("overview");
+    toast(
+      openCount > 0
+        ? `Sprint completed with ${openCount} task${openCount === 1 ? "" : "s"} still open — add a retrospective`
+        : "Sprint completed — add a retrospective",
+    );
+  }
   const fmt = (ts: number) =>
     new Date(ts).toLocaleDateString(undefined, {
       month: "short",
@@ -262,23 +283,42 @@ function SprintCard({
         <span className="ml-auto text-xs text-muted-foreground">
           {sprint.doneCount}/{sprint.taskCount} done
         </span>
-        {sprint.status !== "complete" && (
+        {sprint.status !== "complete" && !confirmComplete && (
           <Button
             size="sm"
             variant="outline"
             onClick={async () => {
-              const nextStatus =
-                sprint.status === "planned" ? "active" : "complete";
-              await update({ sprintId: sprint._id, status: nextStatus });
-              if (nextStatus === "complete") {
-                setOpen(true);
-                setTab("overview");
-                toast("Sprint completed — add a retrospective");
+              if (sprint.status === "planned") {
+                await update({ sprintId: sprint._id, status: "active" });
+                return;
               }
+              if (openCount > 0) {
+                setConfirmComplete(true);
+                return;
+              }
+              await completeSprint();
             }}
           >
             {sprint.status === "planned" ? "Start" : "Complete"}
           </Button>
+        )}
+        {confirmComplete && (
+          <span className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-muted-foreground">
+              {openCount} task{openCount === 1 ? "" : "s"} still open — they&apos;ll
+              stay in this sprint.
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setConfirmComplete(false)}
+            >
+              Cancel
+            </Button>
+            <Button size="sm" onClick={completeSprint}>
+              Complete anyway
+            </Button>
+          </span>
         )}
         <button
           type="button"

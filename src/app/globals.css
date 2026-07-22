@@ -108,9 +108,143 @@
   --radius-pill: 9999px;
 }
 
+/* The template's base border rule (Square UI ships the same): Tailwind v4
+   defaults bare `border` utilities to currentColor, which reads as a harsh
+   near-black frame around every vendored Card/Table/Input. Restore the
+   token default; explicit border-color classes still override. */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+}
+
 html,
 body {
   height: 100%;
+}
+
+/* Thin brand gradient strip — product flair on shell edges (PageHeader top,
+   sidebar top). 2px tall; pastel ramp reads in both themes. Use height-only
+   variants sparingly: this is an accent, not a divider system. */
+.gradient-strip {
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--color-pastel-blue),
+    var(--color-pastel-purple) 30%,
+    var(--color-pastel-pink) 60%,
+    var(--color-pastel-yellow) 100%
+  );
+}
+
+/* ── Card resize transition (Transitions.dev) ─────────────────────────────
+   Put .t-resize on an element and tween explicit width/height changes
+   (directly, or via a state class such as .is-small). */
+:root {
+  --resize-dur: 300ms;
+  --resize-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+.t-resize {
+  transition:
+    width var(--resize-dur) var(--resize-ease),
+    height var(--resize-dur) var(--resize-ease);
+  will-change: width, height;
+}
+
+/* ── Agent orb ────────────────────────────────────────────────────────────
+   A glowing, slowly-swirling gradient sphere. Colors come from per-agent
+   CSS vars (a deterministic random hue), so every agent reads as its own
+   living orb. Compose: <span class="orb"><span class="orb-core"/><span
+   class="orb-sheen"/></span>. */
+.orb {
+  position: relative;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: var(--orb-a, #8b8bff);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.1) inset,
+    0 4px 14px -4px var(--orb-b, #8b8bff);
+}
+.orb-core {
+  position: absolute;
+  inset: -35%;
+  background: conic-gradient(
+    from 0deg,
+    var(--orb-a),
+    var(--orb-b),
+    var(--orb-c),
+    var(--orb-a)
+  );
+  filter: blur(5px);
+  animation: orb-spin 7s linear infinite;
+}
+.orb-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at 32% 26%,
+    rgb(255 255 255 / 0.6),
+    transparent 46%
+  );
+}
+@keyframes orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Border beam ──────────────────────────────────────────────────────────
+   A light that travels around an element's border — signals "alive /
+   listening." The parent must be position:relative with a border-radius;
+   render <BorderBeam/> as its last child. */
+.border-beam {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  border: var(--bb-width, 1.5px) solid transparent;
+  mask:
+    linear-gradient(transparent, transparent),
+    linear-gradient(#000, #000);
+  mask-clip: padding-box, border-box;
+  mask-composite: intersect;
+}
+.border-beam::after {
+  content: "";
+  position: absolute;
+  aspect-ratio: 1;
+  width: var(--bb-size, 64px);
+  background: linear-gradient(
+    to left,
+    var(--bb-from, var(--color-azure-400, #5aa8ff)),
+    var(--bb-to, var(--color-azure-600, #2b6fff)),
+    transparent
+  );
+  offset-path: rect(0 auto auto 0 round var(--bb-size, 64px));
+  offset-anchor: 90% 50%;
+  animation: border-beam-travel var(--bb-duration, 7s) linear infinite;
+  animation-delay: var(--bb-delay, 0s);
+}
+@keyframes border-beam-travel {
+  to {
+    offset-distance: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-resize {
+    transition: none !important;
+  }
+  .orb-core {
+    animation: none;
+  }
+  .border-beam::after {
+    animation: none;
+    opacity: 0;
+  }
 }
 
 /* GSAP reveal targets start hidden before hydration so scroll-reveals
@@ -282,19 +416,21 @@ body {
    Soft shadows are near-invisible on a dark canvas, so bento surfaces gain a
    hairline border in dark to stay legible as discrete panels. */
 :root[data-theme="dark"] {
-  --color-page: #0b0b0d;
-  --color-background: #161619;
+  /* Deep charcoal scheme: near-black canvas, charcoal surfaces one step
+     up, hairlines barely brighter than the card they sit on. */
+  --color-page: #08080a;
+  --color-background: #0e0e10;
   --color-foreground: #f3f3f4;
-  --color-muted: #232327;
+  --color-muted: #1a1a1d;
   --color-muted-foreground: #9b9ba3;
-  --color-border: #2b2b31;
+  --color-border: #222226;
 
   /* Ink scale inverts: light chips become dark tiles, "ink" text becomes
      near-white. brand-600 stays a mid gray so both `bg-brand-600 text-white`
      (avatars/badges/bars) and `text-brand-600` links remain legible. */
-  --color-brand-50: #1c1c20;
-  --color-brand-100: #232327;
-  --color-brand-200: #303036;
+  --color-brand-50: #141416;
+  --color-brand-100: #1a1a1d;
+  --color-brand-200: #26262b;
   --color-brand-500: #a1a1aa;
   --color-brand-600: #71717a;
   --color-brand-700: #ededf0;
@@ -304,26 +440,26 @@ body {
 
   /* Shell fusion tones flip with the theme (ink inverts, like the
      template's dark scheme, kept in our hex language). */
-  --color-card: #161619;
+  --color-card: #121214;
   --color-card-foreground: #f3f3f4;
-  --color-popover: #1c1c20;
+  --color-popover: #161619;
   --color-popover-foreground: #f3f3f4;
   --color-primary: #ededf0;
   --color-primary-foreground: #101012;
-  --color-secondary: #232327;
+  --color-secondary: #1a1a1d;
   --color-secondary-foreground: #f3f3f4;
-  --color-accent: #26262b;
+  --color-accent: #1e1e22;
   --color-accent-foreground: #f3f3f4;
   --color-destructive: #e0685c;
-  --color-input: #2b2b31;
+  --color-input: #232328;
   --color-ring: #71717a;
-  --color-sidebar: #101013;
+  --color-sidebar: #0a0a0c;
   --color-sidebar-foreground: #f3f3f4;
   --color-sidebar-primary: #ededf0;
   --color-sidebar-primary-foreground: #101012;
-  --color-sidebar-accent: #232327;
+  --color-sidebar-accent: #1b1b1f;
   --color-sidebar-accent-foreground: #f3f3f4;
-  --color-sidebar-border: #2b2b31;
+  --color-sidebar-border: #1e1e22;
   --color-sidebar-ring: #71717a;
 }
 

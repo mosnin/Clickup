@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Picker, type PickerOption } from "@/components/ui/picker";
 import { Monogram } from "@/components/dashboard/monogram";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -66,7 +68,7 @@ export function OverviewView({
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
       <div className="min-w-0 space-y-6">
         <AboutCard listId={listId} list={list} />
-        <ProgressCard tasks={tasks} statuses={statuses} />
+        <ProgressCard listId={listId} tasks={tasks} statuses={statuses} />
       </div>
       <div className="space-y-6">
         <StatusCard listId={listId} list={list} />
@@ -168,9 +170,11 @@ function StatTile({
 }
 
 function ProgressCard({
+  listId,
   tasks,
   statuses,
 }: {
+  listId: Id<"lists">;
   tasks: Doc<"tasks">[];
   statuses: Doc<"listStatuses">[];
 }) {
@@ -221,6 +225,11 @@ function ProgressCard({
           compact
           title="No tasks yet"
           message="Add tasks from List or Board view to start tracking progress here."
+          action={
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/dashboard/l/${listId}`}>Open List view</Link>
+            </Button>
+          }
         />
       ) : (
         <>

@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { ListChecks, ShieldAlert } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
   PriorityChip,
@@ -16,6 +17,7 @@ import {
   type TaskPriority,
 } from "@/components/dashboard/priority";
 import { EmptyState } from "@/components/dashboard/empty-state";
+import { useToast } from "@/components/toast";
 
 // "My Work": every open task assigned to me across my personal space and
 // every workspace I belong to, grouped by urgency — Overdue, Today, This week,
@@ -161,57 +163,92 @@ function TaskRow({
   overdue: boolean;
   isLast: boolean;
 }) {
+  const { toast } = useToast();
+  // Same optimistic pattern as Home's TodaysTasks: my-work only ever lists
+  // open tasks, so completing one just drops it from the local list
+  // instantly; the server reconciles (and reverts on a refused completion —
+  // blocked/needs-approval).
+  const toggleComplete = useMutation(
+    api.tasks.toggleComplete,
+  ).withOptimisticUpdate((localStore, args) => {
+    const current = localStore.getQuery(api.myWork.listForCurrent, {});
+    if (!current) return;
+    localStore.setQuery(
+      api.myWork.listForCurrent,
+      {},
+      current.filter((t) => t._id !== args.taskId),
+    );
+  });
+
+  async function complete() {
+    try {
+      await toggleComplete({ taskId: row._id });
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      toast(
+        raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() ||
+          "Couldn't complete this task",
+        { kind: "error" },
+      );
+    }
+  }
+
   const href = `/dashboard/l/${row.listId as Id<"lists">}/t/${row._id}`;
   const needsApproval =
     row.requiresApproval && row.approvedAt === undefined;
   return (
-    <Link
-      href={href}
+    <div
       className={cn(
         "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50",
         !isLast && "border-b border-border",
       )}
     >
-      <span
-        aria-hidden
-        className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-        style={{ backgroundColor: row.statusColor }}
-        title={row.statusName}
+      <Checkbox
+        aria-label={`Mark "${row.title}" complete`}
+        onCheckedChange={() => complete()}
       />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{row.title}</p>
-        <p className="truncate text-xs text-muted-foreground">
-          {row.listName} · {row.statusName}
-        </p>
-      </div>
-
-      {needsApproval && (
-        <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] font-medium text-foreground/80 dark:text-neutral-900/80">
-          <ShieldAlert className="h-3 w-3" aria-hidden /> Approval
-        </span>
-      )}
-
-      {row.priority && (
-        <>
-          <PriorityChip
-            priority={row.priority}
-            className="hidden sm:inline-flex"
-          />
-          <PriorityDot priority={row.priority} className="sm:hidden" />
-        </>
-      )}
-
-      {row.dueDate !== undefined && (
+      <Link href={href} className="flex min-w-0 flex-1 items-center gap-3">
         <span
-          className={cn(
-            "flex-shrink-0 text-xs font-medium tabular-nums",
-            overdue ? "text-danger" : "text-muted-foreground",
-          )}
-        >
-          {formatDue(row.dueDate)}
-        </span>
-      )}
-    </Link>
+          aria-hidden
+          className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
+          style={{ backgroundColor: row.statusColor }}
+          title={row.statusName}
+        />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{row.title}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {row.listName} · {row.statusName}
+          </p>
+        </div>
+
+        {needsApproval && (
+          <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] font-medium text-foreground/80 dark:text-neutral-900/80">
+            <ShieldAlert className="h-3 w-3" aria-hidden /> Approval
+          </span>
+        )}
+
+        {row.priority && (
+          <>
+            <PriorityChip
+              priority={row.priority}
+              className="hidden sm:inline-flex"
+            />
+            <PriorityDot priority={row.priority} className="sm:hidden" />
+          </>
+        )}
+
+        {row.dueDate !== undefined && (
+          <span
+            className={cn(
+              "flex-shrink-0 text-xs font-medium tabular-nums",
+              overdue ? "text-danger" : "text-muted-foreground",
+            )}
+          >
+            {formatDue(row.dueDate)}
+          </span>
+        )}
+      </Link>
+    </div>
   );
 }
 
