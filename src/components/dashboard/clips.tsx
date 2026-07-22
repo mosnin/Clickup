@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/toast";
 import { formatDuration } from "@/lib/duration";
+import { timeAgo } from "@/lib/time";
 import { Stagger, StaggerItem } from "@/components/motion";
 
 // Recorder state machine.
@@ -256,12 +257,7 @@ function ClipCard({ clip }: { clip: Doc<"clips"> }) {
         <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
           {clip.durationMs ? formatDuration(clip.durationMs) : "-"}
         </Badge>
-        <span className="ml-auto">
-          {new Date(clip.createdAt).toLocaleString(undefined, {
-            month: "short",
-            day: "numeric",
-          })}
-        </span>
+        <span className="ml-auto">{timeAgo(clip.createdAt)}</span>
         <button
           type="button"
           aria-label="Delete clip"

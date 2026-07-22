@@ -14,6 +14,7 @@ import { Monogram } from "@/components/dashboard/monogram";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
+import { timeAgo } from "@/lib/time";
 import { AnimatedBar, AnimatePresence, EASE, motion } from "@/components/motion";
 
 // Collaboration sections for the task detail page: approval/claim banners,
@@ -91,8 +92,21 @@ export function TaskBanners({
             <span className="font-medium">
               {claimant ? claimant.name : "someone"}
             </span>{" "}
-, they&apos;re actively working on this.
+            {task.claimedAt ? timeAgo(task.claimedAt) : "recently"}, they&apos;re
+            actively working on this. Auto-releases after 60 min of
+            inactivity.
           </span>
+          {!task.requiresApproval && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                update({ taskId: task._id, requiresApproval: true })
+              }
+            >
+              <ShieldCheck className="h-3.5 w-3.5" /> Require approval
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -136,6 +150,32 @@ export function TaskAssignees({
 }) {
   const update = useMutation(api.tasks.update);
   const assignable = useQuery(api.agents.listAssignableForList, { listId });
+  // listAssignableForList doesn't return status/role/allowedListIds, so
+  // cross-reference full agent docs (already fetched for the Agents HQ
+  // page) to find ones that structurally can't act on this list: paused,
+  // readonly, or list-restricted away from here. Matching is by agent _id,
+  // which is globally unique, so scope doesn't need to be re-derived.
+  const myAgents = useQuery(api.agents.listForCurrentUser, {});
+  const agentDocsById = useMemo(() => {
+    const map = new Map<string, Doc<"agents">>();
+    for (const a of myAgents?.personal ?? []) map.set(a._id, a);
+    for (const w of myAgents?.workspaces ?? []) {
+      for (const a of w.agents) map.set(a._id, a);
+    }
+    return map;
+  }, [myAgents]);
+
+  function unavailableReason(agentId: string): string | null {
+    const agent = agentDocsById.get(agentId);
+    if (!agent) return null;
+    if (agent.status === "paused") return "paused";
+    if (agent.role === "readonly") return "read-only";
+    if (agent.allowedListIds && !agent.allowedListIds.includes(listId)) {
+      return "restricted";
+    }
+    return null;
+  }
+
   const byId = useMemo(
     () => new Map((assignable ?? []).map((a) => [a.id, a])),
     [assignable],
@@ -145,6 +185,8 @@ export function TaskAssignees({
     <div className="flex flex-wrap items-center gap-2">
       {task.assigneeClerkIds.map((id) => {
         const person = byId.get(id);
+        const reason =
+          person?.kind === "agent" ? unavailableReason(id) : null;
         return (
           <Badge
             key={id}
@@ -155,6 +197,14 @@ export function TaskAssignees({
               <Monogram name={person.name} size="sm" />
             )}
             <span>{person?.name ?? "Someone"}</span>
+            {reason && (
+              <span
+                title={`This agent can't act on this task (${reason})`}
+                className="text-[10px] uppercase tracking-wider text-muted-foreground"
+              >
+                {reason}
+              </span>
+            )}
             <button
               type="button"
               aria-label={`Unassign ${person?.name ?? "assignee"}`}
@@ -178,6 +228,7 @@ export function TaskAssignees({
         dashed
         options={(assignable ?? [])
           .filter((a) => !task.assigneeClerkIds.includes(a.id))
+          .filter((a) => a.kind !== "agent" || !unavailableReason(a.id))
           .map((a) => ({
             id: a.id,
             label: a.name,
@@ -294,9 +345,32 @@ export function TaskBlockedBy({
 }) {
   const update = useMutation(api.tasks.update);
   const siblingTasks = useQuery(api.tasks.listForList, { listId });
+  const statuses = useQuery(api.listStatuses.listForList, { listId });
   const blockerTitles = useQuery(api.tasks.titles, {
     taskIds: task.blockedByTaskIds ?? [],
   });
+
+  // The backend only refuses completion for blockers whose status category
+  // is still open/in_progress — a completed/closed blocker no longer
+  // counts, so the warning (and any "still blocking" styling) must key off
+  // that, not raw list length.
+  const statusById = useMemo(
+    () => new Map((statuses ?? []).map((s) => [s._id, s])),
+    [statuses],
+  );
+  const taskById = useMemo(
+    () => new Map((siblingTasks ?? []).map((t) => [t._id, t])),
+    [siblingTasks],
+  );
+  function isBlockerOpen(id: Id<"tasks">): boolean {
+    const blocker = taskById.get(id);
+    if (!blocker) return false;
+    const status = statusById.get(blocker.statusId);
+    return status?.category !== "complete" && status?.category !== "closed";
+  }
+  const openBlockerCount = (task.blockedByTaskIds ?? []).filter(
+    isBlockerOpen,
+  ).length;
 
   return (
     <section>
@@ -304,35 +378,41 @@ export function TaskBlockedBy({
         Blocked by
       </h2>
       <div className="flex flex-wrap items-center gap-2">
-        {(task.blockedByTaskIds ?? []).map((id) => (
-          <Badge
-            key={id}
-            variant="outline"
-            className="gap-1.5 py-1 pr-1 pl-3 text-sm font-normal"
-          >
-            <Link
-              href={`/dashboard/l/${listId}/t/${id}`}
-              className="hover:underline"
+        {(task.blockedByTaskIds ?? []).map((id) => {
+          const open = isBlockerOpen(id);
+          return (
+            <Badge
+              key={id}
+              variant="outline"
+              className={cn(
+                "gap-1.5 py-1 pr-1 pl-3 text-sm font-normal",
+                !open && "opacity-60",
+              )}
             >
-              {blockerTitles?.[id] ?? "Task"}
-            </Link>
-            <button
-              type="button"
-              aria-label="Remove dependency"
-              onClick={() =>
-                update({
-                  taskId: task._id,
-                  blockedByTaskIds: (task.blockedByTaskIds ?? []).filter(
-                    (b) => b !== id,
-                  ),
-                })
-              }
-              className="tap-target text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </Badge>
-        ))}
+              <Link
+                href={`/dashboard/l/${listId}/t/${id}`}
+                className={cn("hover:underline", !open && "line-through")}
+              >
+                {blockerTitles?.[id] ?? "Task"}
+              </Link>
+              <button
+                type="button"
+                aria-label="Remove dependency"
+                onClick={() =>
+                  update({
+                    taskId: task._id,
+                    blockedByTaskIds: (task.blockedByTaskIds ?? []).filter(
+                      (b) => b !== id,
+                    ),
+                  })
+                }
+                className="tap-target text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          );
+        })}
         <Picker
           label="+ Add blocker…"
           dashed
@@ -354,7 +434,7 @@ export function TaskBlockedBy({
           }
         />
       </div>
-      {(task.blockedByTaskIds ?? []).length > 0 && (
+      {openBlockerCount > 0 && (
         <p className="mt-1 text-xs text-muted-foreground">
           This task can&apos;t be completed while a blocker is still open.
         </p>

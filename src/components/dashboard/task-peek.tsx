@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { ArrowUpRight, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -16,6 +16,8 @@ import {
   PriorityChip,
   type TaskPriority,
 } from "@/components/dashboard/priority";
+import { Monogram } from "@/components/dashboard/monogram";
+import { TaskBadges } from "@/components/dashboard/task-badges";
 
 // The task side-peek: a right slide-over for glancing at and quick-editing a
 // task without leaving the current view. Driven by the `?task=` search param
@@ -103,12 +105,18 @@ function TaskPeekBody({
 }) {
   const task = useQuery(api.tasks.get, { taskId });
   const statuses = useQuery(api.listStatuses.listForList, { listId });
+  const assignable = useQuery(api.agents.listAssignableForList, { listId });
   const update = useMutation(api.tasks.update);
   const toggleComplete = useMutation(api.tasks.toggleComplete);
   const { toast } = useToast();
 
   const [title, setTitle] = useState<string | null>(null);
   const [description, setDescription] = useState<string | null>(null);
+
+  const assigneeById = useMemo(
+    () => new Map((assignable ?? []).map((a) => [a.id, a])),
+    [assignable],
+  );
 
   if (task === undefined || statuses === undefined) {
     return (
@@ -130,6 +138,19 @@ function TaskPeekBody({
   const status = statuses.find((s) => s._id === task.statusId);
   const isDone =
     status?.category === "complete" || status?.category === "closed";
+
+  async function onStatusChange(statusId: Id<"listStatuses">) {
+    try {
+      await update({ taskId, statusId });
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      toast(
+        raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() ||
+          "Couldn't update status",
+        { kind: "error" },
+      );
+    }
+  }
 
   async function onToggle() {
     try {
@@ -191,24 +212,48 @@ function TaskPeekBody({
       </div>
 
       <div className="flex-1 space-y-6 px-5 pb-6 pt-3">
-        <input
-          value={title ?? task.title}
-          onChange={(e) => setTitle(e.currentTarget.value)}
-          onBlur={() => {
-            const next = (title ?? task.title).trim();
-            if (next && next !== task.title) {
-              void update({ taskId, title: next });
-            }
-            setTitle(null);
-          }}
-          aria-label="Task title"
-          className={cn(
-            "w-full bg-transparent text-lg font-semibold tracking-tight focus:outline-none",
-            isDone && "text-muted-foreground line-through",
-          )}
-        />
+        <div className="flex items-center gap-1">
+          <input
+            value={title ?? task.title}
+            onChange={(e) => setTitle(e.currentTarget.value)}
+            onBlur={() => {
+              const next = (title ?? task.title).trim();
+              if (next && next !== task.title) {
+                void update({ taskId, title: next });
+              }
+              setTitle(null);
+            }}
+            aria-label="Task title"
+            className={cn(
+              "w-full bg-transparent text-lg font-semibold tracking-tight focus:outline-none",
+              isDone && "text-muted-foreground line-through",
+            )}
+          />
+          <TaskBadges task={task} />
+        </div>
 
         <div className="space-y-4">
+          <PeekField label="Assignees">
+            {task.assigneeClerkIds.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Unassigned</p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                {task.assigneeClerkIds.map((id) => {
+                  const person = assigneeById.get(id);
+                  return (
+                    <span
+                      key={id}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-1 text-xs"
+                    >
+                      <Monogram name={person?.name ?? "?"} size="sm" />
+                      {person?.name ?? "Someone"}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </PeekField>
+
           <PeekField label="Status">
             <div className="flex flex-wrap gap-1.5">
               {statuses
@@ -218,7 +263,7 @@ function TaskPeekBody({
                   <button
                     key={s._id}
                     type="button"
-                    onClick={() => void update({ taskId, statusId: s._id })}
+                    onClick={() => void onStatusChange(s._id)}
                     className={cn(
                       "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
                       s._id === task.statusId
@@ -298,7 +343,8 @@ function TaskPeekBody({
         </PeekField>
 
         <p className="text-xs text-muted-foreground">
-          Comments, checklist, attachments, and more live on the{" "}
+          Comments, checklist, attachments, clips, sprint, and blocked-by
+          details live on the{" "}
           <Link
             href={`/dashboard/l/${listId}/t/${taskId}`}
             className="font-medium text-foreground hover:underline"

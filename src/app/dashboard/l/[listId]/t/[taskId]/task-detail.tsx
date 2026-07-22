@@ -300,7 +300,22 @@ function TaskEditor({
                         : res.description;
                       setDescription(next);
                       await update({ taskId: task._id, description: next });
+                    } else {
+                      toast(
+                        "AI didn't return a draft — is OPENAI_API_KEY configured?",
+                        { kind: "error" },
+                      );
                     }
+                  } catch (err) {
+                    const raw = err instanceof Error ? err.message : String(err);
+                    const msg = raw
+                      .split("Uncaught Error:")
+                      .pop()
+                      ?.split("\n")[0]
+                      ?.trim();
+                    toast(msg || "Couldn't draft a description", {
+                      kind: "error",
+                    });
                   } finally {
                     setAiPending(false);
                   }
@@ -539,11 +554,18 @@ function TaskEditor({
             )}
           </Field>
 
-          {fields.length > 0 && (
-            <section>
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Custom fields
-              </h2>
+          <section>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Custom fields
+            </h2>
+            {fields.length === 0 ? (
+              <Link
+                href={`/dashboard/l/${listId}/settings`}
+                className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Add a custom field
+              </Link>
+            ) : (
               <div className="space-y-3">
                 {fields.map((field) => (
                   <Field key={field._id} label={field.name}>
@@ -566,8 +588,8 @@ function TaskEditor({
                   </Field>
                 ))}
               </div>
-            </section>
-          )}
+            )}
+          </section>
 
           <section>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
