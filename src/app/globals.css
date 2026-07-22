@@ -1,4 +1,10 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+/* Vendored shell primitives (components/ui) style their dark states with
+   `dark:` classes; our theme mechanism is the data-theme attribute the
+   root layout stamps pre-paint — bridge the two. */
+@custom-variant dark (&:is([data-theme="dark"] *));
 
 /*
   Brand system — monochrome editorial + pastel accents.
@@ -69,14 +75,35 @@
      unmissable. Every raster asset ships as a red Placeholder block. */
   --color-placeholder: #e11d1d;
 
-  /* Shell fusion (Phase H): card + sidebar tones for the Square-style
-     dashboard shell, mapped into our existing neutral system so both
-     themes derive from the same source tokens. */
+  /* Shell fusion (Phase H): the Square-style shell's full token surface,
+     valued from our brand — monochrome ink primary, neutral accents,
+     pastel chart ramp. The vendored components/ui primitives read these. */
   --color-card: #ffffff;
   --color-card-foreground: #101012;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #101012;
+  --color-primary: #131316;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f5f5f6;
+  --color-secondary-foreground: #101012;
+  --color-accent: #f0f0f2;
+  --color-accent-foreground: #101012;
+  --color-destructive: #c2453a;
+  --color-input: #ececee;
+  --color-ring: #8b8b94;
+  --color-chart-1: #d9e8fa;
+  --color-chart-2: #d5efde;
+  --color-chart-3: #faeec7;
+  --color-chart-4: #e6defa;
+  --color-chart-5: #fadcd7;
   --color-sidebar: #fafafb;
   --color-sidebar-foreground: #101012;
+  --color-sidebar-primary: #131316;
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: #ededf0;
+  --color-sidebar-accent-foreground: #101012;
   --color-sidebar-border: #ececee;
+  --color-sidebar-ring: #8b8b94;
 
   --radius-pill: 9999px;
 }
@@ -345,12 +372,29 @@ body {
   --color-danger: #e0685c;
   --color-unread: #f3f3f4;
 
-  /* Shell fusion tones flip with the theme. */
+  /* Shell fusion tones flip with the theme (ink inverts, like the
+     template's dark scheme, kept in our hex language). */
   --color-card: #161619;
   --color-card-foreground: #f3f3f4;
+  --color-popover: #1c1c20;
+  --color-popover-foreground: #f3f3f4;
+  --color-primary: #ededf0;
+  --color-primary-foreground: #101012;
+  --color-secondary: #232327;
+  --color-secondary-foreground: #f3f3f4;
+  --color-accent: #26262b;
+  --color-accent-foreground: #f3f3f4;
+  --color-destructive: #e0685c;
+  --color-input: #2b2b31;
+  --color-ring: #71717a;
   --color-sidebar: #101013;
   --color-sidebar-foreground: #f3f3f4;
+  --color-sidebar-primary: #ededf0;
+  --color-sidebar-primary-foreground: #101012;
+  --color-sidebar-accent: #232327;
+  --color-sidebar-accent-foreground: #f3f3f4;
   --color-sidebar-border: #2b2b31;
+  --color-sidebar-ring: #71717a;
 }
 
 :root[data-theme="dark"] .bento,
