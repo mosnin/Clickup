@@ -23,7 +23,7 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -130,27 +130,25 @@ export function AgentsView() {
       >
         <nav
           aria-label="Agents tabs"
-          className="-mx-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="-mx-4 flex items-center gap-1 overflow-x-auto px-4 pb-2 text-sm sm:-mx-6 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          <div className="segmented whitespace-nowrap text-sm">
-            {TABS.map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setTab(key)}
-                aria-current={tab === key ? "page" : undefined}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 transition-colors",
-                  tab === key
-                    ? "segmented-on font-medium text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </button>
-            ))}
-          </div>
+          {TABS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              aria-current={tab === key ? "page" : undefined}
+              className={cn(
+                "inline-flex flex-shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors",
+                tab === key
+                  ? "bg-accent font-medium text-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
         </nav>
       </PageHeader>
 
@@ -303,16 +301,16 @@ function AgentsSkeleton() {
       <div className="h-4 w-28 animate-pulse rounded-full bg-muted" />
       <div className="grid gap-3 lg:grid-cols-2">
         {[0, 1].map((i) => (
-          <div
+          <Card
             key={i}
-            className="space-y-3 rounded-2xl bento p-4"
+            className="space-y-3 rounded-2xl p-4"
           >
             <div className="flex items-center gap-3">
               <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
               <div className="h-4 w-32 animate-pulse rounded-full bg-muted" />
             </div>
             <div className="h-3 w-3/4 animate-pulse rounded-full bg-muted/70" />
-          </div>
+          </Card>
         ))}
       </div>
     </div>
@@ -337,7 +335,7 @@ function ConnectHint({ retired = false }: { retired?: boolean }) {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl bento text-sm">
+    <div className="overflow-hidden rounded-2xl panel text-sm">
       <TerminalSurface className="h-24" contentClassName="flex h-full items-end px-5 pb-3">
         <span className="font-mono text-[11px] tracking-wider text-white/70">
           listening for your first agent…
@@ -482,7 +480,7 @@ function TemplateGallery({
   }
 
   return (
-    <div className="rounded-2xl bento p-4">
+    <Card className="rounded-2xl p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-semibold">Start from a template</p>
@@ -508,7 +506,7 @@ function TemplateGallery({
               type="button"
               disabled={pendingSlug !== null}
               onClick={() => spawn(t.slug, t.name)}
-              className="lift flex h-full w-full flex-col rounded-2xl bento p-4 text-left disabled:opacity-60"
+              className="lift flex h-full w-full flex-col rounded-2xl bento-tile p-4 text-left disabled:opacity-60"
             >
               <span className="flex items-center gap-2">
                 <Monogram name={t.name} />
@@ -549,7 +547,7 @@ function TemplateGallery({
           Done
         </Button>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -575,7 +573,7 @@ function CreateAgentForm({
 
   if (connect) {
     return (
-      <div className="overflow-hidden rounded-2xl bento">
+      <div className="overflow-hidden rounded-2xl panel">
         <TerminalSurface
           intensity="live"
           className="h-28"
@@ -617,7 +615,7 @@ function CreateAgentForm({
 
   return (
     <form
-      className="space-y-3 rounded-2xl bento p-4"
+      className="space-y-3 rounded-2xl panel p-4"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!name.trim() || pending || !user) return;
@@ -974,10 +972,10 @@ export function ActivityFeed({
   }
   if (events.length === 0) {
     return (
-      <div className="rounded-2xl bento p-10 text-center text-sm text-muted-foreground">
+      <Card className="rounded-2xl p-10 text-center text-sm text-muted-foreground">
         No activity yet. Events appear here the moment agents (or teammates)
         create, claim, and complete work.
-      </div>
+      </Card>
     );
   }
 
@@ -991,7 +989,7 @@ export function ActivityFeed({
           initial={{ opacity: 0, y: -10, filter: "blur(3px)" }}
           animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
           transition={{ duration: 0.4, ease: EASE }}
-          className="flex items-baseline gap-2 rounded-2xl bento px-3 py-2 text-sm"
+          className="flex items-baseline gap-2 rounded-2xl panel px-3 py-2 text-sm"
         >
           <span
             className={cn(
@@ -1076,7 +1074,7 @@ function WebhooksTab() {
       </p>
 
       <form
-        className="flex flex-wrap items-end gap-2 rounded-2xl bento p-4"
+        className="flex flex-wrap items-end gap-2 rounded-2xl panel p-4"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!url.trim() || !user) return;
@@ -1150,7 +1148,8 @@ function WebhooksTab() {
       )}
 
       {(subs ?? []).length > 0 && (
-        <div className="overflow-hidden rounded-2xl bento">
+        <Card className="gap-0 overflow-hidden rounded-2xl py-0">
+          <CardContent className="px-0 py-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -1226,12 +1225,13 @@ function WebhooksTab() {
               ))}
             </TableBody>
           </Table>
-        </div>
+          </CardContent>
+        </Card>
       )}
       {subs !== undefined && subs.length === 0 && (
-        <div className="rounded-2xl bento p-6 text-center text-sm text-muted-foreground">
+        <Card className="rounded-2xl p-6 text-center text-sm text-muted-foreground">
           No webhooks yet.
-        </div>
+        </Card>
       )}
     </div>
   );
@@ -1326,7 +1326,7 @@ function SkillRow({
   const { toast } = useToast();
 
   return (
-    <div className="rounded-2xl bento p-4">
+    <Card className="rounded-2xl p-4">
       <button
         type="button"
         onClick={onToggle}
@@ -1379,7 +1379,7 @@ function SkillRow({
           {full.content}
         </pre>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -1397,7 +1397,7 @@ function CreateSkillForm({
 
   return (
     <form
-      className="space-y-3 rounded-2xl bento p-4"
+      className="space-y-3 rounded-2xl panel p-4"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!name.trim() || !content.trim()) return;
@@ -1444,7 +1444,7 @@ function CreateSkillForm({
           value={content}
           onChange={(e) => setContent(e.currentTarget.value)}
           placeholder={"# Release checklist\n\n1. ..."}
-          className="w-full rounded-2xl bento p-4 text-sm"
+          className="w-full rounded-2xl soft-field p-4 text-sm"
         />
       </label>
       <div className="flex justify-end gap-2">

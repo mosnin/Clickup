@@ -18,7 +18,7 @@ import { eventLabel } from "@/lib/event-labels";
 import { useToast } from "@/components/toast";
 import { Monogram } from "@/components/dashboard/monogram";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -166,7 +166,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
               <li key={t.taskId}>
                 <Link
                   href={`/dashboard/l/${t.listId}/t/${t.taskId}`}
-                  className="lift block truncate rounded-2xl bento px-3 py-2 text-sm"
+                  className="lift block truncate rounded-2xl panel px-3 py-2 text-sm"
                 >
                   {t.title}
                   {claimed.some((c) => c.taskId === t.taskId) && (
@@ -178,7 +178,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
               </li>
             ))}
             {claimed.length === 0 && assigned.length === 0 && (
-              <li className="rounded-2xl bento p-4 text-center text-sm text-muted-foreground">
+              <li className="rounded-2xl panel p-4 text-center text-sm text-muted-foreground">
                 No open work assigned.
               </li>
             )}
@@ -190,7 +190,8 @@ export function AgentDetail({ agentId }: { agentId: string }) {
             Recent runs
           </h2>
           {runs.length > 0 ? (
-            <div className="overflow-hidden rounded-2xl bento">
+            <Card className="gap-0 overflow-hidden rounded-2xl py-0">
+              <CardContent className="px-0 py-0">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -206,12 +207,13 @@ export function AgentDetail({ agentId }: { agentId: string }) {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+              </CardContent>
+            </Card>
           ) : (
-            <div className="rounded-2xl bento p-6 text-center text-sm text-muted-foreground">
+            <Card className="rounded-2xl p-6 text-center text-sm text-muted-foreground">
               No work sessions yet. They&apos;ll appear here once this agent
               starts working on tasks.
-            </div>
+            </Card>
           )}
         </section>
       </div>
@@ -224,7 +226,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
           {events.map((e) => (
             <li
               key={e._id}
-              className="flex items-baseline gap-2 rounded-2xl bento px-3 py-1.5 text-sm"
+              className="flex items-baseline gap-2 rounded-2xl panel px-3 py-1.5 text-sm"
             >
               <span className="min-w-0 flex-1 truncate">
                 <span className="text-muted-foreground">
@@ -238,7 +240,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
             </li>
           ))}
           {events.length === 0 && (
-            <li className="rounded-2xl bento p-4 text-center text-sm text-muted-foreground">
+            <li className="rounded-2xl panel p-4 text-center text-sm text-muted-foreground">
               Nothing yet.
             </li>
           )}
@@ -328,7 +330,7 @@ function GovernancePanel({
   }
 
   return (
-    <section className="rounded-2xl bento p-4">
+    <section className="rounded-2xl panel p-4">
       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Governance
       </h2>
