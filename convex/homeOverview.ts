@@ -76,7 +76,7 @@ export const get = query({
         q.eq("parentType", "user").eq("parentId", subject),
       )
       .unique();
-    if (personal) {
+    if (personal && !personal.archivedAt) {
       scopes.push({
         space: personal,
         place: "Personal",
@@ -98,6 +98,9 @@ export const get = query({
         )
         .collect();
       for (const sp of wsSpaces) {
+        // Archived spaces disappear from Home tiles (they already leave the
+        // sidebar — see sidebar.ts) but keep their underlying data.
+        if (sp.archivedAt) continue;
         scopes.push({
           space: sp,
           place: ws.name,

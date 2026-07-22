@@ -35,6 +35,58 @@ export const completeSetup = mutation({
     const agentName = args.agentName.trim() || "Scout";
     if (!workspaceName) throw new Error("Workspace name is required");
 
+    // Idempotency: the client re-runs this mutation on mount (effect in
+    // onboarding-flow.tsx), which a reload or back-button navigation can
+    // re-trigger after it already succeeded. If the caller already owns a
+    // workspace — the marker this mutation itself creates — short-circuit
+    // and hand back its existing ids instead of inserting a duplicate
+    // workspace/space/list/agent.
+    const existingWorkspace = await ctx.db
+      .query("workspaces")
+      .withIndex("by_owner", (q) => q.eq("ownerClerkId", identity.subject))
+      .first();
+    if (existingWorkspace) {
+      const existingSpace = await ctx.db
+        .query("spaces")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "workspace").eq("parentId", existingWorkspace._id),
+        )
+        .first();
+      const existingList = existingSpace
+        ? await ctx.db
+            .query("lists")
+            .withIndex("by_parent", (q) =>
+              q.eq("parentType", "space").eq("parentId", existingSpace._id),
+            )
+            .first()
+        : null;
+      const existingAgents = await ctx.db
+        .query("agents")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "workspace").eq("parentId", existingWorkspace._id),
+        )
+        .collect();
+      const existingAgent =
+        existingAgents.find((a) => a.createdByClerkId === identity.subject) ??
+        existingAgents[0] ??
+        null;
+      if (existingSpace && existingList && existingAgent) {
+        return {
+          workspaceId: existingWorkspace._id,
+          spaceId: existingSpace._id,
+          listId: existingList._id,
+          agentId: existingAgent._id,
+        };
+      }
+      // An owned workspace exists but is missing a piece this mutation
+      // would have created (e.g. created directly via workspaces.create,
+      // never through onboarding). Refuse rather than insert a second
+      // workspace under the same owner.
+      throw new Error(
+        "You already have a workspace. Add an agent from the Agents page to finish setup.",
+      );
+    }
+
     // Workspace + owner membership (same shape as workspaces.create).
     const baseSlug = slugify(workspaceName) || "workspace";
     let slug = baseSlug;

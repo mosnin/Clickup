@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { canAccessSpace } from "./_authz";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -35,6 +36,12 @@ export const workspaceSummary = query({
 
     const lists: { _id: Id<"lists"> }[] = [];
     for (const space of spaces) {
+      // Skip archived spaces and private spaces the caller can't access —
+      // same per-viewer gate as portfolio.ts/sprints.addableTasks — so the
+      // Reports tab never aggregates data from spaces the caller can't see.
+      if (space.archivedAt !== undefined) continue;
+      if (!(await canAccessSpace(ctx, space, identity))) continue;
+
       const directLists = await ctx.db
         .query("lists")
         .withIndex("by_parent", (q) =>

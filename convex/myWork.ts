@@ -50,7 +50,7 @@ export const listForCurrent = query({
         q.eq("parentType", "user").eq("parentId", subject),
       )
       .unique();
-    if (personal) spaces.push(personal);
+    if (personal && !personal.archivedAt) spaces.push(personal);
     const memberships = await ctx.db
       .query("memberships")
       .withIndex("by_user", (q) => q.eq("userClerkId", subject))
@@ -62,7 +62,9 @@ export const listForCurrent = query({
           q.eq("parentType", "workspace").eq("parentId", m.workspaceId),
         )
         .collect();
-      spaces.push(...wsSpaces);
+      // Archived spaces disappear from "My Work" (they already leave the
+      // sidebar — see sidebar.ts) but keep their underlying data.
+      spaces.push(...wsSpaces.filter((sp) => !sp.archivedAt));
     }
 
     const out: {

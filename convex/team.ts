@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { canAccessSpace } from "./_authz";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -45,6 +46,12 @@ export const hub = query({
       .collect();
     const lists: Doc<"lists">[] = [];
     for (const space of spaces) {
+      // Skip archived spaces and private spaces the caller can't access —
+      // same per-viewer gate as portfolio.ts/sprints.addableTasks — so the
+      // Teams Hub never aggregates data from spaces the caller can't see.
+      if (space.archivedAt !== undefined) continue;
+      if (!(await canAccessSpace(ctx, space, identity))) continue;
+
       const direct = await ctx.db
         .query("lists")
         .withIndex("by_parent", (q) =>
