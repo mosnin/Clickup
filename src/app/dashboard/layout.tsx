@@ -6,6 +6,7 @@ import { ToastProvider } from "@/components/toast";
 import { CommandPalette } from "@/components/command-palette";
 import { AgentOnlineWatcher } from "@/components/dashboard/agent-online-watcher";
 import { RequireBackend } from "@/components/require-backend";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
 export default async function DashboardLayout({
   children,
@@ -15,25 +16,23 @@ export default async function DashboardLayout({
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  // Full-screen app: white sidebar + gray working canvas, edge to edge.
-  // White .bento cards float on the canvas — no boxed outer frame.
+  // Square UI dashboard-5 shell: SidebarProvider wraps the sidebar (its own
+  // bg-sidebar) and SidebarInset (bg-background), full height, edge to edge —
+  // no outer app-frame/page-canvas chrome. Pages own their own sticky headers
+  // and content padding; this shell only owns the scroll container.
   return (
     <RequireBackend>
-    <ToastProvider>
-      <div className="flex min-h-dvh bg-page">
-        <EnsureUser />
-        <CommandPalette />
-        <AgentOnlineWatcher />
-        <DashboardSidebar />
-        {/* Full-bleed working canvas: the app uses the whole screen. Content
-            gets breathing room from its own padding, not a centered column. */}
-        <main className="min-w-0 flex-1 overflow-x-hidden">
-          <div className="w-full px-4 py-6 pt-16 sm:px-6 md:pt-6 lg:px-8">
-            {children}
-          </div>
-        </main>
-      </div>
-    </ToastProvider>
+      <ToastProvider>
+        <SidebarProvider className="min-h-dvh">
+          <EnsureUser />
+          <CommandPalette />
+          <AgentOnlineWatcher />
+          <DashboardSidebar />
+          <SidebarInset className="min-w-0 overflow-y-auto">
+            <div className="w-full px-4 py-6 sm:px-6">{children}</div>
+          </SidebarInset>
+        </SidebarProvider>
+      </ToastProvider>
     </RequireBackend>
   );
 }
