@@ -240,6 +240,12 @@ describe("x402 metering config (fail-closed)", () => {
         .withIdentity(ROOT)
         .mutation(api.x402.setMeteringConfig, { enabled: true });
       expect(cfg.enabled).toBe(true);
+
+      // Every admin mutation must leave an audit trail.
+      const log = await t.run((ctx) => ctx.db.query("adminAuditLog").collect());
+      expect(
+        log.some((r) => r.action === "x402.metering_updated"),
+      ).toBe(true);
     } finally {
       if (prevAdmins === undefined) delete process.env.PLATFORM_ADMIN_EMAILS;
       else process.env.PLATFORM_ADMIN_EMAILS = prevAdmins;

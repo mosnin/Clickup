@@ -42,6 +42,19 @@ describe("agent templates", () => {
     ).rejects.toThrow(/forbidden/i);
   });
 
+  it("refuses a workspace-only template targeting a personal space", async () => {
+    const t = convexTest(schema, modules);
+    await expect(
+      t
+        .withIdentity(ALICE)
+        .mutation(api.agentTemplates.createFromTemplate, {
+          slug: "sprint-planner",
+          parentType: "user",
+          parentId: ALICE.subject,
+        }),
+    ).rejects.toThrow(/workspace/i);
+  });
+
   it("rejects an unknown template", async () => {
     const t = convexTest(schema, modules);
     await expect(

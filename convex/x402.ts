@@ -9,7 +9,7 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
 import { requireAgentByKey } from "./_agentAuth";
-import { requirePlatformAdmin } from "./_adminAuth";
+import { requirePlatformAdmin, logAdminAction } from "./_adminAuth";
 import {
   buildPaymentRequired,
   creditsToAtomic,
@@ -369,8 +369,9 @@ export const platformRevenue = query({
   },
 });
 
-// Admin: turn metering on/off and set the per-action price. Audited via the
-// platformSettings write (superadmin only — same tier as security settings).
+// Admin: turn metering on/off and set the per-action price. Superadmin only
+// (same tier as security settings); writes an adminAuditLog row so every
+// admin mutation stays auditable.
 export const setMeteringConfig = mutation({
   args: {
     enabled: v.optional(v.boolean()),
@@ -413,6 +414,12 @@ export const setMeteringConfig = mutation({
       }
       await put("x402.actionCredits", actionCredits);
     }
-    return await readMetering(ctx);
+    const result = await readMetering(ctx);
+    await logAdminAction(ctx, admin, "x402.metering_updated", {
+      targetType: "setting",
+      targetId: "x402.metering",
+      summary: `enabled=${result.enabled} actionCredits=${result.actionCredits}`,
+    });
+    return result;
   },
 });
