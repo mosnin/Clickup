@@ -386,7 +386,7 @@ export type UpdateTaskArgs = {
   title?: string;
   description?: string;
   statusId?: Id<"listStatuses">;
-  priority?: "urgent" | "high" | "normal" | "low";
+  priority?: "urgent" | "high" | "normal" | "low" | null;
   startDate?: number | null;
   dueDate?: number | null;
   assigneeIds?: string[];
@@ -464,9 +464,17 @@ export async function updateTaskCore(
       patch.claimedByActorId = undefined;
       patch.claimedAt = undefined;
     }
+    // Reopening a gated task revokes the previous approval — otherwise an
+    // agent could re-complete it later on the stale sign-off.
+    if (wasComplete && !willBeComplete && task.requiresApproval) {
+      patch.approvedAt = undefined;
+      patch.approvedByClerkId = undefined;
+    }
   }
   if (args.priority !== undefined) {
-    patch.priority = args.priority;
+    // null = clear. The client can't send `undefined` (Convex drops the key
+    // from the wire), so null is the only working "no priority" signal.
+    patch.priority = args.priority ?? undefined;
     changedFields.push("priority");
   }
   if (args.startDate !== undefined) {
@@ -1029,7 +1037,7 @@ export const update = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     statusId: v.optional(v.id("listStatuses")),
-    priority: v.optional(priorityValidator),
+    priority: v.optional(v.union(priorityValidator, v.null())),
     startDate: v.optional(v.union(v.number(), v.null())),
     dueDate: v.optional(v.union(v.number(), v.null())),
     assigneeClerkIds: v.optional(v.array(v.string())),
@@ -1120,10 +1128,21 @@ export const toggleComplete = mutation({
     const current = await ctx.db.get(task.statusId);
     const isDone =
       current?.category === "complete" || current?.category === "closed";
+    // Never fall back to position 0 (usually "To Do") — if the list has no
+    // status in a suitable category, refuse with a clear error instead of
+    // silently misfiling the task.
     const next = isDone
-      ? sorted.find((s) => s.category === "open") ?? sorted[0]
-      : sorted.find((s) => s.category === "complete") ?? sorted[0];
-    if (!next) return;
+      ? (sorted.find((s) => s.category === "open") ??
+        sorted.find((s) => s.category === "in_progress"))
+      : (sorted.find((s) => s.category === "complete") ??
+        sorted.find((s) => s.category === "closed"));
+    if (!next) {
+      throw new Error(
+        isDone
+          ? "This list has no open-category status to reopen into — add one in List settings."
+          : "This list has no complete-category status — add one in List settings.",
+      );
+    }
     const actor = await userActor(ctx, identity.subject);
     await updateTaskCore(ctx, { taskId, statusId: next._id }, actor);
   },
