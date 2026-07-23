@@ -166,8 +166,11 @@ export function SocialProof() {
               <div className="gs-shot">
                 <ScreenshotFrame
                   tone="dark"
-                  ratio="16/9"
+                  // Native aspect (2502x1420) so nothing gets cropped.
+                  ratio="2502/1420"
                   label={SOCIAL_PROOF.screenshot}
+                  src="/screenshots/mission-control.png"
+                  alt="Mission Control — the live agent fleet in operate.to"
                 />
               </div>
               <div className="gs-float-wrap absolute -left-4 top-8 hidden sm:block">
