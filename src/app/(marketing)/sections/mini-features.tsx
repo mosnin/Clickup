@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
-import { Container, Placeholder } from "@/components/marketing/ui";
+import { Container } from "@/components/marketing/ui";
 import { DUR, EASE_OUT, useGsap, isHoverCapable } from "@/components/marketing/gsap";
 import { DETAILS } from "@/lib/marketing-content";
 
@@ -81,11 +81,18 @@ export function MiniFeatures() {
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
                 {card.body}
               </p>
-              {card.visual && (
-                <Placeholder
-                  label={card.visual}
-                  ratio="16/7"
-                  className="mt-4 overflow-hidden rounded-xl"
+              {card.art && (
+                // Rendered at the artwork's natural 16/10 ratio (the old
+                // placeholder guessed 16/7) — masonry columns absorb the
+                // extra height without any cropping or distortion.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={card.art}
+                  alt={card.alt ?? ""}
+                  width={1088}
+                  height={680}
+                  loading="lazy"
+                  className="mt-4 w-full rounded-xl"
                 />
               )}
             </div>

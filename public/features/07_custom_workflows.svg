@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1088" height="680" viewBox="0 0 1088 680" fill="none">
+  <title>Custom workflows</title>
+  <desc>Minimal charcoal enterprise product illustration with white focal geometry.</desc>
+  <defs>
+    <radialGradient id="background_vignette" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(544 330) rotate(90) scale(420 680)">
+      <stop offset="0" stop-color="#121214"/>
+      <stop offset=".62" stop-color="#0B0B0C"/>
+      <stop offset="1" stop-color="#080809"/>
+    </radialGradient>
+    <radialGradient id="agent_core" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.34 .28) rotate(45) scale(.78)">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset=".16" stop-color="#F4F5F7"/>
+      <stop offset=".38" stop-color="#C8CBD1"/>
+      <stop offset=".62" stop-color="#797C84"/>
+      <stop offset=".82" stop-color="#37393F"/>
+      <stop offset="1" stop-color="#15161A"/>
+    </radialGradient>
+    <radialGradient id="agent_aura" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".46"/>
+      <stop offset=".36" stop-color="#E6E7EA" stop-opacity=".22"/>
+      <stop offset=".7" stop-color="#A4A7AF" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#90939B" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="agent_specular" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".94"/>
+      <stop offset=".36" stop-color="#FFFFFF" stop-opacity=".4"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="scan_glow" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="scan_fade" x1="544" y1="210" x2="544" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="presence_fade" x1="544" y1="160" x2="544" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity=".78"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".04"/>
+    </linearGradient>
+    <filter id="soft_glow" x="-120%" y="-120%" width="340%" height="340%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="11"/>
+    </filter>
+  </defs>
+  <rect width="1088" height="680" fill="url(#background_vignette)"/>
+  
+      <g id="workflow_track">
+        <path d="M160 418H368C420 418 428 364 470 364H616C666 364 672 268 730 268H928" stroke="#252529" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M160 418H368C420 418 428 364 470 364H616C666 364 672 268 730 268H928" stroke="#55555B" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M160 418H368C420 418 428 364 470 364H616" stroke="#F0F0F2" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <g id="workflow_modules">
+        
+    <g opacity="0.52">
+      <rect x="203" y="391" width="54" height="54" rx="17" fill="#0B0B0C" stroke="#F0F0F2" stroke-width="3"/>
+      <circle cx="230" cy="418" r="5" fill="#F0F0F2"/>
+    </g>
+  
+        
+    <g opacity="1">
+      <rect x="484" y="332" width="64" height="64" rx="20" fill="#0B0B0C" stroke="#F0F0F2" stroke-width="3"/>
+      <circle cx="516" cy="364" r="6" fill="#F0F0F2"/>
+    </g>
+  
+        
+    <g opacity="0.62">
+      <rect x="763" y="241" width="54" height="54" rx="17" fill="#0B0B0C" stroke="#F0F0F2" stroke-width="3"/>
+      <circle cx="790" cy="268" r="5" fill="#F0F0F2"/>
+    </g>
+  
+      </g>
+      <g id="custom_control">
+        <path d="M516 226V302" stroke="#45454A" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="516" cy="222" r="22" fill="#0B0B0C" stroke="#F1F1F3" stroke-width="4"/>
+        <path d="M506 222H526" stroke="#F1F1F3" stroke-width="4" stroke-linecap="round"/>
+      </g>
+    
+</svg>
