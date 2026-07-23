@@ -209,10 +209,14 @@ export function Hero() {
               </Fragment>
             );
           })}
-          <span data-hero-glyph className="mr-2 inline-flex align-middle">
+          {/* The rotating segment and "workforce." each own a full line, so
+              a longer use-case word can never re-wrap the headline — the
+              line count is identical for every word and the only motion is
+              the word slot's width gliding. */}
+          <span data-hero-glyph className="block">
             <HeroRotator />
-          </span>{" "}
-          <span data-hero-last-word className="inline-block text-gradient">
+          </span>
+          <span data-hero-last-word className="block text-gradient">
             workforce.
           </span>
         </h1>

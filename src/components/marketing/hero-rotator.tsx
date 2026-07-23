@@ -1,22 +1,26 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Code2, Headset, Megaphone, FlaskConical, Workflow } from "lucide-react";
 
-// The living use-case rotator that replaces the static hero glyph: a small
-// icon tile flips to a new use case while the word beside it rewrites, so
-// the headline reads "your AI [icon] engineering workforce." then cycles
-// through support, marketing, research, operations — the product explaining
-// itself. The word slot animates its width so "workforce" glides rather than
-// jumps. Reduced-motion pins it to the first case, no cycling.
+// The living hero line: the operate logo mark on a warm tile (it flips on
+// each change), beside a use-case word that rewrites — "engineering" →
+// "support" → "marketing" → "research" → "operations".
+//
+// Layout stability is the whole design: this renders as its OWN block line
+// (see hero.tsx), and the word sits in a width-animated slot, so a longer
+// or shorter word can never re-wrap the headline — the only thing that
+// moves is the slot gliding around its own center. Reduced-motion pins the
+// first case, no cycling.
 
-const CASES = [
-  { word: "engineering", Icon: Code2 },
-  { word: "support", Icon: Headset },
-  { word: "marketing", Icon: Megaphone },
-  { word: "research", Icon: FlaskConical },
-  { word: "operations", Icon: Workflow },
+const WORDS = [
+  "engineering",
+  "support",
+  "marketing",
+  "research",
+  "operations",
 ] as const;
+
+const CYCLE_MS = 3400;
 
 export function HeroRotator() {
   const [i, setI] = useState(0);
@@ -25,29 +29,32 @@ export function HeroRotator() {
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const id = setInterval(() => setI((v) => (v + 1) % CASES.length), 3000);
+    const id = setInterval(() => setI((v) => (v + 1) % WORDS.length), CYCLE_MS);
     return () => clearInterval(id);
   }, []);
 
-  // Measure the new word after it renders so the slot can transition its
-  // width to fit — no layout jump for the text that follows.
+  // Measure the incoming word so the slot tweens its width to fit — the
+  // icon and everything around glide instead of snapping.
   useLayoutEffect(() => {
     if (wordRef.current) setWidth(wordRef.current.offsetWidth);
   }, [i]);
 
-  const { word, Icon } = CASES[i];
-
   return (
-    <span className="inline-flex items-center gap-[0.28em] align-middle">
+    <span className="inline-flex items-center gap-[0.26em] whitespace-nowrap align-baseline">
       <span
-        key={`icon-${i}`}
+        key={`tile-${i}`}
         aria-hidden
-        className="hero-flip inline-flex size-[0.92em] items-center justify-center rounded-[0.24em] mk-gradient-fill ring-1 ring-white/25"
+        className="hero-flip inline-flex size-[0.92em] shrink-0 items-center justify-center self-center rounded-[0.24em] mk-gradient-fill ring-1 ring-white/25"
       >
-        <Icon className="size-[0.5em] text-white" strokeWidth={2.6} />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/operate-icon-white.svg"
+          alt=""
+          className="h-[52%] w-[52%]"
+        />
       </span>
       <span
-        className="inline-block overflow-hidden align-bottom transition-[width] duration-300 ease-out"
+        className="inline-block overflow-hidden transition-[width] duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
         style={{ width }}
       >
         <span
@@ -55,7 +62,7 @@ export function HeroRotator() {
           ref={wordRef}
           className="hero-retype text-gradient inline-block whitespace-nowrap"
         >
-          {word}
+          {WORDS[i]}
         </span>
       </span>
     </span>
