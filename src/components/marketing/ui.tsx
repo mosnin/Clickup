@@ -166,12 +166,18 @@ export function CtaButton({
 /** Rounded frame around a screenshot placeholder, reference-style. */
 export function ScreenshotFrame({
   label,
+  src,
+  alt,
   ratio = "16/10",
   tone = "light",
   beam = false,
   className,
 }: {
   label: string;
+  /** Real screenshot; when set, renders the image instead of the red
+   * placeholder. */
+  src?: string;
+  alt?: string;
   ratio?: string;
   tone?: "light" | "dark";
   /** Reserve for the one hero-grade instance — draws a slow traveling
@@ -187,7 +193,21 @@ export function ScreenshotFrame({
         className,
       )}
     >
-      <Placeholder label={label} ratio={ratio} className="rounded-[14px]" />
+      {src ? (
+        <div
+          className="overflow-hidden rounded-[14px]"
+          style={{ aspectRatio: ratio }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt={alt ?? label}
+            className="block h-full w-full object-cover"
+          />
+        </div>
+      ) : (
+        <Placeholder label={label} ratio={ratio} className="rounded-[14px]" />
+      )}
       {beam && (
         <BorderBeam
           size={100}

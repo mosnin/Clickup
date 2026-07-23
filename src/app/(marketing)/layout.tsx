@@ -18,10 +18,13 @@ export default function MarketingLayout({
     <div className="marketing-shell relative flex min-h-dvh flex-col text-foreground antialiased">
       {/* Dithered charcoal field behind every logged-out page — the shared
           hero backdrop. Fixed so it never scrolls, opaque charcoal fallback
-          so there's no flash before the shader mounts (or if WebGL is off). */}
+          so there's no flash before the shader mounts (or if WebGL is off).
+          transform-gpu + backface-hidden pin it to its own compositor layer
+          so scrolling content over it doesn't force the WebGL canvas to
+          repaint every frame (the cause of the scroll flicker). */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 bg-[#0a0a0d]"
+        className="pointer-events-none fixed inset-0 -z-10 transform-gpu bg-[#0a0a0d] [backface-visibility:hidden] [will-change:transform]"
       >
         <Dither />
       </div>

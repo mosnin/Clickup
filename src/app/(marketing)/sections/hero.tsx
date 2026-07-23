@@ -6,6 +6,7 @@ import Link from "next/link";
 import gsap from "gsap";
 import { HERO } from "@/lib/marketing-content";
 import { Container, CtaButton, ScreenshotFrame } from "@/components/marketing/ui";
+import { HeroRotator } from "@/components/marketing/hero-rotator";
 import { useGsap, GsapParallax, EASE_OUT } from "@/components/marketing/gsap";
 import { cn } from "@/lib/utils";
 
@@ -13,13 +14,11 @@ import { cn } from "@/lib/utils";
 // decoration (Plug = connect, ListChecks = assign, ShieldCheck = guardrails).
 const STEP_ICONS = [Plug, ListChecks, ShieldCheck];
 
-// The headline glyph replaces the final word's leading edge with a tiny
-// inline app-icon tile (derived by splitting on the last space, never
-// retyped) — mirrors the reference's inline glyph treatment.
-const TITLE_SPLIT_INDEX = HERO.title.lastIndexOf(" ");
-const TITLE_LEAD = HERO.title.slice(0, TITLE_SPLIT_INDEX + 1);
-const TITLE_LAST_WORD = HERO.title.slice(TITLE_SPLIT_INDEX + 1);
-const TITLE_LEAD_WORDS = TITLE_LEAD.trim().split(" ");
+// Headline lead words. The old inline glyph is gone: between "AI" and
+// "workforce" sits the living <HeroRotator/> (a flipping use-case icon plus
+// a rewriting domain word), so the line reads "…your AI [icon] engineering
+// workforce." and cycles through use cases.
+const LEAD_WORDS = ["Recruit,", "direct", "and", "scale", "your", "AI"];
 const WORD_STAGGER = 0.045;
 
 // Home hero — the signature entrance moment. A single mount timeline (not
@@ -58,7 +57,7 @@ export function Hero() {
           duration: 0.4,
           ease: "back.out(1.6)",
         },
-        `<+=${(TITLE_LEAD_WORDS.length - 1) * WORD_STAGGER}`,
+        `<+=${(LEAD_WORDS.length - 1) * WORD_STAGGER}`,
       )
       .fromTo(
         root.querySelector("[data-hero-last-word]"),
@@ -193,11 +192,12 @@ export function Hero() {
 
         <h1
           data-hero-title
+          aria-label="Recruit, direct and scale your AI workforce."
           className="mx-auto mt-6 max-w-3xl text-balance text-4xl font-semibold tracking-[-0.02em] text-white sm:text-6xl lg:text-7xl"
         >
-          {TITLE_LEAD_WORDS.map((word, i) => {
+          {LEAD_WORDS.map((word, i) => {
             const bare = word.replace(/[.,]/g, "").toLowerCase();
-            const emphasize = bare === "ai" || bare === "agent";
+            const emphasize = bare === "ai";
             return (
               <Fragment key={word + i}>
                 <span
@@ -209,15 +209,11 @@ export function Hero() {
               </Fragment>
             );
           })}
-          <span
-            data-hero-glyph
-            aria-hidden
-            className="relative mr-2 inline-block size-[0.9em] translate-y-[0.08em] rounded-[10px] mk-gradient-fill align-middle ring-1 ring-white/30"
-          >
-            <span className="absolute top-1/2 left-1/2 size-[0.22em] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
-          </span>
+          <span data-hero-glyph className="mr-2 inline-flex align-middle">
+            <HeroRotator />
+          </span>{" "}
           <span data-hero-last-word className="inline-block text-gradient">
-            {TITLE_LAST_WORD}
+            workforce.
           </span>
         </h1>
 
@@ -304,6 +300,8 @@ export function Hero() {
                 tone="dark"
                 ratio="16/9"
                 label={HERO.screenshot}
+                src="/screenshots/hero-dashboard.png"
+                alt="The operate.to dashboard — mission control for humans and AI agents"
                 beam
               />
             </div>
