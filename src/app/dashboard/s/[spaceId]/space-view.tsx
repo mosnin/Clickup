@@ -1,14 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
-import { Boxes, FileText, LayoutGrid, Lock, Plus, X } from "lucide-react";
+import {
+  Boxes,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  LayoutGrid,
+  Lock,
+  Plus,
+  X,
+} from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
-import { AnimatedBar, Stagger, StaggerItem } from "@/components/motion";
+import {
+  AnimatedBar,
+  SPRING,
+  Stagger,
+  StaggerItem,
+  motion,
+} from "@/components/motion";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { Monogram } from "@/components/dashboard/monogram";
 import { InlineCreate } from "@/components/dashboard/inline-create";
@@ -102,7 +117,8 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
     );
   }
 
-  const { space, lists, docs, whiteboards, members, canGovern } = overview;
+  const { space, lists, folders, docs, whiteboards, members, canGovern } =
+    overview;
   const showWhiteboards = space.features?.whiteboards !== false;
 
   return (
@@ -164,6 +180,7 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
         <OverviewTab
           spaceId={id}
           lists={lists}
+          folders={folders}
           docs={docs}
           whiteboards={whiteboards}
           showWhiteboards={showWhiteboards}
@@ -185,33 +202,45 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
 function OverviewTab({
   spaceId,
   lists,
+  folders,
   docs,
   whiteboards,
   showWhiteboards,
 }: {
   spaceId: Id<"spaces">;
   lists: Overview["lists"];
+  folders: Overview["folders"];
   docs: Overview["docs"];
   whiteboards: Overview["whiteboards"];
   showWhiteboards: boolean;
 }) {
+  const rollupsById = useMemo(
+    () => new Map(lists.map((l) => [l.listId as string, l])),
+    [lists],
+  );
+
   return (
     <div className="space-y-6">
-      <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Projects
-        </h2>
-        <Stagger className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {lists.map((list) => (
-            <StaggerItem key={list.listId}>
-              <ProjectCard list={list} />
-            </StaggerItem>
-          ))}
-          <StaggerItem>
-            <NewListCard spaceId={spaceId} />
-          </StaggerItem>
-        </Stagger>
-      </section>
+      <ProjectSection
+        title="Projects"
+        parentType="space"
+        parentId={spaceId}
+        rollupsById={rollupsById}
+        fallback={lists.filter((l) => l.folder === null)}
+      />
+
+      {folders.map((f) => (
+        <ProjectSection
+          key={f.folderId}
+          title={f.name}
+          kindLabel="Folder"
+          parentType="folder"
+          parentId={f.folderId}
+          rollupsById={rollupsById}
+          fallback={lists.filter((l) => l.folder === f.name)}
+          hideFolderLine
+        />
+      ))}
 
       <section>
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -247,34 +276,187 @@ function OverviewTab({
   );
 }
 
-function ProjectCard({ list }: { list: ListRollup }) {
+// One reorderable card grid under a single lists-parent (the space itself,
+// or one of its folders). Ordering truth comes from the raw lists rows
+// (position asc, createdAt tiebreak) fetched per parent; the overview
+// rollups are joined in by id. Reorders apply optimistically via a local
+// order override, then persist through api.lists.reorder — on refusal the
+// override reverts and the server's reason surfaces as an error toast.
+function ProjectSection({
+  title,
+  kindLabel,
+  parentType,
+  parentId,
+  rollupsById,
+  fallback,
+  hideFolderLine,
+}: {
+  title: string;
+  kindLabel?: string;
+  parentType: "space" | "folder";
+  parentId: string;
+  rollupsById: Map<string, ListRollup>;
+  fallback: ListRollup[];
+  hideFolderLine?: boolean;
+}) {
+  const raw = useQuery(api.lists.listForParent, { parentType, parentId });
+  const reorder = useMutation(api.lists.reorder);
+  const { toast } = useToast();
+  const [override, setOverride] = useState<Id<"lists">[] | null>(null);
+
+  const serverIds = useMemo(() => {
+    if (raw === undefined) return null;
+    return [...raw]
+      .sort((a, b) => a.position - b.position || a.createdAt - b.createdAt)
+      .map((l) => l._id);
+  }, [raw]);
+
+  // The override only holds while it's a permutation of the server's id
+  // set; a list created/deleted elsewhere invalidates it automatically.
+  const orderedIds = useMemo(() => {
+    if (serverIds === null) return null;
+    if (
+      override !== null &&
+      override.length === serverIds.length &&
+      serverIds.every((id) => override.includes(id))
+    ) {
+      return override;
+    }
+    return serverIds;
+  }, [serverIds, override]);
+
+  function move(listId: Id<"lists">, dir: -1 | 1) {
+    if (orderedIds === null) return;
+    const idx = orderedIds.indexOf(listId);
+    const j = idx + dir;
+    if (idx < 0 || j < 0 || j >= orderedIds.length) return;
+    const next = [...orderedIds];
+    [next[idx], next[j]] = [next[j], next[idx]];
+    const prev = orderedIds;
+    setOverride(next);
+    reorder({ parentType, parentId, orderedIds: next }).catch((e) => {
+      setOverride(prev);
+      toast(errorMessage(e, "Couldn't reorder"), { kind: "error" });
+    });
+  }
+
+  // Until the raw rows arrive, fall back to the overview's rollups (their
+  // relative order is close enough for a single paint) without affordances.
+  const rows: ListRollup[] =
+    orderedIds === null
+      ? fallback
+      : orderedIds.flatMap((id) => rollupsById.get(id as string) ?? []);
+
+  return (
+    <section>
+      <h2 className="flex items-baseline gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="truncate">{title}</span>
+        {kindLabel && (
+          <span className="flex-shrink-0 text-[10px] font-medium text-muted-foreground/70">
+            {kindLabel}
+          </span>
+        )}
+      </h2>
+      <Stagger className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {rows.map((list, i) => (
+          <StaggerItem key={list.listId}>
+            <motion.div layout transition={SPRING} className="h-full">
+              <ProjectCard
+                list={list}
+                hideFolderLine={hideFolderLine}
+                reorder={
+                  orderedIds !== null
+                    ? {
+                        canUp: i > 0,
+                        canDown: i < rows.length - 1,
+                        onMove: (dir) => move(list.listId, dir),
+                      }
+                    : undefined
+                }
+              />
+            </motion.div>
+          </StaggerItem>
+        ))}
+        <StaggerItem>
+          <NewListCard parentType={parentType} parentId={parentId} />
+        </StaggerItem>
+      </Stagger>
+    </section>
+  );
+}
+
+function ProjectCard({
+  list,
+  hideFolderLine,
+  reorder,
+}: {
+  list: ListRollup;
+  hideFolderLine?: boolean;
+  reorder?: {
+    canUp: boolean;
+    canDown: boolean;
+    onMove: (dir: -1 | 1) => void;
+  };
+}) {
   const pct = list.total > 0 ? (list.done / list.total) * 100 : 0;
   const chip = list.projectStatus ? STATUS_CHIP[list.projectStatus] : null;
 
   return (
     <Link
       href={`/dashboard/l/${list.listId}`}
-      className="lift block rounded-2xl panel p-5 hover:border-foreground/25"
+      className="lift group block h-full rounded-2xl panel p-5 hover:border-foreground/25"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate font-semibold">{list.name}</p>
-          {list.folder !== null && (
+          {!hideFolderLine && list.folder !== null && (
             <p className="truncate text-xs text-muted-foreground">
               in {list.folder}
             </p>
           )}
         </div>
-        {chip && (
-          <span
-            className={cn(
-              "flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium text-foreground",
-              chip.className,
-            )}
-          >
-            {chip.label}
-          </span>
-        )}
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {chip && (
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[10px] font-medium text-foreground",
+                chip.className,
+              )}
+            >
+              {chip.label}
+            </span>
+          )}
+          {reorder && (
+            <span className="-my-1 -mr-2 flex items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+              <button
+                type="button"
+                aria-label={`Move ${list.name} earlier`}
+                disabled={!reorder.canUp}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  reorder.onMove(-1);
+                }}
+                className="tap-target rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                aria-label={`Move ${list.name} later`}
+                disabled={!reorder.canDown}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  reorder.onMove(1);
+                }}
+                className="tap-target rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          )}
+        </div>
       </div>
 
       {list.description && (
@@ -301,7 +483,13 @@ function ProjectCard({ list }: { list: ListRollup }) {
   );
 }
 
-function NewListCard({ spaceId }: { spaceId: Id<"spaces"> }) {
+function NewListCard({
+  parentType,
+  parentId,
+}: {
+  parentType: "space" | "folder";
+  parentId: string;
+}) {
   const [adding, setAdding] = useState(false);
   const createList = useMutation(api.lists.create);
   const router = useRouter();
@@ -317,8 +505,8 @@ function NewListCard({ spaceId }: { spaceId: Id<"spaces"> }) {
             try {
               const listId = await createList({
                 name,
-                parentType: "space",
-                parentId: spaceId,
+                parentType,
+                parentId,
               });
               router.push(`/dashboard/l/${listId}`);
             } catch (e) {
