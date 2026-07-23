@@ -9,14 +9,15 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-dvh flex-col items-center bg-[linear-gradient(180deg,var(--color-azure-500)_0%,var(--color-azure-700)_50%,var(--color-navy-900)_100%)] px-4 py-8">
+    <div className="flex min-h-dvh flex-col items-center bg-[radial-gradient(60rem_30rem_at_50%_-8%,rgba(106,168,255,0.12),transparent_60%),linear-gradient(180deg,#0f0f14_0%,#08080b_100%)] px-4 py-8">
       <header className="w-full max-w-6xl">
-        <Link href="/" className="inline-flex items-center gap-2">
-          <span
-            aria-hidden
-            className="inline-block h-1.5 w-1.5 rounded-full bg-azure-200"
+        <Link href="/" aria-label="operate.to" className="inline-flex items-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/operate-logo-white.svg"
+            alt="operate.to"
+            className="h-6 w-auto"
           />
-          <span className="text-sm font-semibold text-white">operate</span>
         </Link>
       </header>
       <main className="flex w-full flex-1 flex-col items-center justify-center gap-6 py-10">
