@@ -277,13 +277,9 @@ body {
   --mk-panel: #131318;
   --mk-panel-2: #1a1a21;
 
-  /* Ambient charcoal base with faint azure/violet glow so it never reads
-     flat. Section backgrounds paint over it; transparent sections let it
-     show through. */
-  background:
-    radial-gradient(75rem 38rem at 50% -8%, rgb(106 168 255 / 0.1), transparent 60%),
-    radial-gradient(55rem 40rem at 88% 8%, rgb(167 139 250 / 0.08), transparent 55%),
-    var(--color-background);
+  /* Transparent so the fixed dithered-charcoal backdrop (marketing layout)
+     shows through — no more azure/violet ambient glow (the old blue tint). */
+  background: transparent;
 }
 
 /* Gradient text that pops on charcoal. Apply to a heading span; it clips the
@@ -314,12 +310,11 @@ body {
   border: 1px solid var(--color-border);
 }
 
-/* Subtle gradient band for full-bleed sections that used to be navy — keeps
-   section rhythm via a charcoal gradient plus a top edge glow. */
+/* Hero / full-bleed band — transparent so the dithered charcoal backdrop
+   reads through as the hero background (was a navy→charcoal gradient with an
+   azure glow; that blue tint is retired). */
 .mk-band {
-  background:
-    radial-gradient(60rem 28rem at 50% 0%, rgb(106 168 255 / 0.08), transparent 60%),
-    linear-gradient(180deg, #0f0f14, #08080b);
+  background: transparent;
 }
 
 /* Vibrant gradient fill for primary CTAs and accent chips. */
@@ -328,15 +323,15 @@ body {
   color: #ffffff;
 }
 
-/* A soft radial glow blob for behind hero art / feature mocks. */
+/* A soft neutral glow blob for depth behind hero art / feature mocks —
+   white, not blue, so it lifts the art without tinting the page. */
 .mk-glow {
   background: radial-gradient(
     closest-side,
-    rgb(106 168 255 / 0.35),
-    rgb(167 139 250 / 0.18) 55%,
-    transparent 100%
+    rgb(255 255 255 / 0.08),
+    transparent 70%
   );
-  filter: blur(20px);
+  filter: blur(24px);
 }
 
 /* GSAP reveal targets start hidden before hydration so scroll-reveals

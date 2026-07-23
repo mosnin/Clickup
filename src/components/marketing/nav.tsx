@@ -140,16 +140,13 @@ export function MarketingNav() {
       >
         <Container>
           <div className="flex h-16 items-center justify-between">
-            <Link href="/" aria-label={SITE_NAME} className="flex items-center gap-2.5">
+            <Link href="/" aria-label={SITE_NAME} className="flex items-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/brand/operate-logo-white.svg"
                 alt="operate.to"
-                className="h-6 w-auto"
+                className="h-9 w-auto"
               />
-              <span className="hidden text-sm font-normal text-white/60 sm:inline">
-                for agents
-              </span>
             </Link>
 
             <nav aria-label="Primary" className="contents">
@@ -371,7 +368,7 @@ function MobileOverlay({
             <img
               src="/brand/operate-logo-white.svg"
               alt="operate.to"
-              className="h-6 w-auto"
+              className="h-9 w-auto"
             />
           </Link>
           <button

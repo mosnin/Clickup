@@ -205,10 +205,13 @@ export function ScreenshotFrame({
 export function IconDock({
   count = 8,
   label = "Runtime logo",
+  items,
   className,
 }: {
   count?: number;
   label?: string;
+  /** Real runtime logos; falls back to red placeholders when omitted. */
+  items?: readonly { name: string; src: string; invert?: boolean }[];
   className?: string;
 }) {
   return (
@@ -218,14 +221,33 @@ export function IconDock({
         className,
       )}
     >
-      {Array.from({ length: count }, (_, i) => (
-        <div
-          key={i}
-          className="gs-dock-icon h-10 w-10 overflow-hidden rounded-xl sm:h-12 sm:w-12"
-        >
-          <Placeholder label={`${label} ${i + 1}`} ratio="1/1" />
-        </div>
-      ))}
+      {items
+        ? items.map((it) => (
+            <div
+              key={it.name}
+              title={it.name}
+              className="gs-dock-icon flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.04] ring-1 ring-white/[0.06] sm:h-14 sm:w-14"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={it.src}
+                alt={it.name}
+                loading="lazy"
+                className={cn(
+                  "h-7 w-7 object-contain sm:h-8 sm:w-8",
+                  it.invert && "brightness-0 invert",
+                )}
+              />
+            </div>
+          ))
+        : Array.from({ length: count }, (_, i) => (
+            <div
+              key={i}
+              className="gs-dock-icon h-10 w-10 overflow-hidden rounded-xl sm:h-12 sm:w-12"
+            >
+              <Placeholder label={`${label} ${i + 1}`} ratio="1/1" />
+            </div>
+          ))}
     </div>
   );
 }
