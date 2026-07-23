@@ -39,6 +39,21 @@ export const SOCIAL_PROOF = {
   floatingNotes: ["Live presence", "4 agents working right now"],
 } as const;
 
+// Runtime logos for the "Works with every MCP runtime" dock. `invert` forces
+// a monochrome/dark mark to white so it reads on the charcoal tiles; the
+// color marks (Claude, OpenClaw, Kimi, Codex) render as-is.
+export const RUNTIMES = [
+  { name: "MCP", src: "/brand/runtimes/mcp.webp", invert: true },
+  { name: "Claude Code", src: "/brand/runtimes/claudecode.svg" },
+  { name: "Codex", src: "/brand/runtimes/codex.svg" },
+  { name: "OpenClaw", src: "/brand/runtimes/openclaw.svg" },
+  { name: "Hermes", src: "/brand/runtimes/hermesagent.svg", invert: true },
+  { name: "OpenAI", src: "/brand/runtimes/openai.svg", invert: true },
+  { name: "Grok", src: "/brand/runtimes/grok.svg", invert: true },
+  { name: "Kimi", src: "/brand/runtimes/kimi.svg" },
+  { name: "Goose", src: "/brand/runtimes/goose.svg", invert: true },
+] as const;
+
 export const ANNOUNCE_BAR = {
   text: "Meet the hosted MCP server — agents connect with one URL and an API key.",
   cta: { label: "Read more", href: "/features#mcp" },

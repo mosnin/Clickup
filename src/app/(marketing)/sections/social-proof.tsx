@@ -5,7 +5,7 @@ import { ArrowRight } from "lucide-react";
 import gsap from "gsap";
 import { Container, Eyebrow, ScreenshotFrame, IconDock } from "@/components/marketing/ui";
 import { GsapReveal, useGsap, prefersReducedMotion, isHoverCapable, EASE_OUT } from "@/components/marketing/gsap";
-import { SOCIAL_PROOF, ANNOUNCE_BAR } from "@/lib/marketing-content";
+import { SOCIAL_PROOF, ANNOUNCE_BAR, RUNTIMES } from "@/lib/marketing-content";
 
 // Dock magnification tuning — mouse-only, matches the macOS-dock reference
 // interaction. Falls off linearly from MAX_SCALE at the cursor to 1 at
@@ -192,7 +192,7 @@ export function SocialProof() {
               ref={dockWrapRef}
               className="mt-4 flex w-full justify-center overflow-x-auto"
             >
-              <IconDock count={SOCIAL_PROOF.dockCount} className="shrink-0" />
+              <IconDock items={RUNTIMES} className="shrink-0" />
             </div>
           </div>
         </Container>
