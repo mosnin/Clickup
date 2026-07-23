@@ -22,6 +22,7 @@ import {
   TaskSprintPicker,
 } from "@/components/dashboard/task-collab";
 import { TimeTracker } from "@/components/dashboard/time-tracker";
+import { InlineCreate } from "@/components/dashboard/inline-create";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { useToast } from "@/components/toast";
@@ -624,9 +625,62 @@ function TaskEditor({
             </h2>
             <TimeTracker taskId={task._id} />
           </section>
+
+          <SaveAsBlueprint taskId={task._id} />
         </aside>
       </div>
     </div>
+  );
+}
+
+// Capture this task as a reusable blueprint (title, description, checklist,
+// priority, estimate, approval gate) in the list's scope — instantiable
+// later from any project header via "New from blueprint".
+function SaveAsBlueprint({ taskId }: { taskId: Id<"tasks"> }) {
+  const saveFromTask = useMutation(api.taskBlueprints.saveFromTask);
+  const { toast } = useToast();
+  const [naming, setNaming] = useState(false);
+
+  return (
+    <section>
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Blueprint
+      </h2>
+      {naming ? (
+        <InlineCreate
+          placeholder="Blueprint name…"
+          onCancel={() => setNaming(false)}
+          onSubmit={async (name) => {
+            try {
+              await saveFromTask({ taskId, name });
+              toast("Blueprint saved");
+            } catch (err) {
+              const raw = err instanceof Error ? err.message : String(err);
+              const msg = raw
+                .split("Uncaught Error:")
+                .pop()
+                ?.split("\n")[0]
+                ?.trim();
+              toast(msg || "Couldn't save the blueprint", { kind: "error" });
+            }
+            setNaming(false);
+          }}
+        />
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => setNaming(true)}
+            className="tap-target rounded-full border border-dashed border-border px-3 py-1 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+          >
+            Save as blueprint…
+          </button>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Reuse this task&apos;s setup for future work.
+          </p>
+        </>
+      )}
+    </section>
   );
 }
 

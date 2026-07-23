@@ -24,7 +24,9 @@ import { WorkloadView } from "./views/workload-view";
 import { NetworkView } from "./views/network-view";
 import { TaskPeekPortal } from "@/components/dashboard/task-peek";
 import { InlineCreate } from "@/components/dashboard/inline-create";
+import { Picker } from "@/components/ui/picker";
 import { useToast } from "@/components/toast";
+import { useListScope } from "./use-list-scope";
 
 // Quick filters, persisted in the URL (?f=mine,active,blocked&pri=high) so
 // a filtered view is shareable and survives reload. Applied in one place
@@ -84,7 +86,13 @@ export function ListPage({
   const { toast } = useToast();
   const searchParams = useSearchParams();
 
-  const view: ViewKey = isViewKey(initialView) ? initialView : "list";
+  // Without an explicit ?view= the list's configured default view wins.
+  // Fallback only — the URL is never rewritten on load.
+  const configuredDefault = list?.defaultView;
+  const defaultView: ViewKey = isViewKey(configuredDefault)
+    ? configuredDefault
+    : "list";
+  const view: ViewKey = isViewKey(initialView) ? initialView : defaultView;
 
   const activeFlags = useMemo(
     () => new Set((searchParams.get("f") ?? "").split(",").filter(Boolean)),
@@ -229,7 +237,7 @@ export function ListPage({
         }
       >
         <div className="flex flex-col gap-2 pt-1 pb-3">
-          <ViewTabs listId={list._id} active={view} />
+          <ViewTabs listId={list._id} active={view} defaultView={defaultView} />
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <SavedViewsBar
               listId={list._id}
@@ -240,6 +248,7 @@ export function ListPage({
             {filtersApply && (
               <FilterBar activeFlags={activeFlags} priority={priorityFilter} />
             )}
+            <BlueprintQuickCreate listId={list._id} />
           </div>
         </div>
       </PageHeader>
@@ -335,11 +344,12 @@ function SavedViewsBar({
     priority?: string;
   }): string {
     const params = new URLSearchParams();
-    if (sv.view !== "list") params.set("view", sv.view);
+    // Always explicit: a bare URL falls back to the list's default view,
+    // which may not be the view this preset saved.
+    params.set("view", sv.view);
     if (sv.flags) params.set("f", sv.flags);
     if (sv.priority) params.set("pri", sv.priority);
-    const qs = params.toString();
-    return qs ? `/dashboard/l/${listId}?${qs}` : `/dashboard/l/${listId}`;
+    return `/dashboard/l/${listId}?${params.toString()}`;
   }
 
   const isActive = (sv: { view: string; flags?: string; priority?: string }) =>
@@ -439,6 +449,45 @@ function SavedViewsBar({
         </button>
       )}
     </div>
+  );
+}
+
+// Instantiate a saved task blueprint into this list — hidden entirely when
+// the scope has none, so the row stays quiet until blueprints exist.
+function BlueprintQuickCreate({ listId }: { listId: Id<"lists"> }) {
+  const scope = useListScope(listId);
+  const blueprints = useQuery(
+    api.taskBlueprints.listForScope,
+    scope ?? "skip",
+  );
+  const instantiate = useMutation(api.taskBlueprints.instantiate);
+  const { toast } = useToast();
+
+  if (!blueprints || blueprints.length === 0) return null;
+
+  return (
+    <Picker
+      dashed
+      label="New from blueprint…"
+      options={blueprints.map((b) => ({ id: b._id, label: b.name }))}
+      onSelect={async (id) => {
+        const bp = blueprints.find((b) => b._id === id);
+        try {
+          await instantiate({
+            blueprintId: id as Id<"taskBlueprints">,
+            listId,
+          });
+          toast(bp ? `Task created from "${bp.name}"` : "Task created");
+        } catch (e) {
+          const raw = e instanceof Error ? e.message : String(e);
+          toast(
+            raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() ||
+              "Couldn't create the task",
+            { kind: "error" },
+          );
+        }
+      }}
+    />
   );
 }
 
