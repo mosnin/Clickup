@@ -20,6 +20,13 @@ import { cn } from "@/lib/utils";
 
 gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
 
+// Mobile browsers resize the viewport every time the URL bar collapses or
+// expands mid-scroll; by default ScrollTrigger reacts with a full refresh —
+// recomputing every trigger while the user is scrolling — which reads as the
+// page jumping/sliding around. Ignore those resizes (a real orientation
+// change still refreshes).
+ScrollTrigger.config({ ignoreMobileResize: true });
+
 export const EASE_OUT = "power3.out";
 const EASE_IN_OUT = "power2.inOut";
 export const DUR = { fast: 0.4, base: 0.7, slow: 1.1 } as const;

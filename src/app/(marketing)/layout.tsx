@@ -15,16 +15,26 @@ export default function MarketingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="marketing-shell relative flex min-h-dvh flex-col text-foreground antialiased">
+    <div className="marketing-shell relative flex min-h-dvh flex-col overflow-x-clip text-foreground antialiased">
       {/* Dithered charcoal field behind every logged-out page — the shared
           hero backdrop. Fixed so it never scrolls, opaque charcoal fallback
           so there's no flash before the shader mounts (or if WebGL is off).
-          transform-gpu + backface-hidden pin it to its own compositor layer
-          so scrolling content over it doesn't force the WebGL canvas to
-          repaint every frame (the cause of the scroll flicker). */}
+
+          Sized to the LARGEST viewport (h-lvh), not inset-0: on mobile the
+          URL bar collapsing/expanding changes the visual viewport every
+          scroll, and an inset-0 fixed element resizes with it — which
+          reallocates the WebGL drawing buffer mid-scroll and flashes (the
+          root cause of the mobile flicker). At lvh the element's size never
+          changes during scroll, so the canvas never resizes.
+
+          transform-gpu + backface-hidden keep it on its own compositor
+          layer so scrolling content never forces canvas repaints.
+
+          overflow-x-clip on the shell (above) guarantees no GSAP transform
+          or float can create sideways scroll on mobile. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 transform-gpu bg-[#0a0a0d] [backface-visibility:hidden] [will-change:transform]"
+        className="pointer-events-none fixed left-0 top-0 -z-10 h-lvh w-screen transform-gpu bg-[#0a0a0a] [backface-visibility:hidden] [will-change:transform]"
       >
         <Dither />
       </div>
