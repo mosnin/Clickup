@@ -16,13 +16,43 @@ async function withDerivedProgress(
   goal: Doc<"goals">,
 ): Promise<Doc<"goals"> & { linked: boolean }> {
   if (!goal.sourceListId) return { ...goal, linked: false };
+  // Linked list gone (delete cascade hasn't cleared us yet): freeze at the
+  // stored value rather than silently zeroing the goal's history.
+  const list = await ctx.db.get(goal.sourceListId);
+  if (!list) return { ...goal, linked: true };
   const rollup = await getRollup(ctx, goal.sourceListId);
-  const done = rollup?.done ?? 0;
+  let done: number;
+  if (rollup) {
+    done = rollup.done;
+  } else {
+    // getRollup's null contract: no row yet — count this one list inline.
+    done = await countDoneTasks(ctx, goal.sourceListId);
+  }
   let status = goal.status;
   if (status !== "abandoned") {
     status = goal.targetValue > 0 && done >= goal.targetValue ? "complete" : "open";
   }
   return { ...goal, currentValue: done, status, linked: true };
+}
+
+async function countDoneTasks(
+  ctx: QueryCtx | MutationCtx,
+  listId: Id<"lists">,
+): Promise<number> {
+  const statuses = await ctx.db
+    .query("listStatuses")
+    .withIndex("by_list", (q) => q.eq("listId", listId))
+    .collect();
+  const doneIds = new Set(
+    statuses
+      .filter((s) => s.category === "complete" || s.category === "closed")
+      .map((s) => s._id),
+  );
+  const tasks = await ctx.db
+    .query("tasks")
+    .withIndex("by_list", (q) => q.eq("listId", listId))
+    .collect();
+  return tasks.filter((t) => doneIds.has(t.statusId)).length;
 }
 
 const parentTypeValidator = v.union(
@@ -122,7 +152,15 @@ export const create = mutation({
       args.parentId,
     );
     if (args.sourceListId) {
-      const { list } = await requireListAccess(ctx, args.sourceListId);
+      if (args.targetType !== "number") {
+        throw new Error("Only number goals can track a project");
+      }
+      const { list, space } = await requireListAccess(ctx, args.sourceListId);
+      if (space.private) {
+        // Goals are a shared surface — tracking a private-space project
+        // would leak its live completion count to everyone in the scope.
+        throw new Error("Projects in private spaces can't be tracked by a goal");
+      }
       const scope = await scopeForList(ctx, list);
       if (
         !scope ||
@@ -178,7 +216,15 @@ export const update = mutation({
         patch.sourceListId = undefined;
         patch.currentValue = derived.currentValue;
       } else {
-        const { list } = await requireListAccess(ctx, args.sourceListId);
+        if (goal.targetType !== "number") {
+          throw new Error("Only number goals can track a project");
+        }
+        const { list, space } = await requireListAccess(ctx, args.sourceListId);
+        if (space.private) {
+          throw new Error(
+            "Projects in private spaces can't be tracked by a goal",
+          );
+        }
         const scope = await scopeForList(ctx, list);
         if (
           !scope ||

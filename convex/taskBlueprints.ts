@@ -168,14 +168,10 @@ export const remove = mutation({
     const bp = await ctx.db.get(blueprintId);
     if (!bp) return;
     await requireScopeMembership(ctx, bp.scopeType, bp.scopeId);
-    // Schedules that materialize this blueprint fall back to their own
-    // bare title/description rather than dangling.
-    const schedules = await ctx.db.query("scheduledTasks").collect();
-    for (const s of schedules) {
-      if (s.blueprintId === blueprintId) {
-        await ctx.db.patch(s._id, { blueprintId: undefined });
-      }
-    }
+    // Schedules keep their (now-dangling) blueprintId: the materializer
+    // tolerates it and falls back to the schedule's own title/description,
+    // and opsOverview simply shows no blueprint name. Cheaper than an
+    // O(platform) scan to clear back-references.
     await ctx.db.delete(bp._id);
   },
 });

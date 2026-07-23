@@ -132,7 +132,15 @@ export function OperationsPanel({
       </div>
     );
   }
-  if (ops === null) return null;
+  if (ops === null) {
+    return (
+      <div className="rounded-2xl panel px-6 py-14 text-center">
+        <p className="text-sm text-muted-foreground">
+          You don&apos;t have access to this workspace&apos;s operations.
+        </p>
+      </div>
+    );
+  }
 
   const enabledCount = ops.schedules.filter((s) => s.enabled).length;
 

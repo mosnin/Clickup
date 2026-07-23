@@ -239,16 +239,19 @@ function OperationsSection({
   const skills = useQuery(api.skills.listForScope, scope ?? "skip");
   const { toast } = useToast();
 
-  const [mode, setMode] = useState<"off" | RoutingMode>(
-    list.routing?.mode ?? "off",
-  );
-  const [assigneeIds, setAssigneeIds] = useState<string[]>(
-    list.routing?.assigneeIds ?? [],
-  );
-  useEffect(() => {
-    setMode(list.routing?.mode ?? "off");
-    setAssigneeIds(list.routing?.assigneeIds ?? []);
-  }, [list.routing]);
+  // One atomic draft over (mode, roster). null = mirror the server. The
+  // draft survives server round-trips, so removing the last assignee (which
+  // clears the stored rule) keeps the chosen mode on screen while the user
+  // swaps in a replacement — and unrelated list-doc updates can't stomp an
+  // in-flight edit.
+  const [routingDraft, setRoutingDraft] = useState<{
+    mode: "off" | RoutingMode;
+    ids: string[];
+  } | null>(null);
+  const mode = routingDraft ? routingDraft.mode : (list.routing?.mode ?? "off");
+  const assigneeIds = routingDraft
+    ? routingDraft.ids
+    : (list.routing?.assigneeIds ?? []);
 
   // Save on every change. A mode with no assignees yet isn't saveable
   // (the server refuses an empty rotation) — hold it locally and hint.
@@ -256,29 +259,32 @@ function OperationsSection({
     nextMode: "off" | RoutingMode,
     nextIds: string[],
   ) {
-    setMode(nextMode);
-    setAssigneeIds(nextIds);
+    setRoutingDraft({ mode: nextMode, ids: nextIds });
     try {
       if (nextMode === "off") {
         if (list.routing) {
           await setRouting({ listId, routing: null });
           toast("Saved");
         }
+        setRoutingDraft(null);
       } else if (nextIds.length > 0) {
         await setRouting({
           listId,
           routing: { mode: nextMode, assigneeIds: nextIds },
         });
         toast("Saved");
-      } else if (list.routing) {
-        // Removing the last assignee leaves nothing to route to — clear
-        // the stored rule rather than leaving it dangling server-side.
-        await setRouting({ listId, routing: null });
-        toast("Saved");
+        setRoutingDraft(null);
+      } else {
+        if (list.routing) {
+          // Removing the last assignee leaves nothing to route to — clear
+          // the stored rule server-side, but KEEP the mode on screen (the
+          // draft) so the user can add a replacement without re-picking it.
+          await setRouting({ listId, routing: null });
+          toast("Saved");
+        }
       }
     } catch (e) {
-      setMode(list.routing?.mode ?? "off");
-      setAssigneeIds(list.routing?.assigneeIds ?? []);
+      setRoutingDraft(null);
       toast(errorMessage(e, "Couldn't save the routing rule"), {
         kind: "error",
       });
@@ -363,7 +369,7 @@ function OperationsSection({
                         assigneeIds.filter((a) => a !== id),
                       )
                     }
-                    className="text-muted-foreground hover:text-foreground"
+                    className="tap-target inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
                   >
                     <X className="h-3 w-3" />
                   </button>

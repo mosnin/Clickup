@@ -189,12 +189,20 @@ export default function DashboardHome() {
   }
 
   function persist(next: WidgetId[] | null) {
-    void setHomeWidgets({ homeWidgets: next }).catch((e) => {
-      setDraft(null); // fall back to the server's layout
-      toast(errorMessage(e, "Couldn't save your Home layout"), {
-        kind: "error",
+    void setHomeWidgets({ homeWidgets: next })
+      .then(() => {
+        // The mutation result is reflected in `settings` by the time this
+        // resolves — dropping the draft lets layout changes from other
+        // tabs/devices show up instead of being masked forever. Only clear
+        // if no newer edit superseded this one mid-flight.
+        setDraft((cur) => (cur === next ? null : cur));
+      })
+      .catch((e) => {
+        setDraft(null); // fall back to the server's layout
+        toast(errorMessage(e, "Couldn't save your Home layout"), {
+          kind: "error",
+        });
       });
-    });
   }
   function applyLayout(next: WidgetId[]) {
     setDraft(next);

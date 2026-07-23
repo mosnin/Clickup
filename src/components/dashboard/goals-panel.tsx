@@ -360,6 +360,11 @@ function GoalRow({
           <select
             aria-label="Goal status"
             value={goal.status}
+            title={
+              goal.linked
+                ? "Status follows the tracked project; only Abandoned can be set by hand."
+                : undefined
+            }
             onChange={(e) =>
               update({
                 goalId: goal._id,
@@ -369,7 +374,16 @@ function GoalRow({
             className={cn(SELECT_CLASS, "h-7 px-2 py-0.5 text-xs")}
           >
             {(Object.keys(STATUS_LABEL) as GoalStatus[]).map((s) => (
-              <option key={s} value={s}>
+              <option
+                key={s}
+                value={s}
+                // A linked goal derives open/complete on every read — writing
+                // them would silently snap back. Abandoned (and the current
+                // derived value) stay selectable.
+                disabled={
+                  goal.linked && s !== "abandoned" && s !== goal.status
+                }
+              >
                 {STATUS_LABEL[s]}
               </option>
             ))}
@@ -395,7 +409,10 @@ function GoalRow({
         {goal.linked ? (
           <TracksChip name={sourceName ?? "a project"} onClear={unlink} />
         ) : (
-          goal.status !== "abandoned" && (
+          // Only number goals can track a project (the server refuses the
+          // rest — a money/boolean goal deriving a task count is nonsense).
+          goal.status !== "abandoned" &&
+          goal.targetType === "number" && (
             <Picker
               label="Track a project…"
               dashed

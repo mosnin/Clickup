@@ -12,6 +12,7 @@ import type { Id } from "../convex/_generated/dataModel";
 const modules = import.meta.glob("../convex/**/*.*s");
 
 const OWNER = { subject: "user_owner", email: "owner@team.com" };
+const MATE = { subject: "user_mate", email: "mate@team.com" };
 
 async function seed(t: ReturnType<typeof convexTest>) {
   const workspaceId = await t.run(async (ctx) => {
@@ -29,6 +30,16 @@ async function seed(t: ReturnType<typeof convexTest>) {
       workspaceId,
       userClerkId: OWNER.subject,
       role: "owner",
+      joinedAt: Date.now(),
+    });
+    await ctx.db.insert("users", {
+      clerkId: MATE.subject,
+      email: MATE.email,
+    });
+    await ctx.db.insert("memberships", {
+      workspaceId,
+      userClerkId: MATE.subject,
+      role: "member",
       joinedAt: Date.now(),
     });
     return workspaceId;
@@ -60,14 +71,14 @@ describe("assignment routing", () => {
     const { owner, listId } = await seed(t);
     await owner.mutation(api.lists.setRouting, {
       listId,
-      routing: { mode: "fixed", assigneeIds: ["agent_a", "agent_b"] },
+      routing: { mode: "fixed", assigneeIds: [OWNER.subject, MATE.subject] },
     });
 
     const routed = await owner.mutation(api.tasks.create, {
       listId,
       title: "Unassigned in a routed list",
     });
-    expect(await assigneesOf(t, routed)).toEqual(["agent_a", "agent_b"]);
+    expect(await assigneesOf(t, routed)).toEqual([OWNER.subject, MATE.subject]);
 
     const explicit = await owner.mutation(api.tasks.create, {
       listId,
@@ -82,7 +93,7 @@ describe("assignment routing", () => {
     const { owner, listId } = await seed(t);
     await owner.mutation(api.lists.setRouting, {
       listId,
-      routing: { mode: "round_robin", assigneeIds: ["a1", "a2"] },
+      routing: { mode: "round_robin", assigneeIds: [OWNER.subject, MATE.subject] },
     });
     const got: string[] = [];
     for (let i = 0; i < 3; i++) {
@@ -92,7 +103,7 @@ describe("assignment routing", () => {
       });
       got.push(...(await assigneesOf(t, id)));
     }
-    expect(got).toEqual(["a1", "a2", "a1"]);
+    expect(got).toEqual([OWNER.subject, MATE.subject, OWNER.subject]);
   });
 
   it("least_loaded picks whoever has the fewest open tasks on the list", async () => {
@@ -102,14 +113,48 @@ describe("assignment routing", () => {
     await owner.mutation(api.tasks.create, {
       listId,
       title: "Busy",
-      assigneeClerkIds: ["a1"],
+      assigneeClerkIds: [OWNER.subject],
     });
     await owner.mutation(api.lists.setRouting, {
       listId,
-      routing: { mode: "least_loaded", assigneeIds: ["a1", "a2"] },
+      routing: { mode: "least_loaded", assigneeIds: [OWNER.subject, MATE.subject] },
     });
     const id = await owner.mutation(api.tasks.create, { listId, title: "New" });
-    expect(await assigneesOf(t, id)).toEqual(["a2"]);
+    expect(await assigneesOf(t, id)).toEqual([MATE.subject]);
+  });
+
+  it("rejects rosters with principals outside the scope", async () => {
+    const t = convexTest(schema, modules);
+    const { owner, listId } = await seed(t);
+    await expect(
+      owner.mutation(api.lists.setRouting, {
+        listId,
+        routing: { mode: "fixed", assigneeIds: ["user_stranger"] },
+      }),
+    ).rejects.toThrow(/members of this workspace/i);
+  });
+
+  it("a task born in a Done column gets completedAt and skips routing", async () => {
+    const t = convexTest(schema, modules);
+    const { owner, listId } = await seed(t);
+    await owner.mutation(api.lists.setRouting, {
+      listId,
+      routing: { mode: "round_robin", assigneeIds: [MATE.subject] },
+    });
+    const statuses = await owner.query(api.listStatuses.listForList, {
+      listId,
+    });
+    const doneStatus = statuses.find(
+      (s: { category: string }) => s.category === "complete",
+    )!;
+    const id = await owner.mutation(api.tasks.create, {
+      listId,
+      title: "Already done",
+      statusId: doneStatus._id,
+    });
+    const task = await t.run(async (ctx) => (await ctx.db.get(id))!);
+    expect(task.completedAt).toBeDefined();
+    expect(task.assigneeClerkIds).toEqual([]);
   });
 });
 
@@ -119,7 +164,7 @@ describe("task blueprints", () => {
     const { owner, workspaceId, listId } = await seed(t);
     await owner.mutation(api.lists.setRouting, {
       listId,
-      routing: { mode: "round_robin", assigneeIds: ["agent_x"] },
+      routing: { mode: "round_robin", assigneeIds: [MATE.subject] },
     });
     const blueprintId = await owner.mutation(api.taskBlueprints.create, {
       scopeType: "workspace",
@@ -150,7 +195,7 @@ describe("task blueprints", () => {
     ]);
     expect(task.checklist?.every((c) => !c.done)).toBe(true);
     // No explicit assignee → the list's routing filled it in.
-    expect(task.assigneeClerkIds).toEqual(["agent_x"]);
+    expect(task.assigneeClerkIds).toEqual([MATE.subject]);
   });
 
   it("refuses to instantiate into a different scope", async () => {
@@ -271,5 +316,57 @@ describe("goal auto-rollup", () => {
     goal = await owner.query(api.goals.get, { goalId });
     expect(goal?.currentValue).toBe(1);
     expect(goal?.status).toBe("open");
+  });
+
+  it("deleting the linked list freezes the goal instead of zeroing it", async () => {
+    const t = convexTest(schema, modules);
+    const { owner, workspaceId, listId } = await seed(t);
+    const a = await owner.mutation(api.tasks.create, { listId, title: "A" });
+    await owner.mutation(api.tasks.create, { listId, title: "B" });
+    const goalId = await owner.mutation(api.goals.create, {
+      parentType: "workspace",
+      parentId: workspaceId,
+      title: "Ship it",
+      targetType: "number",
+      targetValue: 2,
+      sourceListId: listId,
+    });
+    await owner.mutation(api.tasks.toggleComplete, { taskId: a });
+
+    await owner.mutation(api.lists.remove, { listId });
+    const goal = await owner.query(api.goals.get, { goalId });
+    expect(goal?.linked).toBe(false);
+    expect(goal?.currentValue).toBe(1); // frozen, not zeroed
+    expect(goal?.status).toBe("open");
+  });
+
+  it("refuses linking non-number goals and private-space projects", async () => {
+    const t = convexTest(schema, modules);
+    const { owner, workspaceId, spaceId, listId } = await seed(t);
+    await expect(
+      owner.mutation(api.goals.create, {
+        parentType: "workspace",
+        parentId: workspaceId,
+        title: "Bool",
+        targetType: "boolean",
+        targetValue: 1,
+        sourceListId: listId,
+      }),
+    ).rejects.toThrow(/number goals/i);
+
+    await owner.mutation(api.spaces.updateMeta, {
+      spaceId,
+      private: true,
+    });
+    await expect(
+      owner.mutation(api.goals.create, {
+        parentType: "workspace",
+        parentId: workspaceId,
+        title: "Secret",
+        targetType: "number",
+        targetValue: 2,
+        sourceListId: listId,
+      }),
+    ).rejects.toThrow(/private/i);
   });
 });

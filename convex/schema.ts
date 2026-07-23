@@ -577,7 +577,9 @@ export default defineSchema({
     // rollup on every read; manual setProgress is refused. "Move things
     // forward" becomes visible without anyone logging numbers.
     sourceListId: v.optional(v.id("lists")),
-  }).index("by_parent", ["parentType", "parentId"]),
+  })
+    .index("by_parent", ["parentType", "parentId"])
+    .index("by_source", ["sourceListId"]),
 
   // ── Phase 12: AI agent collaboration ────────────────────────────────
 

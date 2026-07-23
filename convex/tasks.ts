@@ -300,6 +300,7 @@ export async function createTaskCore(
   if (!list) throw new Error("List not found");
 
   let statusId = args.statusId;
+  let bornCategory: string;
   if (!statusId) {
     const all = await ctx.db
       .query("listStatuses")
@@ -309,13 +310,21 @@ export async function createTaskCore(
       throw new Error("List has no statuses configured");
     }
     const sorted = [...all].sort((a, b) => a.position - b.position);
-    statusId = (sorted.find((s) => s.category === "open") ?? sorted[0])._id;
+    const chosen = sorted.find((s) => s.category === "open") ?? sorted[0];
+    statusId = chosen._id;
+    bornCategory = chosen.category;
   } else {
     const status = await ctx.db.get(statusId);
     if (!status || status.listId !== args.listId) {
       throw new Error("statusId must belong to the same list");
     }
+    bornCategory = status.category;
   }
+  // A task created directly into a Done/Closed column (e.g. Board's
+  // column-add) is born complete: stamp completedAt so every consumer of
+  // "open" (least-loaded routing, ops overview, watchdog) agrees.
+  const bornComplete =
+    bornCategory === "complete" || bornCategory === "closed";
 
   if (args.sprintId) await validateSprintForList(ctx, args.sprintId, list);
 
@@ -329,7 +338,12 @@ export async function createTaskCore(
   // work never sits unassigned in a routed list.
   let assigneeIds = args.assigneeIds ?? [];
   const routing = list.routing;
-  if (assigneeIds.length === 0 && routing && routing.assigneeIds.length > 0) {
+  if (
+    !bornComplete &&
+    assigneeIds.length === 0 &&
+    routing &&
+    routing.assigneeIds.length > 0
+  ) {
     if (routing.mode === "fixed") {
       assigneeIds = [...routing.assigneeIds];
     } else if (routing.mode === "round_robin") {
@@ -378,6 +392,7 @@ export async function createTaskCore(
     createdByClerkId: actor.id,
     position: siblings.length,
     createdAt: Date.now(),
+    completedAt: bornComplete ? Date.now() : undefined,
   });
 
   const created = await ctx.db.get(taskId);
