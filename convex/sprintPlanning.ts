@@ -30,6 +30,49 @@ async function requireWorkspaceMember(
 
 const MAX_BACKLOG = 300;
 
+// Per-viewer space visibility, shared by `planning` and `velocityPoints` —
+// a task committed from a private space the caller can't access must not
+// leak its title, its point total, or nudge a completion count, even
+// though the caller is a workspace member. Caches are scoped to one query
+// call so repeated lookups of the same list/space are free.
+function makeSpaceVisibility(
+  ctx: QueryCtx | MutationCtx,
+  subject: string,
+): {
+  spaceVisible: (spaceId: Id<"spaces">) => Promise<boolean>;
+  taskListVisible: (listId: Id<"lists">) => Promise<boolean>;
+} {
+  const spaceOkCache = new Map<Id<"spaces">, boolean>();
+  const listSpaceCache = new Map<Id<"lists">, Id<"spaces"> | null>();
+  async function spaceVisible(spaceId: Id<"spaces">): Promise<boolean> {
+    const cached = spaceOkCache.get(spaceId);
+    if (cached !== undefined) return cached;
+    const space = await ctx.db.get(spaceId);
+    const ok =
+      !!space &&
+      space.archivedAt === undefined &&
+      (await canAccessSpace(ctx, space, { subject }));
+    spaceOkCache.set(spaceId, ok);
+    return ok;
+  }
+  async function taskListVisible(listId: Id<"lists">): Promise<boolean> {
+    let spaceId = listSpaceCache.get(listId);
+    if (spaceId === undefined) {
+      const list = await ctx.db.get(listId);
+      if (!list) spaceId = null;
+      else if (list.parentType === "space") {
+        spaceId = list.parentId as Id<"spaces">;
+      } else {
+        const folder = await ctx.db.get(list.parentId as Id<"folders">);
+        spaceId = folder ? folder.spaceId : null;
+      }
+      listSpaceCache.set(listId, spaceId);
+    }
+    return spaceId !== null && (await spaceVisible(spaceId));
+  }
+  return { spaceVisible, taskListVisible };
+}
+
 export type PlanningTask = {
   taskId: Id<"tasks">;
   title: string;
@@ -102,36 +145,9 @@ export const planning = query({
 
     // Per-viewer space gate: tasks in a private space the caller can't
     // access must not surface here (title leak), even though the caller
-    // is a workspace member. Cached per space; committed tasks resolve
-    // their space through the list's parent chain.
-    const spaceOkCache = new Map<Id<"spaces">, boolean>();
-    async function spaceVisible(spaceId: Id<"spaces">): Promise<boolean> {
-      const cached = spaceOkCache.get(spaceId);
-      if (cached !== undefined) return cached;
-      const space = await ctx.db.get(spaceId);
-      const ok =
-        !!space &&
-        space.archivedAt === undefined &&
-        (await canAccessSpace(ctx, space, { subject }));
-      spaceOkCache.set(spaceId, ok);
-      return ok;
-    }
-    const listSpaceCache = new Map<Id<"lists">, Id<"spaces"> | null>();
-    async function taskListVisible(listId: Id<"lists">): Promise<boolean> {
-      let spaceId = listSpaceCache.get(listId);
-      if (spaceId === undefined) {
-        const list = await ctx.db.get(listId);
-        if (!list) spaceId = null;
-        else if (list.parentType === "space") {
-          spaceId = list.parentId as Id<"spaces">;
-        } else {
-          const folder = await ctx.db.get(list.parentId as Id<"folders">);
-          spaceId = folder ? folder.spaceId : null;
-        }
-        listSpaceCache.set(listId, spaceId);
-      }
-      return spaceId !== null && (await spaceVisible(spaceId));
-    }
+    // is a workspace member. Committed tasks resolve their space through
+    // the list's parent chain.
+    const { spaceVisible, taskListVisible } = makeSpaceVisibility(ctx, subject);
 
     const committedTasks = await ctx.db
       .query("tasks")
@@ -212,6 +228,13 @@ export const planning = query({
 export const commit = mutation({
   args: { sprintId: v.id("sprints"), taskId: v.id("tasks") },
   handler: async (ctx, { sprintId, taskId }) => {
+    const sprint = await ctx.db.get(sprintId);
+    if (!sprint) throw new Error("Sprint not found");
+    if (sprint.status === "complete") {
+      throw new Error(
+        "This sprint is complete — reopen it to change its work",
+      );
+    }
     const { identity } = await requireTaskAccess(ctx, taskId);
     const actor = await userActor(ctx, identity.subject);
     await updateTaskCore(ctx, { taskId, sprintId }, actor);
@@ -221,7 +244,15 @@ export const commit = mutation({
 export const uncommit = mutation({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, { taskId }) => {
-    const { identity } = await requireTaskAccess(ctx, taskId);
+    const { task, identity } = await requireTaskAccess(ctx, taskId);
+    if (task.sprintId) {
+      const sprint = await ctx.db.get(task.sprintId);
+      if (sprint?.status === "complete") {
+        throw new Error(
+          "This sprint is complete — reopen it to change its work",
+        );
+      }
+    }
     const actor = await userActor(ctx, identity.subject);
     await updateTaskCore(ctx, { taskId, sprintId: null }, actor);
   },
@@ -242,8 +273,9 @@ export const setEstimate = mutation({
 export const velocityPoints = query({
   args: { workspaceId: v.id("workspaces") },
   handler: async (ctx, { workspaceId }) => {
+    let subject: string;
     try {
-      await requireWorkspaceMember(ctx, workspaceId);
+      subject = await requireWorkspaceMember(ctx, workspaceId);
     } catch {
       return [];
     }
@@ -256,6 +288,10 @@ export const velocityPoints = query({
       .sort((a, b) => b.endDate - a.endDate)
       .slice(0, 5);
 
+    // Per-viewer space gate (see makeSpaceVisibility above), cached across
+    // every sprint in this trend so a private-space task never nudges the
+    // completed points/count shown here.
+    const { taskListVisible } = makeSpaceVisibility(ctx, subject);
     const out: {
       sprintId: Id<"sprints">;
       name: string;
@@ -270,6 +306,7 @@ export const velocityPoints = query({
       let completedPoints = 0;
       let completedCount = 0;
       for (const t of tasks) {
+        if (!(await taskListVisible(t.listId))) continue;
         const status = await ctx.db.get(t.statusId);
         if (status?.category === "complete" || status?.category === "closed") {
           completedCount++;

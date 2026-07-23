@@ -138,9 +138,12 @@ export function ImportDialog({
   });
 
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ created: number; skipped: number } | null>(
-    null,
-  );
+  const [result, setResult] = useState<{
+    created: number;
+    skipped: number;
+    unmatchedStatusCount: number;
+    unmatchedStatusNames: string[];
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   function reset() {
@@ -261,14 +264,25 @@ export function ImportDialog({
     setImporting(true);
     let created = 0;
     let skipped = 0;
+    let unmatchedStatusCount = 0;
+    const unmatchedStatusNames = new Set<string>();
     try {
       for (let i = 0; i < mappedRows.length; i += BATCH_SIZE) {
         const batch = mappedRows.slice(i, i + BATCH_SIZE);
         const res = await importTasks({ listId: selectedList.id, rows: batch });
         created += res.created;
         skipped += res.skipped;
+        unmatchedStatusCount += res.unmatchedStatusCount;
+        for (const name of res.unmatchedStatusNames) {
+          unmatchedStatusNames.add(name);
+        }
       }
-      setResult({ created, skipped });
+      setResult({
+        created,
+        skipped,
+        unmatchedStatusCount,
+        unmatchedStatusNames: Array.from(unmatchedStatusNames).slice(0, 5),
+      });
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);
       toast(
@@ -341,6 +355,18 @@ export function ImportDialog({
                     ? ` (${result.skipped} row${result.skipped === 1 ? "" : "s"} skipped — blank title).`
                     : "."}
                 </p>
+                {result.unmatchedStatusCount > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {result.unmatchedStatusCount} task
+                    {result.unmatchedStatusCount === 1 ? "" : "s"} had
+                    unrecognized statuses and used the default
+                    {result.unmatchedStatusNames.length > 0
+                      ? ` (${result.unmatchedStatusNames.join(", ")}${
+                          result.unmatchedStatusNames.length >= 5 ? ", …" : ""
+                        }).`
+                      : "."}
+                  </p>
+                )}
                 <div className="flex justify-end gap-2">
                   <Button variant="ghost" size="sm" onClick={handleClose}>
                     Close

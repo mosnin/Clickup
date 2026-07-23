@@ -102,8 +102,10 @@ export async function updateSprintCore(
   if (args.endDate !== undefined) patch.endDate = args.endDate;
   if (args.status !== undefined) patch.status = args.status;
   if (args.capacityPoints !== undefined) {
+    // 0 is a real (intentional) capacity, e.g. "no room left this sprint" —
+    // only null or a negative number clears it.
     patch.capacityPoints =
-      args.capacityPoints === null || args.capacityPoints <= 0
+      args.capacityPoints === null || args.capacityPoints < 0
         ? undefined
         : args.capacityPoints;
   }
@@ -123,6 +125,42 @@ export async function updateSprintCore(
   } else if (Object.keys(patch).length > 0) {
     await emitSprintEvent(ctx, updated, "sprint.updated", actor);
   }
+}
+
+// Resolves whether `listId`'s space is visible to `subject` — a private
+// space the viewer isn't a member of must not leak that space's task
+// titles/counts into sprint analytics even though the viewer is a
+// workspace member. Same gate as sprintSummaryCore.visibleToViewer and
+// sprintPlanning.planning/scrumBoard.board's space checks; caches are
+// passed in so callers can reuse them across many tasks that commonly
+// share the same list/space (e.g. burndown/velocity's per-sprint loops).
+async function taskListVisible(
+  ctx: QueryCtx | MutationCtx,
+  listId: Id<"lists">,
+  subject: string,
+  listSpaceCache: Map<Id<"lists">, Id<"spaces"> | null>,
+  spaceOkCache: Map<Id<"spaces">, boolean>,
+): Promise<boolean> {
+  let spaceId = listSpaceCache.get(listId);
+  if (spaceId === undefined) {
+    const list = await ctx.db.get(listId);
+    if (!list) {
+      spaceId = null;
+    } else if (list.parentType === "space") {
+      spaceId = list.parentId as Id<"spaces">;
+    } else {
+      const folder = await ctx.db.get(list.parentId as Id<"folders">);
+      spaceId = folder ? folder.spaceId : null;
+    }
+    listSpaceCache.set(listId, spaceId);
+  }
+  if (spaceId === null) return false;
+  const cached = spaceOkCache.get(spaceId);
+  if (cached !== undefined) return cached;
+  const space = await ctx.db.get(spaceId);
+  const ok = !!space && (await canAccessSpace(ctx, space, { subject }));
+  spaceOkCache.set(spaceId, ok);
+  return ok;
 }
 
 // Task rollup for one sprint: totals by status category plus per-assignee
@@ -367,16 +405,30 @@ export const burndown = query({
   handler: async (ctx, { sprintId }) => {
     const sprint = await ctx.db.get(sprintId);
     if (!sprint) return null;
+    let subject: string;
     try {
-      await requireWorkspaceMember(ctx, sprint.workspaceId);
+      subject = await requireWorkspaceMember(ctx, sprint.workspaceId);
     } catch {
       return null;
     }
 
-    const tasks = await ctx.db
+    const allTasks = await ctx.db
       .query("tasks")
       .withIndex("by_sprint", (q) => q.eq("sprintId", sprintId))
       .collect();
+    // Per-viewer space gate (see taskListVisible above) — a task committed
+    // from a private space the caller can't access must not move the
+    // totals or completion dates shown here.
+    const listSpaceCache = new Map<Id<"lists">, Id<"spaces"> | null>();
+    const spaceOkCache = new Map<Id<"spaces">, boolean>();
+    const tasks: typeof allTasks = [];
+    for (const t of allTasks) {
+      if (
+        await taskListVisible(ctx, t.listId, subject, listSpaceCache, spaceOkCache)
+      ) {
+        tasks.push(t);
+      }
+    }
 
     const totalTasks = tasks.length;
     let doneTasks = 0;
@@ -429,8 +481,9 @@ export const burndown = query({
 export const velocity = query({
   args: { workspaceId: v.id("workspaces") },
   handler: async (ctx, { workspaceId }) => {
+    let subject: string;
     try {
-      await requireWorkspaceMember(ctx, workspaceId);
+      subject = await requireWorkspaceMember(ctx, workspaceId);
     } catch {
       return [];
     }
@@ -443,6 +496,10 @@ export const velocity = query({
       .sort((a, b) => b.endDate - a.endDate)
       .slice(0, 5);
 
+    // Per-viewer space gate (see taskListVisible above), cached across every
+    // sprint in this trend so a private-space task never nudges the count.
+    const listSpaceCache = new Map<Id<"lists">, Id<"spaces"> | null>();
+    const spaceOkCache = new Map<Id<"spaces">, boolean>();
     const out: { sprintId: Id<"sprints">; name: string; completed: number }[] =
       [];
     for (const s of recent) {
@@ -452,6 +509,17 @@ export const velocity = query({
         .collect();
       let completed = 0;
       for (const t of tasks) {
+        if (
+          !(await taskListVisible(
+            ctx,
+            t.listId,
+            subject,
+            listSpaceCache,
+            spaceOkCache,
+          ))
+        ) {
+          continue;
+        }
         const status = await ctx.db.get(t.statusId);
         if (status?.category === "complete" || status?.category === "closed") {
           completed++;
