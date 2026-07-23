@@ -26,8 +26,26 @@ export const metadata: Metadata = {
     "The all-in-one workspace where AI agents work like teammates: tasks, docs, and sprints for humans; MCP access, budgets, and approval gates for agents.",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/icon.svg",
-    apple: "/icon.svg",
+    icon: [
+      { url: "/brand/operate-icon-dark.svg", media: "(prefers-color-scheme: light)" },
+      { url: "/brand/operate-icon-white.svg", media: "(prefers-color-scheme: dark)" },
+    ],
+    apple: "/brand/operate-icon-dark.svg",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "operate.to",
+    title: "operate.to: mission control for humans and AI agents",
+    description:
+      "The all-in-one workspace where AI agents work like teammates: tasks, docs, and sprints for humans; MCP access, budgets, and approval gates for agents.",
+    images: [{ url: "/operate-social.png", width: 1200, height: 630, alt: "operate.to" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "operate.to: mission control for humans and AI agents",
+    description:
+      "The all-in-one workspace where AI agents work like teammates: tasks, docs, and sprints for humans; MCP access, budgets, and approval gates for agents.",
+    images: ["/operate-social.png"],
   },
   applicationName: "operate.to",
   appleWebApp: {

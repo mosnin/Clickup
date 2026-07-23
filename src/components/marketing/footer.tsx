@@ -58,14 +58,12 @@ export function MarketingFooter() {
       <Container className="py-16">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_2fr]">
           <div>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 text-lg font-semibold text-white"
-            >
-              operate
-              <span
-                aria-hidden
-                className="h-1.5 w-1.5 rounded-full bg-azure-400"
+            <Link href="/" aria-label="operate.to" className="inline-flex items-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/brand/operate-logo-white.svg"
+                alt="operate.to"
+                className="h-6 w-auto"
               />
             </Link>
             <p className="mt-3 max-w-xs text-sm text-white/50">

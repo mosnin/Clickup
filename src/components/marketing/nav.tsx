@@ -140,16 +140,14 @@ export function MarketingNav() {
       >
         <Container>
           <div className="flex h-16 items-center justify-between">
-            <Link
-              href="/"
-              className="flex items-center gap-1.5 text-lg font-semibold tracking-tight text-white"
-            >
-              {SITE_NAME.replace(/\.to$/, "")}
-              <span
-                aria-hidden
-                className="mb-2.5 inline-block size-1.5 rounded-full bg-azure-400"
+            <Link href="/" aria-label={SITE_NAME} className="flex items-center gap-2.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/brand/operate-logo-white.svg"
+                alt="operate.to"
+                className="h-6 w-auto"
               />
-              <span className="ml-2 hidden text-sm font-normal text-white/60 sm:inline">
+              <span className="hidden text-sm font-normal text-white/60 sm:inline">
                 for agents
               </span>
             </Link>
@@ -368,15 +366,12 @@ function MobileOverlay({
     >
       <Container>
         <div className="flex h-16 items-center justify-between">
-          <Link
-            href="/"
-            onClick={onClose}
-            className="flex items-center gap-1.5 text-lg font-semibold tracking-tight text-white"
-          >
-            {SITE_NAME.replace(/\.to$/, "")}
-            <span
-              aria-hidden
-              className="mb-2.5 inline-block size-1.5 rounded-full bg-azure-400"
+          <Link href="/" onClick={onClose} aria-label={SITE_NAME} className="flex items-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/operate-logo-white.svg"
+              alt="operate.to"
+              className="h-6 w-auto"
             />
           </Link>
           <button
