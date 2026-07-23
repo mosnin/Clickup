@@ -12,6 +12,13 @@ import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
 
+function errorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
+  );
+}
+
 // Breaking a task down into smaller steps. Subtasks are ordinary tasks on
 // the same list (tasks.parentTaskId), so they get their own task page,
 // status, assignees, etc. — this section is just a focused, inline view
@@ -31,6 +38,7 @@ export function Subtasks({
   const allTasks = useQuery(api.tasks.listForList, { listId });
   const statuses = useQuery(api.listStatuses.listForList, { listId });
   const create = useMutation(api.tasks.create);
+  const { toast } = useToast();
   const [adding, setAdding] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Set<string>>(new Set());
 
@@ -109,8 +117,14 @@ export function Subtasks({
             placeholder="Add a subtask…"
             onCancel={() => setAdding(false)}
             onSubmit={async (title) => {
-              await create({ listId, title, parentTaskId: taskId });
-              setAdding(false);
+              try {
+                await create({ listId, title, parentTaskId: taskId });
+                setAdding(false);
+              } catch (e) {
+                toast(errorMessage(e, "Couldn't add subtask"), {
+                  kind: "error",
+                });
+              }
             }}
           />
         </div>

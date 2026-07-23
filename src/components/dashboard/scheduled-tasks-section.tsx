@@ -7,11 +7,19 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/toast";
 
 // List-settings section for time-based recurring tasks ("every Monday
 // 09:00 UTC create X"). The cron in convex/crons.ts materializes them.
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function errorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
+  );
+}
 
 // "09:00 UTC (11:00 local)" — schedules run on UTC; show the viewer's
 // local equivalent so non-UTC teams don't misread the hour.
@@ -116,6 +124,7 @@ function CreateScheduleForm({
   onDone: () => void;
 }) {
   const create = useMutation(api.scheduledTasks.create);
+  const { toast } = useToast();
   const [title, setTitle] = useState("");
   const [cadence, setCadence] = useState<"daily" | "weekly" | "monthly">(
     "weekly",
@@ -131,16 +140,22 @@ function CreateScheduleForm({
       onSubmit={async (e) => {
         e.preventDefault();
         if (!title.trim()) return;
-        await create({
-          listId,
-          title: title.trim(),
-          cadence,
-          dayOfWeek: cadence === "weekly" ? dayOfWeek : undefined,
-          dayOfMonth: cadence === "monthly" ? dayOfMonth : undefined,
-          hourUtc,
-          dueInDays: dueInDays ? parseInt(dueInDays, 10) : undefined,
-        });
-        onDone();
+        try {
+          await create({
+            listId,
+            title: title.trim(),
+            cadence,
+            dayOfWeek: cadence === "weekly" ? dayOfWeek : undefined,
+            dayOfMonth: cadence === "monthly" ? dayOfMonth : undefined,
+            hourUtc,
+            dueInDays: dueInDays ? parseInt(dueInDays, 10) : undefined,
+          });
+          onDone();
+        } catch (err) {
+          toast(errorMessage(err, "Couldn't create schedule"), {
+            kind: "error",
+          });
+        }
       }}
     >
       <label className="block min-w-44 flex-1">
