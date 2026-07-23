@@ -9,10 +9,13 @@ import {
   AlertTriangle,
   ArrowRight,
   Bot,
+  ChevronDown,
+  ChevronUp,
   Clock,
   LayoutDashboard,
   ListChecks,
   Plus,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -95,6 +98,33 @@ const chartConfig: ChartConfig = {
   completed: { label: "Completed", color: "var(--color-chart-1)" },
 };
 
+// ── Home widgets ─────────────────────────────────────────────────────────
+// Each distinct block on Home has a stable id; the user's saved layout
+// (userSettings.homeWidgets) is the ordered list of VISIBLE ids — absence
+// means hidden, null/unset means this default. `span` slots widgets into
+// the shared lg:grid-cols-3 grid (static classes so Tailwind sees them);
+// the default order reproduces the original page composition exactly.
+const WIDGETS = [
+  { id: "stats", title: "Overview stats", span: "lg:col-span-3" },
+  { id: "today", title: "Today's tasks", span: "lg:col-span-2" },
+  { id: "activity", title: "Recent activity", span: "" },
+  { id: "projects", title: "Projects", span: "lg:col-span-3" },
+  { id: "live", title: "Live feed", span: "lg:col-span-2" },
+  { id: "agents", title: "Agents online", span: "" },
+] as const;
+type WidgetId = (typeof WIDGETS)[number]["id"];
+const DEFAULT_LAYOUT: WidgetId[] = WIDGETS.map((w) => w.id);
+const WIDGET_BY_ID = new Map<WidgetId, (typeof WIDGETS)[number]>(
+  WIDGETS.map((w) => [w.id, w]),
+);
+
+function errorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
+  );
+}
+
 function startOfToday(): number {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -124,14 +154,71 @@ export default function DashboardHome() {
   // expose lastSeenAt, and "never connected" is the one signal that query
   // doesn't carry.
   const agents = useQuery(api.agents.listForCurrentUser, {});
+  const settings = useQuery(api.userSettings.current, {});
+  const setHomeWidgets = useMutation(api.userSettings.setHomeWidgets);
   const { user } = useUser();
+  const { toast } = useToast();
 
-  if (overview === undefined) {
+  const [customizing, setCustomizing] = useState(false);
+  // Local optimistic layout: render the just-clicked order immediately;
+  // the server round-trip (settings) reconciles behind it.
+  const [draft, setDraft] = useState<WidgetId[] | null>(null);
+
+  const order = useMemo<WidgetId[]>(() => {
+    const source = draft ?? settings?.homeWidgets ?? null;
+    if (!source) return DEFAULT_LAYOUT;
+    // Drop unknown ids (future/renamed widgets) and dupes defensively.
+    const seen = new Set<string>();
+    const out: WidgetId[] = [];
+    for (const id of source) {
+      if (WIDGET_BY_ID.has(id as WidgetId) && !seen.has(id)) {
+        out.push(id as WidgetId);
+        seen.add(id);
+      }
+    }
+    return out;
+  }, [draft, settings]);
+
+  // Wait for settings too, so a saved custom layout never flashes the
+  // default order on first paint.
+  if (overview === undefined || settings === undefined) {
     return <DashboardSkeleton />;
   }
   if (overview === null) {
     return null;
   }
+
+  function persist(next: WidgetId[] | null) {
+    void setHomeWidgets({ homeWidgets: next }).catch((e) => {
+      setDraft(null); // fall back to the server's layout
+      toast(errorMessage(e, "Couldn't save your Home layout"), {
+        kind: "error",
+      });
+    });
+  }
+  function applyLayout(next: WidgetId[]) {
+    setDraft(next);
+    persist(next);
+  }
+  function hideWidget(id: WidgetId) {
+    applyLayout(order.filter((w) => w !== id));
+  }
+  function showWidget(id: WidgetId) {
+    applyLayout([...order, id]);
+  }
+  function moveWidget(index: number, dir: -1 | 1) {
+    const j = index + dir;
+    if (j < 0 || j >= order.length) return;
+    const next = [...order];
+    [next[index], next[j]] = [next[j], next[index]];
+    applyLayout(next);
+  }
+  function resetLayout() {
+    setDraft([...DEFAULT_LAYOUT]);
+    persist(null);
+  }
+
+  const hidden = DEFAULT_LAYOUT.filter((id) => !order.includes(id));
 
   // totalAgentsOnline counts the whole fleet; overview.agents is a display
   // preview capped at 8 and would undercount larger fleets.
@@ -144,13 +231,42 @@ export default function DashboardHome() {
       )
     : [];
 
+  // Re-alias so the non-null narrowing survives into the closure below.
+  const ov = overview;
+  function widgetContent(id: WidgetId): React.ReactNode {
+    switch (id) {
+      case "stats":
+        return <StatsCards me={ov.me} agentsOnline={agentsOnline} />;
+      case "today":
+        return <TodaysTasks rows={myWork ?? undefined} />;
+      case "activity":
+        return <ActivityChart completions={ov.completions7d} />;
+      case "projects":
+        return (
+          <ProjectsTable
+            projects={ov.projects}
+            totalProjects={ov.totalProjects}
+          />
+        );
+      case "live":
+        return <LiveFeed ticker={ov.ticker} />;
+      case "agents":
+        return <AgentsCard agents={ov.agents} />;
+    }
+  }
+
   return (
     <div className="space-y-6">
       <WelcomeReveal />
 
       <PageHeader icon={LayoutDashboard} title="Home" />
 
-      <WelcomeSection firstName={user?.firstName ?? undefined} me={overview.me} />
+      <WelcomeSection
+        firstName={user?.firstName ?? undefined}
+        me={overview.me}
+        customizing={customizing}
+        onToggleCustomize={() => setCustomizing((v) => !v)}
+      />
 
       <InviteCards />
 
@@ -197,30 +313,128 @@ export default function DashboardHome() {
         )}
       </AnimatePresence>
 
-      <StatsCards me={overview.me} agentsOnline={agentsOnline} />
+      {/* Customize bar: reorder/hide happens on the widgets themselves;
+          this strip holds the hidden-widget shelf + reset/done. */}
+      <AnimatePresence initial={false}>
+        {customizing && (
+          <motion.div
+            key="customize-bar"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.3, ease: EASE }}
+            className="rounded-2xl panel p-4"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+                Reorder or hide the blocks on your Home. Changes save as you
+                go.
+              </p>
+              <button
+                type="button"
+                onClick={resetLayout}
+                className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Reset layout
+              </button>
+              <Button size="sm" onClick={() => setCustomizing(false)}>
+                Done
+              </Button>
+            </div>
+            {hidden.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Hidden
+                </span>
+                {hidden.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => showWidget(id)}
+                    className="rounded-full border border-dashed border-border px-3 py-1 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                  >
+                    + {WIDGET_BY_ID.get(id)?.title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <TodaysTasks rows={myWork ?? undefined} />
+      {order.length === 0 && !customizing ? (
+        <div className="rounded-2xl panel px-6 py-12 text-center">
+          <p className="text-sm text-muted-foreground">
+            Every Home block is hidden.
+          </p>
+          <button
+            type="button"
+            onClick={() => setCustomizing(true)}
+            className="mt-2 text-sm font-medium underline-offset-2 hover:underline"
+          >
+            Customize your Home
+          </button>
         </div>
-        <div>
-          <ActivityChart completions={overview.completions7d} />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
+          <AnimatePresence initial={false}>
+            {order.map((id, i) => {
+              const def = WIDGET_BY_ID.get(id);
+              if (!def) return null;
+              return (
+                <motion.section
+                  key={id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.97 }}
+                  transition={{ duration: 0.3, ease: EASE }}
+                  className={cn(
+                    def.span,
+                    customizing &&
+                      "rounded-2xl border border-dashed border-border p-2",
+                  )}
+                >
+                  {customizing && (
+                    <div className="mb-2 flex items-center gap-0.5 px-1">
+                      <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        {def.title}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Move ${def.title} up`}
+                        disabled={i === 0}
+                        onClick={() => moveWidget(i, -1)}
+                        className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+                      >
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Move ${def.title} down`}
+                        disabled={i === order.length - 1}
+                        onClick={() => moveWidget(i, 1)}
+                        className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Hide ${def.title}`}
+                        onClick={() => hideWidget(id)}
+                        className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                  {widgetContent(id)}
+                </motion.section>
+              );
+            })}
+          </AnimatePresence>
         </div>
-      </div>
-
-      <ProjectsTable
-        projects={overview.projects}
-        totalProjects={overview.totalProjects}
-      />
-
-      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <LiveFeed ticker={overview.ticker} />
-        </div>
-        <div>
-          <AgentsCard agents={overview.agents} />
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -283,9 +497,13 @@ function WelcomeReveal() {
 function WelcomeSection({
   firstName,
   me,
+  customizing,
+  onToggleCustomize,
 }: {
   firstName?: string;
   me: Overview["me"];
+  customizing: boolean;
+  onToggleCustomize: () => void;
 }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -299,10 +517,19 @@ function WelcomeSection({
           Open Task{me.open === 1 ? "" : "s"}
         </p>
       </div>
-      <Button size="sm" className="h-9 gap-1.5" onClick={openCommandPalette}>
-        <Plus className="size-4" />
-        New task
-      </Button>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onToggleCustomize}
+          className="tap-target text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          {customizing ? "Done" : "Customize"}
+        </button>
+        <Button size="sm" className="h-9 gap-1.5" onClick={openCommandPalette}>
+          <Plus className="size-4" />
+          New task
+        </Button>
+      </div>
     </div>
   );
 }

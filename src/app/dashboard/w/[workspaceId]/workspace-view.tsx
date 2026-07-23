@@ -17,6 +17,7 @@ import { PortfolioTimeline } from "@/components/dashboard/portfolio-timeline";
 import { RoadmapPanel } from "@/components/dashboard/roadmap-panel";
 import { TeamHub } from "@/components/dashboard/team-hub";
 import { WorkspaceSettings } from "@/components/dashboard/workspace-settings";
+import { FieldLibraryPanel } from "@/components/dashboard/field-library-panel";
 import { ActivityFeed } from "@/app/dashboard/agents/agents-view";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -305,10 +306,11 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
           />
         </section>
       ) : (
-        <section>
+        <section className="space-y-6">
           <WorkspaceSettings
             workspaceId={workspace._id as Id<"workspaces">}
           />
+          <FieldLibraryPanel workspaceId={workspace._id as Id<"workspaces">} />
         </section>
       )}
       </motion.div>
