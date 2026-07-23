@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1088" height="680" viewBox="0 0 1088 680" fill="none">
+  <title>Capacity estimates</title>
+  <desc>Minimal charcoal enterprise product illustration with white focal geometry.</desc>
+  <defs>
+    <radialGradient id="background_vignette" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(544 330) rotate(90) scale(420 680)">
+      <stop offset="0" stop-color="#121214"/>
+      <stop offset=".62" stop-color="#0B0B0C"/>
+      <stop offset="1" stop-color="#080809"/>
+    </radialGradient>
+    <radialGradient id="agent_core" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.34 .28) rotate(45) scale(.78)">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset=".16" stop-color="#F4F5F7"/>
+      <stop offset=".38" stop-color="#C8CBD1"/>
+      <stop offset=".62" stop-color="#797C84"/>
+      <stop offset=".82" stop-color="#37393F"/>
+      <stop offset="1" stop-color="#15161A"/>
+    </radialGradient>
+    <radialGradient id="agent_aura" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".46"/>
+      <stop offset=".36" stop-color="#E6E7EA" stop-opacity=".22"/>
+      <stop offset=".7" stop-color="#A4A7AF" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#90939B" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="agent_specular" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".94"/>
+      <stop offset=".36" stop-color="#FFFFFF" stop-opacity=".4"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="scan_glow" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="scan_fade" x1="544" y1="210" x2="544" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="presence_fade" x1="544" y1="160" x2="544" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity=".78"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".04"/>
+    </linearGradient>
+    <filter id="soft_glow" x="-120%" y="-120%" width="340%" height="340%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="11"/>
+    </filter>
+  </defs>
+  <rect width="1088" height="680" fill="url(#background_vignette)"/>
+  
+      <g id="capacity_vessels">
+        
+    <g opacity="0.48">
+      <rect x="170" y="274" width="174" height="246" rx="32" fill="#0D0D0F" stroke="#46464B" stroke-width="3"/>
+      <path d="M192 335.5H322" stroke="#29292D" stroke-width="3" stroke-linecap="round"/><path d="M192 397H322" stroke="#29292D" stroke-width="3" stroke-linecap="round"/><path d="M192 458.5H322" stroke="#29292D" stroke-width="3" stroke-linecap="round"/>
+    </g>
+  
+        
+    <g opacity="1">
+      <rect x="384" y="214" width="214" height="306" rx="32" fill="#0D0D0F" stroke="#46464B" stroke-width="3"/>
+      <path d="M406 265H576" stroke="#29292D" stroke-width="3" stroke-linecap="round"/><path d="M406 316H576" stroke="#29292D" stroke-width="3" stroke-linecap="round"/><path d="M406 367H576" stroke="#29292D" stroke-width="3" stroke-linecap="round"/><path d="M406 418H576" stroke="#29292D" stroke-width="3" stroke-linecap="round"/><path d="M406 469H576" stroke="#29292D" stroke-width="3" stroke-linecap="round"/>
+    </g>
+  
+        
+    <g opacity="0.66">
+      <rect x="638" y="164" width="268" height="356" rx="32" fill="#0D0D0F" stroke="#46464B" stroke-width="3"/>
+      <path d="M660 214.85714285714286H884" stroke="#29292D" stroke-width="3" stroke-linecap="round"/><path d="M660 265.7142857142857H884" stroke="#29292D" stroke-width="3" stroke-linecap="round"/><path d="M660 316.57142857142856H884" stroke="#29292D" stroke-width="3" stroke-linecap="round"/><path d="M660 367.42857142857144H884" stroke="#29292D" stroke-width="3" stroke-linecap="round"/><path d="M660 418.2857142857143H884" stroke="#29292D" stroke-width="3" stroke-linecap="round"/><path d="M660 469.1428571428571H884" stroke="#29292D" stroke-width="3" stroke-linecap="round"/>
+    </g>
+  
+      </g>
+      <g id="honest_capacity">
+        <path d="M120 520H944" stroke="#35353A" stroke-width="4" stroke-linecap="round"/>
+        <path d="M384 214H598" stroke="#F0F0F2" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="598" cy="214" r="9" fill="#F0F0F2"/>
+      </g>
+      <g id="task_units">
+        <rect x="418" y="430" width="52" height="48" rx="15" fill="#303035"/>
+        <rect x="482" y="430" width="52" height="48" rx="15" fill="#3C3C42"/>
+        <rect x="418" y="370" width="52" height="48" rx="15" fill="#4E4E54"/>
+        <rect x="482" y="370" width="52" height="48" rx="15" fill="#66666C"/>
+        <rect x="418" y="310" width="52" height="48" rx="15" fill="#7F7F85"/>
+        <rect x="482" y="310" width="52" height="48" rx="15" fill="#F0F0F2"/>
+      </g>
+    
+</svg>

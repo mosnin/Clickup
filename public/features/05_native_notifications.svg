@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1088" height="680" viewBox="0 0 1088 680" fill="none">
+  <title>Native notifications</title>
+  <desc>Minimal charcoal enterprise product illustration with white focal geometry.</desc>
+  <defs>
+    <radialGradient id="background_vignette" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(544 330) rotate(90) scale(420 680)">
+      <stop offset="0" stop-color="#121214"/>
+      <stop offset=".62" stop-color="#0B0B0C"/>
+      <stop offset="1" stop-color="#080809"/>
+    </radialGradient>
+    <radialGradient id="agent_core" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.34 .28) rotate(45) scale(.78)">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset=".16" stop-color="#F4F5F7"/>
+      <stop offset=".38" stop-color="#C8CBD1"/>
+      <stop offset=".62" stop-color="#797C84"/>
+      <stop offset=".82" stop-color="#37393F"/>
+      <stop offset="1" stop-color="#15161A"/>
+    </radialGradient>
+    <radialGradient id="agent_aura" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".46"/>
+      <stop offset=".36" stop-color="#E6E7EA" stop-opacity=".22"/>
+      <stop offset=".7" stop-color="#A4A7AF" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#90939B" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="agent_specular" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".94"/>
+      <stop offset=".36" stop-color="#FFFFFF" stop-opacity=".4"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="scan_glow" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="scan_fade" x1="544" y1="210" x2="544" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="presence_fade" x1="544" y1="160" x2="544" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity=".78"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".04"/>
+    </linearGradient>
+    <filter id="soft_glow" x="-120%" y="-120%" width="340%" height="340%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="11"/>
+    </filter>
+  </defs>
+  <rect width="1088" height="680" fill="url(#background_vignette)"/>
+  
+      <g id="notification_beacon">
+        
+    <rect x="172" y="182" width="744" height="314" rx="40"
+      fill="#0D0D0F" stroke="#3A3A3F" stroke-width="2.5" opacity="1"/>
+  
+        <path d="M520 306C588 300 642 318 682 354" stroke="#35353A" stroke-width="4" stroke-linecap="round"/>
+        <path d="M526 354C588 350 630 362 662 388" stroke="#5A5A60" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="520" cy="306" r="8" fill="#5B5B61"/>
+        <circle cx="526" cy="354" r="8" fill="#F2F2F4"/>
+      </g>
+      <g id="agent_receiver">
+        
+    <g opacity="1">
+      <circle cx="720" cy="388" r="66" fill="url(#agent_aura)" filter="url(#soft_glow)"/>
+      <circle cx="720" cy="388" r="40" fill="url(#agent_core)" stroke="#FFFFFF" stroke-opacity=".28" stroke-width="1.5"/>
+      <circle cx="708.8" cy="376" r="13" fill="url(#agent_specular)"/>
+    </g>
+  
+      </g>
+      <g id="signed_notification">
+        <path d="M398 296C370 296 354 320 354 350V382L338 400H458L442 382V350C442 320 426 296 398 296Z" fill="#0B0B0C" stroke="#F0F0F2" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M382 414C386 436 410 436 414 414" stroke="#F0F0F2" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="398" cy="274" r="8" fill="#F0F0F2"/>
+      </g>
+    
+</svg>

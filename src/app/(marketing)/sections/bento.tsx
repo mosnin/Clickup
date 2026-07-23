@@ -1,4 +1,4 @@
-import { Container, Placeholder } from "@/components/marketing/ui";
+import { Container } from "@/components/marketing/ui";
 import { GsapReveal } from "@/components/marketing/gsap";
 import { BENTO } from "@/lib/marketing-content";
 
@@ -16,10 +16,15 @@ export function Bento() {
               key={tile.title}
               className="rounded-[20px] bg-muted p-2 transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-lg"
             >
-              <Placeholder
-                label={tile.visual}
-                ratio="16/10"
-                className="overflow-hidden rounded-[14px]"
+              {/* 1088×680 (16/10) — identical region to the old placeholder. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={tile.art}
+                alt={tile.alt}
+                width={1088}
+                height={680}
+                loading="lazy"
+                className="w-full rounded-[14px]"
               />
               <div className="px-5 pb-5 pt-4">
                 <h3 className="text-[15px] font-semibold tracking-tight text-foreground">

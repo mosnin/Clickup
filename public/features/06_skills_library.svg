@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1088" height="680" viewBox="0 0 1088 680" fill="none">
+  <title>Skills library</title>
+  <desc>Minimal charcoal enterprise product illustration with white focal geometry.</desc>
+  <defs>
+    <radialGradient id="background_vignette" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(544 330) rotate(90) scale(420 680)">
+      <stop offset="0" stop-color="#121214"/>
+      <stop offset=".62" stop-color="#0B0B0C"/>
+      <stop offset="1" stop-color="#080809"/>
+    </radialGradient>
+    <radialGradient id="agent_core" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.34 .28) rotate(45) scale(.78)">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset=".16" stop-color="#F4F5F7"/>
+      <stop offset=".38" stop-color="#C8CBD1"/>
+      <stop offset=".62" stop-color="#797C84"/>
+      <stop offset=".82" stop-color="#37393F"/>
+      <stop offset="1" stop-color="#15161A"/>
+    </radialGradient>
+    <radialGradient id="agent_aura" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".46"/>
+      <stop offset=".36" stop-color="#E6E7EA" stop-opacity=".22"/>
+      <stop offset=".7" stop-color="#A4A7AF" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#90939B" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="agent_specular" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".94"/>
+      <stop offset=".36" stop-color="#FFFFFF" stop-opacity=".4"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="scan_glow" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="scan_fade" x1="544" y1="210" x2="544" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="presence_fade" x1="544" y1="160" x2="544" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity=".78"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".04"/>
+    </linearGradient>
+    <filter id="soft_glow" x="-120%" y="-120%" width="340%" height="340%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="11"/>
+    </filter>
+  </defs>
+  <rect width="1088" height="680" fill="url(#background_vignette)"/>
+  
+      <g id="skill_stack">
+        
+    <g opacity="0.42">
+      <rect x="170" y="414" width="500" height="74" rx="24" fill="#0D0D0F" stroke="#414146" stroke-width="2.5"/>
+      <rect x="204" y="442" width="100" height="12" rx="6" fill="#5C5C62"/>
+      <rect x="330" y="442" width="160" height="12" rx="6" fill="#28282C"/>
+    </g>
+  
+        
+    <g opacity="0.56">
+      <rect x="194" y="350" width="520" height="74" rx="24" fill="#0D0D0F" stroke="#414146" stroke-width="2.5"/>
+      <rect x="228" y="378" width="104" height="12" rx="6" fill="#5C5C62"/>
+      <rect x="360" y="378" width="166" height="12" rx="6" fill="#28282C"/>
+    </g>
+  
+        
+    <g opacity="0.72">
+      <rect x="218" y="286" width="540" height="74" rx="24" fill="#0D0D0F" stroke="#414146" stroke-width="2.5"/>
+      <rect x="252" y="314" width="108" height="12" rx="6" fill="#5C5C62"/>
+      <rect x="391" y="314" width="173" height="12" rx="6" fill="#28282C"/>
+    </g>
+  
+        
+    <g opacity="0.92">
+      <rect x="242" y="222" width="560" height="74" rx="24" fill="#0D0D0F" stroke="#414146" stroke-width="2.5"/>
+      <rect x="276" y="250" width="112" height="12" rx="6" fill="#5C5C62"/>
+      <rect x="421" y="250" width="179" height="12" rx="6" fill="#28282C"/>
+    </g>
+  
+      </g>
+      <g id="selected_skill">
+        <rect x="358" y="244" width="168" height="62" rx="19" fill="#0B0B0C" stroke="#F0F0F2" stroke-width="4"/>
+        <path d="M404 266L388 275L404 284M480 266L496 275L480 284" stroke="#F0F0F2" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M432 286L452 264" stroke="#79797F" stroke-width="4" stroke-linecap="round"/>
+      </g>
+      <g id="agent_import">
+        <path d="M534 276C636 276 698 308 744 368" stroke="#39393E" stroke-width="4" stroke-linecap="round"/>
+        <path d="M728 350L748 370L724 378" stroke="#EDEDEF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        
+    <g opacity="1">
+      <circle cx="800" cy="386" r="72" fill="url(#agent_aura)" filter="url(#soft_glow)"/>
+      <circle cx="800" cy="386" r="44" fill="url(#agent_core)" stroke="#FFFFFF" stroke-opacity=".28" stroke-width="1.5"/>
+      <circle cx="787.68" cy="372.8" r="14" fill="url(#agent_specular)"/>
+    </g>
+  
+      </g>
+    
+</svg>

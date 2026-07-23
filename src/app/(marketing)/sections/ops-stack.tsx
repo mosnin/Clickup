@@ -1,7 +1,7 @@
 "use client";
 
 import gsap from "gsap";
-import { Container, Placeholder, SectionHeading } from "@/components/marketing/ui";
+import { Container, SectionHeading } from "@/components/marketing/ui";
 import { GsapReveal, useGsap } from "@/components/marketing/gsap";
 import { OPS_STACK } from "@/lib/marketing-content";
 
@@ -66,10 +66,15 @@ function OpsStackGrid() {
             className="gs-ops-card rounded-[20px] bg-muted p-2 transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-lg"
           >
             <div className="gs-ops-drift">
-              <Placeholder
-                label={card.visual}
-                ratio="16/10"
-                className="rounded-[14px]"
+              {/* 1088×680 (16/10) — identical region to the old placeholder. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={card.art}
+                alt={card.alt}
+                width={1088}
+                height={680}
+                loading="lazy"
+                className="w-full rounded-[14px]"
               />
               <div className="px-6 pb-6 pt-5">
                 <h3 className="text-lg font-semibold tracking-tight text-foreground">
