@@ -40,6 +40,13 @@ const STATUS_STYLE: Record<string, string> = {
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
+function errorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
+  );
+}
+
 const DETAIL_TABS = [
   { key: "overview", label: "Overview" },
   { key: "board", label: "Board" },
@@ -111,6 +118,7 @@ function CreateSprintForm({
   onDone: () => void;
 }) {
   const create = useMutation(api.sprints.create);
+  const { toast } = useToast();
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
   const [start, setStart] = useState(() => toDateInputValue(Date.now()));
@@ -124,14 +132,20 @@ function CreateSprintForm({
       onSubmit={async (e) => {
         e.preventDefault();
         if (!name.trim()) return;
-        await create({
-          workspaceId,
-          name: name.trim(),
-          goal: goal.trim() || undefined,
-          startDate: fromDateInputValue(start) ?? Date.now(),
-          endDate: fromDateInputValue(end) ?? Date.now(),
-        });
-        onDone();
+        try {
+          await create({
+            workspaceId,
+            name: name.trim(),
+            goal: goal.trim() || undefined,
+            startDate: fromDateInputValue(start) ?? Date.now(),
+            endDate: fromDateInputValue(end) ?? Date.now(),
+          });
+          onDone();
+        } catch (err) {
+          toast(errorMessage(err, "Couldn't create sprint"), {
+            kind: "error",
+          });
+        }
       }}
     >
       <label className="block">

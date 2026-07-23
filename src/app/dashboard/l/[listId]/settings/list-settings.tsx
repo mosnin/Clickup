@@ -472,6 +472,7 @@ function CreateStatusForm({
   const [color, setColor] = useState("#a9c6f2");
   const [category, setCategory] = useState<StatusCategory>("open");
   const [pending, setPending] = useState(false);
+  const { toast } = useToast();
 
   return (
     <form
@@ -482,6 +483,8 @@ function CreateStatusForm({
         try {
           await onSubmit(name.trim(), color, category);
           setName("");
+        } catch (e) {
+          toast(errorMessage(e, "Couldn't create status"), { kind: "error" });
         } finally {
           setPending(false);
         }
@@ -741,6 +744,7 @@ function CreateFieldForm({
   const [name, setName] = useState("");
   const [type, setType] = useState<FieldType>("text");
   const [pending, setPending] = useState(false);
+  const { toast } = useToast();
 
   return (
     <form
@@ -764,6 +768,8 @@ function CreateFieldForm({
           );
           setName("");
           setType("text");
+        } catch (e) {
+          toast(errorMessage(e, "Couldn't create field"), { kind: "error" });
         } finally {
           setPending(false);
         }
@@ -1068,6 +1074,7 @@ function CreateAutomationForm({
   ) => Promise<unknown>;
 }) {
   const [pending, setPending] = useState(false);
+  const { toast } = useToast();
 
   return (
     <form
@@ -1082,6 +1089,10 @@ function CreateAutomationForm({
               ? { kind: "set_status", statusId: firstStatus._id }
               : { kind: "set_priority", priority: "normal" },
           );
+        } catch (e) {
+          toast(errorMessage(e, "Couldn't create automation"), {
+            kind: "error",
+          });
         } finally {
           setPending(false);
         }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -125,14 +125,47 @@ export function DashboardSidebar() {
 
 // ── Header: workspace switcher ──────────────────────────────────────────
 //
-// "Current" is route-derived: a /dashboard/w/[id] URL means that workspace,
-// anything else means the personal space. Picking a different entry just
-// navigates — there is no separate client-side "selected workspace" state.
+// "Current" is content-derived: any /dashboard/w|s|l|d|wb/[id] URL is
+// resolved against the tree to find which workspace (if any) owns that id,
+// so opening a workspace-owned space/list/task/doc/whiteboard keeps the
+// header switcher and content tree pinned to that workspace instead of
+// silently collapsing to the personal space. Picking a different entry in
+// the switcher just navigates — there is no separate client-side "selected
+// workspace" state.
+
+// `wb` must be tried before `w` so `/dashboard/wb/:id` doesn't get cut short
+// at the `w` alternative (JS regex alternation backtracks, but ordering the
+// longer alternative first keeps this obviously correct without relying on
+// it).
+const CONTENT_ID_RE = /^\/dashboard\/(?:wb|w|s|l|d)\/([^/]+)/;
 
 function useCurrentContext(tree: SidebarTree | null | undefined) {
   const pathname = usePathname();
-  const workspaceId = /^\/dashboard\/w\/([^/]+)/.exec(pathname)?.[1];
-  const workspace = tree?.workspaces.find((w) => w._id === workspaceId);
+  const id = CONTENT_ID_RE.exec(pathname)?.[1];
+
+  // Reverse lookup from every id a workspace subtree owns (the workspace
+  // itself, its spaces, folders, space-direct + folder-nested lists, docs,
+  // whiteboards) back to that workspace. Built once per tree/pathname
+  // change rather than walked on every render.
+  const idToWorkspace = useMemo(() => {
+    const map = new Map<string, SidebarTree["workspaces"][number]>();
+    for (const workspace of tree?.workspaces ?? []) {
+      map.set(workspace._id, workspace);
+      for (const space of workspace.spaces) {
+        map.set(space._id, workspace);
+        for (const list of space.lists) map.set(list._id, workspace);
+        for (const doc of space.docs) map.set(doc._id, workspace);
+        for (const wb of space.whiteboards) map.set(wb._id, workspace);
+        for (const folder of space.folders) {
+          map.set(folder._id, workspace);
+          for (const list of folder.lists) map.set(list._id, workspace);
+        }
+      }
+    }
+    return map;
+  }, [tree]);
+
+  const workspace = id ? idToWorkspace.get(id) : undefined;
   if (workspace) return { kind: "workspace" as const, workspace };
   return { kind: "personal" as const };
 }
@@ -527,7 +560,7 @@ function SpaceCreateMenu({
           type="button"
           aria-label="Add to space"
           title="Add"
-          className="flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/space:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 group-data-[collapsible=icon]:hidden"
+          className="tap-target flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/space:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 group-data-[collapsible=icon]:hidden"
         >
           <Plus className="size-3.5" />
         </button>
@@ -682,6 +715,7 @@ function SpaceTree({ space, linkHref }: { space: SpaceNode; linkHref: string }) 
 }
 
 function FolderTree({ folder }: { folder: SpaceNode["folders"][number] }) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState(true);
   const [addingList, setAddingList] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -740,7 +774,7 @@ function FolderTree({ folder }: { folder: SpaceNode["folders"][number] }) {
               onClick={() => setRenaming(true)}
               aria-label="Rename folder"
               title="Rename folder"
-              className="flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/folder:opacity-100 focus-visible:opacity-100"
+              className="tap-target flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/folder:opacity-100 focus-visible:opacity-100"
             >
               <Pencil className="size-3.5" />
             </button>
@@ -755,7 +789,7 @@ function FolderTree({ folder }: { folder: SpaceNode["folders"][number] }) {
               }}
               aria-label="Delete folder"
               title="Delete folder"
-              className="flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/folder:opacity-100 focus-visible:opacity-100"
+              className="tap-target flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/folder:opacity-100 focus-visible:opacity-100"
             >
               <Trash2 className="size-3.5" />
             </button>
@@ -767,7 +801,7 @@ function FolderTree({ folder }: { folder: SpaceNode["folders"][number] }) {
               }}
               aria-label="Add list"
               title="Add list"
-              className="flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/folder:opacity-100 focus-visible:opacity-100"
+              className="tap-target flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/folder:opacity-100 focus-visible:opacity-100"
             >
               <Plus className="size-3.5" />
             </button>
@@ -783,8 +817,13 @@ function FolderTree({ folder }: { folder: SpaceNode["folders"][number] }) {
                 onCancel={() => setAddingList(false)}
                 onSubmit={async (name) => {
                   try {
-                    await createList({ name, parentType: "folder", parentId: folder._id });
+                    const listId = await createList({
+                      name,
+                      parentType: "folder",
+                      parentId: folder._id,
+                    });
                     setAddingList(false);
+                    router.push(`/dashboard/l/${listId}`);
                   } catch (e) {
                     toast(errorMessage(e, "Couldn't create list"), {
                       kind: "error",

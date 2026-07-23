@@ -17,7 +17,9 @@ export const tree = query({
       .withIndex("by_parent", (q) =>
         q.eq("parentType", "user").eq("parentId", subject),
       )
-      .unique();
+      // .first(), not .unique(): a duplicate personal-space row (webhook +
+      // ensureCurrent race) must not take the whole sidebar down.
+      .first();
 
     const memberships = await ctx.db
       .query("memberships")

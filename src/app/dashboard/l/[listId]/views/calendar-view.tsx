@@ -21,10 +21,18 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { parseQuickAdd } from "@/lib/quick-add";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
+import { useToast } from "@/components/toast";
 import {
   PriorityDot,
   type TaskPriority,
 } from "@/components/dashboard/priority";
+
+function errorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
+  );
+}
 
 // A calendar you can schedule on: drag a task chip onto a day to reschedule,
 // click a day's empty space to create a task due that day, click a chip to
@@ -285,15 +293,20 @@ function QuickAdd({
   onClose: () => void;
 }) {
   const [title, setTitle] = useState("");
+  const { toast } = useToast();
   return (
     <form
       onSubmit={async (e) => {
         e.preventDefault();
         const t = title.trim();
         if (!t) return onClose();
-        setTitle("");
-        onClose();
-        await onSubmit(t);
+        try {
+          await onSubmit(t);
+          setTitle("");
+          onClose();
+        } catch (err) {
+          toast(errorMessage(err, "Couldn't create task"), { kind: "error" });
+        }
       }}
     >
       <input

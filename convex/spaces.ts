@@ -18,7 +18,8 @@ export const personal = query({
       .withIndex("by_parent", (q) =>
         q.eq("parentType", "user").eq("parentId", identity.subject),
       )
-      .unique();
+      // .first(), not .unique(): tolerate a duplicated personal-space row.
+      .first();
   },
 });
 

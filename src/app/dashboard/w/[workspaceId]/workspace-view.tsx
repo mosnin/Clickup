@@ -20,6 +20,14 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { EASE, motion, Stagger, StaggerItem } from "@/components/motion";
+import { useToast } from "@/components/toast";
+
+function errorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
+  );
+}
 
 type Tab =
   | "overview"
@@ -297,6 +305,7 @@ function ChatWithChannels({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const createChannel = useMutation(api.channels.create);
   const activeChannel = searchParams.get("channel");
   const [addingChannel, setAddingChannel] = useState(false);
+  const { toast } = useToast();
 
   const base = `/dashboard/w/${workspaceId}?tab=chat`;
 
@@ -334,13 +343,19 @@ function ChatWithChannels({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
             className="w-52"
             onCancel={() => setAddingChannel(false)}
             onSubmit={async (name) => {
-              const channelId = await createChannel({
-                scopeType: "workspace",
-                scopeId: workspaceId,
-                name,
-              });
-              setAddingChannel(false);
-              router.push(`${base}&channel=${channelId}`);
+              try {
+                const channelId = await createChannel({
+                  scopeType: "workspace",
+                  scopeId: workspaceId,
+                  name,
+                });
+                setAddingChannel(false);
+                router.push(`${base}&channel=${channelId}`);
+              } catch (e) {
+                toast(errorMessage(e, "Couldn't create channel"), {
+                  kind: "error",
+                });
+              }
             }}
           />
         ) : (

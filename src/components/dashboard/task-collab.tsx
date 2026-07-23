@@ -17,6 +17,13 @@ import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { AnimatedBar, AnimatePresence, EASE, motion } from "@/components/motion";
 
+function errorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
+  );
+}
+
 // Collaboration sections for the task detail page: approval/claim banners,
 // assignees (humans AND agents), sprint membership, acceptance-criteria
 // checklist, and blocked-by dependencies. Exported as separate components
@@ -445,13 +452,16 @@ export function TaskBlockedBy({
 
 export function TaskChecklist({ task }: { task: Doc<"tasks"> }) {
   const update = useMutation(api.tasks.update);
+  const { toast } = useToast();
   const [newItem, setNewItem] = useState("");
   const items = task.checklist ?? [];
   const doneCount = items.filter((i) => i.done).length;
   const pct = items.length > 0 ? (doneCount / items.length) * 100 : 0;
 
   function commit(next: { id: string; text: string; done: boolean }[]) {
-    update({ taskId: task._id, checklist: next });
+    update({ taskId: task._id, checklist: next }).catch((e) => {
+      toast(errorMessage(e, "Couldn't update checklist"), { kind: "error" });
+    });
   }
 
   return (

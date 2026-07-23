@@ -719,6 +719,7 @@ function ColumnAdd({
   statusId: Id<"listStatuses">;
 }) {
   const create = useMutation(api.tasks.create);
+  const { toast } = useToast();
   const [title, setTitle] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -726,14 +727,20 @@ function ColumnAdd({
     e.preventDefault();
     const parsed = parseQuickAdd(title);
     if (!parsed.title) return;
-    setTitle("");
-    await create({
-      listId,
-      title: parsed.title,
-      statusId,
-      dueDate: parsed.dueDate,
-      priority: parsed.priority,
-    });
+    try {
+      await create({
+        listId,
+        title: parsed.title,
+        statusId,
+        dueDate: parsed.dueDate,
+        priority: parsed.priority,
+      });
+      setTitle("");
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const msg = raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim();
+      toast(msg || "Couldn't create task", { kind: "error" });
+    }
   }
 
   if (!open) {
