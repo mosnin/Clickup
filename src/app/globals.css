@@ -245,6 +245,11 @@ body {
     animation: none;
     opacity: 0;
   }
+  .text-gradient,
+  .mk-gradient-fill {
+    animation: none !important;
+    background-size: 100% auto !important;
+  }
 }
 
 /* ── Marketing v3 — dark charcoal recolor ─────────────────────────────────
@@ -267,13 +272,17 @@ body {
   --color-navy-900: #0f0f14;
   --color-navy-950: #08080b;
 
-  /* Vibrant accent trio for gradients that pop on charcoal. Azure stays the
-     lead; violet + cyan are the companions. Lighten azure text for contrast
-     on the dark canvas. */
-  --color-azure-300: #9cc4ff;
-  --color-azure-400: #7aa8ff;
-  --color-azure-600: #6aa8ff;
-  --color-azure-700: #8ec0ff;
+  /* Warm sunset accent ramp (amber → coral → rose). The token names stay
+     "azure" but carry warm values here, so every accent — links, dots,
+     rings, eyebrow chips, border beams — turns warm across the logged-out
+     site in one place. Lightened at the top end for contrast on charcoal. */
+  --color-azure-100: #3a2418;
+  --color-azure-200: #5c3320;
+  --color-azure-300: #ffc27a;
+  --color-azure-400: #ff9d5c;
+  --color-azure-500: #ff7a45;
+  --color-azure-600: #ff8f52;
+  --color-azure-700: #ffcf6b;
   --mk-panel: #131318;
   --mk-panel-2: #1a1a21;
 
@@ -282,21 +291,36 @@ body {
   background: transparent;
 }
 
-/* Gradient text that pops on charcoal. Apply to a heading span; it clips the
-   gradient to the glyphs. */
+/* Warm gradient text — a living amber→coral→rose→gold sunset that slowly
+   pans for flair (not a flat linear ramp). Apply to a heading span; it clips
+   the gradient to the glyphs. Endpoints match so the pan loops seamlessly. */
 .text-gradient {
-  background-image: linear-gradient(100deg, #8ec5ff 0%, #a78bfa 48%, #5ce1e6 100%);
+  background-image: linear-gradient(
+    100deg,
+    #ffd27a 0%,
+    #ff9d4d 24%,
+    #ff5f6d 50%,
+    #ff8a3d 76%,
+    #ffd27a 100%
+  );
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: gradient-pan 9s linear infinite;
+}
+.text-gradient-soft {
+  background-image: linear-gradient(100deg, #ffffff 0%, #ffdcae 55%, #ff9d4d 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
 }
-.text-gradient-soft {
-  background-image: linear-gradient(100deg, #f4f4f7 0%, #c9d6ff 55%, #a78bfa 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
+@keyframes gradient-pan {
+  to {
+    background-position: 220% center;
+  }
 }
 
 /* Lifted charcoal panel — the dark-mode replacement for the old white card
@@ -317,21 +341,31 @@ body {
   background: transparent;
 }
 
-/* Vibrant gradient fill for primary CTAs and accent chips. */
+/* Warm gradient fill for primary CTAs and accent chips — a coral→rose→amber
+   sunset that gently pans (endpoints match for a seamless loop). */
 .mk-gradient-fill {
-  background-image: linear-gradient(100deg, #2563eb 0%, #7c3aed 55%, #06b6d4 100%);
+  background-image: linear-gradient(
+    100deg,
+    #ff8a3d 0%,
+    #ff5f6d 40%,
+    #ffb04d 70%,
+    #ff8a3d 100%
+  );
+  background-size: 200% auto;
   color: #ffffff;
+  animation: gradient-pan 10s linear infinite;
 }
 
-/* A soft neutral glow blob for depth behind hero art / feature mocks —
-   white, not blue, so it lifts the art without tinting the page. */
+/* A soft warm glow blob for depth behind hero art / feature mocks — a faint
+   amber lift that matches the warm accent scheme. */
 .mk-glow {
   background: radial-gradient(
     closest-side,
-    rgb(255 255 255 / 0.08),
-    transparent 70%
+    rgb(255 138 61 / 0.16),
+    rgb(255 95 109 / 0.08) 55%,
+    transparent 75%
   );
-  filter: blur(24px);
+  filter: blur(28px);
 }
 
 /* GSAP reveal targets start hidden before hydration so scroll-reveals
