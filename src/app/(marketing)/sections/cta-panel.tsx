@@ -135,7 +135,14 @@ export function CtaPanel() {
             />
             <div className="px-8 pb-0 translate-y-6 md:translate-x-10 md:translate-y-8 md:self-end md:px-0 md:pb-0">
               <div data-cta-shot>
-                <ScreenshotFrame label={CTA_PANEL.screenshot} ratio="4/3" tone="dark" />
+                <ScreenshotFrame
+                  label={CTA_PANEL.screenshot}
+                  // Native aspect (2484x1228) so nothing gets cropped.
+                  ratio="2484/1228"
+                  tone="dark"
+                  src="/screenshots/cta-onboarding.png"
+                  alt="Onboarding in operate.to — workspace, agent key, and first task"
+                />
               </div>
             </div>
           </div>
