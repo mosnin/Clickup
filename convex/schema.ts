@@ -125,6 +125,12 @@ export default defineSchema({
     parentId: v.string(),
     position: v.number(),
     createdAt: v.number(),
+    // ── Roadmap membership (Phase K) ──
+    // A project can sit in one roadmap phase; roadmapPosition orders it
+    // within that phase. All optional — projects outside roadmaps are fine.
+    roadmapId: v.optional(v.id("roadmaps")),
+    roadmapPhaseId: v.optional(v.string()),
+    roadmapPosition: v.optional(v.number()),
     // ── Project metadata (a list IS a project) ──
     // One-line summary shown on Home cards and the project header.
     description: v.optional(v.string()),
@@ -144,7 +150,28 @@ export default defineSchema({
     // Target completion date (local-midnight ms).
     targetDate: v.optional(v.number()),
   })
-    .index("by_parent", ["parentType", "parentId"]),
+    .index("by_parent", ["parentType", "parentId"])
+    .index("by_roadmap", ["roadmapId"]),
+
+  // ── Roadmaps (Phase K) ──
+  // Workspace-level phased containers ("Now / Next / Later", quarters,
+  // launch trains…) that projects (lists) slot into. Phases are embedded:
+  // small, ordered, and always fetched with the roadmap.
+  roadmaps: defineTable({
+    workspaceId: v.id("workspaces"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    phases: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+        // Optional phase target (local-midnight ms) for timeline framing.
+        targetDate: v.optional(v.number()),
+      }),
+    ),
+    position: v.number(),
+    createdAt: v.number(),
+  }).index("by_workspace", ["workspaceId"]),
 
   // Per-list custom workflow stages. Every list seeds 4 defaults
   // (To Do / In Progress / Complete / Closed) on creation; users can

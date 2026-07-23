@@ -92,6 +92,38 @@ export const create = mutation({
   },
 });
 
+// Reorder the lists under one parent (space or folder). Takes the full
+// desired order; ids that no longer live under this parent are skipped
+// (stale client state) rather than corrupting positions, and only rows
+// whose position actually changed get patched.
+export const reorder = mutation({
+  args: {
+    parentType: parentTypeValidator,
+    parentId: v.string(),
+    orderedIds: v.array(v.id("lists")),
+  },
+  handler: async (ctx, args) => {
+    if (args.parentType === "space") {
+      await requireSpaceAccess(ctx, args.parentId as Id<"spaces">);
+    } else {
+      await requireFolderAccess(ctx, args.parentId as Id<"folders">);
+    }
+    for (let i = 0; i < args.orderedIds.length; i++) {
+      const list = await ctx.db.get(args.orderedIds[i]);
+      if (
+        !list ||
+        list.parentType !== args.parentType ||
+        list.parentId !== args.parentId
+      ) {
+        continue;
+      }
+      if (list.position !== i) {
+        await ctx.db.patch(list._id, { position: i });
+      }
+    }
+  },
+});
+
 export const rename = mutation({
   args: { listId: v.id("lists"), name: v.string() },
   handler: async (ctx, { listId, name }) => {
