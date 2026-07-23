@@ -295,9 +295,17 @@ export const assignProject = mutation({
     if (!roadmap || roadmap.workspaceId !== resolved.workspaceId) {
       throw new Error("Roadmap belongs to a different workspace");
     }
+    // An explicit phaseId that no longer exists (deleted concurrently) is
+    // an error, not a silent drop into the first phase.
     const phase =
-      roadmap.phases.find((p) => p.id === args.phaseId) ?? roadmap.phases[0];
-    if (!phase) throw new Error("Roadmap has no phases");
+      args.phaseId !== undefined
+        ? roadmap.phases.find((p) => p.id === args.phaseId)
+        : roadmap.phases[0];
+    if (!phase) {
+      throw new Error(
+        args.phaseId !== undefined ? "Phase not found" : "Roadmap has no phases",
+      );
+    }
     const siblings = await ctx.db
       .query("lists")
       .withIndex("by_roadmap", (q) => q.eq("roadmapId", roadmap._id))
@@ -305,10 +313,15 @@ export const assignProject = mutation({
     const inPhase = siblings.filter(
       (l) => l.roadmapPhaseId === phase.id && l._id !== args.listId,
     );
+    // max+1, not count: unassigns leave gaps, so length would collide.
+    const maxPosition = inPhase.reduce(
+      (m, l) => Math.max(m, l.roadmapPosition ?? 0),
+      -1,
+    );
     await ctx.db.patch(args.listId, {
       roadmapId: roadmap._id,
       roadmapPhaseId: phase.id,
-      roadmapPosition: inPhase.length,
+      roadmapPosition: maxPosition + 1,
     });
   },
 });
@@ -321,7 +334,11 @@ export const reorderPhase = mutation({
     orderedIds: v.array(v.id("lists")),
   },
   handler: async (ctx, args) => {
-    const { roadmap } = await requireRoadmap(ctx, args.roadmapId);
+    const { roadmap, identity } = await requireRoadmap(ctx, args.roadmapId);
+    // Same per-space gate as listForWorkspace: workspace membership alone
+    // must not let a caller rewrite ordering of lists in private spaces
+    // they can't access.
+    const spaceOk = new Map<string, boolean>();
     for (let i = 0; i < args.orderedIds.length; i++) {
       const list = await ctx.db.get(args.orderedIds[i]);
       if (
@@ -331,6 +348,16 @@ export const reorderPhase = mutation({
       ) {
         continue; // stale client order — skip rather than corrupt
       }
+      const resolved = await workspaceOfList(ctx, list._id);
+      if (!resolved || resolved.workspaceId !== roadmap.workspaceId) continue;
+      let ok = spaceOk.get(resolved.space._id);
+      if (ok === undefined) {
+        ok = await canAccessSpace(ctx, resolved.space, {
+          subject: identity.subject,
+        });
+        spaceOk.set(resolved.space._id, ok);
+      }
+      if (!ok) continue;
       if (list.roadmapPosition !== i) {
         await ctx.db.patch(list._id, { roadmapPosition: i });
       }

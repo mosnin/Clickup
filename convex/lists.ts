@@ -20,6 +20,20 @@ export const listForParent = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
+    // Resolve up to the owning space and gate on it — being logged in
+    // must not be enough to enumerate a private space's projects by ID.
+    let space;
+    if (args.parentType === "space") {
+      space = await ctx.db.get(args.parentId as Id<"spaces">);
+    } else {
+      const folder = await ctx.db.get(args.parentId as Id<"folders">);
+      if (!folder) return [];
+      space = await ctx.db.get(folder.spaceId);
+    }
+    if (!space) return [];
+    if (!(await canAccessSpace(ctx, space, { subject: identity.subject }))) {
+      return [];
+    }
     return await ctx.db
       .query("lists")
       .withIndex("by_parent", (q) =>

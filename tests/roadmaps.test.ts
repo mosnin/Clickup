@@ -295,6 +295,72 @@ describe("roadmaps", () => {
     expect(list?.roadmapPhaseId).toBeUndefined();
   });
 
+  it("private spaces: a locked-out member neither sees nor reorders their projects", async () => {
+    const t = convexTest(schema, modules);
+    const { owner, workspaceId, spaceId } = await seedWorkspace(t);
+    const [pub] = await createProjects(owner, spaceId, ["Public"]);
+
+    // A second workspace member with no access to the private space.
+    const MEMBER = { subject: "user_member", email: "member@team.com" };
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        clerkId: MEMBER.subject,
+        email: MEMBER.email,
+      });
+      await ctx.db.insert("memberships", {
+        workspaceId,
+        userClerkId: MEMBER.subject,
+        role: "member",
+        joinedAt: Date.now(),
+      });
+    });
+    const privateSpaceId = await owner.mutation(api.spaces.create, {
+      name: "Secret",
+      parentType: "workspace",
+      parentId: workspaceId,
+    });
+    await owner.mutation(api.spaces.updateMeta, {
+      spaceId: privateSpaceId,
+      private: true,
+    });
+    const [secret] = await createProjects(owner, privateSpaceId, [
+      "Secret launch",
+    ]);
+
+    const roadmapId = await owner.mutation(api.roadmaps.create, {
+      workspaceId,
+      name: "Roadmap",
+    });
+    await owner.mutation(api.roadmaps.assignProject, {
+      listId: secret,
+      roadmapId,
+    });
+    await owner.mutation(api.roadmaps.assignProject, {
+      listId: pub,
+      roadmapId,
+    });
+
+    const member = t.withIdentity(MEMBER);
+    // Read: the private project's name never reaches the locked-out member.
+    const roadmaps = await member.query(api.roadmaps.listForWorkspace, {
+      workspaceId,
+    });
+    expect(
+      roadmaps![0].projects.map((p: { name: string }) => p.name),
+    ).toEqual(["Public"]);
+
+    // Write: a reorder from the locked-out member (who can only see the
+    // public subset) must not move the private list.
+    const phaseId = roadmaps![0].phases[0].id;
+    await member.mutation(api.roadmaps.reorderPhase, {
+      roadmapId,
+      phaseId,
+      orderedIds: [pub, secret],
+    });
+    const secretRow = await t.run(async (ctx) => ctx.db.get(secret));
+    expect(secretRow!.roadmapPosition).toBe(0); // untouched
+  });
+
   it("non-members read null and can't mutate", async () => {
     const t = convexTest(schema, modules);
     const { owner, workspaceId } = await seedWorkspace(t);
