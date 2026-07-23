@@ -37,6 +37,7 @@ import {
 import { createScheduledTaskCore, computeNextRunAt } from "./scheduledTasks";
 import { createSubscription } from "./webhooks";
 import { skillsForScope } from "./skills";
+import { blueprintTaskFields } from "./taskBlueprints";
 import { createChannelCore } from "./channels";
 import { applyListTemplateCore, templateCatalog } from "./templates";
 import { seedDefaultStatuses } from "./listStatuses";
@@ -2573,5 +2574,68 @@ export const resolveComment = mutation({
       resolvedAt: args.resolved ? Date.now() : undefined,
       resolvedByClerkId: args.resolved ? agent._id : undefined,
     });
+  },
+});
+
+// ── Task blueprints (Phase L) ──────────────────────────────────────────
+
+// Blueprints in my scope: reusable task definitions ops humans (or other
+// agents) have standardized.
+export const listBlueprints = query({
+  args: { apiKey: v.string() },
+  handler: async (ctx, { apiKey }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const rows = await ctx.db
+      .query("taskBlueprints")
+      .withIndex("by_scope", (q) =>
+        q.eq("scopeType", agent.parentType).eq("scopeId", agent.parentId),
+      )
+      .collect();
+    return rows
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((bp) => ({
+        blueprintId: bp._id,
+        name: bp.name,
+        title: bp.title,
+        description: bp.description,
+        priority: bp.priority,
+        checklist: bp.checklist,
+        estimatePoints: bp.estimatePoints,
+        sopSlug: bp.sopSlug,
+        dueInDays: bp.dueInDays,
+        requiresApproval: bp.requiresApproval ?? false,
+      }));
+  },
+});
+
+// Instantiate a blueprint into a list. Runs through the shared task core,
+// so routing, automations, rollups, and events all apply.
+export const instantiateBlueprint = mutation({
+  args: {
+    apiKey: v.string(),
+    blueprintId: v.id("taskBlueprints"),
+    listId: v.id("lists"),
+    assigneeIds: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    await requireListAccessForAgent(ctx, args.listId, agent);
+    const bp = await ctx.db.get(args.blueprintId);
+    if (
+      !bp ||
+      bp.scopeType !== agent.parentType ||
+      bp.scopeId !== agent.parentId
+    ) {
+      throw new Error("Blueprint not found in your scope");
+    }
+    return await createTaskCore(
+      ctx,
+      {
+        listId: args.listId,
+        assigneeIds: args.assigneeIds,
+        ...blueprintTaskFields(bp),
+      },
+      agentActor(agent),
+    );
   },
 });

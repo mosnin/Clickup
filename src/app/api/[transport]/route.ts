@@ -599,6 +599,31 @@ const TOOLS: ToolDef[] = [
       c.mutation(asMutation(api.agentApi.createSkill), { apiKey: k, ...a }),
   },
 
+  // ── Task blueprints ──────────────────────────────────────────────
+  {
+    name: "list_blueprints",
+    description:
+      "Reusable task blueprints in my scope (standardized ops work: title, checklist, priority, SOP, approval gate). Instantiate one with instantiate_blueprint.",
+    shape: {},
+    run: (c, k) =>
+      c.query(asQuery(api.agentApi.listBlueprints), { apiKey: k }),
+  },
+  {
+    name: "instantiate_blueprint",
+    description:
+      "Create a real task from a blueprint in a list. The full shape applies (checklist, priority, estimate, due-in-days, approval gate) and the list's assignment routing fills in an assignee if none is given.",
+    shape: {
+      blueprintId: z.string(),
+      listId: z.string(),
+      assigneeIds: z.array(z.string()).optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.instantiateBlueprint), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+
   // ── Docs ─────────────────────────────────────────────────────────
   {
     name: "list_docs",
