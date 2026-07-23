@@ -291,9 +291,11 @@ function TaskPeekBody({
                   type="button"
                   aria-pressed={task.priority === p}
                   onClick={() =>
+                    // Clicking the active pill clears the priority; null (not
+                    // undefined) survives the wire so the clear actually lands.
                     void update({
                       taskId,
-                      priority: task.priority === p ? undefined : p,
+                      priority: task.priority === p ? null : p,
                     })
                   }
                   className={cn(

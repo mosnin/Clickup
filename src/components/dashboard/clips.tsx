@@ -231,7 +231,7 @@ function RecordingPanel({ onStop }: { onStop: () => void }) {
 }
 
 function ClipCard({ clip }: { clip: Doc<"clips"> }) {
-  const url = useQuery(api.clips.getUrl, { storageId: clip.storageId });
+  const url = useQuery(api.clips.getUrl, { clipId: clip._id });
   const remove = useMutation(api.clips.remove);
   const { toast } = useToast();
   const [deleting, setDeleting] = useState(false);
@@ -265,7 +265,17 @@ function ClipCard({ clip }: { clip: Doc<"clips"> }) {
             setDeleting(true);
             toast("Clip deleted", {
               action: { label: "Undo", onClick: () => setDeleting(false) },
-              onExpire: () => remove({ clipId: clip._id }),
+              onExpire: () => {
+                remove({ clipId: clip._id }).catch((err) => {
+                  setDeleting(false);
+                  toast(
+                    err instanceof Error
+                      ? err.message
+                      : "Couldn't delete clip",
+                    { kind: "error" },
+                  );
+                });
+              },
             });
           }}
           className="tap-target text-muted-foreground hover:text-foreground"

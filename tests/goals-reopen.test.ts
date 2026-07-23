@@ -17,9 +17,11 @@ async function createGoal(
   targetValue: number,
 ) {
   await t.run(async (ctx) => {
+    // .filter instead of .withIndex: the schemaless test ctx doesn't carry
+    // index typings, and a full scan is fine for a seed helper.
     const existing = await ctx.db
       .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", OWNER.subject))
+      .filter((q) => q.eq(q.field("clerkId"), OWNER.subject))
       .unique();
     if (!existing) {
       await ctx.db.insert("users", {

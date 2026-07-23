@@ -370,12 +370,23 @@ function TaskEditor({
           <Field label="Status">
             <select
               value={task.statusId}
-              onChange={(e) =>
-                update({
-                  taskId: task._id,
-                  statusId: e.currentTarget.value as Id<"listStatuses">,
-                })
-              }
+              onChange={async (e) => {
+                const nextStatusId = e.currentTarget
+                  .value as Id<"listStatuses">;
+                try {
+                  await update({ taskId: task._id, statusId: nextStatusId });
+                } catch (err) {
+                  // Blockers / approval gates refuse complete-category
+                  // statuses — surface why, same as onToggleComplete.
+                  const raw = err instanceof Error ? err.message : String(err);
+                  const msg = raw
+                    .split("Uncaught Error:")
+                    .pop()
+                    ?.split("\n")[0]
+                    ?.trim();
+                  toast(msg || "Couldn't update status", { kind: "error" });
+                }
+              }}
               className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
             >
               {statuses.map((s) => (
@@ -391,9 +402,11 @@ function TaskEditor({
               value={task.priority ?? ""}
               onChange={(e) => {
                 const v = e.currentTarget.value;
+                // Explicit null clears the priority — undefined would be
+                // dropped from the wire and the clear silently ignored.
                 update({
                   taskId: task._id,
-                  priority: (v || undefined) as TaskPriority | undefined,
+                  priority: (v || null) as TaskPriority | null,
                 });
               }}
               className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
@@ -574,15 +587,29 @@ function TaskEditor({
                       value={valuesByField.get(field._id)}
                       size="md"
                       onCommit={(value) => {
-                        if (value === null) {
-                          clearValue({ taskId: task._id, fieldId: field._id });
-                        } else {
-                          setValue({
-                            taskId: task._id,
-                            fieldId: field._id,
-                            ...value,
+                        const op =
+                          value === null
+                            ? clearValue({
+                                taskId: task._id,
+                                fieldId: field._id,
+                              })
+                            : setValue({
+                                taskId: task._id,
+                                fieldId: field._id,
+                                ...value,
+                              });
+                        op.catch((err) => {
+                          const raw =
+                            err instanceof Error ? err.message : String(err);
+                          const msg = raw
+                            .split("Uncaught Error:")
+                            .pop()
+                            ?.split("\n")[0]
+                            ?.trim();
+                          toast(msg || "Couldn't update field", {
+                            kind: "error",
                           });
-                        }
+                        });
                       }}
                     />
                   </Field>

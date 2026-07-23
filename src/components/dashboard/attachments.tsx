@@ -183,7 +183,17 @@ function AttachmentCard({ row }: { row: AttachmentRow }) {
           setDeleting(true);
           toast("Attachment deleted", {
             action: { label: "Undo", onClick: () => setDeleting(false) },
-            onExpire: () => remove({ attachmentId: row._id }),
+            onExpire: () => {
+              remove({ attachmentId: row._id }).catch((err) => {
+                setDeleting(false);
+                toast(
+                  err instanceof Error
+                    ? err.message
+                    : "Couldn't delete attachment",
+                  { kind: "error" },
+                );
+              });
+            },
           });
         }}
         className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"

@@ -144,7 +144,17 @@ function EntryRow({ entry }: { entry: Doc<"timeEntries"> }) {
           setDeleting(true);
           toast("Time entry deleted", {
             action: { label: "Undo", onClick: () => setDeleting(false) },
-            onExpire: () => remove({ entryId: entry._id }),
+            onExpire: () => {
+              remove({ entryId: entry._id }).catch((err) => {
+                setDeleting(false);
+                toast(
+                  err instanceof Error
+                    ? err.message
+                    : "Couldn't delete time entry",
+                  { kind: "error" },
+                );
+              });
+            },
           });
         }}
         className="tap-target text-xs text-muted-foreground hover:text-foreground"

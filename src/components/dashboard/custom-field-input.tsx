@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Doc } from "@convex/_generated/dataModel";
+import { useToast } from "@/components/toast";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 
 // Renders an input appropriate for a given custom field type. The parent
@@ -27,6 +28,7 @@ export function CustomFieldInput({
   onCommit: (value: FieldValue | null) => void;
   size?: "sm" | "md";
 }) {
+  const { toast } = useToast();
   const cls =
     size === "sm"
       ? "rounded-full border border-border bg-background px-2 py-1 text-xs"
@@ -48,7 +50,12 @@ export function CustomFieldInput({
           onCommit={(v) => {
             if (v === "") return onCommit(null);
             const n = Number(v);
-            if (!Number.isFinite(n)) return;
+            if (!Number.isFinite(n)) {
+              // Invalid input: revert the draft to the last saved value and
+              // say so, mirroring the Estimate input's behavior.
+              toast(`"${v}" isn't a number`, { kind: "error" });
+              return false;
+            }
             onCommit({ numberValue: n });
           }}
           className={cls}
@@ -104,7 +111,8 @@ function DebouncedText({
   inputMode,
 }: {
   initial: string;
-  onCommit: (value: string) => void;
+  /** Return `false` to reject the value: the draft reverts to `initial`. */
+  onCommit: (value: string) => boolean | void;
   className: string;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
 }) {
@@ -118,7 +126,8 @@ function DebouncedText({
       value={draft}
       onChange={(e) => setDraft(e.currentTarget.value)}
       onBlur={() => {
-        if (draft !== initial) onCommit(draft);
+        if (draft === initial) return;
+        if (onCommit(draft) === false) setDraft(initial);
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
