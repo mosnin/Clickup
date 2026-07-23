@@ -779,6 +779,7 @@ function ChildTaskRow({
 function NewTaskRow({ listId }: { listId: Id<"lists"> }) {
   const [title, setTitle] = useState("");
   const create = useMutation(api.tasks.create);
+  const { toast } = useToast();
   const [pending, setPending] = useState(false);
   // Natural-language grammar: "tomorrow", "friday", "!high" parse into
   // real fields; chips preview what was understood.
@@ -796,6 +797,10 @@ function NewTaskRow({ listId }: { listId: Id<"lists"> }) {
         priority: parsed.priority,
       });
       setTitle("");
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const msg = raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim();
+      toast(msg || "Couldn't create task", { kind: "error" });
     } finally {
       setPending(false);
     }
