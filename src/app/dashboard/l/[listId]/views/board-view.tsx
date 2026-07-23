@@ -57,8 +57,10 @@ import {
 // the original single-row board — its layout and DnD wiring stay byte-for-
 // byte the same as before this feature; lane modes reuse the exact same
 // `columns` (grouped by status across the WHOLE list) for drag math, and
-// only filter what's rendered per band. Cross-lane drops therefore always
-// resolve to a status-only change, never a silent reassignment.
+// only filter what's rendered per band. A drop into a DIFFERENT lane never
+// reassigns the lane dimension, so instead of silently applying a
+// status-only change we refuse it and explain via the move-error banner;
+// same-lane drops behave exactly like the plain board.
 type LaneMode = "none" | "assignee" | "priority" | "sprint";
 
 function parseLaneMode(value: string | null): LaneMode {
@@ -198,16 +200,25 @@ export function BoardView({
   }, [laneMode, orderedTasks, assignable, sprints]);
 
   // Maps every rendered droppable column id (namespaced by lane) back to its
-  // real status id, so dropping on an empty column resolves correctly in
-  // both plain and lane modes.
+  // real status id AND the lane it renders in, so dropping on an empty
+  // column resolves correctly (and can be lane-checked) in both plain and
+  // lane modes.
   const emptyColumnIds = useMemo(() => {
-    const map = new Map<string, Id<"listStatuses">>();
+    const map = new Map<
+      string,
+      { statusId: Id<"listStatuses">; laneKey: string | null }
+    >();
     if (laneMode === "none") {
-      for (const s of sortedStatuses) map.set(columnDomId(null, s._id), s._id);
+      for (const s of sortedStatuses) {
+        map.set(columnDomId(null, s._id), { statusId: s._id, laneKey: null });
+      }
     } else {
       for (const lane of lanes ?? []) {
         for (const s of sortedStatuses) {
-          map.set(columnDomId(lane.key, s._id), s._id);
+          map.set(columnDomId(lane.key, s._id), {
+            statusId: s._id,
+            laneKey: lane.key,
+          });
         }
       }
     }
@@ -241,7 +252,7 @@ export function BoardView({
     let overColumn: Id<"listStatuses"> | null = null;
     const mapped = emptyColumnIds.get(overId as string);
     if (mapped) {
-      overColumn = mapped;
+      overColumn = mapped.statusId;
     } else {
       overColumn = findColumnFor(overId as Id<"tasks">);
     }
@@ -264,12 +275,14 @@ export function BoardView({
     if (!activeTask) return;
 
     let targetStatus: Id<"listStatuses"> = activeTask.statusId;
+    let targetLaneKey: string | null = null;
     let insertIndex = -1;
 
     const mapped = emptyColumnIds.get(overId as string);
     if (mapped) {
       // Dropped on an empty column — append.
-      targetStatus = mapped;
+      targetStatus = mapped.statusId;
+      targetLaneKey = mapped.laneKey;
       const bucket = columns.get(targetStatus) ?? [];
       insertIndex = bucket.length;
     } else {
@@ -278,8 +291,27 @@ export function BoardView({
       );
       if (!overTask) return;
       targetStatus = overTask.statusId;
+      targetLaneKey =
+        laneMode === "none" ? null : laneKeyFor(overTask, laneMode);
       const bucket = columns.get(targetStatus) ?? [];
       insertIndex = bucket.findIndex((t) => t._id === overTask._id);
+    }
+
+    // Cross-lane drops never reassign the lane dimension (assignee /
+    // priority / sprint) — the server call would only change status and
+    // silently no-op what the user visually did. Refuse with feedback
+    // instead of pretending. The lane key is derived from the task's
+    // original fields (onDragOver only touches statusId), so this check
+    // is stable even mid-drag.
+    if (laneMode !== "none" && targetLaneKey !== null) {
+      const sourceLaneKey = laneKeyFor(activeTask, laneMode);
+      if (sourceLaneKey !== targetLaneKey) {
+        setOrderedTasks(tasks);
+        setMoveError(
+          "Dragging between lanes doesn't reassign — change the assignee, priority, or sprint on the task instead.",
+        );
+        return;
+      }
     }
 
     // Build the new order for the target column locally.

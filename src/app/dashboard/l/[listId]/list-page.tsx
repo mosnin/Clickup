@@ -132,11 +132,22 @@ export function ListPage({
       .filter((s) => s.category === "complete" || s.category === "closed")
       .map((s) => s._id),
   );
+  // "Blocked" means "has a blocker that is still open" (matches
+  // task-badges and the server's openBlockers), not "ever had a blocker".
+  // Resolve same-list blockers against the already-loaded tasks (the full
+  // set, subtasks included — a blocker can be any task); blocker ids not
+  // found in this list are cross-list and count conservatively as open.
+  const listTaskIds = new Set<Id<"tasks">>(tasks.map((t) => t._id));
+  const openTaskIds = new Set<Id<"tasks">>(
+    tasks.filter((t) => !doneStatusIds.has(t.statusId)).map((t) => t._id),
+  );
   const topLevelTasks = applyFilters(
     allTop,
     activeFlags,
     priorityFilter,
     doneStatusIds,
+    listTaskIds,
+    openTaskIds,
     user?.id,
   );
   // Only claim "filtered" (and show the narrower count) on views that
@@ -436,15 +447,24 @@ function applyFilters(
   flags: Set<string>,
   priority: string,
   doneStatusIds: Set<Id<"listStatuses">>,
+  listTaskIds: Set<Id<"tasks">>,
+  openTaskIds: Set<Id<"tasks">>,
   myId: string | undefined,
 ): Doc<"tasks">[] {
+  // A task is blocked only while at least one of its blockers is still
+  // open. Same-list blockers resolve against the loaded data; a blocker
+  // id we can't see here lives in another list — treat it as open rather
+  // than silently un-blocking the task.
+  const hasOpenBlocker = (t: Doc<"tasks">) =>
+    (t.blockedByTaskIds ?? []).some((id) =>
+      listTaskIds.has(id) ? openTaskIds.has(id) : true,
+    );
   return tasks.filter((t) => {
     if (flags.has("active") && doneStatusIds.has(t.statusId)) return false;
     if (flags.has("mine") && (!myId || !t.assigneeClerkIds.includes(myId)))
       return false;
     if (flags.has("unassigned") && t.assigneeClerkIds.length > 0) return false;
-    if (flags.has("blocked") && (t.blockedByTaskIds ?? []).length === 0)
-      return false;
+    if (flags.has("blocked") && !hasOpenBlocker(t)) return false;
     if (flags.has("approval") && !(t.requiresApproval && !t.approvedAt))
       return false;
     if (priority && t.priority !== priority) return false;
