@@ -586,6 +586,7 @@ function CreateAgentForm({
   const create = useMutation(api.agents.create);
   const mintKey = useAction(api.agentKeys.createKey);
   const { user } = useUser();
+  const { toast } = useToast();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [scope, setScope] = useState("personal");
@@ -645,6 +646,10 @@ function CreateAgentForm({
         e.preventDefault();
         if (!name.trim() || pending || !user) return;
         setPending(true);
+        // Two sequential steps: if create succeeds but minting fails, the
+        // agent exists — close to show it and point at the Keys tab rather
+        // than pretending total failure.
+        let created = false;
         try {
           const agentId = await create({
             name: name.trim(),
@@ -652,8 +657,24 @@ function CreateAgentForm({
             parentType: scope === "personal" ? "user" : "workspace",
             parentId: scope === "personal" ? user.id : scope,
           });
+          created = true;
           const res = await mintKey({ agentId });
           setConnect({ name: name.trim(), key: res.key });
+        } catch (e) {
+          if (created) {
+            toast(
+              "Agent created, but its key couldn't be minted — mint one from the Keys tab",
+              { kind: "error" },
+            );
+            onDone();
+          } else {
+            const raw = e instanceof Error ? e.message : String(e);
+            toast(
+              raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() ||
+                "Couldn't create agent",
+              { kind: "error" },
+            );
+          }
         } finally {
           setPending(false);
         }

@@ -153,6 +153,15 @@ export function DocEditor({ docId }: { docId: string }) {
     );
   }
 
+  // The doc's scope isn't named in `doc` (only parentType/parentId), so the
+  // crumb keeps the "Home" label but points at the right container.
+  const homeHref =
+    doc.parentType === "workspace"
+      ? `/dashboard/w/${doc.parentId}`
+      : doc.parentType === "space"
+        ? `/dashboard/s/${doc.parentId}`
+        : "/dashboard";
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -164,7 +173,7 @@ export function DocEditor({ docId }: { docId: string }) {
             className="flex min-w-0 items-center gap-1.5 truncate"
           >
             <Link
-              href="/dashboard"
+              href={homeHref}
               className="hover:text-foreground hover:underline"
             >
               Home
