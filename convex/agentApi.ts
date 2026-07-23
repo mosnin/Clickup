@@ -553,6 +553,24 @@ export const getTask = query({
     const { agent } = await requireAgentByKey(ctx, apiKey);
     const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
     const view = await taskView(ctx, task);
+    // Attached SOP (Phase L): when the task's list carries a sopSlug, the
+    // procedure travels with the task read — the agent gets "how we do
+    // this here" without a second lookup.
+    let sop: { slug: string; name: string; content: string } | undefined;
+    const taskList = await ctx.db.get(task.listId);
+    if (taskList?.sopSlug) {
+      const skills = await skillsForScope(
+        ctx,
+        agent.parentType,
+        agent.parentId,
+      );
+      const match = skills.find(
+        (s) => s.slug === taskList.sopSlug && s.enabled,
+      );
+      if (match) {
+        sop = { slug: match.slug, name: match.name, content: match.content };
+      }
+    }
     const subtasks = await ctx.db
       .query("tasks")
       .withIndex("by_parent_task", (q) => q.eq("parentTaskId", taskId))
@@ -569,6 +587,7 @@ export const getTask = query({
       .collect();
     return {
       ...view,
+      sop,
       fieldValues: fieldValues.map((fv) => ({
         fieldId: fv.fieldId,
         textValue: fv.textValue,

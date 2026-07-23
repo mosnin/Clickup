@@ -4,7 +4,8 @@ import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { requireListAccess } from "./_authz";
 import { createTaskCore } from "./tasks";
-import { userActor } from "./events";
+import { blueprintTaskFields } from "./taskBlueprints";
+import { scopeForList, userActor } from "./events";
 import type { Actor } from "./_agentAuth";
 
 // Time-based recurring tasks: "every Monday at 09:00 UTC create 'Weekly
@@ -71,6 +72,7 @@ export type CreateScheduledTaskArgs = {
   dayOfMonth?: number;
   hourUtc?: number;
   dueInDays?: number;
+  blueprintId?: Id<"taskBlueprints">;
 };
 
 export async function createScheduledTaskCore(
@@ -91,6 +93,7 @@ export async function createScheduledTaskCore(
     dayOfMonth: args.dayOfMonth,
     hourUtc,
     dueInDays: args.dueInDays,
+    blueprintId: args.blueprintId,
     nextRunAt: computeNextRunAt(
       Date.now(),
       args.cadence,
@@ -133,9 +136,22 @@ export const create = mutation({
     dayOfMonth: v.optional(v.number()),
     hourUtc: v.optional(v.number()),
     dueInDays: v.optional(v.number()),
+    blueprintId: v.optional(v.id("taskBlueprints")),
   },
   handler: async (ctx, args) => {
-    const { identity } = await requireListAccess(ctx, args.listId);
+    const { identity, list } = await requireListAccess(ctx, args.listId);
+    if (args.blueprintId) {
+      const bp = await ctx.db.get(args.blueprintId);
+      const scope = bp && (await scopeForList(ctx, list));
+      if (
+        !bp ||
+        !scope ||
+        scope.scopeType !== bp.scopeType ||
+        scope.scopeId !== bp.scopeId
+      ) {
+        throw new Error("Blueprint belongs to a different scope");
+      }
+    }
     const actor = await userActor(ctx, identity.subject);
     return await createScheduledTaskCore(ctx, args, actor);
   },
@@ -204,19 +220,30 @@ export const materializeDue = internalMutation({
         await ctx.db.patch(st._id, { enabled: false });
         continue;
       }
+      // A linked blueprint supplies the full task shape (checklist, SOP'd
+      // list, estimate, approval gate); the schedule's own fields cover
+      // the bare-title case and act as the fallback if the blueprint was
+      // deleted out from under the link.
+      const bp = st.blueprintId ? await ctx.db.get(st.blueprintId) : null;
       await createTaskCore(
         ctx,
-        {
-          listId: st.listId,
-          title: st.title,
-          description: st.description,
-          priority: st.priority,
-          assigneeIds: st.assigneeIds,
-          dueDate:
-            st.dueInDays !== undefined
-              ? now + st.dueInDays * 86_400_000
-              : undefined,
-        },
+        bp
+          ? {
+              listId: st.listId,
+              assigneeIds: st.assigneeIds,
+              ...blueprintTaskFields(bp),
+            }
+          : {
+              listId: st.listId,
+              title: st.title,
+              description: st.description,
+              priority: st.priority,
+              assigneeIds: st.assigneeIds,
+              dueDate:
+                st.dueInDays !== undefined
+                  ? now + st.dueInDays * 86_400_000
+                  : undefined,
+            },
         actor,
       );
       await ctx.db.patch(st._id, {

@@ -324,6 +324,41 @@ export async function createTaskCore(
     .withIndex("by_list", (q) => q.eq("listId", args.listId))
     .collect();
 
+  // Assignment routing (Phase L): an explicit assignee always wins; when
+  // the caller stays silent and the list has a routing rule, fill it in so
+  // work never sits unassigned in a routed list.
+  let assigneeIds = args.assigneeIds ?? [];
+  const routing = list.routing;
+  if (assigneeIds.length === 0 && routing && routing.assigneeIds.length > 0) {
+    if (routing.mode === "fixed") {
+      assigneeIds = [...routing.assigneeIds];
+    } else if (routing.mode === "round_robin") {
+      const idx =
+        ((routing.lastIndex ?? -1) + 1) % routing.assigneeIds.length;
+      assigneeIds = [routing.assigneeIds[idx]];
+      await ctx.db.patch(list._id, {
+        routing: { ...routing, lastIndex: idx },
+      });
+    } else {
+      // least_loaded: fewest open tasks on this list right now (first
+      // listed wins ties, so the order in the rule is a priority order).
+      const openCount = new Map<string, number>();
+      for (const id of routing.assigneeIds) openCount.set(id, 0);
+      for (const t of siblings) {
+        if (t.completedAt !== undefined) continue;
+        for (const a of t.assigneeClerkIds) {
+          const cur = openCount.get(a);
+          if (cur !== undefined) openCount.set(a, cur + 1);
+        }
+      }
+      let best = routing.assigneeIds[0];
+      for (const id of routing.assigneeIds) {
+        if ((openCount.get(id) ?? 0) < (openCount.get(best) ?? 0)) best = id;
+      }
+      assigneeIds = [best];
+    }
+  }
+
   const taskId = await ctx.db.insert("tasks", {
     listId: args.listId,
     title: args.title,
@@ -332,7 +367,7 @@ export async function createTaskCore(
     priority: args.priority,
     startDate: args.startDate,
     dueDate: args.dueDate,
-    assigneeClerkIds: args.assigneeIds ?? [],
+    assigneeClerkIds: assigneeIds,
     parentTaskId: args.parentTaskId,
     recurrence: args.recurrence,
     sprintId: args.sprintId,

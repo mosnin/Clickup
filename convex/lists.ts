@@ -164,6 +164,18 @@ export const updateMeta = mutation({
     ownerActorId: v.optional(v.union(v.string(), v.null())),
     notes: v.optional(v.union(v.string(), v.null())),
     targetDate: v.optional(v.union(v.number(), v.null())),
+    sopSlug: v.optional(v.union(v.string(), v.null())),
+    defaultView: v.optional(
+      v.union(
+        v.literal("list"),
+        v.literal("board"),
+        v.literal("calendar"),
+        v.literal("gantt"),
+        v.literal("table"),
+        v.literal("workload"),
+        v.null(),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
     const { list } = await requireListAccess(ctx, args.listId);
@@ -174,6 +186,8 @@ export const updateMeta = mutation({
       "ownerActorId",
       "notes",
       "targetDate",
+      "sopSlug",
+      "defaultView",
     ] as const) {
       if (args[key] !== undefined) {
         patch[key] = args[key] === null ? undefined : args[key];
@@ -182,6 +196,40 @@ export const updateMeta = mutation({
     if (Object.keys(patch).length > 0) {
       await ctx.db.patch(list._id, patch);
     }
+  },
+});
+
+// Assignment routing rule for a list (Phase L). null clears the rule.
+// Explicitly-assigned tasks are never touched — routing only fills in an
+// assignee when a task is created without one (see tasks.createTaskCore).
+export const setRouting = mutation({
+  args: {
+    listId: v.id("lists"),
+    routing: v.union(
+      v.object({
+        mode: v.union(
+          v.literal("fixed"),
+          v.literal("round_robin"),
+          v.literal("least_loaded"),
+        ),
+        assigneeIds: v.array(v.string()),
+      }),
+      v.null(),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const { list } = await requireListAccess(ctx, args.listId);
+    if (args.routing === null) {
+      await ctx.db.patch(list._id, { routing: undefined });
+      return;
+    }
+    if (args.routing.assigneeIds.length === 0) {
+      throw new Error("Pick at least one assignee to route to");
+    }
+    await ctx.db.patch(list._id, {
+      // Fresh rule, fresh rotation cursor.
+      routing: { ...args.routing, lastIndex: undefined },
+    });
   },
 });
 
