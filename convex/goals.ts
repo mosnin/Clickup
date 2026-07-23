@@ -160,6 +160,14 @@ export const setProgress = mutation({
     ) {
       patch.status = "complete";
       patch.completedAt = Date.now();
+    } else if (
+      goal.status === "complete" &&
+      currentValue < goal.targetValue
+    ) {
+      // The checkbox/status must never contradict the number: dropping
+      // back below target reopens a previously-complete goal.
+      patch.status = "open";
+      patch.completedAt = undefined;
     }
     await ctx.db.patch(goalId, patch);
   },

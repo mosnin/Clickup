@@ -399,7 +399,17 @@ function GovernancePanel({
               value={limitDraft}
               onChange={(e) => setLimitDraft(e.currentTarget.value)}
               onBlur={() => {
-                const n = parseInt(limitDraft, 10);
+                const trimmed = limitDraft.trim();
+                if (trimmed === "") {
+                  if (agent.dailyActionLimit !== undefined) {
+                    save(
+                      { agentId: agent._id, dailyActionLimit: null },
+                      "Daily budget",
+                    );
+                  }
+                  return;
+                }
+                const n = parseInt(trimmed, 10);
                 if (Number.isFinite(n) && n > 0 && n !== usageLimit) {
                   save(
                     { agentId: agent._id, dailyActionLimit: n },
@@ -513,17 +523,20 @@ function GovernancePanel({
                 <button
                   type="button"
                   aria-label="Remove list restriction"
-                  onClick={() =>
+                  onClick={() => {
+                    const next = allowedListIds.filter((l) => l !== id);
                     save(
                       {
                         agentId: agent._id,
-                        allowedListIds: allowedListIds.filter(
-                          (l) => l !== id,
-                        ),
+                        // An empty array reads as "unrestricted" here, but
+                        // the backend enforcement keys off `undefined` —
+                        // sending [] would brick the agent's list access.
+                        // Mirror the notifyUrl `|| null` pattern.
+                        allowedListIds: next.length > 0 ? next : null,
                       },
                       "Restricted lists",
-                    )
-                  }
+                    );
+                  }}
                   className="tap-target text-muted-foreground hover:text-foreground"
                 >
                   <X className="h-3 w-3" />

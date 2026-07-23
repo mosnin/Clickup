@@ -19,8 +19,13 @@ export const generateUploadUrl = mutation({
 export const listForTask = query({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, { taskId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    // Same soft-fail shape as timeEntries.listForTask: no access = empty,
+    // never leak another tenant's clips.
+    try {
+      await requireTaskAccess(ctx, taskId);
+    } catch {
+      return [];
+    }
     const all = await ctx.db
       .query("clips")
       .withIndex("by_parent", (q) =>
@@ -31,12 +36,20 @@ export const listForTask = query({
   },
 });
 
+// Takes the clip's document id (not a bare storageId) so there's an
+// ownership trail: clip -> parent task -> access check, and only then a
+// signed download URL.
 export const getUrl = query({
-  args: { storageId: v.id("_storage") },
-  handler: async (ctx, { storageId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-    return await ctx.storage.getUrl(storageId);
+  args: { clipId: v.id("clips") },
+  handler: async (ctx, { clipId }) => {
+    const clip = await ctx.db.get(clipId);
+    if (!clip) return null;
+    try {
+      await requireTaskAccess(ctx, clip.parentId as Id<"tasks">);
+    } catch {
+      return null;
+    }
+    return await ctx.storage.getUrl(clip.storageId);
   },
 });
 

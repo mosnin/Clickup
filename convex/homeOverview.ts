@@ -1,3 +1,4 @@
+import { v } from "convex/values";
 import { query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
@@ -55,13 +56,23 @@ async function listsForSpace(
 }
 
 export const get = query({
-  args: {},
-  handler: async (ctx) => {
+  // Due dates are stored as LOCAL-midnight timestamps (lib/dates), so day
+  // bucketing needs the caller's local start-of-day — the server only knows
+  // UTC. Optional for older callers; falls back to the UTC day boundary.
+  args: { todayStart: v.optional(v.number()) },
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
     const subject = identity.subject;
     const now = Date.now();
-    const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const todayStart =
+      args.todayStart !== undefined &&
+      Math.abs(args.todayStart - now) < 2 * DAY_MS
+        ? args.todayStart
+        : Math.floor(now / DAY_MS) * DAY_MS;
+    const todayEndTs = todayStart + DAY_MS;
+    const weekAhead = now + 7 * DAY_MS;
 
     // ── Scope: personal space + member workspaces ──
     const scopes: {
@@ -122,18 +133,27 @@ export const get = query({
       createdAt: number;
     }[] = [];
     const lastEventByList = new Map<string, number>();
+    // 7 buckets, index 0 = six days ago … 6 = today (caller's local days).
+    const completions7d = [0, 0, 0, 0, 0, 0, 0];
     for (const sc of scopes) {
       const key = `${sc.scopeType}:${sc.scopeId}`;
       if (scopeKeys.has(key)) continue;
       scopeKeys.add(key);
+      // 200/scope (was 25): the ticker only shows the newest 10, but the
+      // completions chart needs a real 7-day window — at 25, busy scopes
+      // pushed completions out and the chart undercounted.
       const events = await ctx.db
         .query("events")
         .withIndex("by_scope", (q) =>
           q.eq("scopeType", sc.scopeType).eq("scopeId", sc.scopeId),
         )
         .order("desc")
-        .take(25);
+        .take(200);
       for (const e of events) {
+        if (e.type === "task.completed" && e.createdAt >= todayStart - 6 * DAY_MS) {
+          const bucket = Math.floor((e.createdAt - (todayStart - 6 * DAY_MS)) / DAY_MS);
+          if (bucket >= 0 && bucket <= 6) completions7d[bucket] += 1;
+        }
         if (e.listId) {
           const cur = lastEventByList.get(e.listId) ?? 0;
           if (e.createdAt > cur) lastEventByList.set(e.listId, e.createdAt);
@@ -156,8 +176,6 @@ export const get = query({
     let myOpen = 0;
     let myOverdue = 0;
     let myDueToday = 0;
-    const todayEnd = new Date(now);
-    todayEnd.setHours(23, 59, 59, 999);
 
     for (const sc of scopes) {
       const lists = await listsForSpace(ctx, sc.space._id);
@@ -207,15 +225,19 @@ export const get = query({
             const isDone = doneIds.has(t.statusId);
             if (isDone) scannedDone += 1;
             else if (inProgressIds.has(t.statusId)) scannedInProgress += 1;
+            // Due dates are local-midnight stamps: "overdue" means the due
+            // DAY has fully passed (dueDate < todayStart), and "due today"
+            // is [todayStart, todayEnd). Comparing against the instant
+            // `now` wrongly counted every due-today task as overdue.
             if (!isDone && t.dueDate) {
-              if (t.dueDate < now) overdue += 1;
+              if (t.dueDate < todayStart) overdue += 1;
               else if (t.dueDate < weekAhead) dueSoon += 1;
             }
             if (!isDone && t.assigneeClerkIds.includes(subject)) {
               myOpen += 1;
               if (t.dueDate) {
-                if (t.dueDate < now) myOverdue += 1;
-                else if (t.dueDate <= todayEnd.getTime()) myDueToday += 1;
+                if (t.dueDate < todayStart) myOverdue += 1;
+                else if (t.dueDate < todayEndTs) myDueToday += 1;
               }
             }
           }
@@ -289,7 +311,11 @@ export const get = query({
       totalProjects: projects.length,
       me: { open: myOpen, overdue: myOverdue, dueToday: myDueToday },
       agents: agentsWorking.slice(0, 8),
+      // Full-fleet online count — the agents array above is a display
+      // preview capped at 8 and must not be used for counting.
+      totalAgentsOnline: agentsWorking.filter((a) => a.online).length,
       ticker: ticker.slice(0, 10),
+      completions7d,
     };
   },
 });

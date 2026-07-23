@@ -386,7 +386,7 @@ export type UpdateTaskArgs = {
   title?: string;
   description?: string;
   statusId?: Id<"listStatuses">;
-  priority?: "urgent" | "high" | "normal" | "low";
+  priority?: "urgent" | "high" | "normal" | "low" | null;
   startDate?: number | null;
   dueDate?: number | null;
   assigneeIds?: string[];
@@ -464,9 +464,17 @@ export async function updateTaskCore(
       patch.claimedByActorId = undefined;
       patch.claimedAt = undefined;
     }
+    // Reopening a gated task revokes the previous approval — otherwise an
+    // agent could re-complete it later on the stale sign-off.
+    if (wasComplete && !willBeComplete && task.requiresApproval) {
+      patch.approvedAt = undefined;
+      patch.approvedByClerkId = undefined;
+    }
   }
   if (args.priority !== undefined) {
-    patch.priority = args.priority;
+    // null = clear. The client can't send `undefined` (Convex drops the key
+    // from the wire), so null is the only working "no priority" signal.
+    patch.priority = args.priority ?? undefined;
     changedFields.push("priority");
   }
   if (args.startDate !== undefined) {
@@ -1029,7 +1037,7 @@ export const update = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     statusId: v.optional(v.id("listStatuses")),
-    priority: v.optional(priorityValidator),
+    priority: v.optional(v.union(priorityValidator, v.null())),
     startDate: v.optional(v.union(v.number(), v.null())),
     dueDate: v.optional(v.union(v.number(), v.null())),
     assigneeClerkIds: v.optional(v.array(v.string())),
@@ -1120,23 +1128,42 @@ export const toggleComplete = mutation({
     const current = await ctx.db.get(task.statusId);
     const isDone =
       current?.category === "complete" || current?.category === "closed";
+    // Never fall back to position 0 (usually "To Do") — if the list has no
+    // status in a suitable category, refuse with a clear error instead of
+    // silently misfiling the task.
     const next = isDone
-      ? sorted.find((s) => s.category === "open") ?? sorted[0]
-      : sorted.find((s) => s.category === "complete") ?? sorted[0];
-    if (!next) return;
+      ? (sorted.find((s) => s.category === "open") ??
+        sorted.find((s) => s.category === "in_progress"))
+      : (sorted.find((s) => s.category === "complete") ??
+        sorted.find((s) => s.category === "closed"));
+    if (!next) {
+      throw new Error(
+        isDone
+          ? "This list has no open-category status to reopen into — add one in List settings."
+          : "This list has no complete-category status — add one in List settings.",
+      );
+    }
     const actor = await userActor(ctx, identity.subject);
     await updateTaskCore(ctx, { taskId, statusId: next._id }, actor);
   },
 });
 
-// Bulk reorder used by Board drag-drop: each task in `orderedIds` gets
-// `position = its index`. Optionally moves them all to a new status in the
-// same call. Position writes are raw patches, but status changes route
-// through updateTaskCore so drag-to-Complete emits events, fires
-// automations, spawns recurrence, honors blockers/approval gates, and
-// clears claims — exactly like changing status anywhere else. A task the
-// core refuses (blocked / needs approval) keeps its old status but still
-// gets its new position.
+// Bulk reorder used by Board drag-drop. `orderedIds` is the new order of
+// ONE status column ("bucket"); `statusId` is that column's status.
+// `position` is a LIST-WIDE ordinal (List/Table/Workload sort every
+// top-level task by it), so we must never renumber just the bucket 0..N —
+// that collides with every other column's positions. Instead we rebuild
+// the GLOBAL order: walk the current list-wide sequence and replace the
+// slots occupied by the bucket's members, in place, with the new bucket
+// order (a task dragged in from another column enters at the slot the
+// bucket order dictates and leaves its old slot), then renumber the whole
+// sequence 0..N, patching only tasks whose position actually changed.
+// Status changes are validated FIRST (same refusal rules as
+// updateTaskCore: open blockers, agent-vs-approval-gate) so a refused
+// drop aborts before any write; accepted changes route through
+// updateTaskCore so drag-to-Complete emits events, fires automations,
+// spawns recurrence, and clears claims exactly like changing status
+// anywhere else. O(list) writes worst case — fine at target scale.
 export const reorder = mutation({
   args: {
     listId: v.id("lists"),
@@ -1145,30 +1172,105 @@ export const reorder = mutation({
   },
   handler: async (ctx, { listId, orderedIds, statusId }) => {
     const { identity } = await requireListAccess(ctx, listId);
+    let newStatus: Doc<"listStatuses"> | null = null;
     if (statusId) {
-      const status = await ctx.db.get(statusId);
-      if (!status || status.listId !== listId) {
+      newStatus = await ctx.db.get(statusId);
+      if (!newStatus || newStatus.listId !== listId) {
         throw new Error("statusId must belong to the same list");
       }
     }
     const actor = await userActor(ctx, identity.subject);
-    const refused: string[] = [];
-    for (let i = 0; i < orderedIds.length; i++) {
-      const task = await ctx.db.get(orderedIds[i]);
+
+    // Resolve the bucket's tasks, dropping ids that no longer exist or
+    // don't belong to this list.
+    const bucketTasks: Doc<"tasks">[] = [];
+    for (const id of orderedIds) {
+      const task = await ctx.db.get(id);
       if (!task || task.listId !== listId) continue;
-      await ctx.db.patch(orderedIds[i], { position: i });
-      if (statusId && task.statusId !== statusId) {
-        try {
-          await updateTaskCore(ctx, { taskId: orderedIds[i], statusId }, actor);
-        } catch (err) {
+      bucketTasks.push(task);
+    }
+
+    // (a) Validate every status change up front — same refusal checks as
+    // updateTaskCore — and abort entirely (patching nothing) on refusal.
+    if (statusId && newStatus) {
+      const willBeComplete =
+        newStatus.category === "complete" || newStatus.category === "closed";
+      const refused: string[] = [];
+      for (const task of bucketTasks) {
+        if (task.statusId === statusId) continue;
+        const oldStatus = await ctx.db.get(task.statusId);
+        const wasComplete =
+          oldStatus?.category === "complete" ||
+          oldStatus?.category === "closed";
+        if (wasComplete || !willBeComplete) continue;
+        const blockers = await openBlockers(ctx, task);
+        if (blockers.length > 0) {
           refused.push(
-            `"${task.title}": ${err instanceof Error ? err.message : String(err)}`,
+            `"${task.title}": Task is blocked by incomplete task(s): ${blockers
+              .map((b) => `"${b.title}"`)
+              .join(", ")}`,
+          );
+          continue;
+        }
+        // Human-in-the-loop gate: agents can't complete a gated task; a
+        // human completing it counts as approval (handled by the core).
+        if (
+          task.requiresApproval &&
+          task.approvedAt === undefined &&
+          actor.type !== "user"
+        ) {
+          refused.push(
+            `"${task.title}": This task requires human approval before it can be completed.`,
           );
         }
       }
+      if (refused.length > 0) {
+        throw new Error(refused.join(" · "));
+      }
     }
-    if (refused.length > 0) {
-      throw new Error(refused.join(" · "));
+
+    // (b) Load the list's top-level tasks in their current global order.
+    const all = await ctx.db
+      .query("tasks")
+      .withIndex("by_list", (q) => q.eq("listId", listId))
+      .collect();
+    const oldGlobal = all
+      .filter((t) => !t.parentTaskId)
+      .sort(
+        (a, b) => a.position - b.position || a._creationTime - b._creationTime,
+      );
+
+    // (c)+(d) Rebuild the global sequence: the slots occupied by the
+    // bucket's members (including the dragged task's old slot, wherever
+    // its previous column put it) are refilled, in place, with the new
+    // bucket order. Everything else keeps its slot.
+    const present = new Set(oldGlobal.map((t) => t._id));
+    const newBucketIds = bucketTasks
+      .map((t) => t._id)
+      .filter((id) => present.has(id));
+    const bucketSet = new Set(newBucketIds);
+    let cursor = 0;
+    const newGlobal = oldGlobal.map((t) =>
+      bucketSet.has(t._id) ? newBucketIds[cursor++] : t._id,
+    );
+
+    // Apply status changes through the shared core (validated above, so
+    // these should not refuse; if one still throws, the whole mutation —
+    // including every position patch — rolls back).
+    if (statusId) {
+      for (const task of bucketTasks) {
+        if (task.statusId !== statusId) {
+          await updateTaskCore(ctx, { taskId: task._id, statusId }, actor);
+        }
+      }
+    }
+
+    // (e) Renumber the entire sequence 0..N, patching only real changes.
+    const oldPositionById = new Map(oldGlobal.map((t) => [t._id, t.position]));
+    for (let i = 0; i < newGlobal.length; i++) {
+      if (oldPositionById.get(newGlobal[i]) !== i) {
+        await ctx.db.patch(newGlobal[i], { position: i });
+      }
     }
   },
 });

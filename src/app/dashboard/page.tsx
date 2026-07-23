@@ -116,7 +116,9 @@ function openCommandPalette() {
 }
 
 export default function DashboardHome() {
-  const overview = useQuery(api.homeOverview.get, {});
+  // Due dates are local-midnight stamps; the server needs OUR day boundary
+  // to bucket overdue/due-today/completions correctly.
+  const overview = useQuery(api.homeOverview.get, { todayStart: startOfToday() });
   const myWork = useQuery(api.myWork.listForCurrent, {});
   // Kept solely for the "waiting to connect" card — homeOverview doesn't
   // expose lastSeenAt, and "never connected" is the one signal that query
@@ -131,7 +133,11 @@ export default function DashboardHome() {
     return null;
   }
 
-  const agentsOnline = overview.agents.filter((a) => a.online).length;
+  // totalAgentsOnline counts the whole fleet; overview.agents is a display
+  // preview capped at 8 and would undercount larger fleets.
+  const agentsOnline =
+    overview.totalAgentsOnline ??
+    overview.agents.filter((a) => a.online).length;
   const waiting = agents
     ? [...agents.personal, ...agents.workspaces.flatMap((w) => w.agents)].filter(
         (a) => a.status === "active" && a.lastSeenAt === undefined,
@@ -198,7 +204,7 @@ export default function DashboardHome() {
           <TodaysTasks rows={myWork ?? undefined} />
         </div>
         <div>
-          <ActivityChart ticker={overview.ticker} />
+          <ActivityChart completions={overview.completions7d} />
         </div>
       </div>
 
@@ -481,28 +487,23 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
 // derived client-side from the (capped) home ticker — no new server query.
 // Honestly labeled "Recent activity" rather than "Performance" since the
 // ticker only carries the newest ~10 events across every scope.
-function ActivityChart({ ticker }: { ticker: TickerItem[] }) {
+function ActivityChart({ completions }: { completions?: number[] }) {
+  // Server-bucketed 7-day completion counts (index 0 = six days ago,
+  // 6 = today), computed over a real event window rather than the
+  // 10-item ticker that used to undercount busy scopes.
   const data = useMemo(() => {
-    const days: { key: string; day: string; completed: number }[] = [];
+    const days: { day: string; completed: number }[] = [];
     const now = new Date();
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
-      d.setHours(0, 0, 0, 0);
       days.push({
-        key: d.toDateString(),
         day: d.toLocaleDateString(undefined, { weekday: "short" }),
-        completed: 0,
+        completed: completions?.[6 - i] ?? 0,
       });
     }
-    const byKey = new Map(days.map((d) => [d.key, d]));
-    for (const e of ticker) {
-      if (e.type !== "task.completed") continue;
-      const bucket = byKey.get(new Date(e.createdAt).toDateString());
-      if (bucket) bucket.completed += 1;
-    }
     return days;
-  }, [ticker]);
+  }, [completions]);
 
   const total = data.reduce((sum, d) => sum + d.completed, 0);
 
@@ -596,7 +597,7 @@ function ProjectsTable({
                   : null;
                 const targetOverdue =
                   p.targetDate !== undefined &&
-                  p.targetDate < Date.now() &&
+                  p.targetDate < startOfToday() &&
                   p.done < p.total;
                 return (
                   <TableRow key={p.listId}>

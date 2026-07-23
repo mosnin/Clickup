@@ -389,6 +389,12 @@ export const revokeAdmin = mutation({
     if (row.clerkId === admin.clerkId) {
       throw new Error("You cannot revoke your own admin access");
     }
+    // Same lateral-attack protection as suspendUser: a granted (non-root)
+    // superadmin must not be able to de-admin a peer superadmin. Only the
+    // env-allowlisted root may revoke a granted superadmin.
+    if (!row.revokedAt && row.role === "superadmin" && !admin.viaEnv) {
+      throw new Error("Only a root admin can revoke another superadmin");
+    }
     await ctx.db.patch(adminId, {
       revokedAt: Date.now(),
       revokedByClerkId: admin.clerkId,

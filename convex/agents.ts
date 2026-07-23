@@ -545,7 +545,15 @@ export const update = mutation({
     if (args.status !== undefined) patch.status = args.status;
     if (args.role !== undefined) patch.role = args.role;
     if (args.allowedListIds !== undefined) {
-      patch.allowedListIds = args.allowedListIds ?? undefined;
+      // An empty array is semantically identical to "unrestricted" in the
+      // UI, but _agentAuth's checks key off `=== undefined` specifically —
+      // storing [] verbatim would silently brick the agent (every list and
+      // every structure op refused). Normalize any empty/null value to
+      // undefined so [] can never be persisted.
+      patch.allowedListIds =
+        args.allowedListIds && args.allowedListIds.length > 0
+          ? args.allowedListIds
+          : undefined;
     }
     if (args.dailyActionLimit !== undefined) {
       if (args.dailyActionLimit !== null && args.dailyActionLimit < 1) {

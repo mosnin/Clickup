@@ -251,7 +251,14 @@ function SubtaskRow({
           onDelete();
           toast(`"${task.title}" deleted`, {
             action: { label: "Undo", onClick: onUndelete },
-            onExpire: () => remove({ taskId: task._id }),
+            onExpire: () => {
+              remove({ taskId: task._id }).catch((err) => {
+                onUndelete();
+                toast(errorMessage(err, "Couldn't delete subtask"), {
+                  kind: "error",
+                });
+              });
+            },
           });
         }}
         className="tap-target inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"

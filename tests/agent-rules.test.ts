@@ -235,6 +235,46 @@ describe("agent governance", () => {
     ).rejects.toThrow(/restricted/);
   });
 
+  it("normalizes an empty allowedListIds to unrestricted instead of bricking the agent", async () => {
+    const { t, alice, listId, agentId, apiKey } = await setup();
+    // Restrict, then remove the only restriction the way the UI does when
+    // the last badge is cleared (filtering the array down to []).
+    await alice.mutation(api.agents.update, {
+      agentId,
+      allowedListIds: [listId],
+    });
+    await alice.mutation(api.agents.update, {
+      agentId,
+      allowedListIds: [],
+    });
+    const agent = await t.run((ctx) => ctx.db.get(agentId));
+    // [] must never be stored verbatim — _agentAuth keys off `undefined`,
+    // so a stored [] would refuse every list and every structure op.
+    expect(agent?.allowedListIds).toBeUndefined();
+
+    // The agent is unrestricted again: it can create a space (a
+    // structure-level op restricted agents can never perform) and create a
+    // task on a list that was never in the old allow-list.
+    await t.mutation(api.agentApi.createSpace, { apiKey, name: "New space" });
+    await t.mutation(api.agentApi.createTask, {
+      apiKey,
+      listId,
+      title: "Still works",
+    });
+
+    // null (what the UI now sends) normalizes the same way.
+    await alice.mutation(api.agents.update, {
+      agentId,
+      allowedListIds: [listId],
+    });
+    await alice.mutation(api.agents.update, {
+      agentId,
+      allowedListIds: null,
+    });
+    const agentAfterNull = await t.run((ctx) => ctx.db.get(agentId));
+    expect(agentAfterNull?.allowedListIds).toBeUndefined();
+  });
+
   it("invalid and revoked keys are rejected", async () => {
     const { t, apiKey } = await setup();
     await expect(

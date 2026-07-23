@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Building2 } from "lucide-react";
+import { Building2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Comments } from "@/components/dashboard/comments";
@@ -82,14 +82,17 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
   // the tab only when EVERY space in the workspace has the feature
   // explicitly off — any space still using it keeps the tab visible. No
   // spaces (or the query still loading) defaults to showing everything.
+  // Archived spaces don't count either way — they're not part of active
+  // work, so they shouldn't be able to hide (or keep visible) a tab.
+  const activeSpaces = spaces?.filter((s) => s.archivedAt === undefined);
   const sprintsHidden =
-    !!spaces &&
-    spaces.length > 0 &&
-    spaces.every((s) => s.features?.sprints === false);
+    !!activeSpaces &&
+    activeSpaces.length > 0 &&
+    activeSpaces.every((s) => s.features?.sprints === false);
   const goalsHidden =
-    !!spaces &&
-    spaces.length > 0 &&
-    spaces.every((s) => s.features?.goals === false);
+    !!activeSpaces &&
+    activeSpaces.length > 0 &&
+    activeSpaces.every((s) => s.features?.goals === false);
 
   const visibleTabs = TABS.filter(
     (t) =>
@@ -248,7 +251,12 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
         </section>
       ) : tab === "chat" ? (
         <section>
-          <ChatWithChannels workspaceId={workspace._id as Id<"workspaces">} />
+          <ChatWithChannels
+            workspaceId={workspace._id as Id<"workspaces">}
+            canManageChannels={
+              workspace.role === "owner" || workspace.role === "admin"
+            }
+          />
         </section>
       ) : tab === "sprints" ? (
         <section>
@@ -294,8 +302,18 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
 
 // Main workspace chat plus topic channels (where agents hold threaded
 // discussions). ?channel=<id> selects a channel; the row of pills lets
-// humans hop between them and open new ones.
-function ChatWithChannels({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
+// humans hop between them and open new ones. `canManageChannels` gates the
+// delete affordance to owner/admin in the UI — the backend (channels.remove)
+// only requires workspace membership, so a non-owner/admin who somehow hits
+// the mutation directly is still refused there, but the button itself is
+// hidden from plain members.
+function ChatWithChannels({
+  workspaceId,
+  canManageChannels,
+}: {
+  workspaceId: Id<"workspaces">;
+  canManageChannels: boolean;
+}) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const channels = useQuery(api.channels.listForScope, {
@@ -303,11 +321,37 @@ function ChatWithChannels({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
     scopeId: workspaceId,
   });
   const createChannel = useMutation(api.channels.create);
+  const removeChannel = useMutation(api.channels.remove);
   const activeChannel = searchParams.get("channel");
   const [addingChannel, setAddingChannel] = useState(false);
+  const [hiddenChannelIds, setHiddenChannelIds] = useState<Set<string>>(
+    new Set(),
+  );
   const { toast } = useToast();
 
   const base = `/dashboard/w/${workspaceId}?tab=chat`;
+
+  function deleteChannel(channelId: string, name: string) {
+    setHiddenChannelIds((prev) => new Set(prev).add(channelId));
+    if (activeChannel === channelId) router.push(base);
+    toast(`#${name} deleted`, {
+      action: {
+        label: "Undo",
+        onClick: () =>
+          setHiddenChannelIds((prev) => {
+            const next = new Set(prev);
+            next.delete(channelId);
+            return next;
+          }),
+      },
+      onExpire: () =>
+        void removeChannel({ channelId: channelId as Id<"channels"> }).catch(
+          (e) => toast(errorMessage(e, "Couldn't delete channel"), {
+            kind: "error",
+          }),
+        ),
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -323,20 +367,43 @@ function ChatWithChannels({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
         >
           # general
         </Link>
-        {(channels ?? []).map((c) => (
-          <Link
-            key={c._id}
-            href={`${base}&channel=${c._id}`}
-            className={cn(
-              "rounded-full px-3 py-1 text-sm transition-colors",
-              activeChannel === c._id
-                ? "bg-foreground font-medium text-background"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            # {c.name}
-          </Link>
-        ))}
+        {(channels ?? [])
+          .filter((c) => !hiddenChannelIds.has(c._id))
+          .map((c) => (
+            <div key={c._id} className="group/channel relative flex items-center">
+              <Link
+                href={`${base}&channel=${c._id}`}
+                className={cn(
+                  "rounded-full px-3 py-1 text-sm transition-colors",
+                  canManageChannels && "pr-6",
+                  activeChannel === c._id
+                    ? "bg-foreground font-medium text-background"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                # {c.name}
+              </Link>
+              {canManageChannels && (
+                <button
+                  type="button"
+                  aria-label={`Delete #${c.name}`}
+                  title={`Delete #${c.name}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    deleteChannel(c._id, c.name);
+                  }}
+                  className={cn(
+                    "tap-target absolute right-0.5 flex size-5 flex-shrink-0 items-center justify-center rounded-full opacity-0 transition-opacity group-hover/channel:opacity-100 focus-visible:opacity-100",
+                    activeChannel === c._id
+                      ? "text-background/70 hover:bg-background/20 hover:text-background"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                  )}
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
+          ))}
         {addingChannel ? (
           <InlineCreate
             placeholder="channel-name…"

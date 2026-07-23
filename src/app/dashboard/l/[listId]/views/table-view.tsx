@@ -465,9 +465,11 @@ function TableRowContent({
           value={task.priority ?? ""}
           onChange={(e) => {
             const value = e.currentTarget.value;
+            // Explicit null clears the priority — undefined would be
+            // dropped from the wire and the clear silently ignored.
             update({
               taskId: task._id,
-              priority: (value || undefined) as TaskPriority | undefined,
+              priority: (value || null) as TaskPriority | null,
             });
           }}
           className="soft-field px-2 py-1 text-xs"

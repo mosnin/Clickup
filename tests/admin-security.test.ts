@@ -166,6 +166,37 @@ describe("platform admin security", () => {
     ).rejects.toThrow(/platform admin|superadmin access/i);
   });
 
+  it("forbids a granted superadmin from revoking a peer superadmin, but allows the env root", async () => {
+    const t = convexTest(schema, modules);
+    await seedUsers(t);
+    const SA = { subject: "user_sa2", email: "sa2@company.com" };
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { clerkId: SA.subject, email: SA.email });
+    });
+    // Root grants two peer superadmins.
+    await t
+      .withIdentity(ROOT)
+      .mutation(api.admin.grantAdmin, { email: SUPPORT.email, role: "superadmin" });
+    await t
+      .withIdentity(ROOT)
+      .mutation(api.admin.grantAdmin, { email: SA.email, role: "superadmin" });
+    const admins = await t.withIdentity(ROOT).query(api.admin.listAdmins, {});
+    const saRow = admins.find((a) => a.clerkId === SA.subject);
+    expect(saRow).toBeTruthy();
+    // A granted (non-root) superadmin cannot revoke a peer superadmin.
+    await expect(
+      t
+        .withIdentity(SUPPORT)
+        .mutation(api.admin.revokeAdmin, { adminId: saRow!._id }),
+    ).rejects.toThrow(/root admin/i);
+    // The env-root can.
+    await t
+      .withIdentity(ROOT)
+      .mutation(api.admin.revokeAdmin, { adminId: saRow!._id });
+    const afterAdmins = await t.withIdentity(ROOT).query(api.admin.listAdmins, {});
+    expect(afterAdmins.some((a) => a.clerkId === SA.subject)).toBe(false);
+  });
+
   it("restricts agent status changes to superadmins", async () => {
     const t = convexTest(schema, modules);
     await seedUsers(t);

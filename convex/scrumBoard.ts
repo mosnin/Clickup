@@ -202,6 +202,15 @@ export const moveTask = mutation({
   handler: async (ctx, { taskId, category }) => {
     const { task, identity } = await requireTaskAccess(ctx, taskId);
 
+    if (task.sprintId) {
+      const sprint = await ctx.db.get(task.sprintId);
+      if (sprint?.status === "complete") {
+        throw new Error(
+          "This sprint is complete — reopen it to change its work",
+        );
+      }
+    }
+
     const statuses = await ctx.db
       .query("listStatuses")
       .withIndex("by_list", (q) => q.eq("listId", task.listId))

@@ -192,9 +192,13 @@ function ProjectCard({
     ? STATUS_CHIP[project.projectStatus]
     : null;
   const hasOpenWork = project.total - project.done > 0;
+  // targetDate is a local-midnight day stamp: only overdue once the whole
+  // target day has passed, not the instant the clock crosses midnight.
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
   const overdue =
     project.targetDate !== undefined &&
-    project.targetDate < Date.now() &&
+    project.targetDate < startOfToday.getTime() &&
     hasOpenWork;
 
   return (

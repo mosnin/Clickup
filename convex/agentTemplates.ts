@@ -21,6 +21,10 @@ export type AgentTemplate = {
   dailyActionLimit: number;
   // Built-in skill slugs worth importing for this persona (informational).
   recommendedSkills: string[];
+  // True when the template's persona is meaningless (or unsupported) outside
+  // a team workspace — e.g. sprints are workspace-only. Enforced server-side
+  // in createFromTemplate, not just hidden/disabled in the picker UI.
+  requiresWorkspace?: boolean;
 };
 
 export const AGENT_TEMPLATES: AgentTemplate[] = [
@@ -45,6 +49,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     role: "member",
     dailyActionLimit: 1000,
     recommendedSkills: ["collaboration-protocol", "sprint-planner"],
+    requiresWorkspace: true,
   },
   {
     slug: "qa-reviewer",
@@ -126,6 +131,11 @@ export const createFromTemplate = mutation({
 
     const tpl = AGENT_TEMPLATES.find((t) => t.slug === slug);
     if (!tpl) throw new Error("Unknown template");
+    if (tpl.requiresWorkspace && parentType === "user") {
+      throw new Error(
+        "This template needs a workspace — its agent plans sprints, which are workspace-only.",
+      );
+    }
 
     const agentId = await ctx.db.insert("agents", {
       name: (nameOverride ?? tpl.name).trim() || tpl.name,

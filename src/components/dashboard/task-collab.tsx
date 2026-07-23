@@ -43,6 +43,17 @@ export function TaskBanners({
   const claim = useMutation(api.tasks.claim);
   const approve = useMutation(api.tasks.approve);
   const assignable = useQuery(api.agents.listAssignableForList, { listId });
+  const { toast } = useToast();
+
+  // Every banner action can be refused server-side (e.g. a claim race:
+  // "Task is already claimed") — surface the reason instead of swallowing.
+  async function run(fn: () => Promise<unknown>, fallback: string) {
+    try {
+      await fn();
+    } catch (e) {
+      toast(errorMessage(e, fallback), { kind: "error" });
+    }
+  }
 
   const byId = useMemo(
     () => new Map((assignable ?? []).map((a) => [a.id, a])),
@@ -75,7 +86,15 @@ export function TaskBanners({
                 : "Approval gate: agents can't complete this task until a human approves."}
             </span>
             {!task.approvedAt && (
-              <Button size="sm" onClick={() => approve({ taskId: task._id })}>
+              <Button
+                size="sm"
+                onClick={() =>
+                  void run(
+                    () => approve({ taskId: task._id }),
+                    "Couldn't approve this task",
+                  )
+                }
+              >
                 Approve
               </Button>
             )}
@@ -83,7 +102,10 @@ export function TaskBanners({
               size="sm"
               variant="ghost"
               onClick={() =>
-                update({ taskId: task._id, requiresApproval: false })
+                void run(
+                  () => update({ taskId: task._id, requiresApproval: false }),
+                  "Couldn't remove the approval gate",
+                )
               }
             >
               Remove gate
@@ -108,7 +130,10 @@ export function TaskBanners({
               size="sm"
               variant="ghost"
               onClick={() =>
-                update({ taskId: task._id, requiresApproval: true })
+                void run(
+                  () => update({ taskId: task._id, requiresApproval: true }),
+                  "Couldn't add the approval gate",
+                )
               }
             >
               <ShieldCheck className="h-3.5 w-3.5" /> Require approval
@@ -117,7 +142,12 @@ export function TaskBanners({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => releaseClaim({ taskId: task._id })}
+            onClick={() =>
+              void run(
+                () => releaseClaim({ taskId: task._id }),
+                "Couldn't release the claim",
+              )
+            }
           >
             Release
           </Button>
@@ -127,7 +157,12 @@ export function TaskBanners({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => claim({ taskId: task._id })}
+            onClick={() =>
+              void run(
+                () => claim({ taskId: task._id }),
+                "Couldn't claim this task",
+              )
+            }
           >
             <Hand className="h-3.5 w-3.5" /> I&apos;m on it
           </Button>
@@ -136,7 +171,10 @@ export function TaskBanners({
               size="sm"
               variant="ghost"
               onClick={() =>
-                update({ taskId: task._id, requiresApproval: true })
+                void run(
+                  () => update({ taskId: task._id, requiresApproval: true }),
+                  "Couldn't add the approval gate",
+                )
               }
             >
               <ShieldCheck className="h-3.5 w-3.5" /> Require approval
@@ -451,7 +489,26 @@ export function TaskBlockedBy({
 }
 
 export function TaskChecklist({ task }: { task: Doc<"tasks"> }) {
-  const update = useMutation(api.tasks.update);
+  // Optimistic update on the task doc: `commit` computes the next checklist
+  // from the rendered `task` prop, so without this two rapid toggles would
+  // each start from the same stale snapshot and the second would undo the
+  // first. Patching the tasks.get result locally means each commit renders
+  // (and computes) on top of the in-flight one. Same pattern as the
+  // subtasks toggle.
+  const update = useMutation(api.tasks.update).withOptimisticUpdate(
+    (localStore, args) => {
+      if (args.checklist === undefined) return;
+      const current = localStore.getQuery(api.tasks.get, {
+        taskId: args.taskId,
+      });
+      if (!current) return;
+      localStore.setQuery(
+        api.tasks.get,
+        { taskId: args.taskId },
+        { ...current, checklist: args.checklist },
+      );
+    },
+  );
   const { toast } = useToast();
   const [newItem, setNewItem] = useState("");
   const items = task.checklist ?? [];

@@ -14,6 +14,10 @@ const VALID_PRIORITIES = new Set(["urgent", "high", "normal", "low"]);
 
 const IMPORT_ACTOR: Actor = { type: "system", id: "import", name: "CSV import" };
 
+// How many distinct unmatched status names to echo back to the client —
+// enough to spot a typo/casing mismatch without dumping an unbounded list.
+const MAX_UNMATCHED_STATUS_NAMES = 5;
+
 // Bulk-creates tasks from parsed CSV rows (client-parsed — see
 // import-dialog.tsx for the ClickUp-export and generic-CSV column mapping).
 // Routes through createTaskCore so imported tasks fire task_created
@@ -51,6 +55,8 @@ export const importTasks = mutation({
 
     let created = 0;
     let skipped = 0;
+    let unmatchedStatusCount = 0;
+    const unmatchedStatusNames = new Set<string>();
 
     for (const row of rows) {
       const title = row.title.trim().slice(0, MAX_TITLE_LENGTH);
@@ -65,9 +71,16 @@ export const importTasks = mutation({
           ? (normalizedPriority as "urgent" | "high" | "normal" | "low")
           : undefined;
 
-      const statusId = row.statusName
-        ? statusByName.get(row.statusName.trim().toLowerCase())
+      const trimmedStatusName = row.statusName?.trim();
+      const statusId = trimmedStatusName
+        ? statusByName.get(trimmedStatusName.toLowerCase())
         : undefined;
+      if (trimmedStatusName && statusId === undefined) {
+        unmatchedStatusCount++;
+        if (unmatchedStatusNames.size < MAX_UNMATCHED_STATUS_NAMES) {
+          unmatchedStatusNames.add(trimmedStatusName);
+        }
+      }
 
       const dueDate =
         row.dueDate !== undefined && Number.isFinite(row.dueDate)
@@ -89,6 +102,11 @@ export const importTasks = mutation({
       created++;
     }
 
-    return { created, skipped };
+    return {
+      created,
+      skipped,
+      unmatchedStatusCount,
+      unmatchedStatusNames: Array.from(unmatchedStatusNames),
+    };
   },
 });
