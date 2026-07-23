@@ -298,7 +298,10 @@ export function Hero() {
             <div data-hero-shot>
               <ScreenshotFrame
                 tone="dark"
-                ratio="16/9"
+                // Match the screenshot's native aspect (3014x1554) so the
+                // frame shows the full dashboard — object-cover into 16/9
+                // was cropping the sidebar and right edge off.
+                ratio="3014/1554"
                 label={HERO.screenshot}
                 src="/screenshots/hero-dashboard.png"
                 alt="The operate.to dashboard — mission control for humans and AI agents"

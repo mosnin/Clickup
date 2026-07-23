@@ -9,7 +9,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-dvh flex-col items-center bg-[radial-gradient(60rem_30rem_at_50%_-8%,rgba(255,138,61,0.16),transparent_60%),linear-gradient(180deg,#0f0f14_0%,#08080b_100%)] px-4 py-8">
+    <div className="flex min-h-dvh flex-col items-center bg-[radial-gradient(60rem_30rem_at_50%_-8%,rgba(255,138,61,0.16),transparent_60%),linear-gradient(180deg,#101010_0%,#090909_100%)] px-4 py-8">
       <header className="w-full max-w-6xl">
         <Link href="/" aria-label="operate.to" className="inline-flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}

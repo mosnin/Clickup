@@ -132,7 +132,9 @@ export function MarketingNav() {
       <header
         ref={headerRef}
         className={cn(
-          "fixed inset-x-0 top-0 z-50 transition-colors duration-300",
+          // transform-gpu: own compositor layer, so the backdrop-blur over
+          // the animating WebGL field doesn't shimmer on Safari/mobile.
+          "fixed inset-x-0 top-0 z-50 transform-gpu transition-colors duration-300",
           transparent
             ? "bg-transparent"
             : "border-b border-white/10 bg-background/85 backdrop-blur-md",
@@ -143,7 +145,7 @@ export function MarketingNav() {
         <Link
           href={ANNOUNCE_BAR.cta.href}
           aria-label={`${ANNOUNCE_BAR.text} ${ANNOUNCE_BAR.cta.label}`}
-          className="marquee-mask relative block overflow-hidden border-b border-white/10 bg-[#0c0c0f] py-2"
+          className="marquee-mask relative block overflow-hidden border-b border-white/10 bg-[#0c0c0c] py-2"
         >
           <div aria-hidden className="marquee-track flex w-max">
             {[0, 1].map((set) => (

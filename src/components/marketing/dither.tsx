@@ -55,7 +55,9 @@ const fragment = /* glsl */ `
 `;
 
 export function Dither({
-  waveColor = [0.243, 0.247, 0.259],
+  // Pure neutral charcoal (equal RGB) — any blue bias here tints the whole
+  // page, since this field sits behind everything.
+  waveColor = [0.247, 0.247, 0.247],
   colorNum = 3,
   pixelSize = 1,
   waveAmplitude = 0.25,
@@ -89,7 +91,7 @@ export function Dither({
     }
 
     const gl = renderer.gl;
-    gl.clearColor(0.039, 0.039, 0.051, 1);
+    gl.clearColor(0.039, 0.039, 0.039, 1);
     const canvas = gl.canvas as HTMLCanvasElement;
     canvas.style.width = "100%";
     canvas.style.height = "100%";
