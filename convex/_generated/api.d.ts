@@ -52,6 +52,7 @@ import type * as onboarding from "../onboarding.js";
 import type * as portfolio from "../portfolio.js";
 import type * as projectsDirectory from "../projectsDirectory.js";
 import type * as reports from "../reports.js";
+import type * as roadmaps from "../roadmaps.js";
 import type * as rollups from "../rollups.js";
 import type * as savedViews from "../savedViews.js";
 import type * as scheduledTasks from "../scheduledTasks.js";
@@ -126,6 +127,7 @@ declare const fullApi: ApiFromModules<{
   portfolio: typeof portfolio;
   projectsDirectory: typeof projectsDirectory;
   reports: typeof reports;
+  roadmaps: typeof roadmaps;
   rollups: typeof rollups;
   savedViews: typeof savedViews;
   scheduledTasks: typeof scheduledTasks;

@@ -13,6 +13,7 @@ import { GoalsPanel } from "@/components/dashboard/goals-panel";
 import { ReportsPanel } from "@/components/dashboard/reports-panel";
 import { SprintsPanel } from "@/components/dashboard/sprints-panel";
 import { PortfolioTimeline } from "@/components/dashboard/portfolio-timeline";
+import { RoadmapPanel } from "@/components/dashboard/roadmap-panel";
 import { TeamHub } from "@/components/dashboard/team-hub";
 import { WorkspaceSettings } from "@/components/dashboard/workspace-settings";
 import { ActivityFeed } from "@/app/dashboard/agents/agents-view";
@@ -35,6 +36,7 @@ type Tab =
   | "chat"
   | "sprints"
   | "portfolio"
+  | "roadmap"
   | "activity"
   | "goals"
   | "reports"
@@ -46,6 +48,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "chat", label: "Chat" },
   { key: "sprints", label: "Sprints" },
   { key: "portfolio", label: "Portfolio" },
+  { key: "roadmap", label: "Roadmap" },
   { key: "activity", label: "Activity" },
   { key: "goals", label: "Goals" },
   { key: "reports", label: "Reports" },
@@ -67,6 +70,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
       raw === "chat" ||
       raw === "sprints" ||
       raw === "portfolio" ||
+      raw === "roadmap" ||
       raw === "activity" ||
       raw === "goals" ||
       raw === "reports" ||
@@ -265,6 +269,10 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
       ) : tab === "portfolio" ? (
         <section>
           <PortfolioTimeline workspaceId={workspace._id as Id<"workspaces">} />
+        </section>
+      ) : tab === "roadmap" ? (
+        <section>
+          <RoadmapPanel workspaceId={workspace._id as Id<"workspaces">} />
         </section>
       ) : tab === "activity" ? (
         <section>

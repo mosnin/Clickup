@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
@@ -42,7 +43,48 @@ export function Picker({
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const popRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // Popover position (viewport coordinates — the popover is portaled to
+  // <body> so overflow/scroll containers can never clip it).
+  const [pos, setPos] = useState<{ top: number; left: number; up: boolean }>({
+    top: 0,
+    left: 0,
+    up: false,
+  });
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const rect = rootRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 256; // w-64
+    const estHeight = 300; // search row + max-h-60 list
+    const left = Math.max(
+      8,
+      Math.min(rect.left, window.innerWidth - width - 8),
+    );
+    const up =
+      window.innerHeight - rect.bottom < estHeight && rect.top > estHeight;
+    setPos({ top: up ? rect.top - 6 : rect.bottom + 6, left, up });
+  }, [open]);
+
+  // Any outside scroll or resize invalidates the anchored position — close
+  // rather than drift (scrolling the option list itself stays open).
+  useEffect(() => {
+    if (!open) return;
+    function onMove(e: Event) {
+      if (e.target instanceof Node && popRef.current?.contains(e.target)) {
+        return;
+      }
+      setOpen(false);
+    }
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+    return () => {
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
+    };
+  }, [open]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -61,7 +103,10 @@ export function Picker({
   useEffect(() => {
     if (!open) return;
     function onPointerDown(e: PointerEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target)) return;
+      if (popRef.current?.contains(target)) return;
+      setOpen(false);
     }
     window.addEventListener("pointerdown", onPointerDown);
     return () => window.removeEventListener("pointerdown", onPointerDown);
@@ -97,15 +142,27 @@ export function Picker({
         <ChevronDown className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 4, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 4, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: EASE }}
-            className="absolute left-0 top-full z-30 mt-1.5 w-64 overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-lg"
-          >
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {open && (
+              <div
+                ref={popRef}
+                style={{
+                  position: "fixed",
+                  top: pos.top,
+                  left: pos.left,
+                  zIndex: 60,
+                  transform: pos.up ? "translateY(-100%)" : undefined,
+                }}
+              >
+                <motion.div
+                  initial={{ opacity: 0, y: 4, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                  transition={{ duration: 0.18, ease: EASE }}
+                  className="w-64 overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-lg"
+                >
             <div className="flex items-center gap-2 border-b border-border px-3 py-2 transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
               <Search className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
               <input
@@ -161,10 +218,13 @@ export function Picker({
                   </button>
                 </li>
               ))}
-            </ul>
-          </motion.div>
+                  </ul>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
-      </AnimatePresence>
     </div>
   );
 }

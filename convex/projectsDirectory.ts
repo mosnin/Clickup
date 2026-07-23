@@ -35,6 +35,21 @@ export type ProjectDirectoryRow = {
   total: number;
   done: number;
   inProgress: number;
+  // ── Sort/group inputs (Phase K directory upgrade) ──
+  // Sidebar manual order within the list's parent (space or folder).
+  position: number;
+  // Cheapest available "recent activity" signal: the list rollup's
+  // updatedAt (bumped on every task write in the list) when a rollup row
+  // exists, else the list's createdAt. No extra scans.
+  activityAt: number;
+  // Structured place parts so the client can group without string-splitting
+  // the display-oriented `place`. workspaceName is "Personal" for the
+  // viewer's personal space.
+  workspaceName: string;
+  spaceName: string;
+  // ── Roadmap context, when this project sits in a roadmap phase ──
+  roadmapName?: string;
+  phaseName?: string;
 };
 
 async function listsForSpace(
@@ -113,7 +128,13 @@ export const list = query({
     // workspace. Archived spaces are dropped outright; private spaces go
     // through the exact same canAccessSpace gate every other human read
     // uses, so a private space's projects never leak to a non-member. ──
-    const scopes: { spaceId: Id<"spaces">; place: string }[] = [];
+    const scopes: {
+      spaceId: Id<"spaces">;
+      place: string;
+      workspaceId?: Id<"workspaces">;
+      workspaceName: string;
+      spaceName: string;
+    }[] = [];
 
     const personal = await ctx.db
       .query("spaces")
@@ -122,7 +143,12 @@ export const list = query({
       )
       .unique();
     if (personal && !personal.archivedAt) {
-      scopes.push({ spaceId: personal._id, place: `Personal · ${personal.name}` });
+      scopes.push({
+        spaceId: personal._id,
+        place: `Personal · ${personal.name}`,
+        workspaceName: "Personal",
+        spaceName: personal.name,
+      });
     }
 
     const memberships = await ctx.db
@@ -141,12 +167,32 @@ export const list = query({
       for (const sp of wsSpaces) {
         if (sp.archivedAt) continue;
         if (!(await canAccessSpace(ctx, sp, { subject }))) continue;
-        scopes.push({ spaceId: sp._id, place: `${ws.name} · ${sp.name}` });
+        scopes.push({
+          spaceId: sp._id,
+          place: `${ws.name} · ${sp.name}`,
+          workspaceId: m.workspaceId,
+          workspaceName: ws.name,
+          spaceName: sp.name,
+        });
       }
     }
 
     const needle = search?.trim().toLowerCase();
     const matched: ProjectDirectoryRow[] = [];
+
+    // Roadmap docs are shared across many lists in the same workspace —
+    // fetch each at most once per query, keyed by id. `null` caches a
+    // miss (deleted roadmap with a stale pointer) so we don't re-fetch it.
+    const roadmapCache = new Map<Id<"roadmaps">, Doc<"roadmaps"> | null>();
+    async function getRoadmap(
+      id: Id<"roadmaps">,
+    ): Promise<Doc<"roadmaps"> | null> {
+      const hit = roadmapCache.get(id);
+      if (hit !== undefined) return hit;
+      const doc = await ctx.db.get(id);
+      roadmapCache.set(id, doc);
+      return doc;
+    }
 
     for (const sc of scopes) {
       const lists = await listsForSpace(ctx, sc.spaceId);
@@ -160,6 +206,23 @@ export const list = query({
         const rollup = await getRollup(ctx, l._id);
         const counts = rollup ?? (await countTasks(ctx, l._id));
 
+        // Roadmap context: resolve the phase name via the cached roadmap
+        // doc. Roadmaps are workspace-level, so only attach when the
+        // roadmap belongs to this scope's workspace — a stale or
+        // cross-workspace pointer never leaks another workspace's roadmap
+        // name to this viewer.
+        let roadmapName: string | undefined;
+        let phaseName: string | undefined;
+        if (l.roadmapId && sc.workspaceId) {
+          const roadmap = await getRoadmap(l.roadmapId);
+          if (roadmap && roadmap.workspaceId === sc.workspaceId) {
+            roadmapName = roadmap.name;
+            phaseName = roadmap.phases.find(
+              (p) => p.id === l.roadmapPhaseId,
+            )?.name;
+          }
+        }
+
         matched.push({
           listId: l._id,
           name: l.name,
@@ -171,6 +234,12 @@ export const list = query({
           total: counts.total,
           done: counts.done,
           inProgress: counts.inProgress,
+          position: l.position,
+          activityAt: rollup?.updatedAt ?? l.createdAt,
+          workspaceName: sc.workspaceName,
+          spaceName: sc.spaceName,
+          roadmapName,
+          phaseName,
         });
       }
     }

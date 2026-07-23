@@ -56,11 +56,29 @@ export const exportWorkspace = query({
       }));
     }
 
+    const roadmaps = await ctx.db
+      .query("roadmaps")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+    const roadmapName = new Map(roadmaps.map((r) => [r._id, r.name]));
+    const phaseName = new Map(
+      roadmaps.flatMap((r) => r.phases.map((p) => [p.id, p.name] as const)),
+    );
+
     async function listNode(list: {
       _id: Id<"lists">;
       name: string;
+      roadmapId?: Id<"roadmaps">;
+      roadmapPhaseId?: string;
     }) {
-      return { name: list.name, tasks: await tasksForList(list._id) };
+      return {
+        name: list.name,
+        roadmap: list.roadmapId ? roadmapName.get(list.roadmapId) : undefined,
+        roadmapPhase: list.roadmapPhaseId
+          ? phaseName.get(list.roadmapPhaseId)
+          : undefined,
+        tasks: await tasksForList(list._id),
+      };
     }
 
     const spaceNodes = [];
@@ -112,6 +130,14 @@ export const exportWorkspace = query({
       apiVersion: 1,
       workspace: { name: workspace.name, slug: workspace.slug },
       spaces: spaceNodes,
+      roadmaps: roadmaps.map((r) => ({
+        name: r.name,
+        description: r.description,
+        phases: r.phases.map((p) => ({
+          name: p.name,
+          targetDate: p.targetDate,
+        })),
+      })),
       sprints: sprints.map((s) => ({
         name: s.name,
         goal: s.goal,
