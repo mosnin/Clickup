@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery } from "convex/react";
 import { ChevronDown, ChevronUp, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -165,25 +173,35 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
   }
 
   function deleteRoadmap(rm: Roadmap) {
+    // Any open editors targeted the roadmap being deleted — close them so
+    // they can't silently retarget whichever roadmap becomes active next.
+    setRenaming(false);
+    setAddingPhase(false);
+    const unhide = () =>
+      setHiddenRoadmapIds((prev) => {
+        const next = new Set(prev);
+        next.delete(rm._id);
+        return next;
+      });
     setHiddenRoadmapIds((prev) => new Set(prev).add(rm._id));
     toast(`${rm.name} deleted — projects stay put`, {
-      action: {
-        label: "Undo",
-        onClick: () =>
-          setHiddenRoadmapIds((prev) => {
-            const next = new Set(prev);
-            next.delete(rm._id);
-            return next;
-          }),
-      },
+      action: { label: "Undo", onClick: unhide },
       onExpire: () =>
-        void removeRoadmap({ roadmapId: rm._id }).catch((e) =>
-          toast(errorMessage(e, "Couldn't delete roadmap"), { kind: "error" }),
-        ),
+        void removeRoadmap({ roadmapId: rm._id }).catch((e) => {
+          // Failed commit: un-hide so the still-existing roadmap reappears.
+          unhide();
+          toast(errorMessage(e, "Couldn't delete roadmap"), { kind: "error" });
+        }),
     });
   }
 
   function deletePhase(rm: Roadmap, phase: Phase) {
+    const unhide = () =>
+      setHiddenPhaseIds((prev) => {
+        const next = new Set(prev);
+        next.delete(phase.id);
+        return next;
+      });
     setHiddenPhaseIds((prev) => new Set(prev).add(phase.id));
     const count = rm.projects.filter((p) => p.phaseId === phase.id).length;
     toast(
@@ -191,21 +209,15 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
         ? `${phase.name} deleted — ${count} project${count === 1 ? "" : "s"} return to Not on roadmap`
         : `${phase.name} deleted`,
       {
-        action: {
-          label: "Undo",
-          onClick: () =>
-            setHiddenPhaseIds((prev) => {
-              const next = new Set(prev);
-              next.delete(phase.id);
-              return next;
-            }),
-        },
+        action: { label: "Undo", onClick: unhide },
         onExpire: () =>
           void removePhase({ roadmapId: rm._id, phaseId: phase.id }).catch(
-            (e) =>
+            (e) => {
+              unhide();
               toast(errorMessage(e, "Couldn't delete phase"), {
                 kind: "error",
-              }),
+              });
+            },
           ),
       },
     );
@@ -316,6 +328,7 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
               <PhaseColumn
                 roadmap={active}
                 phase={phase}
+                visiblePhases={phases}
                 projects={active.projects.filter(
                   (p) => p.phaseId === phase.id,
                 )}
@@ -352,7 +365,26 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
         </Stagger>
       </div>
 
-      <UnassignedRail projects={unassigned} roadmap={active} />
+      <UnassignedRail
+        // During a phase's undo window its projects would otherwise be
+        // invisible everywhere — surface them here (they're headed to the
+        // rail anyway if the delete commits).
+        projects={[
+          ...unassigned,
+          ...active.projects
+            .filter(
+              (p) => p.phaseId !== undefined && hiddenPhaseIds.has(p.phaseId),
+            )
+            .map((p) => ({
+              listId: p.listId,
+              name: p.name,
+              color: p.color,
+              spaceName: "",
+            })),
+        ]}
+        roadmap={active}
+        phases={phases}
+      />
     </div>
   );
 }
@@ -362,11 +394,14 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
 function PhaseColumn({
   roadmap,
   phase,
+  visiblePhases,
   projects,
   onDelete,
 }: {
   roadmap: Roadmap;
   phase: Phase;
+  /** Phases not pending deletion — the only valid move targets. */
+  visiblePhases: Phase[];
   projects: RoadmapProject[];
   onDelete: () => void;
 }) {
@@ -447,7 +482,7 @@ function PhaseColumn({
     done < total;
 
   const moveOptions = [
-    ...roadmap.phases
+    ...visiblePhases
       .filter((p) => p.id !== phase.id)
       .map((p) => ({ id: p.id, label: p.name, hint: "phase" })),
     { id: "__remove", label: "Remove from roadmap" },
@@ -562,24 +597,80 @@ function PhaseMenu({
   const updatePhase = useMutation(api.roadmaps.updatePhase);
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  // Local draft so keyboard edits don't fire a mutation per segment (and
+  // don't snap back mid-edit); committed on blur or menu close. Clearing
+  // happens only via the explicit button — a transiently empty input while
+  // retyping must never wipe the stored date.
+  const [dateDraft, setDateDraft] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const popRef = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  // Portaled to <body>: the phase strip is overflow-x-auto, which would
+  // clip an absolutely positioned menu (overflow-x forces overflow-y).
+  useLayoutEffect(() => {
+    if (!open) return;
+    const rect = rootRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 224; // w-56
+    const left = Math.max(
+      8,
+      Math.min(rect.right - width, window.innerWidth - width - 8),
+    );
+    setPos({ top: rect.bottom + 6, left });
+  }, [open]);
+
+  const commitDraft = useCallback(() => {
+    setDateDraft((draft) => {
+      if (draft !== null && draft !== "") {
+        void updatePhase({
+          roadmapId: roadmap._id,
+          phaseId: phase.id,
+          targetDate: fromDateInputValue(draft) ?? null,
+        }).catch((e) =>
+          toast(errorMessage(e, "Couldn't set target date"), {
+            kind: "error",
+          }),
+        );
+      }
+      return null;
+    });
+  }, [updatePhase, roadmap._id, phase.id, toast]);
 
   useEffect(() => {
     if (!open) return;
     function onPointerDown(e: PointerEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target)) return;
+      if (popRef.current?.contains(target)) return;
+      commitDraft();
+      setOpen(false);
+    }
+    function onMove(e: Event) {
+      if (e.target instanceof Node && popRef.current?.contains(e.target)) {
+        return;
+      }
+      commitDraft();
+      setOpen(false);
     }
     window.addEventListener("pointerdown", onPointerDown);
-    return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
+    };
+  }, [open, commitDraft]);
 
-  function setTarget(value: string) {
+  function clearTarget() {
+    setDateDraft(null);
     void updatePhase({
       roadmapId: roadmap._id,
       phaseId: phase.id,
-      targetDate: fromDateInputValue(value) ?? null,
+      targetDate: null,
     }).catch((e) =>
-      toast(errorMessage(e, "Couldn't set target date"), { kind: "error" }),
+      toast(errorMessage(e, "Couldn't clear target date"), { kind: "error" }),
     );
   }
 
@@ -594,15 +685,26 @@ function PhaseMenu({
       >
         <MoreHorizontal className="h-3.5 w-3.5" />
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 4, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 4, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: EASE }}
-            className="absolute right-0 top-full z-30 mt-1.5 w-56 rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-lg"
-          >
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {open && (
+              <div
+                ref={popRef}
+                style={{
+                  position: "fixed",
+                  top: pos.top,
+                  left: pos.left,
+                  zIndex: 60,
+                }}
+              >
+                <motion.div
+                  initial={{ opacity: 0, y: 4, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                  transition={{ duration: 0.18, ease: EASE }}
+                  className="w-56 rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-lg"
+                >
             <label className="block px-1.5 pt-1">
               <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Target date
@@ -610,18 +712,20 @@ function PhaseMenu({
               <input
                 type="date"
                 value={
-                  phase.targetDate !== undefined
+                  dateDraft ??
+                  (phase.targetDate !== undefined
                     ? toDateInputValue(phase.targetDate)
-                    : ""
+                    : "")
                 }
-                onChange={(e) => setTarget(e.currentTarget.value)}
-                className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+                onChange={(e) => setDateDraft(e.currentTarget.value)}
+                onBlur={commitDraft}
+                className="soft-field w-full px-3 py-1.5 text-sm"
               />
             </label>
             {phase.targetDate !== undefined && (
               <button
                 type="button"
-                onClick={() => setTarget("")}
+                onClick={clearTarget}
                 className="mt-1 flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               >
                 Clear target date
@@ -647,9 +751,12 @@ function PhaseMenu({
             >
               Delete phase
             </button>
-          </motion.div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
-      </AnimatePresence>
     </div>
   );
 }
@@ -750,9 +857,12 @@ function ProjectCard({
 function UnassignedRail({
   projects,
   roadmap,
+  phases,
 }: {
   projects: { listId: Id<"lists">; name: string; color?: string; spaceName: string }[];
   roadmap: Roadmap;
+  /** Phases not pending deletion — the only valid assignment targets. */
+  phases: Phase[];
 }) {
   const assign = useMutation(api.roadmaps.assignProject);
   const { toast } = useToast();
@@ -793,14 +903,16 @@ function UnassignedRail({
                 >
                   {p.name}
                 </Link>
-                <span className="truncate text-[11px] uppercase tracking-wider text-muted-foreground">
-                  {p.spaceName}
-                </span>
+                {p.spaceName && (
+                  <span className="truncate text-[11px] uppercase tracking-wider text-muted-foreground">
+                    {p.spaceName}
+                  </span>
+                )}
                 <Picker
                   label="+ Add to phase…"
                   dashed
                   className="ml-auto"
-                  options={roadmap.phases.map((ph) => ({
+                  options={phases.map((ph) => ({
                     id: ph.id,
                     label: ph.name,
                   }))}

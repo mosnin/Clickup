@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -226,7 +226,7 @@ function OverviewTab({
         parentType="space"
         parentId={spaceId}
         rollupsById={rollupsById}
-        fallback={lists.filter((l) => l.folder === null)}
+        fallback={lists.filter((l) => l.folderId === null)}
       />
 
       {folders.map((f) => (
@@ -237,7 +237,7 @@ function OverviewTab({
           parentType="folder"
           parentId={f.folderId}
           rollupsById={rollupsById}
-          fallback={lists.filter((l) => l.folder === f.name)}
+          fallback={lists.filter((l) => l.folderId === f.folderId)}
           hideFolderLine
         />
       ))}
@@ -310,6 +310,23 @@ function ProjectSection({
       .sort((a, b) => a.position - b.position || a.createdAt - b.createdAt)
       .map((l) => l._id);
   }, [raw]);
+
+  // Once the server order converges with (or diverges in membership from)
+  // the override, drop it — otherwise a later reorder by someone else would
+  // stay masked behind our stale local order forever.
+  const serverKey = serverIds?.join(",") ?? null;
+  useEffect(() => {
+    if (serverKey === null) return;
+    setOverride((cur) => {
+      if (!cur) return cur;
+      const ids = serverKey === "" ? [] : serverKey.split(",");
+      const curIds = cur.map((id) => id as string);
+      const sameSet =
+        curIds.length === ids.length && ids.every((id) => curIds.includes(id));
+      if (!sameSet || curIds.join(",") === serverKey) return null;
+      return cur;
+    });
+  }, [serverKey]);
 
   // The override only holds while it's a permutation of the server's id
   // set; a list created/deleted elsewhere invalidates it automatically.
@@ -437,7 +454,7 @@ function ProjectCard({
                   e.stopPropagation();
                   reorder.onMove(-1);
                 }}
-                className="tap-target rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                className="tap-target rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
               >
                 <ChevronUp className="h-3.5 w-3.5" />
               </button>
@@ -450,7 +467,7 @@ function ProjectCard({
                   e.stopPropagation();
                   reorder.onMove(1);
                 }}
-                className="tap-target rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+                className="tap-target rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
               >
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>

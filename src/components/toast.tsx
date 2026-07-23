@@ -82,7 +82,21 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         action: options?.action,
         onExpire: options?.onExpire,
       };
-      setToasts((cur) => [...cur.slice(-2), item]);
+      setToasts((cur) => {
+        // Stack caps at 3: anything evicted must still run its deferred
+        // commit — silently dropping an undo-delete toast would leave the
+        // row hidden locally but alive on the server. Timer-map guard keeps
+        // this idempotent if React re-runs the updater.
+        for (const t of cur.slice(0, -2)) {
+          const timer = timers.current.get(t.id);
+          if (timer) {
+            clearTimeout(timer);
+            timers.current.delete(t.id);
+            if (t.onExpire) setTimeout(t.onExpire, 0);
+          }
+        }
+        return [...cur.slice(-2), item];
+      });
       const duration = options?.duration ?? (options?.action ? 6000 : 4000);
       timers.current.set(
         id,

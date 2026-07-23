@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { FolderKanban, Star } from "lucide-react";
@@ -155,6 +155,7 @@ function formatTargetDate(ts: number): string {
 export function ProjectsView() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const [raw, setRaw] = useState("");
   const [debounced, setDebounced] = useState("");
   const [status, setStatus] = useState<StatusFilter>("");
@@ -171,7 +172,7 @@ export function ProjectsView() {
     if (value === defaultValue) params.delete(key);
     else params.set(key, value);
     const qs = params.toString();
-    router.replace(qs ? `?${qs}` : "?", { scroll: false });
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
 
   useEffect(() => {
