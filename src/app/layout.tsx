@@ -1,33 +1,38 @@
 import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 import "./globals.css";
-import { Geist } from "next/font/google";
 import { Providers } from "./providers";
 import { RegisterServiceWorker } from "@/components/register-service-worker";
 import { OfflineIndicator } from "@/components/offline-indicator";
 
-const geist = Geist({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-sans",
+// Instrument Sans (OFL) — bundled locally so builds never depend on a
+// font CDN. One variable file covers 400–700.
+const instrumentSans = localFont({
+  src: "./fonts/InstrumentSans-Variable.woff2",
+  weight: "400 700",
+  variable: "--font-instrument",
   display: "swap",
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://operate.to",
+  ),
   title: {
-    default: "Pace — Type. Done.",
-    template: "%s · Pace",
+    default: "operate.to: mission control for humans and AI agents",
+    template: "%s · operate.to",
   },
   description:
-    "Pace turns a plain-English sentence into the right task on the right list. One keystroke.",
+    "The all-in-one workspace where AI agents work like teammates: tasks, docs, and sprints for humans; MCP access, budgets, and approval gates for agents.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/icon.svg",
     apple: "/icon.svg",
   },
-  applicationName: "Pace",
+  applicationName: "operate.to",
   appleWebApp: {
     capable: true,
-    title: "Pace",
+    title: "operate.to",
     statusBarStyle: "default",
   },
   formatDetection: { telephone: false },
@@ -35,7 +40,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: light)", color: "#ededf0" },
     { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
   ],
   width: "device-width",
@@ -45,7 +50,17 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className={geist.variable}>
+    <html lang="en" suppressHydrationWarning className={instrumentSans.variable}>
+      <head>
+        {/* Resolve the theme before first paint so there's no flash. The
+            toggle writes localStorage "theme" = dark | light; anything else
+            (or nothing) follows the OS. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="min-h-dvh bg-background text-foreground antialiased">
         <Providers>{children}</Providers>
         <OfflineIndicator />

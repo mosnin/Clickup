@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useQuery } from "convex/react";
+import { User } from "lucide-react";
 import { api } from "@convex/_generated/api";
+import { Stagger, StaggerItem } from "@/components/motion";
+import { PageHeader } from "@/components/dashboard/page-header";
 
 export default function PersonalPage() {
   const tree = useQuery(api.sidebar.tree, {});
@@ -12,7 +15,7 @@ export default function PersonalPage() {
   }
   if (tree === null || !tree.personal) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
         Setting up your personal space…
       </div>
     );
@@ -23,28 +26,17 @@ export default function PersonalPage() {
 
   return (
     <div className="space-y-6">
-      <header>
-        <div className="flex items-center gap-2">
-          <span
-            aria-hidden
-            className="inline-block h-3 w-3 rounded-full"
-            style={{ backgroundColor: personal.color ?? "#6366f1" }}
-          />
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            {personal.name}
-          </h1>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Just for you. Nothing in here is shared.
-        </p>
-      </header>
+      <PageHeader icon={User} title="Personal" />
+      <p className="text-sm text-muted-foreground">
+        Just for you. Nothing in here is shared.
+      </p>
 
       {personal.folders.length === 0 && directLists.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-10 text-center">
+        <div className="rounded-2xl panel p-10 text-center">
           <p className="text-sm text-muted-foreground">
-            Empty for now. Add a list from the sidebar — or pick a starter
-            template like <span className="font-medium">Personal to-do</span>{" "}
-            and you&apos;ll have something to react to in 30 seconds.
+            No lists yet. Use the <span className="font-medium">+</span> next to{" "}
+            <span className="font-medium">{personal.name}</span> in the sidebar
+            to add a list or folder.
           </p>
         </div>
       ) : (
@@ -54,11 +46,11 @@ export default function PersonalPage() {
               <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 {folder.name}
               </h2>
-              <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Stagger className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {folder.lists.map((list) => (
                   <ListCard key={list._id} list={list} />
                 ))}
-              </ul>
+              </Stagger>
             </section>
           ))}
 
@@ -67,11 +59,11 @@ export default function PersonalPage() {
               <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 Lists
               </h2>
-              <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Stagger className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {directLists.map((list) => (
                   <ListCard key={list._id} list={list} />
                 ))}
-              </ul>
+              </Stagger>
             </section>
           )}
         </>
@@ -86,21 +78,21 @@ function ListCard({
   list: { _id: string; name: string; color?: string };
 }) {
   return (
-    <li>
+    <StaggerItem>
       <Link
         href={`/dashboard/l/${list._id}`}
-        className="block rounded-3xl border border-border bg-background p-5 transition-colors hover:border-brand-500"
+        className="lift block rounded-2xl panel p-5 hover:border-foreground/25"
       >
         <div className="flex items-center gap-2">
           <span
             aria-hidden
             className="inline-block h-2 w-2 rounded-full"
-            style={{ backgroundColor: list.color ?? "#6366f1" }}
+            style={{ backgroundColor: list.color ?? "#a9c6f2" }}
           />
           <span className="font-medium">{list.name}</span>
         </div>
       </Link>
-    </li>
+    </StaggerItem>
   );
 }
 
@@ -112,7 +104,7 @@ function Skeleton() {
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="h-24 animate-pulse rounded-3xl border border-border bg-muted/40"
+            className="h-24 animate-pulse rounded-2xl border border-border bg-muted/40"
           />
         ))}
       </div>

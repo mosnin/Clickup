@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useMutation } from "convex/react";
 import {
   addMonths,
   endOfMonth,
@@ -12,28 +14,21 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import {
-  DndContext,
-  PointerSensor,
-  useDraggable,
-  useDroppable,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import { useMutation } from "convex/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { parseQuickAdd } from "@/lib/quick-add";
+import { taskPeekHref } from "@/components/dashboard/task-peek";
+import {
+  PriorityDot,
+  type TaskPriority,
+} from "@/components/dashboard/priority";
 
-const PRIORITY_COLOR: Record<string, string> = {
-  urgent: "#ef4444",
-  high: "#f97316",
-  normal: "#3b82f6",
-  low: "#a1a1aa",
-};
+// A calendar you can schedule on: drag a task chip onto a day to reschedule,
+// click a day's empty space to create a task due that day, click a chip to
+// peek at the task without leaving the month.
 
 export function CalendarView({
   listId,
@@ -43,11 +38,13 @@ export function CalendarView({
   tasks: Doc<"tasks">[];
 }) {
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()));
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [composing, setComposing] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<string | null>(null);
   const update = useMutation(api.tasks.update);
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-  );
+  const create = useMutation(api.tasks.create);
 
+  // Build a week grid that always covers the entire month + spillover.
   const weeks = useMemo(() => {
     const start = startOfWeek(startOfMonth(cursor), { weekStartsOn: 0 });
     const end = endOfWeek(endOfMonth(cursor), { weekStartsOn: 0 });
@@ -72,327 +69,245 @@ export function CalendarView({
     return map;
   }, [tasks]);
 
-  const undated = tasks.filter((t) => !t.dueDate).slice(0, 6);
-
-  // Drop ids are `day:yyyy-MM-dd` for month cells and `undated` for the
-  // backlog row, so the handler can route both directions cleanly.
-  function onDragEnd(e: DragEndEvent) {
-    const taskId = e.active.id as Id<"tasks">;
-    const overId = e.over?.id as string | undefined;
-    if (!overId) return;
-    if (overId === "undated") {
-      update({ taskId, dueDate: null });
-      return;
-    }
-    if (overId.startsWith("day:")) {
-      const iso = overId.slice("day:".length);
-      const date = new Date(iso + "T00:00:00");
-      update({ taskId, dueDate: date.getTime() });
-    }
-  }
-
-  return (
-    <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-      <div className="space-y-3">
-        <header className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">
-            {format(cursor, "MMMM yyyy")}
-          </h2>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setCursor((c) => addMonths(c, -1))}
-              aria-label="Previous month"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setCursor(startOfMonth(new Date()))}
-            >
-              Today
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setCursor((c) => addMonths(c, 1))}
-              aria-label="Next month"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </header>
-
-        {/* Mobile: vertical schedule. A 7-column month grid is unreadable
-            on a phone — replace it with a date-grouped list of upcoming
-            tasks. Desktop drops back to the grid below. */}
-        <MobileSchedule tasks={tasks} listId={listId} />
-
-        <div className="hidden overflow-hidden rounded-3xl border border-border bg-background sm:block">
-          <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs uppercase tracking-wider text-muted-foreground">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-              <div key={d} className="py-2">
-                {d}
-              </div>
-            ))}
-          </div>
-          <div>
-            {weeks.map((week, wi) => (
-              <div
-                key={wi}
-                className="grid grid-cols-7 border-b border-border last:border-b-0"
-              >
-                {week.map((day) => {
-                  const key = format(day, "yyyy-MM-dd");
-                  const dayTasks = tasksByDay.get(key) ?? [];
-                  const inMonth = isSameMonth(day, cursor);
-                  const today = isSameDay(day, new Date());
-                  return (
-                    <DayCell
-                      key={key}
-                      dayKey={key}
-                      day={day}
-                      tasks={dayTasks}
-                      inMonth={inMonth}
-                      today={today}
-                      listId={listId}
-                    />
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Desktop-only undated drop zone. On mobile MobileSchedule
-            already lists undated tasks and there's no drag-to-clear. */}
-        <div className="hidden sm:block">
-          <UndatedDrop>
-            {undated.length > 0 && (
-              <ul className="mt-2 flex flex-wrap gap-2">
-                {undated.map((t) => (
-                  <li key={t._id}>
-                    <DraggablePill task={t} listId={listId} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </UndatedDrop>
-        </div>
-      </div>
-    </DndContext>
-  );
-}
-
-function MobileSchedule({
-  tasks,
-  listId,
-}: {
-  tasks: Doc<"tasks">[];
-  listId: Id<"lists">;
-}) {
-  // Group dated tasks by yyyy-MM-dd, sorted ascending. Anything past
-  // returns near the top so a Monday morning user sees what's overdue.
-  const dated = tasks.filter((t) => t.dueDate).sort((a, b) =>
-    (a.dueDate ?? 0) - (b.dueDate ?? 0),
-  );
   const undated = tasks.filter((t) => !t.dueDate);
 
-  if (dated.length === 0 && undated.length === 0) {
-    return (
-      <div className="block rounded-3xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground sm:hidden">
-        No dated tasks. Add a due date in the task editor to see it here.
-      </div>
-    );
+  function dayTimestamp(day: Date): number {
+    // Local midnight, matching the date-input round-trip in lib/dates.
+    return new Date(
+      day.getFullYear(),
+      day.getMonth(),
+      day.getDate(),
+    ).getTime();
   }
 
-  const groups = new Map<string, Doc<"tasks">[]>();
-  for (const t of dated) {
-    const d = new Date(t.dueDate!);
-    const key = format(d, "yyyy-MM-dd");
-    const arr = groups.get(key);
-    if (arr) arr.push(t);
-    else groups.set(key, [t]);
+  function onDrop(day: Date, e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(null);
+    const taskId = e.dataTransfer.getData("text/task-id");
+    if (!taskId) return;
+    void update({
+      taskId: taskId as Id<"tasks">,
+      dueDate: dayTimestamp(day),
+    });
   }
-
-  const today = new Date();
-  const todayKey = format(today, "yyyy-MM-dd");
 
   return (
-    <div className="block space-y-3 sm:hidden">
-      {Array.from(groups.entries()).map(([key, taskList]) => {
-        const date = new Date(key + "T00:00:00");
-        const isPast = key < todayKey;
-        const isToday = key === todayKey;
-        return (
-          <section
-            key={key}
-            className="rounded-3xl border border-border bg-background p-3"
+    <div className="space-y-3">
+      <header className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">{format(cursor, "MMMM yyyy")}</h2>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCursor((c) => addMonths(c, -1))}
+            aria-label="Previous month"
           >
-            <h3
-              className={cn(
-                "text-xs font-semibold uppercase tracking-wider",
-                isPast && "text-red-700",
-                isToday && "text-brand-700",
-                !isPast && !isToday && "text-muted-foreground",
-              )}
-            >
-              {isToday ? "Today" : format(date, "EEEE, MMM d")}
-              {isPast && " · overdue"}
-            </h3>
-            <ul className="mt-2 space-y-1">
-              {taskList.map((t) => (
-                <li key={t._id}>
-                  <Link
-                    href={`/dashboard/l/${listId}/t/${t._id}`}
-                    className="flex items-center gap-2 rounded-2xl px-2 py-1.5 text-sm hover:bg-muted"
-                  >
-                    {t.priority && (
-                      <span
-                        aria-hidden
-                        className="inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full"
-                        style={{
-                          backgroundColor: PRIORITY_COLOR[t.priority],
-                        }}
-                      />
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCursor(startOfMonth(new Date()))}
+          >
+            Today
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCursor((c) => addMonths(c, 1))}
+            aria-label="Next month"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </header>
+
+      {tasks.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          Click any day to schedule your first task.
+        </p>
+      )}
+
+      <div className="overflow-hidden rounded-2xl panel">
+        <div className="grid grid-cols-7 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+            <div key={d} className="py-2.5">
+              {d}
+            </div>
+          ))}
+        </div>
+        <div>
+          {weeks.map((week, wi) => (
+            <div key={wi} className="grid grid-cols-7">
+              {week.map((day) => {
+                const key = format(day, "yyyy-MM-dd");
+                const dayTasks = tasksByDay.get(key) ?? [];
+                const inMonth = isSameMonth(day, cursor);
+                const today = isSameDay(day, new Date());
+                const isExpanded = expanded.has(key);
+                const shown = isExpanded ? dayTasks : dayTasks.slice(0, 3);
+                return (
+                  <div
+                    key={key}
+                    role="button"
+                    tabIndex={-1}
+                    onClick={(e) => {
+                      // Only empty-space clicks start a quick add.
+                      if (e.target === e.currentTarget) setComposing(key);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragOver(key);
+                    }}
+                    onDragLeave={() =>
+                      setDragOver((cur) => (cur === key ? null : cur))
+                    }
+                    onDrop={(e) => onDrop(day, e)}
+                    className={cn(
+                      "min-h-24 cursor-pointer p-1.5 transition-colors sm:min-h-28",
+                      !inMonth && "bg-muted/25 text-muted-foreground",
+                      dragOver === key && "bg-muted/70",
                     )}
-                    <span className="truncate">{t.title}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
+                  >
+                    <div
+                      className={cn(
+                        "pointer-events-none mb-1 flex h-5 w-5 items-center justify-center text-[11px]",
+                        today &&
+                          "rounded-full bg-foreground font-medium text-background",
+                      )}
+                    >
+                      {day.getDate()}
+                    </div>
+                    <ul className="space-y-1">
+                      {shown.map((t) => (
+                        <li key={t._id}>
+                          <TaskChip task={t} />
+                        </li>
+                      ))}
+                      {dayTasks.length > 3 && (
+                        <li>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpanded((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(key)) next.delete(key);
+                                else next.add(key);
+                                return next;
+                              });
+                            }}
+                            className="text-[11px] text-muted-foreground hover:text-foreground"
+                          >
+                            {isExpanded
+                              ? "Show less"
+                              : `+${dayTasks.length - 3} more`}
+                          </button>
+                        </li>
+                      )}
+                      {composing === key && (
+                        <li onClick={(e) => e.stopPropagation()}>
+                          <QuickAdd
+                            onSubmit={async (title) => {
+                              const parsed = parseQuickAdd(title);
+                              await create({
+                                listId,
+                                title: parsed.title || title,
+                                // The clicked day owns the date.
+                                dueDate: dayTimestamp(day),
+                                priority: parsed.priority,
+                              });
+                            }}
+                            onClose={() => setComposing(null)}
+                          />
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+
       {undated.length > 0 && (
-        <section className="rounded-3xl border border-dashed border-border p-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            No due date
-          </h3>
-          <ul className="mt-2 space-y-1">
-            {undated.slice(0, 12).map((t) => (
+        <div className="rounded-2xl panel p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            No due date · drag onto a day to schedule
+          </p>
+          <ul className="mt-2.5 flex flex-wrap gap-2">
+            {undated.map((t) => (
               <li key={t._id}>
-                <Link
-                  href={`/dashboard/l/${listId}/t/${t._id}`}
-                  className="block truncate rounded-2xl px-2 py-1.5 text-sm hover:bg-muted"
-                >
-                  {t.title}
-                </Link>
+                <TaskChip task={t} pill />
               </li>
             ))}
           </ul>
-        </section>
+        </div>
       )}
     </div>
   );
 }
 
-function DayCell({
-  dayKey,
-  day,
-  tasks,
-  inMonth,
-  today,
-  listId,
-}: {
-  dayKey: string;
-  day: Date;
-  tasks: Doc<"tasks">[];
-  inMonth: boolean;
-  today: boolean;
-  listId: Id<"lists">;
-}) {
-  const { setNodeRef, isOver } = useDroppable({ id: `day:${dayKey}` });
+function TaskChip({ task, pill }: { task: Doc<"tasks">; pill?: boolean }) {
+  const searchParams = useSearchParams();
   return (
-    <div
-      ref={setNodeRef}
+    <Link
+      href={taskPeekHref(searchParams, task._id)}
+      scroll={false}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/task-id", task._id);
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      onClick={(e) => e.stopPropagation()}
       className={cn(
-        "min-h-24 border-r border-border p-1.5 last:border-r-0 sm:min-h-28",
-        !inMonth && "bg-muted/20 text-muted-foreground",
-        isOver && "bg-brand-50/60",
-      )}
-    >
-      <div
-        className={cn(
-          "mb-1 flex h-5 w-5 items-center justify-center text-[11px]",
-          today && "rounded-full bg-brand-600 text-white",
-        )}
-      >
-        {day.getDate()}
-      </div>
-      <ul className="space-y-1">
-        {tasks.slice(0, 3).map((t) => (
-          <li key={t._id}>
-            <DraggablePill task={t} listId={listId} />
-          </li>
-        ))}
-        {tasks.length > 3 && (
-          <li className="text-[11px] text-muted-foreground">
-            +{tasks.length - 3} more
-          </li>
-        )}
-      </ul>
-    </div>
-  );
-}
-
-function DraggablePill({
-  task,
-  listId,
-}: {
-  task: Doc<"tasks">;
-  listId: Id<"lists">;
-}) {
-  const { setNodeRef, attributes, listeners, isDragging, transform } =
-    useDraggable({ id: task._id });
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      className={cn(
-        "flex items-center gap-1 truncate rounded-full bg-muted px-1.5 py-0.5 text-[11px] hover:bg-brand-100 hover:text-brand-700",
-        isDragging && "opacity-50",
+        "flex cursor-grab items-center gap-1 truncate rounded-full bg-muted text-[11px] transition-colors hover:bg-brand-100 hover:text-brand-700 active:cursor-grabbing",
+        pill ? "px-2 py-1 text-xs" : "px-1.5 py-0.5",
       )}
     >
       {task.priority && (
-        <span
-          aria-hidden
-          className="inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full"
-          style={{ backgroundColor: PRIORITY_COLOR[task.priority] }}
+        <PriorityDot
+          priority={task.priority as TaskPriority}
+          className="h-1.5 w-1.5"
         />
       )}
-      <Link
-        href={`/dashboard/l/${listId}/t/${task._id}`}
-        className="truncate"
-        onPointerDown={(e) => e.stopPropagation()}
-      >
-        {task.title}
-      </Link>
-    </div>
+      <span className="truncate">{task.title}</span>
+    </Link>
   );
 }
 
-function UndatedDrop({ children }: { children: React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({ id: "undated" });
+function QuickAdd({
+  onSubmit,
+  onClose,
+}: {
+  onSubmit: (title: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState("");
   return (
-    <div
-      ref={setNodeRef}
-      className={cn(
-        "rounded-3xl border border-dashed border-border bg-background p-3",
-        isOver && "border-brand-500 bg-brand-50/40",
-      )}
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const t = title.trim();
+        if (!t) return onClose();
+        setTitle("");
+        onClose();
+        await onSubmit(t);
+      }}
     >
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        No due date {isOver && "— drop to clear"}
-      </p>
-      {children}
-    </div>
+      <input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.currentTarget.value)}
+        onBlur={onClose}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+        }}
+        placeholder="New task…"
+        aria-label="New task title"
+        className="soft-field w-full px-1.5 py-1 text-[11px]"
+      />
+    </form>
   );
 }

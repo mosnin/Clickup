@@ -10,6 +10,10 @@ export const upsertFromClerk = internalMutation({
     imageUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Store emails lowercased so the by_email index is a reliable lookup key
+    // (admin grants, mention resolution). Emails are case-insensitive in
+    // practice, and the env-allowlist admin check already lowercases.
+    const email = args.email.toLowerCase();
     const existing = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
@@ -17,7 +21,7 @@ export const upsertFromClerk = internalMutation({
 
     if (existing) {
       await ctx.db.patch(existing._id, {
-        email: args.email,
+        email,
         name: args.name,
         imageUrl: args.imageUrl,
       });
@@ -26,7 +30,7 @@ export const upsertFromClerk = internalMutation({
 
     const userId = await ctx.db.insert("users", {
       clerkId: args.clerkId,
-      email: args.email,
+      email,
       name: args.name,
       imageUrl: args.imageUrl,
     });
@@ -74,7 +78,7 @@ export const ensureCurrent = mutation({
     if (!existing) {
       await ctx.db.insert("users", {
         clerkId: identity.subject,
-        email: identity.email ?? "",
+        email: (identity.email ?? "").toLowerCase(),
         name: identity.name,
         imageUrl: identity.pictureUrl,
       });
@@ -96,40 +100,6 @@ export const ensureCurrent = mutation({
         createdAt: Date.now(),
       });
     }
-  },
-});
-
-// Marks the user as onboarded. Wizard calls this last so the
-// dashboard's first-run dialog can decide whether to show.
-export const completeOnboarding = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .unique();
-    if (!user) return;
-    if (user.onboardedAt) return;
-    await ctx.db.patch(user._id, { onboardedAt: Date.now() });
-  },
-});
-
-// Resolves the caller's personal space — used by the onboarding wizard
-// to know where to drop a starter template.
-export const personalSpaceId = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-    const space = await ctx.db
-      .query("spaces")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "user").eq("parentId", identity.subject),
-      )
-      .unique();
-    return space?._id ?? null;
   },
 });
 

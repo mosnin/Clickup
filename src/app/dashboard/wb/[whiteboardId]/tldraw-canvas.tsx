@@ -55,7 +55,7 @@ export function TldrawCanvas({
   }
 
   return (
-    <div className="h-[70vh] overflow-hidden rounded-3xl border border-border">
+    <div className="h-[70vh] overflow-hidden rounded-2xl border border-border">
       <Tldraw onMount={onMount} />
     </div>
   );

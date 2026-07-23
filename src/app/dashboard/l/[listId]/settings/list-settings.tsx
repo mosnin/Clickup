@@ -1,12 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/components/toast";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Copy, Plus, Settings, Trash2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Picker } from "@/components/ui/picker";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { ScheduledTasksSection } from "@/components/dashboard/scheduled-tasks-section";
 
 type StatusCategory = Doc<"listStatuses">["category"];
 type FieldType = Doc<"customFields">["type"];
@@ -25,6 +48,33 @@ const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   date: "Date",
   checkbox: "Checkbox",
 };
+
+// Shared shape for a "row list inside a Card" section — a bordered
+// container with divided rows, plus a distinct dashed-border row at the
+// bottom for creating a new entry. Keeps Statuses/Fields/Automations/Forms
+// visually consistent without duplicating the wrapper markup.
+function RowList({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+      {children}
+    </div>
+  );
+}
+
+function EmptyRow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="p-4 text-center text-sm text-muted-foreground">
+      {children}
+    </div>
+  );
+}
+
+function errorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
+  );
+}
 
 export function ListSettings({ listId }: { listId: string }) {
   const id = listId as Id<"lists">;
@@ -45,14 +95,14 @@ export function ListSettings({ listId }: { listId: string }) {
   }
   if (list === null) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
         List not found.
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <Link
         href={`/dashboard/l/${list._id}`}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -60,12 +110,17 @@ export function ListSettings({ listId }: { listId: string }) {
         <ArrowLeft className="h-4 w-4" /> {list.name}
       </Link>
 
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          List settings
-        </h1>
-      </header>
+      <PageHeader
+        icon={Settings}
+        title={`${list.name} settings`}
+        context={
+          <span className="truncate">
+            Statuses, custom fields, automations, and schedules
+          </span>
+        }
+      />
 
+      <IdentityCard listId={list._id} list={list} />
       <StatusesSection listId={list._id} statuses={statuses} />
       <FieldsSection listId={list._id} fields={fields} />
       <AutomationsSection
@@ -73,10 +128,163 @@ export function ListSettings({ listId }: { listId: string }) {
         automations={automations}
         statuses={statuses}
       />
+      <Card className="rounded-2xl">
+        <CardContent>
+          <ScheduledTasksSection listId={list._id} />
+        </CardContent>
+      </Card>
+      <FormsSection listId={list._id} />
+      <DangerCard list={list} />
     </div>
   );
 }
 
+// Rename in place — the only list-identity control missing from this page
+// before now (name showed up everywhere but could only ever be set once,
+// at creation).
+function IdentityCard({
+  listId,
+  list,
+}: {
+  listId: Id<"lists">;
+  list: Doc<"lists">;
+}) {
+  const rename = useMutation(api.lists.rename);
+  const { toast } = useToast();
+  const [name, setName] = useState(list.name);
+
+  useEffect(() => setName(list.name), [list.name]);
+
+  async function commit() {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === list.name) {
+      setName(list.name);
+      return;
+    }
+    try {
+      await rename({ listId, name: trimmed });
+      toast("Saved");
+    } catch (e) {
+      setName(list.name);
+      toast(errorMessage(e, "Couldn't rename the list"), { kind: "error" });
+    }
+  }
+
+  return (
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Identity</CardTitle>
+        <CardDescription>Rename this list.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <label className="block text-xs font-medium text-muted-foreground">
+          Name
+          <Input
+            value={name}
+            onChange={(e) => setName(e.currentTarget.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                (e.currentTarget as HTMLInputElement).blur();
+              } else if (e.key === "Escape") {
+                setName(list.name);
+              }
+            }}
+            className="mt-1.5"
+          />
+        </label>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Permanent, cascading delete (convex/lists.ts `remove` — tasks, statuses,
+// fields, automations, schedules all go with it). No native `window.confirm`:
+// an explicit two-step reveal stands in for it, then the same undo-able
+// deferred-commit pattern used for every other destructive action here
+// (hide/route away immediately, commit only once the toast's Undo window
+// closes) — except there's no row to "hide", so we navigate away right away
+// and only run the mutation if the undo window elapses.
+function DangerCard({ list }: { list: Doc<"lists"> }) {
+  const router = useRouter();
+  const remove = useMutation(api.lists.remove);
+  const { toast } = useToast();
+  const [confirming, setConfirming] = useState(false);
+
+  // We only have enough context client-side to resolve straight back to a
+  // Space (parentId IS the spaceId); a folder-parented list has no folder
+  // page to land on yet, so fall back to the dashboard root.
+  const destination =
+    list.parentType === "space"
+      ? `/dashboard/s/${list.parentId}`
+      : "/dashboard";
+
+  function confirmDelete() {
+    setConfirming(false);
+    router.push(destination);
+    toast(`"${list.name}" deleted — its tasks, docs, and history go with it`, {
+      action: {
+        label: "Undo",
+        onClick: () => toast(`"${list.name}" restored`),
+      },
+      onExpire: () => {
+        remove({ listId: list._id }).catch(() => {
+          toast("Couldn't delete the list", { kind: "error" });
+        });
+      },
+    });
+  }
+
+  return (
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Danger zone</CardTitle>
+        <CardDescription>
+          Permanently delete this list and everything in it — tasks,
+          comments, docs, and schedules. This can&apos;t be undone once the
+          undo window below closes.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {confirming ? (
+          <div className="rounded-xl bg-muted p-3">
+            <p className="text-sm text-muted-foreground">
+              Delete <strong>{list.name}</strong> and all of its tasks?
+            </p>
+            <div className="mt-2 flex gap-2">
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={confirmDelete}
+              >
+                Delete list
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setConfirming(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirming(true)}
+            className="text-destructive hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" /> Delete list
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function StatusesSection({
   listId,
@@ -90,40 +298,41 @@ function StatusesSection({
   const remove = useMutation(api.listStatuses.remove);
 
   return (
-    <section>
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Statuses
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Configure the workflow stages tasks in this list move through.
-      </p>
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Statuses</CardTitle>
+        <CardDescription>
+          Configure the workflow stages tasks in this list move through.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <RowList>
+          {statuses.map((status) => (
+            <StatusRow
+              key={status._id}
+              status={status}
+              otherStatuses={statuses.filter((s) => s._id !== status._id)}
+              onRename={(name) => update({ statusId: status._id, name })}
+              onColorChange={(color) =>
+                update({ statusId: status._id, color })
+              }
+              onCategoryChange={(category) =>
+                update({ statusId: status._id, category })
+              }
+              onDelete={(replaceWithId) =>
+                remove({ statusId: status._id, replaceWithId })
+              }
+            />
+          ))}
+        </RowList>
 
-      <ul className="mt-4 space-y-2">
-        {statuses.map((status) => (
-          <StatusRow
-            key={status._id}
-            status={status}
-            otherStatuses={statuses.filter((s) => s._id !== status._id)}
-            onRename={(name) => update({ statusId: status._id, name })}
-            onColorChange={(color) =>
-              update({ statusId: status._id, color })
-            }
-            onCategoryChange={(category) =>
-              update({ statusId: status._id, category })
-            }
-            onDelete={(replaceWithId) =>
-              remove({ statusId: status._id, replaceWithId })
-            }
-          />
-        ))}
-      </ul>
-
-      <CreateStatusForm
-        onSubmit={(name, color, category) =>
-          create({ listId, name, color, category })
-        }
-      />
-    </section>
+        <CreateStatusForm
+          onSubmit={(name, color, category) =>
+            create({ listId, name, color, category })
+          }
+        />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -147,40 +356,45 @@ function StatusRow({
   const [replaceWith, setReplaceWith] = useState<Id<"listStatuses"> | "">("");
 
   return (
-    <li className="rounded-3xl border border-border bg-background p-3">
+    <div className="p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        {/* Native color input: no vendored equivalent, keep the OS color
+            picker's mechanics as-is. */}
         <input
           type="color"
           aria-label="Status color"
           value={status.color}
           onChange={(e) => onColorChange(e.currentTarget.value)}
-          className="h-8 w-8 cursor-pointer rounded-full border border-border"
+          className="h-8 w-8 flex-shrink-0 cursor-pointer rounded-full border border-border"
         />
-        <input
-          type="text"
+        <Input
           value={name}
           onChange={(e) => setName(e.currentTarget.value)}
           onBlur={() => {
             if (name.trim() && name !== status.name) onRename(name.trim());
             else if (!name.trim()) setName(status.name);
           }}
-          className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="flex-1"
         />
-        <select
+        <Select
           value={status.category}
-          onChange={(e) =>
-            onCategoryChange(e.currentTarget.value as StatusCategory)
-          }
-          className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+          onValueChange={(v) => onCategoryChange(v as StatusCategory)}
         >
-          {(Object.keys(CATEGORY_LABEL) as StatusCategory[]).map((c) => (
-            <option key={c} value={c}>
-              {CATEGORY_LABEL[c]}
-            </option>
-          ))}
-        </select>
-        <button
+          <SelectTrigger size="sm" className="w-36 flex-shrink-0 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(CATEGORY_LABEL) as StatusCategory[]).map((c) => (
+              <SelectItem key={c} value={c}>
+                {CATEGORY_LABEL[c]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           aria-label="Delete status"
           onClick={() => setShowDelete((v) => !v)}
           disabled={otherStatuses.length === 0}
@@ -189,34 +403,35 @@ function StatusRow({
               ? "Add another status before deleting this one"
               : "Delete"
           }
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+          className="tap-target flex-shrink-0 text-muted-foreground hover:text-foreground"
         >
           <Trash2 className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
 
       {showDelete && (
-        <div className="mt-3 rounded-2xl bg-muted p-3">
+        <div className="mt-3 rounded-xl bg-muted p-3">
           <p className="text-xs text-muted-foreground">
             Tasks currently in <strong>{status.name}</strong> will be moved to:
           </p>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-            <select
-              value={replaceWith}
-              onChange={(e) =>
-                setReplaceWith(
-                  (e.currentTarget.value as Id<"listStatuses">) || "",
-                )
+            <Select
+              value={replaceWith || undefined}
+              onValueChange={(v) =>
+                setReplaceWith(v as Id<"listStatuses">)
               }
-              className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
             >
-              <option value="">Pick a replacement…</option>
-              {otherStatuses.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Pick a replacement…" />
+              </SelectTrigger>
+              <SelectContent>
+                {otherStatuses.map((s) => (
+                  <SelectItem key={s._id} value={s._id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               size="sm"
               variant="primary"
@@ -240,7 +455,7 @@ function StatusRow({
           </div>
         </div>
       )}
-    </li>
+    </div>
   );
 }
 
@@ -254,7 +469,7 @@ function CreateStatusForm({
   ) => Promise<unknown>;
 }) {
   const [name, setName] = useState("");
-  const [color, setColor] = useState("#6366f1");
+  const [color, setColor] = useState("#a9c6f2");
   const [category, setCategory] = useState<StatusCategory>("open");
   const [pending, setPending] = useState(false);
 
@@ -271,34 +486,42 @@ function CreateStatusForm({
           setPending(false);
         }
       }}
-      className="mt-3 flex flex-col gap-2 rounded-3xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
+      className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
     >
       <input
         type="color"
         value={color}
         onChange={(e) => setColor(e.currentTarget.value)}
-        className="h-8 w-8 cursor-pointer rounded-full border border-border"
+        className="h-8 w-8 flex-shrink-0 cursor-pointer rounded-full border border-border"
         aria-label="New status color"
       />
-      <input
-        type="text"
+      <Input
         placeholder="New status name"
         value={name}
         onChange={(e) => setName(e.currentTarget.value)}
-        className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+        className="flex-1"
       />
-      <select
+      <Select
         value={category}
-        onChange={(e) => setCategory(e.currentTarget.value as StatusCategory)}
-        className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+        onValueChange={(v) => setCategory(v as StatusCategory)}
       >
-        {(Object.keys(CATEGORY_LABEL) as StatusCategory[]).map((c) => (
-          <option key={c} value={c}>
-            {CATEGORY_LABEL[c]}
-          </option>
-        ))}
-      </select>
-      <Button type="submit" size="sm" disabled={!name.trim() || pending}>
+        <SelectTrigger size="sm" className="w-40 flex-shrink-0 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(Object.keys(CATEGORY_LABEL) as StatusCategory[]).map((c) => (
+            <SelectItem key={c} value={c}>
+              {CATEGORY_LABEL[c]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        type="submit"
+        size="sm"
+        disabled={!name.trim() || pending}
+        className="flex-shrink-0"
+      >
         <Plus className="h-4 w-4" /> Add
       </Button>
     </form>
@@ -318,39 +541,38 @@ function FieldsSection({
   const remove = useMutation(api.customFields.remove);
 
   return (
-    <section>
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Custom fields
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Add columns to track per-task data beyond the defaults.
-      </p>
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Custom fields</CardTitle>
+        <CardDescription>
+          Add columns to track per-task data beyond the defaults.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <RowList>
+          {fields.length === 0 && (
+            <EmptyRow>No custom fields yet.</EmptyRow>
+          )}
+          {fields.map((field) => (
+            <FieldRow
+              key={field._id}
+              field={field}
+              onRename={(name) => rename({ fieldId: field._id, name })}
+              onUpdateOptions={(options) =>
+                updateOptions({ fieldId: field._id, options })
+              }
+              onDelete={() => remove({ fieldId: field._id })}
+            />
+          ))}
+        </RowList>
 
-      <ul className="mt-4 space-y-2">
-        {fields.length === 0 && (
-          <li className="rounded-3xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-            No custom fields yet.
-          </li>
-        )}
-        {fields.map((field) => (
-          <FieldRow
-            key={field._id}
-            field={field}
-            onRename={(name) => rename({ fieldId: field._id, name })}
-            onUpdateOptions={(options) =>
-              updateOptions({ fieldId: field._id, options })
-            }
-            onDelete={() => remove({ fieldId: field._id })}
-          />
-        ))}
-      </ul>
-
-      <CreateFieldForm
-        onSubmit={(name, type, options) =>
-          create({ listId, name, type, options })
-        }
-      />
-    </section>
+        <CreateFieldForm
+          onSubmit={(name, type, options) =>
+            create({ listId, name, type, options })
+          }
+        />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -369,22 +591,27 @@ function FieldRow({
 }) {
   const [name, setName] = useState(field.name);
   const [showOptions, setShowOptions] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
+  if (deleting) return null;
 
   return (
-    <li className="rounded-3xl border border-border bg-background p-3">
+    <div className="p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <span className="rounded-full bg-muted px-2.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+        <Badge
+          variant="secondary"
+          className="flex-shrink-0 text-[10px] uppercase tracking-wider"
+        >
           {FIELD_TYPE_LABEL[field.type]}
-        </span>
-        <input
-          type="text"
+        </Badge>
+        <Input
           value={name}
           onChange={(e) => setName(e.currentTarget.value)}
           onBlur={() => {
             if (name.trim() && name !== field.name) onRename(name.trim());
             else if (!name.trim()) setName(field.name);
           }}
-          className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="flex-1"
         />
         {field.type === "dropdown" && (
           <Button
@@ -392,26 +619,27 @@ function FieldRow({
             size="sm"
             variant="ghost"
             onClick={() => setShowOptions((v) => !v)}
+            className="flex-shrink-0"
           >
             Options ({field.options?.length ?? 0})
           </Button>
         )}
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           aria-label="Delete field"
           onClick={() => {
-            if (
-              window.confirm(
-                `Delete "${field.name}" and all its values across every task?`,
-              )
-            ) {
-              onDelete();
-            }
+            setDeleting(true);
+            toast(`"${field.name}" deleted, values go with it`, {
+              action: { label: "Undo", onClick: () => setDeleting(false) },
+              onExpire: () => onDelete(),
+            });
           }}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target flex-shrink-0 text-muted-foreground hover:text-foreground"
         >
           <Trash2 className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
 
       {field.type === "dropdown" && showOptions && (
@@ -420,7 +648,7 @@ function FieldRow({
           onChange={onUpdateOptions}
         />
       )}
-    </li>
+    </div>
   );
 }
 
@@ -434,10 +662,10 @@ function DropdownOptionsEditor({
   ) => Promise<unknown>;
 }) {
   const [draft, setDraft] = useState("");
-  const [color, setColor] = useState("#6366f1");
+  const [color, setColor] = useState("#a9c6f2");
 
   return (
-    <div className="mt-3 rounded-2xl bg-muted p-3">
+    <div className="mt-3 rounded-xl bg-muted p-3">
       <ul className="space-y-1">
         {options.map((opt, i) => (
           <li
@@ -447,7 +675,7 @@ function DropdownOptionsEditor({
             <span
               aria-hidden
               className="inline-block h-2 w-2 rounded-full"
-              style={{ backgroundColor: opt.color ?? "#a1a1aa" }}
+              style={{ backgroundColor: opt.color ?? "#c9ccd4" }}
             />
             <span className="flex-1">{opt.label}</span>
             <button
@@ -458,7 +686,7 @@ function DropdownOptionsEditor({
               className="text-xs text-muted-foreground hover:text-foreground"
               aria-label={`Remove ${opt.label}`}
             >
-              ✕
+              <X className="h-3 w-3" />
             </button>
           </li>
         ))}
@@ -468,20 +696,20 @@ function DropdownOptionsEditor({
           type="color"
           value={color}
           onChange={(e) => setColor(e.currentTarget.value)}
-          className="h-7 w-7 cursor-pointer rounded-full border border-border"
+          className="h-7 w-7 flex-shrink-0 cursor-pointer rounded-full border border-border"
           aria-label="Option color"
         />
-        <input
-          type="text"
+        <Input
           value={draft}
           onChange={(e) => setDraft(e.currentTarget.value)}
           placeholder="New option"
-          className="flex-1 rounded-full border border-border bg-background px-3 py-1 text-sm"
+          className="h-8 flex-1"
         />
         <Button
           type="button"
           size="sm"
           disabled={!draft.trim()}
+          className="flex-shrink-0"
           onClick={async () => {
             await onChange([
               ...options,
@@ -529,7 +757,7 @@ function CreateFieldForm({
                   {
                     id: crypto.randomUUID(),
                     label: "Option 1",
-                    color: "#6366f1",
+                    color: "#a9c6f2",
                   },
                 ]
               : undefined,
@@ -540,27 +768,32 @@ function CreateFieldForm({
           setPending(false);
         }
       }}
-      className="mt-3 flex flex-col gap-2 rounded-3xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
+      className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
     >
-      <input
-        type="text"
+      <Input
         placeholder="New field name"
         value={name}
         onChange={(e) => setName(e.currentTarget.value)}
-        className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+        className="flex-1"
       />
-      <select
-        value={type}
-        onChange={(e) => setType(e.currentTarget.value as FieldType)}
-        className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+      <Select value={type} onValueChange={(v) => setType(v as FieldType)}>
+        <SelectTrigger size="sm" className="w-36 flex-shrink-0 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(Object.keys(FIELD_TYPE_LABEL) as FieldType[]).map((t) => (
+            <SelectItem key={t} value={t}>
+              {FIELD_TYPE_LABEL[t]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        type="submit"
+        size="sm"
+        disabled={!name.trim() || pending}
+        className="flex-shrink-0"
       >
-        {(Object.keys(FIELD_TYPE_LABEL) as FieldType[]).map((t) => (
-          <option key={t} value={t}>
-            {FIELD_TYPE_LABEL[t]}
-          </option>
-        ))}
-      </select>
-      <Button type="submit" size="sm" disabled={!name.trim() || pending}>
         <Plus className="h-4 w-4" /> Add field
       </Button>
     </form>
@@ -583,6 +816,8 @@ const ACTION_LABEL: Record<ActionKind, string> = {
   set_due_in_days: "Set due date in N days",
 };
 
+const PRIORITY_OPTIONS = ["urgent", "high", "normal", "low"] as const;
+
 function AutomationsSection({
   listId,
   automations,
@@ -595,56 +830,54 @@ function AutomationsSection({
   const create = useMutation(api.listAutomations.create);
   const update = useMutation(api.listAutomations.update);
   const remove = useMutation(api.listAutomations.remove);
-  const members = useQuery(api.lists.membersForList, { listId }) ?? [];
 
   return (
-    <section>
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Automations
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Trigger an action automatically when something happens to a task in
-        this list.
-      </p>
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Automations</CardTitle>
+        <CardDescription>
+          Trigger an action automatically when something happens to a task in
+          this list.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <RowList>
+          {automations.length === 0 && (
+            <EmptyRow>No automations yet.</EmptyRow>
+          )}
+          {automations.map((automation) => (
+            <AutomationRow
+              key={automation._id}
+              listId={listId}
+              automation={automation}
+              statuses={statuses}
+              onChange={(patch) =>
+                update({ automationId: automation._id, ...patch })
+              }
+              onDelete={() => remove({ automationId: automation._id })}
+            />
+          ))}
+        </RowList>
 
-      <ul className="mt-4 space-y-2">
-        {automations.length === 0 && (
-          <li className="rounded-3xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-            No automations yet.
-          </li>
-        )}
-        {automations.map((automation) => (
-          <AutomationRow
-            key={automation._id}
-            automation={automation}
-            statuses={statuses}
-            members={members}
-            onChange={(patch) =>
-              update({ automationId: automation._id, ...patch })
-            }
-            onDelete={() => remove({ automationId: automation._id })}
-          />
-        ))}
-      </ul>
-
-      <CreateAutomationForm
-        statuses={statuses}
-        onSubmit={(trigger, action) => create({ listId, trigger, action })}
-      />
-    </section>
+        <CreateAutomationForm
+          statuses={statuses}
+          onSubmit={(trigger, action) => create({ listId, trigger, action })}
+        />
+      </CardContent>
+    </Card>
   );
 }
 
 function AutomationRow({
+  listId,
   automation,
   statuses,
-  members,
   onChange,
   onDelete,
 }: {
+  listId: Id<"lists">;
   automation: AutomationDoc;
   statuses: Doc<"listStatuses">[];
-  members: Doc<"users">[];
   onChange: (patch: {
     trigger?: Trigger;
     action?: AutomationDoc["action"];
@@ -652,74 +885,82 @@ function AutomationRow({
   }) => Promise<unknown>;
   onDelete: () => Promise<unknown>;
 }) {
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
+  if (deleting) return null;
+
   return (
-    <li
-      className={
-        automation.enabled
-          ? "rounded-3xl border border-border bg-background p-3"
-          : "rounded-3xl border border-border bg-muted/30 p-3 opacity-60"
-      }
-    >
+    <div className={cn("p-3", !automation.enabled && "bg-muted/30 opacity-60")}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={automation.enabled}
-          onChange={(e) => onChange({ enabled: e.currentTarget.checked })}
+          onCheckedChange={(checked) => onChange({ enabled: checked === true })}
           aria-label="Enabled"
+          className="flex-shrink-0"
         />
-        <select
+        <Select
           value={automation.trigger}
-          onChange={(e) =>
-            onChange({ trigger: e.currentTarget.value as Trigger })
-          }
-          className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+          onValueChange={(v) => onChange({ trigger: v as Trigger })}
         >
-          {(Object.keys(TRIGGER_LABEL) as Trigger[]).map((t) => (
-            <option key={t} value={t}>
-              {TRIGGER_LABEL[t]}
-            </option>
-          ))}
-        </select>
-        <span className="text-xs text-muted-foreground">→</span>
+          <SelectTrigger size="sm" className="w-56 flex-shrink-0 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(TRIGGER_LABEL) as Trigger[]).map((t) => (
+              <SelectItem key={t} value={t}>
+                {TRIGGER_LABEL[t]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="flex-shrink-0 text-xs text-muted-foreground">→</span>
         <ActionEditor
+          listId={listId}
           action={automation.action}
           statuses={statuses}
-          members={members}
           onChange={(action) => onChange({ action })}
         />
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           aria-label="Delete automation"
           onClick={() => {
-            if (window.confirm("Delete this automation?")) onDelete();
+            setDeleting(true);
+            toast("Automation deleted", {
+              action: { label: "Undo", onClick: () => setDeleting(false) },
+              onExpire: () => onDelete(),
+            });
           }}
-          className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="tap-target ml-auto flex-shrink-0 text-muted-foreground hover:text-foreground"
         >
           <Trash2 className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
-    </li>
+    </div>
   );
 }
 
 function ActionEditor({
+  listId,
   action,
   statuses,
-  members,
   onChange,
 }: {
+  listId: Id<"lists">;
   action: AutomationDoc["action"];
   statuses: Doc<"listStatuses">[];
-  members: Doc<"users">[];
   onChange: (action: AutomationDoc["action"]) => Promise<unknown>;
 }) {
+  // People and agents assignable in this list, so "assign" is a picker,
+  // never a raw ID field.
+  const assignable = useQuery(api.agents.listAssignableForList, { listId });
   // Switching action kind resets the payload to a sensible default for
   // the new kind, so we never store mismatched fields.
   function setKind(kind: ActionKind) {
     if (kind === action.kind) return;
-    if (kind === "assign_user") {
-      onChange({ kind, clerkId: members[0]?.clerkId ?? "" });
-    } else if (kind === "set_priority") onChange({ kind, priority: "normal" });
+    if (kind === "assign_user") onChange({ kind, clerkId: "" });
+    else if (kind === "set_priority") onChange({ kind, priority: "normal" });
     else if (kind === "set_status") {
       const first = statuses[0];
       if (first) onChange({ kind, statusId: first._id });
@@ -728,71 +969,79 @@ function ActionEditor({
 
   return (
     <div className="flex flex-1 flex-wrap items-center gap-2">
-      <select
-        value={action.kind}
-        onChange={(e) => setKind(e.currentTarget.value as ActionKind)}
-        className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
-      >
-        {(Object.keys(ACTION_LABEL) as ActionKind[]).map((k) => (
-          <option key={k} value={k}>
-            {ACTION_LABEL[k]}
-          </option>
-        ))}
-      </select>
-      {action.kind === "assign_user" && (
-        <select
-          value={action.clerkId}
-          onChange={(e) =>
-            onChange({ kind: "assign_user", clerkId: e.currentTarget.value })
-          }
-          className="w-48 rounded-full border border-border bg-background px-3 py-1.5 text-xs"
-        >
-          {members.length === 0 && <option value="">No members</option>}
-          {members.map((m) => (
-            <option key={m.clerkId} value={m.clerkId}>
-              {m.name ?? m.email}
-            </option>
+      <Select value={action.kind} onValueChange={(v) => setKind(v as ActionKind)}>
+        <SelectTrigger size="sm" className="w-48 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(Object.keys(ACTION_LABEL) as ActionKind[]).map((k) => (
+            <SelectItem key={k} value={k}>
+              {ACTION_LABEL[k]}
+            </SelectItem>
           ))}
-        </select>
+        </SelectContent>
+      </Select>
+      {action.kind === "assign_user" && (
+        <Picker
+          label={
+            (assignable ?? []).find((a) => a.id === action.clerkId)?.name ??
+            "Choose who…"
+          }
+          selectedId={action.clerkId || undefined}
+          options={(assignable ?? []).map((a) => ({
+            id: a.id,
+            label: a.name,
+            hint: a.kind === "agent" ? "agent" : undefined,
+          }))}
+          onSelect={(id) => onChange({ kind: "assign_user", clerkId: id })}
+        />
       )}
       {action.kind === "set_priority" && (
-        <select
+        <Select
           value={action.priority}
-          onChange={(e) =>
+          onValueChange={(v) =>
             onChange({
               kind: "set_priority",
-              priority: e.currentTarget.value as "urgent" | "high" | "normal" | "low",
+              priority: v as "urgent" | "high" | "normal" | "low",
             })
           }
-          className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
         >
-          {["urgent", "high", "normal", "low"].map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm" className="w-28 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PRIORITY_OPTIONS.map((p) => (
+              <SelectItem key={p} value={p} className="capitalize">
+                {p}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
       {action.kind === "set_status" && (
-        <select
+        <Select
           value={action.statusId}
-          onChange={(e) =>
+          onValueChange={(v) =>
             onChange({
               kind: "set_status",
-              statusId: e.currentTarget.value as Id<"listStatuses">,
+              statusId: v as Id<"listStatuses">,
             })
           }
-          className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
         >
-          {statuses.map((s) => (
-            <option key={s._id} value={s._id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm" className="w-40 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {statuses.map((s) => (
+              <SelectItem key={s._id} value={s._id}>
+                {s.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
       {action.kind === "set_due_in_days" && (
-        <input
+        <Input
           type="number"
           value={action.days}
           onChange={(e) =>
@@ -801,7 +1050,7 @@ function ActionEditor({
               days: Number(e.currentTarget.value) || 0,
             })
           }
-          className="w-20 rounded-full border border-border bg-background px-3 py-1.5 text-xs"
+          className="h-8 w-20 text-xs"
         />
       )}
     </div>
@@ -837,11 +1086,212 @@ function CreateAutomationForm({
           setPending(false);
         }
       }}
-      className="mt-3 flex justify-center"
+      className="flex justify-center"
     >
       <Button type="submit" size="sm" variant="outline" disabled={pending}>
         <Plus className="h-4 w-4" /> Add automation
       </Button>
     </form>
+  );
+}
+
+// Keep in sync with MAX_FORMS_PER_LIST in convex/forms.ts — this only
+// hides the "Add form" affordance early; the server is the real limit.
+const MAX_FORMS_PER_LIST = 5;
+
+function FormsSection({ listId }: { listId: Id<"lists"> }) {
+  const forms = useQuery(api.forms.listForList, { listId });
+  const create = useMutation(api.forms.create);
+  const update = useMutation(api.forms.update);
+  const remove = useMutation(api.forms.remove);
+  const [title, setTitle] = useState("");
+  const [pending, setPending] = useState(false);
+
+  return (
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Form</CardTitle>
+        <CardDescription>
+          Share a public link that lets anyone submit a request without an
+          account — each submission becomes a task on this list.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {forms === undefined ? (
+          <div className="h-16 animate-pulse rounded-xl bg-muted" />
+        ) : (
+          <>
+            <RowList>
+              {forms.length === 0 && <EmptyRow>No forms yet.</EmptyRow>}
+              {forms.map((form) => (
+                <FormRow
+                  key={form._id}
+                  form={form}
+                  onUpdate={(patch) => update({ formId: form._id, ...patch })}
+                  onDelete={() => remove({ formId: form._id })}
+                />
+              ))}
+            </RowList>
+
+            {forms.length < MAX_FORMS_PER_LIST && (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!title.trim()) return;
+                  setPending(true);
+                  try {
+                    await create({ listId, title: title.trim() });
+                    setTitle("");
+                  } finally {
+                    setPending(false);
+                  }
+                }}
+                className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
+              >
+                <Input
+                  placeholder="New form title"
+                  value={title}
+                  onChange={(e) => setTitle(e.currentTarget.value)}
+                  className="flex-1"
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!title.trim() || pending}
+                  className="flex-shrink-0"
+                >
+                  <Plus className="h-4 w-4" /> Add form
+                </Button>
+              </form>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function FormRow({
+  form,
+  onUpdate,
+  onDelete,
+}: {
+  form: Doc<"forms">;
+  onUpdate: (patch: {
+    title?: string;
+    askDescription?: boolean;
+    askPriority?: boolean;
+    askEmail?: boolean;
+    enabled?: boolean;
+  }) => Promise<unknown>;
+  onDelete: () => Promise<unknown>;
+}) {
+  const [title, setTitle] = useState(form.title);
+  const [copied, setCopied] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
+  if (deleting) return null;
+
+  const path = `/f/${form.token}`;
+
+  return (
+    <div className="p-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <Checkbox
+          checked={form.enabled}
+          onCheckedChange={(checked) =>
+            onUpdate({ enabled: checked === true })
+          }
+          aria-label="Form enabled"
+          className="flex-shrink-0"
+        />
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.currentTarget.value)}
+          onBlur={() => {
+            if (title.trim() && title !== form.title) {
+              onUpdate({ title: title.trim() });
+            } else if (!title.trim()) {
+              setTitle(form.title);
+            }
+          }}
+          className="flex-1"
+        />
+        <Link
+          href={path}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          {path}
+        </Link>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Copy form link"
+          onClick={async () => {
+            await navigator.clipboard.writeText(
+              `${window.location.origin}${path}`,
+            );
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+          className="tap-target flex-shrink-0 text-muted-foreground hover:text-foreground"
+        >
+          {copied ? (
+            <Check className="h-4 w-4 text-positive" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Delete form"
+          onClick={() => {
+            setDeleting(true);
+            toast(`"${form.title}" deleted`, {
+              action: { label: "Undo", onClick: () => setDeleting(false) },
+              onExpire: () => onDelete(),
+            });
+          }}
+          className="tap-target flex-shrink-0 text-muted-foreground hover:text-foreground"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-4 border-t border-border pt-3 text-xs text-muted-foreground">
+        <label className="flex items-center gap-1.5">
+          <Checkbox
+            checked={form.askDescription ?? false}
+            onCheckedChange={(checked) =>
+              onUpdate({ askDescription: checked === true })
+            }
+          />
+          Ask for description
+        </label>
+        <label className="flex items-center gap-1.5">
+          <Checkbox
+            checked={form.askPriority ?? false}
+            onCheckedChange={(checked) =>
+              onUpdate({ askPriority: checked === true })
+            }
+          />
+          Ask for priority
+        </label>
+        <label className="flex items-center gap-1.5">
+          <Checkbox
+            checked={form.askEmail ?? false}
+            onCheckedChange={(checked) =>
+              onUpdate({ askEmail: checked === true })
+            }
+          />
+          Ask for email
+        </label>
+      </div>
+    </div>
   );
 }

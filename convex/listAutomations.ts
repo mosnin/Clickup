@@ -27,8 +27,11 @@ const actionValidator = v.union(
 export const listForList = query({
   args: { listId: v.id("lists") },
   handler: async (ctx, { listId }) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    try {
+      await requireListAccess(ctx, listId);
+    } catch {
+      return [];
+    }
     return await ctx.db
       .query("listAutomations")
       .withIndex("by_list", (q) => q.eq("listId", listId))

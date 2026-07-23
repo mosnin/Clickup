@@ -38,7 +38,7 @@ export function OfflineIndicator() {
       className="fixed bottom-4 left-1/2 z-50 inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-foreground px-3 py-1.5 text-xs text-background shadow-lg"
     >
       <WifiOff className="h-3.5 w-3.5" aria-hidden />
-      You&apos;re offline — changes will sync when you reconnect.
+      You&apos;re offline, changes will sync when you reconnect.
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use node";
 
+import { createHmac } from "crypto";
 import { v } from "convex/values";
 import { Resend } from "resend";
 import { internalAction } from "./_generated/server";
@@ -11,7 +12,7 @@ import { internalAction } from "./_generated/server";
 //
 // Set RESEND_API_KEY and RESEND_FROM_EMAIL on the Convex deployment via
 //   npx convex env set RESEND_API_KEY re_...
-//   npx convex env set RESEND_FROM_EMAIL "ClickUp Clone <noreply@your.com>"
+//   npx convex env set RESEND_FROM_EMAIL "operate.to <noreply@operate.to>"
 // Both are read at action invocation time, so missing env vars cause a
 // no-op rather than a hard crash.
 
@@ -29,6 +30,68 @@ function makeResend(): {
   }
   return { client: new Resend(key), from };
 }
+
+export const sendInviteEmail = internalAction({
+  args: {
+    toEmail: v.string(),
+    fromName: v.string(),
+    workspaceName: v.string(),
+    token: v.string(),
+  },
+  handler: async (_, args) => {
+    const provider = makeResend();
+    if (!provider) return;
+    const base = process.env.NEXT_PUBLIC_APP_URL ?? "https://operate.to";
+    try {
+      await provider.client.emails.send({
+        from: provider.from,
+        to: [args.toEmail],
+        subject: `${args.fromName} invited you to ${args.workspaceName} on operate.to`,
+        text: [
+          `${args.fromName} invited you to join "${args.workspaceName}" on operate.to.`,
+          ``,
+          `Accept your invite:`,
+          `${base}/invite/${args.token}`,
+          ``,
+          `operate.to: mission control for humans and AI agents.`,
+        ].join("\n"),
+      });
+    } catch (err) {
+      console.error("[notifications] invite email failed", err);
+    }
+  },
+});
+
+export const sendDueSoonEmail = internalAction({
+  args: {
+    toEmail: v.string(),
+    toName: v.optional(v.string()),
+    taskTitle: v.string(),
+    whenLabel: v.string(),
+  },
+  handler: async (_, args) => {
+    const provider = makeResend();
+    if (!provider) return;
+    try {
+      await provider.client.emails.send({
+        from: provider.from,
+        to: [args.toEmail],
+        subject: `Due ${args.whenLabel}: ${args.taskTitle}`,
+        text: [
+          `Hi ${args.toName ?? ""},`.trim(),
+          ``,
+          `A task assigned to you is due ${args.whenLabel}:`,
+          ``,
+          args.taskTitle,
+          ``,
+          `Open operate.to to work on it.`,
+        ].join("\n"),
+      });
+    } catch (err) {
+      console.error("[notifications] due-soon email failed", err);
+    }
+  },
+});
 
 export const sendMentionEmail = internalAction({
   args: {
@@ -53,7 +116,7 @@ export const sendMentionEmail = internalAction({
           ``,
           args.snippet,
           ``,
-          `Open ClickUp Clone to reply.`,
+          `Open operate.to to reply.`,
         ].join("\n"),
       });
     } catch (err) {
@@ -84,7 +147,7 @@ export const sendAssignmentEmail = internalAction({
           ``,
           `  ${args.taskTitle}`,
           ``,
-          `Open ClickUp Clone to view it.`,
+          `Open operate.to to view it.`,
         ].join("\n"),
       });
     } catch (err) {
@@ -93,36 +156,77 @@ export const sendAssignmentEmail = internalAction({
   },
 });
 
-export const sendInviteEmail = internalAction({
+// Direct push to an agent's notifyUrl: a small JSON ping telling the
+// agent's runtime "you were assigned / mentioned — connect over MCP and
+// look". Signed with HMAC-SHA256 (X-Ping-Signature) when the agent has a
+// notifySecret configured. Best effort, no retries: the webhook
+// subscription system is the reliable channel; this is the zero-setup
+// default.
+export const postAgentPing = internalAction({
+  args: {
+    url: v.string(),
+    type: v.string(),
+    payload: v.any(),
+    secret: v.optional(v.string()),
+  },
+  handler: async (_, args) => {
+    try {
+      const body = JSON.stringify({
+        apiVersion: 1,
+        type: args.type,
+        payload: args.payload,
+      });
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (args.secret) {
+        headers["X-Ping-Signature"] =
+          `sha256=${createHmac("sha256", args.secret).update(body).digest("hex")}`;
+      }
+      const res = await fetch(args.url, {
+        method: "POST",
+        headers,
+        body,
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) {
+        console.warn("[notifications] postAgentPing failed:", res.status);
+      }
+    } catch (err) {
+      console.warn("[notifications] postAgentPing error:", err);
+    }
+  },
+});
+
+// Email a human that an agent finished work and is waiting on their
+// approval. Scheduled from agentApi.requestApproval.
+export const sendApprovalEmail = internalAction({
   args: {
     toEmail: v.string(),
-    fromName: v.string(),
-    workspaceName: v.string(),
-    role: v.string(),
-    token: v.string(),
+    toName: v.optional(v.string()),
+    agentName: v.string(),
+    taskTitle: v.string(),
+    note: v.optional(v.string()),
   },
   handler: async (_, args) => {
     const provider = makeResend();
     if (!provider) return;
-    const baseUrl =
-      process.env.PACE_PUBLIC_URL ?? "https://your-app.vercel.app";
-    const link = `${baseUrl.replace(/\/$/, "")}/invite/${args.token}`;
     try {
       await provider.client.emails.send({
         from: provider.from,
         to: [args.toEmail],
-        subject: `${args.fromName} invited you to ${args.workspaceName} on Pace`,
+        subject: `${args.agentName} needs your approval: ${args.taskTitle}`,
         text: [
-          `${args.fromName} invited you to join ${args.workspaceName} on Pace as a ${args.role}.`,
+          `Hi ${args.toName ?? ""},`.trim(),
           ``,
-          `Accept the invite:`,
-          `  ${link}`,
+          `${args.agentName} finished work on "${args.taskTitle}" and is waiting for your approval before completing it.`,
+          ...(args.note ? [``, args.note] : []),
           ``,
-          `Pace is the work app that gets out of your way.`,
+          `Approve it from your Inbox or the task page.`,
         ].join("\n"),
       });
     } catch (err) {
-      console.warn("[notifications] sendInviteEmail failed:", err);
+      console.warn("[notifications] sendApprovalEmail failed:", err);
     }
   },
 });

@@ -1,309 +1,40 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useConvexAuth } from "convex/react";
+import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { Mail, Trash2 } from "lucide-react";
+import { useConvex, useMutation, useQuery } from "convex/react";
+import { Copy, Download, LogOut, Trash2, Upload, UserPlus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/dashboard/toast";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Monogram } from "@/components/dashboard/monogram";
+import { useToast } from "@/components/toast";
+import { ImportDialog } from "@/components/dashboard/import-dialog";
 
-type MemberRole = "owner" | "admin" | "member" | "viewer";
-type InviteRole = Exclude<MemberRole, "owner">;
-
-const ROLE_LABEL: Record<MemberRole, string> = {
-  owner: "Owner",
-  admin: "Admin",
-  member: "Member",
-  viewer: "Viewer",
-};
-
-const INVITE_ROLES: InviteRole[] = ["admin", "member", "viewer"];
+// Native-<select> chrome for the invite-role picker — matches Input/Button
+// grammar; Picker is reserved for people/agents/tasks/sprints per house
+// style, and "admin | member" is a plain enum.
+const SELECT_CLASS =
+  "h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 export function WorkspaceSettings({
-  workspaceId,
-}: {
-  workspaceId: Id<"workspaces">;
-}) {
-  return (
-    <div className="space-y-10">
-      <MembersSection workspaceId={workspaceId} />
-      <IntegrationsSection workspaceId={workspaceId} />
-    </div>
-  );
-}
-
-// --- Members + Invitations ------------------------------------------------
-
-function MembersSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
-  const members = useQuery(api.workspaces.listMembers, { workspaceId });
-  const invitations = useQuery(api.invitations.listForWorkspace, {
-    workspaceId,
-  });
-
-  return (
-    <section>
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Members
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Invite teammates by email. Owners and admins can change roles and
-        remove members; the owner can transfer ownership.
-      </p>
-
-      <div className="mt-4 space-y-4">
-        <InviteForm workspaceId={workspaceId} />
-
-        {invitations && invitations.length > 0 && (
-          <PendingInvites invitations={invitations} />
-        )}
-
-        <MemberList workspaceId={workspaceId} members={members ?? []} />
-      </div>
-    </section>
-  );
-}
-
-function InviteForm({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
-  const create = useMutation(api.invitations.create);
-  const toast = useToast();
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<InviteRole>("member");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  return (
-    <form
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (!email.trim()) return;
-        setPending(true);
-        setError(null);
-        try {
-          await create({
-            workspaceId,
-            email: email.trim(),
-            role,
-          });
-          toast.show({ label: `Invite sent to ${email.trim()}` });
-          setEmail("");
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "Failed to invite");
-        } finally {
-          setPending(false);
-        }
-      }}
-      className="flex flex-col gap-2 rounded-3xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
-    >
-      <Mail className="h-4 w-4 text-muted-foreground" aria-hidden />
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.currentTarget.value)}
-        placeholder="teammate@example.com"
-        className="flex-1 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-      />
-      <select
-        value={role}
-        onChange={(e) => setRole(e.currentTarget.value as InviteRole)}
-        className="rounded-full border border-border bg-background px-3 py-1.5 text-xs"
-      >
-        {INVITE_ROLES.map((r) => (
-          <option key={r} value={r}>
-            {ROLE_LABEL[r]}
-          </option>
-        ))}
-      </select>
-      <Button type="submit" size="sm" disabled={!email.trim() || pending}>
-        {pending ? "Sending…" : "Invite"}
-      </Button>
-      {error && (
-        <p className="text-xs text-red-700 sm:basis-full">{error}</p>
-      )}
-    </form>
-  );
-}
-
-function PendingInvites({
-  invitations,
-}: {
-  invitations: Doc<"invitations">[];
-}) {
-  const revoke = useMutation(api.invitations.revoke);
-  return (
-    <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Pending invites
-      </h3>
-      <ul className="mt-2 space-y-2">
-        {invitations.map((inv) => (
-          <li
-            key={inv._id}
-            className="flex items-center gap-3 rounded-3xl border border-border bg-background p-3"
-          >
-            <Mail className="h-4 w-4 text-muted-foreground" aria-hidden />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm">{inv.email}</p>
-              <p className="text-xs text-muted-foreground">
-                {ROLE_LABEL[inv.role as InviteRole]} · expires{" "}
-                {new Date(inv.expiresAt).toLocaleDateString()}
-              </p>
-            </div>
-            <button
-              type="button"
-              aria-label="Revoke invite"
-              onClick={() => revoke({ invitationId: inv._id })}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-type Member = Doc<"users"> & { role: MemberRole };
-
-function MemberList({
-  workspaceId,
-  members,
-}: {
-  workspaceId: Id<"workspaces">;
-  members: Member[];
-}) {
-  const { isAuthenticated } = useConvexAuth();
-  const { user } = useUser();
-  const changeRole = useMutation(api.workspaces.changeRole);
-  const removeMember = useMutation(api.workspaces.removeMember);
-  const transferOwnership = useMutation(api.workspaces.transferOwnership);
-
-  if (!isAuthenticated || !user) return null;
-  const meClerkId = user.id;
-  const me = members.find((m) => m.clerkId === meClerkId);
-  const meRole: MemberRole = me?.role ?? "member";
-
-  return (
-    <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Members ({members.length})
-      </h3>
-      <ul className="mt-2 space-y-2">
-        {members.map((m) => {
-          const isMe = m.clerkId === meClerkId;
-          const canEdit =
-            !isMe &&
-            (meRole === "owner" ||
-              (meRole === "admin" && m.role !== "owner" && m.role !== "admin"));
-          const canTransfer = meRole === "owner" && m.role !== "owner";
-          const canBeRemoved = isMe ? m.role !== "owner" : canEdit;
-
-          return (
-            <li
-              key={m.clerkId}
-              className="flex items-center gap-3 rounded-3xl border border-border bg-background p-3"
-            >
-              <Avatar name={m.name ?? m.email} clerkId={m.clerkId} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  {m.name ?? m.email}
-                  {isMe && (
-                    <span className="ml-2 text-xs text-muted-foreground">(you)</span>
-                  )}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {m.email}
-                </p>
-              </div>
-              <select
-                value={m.role}
-                disabled={!canEdit || m.role === "owner"}
-                onChange={(e) =>
-                  changeRole({
-                    workspaceId,
-                    targetClerkId: m.clerkId,
-                    role: e.currentTarget.value as InviteRole,
-                  })
-                }
-                className="rounded-full border border-border bg-background px-2 py-1 text-xs disabled:opacity-60"
-              >
-                {(Object.keys(ROLE_LABEL) as MemberRole[]).map((r) => (
-                  <option
-                    key={r}
-                    value={r}
-                    disabled={r === "owner" && m.role !== "owner"}
-                  >
-                    {ROLE_LABEL[r]}
-                  </option>
-                ))}
-              </select>
-              {canTransfer && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Transfer ownership to ${m.name ?? m.email}? You'll be demoted to admin.`,
-                      )
-                    ) {
-                      transferOwnership({
-                        workspaceId,
-                        newOwnerClerkId: m.clerkId,
-                      });
-                    }
-                  }}
-                  className="rounded-full px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  Make owner
-                </button>
-              )}
-              {canBeRemoved && (
-                <button
-                  type="button"
-                  aria-label={isMe ? "Leave workspace" : "Remove member"}
-                  onClick={() => {
-                    const ok = window.confirm(
-                      isMe
-                        ? "Leave this workspace?"
-                        : `Remove ${m.name ?? m.email}?`,
-                    );
-                    if (ok) {
-                      removeMember({
-                        workspaceId,
-                        targetClerkId: m.clerkId,
-                      });
-                    }
-                  }}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
-function Avatar({ name, clerkId }: { name: string; clerkId: string }) {
-  const initial = (name || clerkId).trim().charAt(0).toUpperCase();
-  return (
-    <span
-      aria-hidden
-      className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-medium text-white"
-    >
-      {initial}
-    </span>
-  );
-}
-
-// --- Slack integration (kept; just unwrapped from the old top-level) -----
-
-function IntegrationsSection({
   workspaceId,
 }: {
   workspaceId: Id<"workspaces">;
@@ -311,22 +42,506 @@ function IntegrationsSection({
   const integrations = useQuery(api.integrations.listForWorkspace, {
     workspaceId,
   });
+
   if (integrations === undefined) {
-    return <div className="h-32 animate-pulse rounded-3xl bg-muted/40" />;
+    return <Card className="h-32 animate-pulse bg-muted/40" />;
   }
+
   const slack = integrations.find((i) => i.kind === "slack") ?? null;
+
+  return (
+    <div className="space-y-8">
+      <MembersSection workspaceId={workspaceId} />
+
+      <ImportSection />
+
+      <section>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Integrations
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Workspace owners and admins can connect external services here.
+        </p>
+        <div className="mt-4">
+          <SlackIntegration
+            workspaceId={workspaceId}
+            integration={slack}
+          />
+        </div>
+      </section>
+
+      <ExportSection workspaceId={workspaceId} />
+    </div>
+  );
+}
+
+// Discrete-card wrapper for a data table — same grammar as the admin
+// console's TableCard: card surface, full-bleed table inside.
+function TableCard({ children }: { children: React.ReactNode }) {
+  return (
+    <Card className="gap-0 overflow-hidden py-0">
+      <CardContent className="px-0 py-0">{children}</CardContent>
+    </Card>
+  );
+}
+
+// Members & invites. Everyone in the workspace sees the roster; owners and
+// admins additionally get the invite form and pending-invite management. The
+// pending-invite query throws for plain members (requireManageAccess), so we
+// only subscribe to it when the current user manages the workspace.
+function MembersSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
+  const { user } = useUser();
+  const router = useRouter();
+  const members = useQuery(api.workspaces.listMembers, { workspaceId });
+  const updateMemberRole = useMutation(api.workspaces.updateMemberRole);
+  const removeMember = useMutation(api.workspaces.removeMember);
+  const leaveWorkspace = useMutation(api.workspaces.leaveWorkspace);
+  const { toast } = useToast();
+
+  const myRole = members?.find((m) => m.clerkId === user?.id)?.role;
+  const canManage = myRole === "owner" || myRole === "admin";
+  const ownerCount = members?.filter((m) => m.role === "owner").length ?? 0;
+
+  const invites = useQuery(
+    api.invites.listForWorkspace,
+    canManage ? { workspaceId } : "skip",
+  );
+
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+
+  function hide(memberId: string) {
+    setHiddenIds((prev) => new Set(prev).add(memberId));
+  }
+  function unhide(memberId: string) {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.delete(memberId);
+      return next;
+    });
+  }
+
+  function errorMessage(err: unknown, fallback: string): string {
+    if (!(err instanceof Error)) return fallback;
+    return (
+      err.message.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() ||
+      fallback
+    );
+  }
+
+  async function onChangeRole(
+    memberClerkId: string,
+    role: "owner" | "admin" | "member",
+  ) {
+    try {
+      await updateMemberRole({ workspaceId, memberClerkId, role });
+      toast("Saved");
+    } catch (err) {
+      toast(errorMessage(err, "Couldn't change role"), { kind: "error" });
+    }
+  }
+
+  function onRemove(memberClerkId: string, name: string) {
+    hide(memberClerkId);
+    toast(`${name} removed from the workspace`, {
+      action: { label: "Undo", onClick: () => unhide(memberClerkId) },
+      onExpire: async () => {
+        try {
+          await removeMember({ workspaceId, memberClerkId });
+        } catch (err) {
+          unhide(memberClerkId);
+          toast(errorMessage(err, "Couldn't remove member"), {
+            kind: "error",
+          });
+        }
+      },
+    });
+  }
+
+  async function onLeave() {
+    try {
+      await leaveWorkspace({ workspaceId });
+      toast("You left the workspace");
+      router.push("/dashboard");
+    } catch (err) {
+      toast(errorMessage(err, "Couldn't leave the workspace"), {
+        kind: "error",
+      });
+    }
+  }
 
   return (
     <section>
       <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Integrations
+        Members
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Connect external services. Currently: Slack incoming webhooks.
+        {canManage
+          ? "Invite teammates by email and manage who has access."
+          : "People with access to this workspace."}
       </p>
+
+      {canManage && <InviteForm workspaceId={workspaceId} />}
+
       <div className="mt-4">
-        <SlackIntegration workspaceId={workspaceId} integration={slack} />
+        {members === undefined ? (
+          <Card className="h-12 animate-pulse bg-muted/40" />
+        ) : (
+          <TableCard>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Member</TableHead>
+                  <TableHead className="text-right">Role</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {members
+                  .filter((m) => !hiddenIds.has(m.clerkId))
+                  .map((m) => {
+                    const isSelf = m.clerkId === user?.id;
+                    // Owners/admins may retarget anyone else's role, but
+                    // only an owner may touch another owner's role — same
+                    // gate the server enforces in workspaces.updateMemberRole.
+                    const canEditThisRole =
+                      canManage &&
+                      !isSelf &&
+                      (myRole === "owner" || m.role !== "owner");
+                    const isLastOwner = m.role === "owner" && ownerCount <= 1;
+                    return (
+                      <TableRow key={m._id}>
+                        <TableCell className="whitespace-normal">
+                          <div className="flex items-center gap-3">
+                            <Monogram name={m.name || m.email} size="md" />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-medium">
+                                {m.name || m.email}
+                                {isSelf && (
+                                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                                    (you)
+                                  </span>
+                                )}
+                              </p>
+                              {m.name && (
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {m.email}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {canEditThisRole ? (
+                            <select
+                              value={m.role}
+                              onChange={(e) =>
+                                onChangeRole(
+                                  m.clerkId,
+                                  e.currentTarget.value as
+                                    | "owner"
+                                    | "admin"
+                                    | "member",
+                                )
+                              }
+                              className={SELECT_CLASS}
+                              aria-label={`Role for ${m.name || m.email}`}
+                            >
+                              <option value="member">Member</option>
+                              <option value="admin">Admin</option>
+                              {myRole === "owner" && (
+                                <option value="owner">Owner</option>
+                              )}
+                            </select>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="uppercase tracking-wider text-muted-foreground"
+                            >
+                              {m.role}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {isSelf ? (
+                            <button
+                              type="button"
+                              aria-label="Leave workspace"
+                              title={
+                                isLastOwner
+                                  ? "You're the only owner — promote someone else first"
+                                  : "Leave workspace"
+                              }
+                              disabled={isLastOwner}
+                              onClick={onLeave}
+                              className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <LogOut className="h-4 w-4" />
+                            </button>
+                          ) : (
+                            canEditThisRole && (
+                              <button
+                                type="button"
+                                aria-label={`Remove ${m.name || m.email}`}
+                                title={
+                                  isLastOwner
+                                    ? "Can't remove the last owner"
+                                    : "Remove from workspace"
+                                }
+                                disabled={isLastOwner}
+                                onClick={() =>
+                                  onRemove(m.clerkId, m.name || m.email)
+                                }
+                                className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+              </TableBody>
+            </Table>
+          </TableCard>
+        )}
       </div>
+
+      {canManage && invites && invites.length > 0 && (
+        <div className="mt-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Pending invites
+          </h3>
+          <div className="mt-2">
+            <TableCard>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {invites.map((inv) => (
+                    <PendingInviteRow
+                      key={inv._id}
+                      inviteId={inv._id}
+                      email={inv.email}
+                      role={inv.role}
+                      token={inv.token}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </TableCard>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function InviteForm({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
+  const createInvite = useMutation(api.invites.create);
+  const { toast } = useToast();
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"admin" | "member">("member");
+  const [pending, setPending] = useState(false);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setPending(true);
+    try {
+      await createInvite({ workspaceId, email: email.trim(), role });
+      toast(`Invite sent to ${email.trim()}`);
+      setEmail("");
+    } catch (err) {
+      toast(
+        err instanceof Error
+          ? err.message.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() ||
+              "Couldn't send invite"
+          : "Couldn't send invite",
+        { kind: "error" },
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="mt-4 flex flex-wrap items-center gap-2">
+      <Input
+        type="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.currentTarget.value)}
+        placeholder="teammate@company.com"
+        className="min-w-0 flex-1"
+      />
+      <select
+        value={role}
+        onChange={(e) => setRole(e.currentTarget.value as "admin" | "member")}
+        className={SELECT_CLASS}
+        aria-label="Invite role"
+      >
+        <option value="member">Member</option>
+        <option value="admin">Admin</option>
+      </select>
+      <Button type="submit" size="sm" disabled={!email.trim() || pending}>
+        <UserPlus className="h-3.5 w-3.5" />
+        {pending ? "Sending…" : "Invite"}
+      </Button>
+    </form>
+  );
+}
+
+function PendingInviteRow({
+  inviteId,
+  email,
+  role,
+  token,
+}: {
+  inviteId: Id<"invites">;
+  email: string;
+  role: string;
+  token: string;
+}) {
+  const revoke = useMutation(api.invites.revoke);
+  const { toast } = useToast();
+  const [revoked, setRevoked] = useState(false);
+  if (revoked) return null;
+
+  async function copyLink() {
+    const link = `${window.location.origin}/invite/${token}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast("Invite link copied");
+    } catch {
+      toast("Couldn't copy the link", { kind: "error" });
+    }
+  }
+
+  return (
+    <TableRow>
+      <TableCell className="whitespace-normal text-sm">{email}</TableCell>
+      <TableCell className="capitalize text-muted-foreground">
+        {role}
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex items-center justify-end gap-1">
+          <button
+            type="button"
+            aria-label={`Copy invite link for ${email}`}
+            title="Copy invite link — useful if the invite email never arrives"
+            onClick={copyLink}
+            className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <Copy className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label={`Revoke invite for ${email}`}
+            onClick={() => {
+              setRevoked(true);
+              toast("Invite revoked", {
+                action: { label: "Undo", onClick: () => setRevoked(false) },
+                onExpire: () => revoke({ inviteId }),
+              });
+            }}
+            className="tap-target inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+// CSV import: opens the mapping dialog; the mutation enforces list access.
+function ImportSection() {
+  const [open, setOpen] = useState(false);
+  return (
+    <section>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Import
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Bring work in from ClickUp or any CSV export.
+      </p>
+      <Card className="mt-4 flex-row items-center justify-between gap-3 p-4">
+        <div>
+          <p className="text-sm font-medium">Import tasks from CSV</p>
+          <p className="text-xs text-muted-foreground">
+            Map your columns, preview, and import into any list.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+          <Upload className="h-3.5 w-3.5" /> Import CSV
+        </Button>
+      </Card>
+      <ImportDialog open={open} onClose={() => setOpen(false)} />
+    </section>
+  );
+}
+
+// On-demand data export (owners/admins only, enforced server-side). Uses a
+// one-shot query on click rather than a reactive subscription, then hands
+// the browser a JSON download.
+function ExportSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
+  const convex = useConvex();
+  const { toast } = useToast();
+  const [pending, setPending] = useState(false);
+
+  async function onExport() {
+    setPending(true);
+    try {
+      const data = await convex.query(api.dataExport.exportWorkspace, {
+        workspaceId,
+      });
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${data.workspace.slug || "workspace"}-export.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("Export downloaded");
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      toast(raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || "Export failed", {
+        kind: "error",
+      });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <section>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        Data & compliance
+      </h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Export this workspace&apos;s spaces, lists, tasks, sprints, and agent
+        configuration as a JSON document. Secrets and API keys are never
+        included.
+      </p>
+      <Card className="mt-4 flex-row items-center justify-between gap-3 p-4">
+        <div>
+          <p className="text-sm font-medium">Export workspace data</p>
+          <p className="text-xs text-muted-foreground">
+            Owners and admins only. Portable, human-readable JSON.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" disabled={pending} onClick={onExport}>
+          <Download className="h-3.5 w-3.5" />
+          {pending ? "Preparing…" : "Export JSON"}
+        </Button>
+      </Card>
     </section>
   );
 }
@@ -341,19 +556,21 @@ function SlackIntegration({
   const upsert = useMutation(api.integrations.upsertSlack);
   const setEnabled = useMutation(api.integrations.setEnabled);
   const remove = useMutation(api.integrations.remove);
+  const { toast } = useToast();
+  const [disconnecting, setDisconnecting] = useState(false);
 
-  const [draftUrl, setDraftUrl] = useState(
-    integration?.config.webhookUrl ?? "",
-  );
+  // The stored webhook URL is a secret (anyone holding it can post to the
+  // channel), so it is never rendered back. Empty field = unchanged.
+  const [draftUrl, setDraftUrl] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="rounded-3xl border border-border bg-background p-4">
+    <Card className="p-5">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h3 className="text-sm font-semibold">Slack</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <CardTitle className="text-sm font-semibold">Slack</CardTitle>
+          <CardDescription className="mt-1 text-xs">
             When a task is assigned, post a message to a Slack channel via
             an{" "}
             <a
@@ -365,16 +582,21 @@ function SlackIntegration({
               incoming webhook
             </a>
             .
-          </p>
+          </CardDescription>
         </div>
-        {integration && (
+        {integration && !disconnecting && (
           <button
             type="button"
             aria-label="Disconnect Slack"
             onClick={() => {
-              if (window.confirm("Disconnect Slack from this workspace?")) {
-                remove({ integrationId: integration._id });
-              }
+              setDisconnecting(true);
+              toast("Slack disconnected", {
+                action: {
+                  label: "Undo",
+                  onClick: () => setDisconnecting(false),
+                },
+                onExpire: () => remove({ integrationId: integration._id }),
+              });
             }}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
           >
@@ -394,21 +616,27 @@ function SlackIntegration({
               webhookUrl: draftUrl.trim(),
             });
           } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to save");
+            setError(
+              err instanceof Error ? err.message : "Failed to save",
+            );
           } finally {
             setPending(false);
           }
         }}
         className="mt-3 space-y-2"
       >
-        <input
+        <Input
           type="url"
           value={draftUrl}
           onChange={(e) => setDraftUrl(e.currentTarget.value)}
-          placeholder="https://hooks.slack.com/services/T0…"
-          className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm font-mono"
+          placeholder={
+            integration
+              ? "Connected. Paste a new URL to replace it."
+              : "https://hooks.slack.com/services/T0…"
+          }
+          className="font-mono"
         />
-        {error && <p className="text-xs text-red-700">{error}</p>}
+        {error && <p className="text-xs text-red-700 dark:text-red-400">{error}</p>}
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="submit"
@@ -421,7 +649,7 @@ function SlackIntegration({
                 ? "Update webhook"
                 : "Connect Slack"}
           </Button>
-          {integration && (
+          {integration && !disconnecting && (
             <label className="ml-auto inline-flex items-center gap-2 text-xs text-muted-foreground">
               <input
                 type="checkbox"
@@ -438,6 +666,6 @@ function SlackIntegration({
           )}
         </div>
       </form>
-    </div>
+    </Card>
   );
 }

@@ -1,16 +1,23 @@
-/* prettier-ignore-start */
 /* eslint-disable */
-// @ts-nocheck
-//
-// Generated `api` references for Convex's data model.
-//
-// This file is initially hand-rolled to keep the Next.js side compiling
-// before `npx convex dev` has been run. Convex will overwrite it with the
-// real generated output as soon as the dev/deploy CLI runs.
+/**
+ * Generated `api` utility.
+ *
+ * THIS CODE IS AUTOMATICALLY GENERATED.
+ *
+ * To regenerate, run `npx convex dev`.
+ * @module
+ */
 
-import { anyApi } from "convex/server";
+import { anyApi, componentsGeneric } from "convex/server";
 
+/**
+ * A utility for referencing Convex functions in your app's API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 export const api = anyApi;
 export const internal = anyApi;
-
-/* prettier-ignore-end */
+export const components = componentsGeneric();

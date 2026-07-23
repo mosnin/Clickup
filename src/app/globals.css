@@ -1,37 +1,122 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
+/* Vendored shell primitives (components/ui) style their dark states with
+   `dark:` classes; our theme mechanism is the data-theme attribute the
+   root layout stamps pre-paint — bridge the two. */
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+/*
+  Brand system — monochrome editorial + pastel accents.
+
+  The app renders as a white "sheet" floating on a soft gray page
+  (--color-page). Ink is near-black, secondary text is quiet gray,
+  borders are hairlines. The single strong accent is black (buttons,
+  active segments, toggles); meaning is carried by pastel chips
+  (blue/red/yellow/green/purple/pink) with dark ink on top, and green
+  is reserved for positive deltas.
+*/
 @theme {
-  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans:
+    var(--font-instrument), "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Canvas + surfaces */
+  --color-page: #ededf0;
   --color-background: #ffffff;
-  --color-foreground: #0a0a0a;
-  --color-muted: #f4f4f5;
-  --color-muted-foreground: #71717a;
-  --color-border: #e4e4e7;
+  --color-foreground: #101012;
+  --color-muted: #f5f5f6;
+  --color-muted-foreground: #8b8b94;
+  --color-border: #ececee;
 
-  /* Brand: emerald — the dot on the Pace mark, the colour of action. */
-  --color-brand-50: #ecfdf5;
-  --color-brand-100: #d1fae5;
-  --color-brand-500: #10b981;
-  --color-brand-600: #059669;
-  --color-brand-700: #047857;
+  /* "Brand" is ink now: black CTAs, gray chips. Kept as a scale so the
+     existing bg-brand-* / text-brand-* call sites shift in place. */
+  --color-brand-50: #f5f5f6;
+  --color-brand-100: #e9e9ec;
+  --color-brand-200: #d9d9de;
+  --color-brand-500: #3f3f46;
+  --color-brand-600: #131316;
+  --color-brand-700: #000000;
 
-  /* Accent: amber — billable, AI-loading, urgency. */
-  --color-accent-50: #fffbeb;
-  --color-accent-100: #fef3c7;
-  --color-accent-500: #f59e0b;
-  --color-accent-600: #d97706;
-  --color-accent-700: #b45309;
+  /* Pastel accent fills (chart-series / chip backgrounds) */
+  --color-pastel-blue: #d9e8fa;
+  --color-pastel-red: #fadcd7;
+  --color-pastel-yellow: #faeec7;
+  --color-pastel-green: #d5efdE;
+  --color-pastel-purple: #e6defa;
+  --color-pastel-pink: #f9e0f4;
+
+  /* Positive delta green (the only saturated color in the system) */
+  --color-positive: #16a34a;
+
+  /* Semantic states. Danger is a muted brick, never alarm-red; unread is the
+     single accent used by every unread indicator in the app. */
+  --color-danger: #c2453a;
+  --color-unread: #101012;
+
+  /* Marketing v2 palette — electric azure over deep navy for the hero
+     band, white content sections on the shared neutral tokens. Never use
+     these inside /dashboard. */
+  --color-azure-100: #dbe7ff;
+  --color-azure-200: #b7cfff;
+  --color-azure-300: #85abff;
+  --color-azure-400: #4d82fb;
+  --color-azure-500: #2563eb;
+  --color-azure-600: #1d4ed8;
+  --color-azure-700: #1a3bb8;
+  --color-navy-800: #101d52;
+  --color-navy-900: #0a1238;
+  --color-navy-950: #060b24;
+  /* Warm accent pair for the closing "simpler" panel (reference's pink to
+     peach card). Marketing-owned — the dashboard pastels stay dashboard-only. */
+  --color-blush: #ffdfec;
+  --color-peach: #ffeedb;
+  /* Placeholder visuals: solid red so provided graphics/video slots are
+     unmissable. Every raster asset ships as a red Placeholder block. */
+  --color-placeholder: #e11d1d;
+
+  /* Shell fusion (Phase H): the Square-style shell's full token surface,
+     valued from our brand — monochrome ink primary, neutral accents,
+     pastel chart ramp. The vendored components/ui primitives read these. */
+  --color-card: #ffffff;
+  --color-card-foreground: #101012;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #101012;
+  --color-primary: #131316;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f5f5f6;
+  --color-secondary-foreground: #101012;
+  --color-accent: #f0f0f2;
+  --color-accent-foreground: #101012;
+  --color-destructive: #c2453a;
+  --color-input: #ececee;
+  --color-ring: #8b8b94;
+  --color-chart-1: #d9e8fa;
+  --color-chart-2: #d5efde;
+  --color-chart-3: #faeec7;
+  --color-chart-4: #e6defa;
+  --color-chart-5: #fadcd7;
+  --color-sidebar: #fafafb;
+  --color-sidebar-foreground: #101012;
+  --color-sidebar-primary: #131316;
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: #ededf0;
+  --color-sidebar-accent-foreground: #101012;
+  --color-sidebar-border: #ececee;
+  --color-sidebar-ring: #8b8b94;
 
   --radius-pill: 9999px;
 }
 
-@media (prefers-color-scheme: dark) {
-  @theme {
-    --color-background: #0a0a0a;
-    --color-foreground: #fafafa;
-    --color-muted: #18181b;
-    --color-muted-foreground: #a1a1aa;
-    --color-border: #27272a;
+/* The template's base border rule (Square UI ships the same): Tailwind v4
+   defaults bare `border` utilities to currentColor, which reads as a harsh
+   near-black frame around every vendored Card/Table/Input. Restore the
+   token default; explicit border-color classes still override. */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
   }
 }
 
@@ -40,8 +125,462 @@ body {
   height: 100%;
 }
 
+/* Thin brand gradient strip — product flair on shell edges (PageHeader top,
+   sidebar top). 2px tall; pastel ramp reads in both themes. Use height-only
+   variants sparingly: this is an accent, not a divider system. */
+.gradient-strip {
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--color-pastel-blue),
+    var(--color-pastel-purple) 30%,
+    var(--color-pastel-pink) 60%,
+    var(--color-pastel-yellow) 100%
+  );
+}
+
+/* ── Card resize transition (Transitions.dev) ─────────────────────────────
+   Put .t-resize on an element and tween explicit width/height changes
+   (directly, or via a state class such as .is-small). */
+:root {
+  --resize-dur: 300ms;
+  --resize-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+.t-resize {
+  transition:
+    width var(--resize-dur) var(--resize-ease),
+    height var(--resize-dur) var(--resize-ease);
+  will-change: width, height;
+}
+
+/* ── Agent orb ────────────────────────────────────────────────────────────
+   A glowing, slowly-swirling gradient sphere. Colors come from per-agent
+   CSS vars (a deterministic random hue), so every agent reads as its own
+   living orb. Compose: <span class="orb"><span class="orb-core"/><span
+   class="orb-sheen"/></span>. */
+.orb {
+  position: relative;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: var(--orb-a, #8b8bff);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.1) inset,
+    0 4px 14px -4px var(--orb-b, #8b8bff);
+}
+.orb-core {
+  position: absolute;
+  inset: -35%;
+  background: conic-gradient(
+    from 0deg,
+    var(--orb-a),
+    var(--orb-b),
+    var(--orb-c),
+    var(--orb-a)
+  );
+  filter: blur(5px);
+  animation: orb-spin 7s linear infinite;
+}
+.orb-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at 32% 26%,
+    rgb(255 255 255 / 0.6),
+    transparent 46%
+  );
+}
+@keyframes orb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Border beam ──────────────────────────────────────────────────────────
+   A light that travels around an element's border — signals "alive /
+   listening." The parent must be position:relative with a border-radius;
+   render <BorderBeam/> as its last child. */
+.border-beam {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  border: var(--bb-width, 1.5px) solid transparent;
+  mask:
+    linear-gradient(transparent, transparent),
+    linear-gradient(#000, #000);
+  mask-clip: padding-box, border-box;
+  mask-composite: intersect;
+}
+.border-beam::after {
+  content: "";
+  position: absolute;
+  aspect-ratio: 1;
+  width: var(--bb-size, 64px);
+  background: linear-gradient(
+    to left,
+    var(--bb-from, var(--color-azure-400, #5aa8ff)),
+    var(--bb-to, var(--color-azure-600, #2b6fff)),
+    transparent
+  );
+  offset-path: rect(0 auto auto 0 round var(--bb-size, 64px));
+  offset-anchor: 90% 50%;
+  animation: border-beam-travel var(--bb-duration, 7s) linear infinite;
+  animation-delay: var(--bb-delay, 0s);
+}
+@keyframes border-beam-travel {
+  to {
+    offset-distance: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-resize {
+    transition: none !important;
+  }
+  .orb-core {
+    animation: none;
+  }
+  .border-beam::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* ── Marketing v3 — dark charcoal recolor ─────────────────────────────────
+   The logged-out site flips from white-canvas / azure-over-navy to a deep
+   charcoal canvas with vibrant gradient accents and gradient text. Scoped
+   to `.marketing-shell` (set on the marketing layout root) so the dashboard
+   keeps its own theming untouched. This is a COLOR change only — same
+   layout, same structure. Redefining the shared tokens here flips every
+   token-based surface (bg-background/text-foreground/border-border) and the
+   navy band tokens become deep-charcoal, so the layout's rhythm survives. */
+.marketing-shell {
+  --color-background: #0a0a0d;
+  --color-foreground: #f4f4f7;
+  --color-border: #24242c;
+  --color-muted: #131318;
+  --color-muted-foreground: #a2a2ad;
+
+  /* Former navy bands → deep charcoal (kept as tokens so bg-navy-* flips). */
+  --color-navy-800: #16161c;
+  --color-navy-900: #0f0f14;
+  --color-navy-950: #08080b;
+
+  /* Vibrant accent trio for gradients that pop on charcoal. Azure stays the
+     lead; violet + cyan are the companions. Lighten azure text for contrast
+     on the dark canvas. */
+  --color-azure-300: #9cc4ff;
+  --color-azure-400: #7aa8ff;
+  --color-azure-600: #6aa8ff;
+  --color-azure-700: #8ec0ff;
+  --mk-panel: #131318;
+  --mk-panel-2: #1a1a21;
+
+  /* Ambient charcoal base with faint azure/violet glow so it never reads
+     flat. Section backgrounds paint over it; transparent sections let it
+     show through. */
+  background:
+    radial-gradient(75rem 38rem at 50% -8%, rgb(106 168 255 / 0.1), transparent 60%),
+    radial-gradient(55rem 40rem at 88% 8%, rgb(167 139 250 / 0.08), transparent 55%),
+    var(--color-background);
+}
+
+/* Gradient text that pops on charcoal. Apply to a heading span; it clips the
+   gradient to the glyphs. */
+.text-gradient {
+  background-image: linear-gradient(100deg, #8ec5ff 0%, #a78bfa 48%, #5ce1e6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.text-gradient-soft {
+  background-image: linear-gradient(100deg, #f4f4f7 0%, #c9d6ff 55%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Lifted charcoal panel — the dark-mode replacement for the old white card
+   (fill + hairline). Pair with a rounded-* utility. */
+.mk-panel {
+  background: var(--mk-panel);
+  border: 1px solid var(--color-border);
+}
+.mk-panel-2 {
+  background: var(--mk-panel-2);
+  border: 1px solid var(--color-border);
+}
+
+/* Subtle gradient band for full-bleed sections that used to be navy — keeps
+   section rhythm via a charcoal gradient plus a top edge glow. */
+.mk-band {
+  background:
+    radial-gradient(60rem 28rem at 50% 0%, rgb(106 168 255 / 0.08), transparent 60%),
+    linear-gradient(180deg, #0f0f14, #08080b);
+}
+
+/* Vibrant gradient fill for primary CTAs and accent chips. */
+.mk-gradient-fill {
+  background-image: linear-gradient(100deg, #2563eb 0%, #7c3aed 55%, #06b6d4 100%);
+  color: #ffffff;
+}
+
+/* A soft radial glow blob for behind hero art / feature mocks. */
+.mk-glow {
+  background: radial-gradient(
+    closest-side,
+    rgb(106 168 255 / 0.35),
+    rgb(167 139 250 / 0.18) 55%,
+    transparent 100%
+  );
+  filter: blur(20px);
+}
+
+/* GSAP reveal targets start hidden before hydration so scroll-reveals
+   never flash. The motion kit (components/marketing/gsap.tsx) removes
+   the attribute on mount — animated or not. */
+.gs-reveal[data-gs-hidden],
+[data-gs-hidden] .gs-reveal {
+  visibility: hidden;
+}
+
 /* Honor iOS safe areas for the PWA. */
 body {
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Hairline horizontal rule under page titles, per the brand reference. */
+.title-rule {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 1rem;
+}
+
+/* Nested neutral tile inside a panel card (the reference's material/preview
+   wells). Soft inset feel, no border. */
+.bento-tile {
+  background: var(--color-muted);
+  border-radius: 1rem;
+}
+/* Functional icon well — a thin-line glyph in a soft rounded square, the
+   only place an icon rides its own surface (per the reference's people/link
+   access rows). Never used decoratively. */
+.icon-tile {
+  display: grid;
+  place-items: center;
+  height: 2.5rem;
+  width: 2.5rem;
+  border-radius: 0.85rem;
+  background: var(--color-muted);
+  color: var(--color-foreground);
+  flex-shrink: 0;
+}
+
+/* Soft field: the reference's inputs sit on a faint neutral fill with no hard
+   border and a gentle focus ring rather than a color outline. */
+.soft-field {
+  background: var(--color-muted);
+  border-radius: 0.9rem;
+  transition:
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+.soft-field:focus,
+.soft-field:focus-within {
+  outline: none;
+  background: var(--color-background);
+  box-shadow: 0 0 0 2px var(--color-foreground);
+}
+
+/* ── Shell fusion panel (Phase H) ─────────────────────────────────────────
+   The Square-style dashboard shell's card: our soft-shadow language on the
+   template's discrete-card shape — card fill, hairline border, quiet
+   shadow. Pair with a rounded-* utility (usually rounded-xl). The one
+   surface treatment for shell panels that aren't a vendored Card. */
+.panel {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  box-shadow:
+    0 1px 2px rgb(16 16 18 / 0.03),
+    0 6px 20px -14px rgb(16 16 18 / 0.1);
+}
+:root[data-theme="dark"] .panel {
+  box-shadow: none;
+}
+
+/* Interactive-card hover: a quiet lift with a soft, wide shadow. */
+.lift {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s ease;
+}
+.lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px -16px rgb(16 16 18 / 0.22);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lift,
+  .lift:hover {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* ── TextType (typed-title animation) ────────────────────────────────────
+   Used sparingly: one hero line on the marketing site and the greeting on
+   Home. The component itself freezes under reduced motion. */
+.text-type {
+  display: inline-block;
+  white-space: pre-wrap;
+}
+.text-type__cursor {
+  margin-left: 0.15em;
+  display: inline-block;
+  font-weight: 300;
+  opacity: 1;
+}
+.text-type__cursor--hidden {
+  display: none;
+}
+
+/* FaultyTerminal (WebGL glyph background). Always an absolutely-positioned
+   dim layer behind content on a dark panel; never a foreground element. */
+.faulty-terminal-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+.faulty-terminal-container canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Expanded touch hit-area for small icon buttons: keeps the compact visual
+ * size on desktop while giving coarse pointers a ~44px target. */
+.tap-target {
+  position: relative;
+}
+@media (pointer: coarse) {
+  .tap-target::after {
+    content: "";
+    position: absolute;
+    inset: -0.55rem;
+  }
+}
+
+/* ── Marketing-site utilities (logged-out pages only) ─────────────────── */
+
+/* Endless horizontal marquee. Duplicate the track's children once and the
+   -50% translate loops seamlessly. */
+@keyframes marquee-x {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-x 36s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+}
+
+/* ── Dark theme ───────────────────────────────────────────────────────────
+   The app opts into a dark theme via a `data-theme` attribute the root
+   layout's inline script stamps on <html> before paint (no flash). Only the
+   token values flip here — because the whole design system is token-based
+   (bg-background / text-foreground / bg-muted / border-border), overriding
+   these cascades to nearly every surface. The marketing site keeps its own
+   azure/navy palette and never reads these.
+
+   Soft shadows are near-invisible on a dark canvas, so bento surfaces gain a
+   hairline border in dark to stay legible as discrete panels. */
+:root[data-theme="dark"] {
+  /* Deep charcoal scheme: near-black canvas, charcoal surfaces one step
+     up, hairlines barely brighter than the card they sit on. */
+  --color-page: #08080a;
+  --color-background: #0e0e10;
+  --color-foreground: #f3f3f4;
+  --color-muted: #1a1a1d;
+  --color-muted-foreground: #9b9ba3;
+  --color-border: #222226;
+
+  /* Ink scale inverts: light chips become dark tiles, "ink" text becomes
+     near-white. brand-600 stays a mid gray so both `bg-brand-600 text-white`
+     (avatars/badges/bars) and `text-brand-600` links remain legible. */
+  --color-brand-50: #141416;
+  --color-brand-100: #1a1a1d;
+  --color-brand-200: #26262b;
+  --color-brand-500: #a1a1aa;
+  --color-brand-600: #71717a;
+  --color-brand-700: #ededf0;
+
+  --color-danger: #e0685c;
+  --color-unread: #f3f3f4;
+
+  /* Shell fusion tones flip with the theme (ink inverts, like the
+     template's dark scheme, kept in our hex language). */
+  --color-card: #121214;
+  --color-card-foreground: #f3f3f4;
+  --color-popover: #161619;
+  --color-popover-foreground: #f3f3f4;
+  --color-primary: #ededf0;
+  --color-primary-foreground: #101012;
+  --color-secondary: #1a1a1d;
+  --color-secondary-foreground: #f3f3f4;
+  --color-accent: #1e1e22;
+  --color-accent-foreground: #f3f3f4;
+  --color-destructive: #e0685c;
+  --color-input: #232328;
+  --color-ring: #71717a;
+  --color-sidebar: #0a0a0c;
+  --color-sidebar-foreground: #f3f3f4;
+  --color-sidebar-primary: #ededf0;
+  --color-sidebar-primary-foreground: #101012;
+  --color-sidebar-accent: #1b1b1f;
+  --color-sidebar-accent-foreground: #f3f3f4;
+  --color-sidebar-border: #1e1e22;
+  --color-sidebar-ring: #71717a;
+}
+
+/* Slow drift for gradient scene blobs. */
+@keyframes scene-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, -3%, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+.scene-blob {
+  animation: scene-drift 18s ease-in-out infinite;
+  will-change: transform;
+}
+.scene-blob:nth-child(2) {
+  animation-duration: 24s;
+  animation-delay: -8s;
+}
+.scene-blob:nth-child(3) {
+  animation-duration: 30s;
+  animation-delay: -14s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene-blob {
+    animation: none;
+  }
 }

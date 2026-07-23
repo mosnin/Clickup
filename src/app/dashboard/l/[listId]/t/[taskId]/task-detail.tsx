@@ -3,16 +3,29 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { Check, Sparkles, SquareCheck } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { Clips } from "@/components/dashboard/clips";
+import { Attachments } from "@/components/dashboard/attachments";
 import { Comments } from "@/components/dashboard/comments";
-import { PresenceStack } from "@/components/dashboard/presence-stack";
+import { Subtasks } from "@/components/dashboard/subtasks";
+import {
+  TaskAssignees,
+  TaskBanners,
+  TaskBlockedBy,
+  TaskChecklist,
+  TaskSprintPicker,
+} from "@/components/dashboard/task-collab";
 import { TimeTracker } from "@/components/dashboard/time-tracker";
-import { usePresence } from "@/lib/use-presence";
+import { cn } from "@/lib/utils";
+import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
+import { useToast } from "@/components/toast";
+import { motion } from "@/components/motion";
 
 type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
 type TaskRecurrence = NonNullable<Doc<"tasks">["recurrence"]>;
@@ -23,6 +36,7 @@ const RECURRENCE_LABEL: Record<TaskRecurrence, string> = {
   weekly: "Weekly",
   monthly: "Monthly",
 };
+const ESTIMATE_CHIPS = [1, 2, 3, 5, 8, 13];
 
 export function TaskDetail({
   listId,
@@ -50,7 +64,7 @@ export function TaskDetail({
   }
   if (!list || !task) {
     return (
-      <div className="rounded-3xl border border-border bg-muted/30 p-10 text-center">
+      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
           This task doesn&apos;t exist or you don&apos;t have access.
         </p>
@@ -76,6 +90,10 @@ export function TaskDetail({
   );
 }
 
+// Two-column layout on lg: the content the task IS (title, description,
+// checklist, clips, comments) on the left; the state it's IN (status,
+// priority, dates, assignees, sprint, dependencies, recurrence, custom
+// fields, time) in the right rail. Stacks in that order on mobile.
 function TaskEditor({
   task,
   listName,
@@ -92,21 +110,57 @@ function TaskEditor({
   values: Doc<"taskFieldValues">[];
 }) {
   const update = useMutation(api.tasks.update);
+  const toggleComplete = useMutation(api.tasks.toggleComplete);
   const setValue = useMutation(api.taskFieldValues.set);
   const clearValue = useMutation(api.taskFieldValues.clear);
   const taskAutofill = useAction(api.ai.taskAutofill);
+  const { toast } = useToast();
 
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
   const [aiPending, setAiPending] = useState(false);
+  const [estimateDraft, setEstimateDraft] = useState(
+    task.estimatePoints !== undefined ? String(task.estimatePoints) : "",
+  );
+
+  const parentTask = useQuery(
+    api.tasks.get,
+    task.parentTaskId ? { taskId: task.parentTaskId } : "skip",
+  );
 
   useEffect(() => setTitle(task.title), [task.title]);
   useEffect(() => setDescription(task.description ?? ""), [task.description]);
+  useEffect(
+    () =>
+      setEstimateDraft(
+        task.estimatePoints !== undefined ? String(task.estimatePoints) : "",
+      ),
+    [task.estimatePoints],
+  );
 
-  const viewers = usePresence({
-    focusType: "task",
-    focusId: task._id,
-  });
+  async function saveEstimate(value: number | null) {
+    const current = task.estimatePoints ?? null;
+    if (value === current) return;
+    try {
+      await update({ taskId: task._id, estimatePoints: value });
+      toast(value === null ? "Estimate cleared" : "Saved");
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const msg = raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim();
+      toast(msg || "Couldn't update estimate", { kind: "error" });
+    }
+  }
+
+  async function saveMilestone(value: boolean) {
+    try {
+      await update({ taskId: task._id, milestone: value });
+      toast("Saved");
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const msg = raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim();
+      toast(msg || "Couldn't update milestone", { kind: "error" });
+    }
+  }
 
   const valuesByField = useMemo(() => {
     const map = new Map<string, Doc<"taskFieldValues">>();
@@ -114,18 +168,95 @@ function TaskEditor({
     return map;
   }, [values]);
 
+  const currentStatus = statuses.find((s) => s._id === task.statusId);
+  const isDone =
+    currentStatus?.category === "complete" ||
+    currentStatus?.category === "closed";
+
+  async function onToggleComplete() {
+    try {
+      await toggleComplete({ taskId: task._id });
+    } catch (err) {
+      // Blockers / approval gates refuse completion — surface why.
+      const raw = err instanceof Error ? err.message : String(err);
+      const msg = raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim();
+      toast(msg || "Couldn't complete this task", { kind: "error" });
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
+      <PageHeader
+        icon={SquareCheck}
+        title={task.title || "Untitled task"}
+        context={
+          <>
+            <Link
+              href={`/dashboard/l/${listId}`}
+              className="truncate hover:text-foreground hover:underline"
+            >
+              {listName}
+            </Link>
+            {currentStatus && (
+              <Badge
+                variant="secondary"
+                className="gap-1.5 border-transparent text-foreground/80"
+                style={{ backgroundColor: `${currentStatus.color}4d` }}
+              >
+                <span
+                  aria-hidden
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: currentStatus.color }}
+                />
+                {currentStatus.name}
+              </Badge>
+            )}
+          </>
+        }
+      />
+
+      {parentTask && (
         <Link
-          href={`/dashboard/l/${listId}`}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          href={`/dashboard/l/${listId}/t/${parentTask._id}`}
+          className="inline-block text-sm text-muted-foreground hover:text-foreground hover:underline"
         >
-          <ArrowLeft className="h-4 w-4" /> {listName}
+          Subtask of {parentTask.title}
         </Link>
-        <PresenceStack viewers={viewers} />
-      </div>
-      <div>
+      )}
+
+      <div className="flex items-start gap-3">
+        {/* The completion moment: a springy check that fills in and
+            strikes the title through. */}
+        <motion.button
+          type="button"
+          aria-label={isDone ? "Reopen task" : "Complete task"}
+          onClick={onToggleComplete}
+          whileTap={{ scale: 0.85 }}
+          className={cn(
+            "tap-target mt-1 inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors sm:mt-1.5",
+            isDone ? "text-white" : "text-transparent",
+          )}
+          style={{
+            borderColor: currentStatus?.color ?? "var(--color-border)",
+            backgroundColor: isDone ? currentStatus?.color : "transparent",
+          }}
+        >
+          <motion.span
+            initial={false}
+            animate={{ scale: isDone ? 1 : 0.6, opacity: isDone ? 1 : undefined }}
+            transition={{ type: "spring", stiffness: 500, damping: 22 }}
+            className="inline-flex"
+          >
+            <Check className="h-4 w-4" strokeWidth={3} />
+          </motion.span>
+        </motion.button>
+        {task.milestone && (
+          <span
+            aria-hidden
+            title="Milestone"
+            className="mt-3 inline-block h-2.5 w-2.5 flex-shrink-0 rotate-45 border-[1.5px] border-foreground/70 sm:mt-3.5"
+          />
+        )}
         <input
           type="text"
           value={title}
@@ -137,219 +268,336 @@ function TaskEditor({
               setTitle(task.title);
             }
           }}
-          className="w-full bg-transparent text-2xl font-semibold tracking-tight focus:outline-none sm:text-3xl"
-        />
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label="Status">
-          <select
-            value={task.statusId}
-            onChange={(e) =>
-              update({
-                taskId: task._id,
-                statusId: e.currentTarget.value as Id<"listStatuses">,
-              })
-            }
-            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-          >
-            {statuses.map((s) => (
-              <option key={s._id} value={s._id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="Priority">
-          <select
-            value={task.priority ?? ""}
-            onChange={(e) => {
-              const v = e.currentTarget.value;
-              update({
-                taskId: task._id,
-                priority: (v || undefined) as TaskPriority | undefined,
-              });
-            }}
-            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-          >
-            <option value="">No priority</option>
-            {PRIORITY_OPTIONS.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="Start date">
-          <input
-            type="date"
-            value={
-              task.startDate
-                ? new Date(task.startDate).toISOString().slice(0, 10)
-                : ""
-            }
-            onChange={(e) => {
-              const v = e.currentTarget.value;
-              update({
-                taskId: task._id,
-                startDate: v ? new Date(v).getTime() : null,
-              });
-            }}
-            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-          />
-        </Field>
-
-        <Field label="Due date">
-          <input
-            type="date"
-            value={
-              task.dueDate
-                ? new Date(task.dueDate).toISOString().slice(0, 10)
-                : ""
-            }
-            onChange={(e) => {
-              const v = e.currentTarget.value;
-              update({
-                taskId: task._id,
-                dueDate: v ? new Date(v).getTime() : null,
-              });
-            }}
-            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-          />
-        </Field>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Recurrence">
-          <select
-            value={task.recurrence ?? ""}
-            onChange={(e) => {
-              const v = e.currentTarget.value;
-              update({
-                taskId: task._id,
-                recurrence: (v || null) as TaskRecurrence | null,
-              });
-            }}
-            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-          >
-            <option value="">No recurrence</option>
-            {(Object.keys(RECURRENCE_LABEL) as TaskRecurrence[]).map((r) => (
-              <option key={r} value={r}>
-                {RECURRENCE_LABEL[r]}
-              </option>
-            ))}
-          </select>
-          {task.recurrence && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              When you complete this task, a new {RECURRENCE_LABEL[task.recurrence].toLowerCase()} instance is created automatically.
-            </p>
+          className={cn(
+            "w-full bg-transparent text-2xl font-bold tracking-tight transition-colors focus:outline-none sm:text-3xl",
+            isDone && "text-muted-foreground line-through",
           )}
-        </Field>
-      </div>
-
-      {fields.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Custom fields
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {fields.map((field) => (
-              <Field key={field._id} label={field.name}>
-                <CustomFieldInput
-                  field={field}
-                  value={valuesByField.get(field._id)}
-                  size="md"
-                  onCommit={(value) => {
-                    if (value === null) {
-                      clearValue({ taskId: task._id, fieldId: field._id });
-                    } else {
-                      setValue({
-                        taskId: task._id,
-                        fieldId: field._id,
-                        ...value,
-                      });
-                    }
-                  }}
-                />
-              </Field>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <div>
-        <div className="mb-1 flex items-center justify-between">
-          <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Description
-          </label>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={aiPending || !task.title.trim()}
-            onClick={async () => {
-              setAiPending(true);
-              try {
-                const res = await taskAutofill({ title: task.title });
-                if (res.description) {
-                  const next = description
-                    ? description + "\n\n" + res.description
-                    : res.description;
-                  setDescription(next);
-                  await update({ taskId: task._id, description: next });
-                }
-              } finally {
-                setAiPending(false);
-              }
-            }}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            {aiPending ? "Drafting…" : "Draft with AI"}
-          </Button>
-        </div>
-        <textarea
-          rows={8}
-          value={description}
-          onChange={(e) => setDescription(e.currentTarget.value)}
-          onBlur={() => {
-            if (description !== (task.description ?? "")) {
-              update({ taskId: task._id, description });
-            }
-          }}
-          placeholder="Add more details…"
-          className="w-full rounded-3xl border border-border bg-background p-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
 
-      <section>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Time
-        </h2>
-        <TimeTracker taskId={task._id} />
-      </section>
+      <TaskBanners task={task} listId={listId} />
 
-      <section>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Clips
-        </h2>
-        <Clips taskId={task._id} />
-      </section>
+      <div className="gap-10 lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+        {/* ── Content column ── */}
+        <div className="min-w-0 space-y-8">
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Description
+              </label>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={aiPending || !task.title.trim()}
+                onClick={async () => {
+                  setAiPending(true);
+                  try {
+                    const res = await taskAutofill({ title: task.title });
+                    if (res.description) {
+                      const next = description
+                        ? description + "\n\n" + res.description
+                        : res.description;
+                      setDescription(next);
+                      await update({ taskId: task._id, description: next });
+                    } else {
+                      toast(
+                        "AI didn't return a draft — is OPENAI_API_KEY configured?",
+                        { kind: "error" },
+                      );
+                    }
+                  } catch (err) {
+                    const raw = err instanceof Error ? err.message : String(err);
+                    const msg = raw
+                      .split("Uncaught Error:")
+                      .pop()
+                      ?.split("\n")[0]
+                      ?.trim();
+                    toast(msg || "Couldn't draft a description", {
+                      kind: "error",
+                    });
+                  } finally {
+                    setAiPending(false);
+                  }
+                }}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {aiPending ? "Drafting…" : "Draft with AI"}
+              </Button>
+            </div>
+            <textarea
+              rows={8}
+              value={description}
+              onChange={(e) => setDescription(e.currentTarget.value)}
+              onBlur={() => {
+                if (description !== (task.description ?? "")) {
+                  update({ taskId: task._id, description });
+                }
+              }}
+              placeholder="Add more details…"
+              className="panel w-full rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
 
-      <section>
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Comments
-        </h2>
-        <Comments parentType="task" parentId={task._id} />
-      </section>
+          <TaskChecklist task={task} />
 
-      <div className="flex justify-end">
-        <Link href={`/dashboard/l/${listId}`}>
-          <Button variant="outline" size="sm">
-            Done
-          </Button>
-        </Link>
+          <Subtasks taskId={task._id} listId={listId} />
+
+          <section>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Attachments
+            </h2>
+            <Attachments taskId={task._id} />
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Clips
+            </h2>
+            <Clips taskId={task._id} />
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Comments
+            </h2>
+            <Comments parentType="task" parentId={task._id} />
+          </section>
+        </div>
+
+        {/* ── State rail ── */}
+        <aside className="panel mt-8 space-y-5 rounded-xl p-5 lg:mt-0">
+          <Field label="Status">
+            <select
+              value={task.statusId}
+              onChange={(e) =>
+                update({
+                  taskId: task._id,
+                  statusId: e.currentTarget.value as Id<"listStatuses">,
+                })
+              }
+              className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            >
+              {statuses.map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Priority">
+            <select
+              value={task.priority ?? ""}
+              onChange={(e) => {
+                const v = e.currentTarget.value;
+                update({
+                  taskId: task._id,
+                  priority: (v || undefined) as TaskPriority | undefined,
+                });
+              }}
+              className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            >
+              <option value="">No priority</option>
+              {PRIORITY_OPTIONS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Estimate">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1">
+                {ESTIMATE_CHIPS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    aria-pressed={task.estimatePoints === p}
+                    onClick={() => saveEstimate(p)}
+                    className={cn(
+                      "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                      task.estimatePoints === p
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    )}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                aria-label="Custom estimate"
+                placeholder="Custom"
+                value={estimateDraft}
+                onChange={(e) => setEstimateDraft(e.currentTarget.value)}
+                onBlur={() => {
+                  const trimmed = estimateDraft.trim();
+                  if (trimmed === "") {
+                    if (task.estimatePoints !== undefined) saveEstimate(null);
+                    return;
+                  }
+                  const n = Number(trimmed);
+                  if (!Number.isFinite(n) || n < 0) {
+                    setEstimateDraft(
+                      task.estimatePoints !== undefined
+                        ? String(task.estimatePoints)
+                        : "",
+                    );
+                    return;
+                  }
+                  saveEstimate(n);
+                }}
+                className="soft-field w-16 px-2 py-1 text-xs focus:outline-none"
+              />
+              {task.estimatePoints !== undefined && (
+                <button
+                  type="button"
+                  onClick={() => saveEstimate(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Start date">
+              <input
+                type="date"
+                value={task.startDate ? toDateInputValue(task.startDate) : ""}
+                onChange={(e) =>
+                  update({
+                    taskId: task._id,
+                    startDate: fromDateInputValue(e.currentTarget.value) ?? null,
+                  })
+                }
+                className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              />
+            </Field>
+            <Field label="Due date">
+              <input
+                type="date"
+                value={task.dueDate ? toDateInputValue(task.dueDate) : ""}
+                onChange={(e) =>
+                  update({
+                    taskId: task._id,
+                    dueDate: fromDateInputValue(e.currentTarget.value) ?? null,
+                  })
+                }
+                className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              />
+            </Field>
+          </div>
+
+          <Field label="Milestone">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={!!task.milestone}
+              onClick={() => saveMilestone(!task.milestone)}
+              className={cn(
+                "relative h-6 w-11 flex-shrink-0 rounded-full transition-colors",
+                task.milestone ? "bg-foreground" : "bg-border",
+              )}
+            >
+              <span
+                className={cn(
+                  "absolute top-0.5 h-5 w-5 rounded-full bg-background shadow-sm transition-transform",
+                  task.milestone ? "translate-x-[1.375rem]" : "translate-x-0.5",
+                )}
+              />
+            </button>
+          </Field>
+
+          <section>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Assignees
+            </h2>
+            <TaskAssignees task={task} listId={listId} />
+          </section>
+
+          <TaskSprintPicker task={task} listId={listId} />
+
+          <TaskBlockedBy task={task} listId={listId} />
+
+          <Field label="Recurrence">
+            <select
+              value={task.recurrence ?? ""}
+              onChange={(e) => {
+                const v = e.currentTarget.value;
+                update({
+                  taskId: task._id,
+                  recurrence: (v || null) as TaskRecurrence | null,
+                });
+              }}
+              className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            >
+              <option value="">No recurrence</option>
+              {(Object.keys(RECURRENCE_LABEL) as TaskRecurrence[]).map((r) => (
+                <option key={r} value={r}>
+                  {RECURRENCE_LABEL[r]}
+                </option>
+              ))}
+            </select>
+            {task.recurrence && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Completing this task creates a new{" "}
+                {RECURRENCE_LABEL[task.recurrence].toLowerCase()} instance
+                automatically.
+              </p>
+            )}
+          </Field>
+
+          <section>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Custom fields
+            </h2>
+            {fields.length === 0 ? (
+              <Link
+                href={`/dashboard/l/${listId}/settings`}
+                className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Add a custom field
+              </Link>
+            ) : (
+              <div className="space-y-3">
+                {fields.map((field) => (
+                  <Field key={field._id} label={field.name}>
+                    <CustomFieldInput
+                      field={field}
+                      value={valuesByField.get(field._id)}
+                      size="md"
+                      onCommit={(value) => {
+                        if (value === null) {
+                          clearValue({ taskId: task._id, fieldId: field._id });
+                        } else {
+                          setValue({
+                            taskId: task._id,
+                            fieldId: field._id,
+                            ...value,
+                          });
+                        }
+                      }}
+                    />
+                  </Field>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Time
+            </h2>
+            <TimeTracker taskId={task._id} />
+          </section>
+        </aside>
       </div>
     </div>
   );
@@ -372,17 +620,30 @@ function Field({
   );
 }
 
+// Shaped like the loaded page: sticky header bar, check + title, then the
+// content/rail split — so nothing jumps when data lands.
 function DetailSkeleton() {
   return (
-    <div className="space-y-4">
-      <div className="h-4 w-32 animate-pulse rounded-full bg-muted" />
-      <div className="h-9 w-2/3 animate-pulse rounded-full bg-muted" />
-      <div className="grid gap-3 sm:grid-cols-3">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="h-9 animate-pulse rounded-full bg-muted" />
-        ))}
+    <div className="space-y-6">
+      <div className="-mx-4 flex min-h-[52px] items-center gap-2.5 border-b border-border py-2 sm:-mx-6 sm:px-6">
+        <div className="h-4 w-4 animate-pulse rounded-full bg-muted" />
+        <div className="h-4 w-40 animate-pulse rounded-full bg-muted" />
       </div>
-      <div className="h-40 animate-pulse rounded-3xl bg-muted" />
+      <div className="flex items-center gap-3">
+        <div className="h-7 w-7 animate-pulse rounded-full bg-muted" />
+        <div className="h-9 w-2/3 animate-pulse rounded-full bg-muted" />
+      </div>
+      <div className="gap-10 lg:grid lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="space-y-4">
+          <div className="h-40 animate-pulse rounded-xl bg-muted/60" />
+          <div className="h-24 animate-pulse rounded-xl bg-muted/40" />
+        </div>
+        <div className="mt-4 space-y-3 lg:mt-0">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-9 animate-pulse rounded-full bg-muted/60" />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

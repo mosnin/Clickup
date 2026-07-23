@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { canAccessSpace } from "./_authz";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -35,31 +36,31 @@ export const workspaceSummary = query({
 
     const lists: { _id: Id<"lists"> }[] = [];
     for (const space of spaces) {
-      const directLists = (
-        await ctx.db
-          .query("lists")
-          .withIndex("by_parent", (q) =>
-            q.eq("parentType", "space").eq("parentId", space._id),
-          )
-          .collect()
-      ).filter((l) => !l.deletedAt);
+      // Skip archived spaces and private spaces the caller can't access —
+      // same per-viewer gate as portfolio.ts/sprints.addableTasks — so the
+      // Reports tab never aggregates data from spaces the caller can't see.
+      if (space.archivedAt !== undefined) continue;
+      if (!(await canAccessSpace(ctx, space, identity))) continue;
+
+      const directLists = await ctx.db
+        .query("lists")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "space").eq("parentId", space._id),
+        )
+        .collect();
       lists.push(...directLists);
 
-      const folders = (
-        await ctx.db
-          .query("folders")
-          .withIndex("by_space", (q) => q.eq("spaceId", space._id))
-          .collect()
-      ).filter((f) => !f.deletedAt);
+      const folders = await ctx.db
+        .query("folders")
+        .withIndex("by_space", (q) => q.eq("spaceId", space._id))
+        .collect();
       for (const folder of folders) {
-        const folderLists = (
-          await ctx.db
-            .query("lists")
-            .withIndex("by_parent", (q) =>
-              q.eq("parentType", "folder").eq("parentId", folder._id),
-            )
-            .collect()
-        ).filter((l) => !l.deletedAt);
+        const folderLists = await ctx.db
+          .query("lists")
+          .withIndex("by_parent", (q) =>
+            q.eq("parentType", "folder").eq("parentId", folder._id),
+          )
+          .collect();
         lists.push(...folderLists);
       }
     }
@@ -79,12 +80,10 @@ export const workspaceSummary = query({
         statuses.map((s) => [s._id, s.category] as const),
       );
 
-      const tasks = (
-        await ctx.db
-          .query("tasks")
-          .withIndex("by_list", (q) => q.eq("listId", list._id))
-          .collect()
-      ).filter((t) => !t.deletedAt);
+      const tasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_list", (q) => q.eq("listId", list._id))
+        .collect();
       for (const t of tasks) {
         allTasks.push({ _id: t._id });
         const cat = statusCategoryById.get(t.statusId);

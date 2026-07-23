@@ -5,8 +5,13 @@ import { useMutation, useQuery } from "convex/react";
 import { Pause, Square, Trash2, Video } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { useToast } from "@/components/toast";
 import { formatDuration } from "@/lib/duration";
+import { timeAgo } from "@/lib/time";
+import { Stagger, StaggerItem } from "@/components/motion";
 
 // Recorder state machine.
 //   idle    -> requesting (asks the user for screen + mic)
@@ -27,17 +32,17 @@ export function Clips({ taskId }: { taskId: Id<"tasks"> }) {
     <div className="space-y-3">
       <Recorder taskId={taskId} />
       {clips === undefined ? (
-        <div className="h-12 animate-pulse rounded-3xl bg-muted/40" />
+        <div className="h-12 animate-pulse rounded-2xl bg-muted/40" />
       ) : clips.length === 0 ? (
         <p className="text-sm text-muted-foreground">No clips yet.</p>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <Stagger className="grid gap-3 sm:grid-cols-2">
           {clips.map((clip) => (
-            <li key={clip._id}>
+            <StaggerItem key={clip._id}>
               <ClipCard clip={clip} />
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </Stagger>
       )}
     </div>
   );
@@ -164,7 +169,7 @@ function Recorder({ taskId }: { taskId: Id<"tasks"> }) {
   }
 
   return (
-    <div className="rounded-3xl border border-border bg-background p-3">
+    <Card className="p-3">
       {state.kind === "idle" && (
         <Button type="button" size="sm" onClick={start}>
           <Video className="h-3.5 w-3.5" /> Record clip
@@ -181,7 +186,7 @@ function Recorder({ taskId }: { taskId: Id<"tasks"> }) {
       )}
       {state.kind === "error" && (
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-red-700">{state.message}</p>
+          <p className="text-sm text-red-700 dark:text-red-400">{state.message}</p>
           <Button
             type="button"
             size="sm"
@@ -192,7 +197,7 @@ function Recorder({ taskId }: { taskId: Id<"tasks"> }) {
           </Button>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -210,7 +215,7 @@ function RecordingPanel({ onStop }: { onStop: () => void }) {
           aria-hidden
           className="inline-block h-2 w-2 animate-pulse rounded-full bg-red-500"
         />
-        Recording — {formatDuration(now - startedAt.current)}
+        Recording, {formatDuration(now - startedAt.current)}
       </span>
       <Button
         type="button"
@@ -228,9 +233,12 @@ function RecordingPanel({ onStop }: { onStop: () => void }) {
 function ClipCard({ clip }: { clip: Doc<"clips"> }) {
   const url = useQuery(api.clips.getUrl, { storageId: clip.storageId });
   const remove = useMutation(api.clips.remove);
+  const { toast } = useToast();
+  const [deleting, setDeleting] = useState(false);
+  if (deleting) return null;
 
   return (
-    <div className="rounded-3xl border border-border bg-background p-2">
+    <Card className="gap-2 p-2">
       <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black">
         {url ? (
           <video
@@ -245,30 +253,27 @@ function ClipCard({ clip }: { clip: Doc<"clips"> }) {
           </div>
         )}
       </div>
-      <div className="mt-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
-        <span>
-          {clip.durationMs ? formatDuration(clip.durationMs) : "—"}
-        </span>
-        <span className="ml-auto">
-          {new Date(clip.createdAt).toLocaleString(undefined, {
-            month: "short",
-            day: "numeric",
-          })}
-        </span>
+      <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+        <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+          {clip.durationMs ? formatDuration(clip.durationMs) : "-"}
+        </Badge>
+        <span className="ml-auto">{timeAgo(clip.createdAt)}</span>
         <button
           type="button"
           aria-label="Delete clip"
           onClick={() => {
-            if (window.confirm("Delete this clip?")) {
-              remove({ clipId: clip._id });
-            }
+            setDeleting(true);
+            toast("Clip deleted", {
+              action: { label: "Undo", onClick: () => setDeleting(false) },
+              onExpire: () => remove({ clipId: clip._id }),
+            });
           }}
-          className="text-muted-foreground hover:text-foreground"
+          className="tap-target text-muted-foreground hover:text-foreground"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
-    </div>
+    </Card>
   );
 }
 

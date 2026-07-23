@@ -1,26 +1,31 @@
 import { cronJobs } from "convex/server";
 import { internal } from "./_generated/api";
 
-// Daily + interval cron jobs.
-//
-// 03:00 UTC: walk every soft-deleted row across tasks/lists/folders/
-// docs/whiteboards and hard-delete anything past the 30-day retention
-// window. Trash items remain restorable up to that point.
-//
-// Every 5 minutes: drop stale presence rows so the table doesn't grow
-// past the active session set.
+// Scheduled jobs. scheduledTasks definitions carry an hourUtc, so a
+// 15-minute tick keeps materialization within a quarter hour of the
+// requested time. The watchdog shares the cadence so expired claims and
+// stalled agents are flagged promptly.
 const crons = cronJobs();
 
-crons.daily(
-  "purge expired soft-deletes",
-  { hourUTC: 3, minuteUTC: 0 },
-  internal.trash.purgeExpired,
+crons.interval(
+  "materialize scheduled tasks",
+  { minutes: 15 },
+  internal.scheduledTasks.materializeDue,
+  {},
 );
 
 crons.interval(
-  "sweep stale presence",
-  { minutes: 5 },
-  internal.presence.sweepStale,
+  "watchdog: stuck claims, overdue tasks, stalled agents",
+  { minutes: 15 },
+  internal.maintenance.watchdog,
+  {},
+);
+
+crons.interval(
+  "prune old events, deliveries, and usage counters",
+  { hours: 24 },
+  internal.maintenance.prune,
+  {},
 );
 
 export default crons;

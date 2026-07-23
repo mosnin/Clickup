@@ -24,9 +24,7 @@ export const listForParent = query({
         q.eq("parentType", parentType).eq("parentId", parentId),
       )
       .collect();
-    return wbs
-      .filter((w) => !w.deletedAt)
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+    return wbs.sort((a, b) => b.updatedAt - a.updatedAt);
   },
 });
 
@@ -36,7 +34,7 @@ export const get = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
     const wb = await ctx.db.get(whiteboardId);
-    if (!wb || wb.deletedAt) return null;
+    if (!wb) return null;
     try {
       await requireDocLikeParentAccess(ctx, wb.parentType, wb.parentId);
     } catch {
@@ -99,26 +97,6 @@ export const remove = mutation({
   args: { whiteboardId: v.id("whiteboards") },
   handler: async (ctx, { whiteboardId }) => {
     await requireIdentity(ctx);
-    const wb = await ctx.db.get(whiteboardId);
-    if (!wb || wb.deletedAt) return;
-    await requireDocLikeParentAccess(ctx, wb.parentType, wb.parentId);
-    await ctx.db.patch(whiteboardId, { deletedAt: Date.now() });
-  },
-});
-
-export const restore = mutation({
-  args: { whiteboardId: v.id("whiteboards") },
-  handler: async (ctx, { whiteboardId }) => {
-    const wb = await ctx.db.get(whiteboardId);
-    if (!wb || !wb.deletedAt) return;
-    await requireDocLikeParentAccess(ctx, wb.parentType, wb.parentId);
-    await ctx.db.patch(whiteboardId, { deletedAt: undefined });
-  },
-});
-
-export const purge = mutation({
-  args: { whiteboardId: v.id("whiteboards") },
-  handler: async (ctx, { whiteboardId }) => {
     const wb = await ctx.db.get(whiteboardId);
     if (!wb) return;
     await requireDocLikeParentAccess(ctx, wb.parentType, wb.parentId);

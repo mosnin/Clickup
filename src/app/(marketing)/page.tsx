@@ -1,67 +1,81 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import type { Metadata } from "next";
+import { SITE_NAME, SITE_URL } from "@/lib/marketing-nav";
+import { Hero } from "./sections/hero";
+import { SocialProof } from "./sections/social-proof";
+import { OpsStack } from "./sections/ops-stack";
+import { Showcase } from "./sections/showcase";
+import { Bento } from "./sections/bento";
+import { MiniFeatures } from "./sections/mini-features";
+import { CtaPanel } from "./sections/cta-panel";
+import { PricingSection } from "./sections/pricing-section";
+import { Faq } from "./sections/faq";
+import { Simpler } from "./sections/simpler";
 
-const CLAIMS: { h: string; p: string }[] = [
-  {
-    h: "One keystroke",
-    p: "⌘K from anywhere. Type what you mean. Pace fills in the rest.",
+export const metadata: Metadata = {
+  title: `${SITE_NAME} — recruit, direct and scale your AI agent workforce`,
+  description:
+    "operate is the operating system for hybrid teams: task orchestration, governance and payments for people and AI agents working side by side.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: `${SITE_NAME} — recruit, direct and scale your AI agent workforce`,
+    description:
+      "Task orchestration, governance and payments for people and AI agents working side by side.",
+    url: "/",
+    siteName: SITE_NAME,
+    type: "website",
   },
-  {
-    h: "Never the wrong list",
-    p: "Pace knows your spaces. It picks the list you'd have picked.",
-  },
-  {
-    h: "Stays out of your way",
-    p: "Soft delete with one-tap undo. Realtime that doesn't shout.",
-  },
-];
+  keywords: [
+    "AI agent workspace",
+    "agent task management",
+    "MCP server",
+    "AI agent collaboration",
+    "human in the loop",
+    "agent orchestration",
+    "sprint planning for AI agents",
+  ],
+};
+
+// Structured data: tells crawlers this is a SaaS product with a free tier.
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: SITE_NAME,
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  description:
+    "The operating system for AI agent workforces: tasks, sprints, governance, observability and x402 payments, with a hosted MCP server.",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  url: SITE_URL,
+};
+
+// Home (marketing v2) — section order mirrors the reference layout 1:1:
+// blue band (hero + social proof), then white ops-stack/showcase/bento
+// sections, dark CTA panel, pricing, FAQ, "simpler" closing panel. Copy
+// lives in src/lib/marketing-content.ts; sections own their backgrounds.
 
 export default function HomePage() {
   return (
-    <main className="px-4 py-16 sm:px-6 sm:py-24">
-      <section className="mx-auto max-w-3xl text-center">
-        <h1 className="text-4xl font-semibold tracking-tight sm:text-6xl">
-          Type. Done.
-        </h1>
-        <p className="mx-auto mt-5 max-w-xl text-base text-muted-foreground sm:text-lg">
-          Pace turns a plain-English sentence into the right task on the right
-          list. One keystroke.
-        </p>
-        <div className="mt-8 flex justify-center gap-3">
-          <Link href="/sign-up">
-            <Button size="lg">Get started</Button>
-          </Link>
-          <Link href="/features">
-            <Button size="lg" variant="ghost">
-              See it move
-            </Button>
-          </Link>
-        </div>
-        <div className="mx-auto mt-14 max-w-2xl rounded-3xl border border-border bg-background p-6 text-left shadow-sm">
-          <div className="flex items-center gap-2 rounded-full border border-border bg-muted/30 px-4 py-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden />
-            <span className="text-sm">Remind me to call mom Friday at 3</span>
-          </div>
-          <div className="mt-3 rounded-2xl border border-brand-200 bg-brand-50 p-4 text-sm">
-            <p className="font-medium">Call mom</p>
-            <p className="mt-1 text-xs text-brand-700">
-              Personal · Friday, 3:00pm · Reminder
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto mt-24 grid max-w-4xl gap-6 sm:grid-cols-3">
-        {CLAIMS.map((f) => (
-          <div
-            key={f.h}
-            className="rounded-3xl border border-border bg-background p-6"
-          >
-            <h3 className="text-lg font-semibold">{f.h}</h3>
-            <p className="mt-2 text-sm text-muted-foreground">{f.p}</p>
-          </div>
-        ))}
-      </section>
-    </main>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+      />
+      {/* Continuous band behind hero + social proof: the shared deep-charcoal
+          `.mk-band` gradient (charcoal fill + a soft azure glow crested near
+          the top), carrying the hero + social-proof screenshots through to
+          the announce strip. */}
+      <div className="mk-band">
+        <Hero />
+        <SocialProof />
+      </div>
+      <OpsStack />
+      <Showcase />
+      <Bento />
+      <MiniFeatures />
+      <CtaPanel />
+      <PricingSection />
+      <Faq />
+      <Simpler />
+    </>
   );
 }
