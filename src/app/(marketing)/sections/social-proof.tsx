@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ArrowRight } from "lucide-react";
 import gsap from "gsap";
 import { Container, Eyebrow, ScreenshotFrame, IconDock } from "@/components/marketing/ui";
 import { GsapReveal, useGsap, prefersReducedMotion, isHoverCapable, EASE_OUT } from "@/components/marketing/gsap";
-import { SOCIAL_PROOF, ANNOUNCE_BAR, RUNTIMES } from "@/lib/marketing-content";
+import { SOCIAL_PROOF, RUNTIMES } from "@/lib/marketing-content";
 
 // Dock magnification tuning — mouse-only, matches the macOS-dock reference
 // interaction. Falls off linearly from MAX_SCALE at the cursor to 1 at
@@ -198,22 +197,6 @@ export function SocialProof() {
         </Container>
       </section>
 
-      <section className="border-b border-border bg-background py-3">
-        <Container className="flex items-center justify-center gap-3 text-sm">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-azure-500" />
-          <span className="truncate text-muted-foreground">
-            {ANNOUNCE_BAR.text}
-          </span>
-          <a
-            href={ANNOUNCE_BAR.cta.href}
-            className="inline-flex shrink-0 items-center gap-1 font-medium text-azure-600 transition-colors hover:text-azure-700"
-          >
-            {ANNOUNCE_BAR.cta.label}
-            <span className="sr-only"> about the hosted MCP server</span>
-            <ArrowRight className="size-3" aria-hidden="true" />
-          </a>
-        </Container>
-      </section>
     </>
   );
 }

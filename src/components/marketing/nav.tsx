@@ -20,7 +20,7 @@ import {
   useGsap,
 } from "@/components/marketing/gsap";
 import { SITE_NAME } from "@/lib/marketing-nav";
-import { PRODUCTS_MENU } from "@/lib/marketing-content";
+import { PRODUCTS_MENU, ANNOUNCE_BAR } from "@/lib/marketing-content";
 
 // Same-page anchor links (e.g. the Products dropdown's "/features#mcp")
 // get a GSAP-driven scroll instead of a full Next navigation when we're
@@ -138,6 +138,32 @@ export function MarketingNav() {
             : "border-b border-white/10 bg-background/85 backdrop-blur-md",
         )}
       >
+        {/* Top announcement marquee — a seamless scrolling ticker (no dot),
+            the whole strip links to the announcement. */}
+        <Link
+          href={ANNOUNCE_BAR.cta.href}
+          aria-label={`${ANNOUNCE_BAR.text} ${ANNOUNCE_BAR.cta.label}`}
+          className="marquee-mask relative block overflow-hidden border-b border-white/10 bg-[#0c0c0f] py-2"
+        >
+          <div aria-hidden className="marquee-track flex w-max">
+            {[0, 1].map((set) => (
+              <div key={set} className="flex shrink-0">
+                {[0, 1, 2].map((k) => (
+                  <span
+                    key={k}
+                    className="mx-8 inline-flex items-center gap-2 whitespace-nowrap text-xs text-white/70"
+                  >
+                    {ANNOUNCE_BAR.text}
+                    <span className="inline-flex items-center gap-1 font-medium text-azure-300">
+                      {ANNOUNCE_BAR.cta.label}
+                      <ArrowRight className="size-3" />
+                    </span>
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+        </Link>
         <Container>
           <div className="flex h-16 items-center justify-between">
             <Link href="/" aria-label={SITE_NAME} className="flex items-center">

@@ -94,6 +94,7 @@ export function Dither({
     canvas.style.width = "100%";
     canvas.style.height = "100%";
     canvas.style.display = "block";
+    canvas.style.transform = "translateZ(0)";
     host.appendChild(canvas);
 
     const program = new Program(gl, {
@@ -112,8 +113,18 @@ export function Dither({
     });
     const mesh = new Mesh(gl, { geometry: new Triangle(gl), program });
 
+    let lastW = 0;
+    let lastH = 0;
     const resize = () => {
-      renderer.setSize(host.clientWidth || 1, host.clientHeight || 1);
+      const w = host.clientWidth || 1;
+      const h = host.clientHeight || 1;
+      // Skip redundant resizes — reallocating the WebGL buffer on every
+      // spurious ResizeObserver tick (e.g. mobile URL-bar show/hide during
+      // scroll) is what makes the field flicker.
+      if (w === lastW && h === lastH) return;
+      lastW = w;
+      lastH = h;
+      renderer.setSize(w, h);
       program.uniforms.uResolution.value = [
         gl.drawingBufferWidth,
         gl.drawingBufferHeight,
