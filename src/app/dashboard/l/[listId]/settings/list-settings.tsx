@@ -30,6 +30,7 @@ import {
 import { Picker } from "@/components/ui/picker";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ScheduledTasksSection } from "@/components/dashboard/scheduled-tasks-section";
+import { useListScope } from "../use-list-scope";
 
 type StatusCategory = Doc<"listStatuses">["category"];
 type FieldType = Doc<"customFields">["type"];
@@ -115,12 +116,13 @@ export function ListSettings({ listId }: { listId: string }) {
         title={`${list.name} settings`}
         context={
           <span className="truncate">
-            Statuses, custom fields, automations, and schedules
+            Operations, statuses, custom fields, automations, and schedules
           </span>
         }
       />
 
       <IdentityCard listId={list._id} list={list} />
+      <OperationsSection listId={list._id} list={list} />
       <StatusesSection listId={list._id} statuses={statuses} />
       <FieldsSection listId={list._id} fields={fields} />
       <AutomationsSection
@@ -193,6 +195,289 @@ function IdentityCard({
             className="mt-1.5"
           />
         </label>
+      </CardContent>
+    </Card>
+  );
+}
+
+type RoutingMode = NonNullable<Doc<"lists">["routing"]>["mode"];
+type DefaultView = NonNullable<Doc<"lists">["defaultView"]>;
+
+const ROUTING_MODES: { key: "off" | RoutingMode; label: string }[] = [
+  { key: "off", label: "Off" },
+  { key: "fixed", label: "Fixed" },
+  { key: "round_robin", label: "Round robin" },
+  { key: "least_loaded", label: "Least loaded" },
+];
+
+const DEFAULT_VIEW_OPTIONS: { key: "default" | DefaultView; label: string }[] =
+  [
+    { key: "default", label: "Default" },
+    { key: "list", label: "List" },
+    { key: "board", label: "Board" },
+    { key: "calendar", label: "Calendar" },
+    { key: "gantt", label: "Gantt" },
+    { key: "table", label: "Table" },
+    { key: "workload", label: "Workload" },
+  ];
+
+// Per-project operations config (Phase L): assignment routing, an attached
+// SOP playbook, and the view this project opens in by default.
+function OperationsSection({
+  listId,
+  list,
+}: {
+  listId: Id<"lists">;
+  list: Doc<"lists">;
+}) {
+  const setRouting = useMutation(api.lists.setRouting);
+  const updateMeta = useMutation(api.lists.updateMeta);
+  // Same people+agents source as the task assignee picker, so routing can
+  // target anyone assignable in this list.
+  const assignable = useQuery(api.agents.listAssignableForList, { listId });
+  const scope = useListScope(listId);
+  const skills = useQuery(api.skills.listForScope, scope ?? "skip");
+  const { toast } = useToast();
+
+  // One atomic draft over (mode, roster). null = mirror the server. The
+  // draft survives server round-trips, so removing the last assignee (which
+  // clears the stored rule) keeps the chosen mode on screen while the user
+  // swaps in a replacement — and unrelated list-doc updates can't stomp an
+  // in-flight edit.
+  const [routingDraft, setRoutingDraft] = useState<{
+    mode: "off" | RoutingMode;
+    ids: string[];
+  } | null>(null);
+  const mode = routingDraft ? routingDraft.mode : (list.routing?.mode ?? "off");
+  const assigneeIds = routingDraft
+    ? routingDraft.ids
+    : (list.routing?.assigneeIds ?? []);
+
+  // Save on every change. A mode with no assignees yet isn't saveable
+  // (the server refuses an empty rotation) — hold it locally and hint.
+  async function commitRouting(
+    nextMode: "off" | RoutingMode,
+    nextIds: string[],
+  ) {
+    setRoutingDraft({ mode: nextMode, ids: nextIds });
+    try {
+      if (nextMode === "off") {
+        if (list.routing) {
+          await setRouting({ listId, routing: null });
+          toast("Saved");
+        }
+        setRoutingDraft(null);
+      } else if (nextIds.length > 0) {
+        await setRouting({
+          listId,
+          routing: { mode: nextMode, assigneeIds: nextIds },
+        });
+        toast("Saved");
+        setRoutingDraft(null);
+      } else {
+        if (list.routing) {
+          // Removing the last assignee leaves nothing to route to — clear
+          // the stored rule server-side, but KEEP the mode on screen (the
+          // draft) so the user can add a replacement without re-picking it.
+          await setRouting({ listId, routing: null });
+          toast("Saved");
+        }
+      }
+    } catch (e) {
+      setRoutingDraft(null);
+      toast(errorMessage(e, "Couldn't save the routing rule"), {
+        kind: "error",
+      });
+    }
+  }
+
+  async function commitMeta(
+    patch: { sopSlug: string | null } | { defaultView: DefaultView | null },
+    fallback: string,
+  ) {
+    try {
+      await updateMeta({ listId, ...patch });
+      toast("Saved");
+    } catch (e) {
+      toast(errorMessage(e, fallback), { kind: "error" });
+    }
+  }
+
+  const nameFor = (id: string) =>
+    (assignable ?? []).find((a) => a.id === id)?.name ?? "Unknown";
+  const remaining = (assignable ?? []).filter(
+    (a) => !assigneeIds.includes(a.id),
+  );
+  const enabledSkills = (skills ?? []).filter((s) => s.enabled);
+  const currentSkill = list.sopSlug
+    ? (skills ?? []).find((s) => s.slug === list.sopSlug)
+    : undefined;
+
+  return (
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Operations</CardTitle>
+        <CardDescription>
+          Route new tasks to the right people, attach a playbook, and pick the
+          view this project opens in.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div>
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Assignment routing
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {ROUTING_MODES.map((m) => {
+              const on = mode === m.key;
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => {
+                    // Re-clicking the active mode would reset the rotation
+                    // cursor server-side for nothing — skip it.
+                    if (!on) commitRouting(m.key, assigneeIds);
+                  }}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                    on
+                      ? "border-transparent bg-foreground text-background"
+                      : "border-border bg-background text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+          {mode !== "off" && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {assigneeIds.map((id) => (
+                <span
+                  key={id}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium"
+                >
+                  {nameFor(id)}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${nameFor(id)} from routing`}
+                    onClick={() =>
+                      commitRouting(
+                        mode,
+                        assigneeIds.filter((a) => a !== id),
+                      )
+                    }
+                    className="tap-target inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+              {remaining.length > 0 && (
+                <Picker
+                  dashed
+                  label="Add assignee…"
+                  options={remaining.map((a) => ({
+                    id: a.id,
+                    label: a.name,
+                    hint: a.kind === "agent" ? "agent" : undefined,
+                  }))}
+                  onSelect={(id) => commitRouting(mode, [...assigneeIds, id])}
+                />
+              )}
+              {assigneeIds.length === 0 && (
+                <span className="text-xs text-muted-foreground">
+                  Pick at least one assignee to turn the rule on.
+                </span>
+              )}
+            </div>
+          )}
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Tasks created without an assignee get one automatically — explicit
+            assignees always win.
+          </p>
+        </div>
+
+        <div>
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            SOP
+          </span>
+          {list.sopSlug ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium">
+              {currentSkill?.name ?? list.sopSlug}
+              <button
+                type="button"
+                aria-label="Detach SOP"
+                onClick={() =>
+                  commitMeta({ sopSlug: null }, "Couldn't detach the SOP")
+                }
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ) : (
+            <Picker
+              dashed
+              label="Attach an SOP…"
+              options={enabledSkills.map((s) => ({
+                id: s.slug,
+                label: s.name,
+                hint: s.builtin ? "built-in" : undefined,
+              }))}
+              onSelect={(slug) =>
+                commitMeta({ sopSlug: slug }, "Couldn't attach the SOP")
+              }
+            />
+          )}
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Agents receive this playbook with every task they read from this
+            project.
+          </p>
+        </div>
+
+        <div>
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Default view
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {DEFAULT_VIEW_OPTIONS.map((opt) => {
+              const on =
+                opt.key === "default"
+                  ? list.defaultView === undefined
+                  : list.defaultView === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() =>
+                    commitMeta(
+                      {
+                        defaultView: opt.key === "default" ? null : opt.key,
+                      },
+                      "Couldn't set the default view",
+                    )
+                  }
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                    on
+                      ? "border-transparent bg-foreground text-background"
+                      : "border-border bg-background text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            The view this project opens in when a link doesn&apos;t specify
+            one.
+          </p>
+        </div>
       </CardContent>
     </Card>
   );

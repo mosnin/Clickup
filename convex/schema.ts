@@ -149,6 +149,38 @@ export default defineSchema({
     notes: v.optional(v.string()),
     // Target completion date (local-midnight ms).
     targetDate: v.optional(v.number()),
+    // ── Operations (Phase L) ──
+    // Assignment routing: tasks created WITHOUT an explicit assignee get
+    // one automatically. fixed = every listed assignee; round_robin =
+    // next in rotation (lastIndex is the cursor); least_loaded = whoever
+    // has the fewest open tasks on this list. Explicit assignees always
+    // win — routing only fills silence.
+    routing: v.optional(
+      v.object({
+        mode: v.union(
+          v.literal("fixed"),
+          v.literal("round_robin"),
+          v.literal("least_loaded"),
+        ),
+        assigneeIds: v.array(v.string()),
+        lastIndex: v.optional(v.number()),
+      }),
+    ),
+    // Attached SOP: slug of a skill (built-in or custom, resolved per
+    // scope). Travels with every task read over MCP so agents get the
+    // procedure alongside the work.
+    sopSlug: v.optional(v.string()),
+    // The view this project opens in when no ?view= is in the URL.
+    defaultView: v.optional(
+      v.union(
+        v.literal("list"),
+        v.literal("board"),
+        v.literal("calendar"),
+        v.literal("gantt"),
+        v.literal("table"),
+        v.literal("workload"),
+      ),
+    ),
   })
     .index("by_parent", ["parentType", "parentId"])
     .index("by_roadmap", ["roadmapId"]),
@@ -540,7 +572,14 @@ export default defineSchema({
     ownerClerkId: v.string(),
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
-  }).index("by_parent", ["parentType", "parentId"]),
+    // ── Phase L: auto-rollup ──
+    // When set, progress derives live from the linked list's completed-task
+    // rollup on every read; manual setProgress is refused. "Move things
+    // forward" becomes visible without anyone logging numbers.
+    sourceListId: v.optional(v.id("lists")),
+  })
+    .index("by_parent", ["parentType", "parentId"])
+    .index("by_source", ["sourceListId"]),
 
   // ── Phase 12: AI agent collaboration ────────────────────────────────
 
@@ -768,9 +807,77 @@ export default defineSchema({
     enabled: v.boolean(),
     createdByActorId: v.string(),
     createdAt: v.number(),
+    // Phase L: when set, the materializer instantiates the full blueprint
+    // (description/checklist/priority/estimate/SOP) instead of just the
+    // schedule's bare title — daily ops defined once, run forever.
+    blueprintId: v.optional(v.id("taskBlueprints")),
   })
     .index("by_list", ["listId"])
     .index("by_next_run", ["enabled", "nextRunAt"]),
+
+  // ── Phase L: task blueprints ──
+  // Reusable task definitions ("run the outreach checklist"): everything a
+  // well-formed task carries, minus the list it lands on. Instantiated from
+  // the UI or by recurring schedules; scoped like skills (personal or
+  // workspace).
+  taskBlueprints: defineTable({
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    name: v.string(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    priority: v.optional(
+      v.union(
+        v.literal("urgent"),
+        v.literal("high"),
+        v.literal("normal"),
+        v.literal("low"),
+      ),
+    ),
+    // Item texts only — ids are minted per instantiation.
+    checklist: v.array(v.string()),
+    estimatePoints: v.optional(v.number()),
+    sopSlug: v.optional(v.string()),
+    dueInDays: v.optional(v.number()),
+    requiresApproval: v.optional(v.boolean()),
+    createdByActorId: v.string(),
+    createdAt: v.number(),
+  }).index("by_scope", ["scopeType", "scopeId"]),
+
+  // ── Phase L: per-user personalization ──
+  // One row per user. homeWidgets is the ordered list of visible Home
+  // cards (absent = default layout).
+  userSettings: defineTable({
+    clerkId: v.string(),
+    homeWidgets: v.optional(v.array(v.string())),
+  }).index("by_clerk", ["clerkId"]),
+
+  // ── Phase L: workspace field library ──
+  // Define a custom field once, apply it to any list (applying copies the
+  // definition into that list's customFields, so per-list behavior is
+  // unchanged downstream).
+  fieldLibrary: defineTable({
+    workspaceId: v.id("workspaces"),
+    name: v.string(),
+    type: v.union(
+      v.literal("text"),
+      v.literal("number"),
+      v.literal("dropdown"),
+      v.literal("date"),
+      v.literal("checkbox"),
+    ),
+    options: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          label: v.string(),
+          color: v.optional(v.string()),
+        }),
+      ),
+    ),
+    createdByActorId: v.string(),
+    createdAt: v.number(),
+  }).index("by_workspace", ["workspaceId"]),
 
   // User-authored skills — reusable markdown playbooks agents import over
   // MCP ("Sprint planner", "Backlog triage", …). Built-in skills live in

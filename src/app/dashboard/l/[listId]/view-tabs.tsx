@@ -58,15 +58,19 @@ const VIEWS: { key: ViewKey; label: string; Icon: typeof ListIcon }[] = [
 export function ViewTabs({
   listId,
   active,
+  defaultView = "list",
 }: {
   listId: Id<"lists">;
   active: ViewKey;
+  /** The view a bare URL (no ?view=) resolves to — the list's configured
+   * default. Its tab drops the param; every other tab sets it explicitly. */
+  defaultView?: ViewKey;
 }) {
   const searchParams = useSearchParams();
   // Preserve active filters (?f=, ?pri=) when switching views.
   function href(key: ViewKey): string {
     const params = new URLSearchParams(searchParams.toString());
-    if (key === "list") params.delete("view");
+    if (key === defaultView) params.delete("view");
     else params.set("view", key);
     const qs = params.toString();
     return qs ? `/dashboard/l/${listId}?${qs}` : `/dashboard/l/${listId}`;

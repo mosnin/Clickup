@@ -164,6 +164,18 @@ export const updateMeta = mutation({
     ownerActorId: v.optional(v.union(v.string(), v.null())),
     notes: v.optional(v.union(v.string(), v.null())),
     targetDate: v.optional(v.union(v.number(), v.null())),
+    sopSlug: v.optional(v.union(v.string(), v.null())),
+    defaultView: v.optional(
+      v.union(
+        v.literal("list"),
+        v.literal("board"),
+        v.literal("calendar"),
+        v.literal("gantt"),
+        v.literal("table"),
+        v.literal("workload"),
+        v.null(),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
     const { list } = await requireListAccess(ctx, args.listId);
@@ -174,6 +186,8 @@ export const updateMeta = mutation({
       "ownerActorId",
       "notes",
       "targetDate",
+      "sopSlug",
+      "defaultView",
     ] as const) {
       if (args[key] !== undefined) {
         patch[key] = args[key] === null ? undefined : args[key];
@@ -185,10 +199,119 @@ export const updateMeta = mutation({
   },
 });
 
+// Assignment routing rule for a list (Phase L). null clears the rule.
+// Explicitly-assigned tasks are never touched — routing only fills in an
+// assignee when a task is created without one (see tasks.createTaskCore).
+export const setRouting = mutation({
+  args: {
+    listId: v.id("lists"),
+    routing: v.union(
+      v.object({
+        mode: v.union(
+          v.literal("fixed"),
+          v.literal("round_robin"),
+          v.literal("least_loaded"),
+        ),
+        assigneeIds: v.array(v.string()),
+      }),
+      v.null(),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const { list, space } = await requireListAccess(ctx, args.listId);
+    if (args.routing === null) {
+      await ctx.db.patch(list._id, { routing: undefined });
+      return;
+    }
+    if (args.routing.assigneeIds.length === 0) {
+      throw new Error("Pick at least one assignee to route to");
+    }
+    // Every roster entry must be a real principal in this list's scope —
+    // routing fires automatically on every future task, so a bad entry
+    // here means recurring notifications to someone outside the team.
+    const scopeType = space.parentType;
+    const scopeId = space.parentId;
+    for (const id of args.routing.assigneeIds) {
+      const agentId = ctx.db.normalizeId("agents", id);
+      if (agentId) {
+        const agent = await ctx.db.get(agentId);
+        if (
+          !agent ||
+          agent.parentType !== scopeType ||
+          agent.parentId !== scopeId
+        ) {
+          throw new Error("Agent isn't part of this space");
+        }
+        continue;
+      }
+      if (scopeType === "user") {
+        if (id !== scopeId) throw new Error("Unknown assignee");
+      } else {
+        const membership = await ctx.db
+          .query("memberships")
+          .withIndex("by_user_and_workspace", (q) =>
+            q
+              .eq("userClerkId", id)
+              .eq("workspaceId", scopeId as Id<"workspaces">),
+          )
+          .unique();
+        if (!membership) {
+          throw new Error("Assignees must be members of this workspace");
+        }
+      }
+    }
+    await ctx.db.patch(list._id, {
+      // Fresh rule, fresh rotation cursor.
+      routing: { ...args.routing, lastIndex: undefined },
+    });
+  },
+});
+
 export const remove = mutation({
   args: { listId: v.id("lists") },
   handler: async (ctx, { listId }) => {
     const { list } = await requireListAccess(ctx, listId);
+
+    // Goals tracking this list: freeze each at its current derived value
+    // BEFORE the cascade destroys the tasks/statuses it derives from —
+    // deleting a project must never zero a goal's history.
+    const linkedGoals = await ctx.db
+      .query("goals")
+      .withIndex("by_source", (q) => q.eq("sourceListId", list._id))
+      .collect();
+    if (linkedGoals.length > 0) {
+      const statusRows = await ctx.db
+        .query("listStatuses")
+        .withIndex("by_list", (q) => q.eq("listId", list._id))
+        .collect();
+      const doneIds = new Set(
+        statusRows
+          .filter((s) => s.category === "complete" || s.category === "closed")
+          .map((s) => s._id),
+      );
+      const taskRows = await ctx.db
+        .query("tasks")
+        .withIndex("by_list", (q) => q.eq("listId", list._id))
+        .collect();
+      const done = taskRows.filter((t) => doneIds.has(t.statusId)).length;
+      for (const goal of linkedGoals) {
+        const complete =
+          goal.status !== "abandoned" &&
+          goal.targetValue > 0 &&
+          done >= goal.targetValue;
+        await ctx.db.patch(goal._id, {
+          sourceListId: undefined,
+          currentValue: done,
+          status:
+            goal.status === "abandoned"
+              ? "abandoned"
+              : complete
+                ? "complete"
+                : "open",
+          completedAt: complete ? goal.completedAt ?? Date.now() : undefined,
+        });
+      }
+    }
 
     // Cascade everything that hangs off this list: tasks (with their
     // comments/mentions/time entries/clips/field values), statuses,

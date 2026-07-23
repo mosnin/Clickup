@@ -1,7 +1,59 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
-import { requireIdentity } from "./_authz";
+import type { QueryCtx, MutationCtx } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
+import { requireIdentity, requireListAccess } from "./_authz";
+import { getRollup } from "./rollups";
+import { scopeForList } from "./events";
+
+// Phase L: a goal linked to a list (sourceListId) derives its progress
+// live from that list's completed-task rollup on every read — "complete
+// N tasks in project X" moves itself. Manual setProgress is refused for
+// linked goals; status is derived the same way so the chip can never
+// contradict the number. Abandoned always wins.
+async function withDerivedProgress(
+  ctx: QueryCtx | MutationCtx,
+  goal: Doc<"goals">,
+): Promise<Doc<"goals"> & { linked: boolean }> {
+  if (!goal.sourceListId) return { ...goal, linked: false };
+  // Linked list gone (delete cascade hasn't cleared us yet): freeze at the
+  // stored value rather than silently zeroing the goal's history.
+  const list = await ctx.db.get(goal.sourceListId);
+  if (!list) return { ...goal, linked: true };
+  const rollup = await getRollup(ctx, goal.sourceListId);
+  let done: number;
+  if (rollup) {
+    done = rollup.done;
+  } else {
+    // getRollup's null contract: no row yet — count this one list inline.
+    done = await countDoneTasks(ctx, goal.sourceListId);
+  }
+  let status = goal.status;
+  if (status !== "abandoned") {
+    status = goal.targetValue > 0 && done >= goal.targetValue ? "complete" : "open";
+  }
+  return { ...goal, currentValue: done, status, linked: true };
+}
+
+async function countDoneTasks(
+  ctx: QueryCtx | MutationCtx,
+  listId: Id<"lists">,
+): Promise<number> {
+  const statuses = await ctx.db
+    .query("listStatuses")
+    .withIndex("by_list", (q) => q.eq("listId", listId))
+    .collect();
+  const doneIds = new Set(
+    statuses
+      .filter((s) => s.category === "complete" || s.category === "closed")
+      .map((s) => s._id),
+  );
+  const tasks = await ctx.db
+    .query("tasks")
+    .withIndex("by_list", (q) => q.eq("listId", listId))
+    .collect();
+  return tasks.filter((t) => doneIds.has(t.statusId)).length;
+}
 
 const parentTypeValidator = v.union(
   v.literal("user"),
@@ -58,7 +110,10 @@ export const listForParent = query({
         q.eq("parentType", parentType).eq("parentId", parentId),
       )
       .collect();
-    return all.sort((a, b) => b.createdAt - a.createdAt);
+    const derived = await Promise.all(
+      all.map((g) => withDerivedProgress(ctx, g)),
+    );
+    return derived.sort((a, b) => b.createdAt - a.createdAt);
   },
 });
 
@@ -74,7 +129,7 @@ export const get = query({
     } catch {
       return null;
     }
-    return goal;
+    return await withDerivedProgress(ctx, goal);
   },
 });
 
@@ -88,6 +143,7 @@ export const create = mutation({
     targetValue: v.number(),
     unit: v.optional(v.string()),
     dueDate: v.optional(v.number()),
+    sourceListId: v.optional(v.id("lists")),
   },
   handler: async (ctx, args) => {
     const identity = await checkParentAccess(
@@ -95,6 +151,25 @@ export const create = mutation({
       args.parentType,
       args.parentId,
     );
+    if (args.sourceListId) {
+      if (args.targetType !== "number") {
+        throw new Error("Only number goals can track a project");
+      }
+      const { list, space } = await requireListAccess(ctx, args.sourceListId);
+      if (space.private) {
+        // Goals are a shared surface — tracking a private-space project
+        // would leak its live completion count to everyone in the scope.
+        throw new Error("Projects in private spaces can't be tracked by a goal");
+      }
+      const scope = await scopeForList(ctx, list);
+      if (
+        !scope ||
+        scope.scopeType !== args.parentType ||
+        scope.scopeId !== args.parentId
+      ) {
+        throw new Error("Linked project must live in the goal's scope");
+      }
+    }
     if (args.targetType === "boolean" && args.targetValue !== 1) {
       // Normalize: a boolean goal always targets 1.
       args.targetValue = 1;
@@ -109,6 +184,7 @@ export const create = mutation({
       currentValue: 0,
       unit: args.unit,
       dueDate: args.dueDate,
+      sourceListId: args.sourceListId,
       status: "open",
       ownerClerkId: identity.subject,
       createdAt: Date.now(),
@@ -125,6 +201,7 @@ export const update = mutation({
     unit: v.optional(v.string()),
     dueDate: v.optional(v.union(v.number(), v.null())),
     status: v.optional(statusValidator),
+    sourceListId: v.optional(v.union(v.id("lists"), v.null())),
   },
   handler: async (ctx, args) => {
     const goal = await ctx.db.get(args.goalId);
@@ -132,6 +209,33 @@ export const update = mutation({
     await checkParentAccess(ctx, goal.parentType, goal.parentId);
 
     const patch: Record<string, unknown> = {};
+    if (args.sourceListId !== undefined) {
+      if (args.sourceListId === null) {
+        // Unlinking freezes the last derived value as the manual value.
+        const derived = await withDerivedProgress(ctx, goal);
+        patch.sourceListId = undefined;
+        patch.currentValue = derived.currentValue;
+      } else {
+        if (goal.targetType !== "number") {
+          throw new Error("Only number goals can track a project");
+        }
+        const { list, space } = await requireListAccess(ctx, args.sourceListId);
+        if (space.private) {
+          throw new Error(
+            "Projects in private spaces can't be tracked by a goal",
+          );
+        }
+        const scope = await scopeForList(ctx, list);
+        if (
+          !scope ||
+          scope.scopeType !== goal.parentType ||
+          scope.scopeId !== goal.parentId
+        ) {
+          throw new Error("Linked project must live in the goal's scope");
+        }
+        patch.sourceListId = args.sourceListId;
+      }
+    }
     if (args.title !== undefined) patch.title = args.title;
     if (args.description !== undefined) patch.description = args.description;
     if (args.targetValue !== undefined) patch.targetValue = args.targetValue;
@@ -151,6 +255,11 @@ export const setProgress = mutation({
     const goal = await ctx.db.get(goalId);
     if (!goal) throw new Error("Goal not found");
     await checkParentAccess(ctx, goal.parentType, goal.parentId);
+    if (goal.sourceListId) {
+      throw new Error(
+        "This goal tracks a project automatically — unlink it to log progress by hand",
+      );
+    }
 
     const patch: Record<string, unknown> = { currentValue };
     if (
