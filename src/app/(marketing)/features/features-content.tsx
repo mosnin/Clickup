@@ -8,7 +8,7 @@ import {
   Container,
   CtaButton,
   Eyebrow,
-  Placeholder,
+  ScreenshotFrame,
 } from "@/components/marketing/ui";
 import { DUR, EASE_OUT, GsapReveal, useGsap } from "@/components/marketing/gsap";
 
@@ -19,6 +19,8 @@ import { DUR, EASE_OUT, GsapReveal, useGsap } from "@/components/marketing/gsap"
 type FeatureSection = {
   id: string;
   label: string;
+  shot: string;
+  shotRatio: string;
   title: string;
   body: string;
   bullets: string[];
@@ -37,6 +39,8 @@ const SECTIONS: FeatureSection[] = [
       "Per-agent detail pages: runs, cost, and 7-day analytics",
     ],
     visual: "Agents HQ — live fleet board",
+    shot: "/screenshots/features-agents.png",
+    shotRatio: "2502/1544",
   },
   {
     id: "mcp",
@@ -49,6 +53,8 @@ const SECTIONS: FeatureSection[] = [
       "An npx-runnable stdio proxy for clients that can't speak HTTP",
     ],
     visual: "MCP — connected runtimes",
+    shot: "/screenshots/features-mcp.png",
+    shotRatio: "2500/1544",
   },
   {
     id: "governance",
@@ -61,6 +67,8 @@ const SECTIONS: FeatureSection[] = [
       "Daily action budgets plus a 60-per-minute burst cap",
     ],
     visual: "Governance — approval queue",
+    shot: "/screenshots/features-governance.png",
+    shotRatio: "2484/1348",
   },
   {
     id: "collaboration",
@@ -73,6 +81,8 @@ const SECTIONS: FeatureSection[] = [
       "next_task dispatch and handoff_task with full context",
     ],
     visual: "Claims — blocked-by graph",
+    shot: "/screenshots/mission-control.png",
+    shotRatio: "2502/1420",
   },
   {
     id: "tasks",
@@ -85,6 +95,8 @@ const SECTIONS: FeatureSection[] = [
       "Drag-and-drop board that honors gates and blockers",
     ],
     visual: "Tasks — board view",
+    shot: "/screenshots/features-tasks.png",
+    shotRatio: "2496/1540",
   },
   {
     id: "sprints",
@@ -97,6 +109,8 @@ const SECTIONS: FeatureSection[] = [
       "Automations: on create or completion, assign or set priority",
     ],
     visual: "Sprints — burndown",
+    shot: "/screenshots/features-agents.png",
+    shotRatio: "2502/1544",
   },
   {
     id: "docs",
@@ -109,6 +123,8 @@ const SECTIONS: FeatureSection[] = [
       "Semantic search across every task and doc in scope",
     ],
     visual: "Docs — editor and brain search",
+    shot: "/screenshots/features-docs.png",
+    shotRatio: "2494/1390",
   },
   {
     id: "webhooks",
@@ -121,6 +137,8 @@ const SECTIONS: FeatureSection[] = [
       "Agents subscribe themselves to events over MCP",
     ],
     visual: "Webhooks — delivery log",
+    shot: "/screenshots/features-webhooks.png",
+    shotRatio: "2494/1534",
   },
 ];
 
@@ -249,10 +267,13 @@ export function FeaturesContent() {
                     </>
                   }
                   visual={
-                    <Placeholder
+                    <ScreenshotFrame
                       label={s.visual}
-                      ratio="16/11"
-                      className="rounded-[20px]"
+                      src={s.shot}
+                      // Native ratios so nothing gets cropped.
+                      ratio={s.shotRatio}
+                      tone="dark"
+                      alt={s.visual}
                     />
                   }
                 />

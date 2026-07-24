@@ -1,8 +1,8 @@
 "use client";
 
-// Use-cases index (marketing v2) — compact navy hero band matching the
-// /features treatment, then a white grid of illustrated case cards in the
-// bento grammar (rounded-[20px] mk-panel tiles with a red Placeholder).
+// Use-cases index (marketing v2) — compact hero band matching the
+// /features treatment, then a grid of typographic industry tiles in the
+// bento grammar (rounded-[20px] mk-panel cards, asset-free covers).
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -12,7 +12,6 @@ import {
   Container,
   CtaButton,
   Eyebrow,
-  Placeholder,
 } from "@/components/marketing/ui";
 import { GsapReveal, useGsap, EASE_OUT } from "@/components/marketing/gsap";
 
@@ -77,24 +76,39 @@ export function UseCasesIndex() {
       <section className="bg-background py-16">
         <Container>
           <GsapReveal stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {USE_CASES.map((uc) => (
+            {USE_CASES.map((uc, i) => (
               <Link
                 key={uc.slug}
                 href={`/use-cases/${uc.slug}`}
                 className="group block rounded-[20px] mk-panel p-2 transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-lg"
               >
-                <Placeholder
-                  label={`${uc.label} illustration`}
-                  ratio="16/10"
-                  className="rounded-[14px]"
-                />
-                <div className="px-5 py-4">
-                  <h2 className="text-base font-semibold tracking-tight text-foreground">
+                {/* Typographic tile instead of an illustration: charcoal
+                    editorial cover with an oversized index and the industry
+                    as gradient type. Asset-free by design. */}
+                <div
+                  className="relative flex items-end overflow-hidden rounded-[14px] p-5 ring-1 ring-white/[0.06]"
+                  style={{
+                    aspectRatio: "16/10",
+                    background:
+                      "linear-gradient(150deg, #1a1a1a 0%, #0e0e0e 100%)",
+                  }}
+                >
+                  <span
+                    aria-hidden
+                    className="absolute right-4 top-2 text-7xl font-semibold tracking-tight text-white/[0.06] transition-colors duration-300 group-hover:text-white/[0.1]"
+                  >
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span className="text-gradient text-2xl font-semibold tracking-tight">
                     {uc.label}
-                  </h2>
-                  <p className="mt-1.5 line-clamp-1 text-sm text-muted-foreground">
+                  </span>
+                </div>
+                <div className="px-5 py-4">
+                  {/* The tile already carries the industry name — lead with
+                      the one-line pitch here instead of repeating it. */}
+                  <h2 className="line-clamp-2 text-base font-semibold tracking-tight text-foreground">
                     {uc.title}
-                  </p>
+                  </h2>
                   <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-azure-600">
                     Explore
                     <ArrowRight

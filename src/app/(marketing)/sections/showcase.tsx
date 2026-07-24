@@ -62,8 +62,11 @@ function ShowcaseScaleFrame() {
     <div ref={ref}>
       <ScreenshotFrame
         label={SHOWCASE.screenshot}
-        ratio="16/9"
+        // Native 2498x1534 so nothing gets cropped.
+        ratio="2498/1534"
         tone="dark"
+        src="/screenshots/home-showcase.png"
+        alt="operate.to dashboard — projects, sprints and agent activity"
         className="gs-showcase-frame"
       />
     </div>
