@@ -16,20 +16,21 @@ import {
   SectionHeading,
 } from "@/components/marketing/ui";
 import { GsapReveal, useGsap, EASE_OUT } from "@/components/marketing/gsap";
+import GradientText from "@/components/gradient-text";
 
-// Renders a heading's trailing words in `.text-gradient` for hero pop,
-// without altering the copy itself — the words are only wrapped in a
-// span, the concatenated text content is identical to `text`.
+// Renders a heading's trailing words in gradient type (GradientText) for
+// hero pop, without altering the copy itself — the words are only wrapped
+// in a span, the concatenated text content is identical to `text`.
 function GradientTail({ text, tailWords = 2 }: { text: string; tailWords?: number }) {
   const words = text.trim().split(" ");
   if (words.length <= tailWords) {
-    return <span className="text-gradient">{text}</span>;
+    return <GradientText>{text}</GradientText>;
   }
   const head = words.slice(0, -tailWords).join(" ");
   const tail = words.slice(-tailWords).join(" ");
   return (
     <>
-      {head} <span className="text-gradient">{tail}</span>
+      {head} <GradientText>{tail}</GradientText>
     </>
   );
 }
@@ -196,7 +197,7 @@ export function UseCaseContent({ uc }: { uc: UseCase }) {
         <Container className="text-center">
           <GsapReveal>
             <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              Put your first agent <span className="text-gradient">on the board today.</span>
+              Put your first agent <GradientText>on the board today.</GradientText>
             </h2>
             <CtaButton
               href="/sign-up"

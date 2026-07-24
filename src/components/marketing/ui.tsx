@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { BorderBeam } from "@/components/ui/beam";
+import GradientText from "@/components/gradient-text";
 
 // Marketing v2 primitives — the shared visual grammar of the logged-out
 // site. Azure/navy hero band, white content sections, rounded-2xl cards,
@@ -98,7 +99,7 @@ export function SectionHeading({
           tone === "dark" ? "text-white" : "text-foreground",
         )}
       >
-        <span className="text-gradient">{title}</span>
+        <GradientText>{title}</GradientText>
       </h2>
       {sub && (
         <p

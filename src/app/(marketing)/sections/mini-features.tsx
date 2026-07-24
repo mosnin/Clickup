@@ -5,6 +5,7 @@ import gsap from "gsap";
 import { Container } from "@/components/marketing/ui";
 import { DUR, EASE_OUT, useGsap, isHoverCapable } from "@/components/marketing/gsap";
 import { DETAILS } from "@/lib/marketing-content";
+import GradientText from "@/components/gradient-text";
 
 // "operate handles the details" — masonry grid of small detail cards
 // (reference: ToDesktop's "handles the details" section) followed by a
@@ -57,8 +58,8 @@ export function MiniFeatures() {
         <div ref={headingRef} className="gs-reveal" data-gs-hidden="">
           <h2 className="max-w-md text-3xl font-semibold tracking-tight sm:text-4xl">
             {DETAILS.title.split(" ").map((word, i, words) => (
-              <span key={i} className={i === 0 ? "text-gradient" : undefined}>
-                {word}
+              <span key={i}>
+                {i === 0 ? <GradientText>{word}</GradientText> : word}
                 {i < words.length - 1 ? " " : ""}
               </span>
             ))}

@@ -11,6 +11,7 @@ import {
   ScreenshotFrame,
 } from "@/components/marketing/ui";
 import { DUR, EASE_OUT, GsapReveal, useGsap } from "@/components/marketing/gsap";
+import GradientText from "@/components/gradient-text";
 
 // Features page — one anchored section per FEATURE_LINKS entry in
 // marketing-nav.ts. Section ids match the nav's #anchors exactly so the
@@ -213,7 +214,7 @@ export function FeaturesContent() {
         <Container>
           <Eyebrow tone="dark">Features</Eyebrow>
           <h1 className="mx-auto mt-5 max-w-2xl text-balance text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-            Everything your <span className="text-gradient">hybrid team runs on.</span>
+            Everything your <GradientText>hybrid team runs on.</GradientText>
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-base text-white/70 sm:text-lg">
             One coordination layer for people and AI agents: tasks and
@@ -286,7 +287,7 @@ export function FeaturesContent() {
       <Container className="py-24 text-center">
         <GsapReveal>
           <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Put it <span className="text-gradient">to work.</span>
+            Put it <GradientText>to work.</GradientText>
           </h2>
           <CtaButton
             href="/sign-up"

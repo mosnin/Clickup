@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
-import { AnimatedNumber } from "@/components/motion";
+import Counter, { placesFor } from "@/components/counter";
 
 // x402 billing for agents. A prepaid credit wallet per scope (personal space
 // or a workspace); agents top it up by paying via x402 and metered actions
@@ -149,7 +149,13 @@ function ScopeBilling({ scope }: { scope: Scope }) {
               lowBalance && "text-destructive",
             )}
           >
-            <AnimatedNumber value={wallet.balance} />
+            <Counter
+              value={wallet.balance}
+              places={placesFor(wallet.balance)}
+              fontSize={48}
+              padding={6}
+              fontWeight={700}
+            />
           </p>
           <p className="mt-3 text-xs text-muted-foreground">
             {wallet.lifetimeCredits.toLocaleString()} purchased ·{" "}

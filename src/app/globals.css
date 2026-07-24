@@ -211,6 +211,11 @@ body {
     animation: none !important;
     background-size: 100% auto !important;
   }
+  .animated-gradient-text .text-content,
+  .animated-gradient-text .gradient-overlay {
+    animation: none !important;
+    background-size: 100% 100% !important;
+  }
   .hero-flip,
   .hero-retype,
   .marquee-track {
@@ -257,6 +262,51 @@ body {
 /* Warm gradient text — a living amber→coral→rose→gold sunset that slowly
    pans for flair (not a flat linear ramp). Apply to a heading span; it clips
    the gradient to the glyphs. Endpoints match so the pan loops seamlessly. */
+/* react-bits GradientText (vendored, src/components/gradient-text.tsx).
+   Wrapper stays inline-flex with no margins/cursor so the component is
+   layout-neutral inside headings; the moving gradient clips to glyphs. */
+.animated-gradient-text {
+  position: relative;
+  display: inline-flex;
+  max-width: fit-content;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1.25rem;
+  overflow: visible;
+}
+.animated-gradient-text .gradient-overlay {
+  position: absolute;
+  inset: 0;
+  background-size: 300% 100%;
+  animation: rb-gradient linear infinite;
+  border-radius: inherit;
+  z-index: 0;
+  pointer-events: none;
+}
+.animated-gradient-text .text-content {
+  display: inline-block;
+  position: relative;
+  z-index: 2;
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: rb-gradient linear infinite;
+}
+@keyframes rb-gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 .text-gradient {
   background-image: linear-gradient(
     100deg,
@@ -626,4 +676,32 @@ body {
   .scene-blob {
     animation: none;
   }
+}
+
+/* react-bits Counter (vendored, src/components/counter.tsx) — rolling
+   odometer digits for integer stat tiles. Inline-flex so it sits inside a
+   <p> like plain text and inherits currentColor; each digit is a 1ch
+   column with the ten numerals stacked and sprung vertically, clipped by
+   the counter row. Reduced motion needs no override here — the springs
+   jump instantly via useReducedMotion in the component. */
+.counter-container {
+  display: inline-flex;
+  align-items: center;
+}
+.counter-counter {
+  display: flex;
+  overflow: hidden;
+  line-height: 1;
+}
+.counter-digit {
+  position: relative;
+  width: 1ch;
+  font-variant-numeric: tabular-nums;
+}
+.counter-number {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

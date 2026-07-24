@@ -5,6 +5,7 @@ import gsap from "gsap";
 import { Container, Eyebrow, ScreenshotFrame, IconDock } from "@/components/marketing/ui";
 import { GsapReveal, useGsap, prefersReducedMotion, isHoverCapable, EASE_OUT } from "@/components/marketing/gsap";
 import { SOCIAL_PROOF, RUNTIMES } from "@/lib/marketing-content";
+import GradientText from "@/components/gradient-text";
 
 // Dock magnification tuning — mouse-only, matches the macOS-dock reference
 // interaction. Falls off linearly from MAX_SCALE at the cursor to 1 at
@@ -150,11 +151,12 @@ export function SocialProof() {
             <Eyebrow tone="dark">{SOCIAL_PROOF.eyebrow}</Eyebrow>
             <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               {SOCIAL_PROOF.title.split(" ").map((word, i, words) => (
-                <span
-                  key={i}
-                  className={i === words.length - 1 ? "text-gradient" : undefined}
-                >
-                  {word}
+                <span key={i}>
+                  {i === words.length - 1 ? (
+                    <GradientText>{word}</GradientText>
+                  ) : (
+                    word
+                  )}
                   {i < words.length - 1 ? " " : ""}
                 </span>
               ))}

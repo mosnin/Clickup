@@ -9,6 +9,7 @@ import { Container, CtaButton, ScreenshotFrame } from "@/components/marketing/ui
 import { HeroRotator } from "@/components/marketing/hero-rotator";
 import { useGsap, GsapParallax, EASE_OUT } from "@/components/marketing/gsap";
 import { cn } from "@/lib/utils";
+import GradientText from "@/components/gradient-text";
 
 // Step icons, in order — semantic markers for each onboarding step, not
 // decoration (Plug = connect, ListChecks = assign, ShieldCheck = guardrails).
@@ -200,11 +201,8 @@ export function Hero() {
             const emphasize = bare === "ai";
             return (
               <Fragment key={word + i}>
-                <span
-                  data-hero-word
-                  className={cn("inline-block", emphasize && "text-gradient")}
-                >
-                  {word}
+                <span data-hero-word className="inline-block">
+                  {emphasize ? <GradientText>{word}</GradientText> : word}
                 </span>{" "}
               </Fragment>
             );
@@ -216,8 +214,8 @@ export function Hero() {
           <span data-hero-glyph className="block">
             <HeroRotator />
           </span>
-          <span data-hero-last-word className="block text-gradient">
-            workforce.
+          <span data-hero-last-word className="block">
+            <GradientText>workforce.</GradientText>
           </span>
         </h1>
 

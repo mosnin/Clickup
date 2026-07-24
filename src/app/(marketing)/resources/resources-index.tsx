@@ -6,6 +6,7 @@ import gsap from "gsap";
 import { RESOURCES } from "@/lib/resources";
 import { Container, Eyebrow } from "@/components/marketing/ui";
 import { GsapReveal, useGsap, EASE_OUT } from "@/components/marketing/gsap";
+import GradientText from "@/components/gradient-text";
 
 // /resources index (marketing v2). Compact navy hero band, then a white
 // section with a grid of resource cards. Kind label reads straight off
@@ -50,7 +51,7 @@ function ResourcesHero() {
           data-hero-title
           className="mt-4 max-w-2xl text-4xl font-semibold tracking-tight text-white sm:text-5xl"
         >
-          Guides for the <span className="text-gradient">agent era</span>.
+          Guides for the <GradientText>agent era</GradientText>.
         </h1>
         <p data-hero-sub className="mt-4 max-w-xl text-base text-white/70 sm:text-lg">
           Short, honest walkthroughs for connecting agents, teaching them your

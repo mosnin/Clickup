@@ -7,6 +7,8 @@ import { api } from "@convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Monogram } from "@/components/dashboard/monogram";
 import { cn } from "@/lib/utils";
+import GradientText from "@/components/gradient-text";
+import { BorderBeam } from "@/components/ui/beam";
 import {
   AnimatePresence,
   EASE,
@@ -256,7 +258,7 @@ function WelcomeStep({
         transition={{ delay: 0.25, duration: 0.8, ease: EASE }}
         className="mt-4 text-5xl font-bold tracking-[-0.03em] sm:text-7xl"
       >
-        Hello, {firstName}.
+        Hello, <GradientText>{firstName}</GradientText>.
       </motion.h1>
       <motion.p
         initial={{ opacity: 0, y: 12 }}
@@ -449,6 +451,7 @@ function LivePreview({
             transition={{ duration: 0.45, ease: EASE }}
             className="mt-4 overflow-hidden"
           >
+            <BeamWhen active={stage === "live"}>
             <div className="flex items-center gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5">
               <Monogram name={agentName.trim() || "Your agent"} />
               <div className="min-w-0 flex-1">
@@ -461,6 +464,7 @@ function LivePreview({
               </div>
               <PresenceDot online={stage === "live"} />
             </div>
+            </BeamWhen>
           </motion.div>
         )}
       </AnimatePresence>
@@ -562,9 +566,13 @@ function BuildStep({
             transition={{ duration: 0.5, ease: EASE }}
             className="text-4xl font-bold tracking-[-0.02em] sm:text-5xl"
           >
-            {done
-              ? `${agentName} is online.`
-              : "Building your mission control…"}
+            {done ? (
+              <>
+                <GradientText>{agentName}</GradientText> is online.
+              </>
+            ) : (
+              "Building your mission control…"
+            )}
           </motion.h1>
         </AnimatePresence>
 
@@ -656,5 +664,22 @@ function BuildStep({
         />
       </div>
     </div>
+  );
+}
+
+// The beam marks the one live moment of onboarding: the agent's first
+// heartbeat. Until then the card stays quiet.
+function BeamWhen({
+  active,
+  children,
+}: {
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  if (!active) return <>{children}</>;
+  return (
+    <BorderBeam size="md" colorVariant="colorful">
+      {children}
+    </BorderBeam>
   );
 }

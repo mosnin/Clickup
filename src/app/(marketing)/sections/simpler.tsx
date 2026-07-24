@@ -4,6 +4,7 @@ import gsap from "gsap";
 import { Container, CtaButton, ScreenshotFrame } from "@/components/marketing/ui";
 import { GsapReveal, useGsap, EASE_OUT, DUR } from "@/components/marketing/gsap";
 import { SIMPLER } from "@/lib/marketing-content";
+import GradientText from "@/components/gradient-text";
 
 // Closing "want something simpler?" panel — warm blush/peach card pitching
 // the single-agent, no-team-required path.
@@ -50,11 +51,12 @@ export function Simpler() {
         <GsapReveal className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
             {SIMPLER.title.split(" ").map((word, i, words) => (
-              <span
-                key={i}
-                className={i === words.length - 1 ? "text-gradient" : undefined}
-              >
-                {word}
+              <span key={i}>
+                {i === words.length - 1 ? (
+                  <GradientText>{word}</GradientText>
+                ) : (
+                  word
+                )}
                 {i < words.length - 1 ? " " : ""}
               </span>
             ))}

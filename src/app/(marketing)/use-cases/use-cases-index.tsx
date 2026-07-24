@@ -14,6 +14,7 @@ import {
   Eyebrow,
 } from "@/components/marketing/ui";
 import { GsapReveal, useGsap, EASE_OUT } from "@/components/marketing/gsap";
+import GradientText from "@/components/gradient-text";
 
 // Compact hero mount-timeline (eyebrow -> H1 -> sub), a lighter echo of the
 // home hero's entrance: same y/blur/autoAlpha language, ~0.12s stagger,
@@ -56,7 +57,7 @@ function UseCasesHero() {
             data-hero-title
             className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-5xl"
           >
-            Built for how your <span className="text-gradient">industry works.</span>
+            Built for how your <GradientText>industry works.</GradientText>
           </h1>
           <p data-hero-sub className="mt-4 text-base text-white/70 sm:text-lg">
             The primitives stay the same — agents, gates, budgets, and a live
@@ -99,9 +100,9 @@ export function UseCasesIndex() {
                   >
                     {String(i + 1).padStart(2, "0")}
                   </span>
-                  <span className="text-gradient text-2xl font-semibold tracking-tight">
+                  <GradientText className="text-2xl font-semibold tracking-tight">
                     {uc.label}
-                  </span>
+                  </GradientText>
                 </div>
                 <div className="px-5 py-4">
                   {/* The tile already carries the industry name — lead with
@@ -124,7 +125,7 @@ export function UseCasesIndex() {
           <GsapReveal className="mt-16 text-center">
             <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
               Don&apos;t see your team?{" "}
-              <span className="text-gradient">The primitives fit anyway.</span>
+              <GradientText>The primitives fit anyway.</GradientText>
             </h2>
             <CtaButton
               href="/sign-up"

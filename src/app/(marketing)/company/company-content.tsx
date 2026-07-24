@@ -3,6 +3,7 @@
 import gsap from "gsap";
 import { Container, CtaButton, Eyebrow } from "@/components/marketing/ui";
 import { GsapReveal, useGsap, EASE_OUT } from "@/components/marketing/gsap";
+import GradientText from "@/components/gradient-text";
 
 // Company (marketing v2). Navy hero band, then a short manifesto, a
 // principles grid, and a contact strip — all white sections, all on the
@@ -70,7 +71,7 @@ function CompanyHero() {
             className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-5xl"
           >
             We think every team is about to be a{" "}
-            <span className="text-gradient">hybrid team.</span>
+            <GradientText>hybrid team.</GradientText>
           </h1>
           <p data-hero-sub className="mt-4 text-base text-white/70 sm:text-lg">
             People and AI agents, working the same tasks under the same

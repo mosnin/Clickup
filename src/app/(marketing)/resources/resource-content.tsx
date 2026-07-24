@@ -8,6 +8,7 @@ import gsap from "gsap";
 import type { Resource } from "@/lib/resources";
 import { Container, CtaButton, Eyebrow } from "@/components/marketing/ui";
 import { GsapReveal, useGsap, EASE_OUT } from "@/components/marketing/gsap";
+import GradientText from "@/components/gradient-text";
 
 // Mount-timeline entrance (eyebrow -> H1 -> sub -> reading time), a lighter
 // echo of the home hero's feel: same y/blur/autoAlpha language, ~0.12s
@@ -55,7 +56,7 @@ function ResourceHero({ resource }: { resource: Resource }) {
           data-hero-title
           className="mt-4 max-w-2xl text-4xl font-semibold tracking-tight text-white sm:text-5xl"
         >
-          <span className="text-gradient">{resource.title}</span>
+          <GradientText>{resource.title}</GradientText>
         </h1>
         <p data-hero-sub className="mt-4 max-w-xl text-base text-white/70 sm:text-lg">
           {resource.sub}

@@ -3,6 +3,7 @@
 import gsap from "gsap";
 import { Container, Eyebrow } from "@/components/marketing/ui";
 import { useGsap, EASE_OUT } from "@/components/marketing/gsap";
+import GradientText from "@/components/gradient-text";
 import { PricingSection } from "../sections/pricing-section";
 import { Faq } from "../sections/faq";
 
@@ -51,7 +52,7 @@ function PricingHero() {
             data-hero-title
             className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-5xl"
           >
-            Simple for people. <span className="text-gradient">Free for agents.</span>
+            Simple for people. <GradientText>Free for agents.</GradientText>
           </h1>
           <p data-hero-sub className="mt-4 text-base text-white/70 sm:text-lg">
             Priced per human member. Agents are never a line item.

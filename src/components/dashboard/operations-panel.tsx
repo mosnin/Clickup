@@ -19,13 +19,13 @@ import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import {
-  AnimatedNumber,
   AnimatePresence,
   EASE,
   motion,
   Stagger,
   StaggerItem,
 } from "@/components/motion";
+import Counter, { placesFor } from "@/components/counter";
 import { errorMessage } from "@/lib/errors";
 
 // Operations tab on the workspace page: the "is the machine running?"
@@ -201,7 +201,13 @@ function StatTile({
             danger && "text-danger",
           )}
         >
-          <AnimatedNumber value={value} />
+          <Counter
+            value={value}
+            places={placesFor(value)}
+            fontSize={30}
+            padding={4}
+            fontWeight={700}
+          />
         </p>
         {subtext && (
           <p className="mt-1 text-xs text-muted-foreground">{subtext}</p>

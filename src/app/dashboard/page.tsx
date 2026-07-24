@@ -25,7 +25,6 @@ import { timeAgo } from "@/lib/time";
 import { eventLabel } from "@/lib/event-labels";
 import { useToast } from "@/components/toast";
 import {
-  AnimatedNumber,
   AnimatePresence,
   EASE,
   motion,
@@ -33,6 +32,7 @@ import {
   Stagger,
   StaggerItem,
 } from "@/components/motion";
+import Counter, { placesFor } from "@/components/counter";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { InviteCards } from "@/components/dashboard/invite-cards";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -43,6 +43,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { BorderBeam } from "@/components/ui/beam";
+import GradientText from "@/components/gradient-text";
 import {
   Table,
   TableBody,
@@ -487,7 +488,7 @@ function WelcomeReveal() {
             transition={{ duration: 0.6, ease: EASE, delay: 0.35 }}
             className="text-2xl font-bold tracking-tight sm:text-3xl"
           >
-            Your mission control is ready.
+            Your <GradientText>mission control</GradientText> is ready.
           </motion.p>
         </motion.button>
       )}
@@ -593,7 +594,13 @@ function StatsCards({
                     stat.danger && "text-destructive",
                   )}
                 >
-                  <AnimatedNumber value={stat.value} />
+                  <Counter
+                    value={stat.value}
+                    places={placesFor(stat.value)}
+                    fontSize={24}
+                    padding={4}
+                    fontWeight={500}
+                  />
                 </p>
               </div>
               <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-muted">
@@ -743,7 +750,13 @@ function ActivityChart({ completions }: { completions?: number[] }) {
       <div className="p-4">
         <div className="mb-4 flex items-baseline gap-2">
           <span className="text-3xl font-semibold tabular-nums">
-            <AnimatedNumber value={total} />
+            <Counter
+              value={total}
+              places={placesFor(total)}
+              fontSize={30}
+              padding={4}
+              fontWeight={600}
+            />
           </span>
           <span className="text-sm text-muted-foreground">
             completed · last 7 days
@@ -966,7 +979,7 @@ function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
 }
 
 function AgentsCard({ agents }: { agents: Overview["agents"] }) {
-  return (
+  const card = (
     <div className="h-full rounded-xl border border-border bg-card overflow-hidden">
       <div className="border-b border-border px-4 py-3">
         <h3 className="text-base font-medium">Agents online</h3>
@@ -1015,6 +1028,14 @@ function AgentsCard({ agents }: { agents: Overview["agents"] }) {
         )}
       </div>
     </div>
+  );
+  // Someone's actually online → the beam marks the card as live.
+  return agents.length > 0 ? (
+    <BorderBeam size="md" colorVariant="colorful" className="h-full">
+      {card}
+    </BorderBeam>
+  ) : (
+    card
   );
 }
 

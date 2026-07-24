@@ -12,10 +12,10 @@ import { Monogram } from "@/components/dashboard/monogram";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import {
   AnimatedBar,
-  AnimatedNumber,
   Stagger,
   StaggerItem,
 } from "@/components/motion";
+import Counter, { placesFor } from "@/components/counter";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
@@ -157,7 +157,13 @@ function StatTile({
           danger && "text-danger",
         )}
       >
-        <AnimatedNumber value={value} />
+        <Counter
+          value={value}
+          places={placesFor(value)}
+          fontSize={20}
+          padding={3}
+          fontWeight={700}
+        />
       </p>
     </StaggerItem>
   );

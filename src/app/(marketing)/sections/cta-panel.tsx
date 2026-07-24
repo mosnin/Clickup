@@ -7,6 +7,7 @@ import { Container, CtaButton, ScreenshotFrame } from "@/components/marketing/ui
 import { BorderBeam } from "@/components/ui/beam";
 import { useGsap, EASE_OUT, DUR } from "@/components/marketing/gsap";
 import { CTA_PANEL } from "@/lib/marketing-content";
+import GradientText from "@/components/gradient-text";
 
 // Dark left-aligned CTA panel that closes out the page — screenshot bleeds
 // off the panel's right/bottom edge, clipped by the panel's own rounded
@@ -98,8 +99,8 @@ export function CtaPanel() {
                   const bare = word.replace(/[.,]/g, "").toLowerCase();
                   const emphasize = bare === "agent" || bare === "free";
                   return (
-                    <span key={i} className={emphasize ? "text-gradient" : undefined}>
-                      {word}
+                    <span key={i}>
+                      {emphasize ? <GradientText>{word}</GradientText> : word}
                       {i < words.length - 1 ? " " : ""}
                     </span>
                   );
