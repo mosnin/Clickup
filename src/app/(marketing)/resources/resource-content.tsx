@@ -140,7 +140,7 @@ function Guide({ resource }: { resource: Resource }) {
               <p className="border-b border-border px-4 py-2 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
                 {s.code.label}
               </p>
-              <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed text-azure-200">
+              <pre className="overflow-x-auto overscroll-x-contain p-4 font-mono text-xs leading-relaxed text-azure-200">
                 {s.code.lines.join("\n")}
               </pre>
             </div>

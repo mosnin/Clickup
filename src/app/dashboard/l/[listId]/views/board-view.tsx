@@ -383,7 +383,7 @@ export function BoardView({
         onDragEnd={onDragEnd}
       >
         {laneMode === "none" ? (
-          <div className="flex gap-3 overflow-x-auto pb-2">
+          <div className="flex gap-3 overflow-x-auto overscroll-x-contain pb-2">
             {sortedStatuses.map((status, i) => {
               const columnTasks = columns.get(status._id) ?? [];
               return (
@@ -415,7 +415,7 @@ export function BoardView({
                 className="bento-tile p-3"
               >
                 <LaneHeader lane={lane} laneMode={laneMode} />
-                <div className="flex gap-3 overflow-x-auto pb-1 pt-2">
+                <div className="flex gap-3 overflow-x-auto overscroll-x-contain pb-1 pt-2">
                   {sortedStatuses.map((status) => {
                     const bucket = (columns.get(status._id) ?? []).filter(
                       (t) => laneKeyFor(t, laneMode) === lane.key,

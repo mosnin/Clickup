@@ -155,7 +155,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
         {/* Scrolls horizontally on narrow screens instead of wrapping into a
             two-row pile, the negative margin lets the row bleed to the
             header's own edge padding. */}
-        <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="-mx-4 overflow-x-auto overscroll-x-contain px-4 pb-2 sm:-mx-6 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <nav
             aria-label="Workspace tabs"
             className="flex items-center gap-1 whitespace-nowrap text-sm"

@@ -244,7 +244,7 @@ export function ScrumBoard({
                   </span>
                 </div>
               )}
-              <div className="flex gap-3 overflow-x-auto pb-2">
+              <div className="flex gap-3 overflow-x-auto overscroll-x-contain pb-2">
                 {COLUMNS.map((col) => {
                   const columnTasks = lane.tasks.filter(
                     (t) => t.statusCategory === col.key,
@@ -645,7 +645,7 @@ function EstimateBadge({
 
 function BoardSkeleton() {
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2">
+    <div className="flex gap-3 overflow-x-auto overscroll-x-contain pb-2">
       {COLUMNS.map((c) => (
         <div
           key={c.key}

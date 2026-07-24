@@ -306,7 +306,7 @@ export function TimelineView({
       <div className="flex justify-end">
         <AddTaskButton listId={listId} />
       </div>
-      <div className="overflow-x-auto rounded-2xl panel">
+      <div className="overflow-x-auto overscroll-x-contain rounded-2xl panel">
         <div style={{ minWidth: HEADER_PX + totalWidth }}>
           <div className="flex">
             <div

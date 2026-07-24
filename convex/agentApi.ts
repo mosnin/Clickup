@@ -30,8 +30,21 @@ import {
   handoffTaskCore,
   releaseTaskCore,
   removeTaskCore,
+  reorderTasksCore,
   updateTaskCore,
 } from "./tasks";
+import {
+  renameListCore,
+  removeListCore,
+  reorderListsCore,
+  updateListMetaCore,
+} from "./lists";
+import {
+  addPhaseCore,
+  createRoadmapCore,
+  removePhaseCore,
+  updatePhaseCore,
+} from "./roadmaps";
 import { createMessageCore, scopeForMessageParent } from "./messages";
 import {
   createSprintCore,
@@ -221,6 +234,12 @@ async function taskView(ctx: QueryCtx | MutationCtx, task: Doc<"tasks">) {
     approvedAt: task.approvedAt,
     claimedBy: task.claimedByActorId,
     claimedAt: task.claimedAt,
+    // Round-trip everything create_task accepts: a second agent reading
+    // the plan must see the same estimates/milestones/order the first
+    // agent wrote (write-only fields are a data trap).
+    estimatePoints: task.estimatePoints,
+    milestone: task.milestone ?? false,
+    position: task.position,
     createdAt: task.createdAt,
     completedAt: task.completedAt,
   };
@@ -237,6 +256,14 @@ function treeListNode(l: Doc<"lists">) {
       ? { mode: l.routing.mode, assignees: l.routing.assigneeIds.length }
       : null,
     sopSlug: l.sopSlug ?? null,
+    // Project-level intent, so the tree alone answers "what is this list
+    // for and when is it due" without a per-list read.
+    description: l.description ?? null,
+    projectStatus: l.projectStatus ?? null,
+    targetDate: l.targetDate ?? null,
+    roadmap: l.roadmapId
+      ? { roadmapId: l.roadmapId, phaseId: l.roadmapPhaseId ?? null }
+      : null,
   };
 }
 
@@ -628,6 +655,14 @@ export const listTasks = query({
     if (args.assignedToMe) {
       tasks = tasks.filter((t) => t.assigneeClerkIds.includes(agent._id));
     }
+    // Same order humans see: the list's manual ordering (position), stable
+    // across lists when the scope-wide walk mixes several.
+    tasks.sort(
+      (a, b) =>
+        a.listId.localeCompare(b.listId) ||
+        a.position - b.position ||
+        a.createdAt - b.createdAt,
+    );
     const max = Math.min(args.limit ?? 100, 500);
     const views: (Awaited<ReturnType<typeof taskView>> & {
       descriptionTruncated?: boolean;
@@ -2350,10 +2385,39 @@ export const createGoal = mutation({
     targetValue: v.number(),
     unit: v.optional(v.string()),
     dueDate: v.optional(v.number()),
+    // Link the goal to a project (list) for auto-rollup: progress derives
+    // live from that list's completed tasks — the same linked goals humans
+    // create. Same guardrails as goals.create.
+    sourceListId: v.optional(v.id("lists")),
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     requireUnrestricted(agent);
+    if (args.sourceListId) {
+      if (args.targetType !== "number") {
+        throw new ConvexError("Only number goals can track a project");
+      }
+      const { list, space } = await requireListAccessForAgent(
+        ctx,
+        args.sourceListId,
+        agent,
+      );
+      if (space.private) {
+        // Goals are a shared surface — tracking a private-space project
+        // would leak its live completion count to everyone in the scope.
+        throw new ConvexError(
+          "Projects in private spaces can't be tracked by a goal",
+        );
+      }
+      const scope = await scopeForList(ctx, list);
+      if (
+        !scope ||
+        scope.scopeType !== agent.parentType ||
+        scope.scopeId !== agent.parentId
+      ) {
+        throw new ConvexError("Linked project must live in the goal's scope");
+      }
+    }
     return await ctx.db.insert("goals", {
       parentType: agent.parentType,
       parentId: agent.parentId,
@@ -2364,6 +2428,7 @@ export const createGoal = mutation({
       currentValue: 0,
       unit: args.unit,
       dueDate: args.dueDate,
+      sourceListId: args.sourceListId,
       status: "open",
       ownerClerkId: agent._id,
       createdAt: Date.now(),
@@ -2894,6 +2959,444 @@ export const assignProjectToPhase = mutation({
       roadmapPhaseId: phase.id,
       roadmapPosition: maxPosition + 1,
     });
+  },
+});
+
+// ── Roadmap authoring (Phase N) ────────────────────────────────────────
+// The other half of the roadmap surface: agents could already read and
+// place projects, now they can build the timeline itself. Structure-level:
+// off-limits to list-restricted agents, workspace scope required.
+
+async function requireRoadmapForAgent(
+  ctx: QueryCtx | MutationCtx,
+  roadmapId: Id<"roadmaps">,
+  agent: Doc<"agents">,
+): Promise<Doc<"roadmaps">> {
+  if (agent.parentType !== "workspace") {
+    throw new ConvexError("Roadmaps require a workspace-scoped agent");
+  }
+  const roadmap = await ctx.db.get(roadmapId);
+  if (!roadmap || roadmap.workspaceId !== agent.parentId) {
+    throw new ConvexError(
+      "Roadmap not found in your workspace. Call get_roadmaps to see the roadmaps you can edit.",
+    );
+  }
+  return roadmap;
+}
+
+export const createRoadmap = mutation({
+  args: {
+    apiKey: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    // Explicit phases skip the Now/Next/Later defaults, so a planner can
+    // lay out M1..M4 with target dates in the same call.
+    phases: v.optional(
+      v.array(
+        v.object({ name: v.string(), targetDate: v.optional(v.number()) }),
+      ),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    if (agent.parentType !== "workspace") {
+      throw new ConvexError("Roadmaps require a workspace-scoped agent");
+    }
+    const roadmapId = await createRoadmapCore(
+      ctx,
+      agent.parentId as Id<"workspaces">,
+      { name: args.name, description: args.description, phases: args.phases },
+      agentActor(agent),
+    );
+    const roadmap = await ctx.db.get(roadmapId);
+    return {
+      roadmapId,
+      name: roadmap?.name,
+      phases: roadmap?.phases ?? [],
+    };
+  },
+});
+
+export const addRoadmapPhase = mutation({
+  args: {
+    apiKey: v.string(),
+    roadmapId: v.id("roadmaps"),
+    name: v.string(),
+    targetDate: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const roadmap = await requireRoadmapForAgent(ctx, args.roadmapId, agent);
+    const phaseId = await addPhaseCore(
+      ctx,
+      roadmap,
+      { name: args.name, targetDate: args.targetDate },
+      agentActor(agent),
+    );
+    return { phaseId };
+  },
+});
+
+export const updateRoadmapPhase = mutation({
+  args: {
+    apiKey: v.string(),
+    roadmapId: v.id("roadmaps"),
+    phaseId: v.string(),
+    name: v.optional(v.string()),
+    // null clears the target date.
+    targetDate: v.optional(v.union(v.number(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const roadmap = await requireRoadmapForAgent(ctx, args.roadmapId, agent);
+    await updatePhaseCore(
+      ctx,
+      roadmap,
+      { phaseId: args.phaseId, name: args.name, targetDate: args.targetDate },
+      agentActor(agent),
+    );
+  },
+});
+
+export const removeRoadmapPhase = mutation({
+  args: {
+    apiKey: v.string(),
+    roadmapId: v.id("roadmaps"),
+    phaseId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const roadmap = await requireRoadmapForAgent(ctx, args.roadmapId, agent);
+    await removePhaseCore(ctx, roadmap, args.phaseId, agentActor(agent));
+  },
+});
+
+// ── Structure lifecycle parity (Phase N) ───────────────────────────────
+// Agents could create spaces/folders/lists but never fix or annotate
+// them — a typo at creation was permanent garbage. These give create's
+// missing other half. All structure-level: requireUnrestricted.
+
+export const renameList = mutation({
+  args: { apiKey: v.string(), listId: v.id("lists"), name: v.string() },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const { list } = await requireListAccessForAgent(ctx, args.listId, agent);
+    await renameListCore(ctx, list, args.name, agentActor(agent));
+  },
+});
+
+export const updateListMeta = mutation({
+  args: {
+    apiKey: v.string(),
+    listId: v.id("lists"),
+    // null clears a field; omitted fields stay untouched.
+    description: v.optional(v.union(v.string(), v.null())),
+    projectStatus: v.optional(
+      v.union(
+        v.literal("on_track"),
+        v.literal("at_risk"),
+        v.literal("off_track"),
+        v.literal("paused"),
+        v.null(),
+      ),
+    ),
+    notes: v.optional(v.union(v.string(), v.null())),
+    targetDate: v.optional(v.union(v.number(), v.null())),
+    sopSlug: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const { list } = await requireListAccessForAgent(ctx, args.listId, agent);
+    const { apiKey: _apiKey, listId: _listId, ...patch } = args;
+    await updateListMetaCore(ctx, list, patch, agentActor(agent));
+  },
+});
+
+export const deleteList = mutation({
+  args: { apiKey: v.string(), listId: v.id("lists") },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const { list } = await requireListAccessForAgent(ctx, args.listId, agent);
+    await removeListCore(ctx, list, agentActor(agent));
+  },
+});
+
+export const reorderLists = mutation({
+  args: {
+    apiKey: v.string(),
+    parentType: v.union(v.literal("space"), v.literal("folder")),
+    parentId: v.string(),
+    orderedIds: v.array(v.id("lists")),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    if (args.parentType === "space") {
+      await requireSpaceAccessForAgent(
+        ctx,
+        args.parentId as Id<"spaces">,
+        agent,
+      );
+    } else {
+      const folder = await ctx.db.get(args.parentId as Id<"folders">);
+      if (!folder) throw new ConvexError("Folder not found");
+      await requireSpaceAccessForAgent(ctx, folder.spaceId, agent);
+    }
+    await reorderListsCore(ctx, args.parentType, args.parentId, args.orderedIds);
+  },
+});
+
+// Task-level ordering: "do these in this order" without overloading
+// dependencies. Same global-renumber semantics as the human Board/List
+// drag (tasks.reorder); position round-trips through list_tasks/get_task.
+export const reorderTasks = mutation({
+  args: {
+    apiKey: v.string(),
+    listId: v.id("lists"),
+    orderedIds: v.array(v.id("tasks")),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    await requireListAccessForAgent(ctx, args.listId, agent);
+    await reorderTasksCore(
+      ctx,
+      { listId: args.listId, orderedIds: args.orderedIds },
+      agentActor(agent),
+    );
+  },
+});
+
+// ── Bulk create (Phase N) ──────────────────────────────────────────────
+// One intent, one call: a whole plan-slice of tasks with inline subtask
+// nesting (parentRef) and named dependencies (dependsOn), instead of N
+// create_task + M add_dependency round-trips burning the burst budget.
+
+const bulkTaskSpecValidator = v.object({
+  // A caller-chosen handle other specs can reference in parentRef /
+  // dependsOn. Must be unique within the batch.
+  ref: v.optional(v.string()),
+  title: v.string(),
+  description: v.optional(v.string()),
+  statusId: v.optional(v.id("listStatuses")),
+  priority: v.optional(priorityValidator),
+  startDate: v.optional(v.number()),
+  dueDate: v.optional(v.number()),
+  assigneeIds: v.optional(v.array(v.string())),
+  // Parent by ref (earlier spec in this batch) or by existing task id.
+  parentRef: v.optional(v.string()),
+  parentTaskId: v.optional(v.id("tasks")),
+  // Blockers by ref (any spec in this batch) or existing task id.
+  dependsOn: v.optional(v.array(v.string())),
+  sprintId: v.optional(v.id("sprints")),
+  checklist: v.optional(checklistValidator),
+  requiresApproval: v.optional(v.boolean()),
+  estimatePoints: v.optional(v.number()),
+  milestone: v.optional(v.boolean()),
+});
+
+export const createTasks = mutation({
+  args: {
+    apiKey: v.string(),
+    listId: v.id("lists"),
+    tasks: v.array(bulkTaskSpecValidator),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    await requireListAccessForAgent(ctx, args.listId, agent);
+    if (args.tasks.length === 0) {
+      throw new ConvexError("tasks must not be empty");
+    }
+    if (args.tasks.length > 50) {
+      throw new ConvexError(
+        "Batches are capped at 50 tasks per call — split larger plans into multiple create_tasks calls.",
+      );
+    }
+    const seenRefs = new Set<string>();
+    for (const spec of args.tasks) {
+      if (spec.ref === undefined) continue;
+      if (seenRefs.has(spec.ref)) {
+        throw new ConvexError(`Duplicate ref "${spec.ref}" in batch`);
+      }
+      seenRefs.add(spec.ref);
+    }
+    const refs = new Map<string, Id<"tasks">>();
+
+    const actor = agentActor(agent);
+    const created: { ref: string | null; taskId: Id<"tasks">; title: string }[] =
+      [];
+
+    // Pass 1: create in array order so parentRef can point at any EARLIER
+    // spec (subtasks after their parent, the natural writing order).
+    for (const spec of args.tasks) {
+      let parentTaskId = spec.parentTaskId;
+      if (spec.parentRef !== undefined) {
+        const resolved = refs.get(spec.parentRef);
+        if (!resolved) {
+          throw new ConvexError(
+            `parentRef "${spec.parentRef}" must reference an earlier task in the batch`,
+          );
+        }
+        parentTaskId = resolved;
+      }
+      const taskId = await createTaskCore(
+        ctx,
+        {
+          listId: args.listId,
+          title: spec.title,
+          description: spec.description,
+          statusId: spec.statusId,
+          priority: spec.priority,
+          startDate: spec.startDate,
+          dueDate: spec.dueDate,
+          assigneeIds: spec.assigneeIds,
+          parentTaskId,
+          sprintId: spec.sprintId,
+          checklist: spec.checklist,
+          requiresApproval: spec.requiresApproval,
+          estimatePoints: spec.estimatePoints,
+          milestone: spec.milestone,
+        },
+        actor,
+      );
+      if (spec.ref !== undefined) refs.set(spec.ref, taskId);
+      created.push({ ref: spec.ref ?? null, taskId, title: spec.title });
+    }
+
+    // Pass 2: dependencies — refs may point forward or backward now that
+    // every task exists. External ids must be tasks the agent can access.
+    for (let i = 0; i < args.tasks.length; i++) {
+      const spec = args.tasks[i];
+      if (!spec.dependsOn || spec.dependsOn.length === 0) continue;
+      const taskId = created[i].taskId;
+      const blockerIds: Id<"tasks">[] = [];
+      for (const dep of spec.dependsOn) {
+        const byRef = refs.get(dep);
+        if (byRef) {
+          if (byRef === taskId) {
+            throw new ConvexError(`Task "${spec.title}" can't depend on itself`);
+          }
+          blockerIds.push(byRef);
+          continue;
+        }
+        const asId = ctx.db.normalizeId("tasks", dep);
+        if (!asId) {
+          throw new ConvexError(
+            `dependsOn entry "${dep}" is neither a ref in this batch nor a task id`,
+          );
+        }
+        await requireTaskAccessForAgent(ctx, asId, agent);
+        blockerIds.push(asId);
+      }
+      await updateTaskCore(
+        ctx,
+        { taskId, blockedByTaskIds: blockerIds },
+        actor,
+      );
+    }
+
+    return { created, count: created.length };
+  },
+});
+
+// ── Creation gaps (Phase N) ────────────────────────────────────────────
+// Custom fields and statuses were read/use-only for agents; creation is
+// the missing half a PRD build needs ("Severity" dropdown, "QA" status).
+
+export const createCustomField = mutation({
+  args: {
+    apiKey: v.string(),
+    listId: v.id("lists"),
+    name: v.string(),
+    type: v.union(
+      v.literal("text"),
+      v.literal("number"),
+      v.literal("dropdown"),
+      v.literal("date"),
+      v.literal("checkbox"),
+    ),
+    options: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          label: v.string(),
+          color: v.optional(v.string()),
+        }),
+      ),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    await requireListAccessForAgent(ctx, args.listId, agent);
+    if (!args.name.trim()) throw new ConvexError("Field name is required");
+    if (
+      args.type === "dropdown" &&
+      (!args.options || args.options.length === 0)
+    ) {
+      throw new ConvexError("Dropdown fields need at least one option");
+    }
+    const siblings = await ctx.db
+      .query("customFields")
+      .withIndex("by_list", (q) => q.eq("listId", args.listId))
+      .collect();
+    const fieldId = await ctx.db.insert("customFields", {
+      listId: args.listId,
+      name: args.name.trim(),
+      type: args.type,
+      options: args.type === "dropdown" ? args.options : undefined,
+      position: siblings.length,
+      createdAt: Date.now(),
+    });
+    return { fieldId };
+  },
+});
+
+// Default pastel per category, matching listStatuses.DEFAULT_STATUSES.
+const STATUS_CATEGORY_COLORS: Record<string, string> = {
+  open: "#c9ccd4",
+  in_progress: "#a9c6f2",
+  complete: "#a9dcbd",
+  closed: "#c2c2ca",
+};
+
+export const createStatus = mutation({
+  args: {
+    apiKey: v.string(),
+    listId: v.id("lists"),
+    name: v.string(),
+    category: v.union(
+      v.literal("open"),
+      v.literal("in_progress"),
+      v.literal("complete"),
+      v.literal("closed"),
+    ),
+    color: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    await requireListAccessForAgent(ctx, args.listId, agent);
+    if (!args.name.trim()) throw new ConvexError("Status name is required");
+    const siblings = await ctx.db
+      .query("listStatuses")
+      .withIndex("by_list", (q) => q.eq("listId", args.listId))
+      .collect();
+    const statusId = await ctx.db.insert("listStatuses", {
+      listId: args.listId,
+      name: args.name.trim(),
+      color: args.color ?? STATUS_CATEGORY_COLORS[args.category],
+      category: args.category,
+      position: siblings.length,
+      createdAt: Date.now(),
+    });
+    return { statusId };
   },
 });
 

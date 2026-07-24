@@ -125,6 +125,12 @@
 html,
 body {
   height: 100%;
+  /* Mobile backstop: the page itself must never pan or rubber-band
+     sideways — wide content scrolls inside its own overflow-x-auto
+     container instead. `clip` (not `hidden`) so no scroll container is
+     created and position: sticky keeps working. */
+  overflow-x: clip;
+  overscroll-behavior-x: none;
 }
 
 /* Thin brand gradient strip — product flair on shell edges (PageHeader top,

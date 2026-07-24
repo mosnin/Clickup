@@ -28,6 +28,13 @@ export const EVENT_LABEL: Record<string, string> = {
   "channel.created": "opened channel",
   "goal.progress": "updated goal",
   "goal.completed": "completed goal",
+  "roadmap.created": "created roadmap",
+  "roadmap.phase_added": "added a phase to",
+  "roadmap.phase_updated": "updated a phase of",
+  "roadmap.phase_removed": "removed a phase from",
+  "list.renamed": "renamed project",
+  "list.updated": "updated project",
+  "list.deleted": "deleted project",
 };
 
 export function eventLabel(type: string): string {
@@ -64,6 +71,12 @@ export function eventHref(e: {
   }
   if (e.entityType === "agent") {
     return `/dashboard/agents/${e.entityId}`;
+  }
+  if (e.entityType === "roadmap" && e.scopeType === "workspace") {
+    return `/dashboard/w/${e.scopeId}?tab=roadmap`;
+  }
+  if (e.entityType === "list" && e.type !== "list.deleted") {
+    return `/dashboard/l/${e.entityId}`;
   }
   return null;
 }

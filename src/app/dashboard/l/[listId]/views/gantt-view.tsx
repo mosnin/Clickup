@@ -530,7 +530,7 @@ export function GanttView({
           />
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl panel">
+        <div className="overflow-x-auto overscroll-x-contain rounded-2xl panel">
           <div
             className="relative"
             style={{ minWidth: HEADER_COL_PX + totalWidth }}

@@ -530,7 +530,7 @@ export function ImportDialog({
                       </p>
                     </div>
 
-                    <div className="overflow-x-auto rounded-xl bento-tile">
+                    <div className="overflow-x-auto overscroll-x-contain rounded-xl bento-tile">
                       <table className="w-full text-left text-xs">
                         <thead>
                           <tr className="text-muted-foreground">

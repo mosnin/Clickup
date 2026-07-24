@@ -1,12 +1,15 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 import {
   canAccessSpace,
   requireFolderAccess,
   requireListAccess,
   requireSpaceAccess,
 } from "./_authz";
+import type { Actor } from "./_agentAuth";
+import { emitEvent, scopeForList, userActor } from "./events";
 import { seedDefaultStatuses } from "./listStatuses";
 import { cleanupTaskArtifacts } from "./tasks";
 
@@ -122,27 +125,117 @@ export const reorder = mutation({
     } else {
       await requireFolderAccess(ctx, args.parentId as Id<"folders">);
     }
-    for (let i = 0; i < args.orderedIds.length; i++) {
-      const list = await ctx.db.get(args.orderedIds[i]);
-      if (
-        !list ||
-        list.parentType !== args.parentType ||
-        list.parentId !== args.parentId
-      ) {
-        continue;
-      }
-      if (list.position !== i) {
-        await ctx.db.patch(list._id, { position: i });
-      }
-    }
+    await reorderListsCore(ctx, args.parentType, args.parentId, args.orderedIds);
   },
 });
+
+// ── Cores (shared with agentApi) ────────────────────────────────────────
+// Structure changes are visible, trust-sensitive operations — both entry
+// points route through these so a rename/meta-change/delete lands in the
+// activity feed with the real actor attached, human or agent.
+
+export async function renameListCore(
+  ctx: MutationCtx,
+  list: Doc<"lists">,
+  name: string,
+  actor: Actor,
+): Promise<void> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new ConvexError("List name is required");
+  if (trimmed === list.name) return;
+  await ctx.db.patch(list._id, { name: trimmed });
+  const scope = await scopeForList(ctx, list);
+  if (scope) {
+    await emitEvent(ctx, {
+      ...scope,
+      type: "list.renamed",
+      actor,
+      entityType: "list",
+      entityId: list._id,
+      entityTitle: trimmed,
+      listId: list._id,
+      payload: { from: list.name, to: trimmed },
+    });
+  }
+}
+
+export type ListMetaPatch = {
+  description?: string | null;
+  projectStatus?: "on_track" | "at_risk" | "off_track" | "paused" | null;
+  ownerActorId?: string | null;
+  notes?: string | null;
+  targetDate?: number | null;
+  sopSlug?: string | null;
+  defaultView?:
+    | "list"
+    | "board"
+    | "calendar"
+    | "gantt"
+    | "table"
+    | "workload"
+    | null;
+};
+
+export async function updateListMetaCore(
+  ctx: MutationCtx,
+  list: Doc<"lists">,
+  args: ListMetaPatch,
+  actor: Actor,
+): Promise<void> {
+  const patch: Record<string, unknown> = {};
+  for (const key of [
+    "description",
+    "projectStatus",
+    "ownerActorId",
+    "notes",
+    "targetDate",
+    "sopSlug",
+    "defaultView",
+  ] as const) {
+    if (args[key] !== undefined) {
+      patch[key] = args[key] === null ? undefined : args[key];
+    }
+  }
+  if (Object.keys(patch).length === 0) return;
+  await ctx.db.patch(list._id, patch);
+  const scope = await scopeForList(ctx, list);
+  if (scope) {
+    await emitEvent(ctx, {
+      ...scope,
+      type: "list.updated",
+      actor,
+      entityType: "list",
+      entityId: list._id,
+      entityTitle: list.name,
+      listId: list._id,
+      payload: { fields: Object.keys(patch) },
+    });
+  }
+}
+
+export async function reorderListsCore(
+  ctx: MutationCtx,
+  parentType: "space" | "folder",
+  parentId: string,
+  orderedIds: Id<"lists">[],
+): Promise<void> {
+  for (let i = 0; i < orderedIds.length; i++) {
+    const list = await ctx.db.get(orderedIds[i]);
+    if (!list || list.parentType !== parentType || list.parentId !== parentId) {
+      continue; // stale client order — skip rather than corrupt
+    }
+    if (list.position !== i) {
+      await ctx.db.patch(list._id, { position: i });
+    }
+  }
+}
 
 export const rename = mutation({
   args: { listId: v.id("lists"), name: v.string() },
   handler: async (ctx, { listId, name }) => {
-    const { list } = await requireListAccess(ctx, listId);
-    await ctx.db.patch(list._id, { name });
+    const { list, identity } = await requireListAccess(ctx, listId);
+    const actor = await userActor(ctx, identity.subject);
+    await renameListCore(ctx, list, name, actor);
   },
 });
 
@@ -178,24 +271,10 @@ export const updateMeta = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const { list } = await requireListAccess(ctx, args.listId);
-    const patch: Record<string, unknown> = {};
-    for (const key of [
-      "description",
-      "projectStatus",
-      "ownerActorId",
-      "notes",
-      "targetDate",
-      "sopSlug",
-      "defaultView",
-    ] as const) {
-      if (args[key] !== undefined) {
-        patch[key] = args[key] === null ? undefined : args[key];
-      }
-    }
-    if (Object.keys(patch).length > 0) {
-      await ctx.db.patch(list._id, patch);
-    }
+    const { list, identity } = await requireListAccess(ctx, args.listId);
+    const actor = await userActor(ctx, identity.subject);
+    const { listId: _listId, ...patch } = args;
+    await updateListMetaCore(ctx, list, patch, actor);
   },
 });
 
@@ -270,7 +349,20 @@ export const setRouting = mutation({
 export const remove = mutation({
   args: { listId: v.id("lists") },
   handler: async (ctx, { listId }) => {
-    const { list } = await requireListAccess(ctx, listId);
+    const { list, identity } = await requireListAccess(ctx, listId);
+    const actor = await userActor(ctx, identity.subject);
+    await removeListCore(ctx, list, actor);
+  },
+});
+
+export async function removeListCore(
+  ctx: MutationCtx,
+  list: Doc<"lists">,
+  actor: Actor,
+): Promise<void> {
+    // Deleting a project is the most destructive structure op there is —
+    // capture the scope for the audit event BEFORE the cascade runs.
+    const scope = await scopeForList(ctx, list);
 
     // Goals tracking this list: freeze each at its current derived value
     // BEFORE the cascade destroys the tasks/statuses it derives from —
@@ -356,5 +448,16 @@ export const remove = mutation({
     if (rollup) await ctx.db.delete(rollup._id);
 
     await ctx.db.delete(list._id);
-  },
-});
+
+    if (scope) {
+      await emitEvent(ctx, {
+        ...scope,
+        type: "list.deleted",
+        actor,
+        entityType: "list",
+        entityId: list._id,
+        entityTitle: list.name,
+        payload: { taskCount: tasks.length },
+      });
+    }
+}

@@ -106,7 +106,7 @@ export function ConnectSnippet({
       </div>
 
       <div className="relative">
-        <pre className="overflow-x-auto rounded-xl bg-muted p-3.5 text-xs leading-relaxed">
+        <pre className="overflow-x-auto overscroll-x-contain rounded-xl bg-muted p-3.5 text-xs leading-relaxed">
           <code>{snippet}</code>
         </pre>
         <button

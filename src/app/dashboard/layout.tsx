@@ -40,7 +40,11 @@ export default async function DashboardLayout({
           <CommandPalette />
           <AgentOnlineWatcher />
           <DashboardSidebar />
-          <SidebarInset className="h-full min-w-0 overflow-y-auto">
+          {/* overflow-x-hidden: SidebarInset is the app's real scroll
+              container; without it, any too-wide child would let the whole
+              "page" pan sideways on mobile. Wide surfaces (tables, boards,
+              Gantt) scroll inside their own overflow-x-auto wrappers. */}
+          <SidebarInset className="h-full min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-contain">
             <div className="w-full px-4 py-6 sm:px-6">{children}</div>
           </SidebarInset>
           {/* One continuous brand gradient across the entire viewport's bottom

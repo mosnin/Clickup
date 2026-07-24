@@ -78,7 +78,7 @@ export function ViewTabs({
   return (
     <nav
       aria-label="Views"
-      className="flex items-center gap-1 overflow-x-auto text-sm"
+      className="flex items-center gap-1 overflow-x-auto overscroll-x-contain text-sm"
     >
       {VIEWS.map(({ key, label, Icon }) => (
         <Link

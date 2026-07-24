@@ -346,7 +346,15 @@ function Row({
   return (
     <div>
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className={cn("mt-0.5 font-medium", mono && "font-mono text-[13px]")}>
+      <dd
+        className={cn(
+          // break-words/break-all: facilitator URLs and pay-to addresses are
+          // long unbroken strings — they must wrap inside the grid cell, not
+          // stretch the card past the viewport on mobile.
+          "mt-0.5 break-words font-medium",
+          mono && "break-all font-mono text-[13px]",
+        )}
+      >
         {value}
       </dd>
     </div>

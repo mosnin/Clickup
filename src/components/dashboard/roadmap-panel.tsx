@@ -315,7 +315,7 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
       )}
 
       {/* Phase columns — horizontal scroll, like the other pill rows. */}
-      <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
+      <div className="-mx-4 overflow-x-auto overscroll-x-contain px-4 pb-2 sm:-mx-6 sm:px-6">
         <Stagger key={active._id} className="flex items-start gap-3">
           {phases.map((phase) => (
             <StaggerItem key={phase.id} className="w-64 flex-shrink-0 sm:w-72">

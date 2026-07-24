@@ -59,7 +59,7 @@ Guidance for Claude Code (and other AI assistants) working in this repository.
 │   ├── team.ts                   # Teams Hub: per-member workload + week stats + currently-running timer
 │   ├── agents.ts                 # human-facing agent management: CRUD, key metadata, assignee-picker options
 │   ├── agentKeys.ts              # Node action minting agent API keys (CSPRNG; only the SHA-256 hash is stored)
-│   ├── agentApi.ts               # agent-facing API: ~40 key-authenticated functions the MCP server calls
+│   ├── agentApi.ts               # agent-facing API: ~100 key-authenticated functions the MCP server calls
 │   ├── agentAi.ts                # key-authenticated semantic search (Node runtime, OpenAI embeddings)
 │   ├── events.ts                 # append-only activity log: emitEvent() + human feed query
 │   ├── webhooks.ts               # webhook subscription CRUD + delivery bookkeeping

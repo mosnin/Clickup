@@ -242,7 +242,7 @@ export function ProjectsView() {
           />
           <nav
             aria-label="Health filter"
-            className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="-mx-1 flex items-center gap-1 overflow-x-auto overscroll-x-contain px-1 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {STATUS_FILTERS.map((f) => (
               <button

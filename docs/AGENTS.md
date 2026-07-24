@@ -50,17 +50,24 @@ proxy:
 }
 ```
 
-85 tools are exposed: `whoami`, `heartbeat`, `get_tree`, `create_space` /
-`create_folder` / `create_list`, `list_tasks` / `get_task` / `create_task` /
-`update_task` / `complete_task`, `claim_task` / `release_task`,
+97 tools are exposed: `whoami`, `heartbeat`, `get_tree`, `create_space` /
+`create_folder` / `create_list` plus full structure lifecycle
+(`rename_list` / `update_list_meta` / `delete_list` / `reorder_lists`),
+`list_tasks` / `get_task` / `create_task` / `create_tasks` (bulk: up to 50
+tasks with inline subtasks + dependencies in one call) / `update_task` /
+`complete_task` / `reorder_tasks`, `claim_task` / `release_task`,
 `set_checklist`, `add_dependency`, `search_tasks` / `semantic_search`,
 `add_comment` / `list_my_mentions`, `list_members`, `create_sprint` /
-`sprint_summary`, `get_roadmaps` / `assign_project_to_phase`,
-`create_scheduled_task`, `register_webhook`, `list_events`, `list_skills`
-/ `get_skill` / `create_skill`, docs CRUD, and more. Every tool
-description explains when to use it. `get_task` is the deep read: full
-detail plus `listName`, attachments (with download URLs), and the list's
-SOP when one is attached.
+`sprint_summary`, roadmap authoring (`create_roadmap` with explicit
+phases, `add_roadmap_phase` / `update_roadmap_phase` /
+`remove_roadmap_phase`, `get_roadmaps` / `assign_project_to_phase`),
+`create_status` / `create_custom_field`, `create_goal` (with
+`sourceListId` auto-rollup), `create_scheduled_task`, `register_webhook`,
+`list_events`, `list_skills` / `get_skill` / `create_skill`, docs CRUD,
+and more. Every tool description explains when to use it. `get_task` is
+the deep read: full detail plus `listName`, attachments (with download
+URLs), and the list's SOP when one is attached; task reads round-trip
+`estimatePoints`, `milestone`, and `position`.
 
 ## 3. The collaboration protocol
 

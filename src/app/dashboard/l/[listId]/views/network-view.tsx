@@ -333,7 +333,7 @@ export function NetworkView(props: {
 
   return (
     <div className="space-y-3">
-      <div className="panel overflow-auto rounded-2xl p-4">
+      <div className="panel overflow-auto overscroll-x-contain rounded-2xl p-4">
         <div className="mb-3 flex items-center justify-end gap-2">
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="inline-block h-0.5 w-4 rounded-full bg-foreground/70" />

@@ -115,6 +115,8 @@ const DESTRUCTIVE_TOOLS = new Set([
   "delete_webhook",
   "delete_automation",
   "delete_comment",
+  "delete_list",
+  "remove_roadmap_phase",
 ]);
 const IDEMPOTENT_TOOLS = new Set([
   "heartbeat",
@@ -130,6 +132,11 @@ const IDEMPOTENT_TOOLS = new Set([
   "set_sprint_capacity",
   "set_sprint_retrospective",
   "assign_project_to_phase",
+  "rename_list",
+  "update_list_meta",
+  "reorder_lists",
+  "reorder_tasks",
+  "update_roadmap_phase",
   "set_scheduled_task_enabled",
   "update_doc",
   "set_goal_progress",
@@ -225,12 +232,102 @@ const TOOLS: ToolDef[] = [
       c.mutation(asMutation(api.agentApi.createList), { apiKey: k, ...a }),
   },
   {
+    name: "rename_list",
+    description: "Rename a list (project). Fix your own typos — no human needed.",
+    shape: { listId: z.string(), name: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.renameList), { apiKey: k, ...a }),
+  },
+  {
+    name: "update_list_meta",
+    description:
+      "Set a project's intent: description, health (on_track/at_risk/off_track/paused), target date, notes, or attached SOP slug. null clears a field. Shows on the project Overview and in get_tree.",
+    shape: {
+      listId: z.string(),
+      description: z.string().nullable().optional(),
+      projectStatus: z
+        .enum(["on_track", "at_risk", "off_track", "paused"])
+        .nullable()
+        .optional(),
+      notes: z.string().nullable().optional(),
+      targetDate: z.number().nullable().optional().describe("epoch ms"),
+      sopSlug: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("skill slug attached as this project's SOP"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.updateListMeta), { apiKey: k, ...a }),
+  },
+  {
+    name: "delete_list",
+    description:
+      "Delete a list (project) and everything in it: tasks, comments, statuses, fields, automations, schedules. Irreversible — prefer rename_list for fixing mistakes. Goals tracking the list freeze at their current value.",
+    shape: { listId: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.deleteList), { apiKey: k, ...a }),
+  },
+  {
+    name: "reorder_lists",
+    description:
+      "Reorder the lists under one space or folder. Pass the full desired order of list ids.",
+    shape: {
+      parentType: z.enum(["space", "folder"]),
+      parentId: z.string(),
+      orderedIds: z.array(z.string()),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.reorderLists), { apiKey: k, ...a }),
+  },
+  {
     name: "list_statuses",
     description:
       "Workflow statuses of a list (id, name, category). Needed when setting a task's statusId directly.",
     shape: { listId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listStatusesForList), { apiKey: k, ...a }),
+  },
+  {
+    name: "create_status",
+    description:
+      "Add a workflow status to a list (e.g. a 'QA' stage). category drives completion semantics: open, in_progress, complete, or closed.",
+    shape: {
+      listId: z.string(),
+      name: z.string(),
+      category: z.enum(["open", "in_progress", "complete", "closed"]),
+      color: z
+        .string()
+        .optional()
+        .describe("hex; defaults to the category's pastel"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.createStatus), { apiKey: k, ...a }),
+  },
+  {
+    name: "create_custom_field",
+    description:
+      "Add a custom field to a list (text, number, dropdown, date, or checkbox). Dropdowns need options (id + label). Set values with set_task_field.",
+    shape: {
+      listId: z.string(),
+      name: z.string(),
+      type: z.enum(["text", "number", "dropdown", "date", "checkbox"]),
+      options: z
+        .array(
+          z.object({
+            id: z.string().describe("stable option id (any short string)"),
+            label: z.string(),
+            color: z.string().optional(),
+          }),
+        )
+        .optional()
+        .describe("dropdown only"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.createCustomField), {
+        apiKey: k,
+        ...a,
+      }),
   },
 
   // ── Tasks ────────────────────────────────────────────────────────
@@ -293,6 +390,67 @@ const TOOLS: ToolDef[] = [
         startDate: ms(a.startDate) ?? undefined,
         dueDate: ms(a.dueDate) ?? undefined,
       }),
+  },
+  {
+    name: "create_tasks",
+    description:
+      "Create up to 50 tasks in ONE call — a whole plan-slice with inline subtasks and dependencies, instead of N create_task round-trips. Give specs a `ref` (any short handle); later specs nest under one with parentRef, and any spec can block on others with dependsOn (refs from this batch or existing task ids). Counts as one action against your budget.",
+    shape: {
+      listId: z.string(),
+      tasks: z
+        .array(
+          z.object({
+            ref: z
+              .string()
+              .optional()
+              .describe("handle other specs reference; unique in the batch"),
+            title: z.string(),
+            description: z.string().optional(),
+            statusId: z.string().optional(),
+            priority: priorityArg.optional(),
+            startDate: dateArg.optional(),
+            dueDate: dateArg.optional(),
+            assigneeIds: z.array(z.string()).optional(),
+            parentRef: z
+              .string()
+              .optional()
+              .describe("ref of an EARLIER spec — makes this its subtask"),
+            parentTaskId: z
+              .string()
+              .optional()
+              .describe("existing task id to nest under"),
+            dependsOn: z
+              .array(z.string())
+              .optional()
+              .describe("refs from this batch or existing task ids"),
+            sprintId: z.string().optional(),
+            checklist: checklistArg.optional(),
+            requiresApproval: z.boolean().optional(),
+            estimatePoints: z.number().optional(),
+            milestone: z.boolean().optional(),
+          }),
+        )
+        .max(50),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.createTasks), {
+        apiKey: k,
+        listId: a.listId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- validated by zod above
+        tasks: a.tasks.map((t: any) => ({
+          ...t,
+          startDate: ms(t.startDate) ?? undefined,
+          dueDate: ms(t.dueDate) ?? undefined,
+        })),
+      }),
+  },
+  {
+    name: "reorder_tasks",
+    description:
+      "Set the manual order of a list's top-level tasks ('do these in this order' without abusing dependencies). Pass the full desired order of task ids; position round-trips through list_tasks/get_task.",
+    shape: { listId: z.string(), orderedIds: z.array(z.string()) },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.reorderTasks), { apiKey: k, ...a }),
   },
   {
     name: "update_task",
@@ -573,6 +731,67 @@ const TOOLS: ToolDef[] = [
       "The workspace's roadmaps: ordered phases (Now/Next/Later style) with the projects in each and their done/total. Workspace-scoped agents only.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.getRoadmaps), { apiKey: k }),
+  },
+  {
+    name: "create_roadmap",
+    description:
+      "Create a roadmap in my workspace. Pass explicit phases (e.g. milestones M1..M4 with targetDate) to lay out the timeline in one call — omit phases to get the Now/Next/Later defaults.",
+    shape: {
+      name: z.string(),
+      description: z.string().optional(),
+      phases: z
+        .array(
+          z.object({
+            name: z.string(),
+            targetDate: z
+              .number()
+              .optional()
+              .describe("epoch ms the phase should land by"),
+          }),
+        )
+        .optional()
+        .describe("explicit ordered phases; skips the Now/Next/Later defaults"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.createRoadmap), { apiKey: k, ...a }),
+  },
+  {
+    name: "add_roadmap_phase",
+    description: "Append a phase (with optional targetDate) to a roadmap.",
+    shape: {
+      roadmapId: z.string(),
+      name: z.string(),
+      targetDate: z.number().optional().describe("epoch ms"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.addRoadmapPhase), { apiKey: k, ...a }),
+  },
+  {
+    name: "update_roadmap_phase",
+    description:
+      "Rename a roadmap phase or change its target date (null clears the date).",
+    shape: {
+      roadmapId: z.string(),
+      phaseId: z.string().describe("phase id from get_roadmaps"),
+      name: z.string().optional(),
+      targetDate: z.number().nullable().optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.updateRoadmapPhase), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "remove_roadmap_phase",
+    description:
+      "Remove a phase from a roadmap. Projects in that phase fall back to Unassigned — nothing is deleted.",
+    shape: { roadmapId: z.string(), phaseId: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.removeRoadmapPhase), {
+        apiKey: k,
+        ...a,
+      }),
   },
   {
     name: "assign_project_to_phase",
@@ -899,7 +1118,8 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "create_goal",
-    description: "Create a goal (number / money / boolean target).",
+    description:
+      "Create a goal (number / money / boolean target). Pass sourceListId to link a number goal to a project for auto-rollup: progress then derives live from that list's completed tasks (no manual set_goal_progress).",
     shape: {
       title: z.string(),
       description: z.string().optional(),
@@ -907,6 +1127,10 @@ const TOOLS: ToolDef[] = [
       targetValue: z.number(),
       unit: z.string().optional().describe("e.g. USD"),
       dueDate: dateArg.optional(),
+      sourceListId: z
+        .string()
+        .optional()
+        .describe("list to auto-track (number goals only)"),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.createGoal), {
@@ -1254,7 +1478,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "operate-agents", version: "1.0.0" },
     instructions:
-      "You are an agent teammate in operate.to. First: call whoami, then fetch the 'collaboration-protocol' skill with get_skill and follow it. Find work with next_task, claim_task before working, heartbeat while working, complete_task when done. All ids are opaque strings returned by other tools; dates accept ISO 8601 or epoch ms.",
+      "You are an agent teammate in operate.to. First: call whoami, then fetch the 'collaboration-protocol' skill with get_skill and follow it. Find work with next_task, claim_task before working, heartbeat while working, complete_task when done. Planning a project from a brief? Use create_roadmap (explicit phases with target dates), create_tasks for bulk task+subtask+dependency creation, and create_goal with sourceListId for auto-tracking progress. All ids are opaque strings returned by other tools; dates accept ISO 8601 or epoch ms.",
   },
   {
     basePath: "/api",

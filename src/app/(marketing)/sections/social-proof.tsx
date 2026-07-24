@@ -194,7 +194,7 @@ export function SocialProof() {
             </p>
             <div
               ref={dockWrapRef}
-              className="mt-4 flex w-full justify-center overflow-x-auto"
+              className="mt-4 flex w-full justify-center overflow-x-auto overscroll-x-contain"
             >
               <IconDock items={RUNTIMES} className="shrink-0" />
             </div>

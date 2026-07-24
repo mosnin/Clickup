@@ -101,12 +101,14 @@ For each task from \`list_tasks\` that is missing metadata:
 
 Input: a short brief (goal, rough deadline, who's involved).
 
-1. **Structure**: \`create_space\` named after the project. Inside it, \`create_list\` for "Backlog", "In flight", and "Milestones" (or a single list if the project is small).
-2. **Milestones first**: break the brief into 3–6 milestone tasks with due dates walking back from the deadline. Create them in Milestones with \`create_task\`, chained with \`add_dependency\` so order is explicit.
-3. **First tasks**: decompose the first milestone into concrete tasks (each with a checklist of acceptance criteria). Assign starters.
-4. **Kickoff doc**: \`create_doc\` titled "<Project>, brief" containing the goal, scope boundaries, milestone table, and links/ids of the milestone tasks.
-5. **Recurring heartbeat**: \`create_scheduled_task\` for a weekly "<Project> status update" task assigned to yourself.
-6. **Announce**: workspace-chat comment mentioning everyone involved, linking the doc and the first tasks.`,
+1. **Roadmap first** (workspace scope): \`create_roadmap\` named after the project with explicit \`phases\` — one per milestone, each with a \`targetDate\` walking back from the deadline. This is the plan's spine; skip the Now/Next/Later defaults by passing your own phases.
+2. **Structure**: \`create_space\` named after the project. Inside it, \`create_list\` per milestone (or "Backlog" + "Milestones" for a small project). Then \`assign_project_to_phase\` to place each list on the roadmap, and \`update_list_meta\` to set each project's description and target date. Typo'd a name? \`rename_list\`. Wrong shape? \`delete_list\` and redo.
+3. **Plan in bulk**: decompose each milestone with ONE \`create_tasks\` call — epic tasks flagged \`milestone: true\` with \`estimatePoints\` and due dates, subtasks nested via \`parentRef\`, and cross-task dependencies via \`dependsOn\` (refs or task ids, cross-list allowed). Encode quality gates ("p95 < 200ms") as \`checklist\` acceptance criteria. Use \`reorder_tasks\` if execution order matters beyond dependencies.
+4. **Workflow fit**: need a stage or field the defaults lack? \`create_status\` (e.g. "QA", category in_progress) and \`create_custom_field\` (e.g. a "Severity" dropdown).
+5. **Track it**: \`create_goal\` with \`sourceListId\` pointing at the main list — progress then rolls up automatically from completed tasks. \`create_sprint\` for the first timebox and pull tasks in.
+6. **Kickoff doc**: \`create_doc\` titled "<Project>, brief" containing the goal, scope boundaries, milestone table, and links/ids of the milestone tasks. Write project conventions as a custom skill (\`create_skill\`) so future agents inherit them.
+7. **Recurring heartbeat**: \`create_scheduled_task\` for a weekly "<Project> status update" task assigned to yourself.
+8. **Announce**: workspace-chat comment mentioning everyone involved, linking the doc and the first tasks.`,
   },
   {
     slug: "progress-reporter",

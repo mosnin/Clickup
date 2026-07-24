@@ -101,7 +101,7 @@ export function AdminConsole() {
             instead of a pill-style toggle. */}
         <nav
           aria-label="Admin sections"
-          className="flex items-center gap-1 overflow-x-auto pb-3 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex items-center gap-1 overflow-x-auto overscroll-x-contain pb-3 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {TABS.map(({ key, label, icon: Icon }) => (
             <button

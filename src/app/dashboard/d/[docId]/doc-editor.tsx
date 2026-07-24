@@ -105,7 +105,9 @@ export function DocEditor({ docId }: { docId: string }) {
     editorProps: {
       attributes: {
         class:
-          "prose prose-sm sm:prose max-w-none min-h-[60vh] focus:outline-none",
+          // break-words: a pasted URL or long unbroken token must wrap
+          // instead of widening the doc past the mobile viewport.
+          "prose prose-sm sm:prose max-w-none min-h-[60vh] break-words focus:outline-none",
       },
     },
     immediatelyRender: false,

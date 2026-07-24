@@ -1249,6 +1249,24 @@ export const reorder = mutation({
   },
   handler: async (ctx, { listId, orderedIds, statusId }) => {
     const { identity } = await requireListAccess(ctx, listId);
+    const actor = await userActor(ctx, identity.subject);
+    await reorderTasksCore(ctx, { listId, orderedIds, statusId }, actor);
+  },
+});
+
+export async function reorderTasksCore(
+  ctx: MutationCtx,
+  {
+    listId,
+    orderedIds,
+    statusId,
+  }: {
+    listId: Id<"lists">;
+    orderedIds: Id<"tasks">[];
+    statusId?: Id<"listStatuses">;
+  },
+  actor: Actor,
+): Promise<void> {
     let newStatus: Doc<"listStatuses"> | null = null;
     if (statusId) {
       newStatus = await ctx.db.get(statusId);
@@ -1256,7 +1274,6 @@ export const reorder = mutation({
         throw new ConvexError("statusId must belong to the same list");
       }
     }
-    const actor = await userActor(ctx, identity.subject);
 
     // Resolve the bucket's tasks, dropping ids that no longer exist or
     // don't belong to this list.
@@ -1349,8 +1366,7 @@ export const reorder = mutation({
         await ctx.db.patch(newGlobal[i], { position: i });
       }
     }
-  },
-});
+}
 
 export const remove = mutation({
   args: { taskId: v.id("tasks") },

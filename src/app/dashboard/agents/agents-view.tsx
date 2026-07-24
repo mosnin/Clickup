@@ -130,7 +130,7 @@ export function AgentsView() {
       >
         <nav
           aria-label="Agents tabs"
-          className="-mx-4 flex items-center gap-1 overflow-x-auto px-4 pb-2 text-sm sm:-mx-6 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="-mx-4 flex items-center gap-1 overflow-x-auto overscroll-x-contain px-4 pb-2 text-sm sm:-mx-6 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {TABS.map(({ key, label, icon: Icon }) => (
             <button

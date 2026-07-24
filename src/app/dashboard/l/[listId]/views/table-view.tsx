@@ -116,7 +116,7 @@ export function TableView({
   return (
     <Card className="gap-0 overflow-hidden rounded-2xl py-0">
       <CardContent className="px-0 py-0">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overscroll-x-contain">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow className="hover:bg-transparent">

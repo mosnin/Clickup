@@ -1,8 +1,10 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { canAccessSpace, requireIdentity } from "./_authz";
+import type { Actor } from "./_agentAuth";
+import { emitEvent, userActor } from "./events";
 import { getRollup } from "./rollups";
 
 // Roadmaps (Phase K): workspace-level phased containers that projects
@@ -18,6 +20,156 @@ const DEFAULT_PHASES = ["Now", "Next", "Later"];
 function phaseId(): string {
   // Mutations have no CSPRNG; collision space here is per-roadmap and tiny.
   return `ph_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// ── Cores (shared by the human mutations below and agentApi) ────────────
+// Same actor pattern as tasks/messages: both entry points call these so
+// events and validation behave identically no matter who acted.
+
+export async function createRoadmapCore(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+  args: {
+    name: string;
+    description?: string;
+    // Explicit phases at create time skip the Now/Next/Later defaults —
+    // a planner laying out M1..M4 shouldn't inherit placeholder phases it
+    // then has to delete.
+    phases?: { name: string; targetDate?: number }[];
+  },
+  actor: Actor,
+): Promise<Id<"roadmaps">> {
+  const name = args.name.trim();
+  if (!name) throw new ConvexError("Roadmap name is required");
+  const explicit = (args.phases ?? [])
+    .map((p) => ({ name: p.name.trim(), targetDate: p.targetDate }))
+    .filter((p) => p.name);
+  const siblings = await ctx.db
+    .query("roadmaps")
+    .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+    .collect();
+  const roadmapId = await ctx.db.insert("roadmaps", {
+    workspaceId,
+    name,
+    description: args.description?.trim() || undefined,
+    phases:
+      explicit.length > 0
+        ? explicit.map((p) => ({ id: phaseId(), ...p }))
+        : DEFAULT_PHASES.map((n) => ({ id: phaseId(), name: n })),
+    position: siblings.length,
+    createdAt: Date.now(),
+  });
+  await emitEvent(ctx, {
+    scopeType: "workspace",
+    scopeId: workspaceId,
+    type: "roadmap.created",
+    actor,
+    entityType: "roadmap",
+    entityId: roadmapId,
+    entityTitle: name,
+    payload: { phases: explicit.length || DEFAULT_PHASES.length },
+  });
+  return roadmapId;
+}
+
+export async function addPhaseCore(
+  ctx: MutationCtx,
+  roadmap: Doc<"roadmaps">,
+  args: { name: string; targetDate?: number },
+  actor: Actor,
+): Promise<string> {
+  const name = args.name.trim();
+  if (!name) throw new ConvexError("Phase name is required");
+  const id = phaseId();
+  await ctx.db.patch(roadmap._id, {
+    phases: [...roadmap.phases, { id, name, targetDate: args.targetDate }],
+  });
+  await emitEvent(ctx, {
+    scopeType: "workspace",
+    scopeId: roadmap.workspaceId,
+    type: "roadmap.phase_added",
+    actor,
+    entityType: "roadmap",
+    entityId: roadmap._id,
+    entityTitle: roadmap.name,
+    payload: { phaseName: name },
+  });
+  return id;
+}
+
+export async function updatePhaseCore(
+  ctx: MutationCtx,
+  roadmap: Doc<"roadmaps">,
+  args: { phaseId: string; name?: string; targetDate?: number | null },
+  actor: Actor,
+): Promise<void> {
+  if (!roadmap.phases.some((p) => p.id === args.phaseId)) {
+    throw new ConvexError("Phase not found");
+  }
+  let phaseName = "";
+  const phases = roadmap.phases.map((p) => {
+    if (p.id !== args.phaseId) return p;
+    const name = args.name !== undefined ? args.name.trim() : p.name;
+    if (!name) throw new ConvexError("Phase name is required");
+    phaseName = name;
+    return {
+      ...p,
+      name,
+      targetDate:
+        args.targetDate === undefined
+          ? p.targetDate
+          : (args.targetDate ?? undefined),
+    };
+  });
+  await ctx.db.patch(roadmap._id, { phases });
+  await emitEvent(ctx, {
+    scopeType: "workspace",
+    scopeId: roadmap.workspaceId,
+    type: "roadmap.phase_updated",
+    actor,
+    entityType: "roadmap",
+    entityId: roadmap._id,
+    entityTitle: roadmap.name,
+    payload: { phaseName },
+  });
+}
+
+export async function removePhaseCore(
+  ctx: MutationCtx,
+  roadmap: Doc<"roadmaps">,
+  phaseIdToRemove: string,
+  actor: Actor,
+): Promise<void> {
+  const phase = roadmap.phases.find((p) => p.id === phaseIdToRemove);
+  if (!phase) return;
+  // Projects in the removed phase fall out of the roadmap (never lost —
+  // they stay ordinary projects and show under "Unassigned").
+  const assigned = await ctx.db
+    .query("lists")
+    .withIndex("by_roadmap", (q) => q.eq("roadmapId", roadmap._id))
+    .collect();
+  for (const list of assigned) {
+    if (list.roadmapPhaseId === phaseIdToRemove) {
+      await ctx.db.patch(list._id, {
+        roadmapId: undefined,
+        roadmapPhaseId: undefined,
+        roadmapPosition: undefined,
+      });
+    }
+  }
+  await ctx.db.patch(roadmap._id, {
+    phases: roadmap.phases.filter((p) => p.id !== phaseIdToRemove),
+  });
+  await emitEvent(ctx, {
+    scopeType: "workspace",
+    scopeId: roadmap.workspaceId,
+    type: "roadmap.phase_removed",
+    actor,
+    entityType: "roadmap",
+    entityId: roadmap._id,
+    entityTitle: roadmap.name,
+    payload: { phaseName: phase.name },
+  });
 }
 
 async function requireWorkspaceMember(
@@ -133,21 +285,14 @@ export const create = mutation({
     description: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireWorkspaceMember(ctx, args.workspaceId);
-    const name = args.name.trim();
-    if (!name) throw new ConvexError("Roadmap name is required");
-    const siblings = await ctx.db
-      .query("roadmaps")
-      .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
-      .collect();
-    return await ctx.db.insert("roadmaps", {
-      workspaceId: args.workspaceId,
-      name,
-      description: args.description?.trim() || undefined,
-      phases: DEFAULT_PHASES.map((n) => ({ id: phaseId(), name: n })),
-      position: siblings.length,
-      createdAt: Date.now(),
-    });
+    const { identity } = await requireWorkspaceMember(ctx, args.workspaceId);
+    const actor = await userActor(ctx, identity.subject);
+    return await createRoadmapCore(
+      ctx,
+      args.workspaceId,
+      { name: args.name, description: args.description },
+      actor,
+    );
   },
 });
 
@@ -200,15 +345,14 @@ export const addPhase = mutation({
     targetDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { roadmap } = await requireRoadmap(ctx, args.roadmapId);
-    const name = args.name.trim();
-    if (!name) throw new ConvexError("Phase name is required");
-    await ctx.db.patch(roadmap._id, {
-      phases: [
-        ...roadmap.phases,
-        { id: phaseId(), name, targetDate: args.targetDate },
-      ],
-    });
+    const { roadmap, identity } = await requireRoadmap(ctx, args.roadmapId);
+    const actor = await userActor(ctx, identity.subject);
+    await addPhaseCore(
+      ctx,
+      roadmap,
+      { name: args.name, targetDate: args.targetDate },
+      actor,
+    );
   },
 });
 
@@ -220,47 +364,23 @@ export const updatePhase = mutation({
     targetDate: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
-    const { roadmap } = await requireRoadmap(ctx, args.roadmapId);
-    const phases = roadmap.phases.map((p) => {
-      if (p.id !== args.phaseId) return p;
-      const name = args.name !== undefined ? args.name.trim() : p.name;
-      if (!name) throw new ConvexError("Phase name is required");
-      return {
-        ...p,
-        name,
-        targetDate:
-          args.targetDate === undefined
-            ? p.targetDate
-            : (args.targetDate ?? undefined),
-      };
-    });
-    await ctx.db.patch(roadmap._id, { phases });
+    const { roadmap, identity } = await requireRoadmap(ctx, args.roadmapId);
+    const actor = await userActor(ctx, identity.subject);
+    await updatePhaseCore(
+      ctx,
+      roadmap,
+      { phaseId: args.phaseId, name: args.name, targetDate: args.targetDate },
+      actor,
+    );
   },
 });
 
 export const removePhase = mutation({
   args: { roadmapId: v.id("roadmaps"), phaseId: v.string() },
   handler: async (ctx, args) => {
-    const { roadmap } = await requireRoadmap(ctx, args.roadmapId);
-    if (!roadmap.phases.some((p) => p.id === args.phaseId)) return;
-    // Projects in the removed phase fall out of the roadmap (never lost —
-    // they stay ordinary projects and show under "Unassigned").
-    const assigned = await ctx.db
-      .query("lists")
-      .withIndex("by_roadmap", (q) => q.eq("roadmapId", roadmap._id))
-      .collect();
-    for (const list of assigned) {
-      if (list.roadmapPhaseId === args.phaseId) {
-        await ctx.db.patch(list._id, {
-          roadmapId: undefined,
-          roadmapPhaseId: undefined,
-          roadmapPosition: undefined,
-        });
-      }
-    }
-    await ctx.db.patch(roadmap._id, {
-      phases: roadmap.phases.filter((p) => p.id !== args.phaseId),
-    });
+    const { roadmap, identity } = await requireRoadmap(ctx, args.roadmapId);
+    const actor = await userActor(ctx, identity.subject);
+    await removePhaseCore(ctx, roadmap, args.phaseId, actor);
   },
 });
 

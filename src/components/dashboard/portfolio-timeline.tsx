@@ -135,7 +135,7 @@ export function PortfolioTimeline({
     <div className="space-y-4">
       <SummaryStrip total={rows.length} counts={counts} />
 
-      <Card className="gap-0 overflow-x-auto p-0">
+      <Card className="gap-0 overflow-x-auto overscroll-x-contain p-0">
         <div className="relative" style={{ minWidth: RAIL_PX + layout.totalWidth }}>
           {/* Today line spans header + every row. */}
           <div
