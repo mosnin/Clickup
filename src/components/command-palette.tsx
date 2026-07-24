@@ -24,21 +24,12 @@ import { parseQuickAdd } from "@/lib/quick-add";
 import { setTheme } from "@/components/theme-toggle";
 import { useToast } from "@/components/toast";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
+import { errorMessage } from "@/lib/errors";
 
 // ⌘K command palette: jump to any list/doc/board/workspace/agent, search
 // tasks by title, or create a task without leaving the keyboard. Mounted
 // once in the dashboard layout; other components can open it by
 // dispatching the "open-command-palette" window event.
-
-// Same shape as the helper in space-view.tsx: Convex wraps thrown
-// ConvexError/Error messages in "Uncaught Error: …"; strip that noise so
-// the toast shows the server's actual reason.
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
 
 type Item = {
   key: string;

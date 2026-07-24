@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import {
@@ -84,7 +84,7 @@ export const create = mutation({
 
     if (args.parentType === "user") {
       if (args.parentId !== identity.subject) {
-        throw new Error("Cannot create a personal space for another user");
+        throw new ConvexError("Cannot create a personal space for another user");
       }
     } else {
       const membership = await ctx.db
@@ -95,7 +95,7 @@ export const create = mutation({
             .eq("workspaceId", args.parentId as Id<"workspaces">),
         )
         .unique();
-      if (!membership) throw new Error("Not a member of this workspace");
+      if (!membership) throw new ConvexError("Not a member of this workspace");
     }
 
     const siblings = await ctx.db
@@ -156,7 +156,7 @@ export const updateMeta = mutation({
   handler: async (ctx, args) => {
     const { space, identity } = await requireSpaceAccess(ctx, args.spaceId);
     if (space.parentType === "user" && args.private !== undefined) {
-      throw new Error("Personal spaces are always private");
+      throw new ConvexError("Personal spaces are always private");
     }
     // Only the creator or the workspace owner may change privacy, so a
     // member can't lock teammates out of a shared space.
@@ -170,7 +170,7 @@ export const updateMeta = mutation({
         ws?.ownerClerkId === identity.subject ||
         space.createdByClerkId === undefined; // legacy spaces: any member
       if (!mayGovern) {
-        throw new Error("Only the space creator or workspace owner can change privacy");
+        throw new ConvexError("Only the space creator or workspace owner can change privacy");
       }
     }
 

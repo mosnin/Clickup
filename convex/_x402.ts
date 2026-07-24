@@ -9,13 +9,22 @@
 // metered actions consume credits. Money never floats: amounts are atomic
 // asset units (strings/BigInt) and credits are integers.
 
+import { ConvexError } from "convex/values";
+
 export const X402_VERSION = 1;
 export const PAYMENT_REQUIRED_PREFIX = "X402_PAYMENT_REQUIRED:";
 
-// Marker every metered-action shortfall throws. The MCP layer and the /api/
-// x402 route recognize the prefix and surface the embedded requirements.
-export function paymentRequiredError(payload: unknown): Error {
-  return new Error(`${PAYMENT_REQUIRED_PREFIX} ${JSON.stringify(payload)}`);
+// Marker every metered-action shortfall throws. A ConvexError so the
+// structured challenge SURVIVES production (plain Errors are redacted to
+// "Server Error" on the wire); `data` carries both a machine-readable code
+// + challenge and the legacy prefix-string for older parsers.
+export function paymentRequiredError(payload: unknown): ConvexError<string> {
+  // Stringified data keeps the Value constraint trivially satisfied and the
+  // MCP layer surfaces string data verbatim — agents parse the prefix, then
+  // the embedded JSON challenge.
+  return new ConvexError(
+    `${PAYMENT_REQUIRED_PREFIX} ${JSON.stringify(payload)}`,
+  );
 }
 
 export type X402Config = {

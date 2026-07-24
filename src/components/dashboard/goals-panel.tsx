@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Picker } from "@/components/ui/picker";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 
 type ParentType = "user" | "workspace";
 type TargetType = Doc<"goals">["targetType"];
@@ -43,13 +44,6 @@ const STATUS_LABEL: Record<GoalStatus, string> = {
 // people/agents/tasks/sprints, so Picker doesn't apply per the house style).
 const SELECT_CLASS =
   "h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
-
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
 
 export function GoalsPanel({
   parentType,

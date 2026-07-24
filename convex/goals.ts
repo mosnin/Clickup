@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -11,7 +11,7 @@ import { scopeForList } from "./events";
 // N tasks in project X" moves itself. Manual setProgress is refused for
 // linked goals; status is derived the same way so the chip can never
 // contradict the number. Abandoned always wins.
-async function withDerivedProgress(
+export async function withDerivedProgress(
   ctx: QueryCtx | MutationCtx,
   goal: Doc<"goals">,
 ): Promise<Doc<"goals"> & { linked: boolean }> {
@@ -79,7 +79,7 @@ async function checkParentAccess(
 ): Promise<{ subject: string }> {
   const identity = await requireIdentity(ctx);
   if (parentType === "user") {
-    if (parentId !== identity.subject) throw new Error("Forbidden");
+    if (parentId !== identity.subject) throw new ConvexError("Forbidden");
   } else {
     const membership = await ctx.db
       .query("memberships")
@@ -89,7 +89,7 @@ async function checkParentAccess(
           .eq("workspaceId", parentId as Id<"workspaces">),
       )
       .unique();
-    if (!membership) throw new Error("Forbidden");
+    if (!membership) throw new ConvexError("Forbidden");
   }
   return identity;
 }
@@ -153,13 +153,13 @@ export const create = mutation({
     );
     if (args.sourceListId) {
       if (args.targetType !== "number") {
-        throw new Error("Only number goals can track a project");
+        throw new ConvexError("Only number goals can track a project");
       }
       const { list, space } = await requireListAccess(ctx, args.sourceListId);
       if (space.private) {
         // Goals are a shared surface — tracking a private-space project
         // would leak its live completion count to everyone in the scope.
-        throw new Error("Projects in private spaces can't be tracked by a goal");
+        throw new ConvexError("Projects in private spaces can't be tracked by a goal");
       }
       const scope = await scopeForList(ctx, list);
       if (
@@ -167,7 +167,7 @@ export const create = mutation({
         scope.scopeType !== args.parentType ||
         scope.scopeId !== args.parentId
       ) {
-        throw new Error("Linked project must live in the goal's scope");
+        throw new ConvexError("Linked project must live in the goal's scope");
       }
     }
     if (args.targetType === "boolean" && args.targetValue !== 1) {
@@ -205,7 +205,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const goal = await ctx.db.get(args.goalId);
-    if (!goal) throw new Error("Goal not found");
+    if (!goal) throw new ConvexError("Goal not found");
     await checkParentAccess(ctx, goal.parentType, goal.parentId);
 
     const patch: Record<string, unknown> = {};
@@ -217,11 +217,11 @@ export const update = mutation({
         patch.currentValue = derived.currentValue;
       } else {
         if (goal.targetType !== "number") {
-          throw new Error("Only number goals can track a project");
+          throw new ConvexError("Only number goals can track a project");
         }
         const { list, space } = await requireListAccess(ctx, args.sourceListId);
         if (space.private) {
-          throw new Error(
+          throw new ConvexError(
             "Projects in private spaces can't be tracked by a goal",
           );
         }
@@ -231,7 +231,7 @@ export const update = mutation({
           scope.scopeType !== goal.parentType ||
           scope.scopeId !== goal.parentId
         ) {
-          throw new Error("Linked project must live in the goal's scope");
+          throw new ConvexError("Linked project must live in the goal's scope");
         }
         patch.sourceListId = args.sourceListId;
       }
@@ -253,10 +253,10 @@ export const setProgress = mutation({
   args: { goalId: v.id("goals"), currentValue: v.number() },
   handler: async (ctx, { goalId, currentValue }) => {
     const goal = await ctx.db.get(goalId);
-    if (!goal) throw new Error("Goal not found");
+    if (!goal) throw new ConvexError("Goal not found");
     await checkParentAccess(ctx, goal.parentType, goal.parentId);
     if (goal.sourceListId) {
-      throw new Error(
+      throw new ConvexError(
         "This goal tracks a project automatically — unlink it to log progress by hand",
       );
     }

@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { requireIdentity, requireTaskAccess } from "./_authz";
@@ -83,7 +83,7 @@ export const remove = mutation({
     const clip = await ctx.db.get(clipId);
     if (!clip) return;
     if (clip.authorClerkId !== identity.subject) {
-      throw new Error("Only the author can delete this clip");
+      throw new ConvexError("Only the author can delete this clip");
     }
     await ctx.storage.delete(clip.storageId as Id<"_storage">);
     await ctx.db.delete(clipId);

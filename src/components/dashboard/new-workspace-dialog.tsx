@@ -9,16 +9,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
 import { useToast } from "@/components/toast";
-
-// Same shape as the helper in space-view.tsx: Convex wraps thrown
-// ConvexError/Error messages in "Uncaught Error: …"; strip that noise so
-// the toast shows the server's actual reason.
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
+import { errorMessage } from "@/lib/errors";
 
 // Creating a second workspace is one field, not a ceremony. (First-run
 // onboarding stays reserved for first-run.) Portaled to <body> because

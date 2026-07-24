@@ -27,6 +27,7 @@ import {
 import { Monogram } from "@/components/dashboard/monogram";
 import { useToast } from "@/components/toast";
 import { ImportDialog } from "@/components/dashboard/import-dialog";
+import { errorMessage } from "@/lib/errors";
 
 // Native-<select> chrome for the invite-role picker — matches Input/Button
 // grammar; Picker is reserved for people/agents/tasks/sprints per house
@@ -118,14 +119,6 @@ function MembersSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
       next.delete(memberId);
       return next;
     });
-  }
-
-  function errorMessage(err: unknown, fallback: string): string {
-    if (!(err instanceof Error)) return fallback;
-    return (
-      err.message.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() ||
-      fallback
-    );
   }
 
   async function onChangeRole(

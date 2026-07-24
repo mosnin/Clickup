@@ -11,13 +11,7 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
-
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
+import { errorMessage } from "@/lib/errors";
 
 // Breaking a task down into smaller steps. Subtasks are ordinary tasks on
 // the same list (tasks.parentTaskId), so they get their own task page,

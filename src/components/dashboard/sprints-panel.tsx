@@ -23,6 +23,7 @@ import {
   Stagger,
   StaggerItem,
 } from "@/components/motion";
+import { errorMessage } from "@/lib/errors";
 
 // Sprints tab on the workspace page: create timeboxes, watch progress,
 // and drill into the per-task rollup. Tasks join a sprint from the task
@@ -39,13 +40,6 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
 
 const DETAIL_TABS = [
   { key: "overview", label: "Overview" },

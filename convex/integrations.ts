@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireIdentity } from "./_authz";
 
@@ -15,9 +15,9 @@ async function requireWorkspaceAdmin(
       q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
     )
     .unique();
-  if (!m) throw new Error("Forbidden");
+  if (!m) throw new ConvexError("Forbidden");
   if (m.role !== "owner" && m.role !== "admin") {
-    throw new Error("Only workspace owners or admins can manage integrations");
+    throw new ConvexError("Only workspace owners or admins can manage integrations");
   }
   return identity;
 }
@@ -50,7 +50,7 @@ export const upsertSlack = mutation({
   handler: async (ctx, args) => {
     const identity = await requireWorkspaceAdmin(ctx, args.workspaceId);
     if (!/^https:\/\/hooks\.slack\.com\//.test(args.webhookUrl)) {
-      throw new Error(
+      throw new ConvexError(
         "Slack webhook URLs must start with https://hooks.slack.com/",
       );
     }
@@ -82,7 +82,7 @@ export const setEnabled = mutation({
   args: { integrationId: v.id("integrations"), enabled: v.boolean() },
   handler: async (ctx, { integrationId, enabled }) => {
     const integration = await ctx.db.get(integrationId);
-    if (!integration) throw new Error("Integration not found");
+    if (!integration) throw new ConvexError("Integration not found");
     await requireWorkspaceAdmin(ctx, integration.workspaceId);
     await ctx.db.patch(integrationId, { enabled });
   },

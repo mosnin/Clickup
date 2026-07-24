@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import {
   internalMutation,
   internalQuery,
@@ -29,7 +29,7 @@ async function requireScopeAccess(
 ): Promise<{ subject: string }> {
   const identity = await requireIdentity(ctx);
   if (parentType === "user") {
-    if (parentId !== identity.subject) throw new Error("Forbidden");
+    if (parentId !== identity.subject) throw new ConvexError("Forbidden");
     return identity;
   }
   const membership = await ctx.db
@@ -40,7 +40,7 @@ async function requireScopeAccess(
         .eq("workspaceId", parentId as Id<"workspaces">),
     )
     .unique();
-  if (!membership) throw new Error("Forbidden");
+  if (!membership) throw new ConvexError("Forbidden");
   return identity;
 }
 
@@ -49,7 +49,7 @@ async function requireAgentManageAccess(
   agentId: Id<"agents">,
 ): Promise<{ agent: Doc<"agents">; subject: string }> {
   const agent = await ctx.db.get(agentId);
-  if (!agent) throw new Error("Agent not found");
+  if (!agent) throw new ConvexError("Agent not found");
   const identity = await requireScopeAccess(
     ctx,
     agent.parentType,
@@ -507,7 +507,7 @@ export const create = mutation({
       args.parentType,
       args.parentId,
     );
-    if (!args.name.trim()) throw new Error("Agent name is required");
+    if (!args.name.trim()) throw new ConvexError("Agent name is required");
     return await ctx.db.insert("agents", {
       name: args.name.trim(),
       description: args.description,
@@ -557,7 +557,7 @@ export const update = mutation({
     }
     if (args.dailyActionLimit !== undefined) {
       if (args.dailyActionLimit !== null && args.dailyActionLimit < 1) {
-        throw new Error("dailyActionLimit must be positive");
+        throw new ConvexError("dailyActionLimit must be positive");
       }
       patch.dailyActionLimit = args.dailyActionLimit ?? undefined;
     }

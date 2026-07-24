@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import {
@@ -224,7 +224,7 @@ export const setRouting = mutation({
       return;
     }
     if (args.routing.assigneeIds.length === 0) {
-      throw new Error("Pick at least one assignee to route to");
+      throw new ConvexError("Pick at least one assignee to route to");
     }
     // Every roster entry must be a real principal in this list's scope —
     // routing fires automatically on every future task, so a bad entry
@@ -240,12 +240,12 @@ export const setRouting = mutation({
           agent.parentType !== scopeType ||
           agent.parentId !== scopeId
         ) {
-          throw new Error("Agent isn't part of this space");
+          throw new ConvexError("Agent isn't part of this space");
         }
         continue;
       }
       if (scopeType === "user") {
-        if (id !== scopeId) throw new Error("Unknown assignee");
+        if (id !== scopeId) throw new ConvexError("Unknown assignee");
       } else {
         const membership = await ctx.db
           .query("memberships")
@@ -256,7 +256,7 @@ export const setRouting = mutation({
           )
           .unique();
         if (!membership) {
-          throw new Error("Assignees must be members of this workspace");
+          throw new ConvexError("Assignees must be members of this workspace");
         }
       }
     }

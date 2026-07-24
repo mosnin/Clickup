@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { getSpaceForList } from "./_authz";
@@ -127,11 +128,11 @@ export async function requireAgentByKey(
     .withIndex("by_hash", (q) => q.eq("keyHash", keyHash))
     .unique();
   if (!key || key.revokedAt !== undefined) {
-    throw new Error("Invalid API key");
+    throw new ConvexError("Invalid API key");
   }
   const agent = await ctx.db.get(key.agentId);
-  if (!agent) throw new Error("Invalid API key");
-  if (agent.status !== "active") throw new Error("Agent is paused");
+  if (!agent) throw new ConvexError("Invalid API key");
+  if (agent.status !== "active") throw new ConvexError("Agent is paused");
 
   if (mode !== "read" && "patch" in ctx.db) {
     const db = (ctx as MutationCtx).db;
@@ -144,7 +145,7 @@ export async function requireAgentByKey(
     }
     if (mode === "write") {
       if ((agent.role ?? "member") === "readonly") {
-        throw new Error("This agent is read-only");
+        throw new ConvexError("This agent is read-only");
       }
 
       // x402 metered credits. When platform metering is enabled, each write
@@ -212,14 +213,14 @@ export async function requireAgentByKey(
       const limit = agent.dailyActionLimit ?? DEFAULT_DAILY_ACTION_LIMIT;
       const count = usage?.count ?? 0;
       if (count >= limit) {
-        throw new Error(
+        throw new ConvexError(
           `Daily action budget exhausted (${limit}/day). Ask a human to raise this agent's limit.`,
         );
       }
       const minuteCount =
         usage?.minute === minute ? (usage.minuteCount ?? 0) : 0;
       if (minuteCount >= BURST_LIMIT_PER_MINUTE) {
-        throw new Error(
+        throw new ConvexError(
           `Rate limited (${BURST_LIMIT_PER_MINUTE} actions/minute). Slow down and retry shortly.`,
         );
       }
@@ -248,7 +249,7 @@ export async function requireAgentByKey(
 // world is exactly their allowed lists.
 export function requireUnrestricted(agent: Doc<"agents">): void {
   if (agent.allowedListIds !== undefined) {
-    throw new Error("This agent is restricted to specific lists");
+    throw new ConvexError("This agent is restricted to specific lists");
   }
 }
 
@@ -282,8 +283,12 @@ export async function requireSpaceAccessForAgent(
   agent: Doc<"agents">,
 ): Promise<{ space: Doc<"spaces"> }> {
   const space = await ctx.db.get(spaceId);
-  if (!space) throw new Error("Space not found");
-  if (!canAgentAccessSpace(space, agent)) throw new Error("Forbidden");
+  if (!space) throw new ConvexError("Space not found");
+  if (!canAgentAccessSpace(space, agent)) {
+    throw new ConvexError(
+      "You can't access this space — it's outside your agent's scope. Call whoami to see your scope, get_tree for what's visible.",
+    );
+  }
   return { space };
 }
 
@@ -293,10 +298,14 @@ export async function requireFolderAccessForAgent(
   agent: Doc<"agents">,
 ): Promise<{ folder: Doc<"folders">; space: Doc<"spaces"> }> {
   const folder = await ctx.db.get(folderId);
-  if (!folder) throw new Error("Folder not found");
+  if (!folder) throw new ConvexError("Folder not found");
   const space = await ctx.db.get(folder.spaceId);
-  if (!space) throw new Error("Orphan folder");
-  if (!canAgentAccessSpace(space, agent)) throw new Error("Forbidden");
+  if (!space) throw new ConvexError("Orphan folder");
+  if (!canAgentAccessSpace(space, agent)) {
+    throw new ConvexError(
+      "You can't access this folder — it's outside your agent's scope. Call whoami to see your scope, get_tree for what's visible.",
+    );
+  }
   return { folder, space };
 }
 
@@ -306,12 +315,18 @@ export async function requireListAccessForAgent(
   agent: Doc<"agents">,
 ): Promise<{ list: Doc<"lists">; space: Doc<"spaces"> }> {
   const list = await ctx.db.get(listId);
-  if (!list) throw new Error("List not found");
+  if (!list) throw new ConvexError("List not found");
   const space = await getSpaceForList(ctx, list);
-  if (!space) throw new Error("Orphan list");
-  if (!canAgentAccessSpace(space, agent)) throw new Error("Forbidden");
+  if (!space) throw new ConvexError("Orphan list");
+  if (!canAgentAccessSpace(space, agent)) {
+    throw new ConvexError(
+      "You can't access this list — it may be outside your scope or excluded by your allow-list. Call whoami to see your allowed lists, get_tree for what's visible.",
+    );
+  }
   if (!agentCanTouchList(agent, listId)) {
-    throw new Error("This agent is not allowed to touch this list");
+    throw new ConvexError(
+      "This agent is not allowed to touch this list — it's excluded by your allow-list. Call whoami to see your allowed lists.",
+    );
   }
   return { list, space };
 }
@@ -322,7 +337,7 @@ export async function requireTaskAccessForAgent(
   agent: Doc<"agents">,
 ): Promise<{ task: Doc<"tasks">; list: Doc<"lists">; space: Doc<"spaces"> }> {
   const task = await ctx.db.get(taskId);
-  if (!task) throw new Error("Task not found");
+  if (!task) throw new ConvexError("Task not found");
   const { list, space } = await requireListAccessForAgent(
     ctx,
     task.listId,
@@ -336,6 +351,8 @@ export function requireWorkspaceAccessForAgent(
   agent: Doc<"agents">,
 ): void {
   if (agent.parentType !== "workspace" || agent.parentId !== workspaceId) {
-    throw new Error("Forbidden");
+    throw new ConvexError(
+      "You can't act on this workspace — this agent is scoped to a different workspace or to a personal space. Call whoami to see your scope.",
+    );
   }
 }

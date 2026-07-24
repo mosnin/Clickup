@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
@@ -27,7 +27,7 @@ async function requireScopeMembership(
 ): Promise<string> {
   const identity = await requireIdentity(ctx);
   if (scopeType === "user") {
-    if (scopeId !== identity.subject) throw new Error("Forbidden");
+    if (scopeId !== identity.subject) throw new ConvexError("Forbidden");
   } else {
     const member = await ctx.db
       .query("memberships")
@@ -37,7 +37,7 @@ async function requireScopeMembership(
           .eq("workspaceId", scopeId as Id<"workspaces">),
       )
       .unique();
-    if (!member) throw new Error("Forbidden");
+    if (!member) throw new ConvexError("Forbidden");
   }
   return identity.subject;
 }
@@ -85,8 +85,8 @@ export const create = mutation({
     );
     const name = args.name.trim();
     const title = args.title.trim();
-    if (!name) throw new Error("Blueprint name is required");
-    if (!title) throw new Error("Task title is required");
+    if (!name) throw new ConvexError("Blueprint name is required");
+    if (!title) throw new ConvexError("Task title is required");
     return await ctx.db.insert("taskBlueprints", {
       scopeType: args.scopeType,
       scopeId: args.scopeId,
@@ -122,17 +122,17 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const bp = await ctx.db.get(args.blueprintId);
-    if (!bp) throw new Error("Blueprint not found");
+    if (!bp) throw new ConvexError("Blueprint not found");
     await requireScopeMembership(ctx, bp.scopeType, bp.scopeId);
     const patch: Record<string, unknown> = {};
     if (args.name !== undefined) {
       const name = args.name.trim();
-      if (!name) throw new Error("Blueprint name is required");
+      if (!name) throw new ConvexError("Blueprint name is required");
       patch.name = name;
     }
     if (args.title !== undefined) {
       const title = args.title.trim();
-      if (!title) throw new Error("Task title is required");
+      if (!title) throw new ConvexError("Task title is required");
       patch.title = title;
     }
     if (args.description !== undefined) {
@@ -184,9 +184,9 @@ export const saveFromTask = mutation({
     const { task, list } = await requireTaskAccess(ctx, args.taskId);
     const identity = await requireIdentity(ctx);
     const scope = await scopeForList(ctx, list);
-    if (!scope) throw new Error("Couldn't resolve the task's scope");
+    if (!scope) throw new ConvexError("Couldn't resolve the task's scope");
     const name = args.name.trim();
-    if (!name) throw new Error("Blueprint name is required");
+    if (!name) throw new ConvexError("Blueprint name is required");
     return await ctx.db.insert("taskBlueprints", {
       scopeType: scope.scopeType,
       scopeId: scope.scopeId,
@@ -255,7 +255,7 @@ export const instantiate = mutation({
   },
   handler: async (ctx, args) => {
     const bp = await ctx.db.get(args.blueprintId);
-    if (!bp) throw new Error("Blueprint not found");
+    if (!bp) throw new ConvexError("Blueprint not found");
     await requireScopeMembership(ctx, bp.scopeType, bp.scopeId);
     const { list } = await requireListAccess(ctx, args.listId);
     const scope = await scopeForList(ctx, list);
@@ -264,7 +264,7 @@ export const instantiate = mutation({
       scope.scopeType !== bp.scopeType ||
       scope.scopeId !== bp.scopeId
     ) {
-      throw new Error("Blueprint belongs to a different scope");
+      throw new ConvexError("Blueprint belongs to a different scope");
     }
     const identity = await requireIdentity(ctx);
     const actor = await userActor(ctx, identity.subject);

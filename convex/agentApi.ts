@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import {
   internalQuery,
   mutation,
@@ -18,7 +18,11 @@ import {
   requireUnrestricted,
   requireWorkspaceAccessForAgent,
   canAgentAccessSpace,
+  BURST_LIMIT_PER_MINUTE,
+  DEFAULT_DAILY_ACTION_LIMIT,
 } from "./_agentAuth";
+import { getSpaceForList } from "./_authz";
+import { x402Config } from "./_x402";
 import {
   CLAIM_TTL_MS,
   claimTaskCore,
@@ -37,6 +41,7 @@ import {
 import { createScheduledTaskCore, computeNextRunAt } from "./scheduledTasks";
 import { createSubscription } from "./webhooks";
 import { skillsForScope } from "./skills";
+import { withDerivedProgress } from "./goals";
 import { blueprintTaskFields } from "./taskBlueprints";
 import { createChannelCore } from "./channels";
 import { applyListTemplateCore, templateCatalog } from "./templates";
@@ -94,7 +99,9 @@ async function requireMessageParentAccessForAgent(
     scope.scopeType !== agent.parentType ||
     scope.scopeId !== agent.parentId
   ) {
-    throw new Error("Forbidden");
+    throw new ConvexError(
+      "You can't access this thread — its parent is outside your agent's scope. Call whoami to see your scope, get_tree for what's visible.",
+    );
   }
 }
 
@@ -104,17 +111,19 @@ async function requireDocAccessForAgent(
   agent: Doc<"agents">,
 ): Promise<Doc<"docs">> {
   const doc = await ctx.db.get(docId);
-  if (!doc) throw new Error("Doc not found");
+  if (!doc) throw new ConvexError("Doc not found");
+  const docAccessRefusal =
+    "You can't access this doc — it's outside your agent's scope. Call whoami to see your scope, list_docs for docs you can read.";
   if (doc.parentType === "space") {
     const space = await ctx.db.get(doc.parentId as Id<"spaces">);
     if (!space || !canAgentAccessSpace(space, agent)) {
-      throw new Error("Forbidden");
+      throw new ConvexError(docAccessRefusal);
     }
   } else if (
     doc.parentType !== agent.parentType ||
     doc.parentId !== agent.parentId
   ) {
-    throw new Error("Forbidden");
+    throw new ConvexError(docAccessRefusal);
   }
   return doc;
 }
@@ -217,6 +226,36 @@ async function taskView(ctx: QueryCtx | MutationCtx, task: Doc<"tasks">) {
   };
 }
 
+// Sidebar-tree list node: id + name plus the ops config an agent should
+// see before creating work there (routing = auto-assignment, sopSlug =
+// the procedure attached to every task read).
+function treeListNode(l: Doc<"lists">) {
+  return {
+    listId: l._id,
+    name: l.name,
+    routing: l.routing
+      ? { mode: l.routing.mode, assignees: l.routing.assigneeIds.length }
+      : null,
+    sopSlug: l.sopSlug ?? null,
+  };
+}
+
+// Curated sprint shape (no raw Convex doc fields).
+function sprintView(s: Doc<"sprints">) {
+  return {
+    sprintId: s._id,
+    name: s.name,
+    goal: s.goal,
+    startDate: s.startDate,
+    endDate: s.endDate,
+    status: s.status,
+    capacityPoints: s.capacityPoints,
+    retrospective: s.retrospective,
+    createdByActorId: s.createdByActorId,
+    createdAt: s.createdAt,
+  };
+}
+
 // Extract plain text from Tiptap JSON (mirror of the helper in ai.ts,
 // which lives in the Node runtime and can't be imported here).
 function tiptapToText(content: unknown): string {
@@ -254,6 +293,52 @@ export const whoami = query({
       const ws = await ctx.db.get(agent.parentId as Id<"workspaces">);
       scopeName = ws?.name ?? "Workspace";
     }
+
+    // Governance mirror: everything that can make a mutation refuse,
+    // surfaced up front so agents plan around limits instead of
+    // discovering them as errors.
+    const role = agent.role ?? "member";
+    let allowedLists: { listId: Id<"lists">; name: string }[] | null = null;
+    if (agent.allowedListIds !== undefined) {
+      allowedLists = [];
+      for (const listId of agent.allowedListIds) {
+        const list = await ctx.db.get(listId);
+        if (list) allowedLists.push({ listId: list._id, name: list.name });
+      }
+    }
+    const dailyActionLimit =
+      agent.dailyActionLimit ?? DEFAULT_DAILY_ACTION_LIMIT;
+    const day = new Date().toISOString().slice(0, 10);
+    const usage = await ctx.db
+      .query("agentUsage")
+      .withIndex("by_agent_day", (q) =>
+        q.eq("agentId", agent._id).eq("day", day),
+      )
+      .unique();
+    const actionsUsedToday = usage?.count ?? 0;
+
+    // Billing: same reads as the metering check in requireAgentByKey.
+    const meteringRow = await ctx.db
+      .query("platformSettings")
+      .withIndex("by_key", (q) => q.eq("key", "x402.metering"))
+      .unique();
+    const meteringEnabled =
+      meteringRow?.value === "on" || meteringRow?.value === true;
+    const priceRow = await ctx.db
+      .query("platformSettings")
+      .withIndex("by_key", (q) => q.eq("key", "x402.actionCredits"))
+      .unique();
+    const creditsPerAction =
+      typeof priceRow?.value === "number" && priceRow.value >= 0
+        ? priceRow.value
+        : x402Config().actionCredits;
+    const wallet = await ctx.db
+      .query("agentWallets")
+      .withIndex("by_scope", (q) =>
+        q.eq("scopeType", agent.parentType).eq("scopeId", agent.parentId),
+      )
+      .unique();
+
     return {
       agentId: agent._id,
       name: agent.name,
@@ -263,6 +348,19 @@ export const whoami = query({
       scopeName,
       statusText: agent.statusText,
       currentTaskId: agent.currentTaskId,
+      role,
+      allowedLists,
+      dailyActionLimit,
+      actionsUsedToday,
+      actionsRemainingToday: Math.max(0, dailyActionLimit - actionsUsedToday),
+      burstLimitPerMinute: BURST_LIMIT_PER_MINUTE,
+      billing: {
+        meteringEnabled,
+        creditsBalance: wallet ? wallet.balance : null,
+        creditsPerAction,
+      },
+      firstSteps:
+        "New here? Fetch the 'collaboration-protocol' skill (get_skill) and follow it: find work with next_task, claim before working, heartbeat while working.",
     };
   },
 });
@@ -338,7 +436,7 @@ export const getTree = query({
           name: folder.name,
           lists: lists
             .filter((l) => agentCanTouchList(agent, l._id))
-            .map((l) => ({ listId: l._id, name: l.name })),
+            .map(treeListNode),
         });
       }
       const lists = await ctx.db
@@ -353,7 +451,7 @@ export const getTree = query({
         folders: folderNodes,
         lists: lists
           .filter((l) => agentCanTouchList(agent, l._id))
-          .map((l) => ({ listId: l._id, name: l.name })),
+          .map(treeListNode),
       });
     }
     return { scopeType: agent.parentType, scopeId: agent.parentId, spaces: out };
@@ -365,7 +463,7 @@ export const createSpace = mutation({
   handler: async (ctx, { apiKey, name }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     requireUnrestricted(agent);
-    if (!name.trim()) throw new Error("Name is required");
+    if (!name.trim()) throw new ConvexError("Name is required");
     const siblings = await ctx.db
       .query("spaces")
       .withIndex("by_parent", (q) =>
@@ -388,7 +486,7 @@ export const createFolder = mutation({
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     requireUnrestricted(agent);
     await requireSpaceAccessForAgent(ctx, spaceId, agent);
-    if (!name.trim()) throw new Error("Name is required");
+    if (!name.trim()) throw new ConvexError("Name is required");
     const siblings = await ctx.db
       .query("folders")
       .withIndex("by_space", (q) => q.eq("spaceId", spaceId))
@@ -412,7 +510,7 @@ export const createList = mutation({
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     requireUnrestricted(agent);
-    if (!args.name.trim()) throw new Error("Name is required");
+    if (!args.name.trim()) throw new ConvexError("Name is required");
     if (args.parentType === "space") {
       await requireSpaceAccessForAgent(
         ctx,
@@ -421,7 +519,7 @@ export const createList = mutation({
       );
     } else {
       const folder = await ctx.db.get(args.parentId as Id<"folders">);
-      if (!folder) throw new Error("Folder not found");
+      if (!folder) throw new ConvexError("Folder not found");
       await requireSpaceAccessForAgent(ctx, folder.spaceId, agent);
     }
     const siblings = await ctx.db
@@ -484,7 +582,7 @@ export const listTasks = query({
         .collect();
     } else if (args.sprintId) {
       const sprint = await ctx.db.get(args.sprintId);
-      if (!sprint) throw new Error("Sprint not found");
+      if (!sprint) throw new ConvexError("Sprint not found");
       requireWorkspaceAccessForAgent(sprint.workspaceId, agent);
       tasks = await ctx.db
         .query("tasks")
@@ -530,8 +628,10 @@ export const listTasks = query({
     if (args.assignedToMe) {
       tasks = tasks.filter((t) => t.assigneeClerkIds.includes(agent._id));
     }
-    const max = Math.min(args.limit ?? 200, 500);
-    const views = [];
+    const max = Math.min(args.limit ?? 100, 500);
+    const views: (Awaited<ReturnType<typeof taskView>> & {
+      descriptionTruncated?: boolean;
+    })[] = [];
     for (const t of tasks) {
       if (views.length >= max) break;
       const view = await taskView(ctx, t);
@@ -542,7 +642,17 @@ export const listTasks = query({
       ) {
         continue;
       }
-      views.push(view);
+      // Payload discipline: long descriptions are truncated in list reads;
+      // get_task returns the full text.
+      if (view.description !== undefined && view.description.length > 300) {
+        views.push({
+          ...view,
+          description: view.description.slice(0, 300),
+          descriptionTruncated: true,
+        });
+      } else {
+        views.push(view);
+      }
     }
     return views;
   },
@@ -586,8 +696,25 @@ export const getTask = query({
       .query("taskFieldValues")
       .withIndex("by_task", (q) => q.eq("taskId", taskId))
       .collect();
+    const attachmentRows = await ctx.db
+      .query("attachments")
+      .withIndex("by_task", (q) => q.eq("taskId", taskId))
+      .collect();
+    const attachments = await Promise.all(
+      attachmentRows
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .map(async (a) => ({
+          attachmentId: a._id,
+          name: a.name,
+          size: a.sizeBytes,
+          contentType: a.mimeType,
+          url: await ctx.storage.getUrl(a.storageId),
+        })),
+    );
     return {
       ...view,
+      listName: taskList?.name ?? null,
+      attachments,
       sop,
       fieldValues: fieldValues.map((fv) => ({
         fieldId: fv.fieldId,
@@ -707,7 +834,11 @@ export const completeTask = mutation({
     const complete = statuses
       .sort((a, b) => a.position - b.position)
       .find((s) => s.category === "complete");
-    if (!complete) throw new Error("List has no complete status");
+    if (!complete) {
+      throw new ConvexError(
+        "List has no complete status. Ask a human to add a Complete-category status in the list's settings.",
+      );
+    }
     await updateTaskCore(
       ctx,
       { taskId, statusId: complete._id },
@@ -819,8 +950,10 @@ export const listComments = query({
         q.eq("parentType", parentType).eq("parentId", parentId),
       )
       .collect();
+    // Newest 100, still in chronological order.
     return all
       .sort((a, b) => a.createdAt - b.createdAt)
+      .slice(-100)
       .map((m) => ({
         messageId: m._id,
         authorId: m.authorClerkId,
@@ -908,7 +1041,7 @@ export const markMentionRead = mutation({
     const { agent } = await requireAgentByKey(ctx, apiKey, "presence");
     const mention = await ctx.db.get(mentionId);
     if (!mention || mention.mentionedClerkId !== agent._id) {
-      throw new Error("Mention not found");
+      throw new ConvexError("Mention not found or it doesn't belong to you");
     }
     await ctx.db.patch(mentionId, { readAt: Date.now() });
   },
@@ -983,7 +1116,7 @@ export const listMembers = query({
 
 function requireWorkspaceAgent(agent: Doc<"agents">): Id<"workspaces"> {
   if (agent.parentType !== "workspace") {
-    throw new Error("Sprints require a workspace-scoped agent");
+    throw new ConvexError("Sprints require a workspace-scoped agent");
   }
   return agent.parentId as Id<"workspaces">;
 }
@@ -1023,7 +1156,7 @@ export const listSprints = query({
       .query("sprints")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
       .collect();
-    return sprints.sort((a, b) => b.startDate - a.startDate);
+    return sprints.sort((a, b) => b.startDate - a.startDate).map(sprintView);
   },
 });
 
@@ -1048,7 +1181,7 @@ export const updateSprint = mutation({
     const workspaceId = requireWorkspaceAgent(agent);
     const sprint = await ctx.db.get(args.sprintId);
     if (!sprint || sprint.workspaceId !== workspaceId) {
-      throw new Error("Sprint not found");
+      throw new ConvexError("Sprint not found");
     }
     const { apiKey: _apiKey, ...rest } = args;
     await updateSprintCore(ctx, rest, agentActor(agent));
@@ -1062,7 +1195,7 @@ export const sprintSummary = query({
     const workspaceId = requireWorkspaceAgent(agent);
     const sprint = await ctx.db.get(sprintId);
     if (!sprint || sprint.workspaceId !== workspaceId) {
-      throw new Error("Sprint not found");
+      throw new ConvexError("Sprint not found");
     }
     return await sprintSummaryCore(ctx, sprintId);
   },
@@ -1079,7 +1212,7 @@ export const setSprintCapacity = mutation({
     const workspaceId = requireWorkspaceAgent(agent);
     const sprint = await ctx.db.get(sprintId);
     if (!sprint || sprint.workspaceId !== workspaceId) {
-      throw new Error("Sprint not found");
+      throw new ConvexError("Sprint not found");
     }
     await updateSprintCore(
       ctx,
@@ -1096,7 +1229,7 @@ export const setSprintRetrospective = mutation({
     const workspaceId = requireWorkspaceAgent(agent);
     const sprint = await ctx.db.get(sprintId);
     if (!sprint || sprint.workspaceId !== workspaceId) {
-      throw new Error("Sprint not found");
+      throw new ConvexError("Sprint not found");
     }
     await updateSprintCore(
       ctx,
@@ -1117,7 +1250,7 @@ export const getSprintBoard = query({
     const workspaceId = requireWorkspaceAgent(agent);
     const sprint = await ctx.db.get(sprintId);
     if (!sprint || sprint.workspaceId !== workspaceId) {
-      throw new Error("Sprint not found");
+      throw new ConvexError("Sprint not found");
     }
     const tasks = await ctx.db
       .query("tasks")
@@ -1146,7 +1279,7 @@ export const getSprintBoard = query({
         openBlockerCount: await openBlockerCount(ctx, t),
       });
     }
-    return { sprint, tasks: out };
+    return { sprint: sprintView(sprint), tasks: out };
   },
 });
 
@@ -1161,7 +1294,7 @@ export const getSprintPlanning = query({
     const workspaceId = requireWorkspaceAgent(agent);
     const sprint = await ctx.db.get(sprintId);
     if (!sprint || sprint.workspaceId !== workspaceId) {
-      throw new Error("Sprint not found");
+      throw new ConvexError("Sprint not found");
     }
 
     const sprintTasks = await ctx.db
@@ -1270,10 +1403,29 @@ export const listScheduledTasks = query({
   handler: async (ctx, { apiKey, listId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
     await requireListAccessForAgent(ctx, listId, agent);
-    return await ctx.db
+    const rows = await ctx.db
       .query("scheduledTasks")
       .withIndex("by_list", (q) => q.eq("listId", listId))
       .collect();
+    return rows.map((st) => ({
+      scheduledTaskId: st._id,
+      listId: st.listId,
+      title: st.title,
+      description: st.description,
+      priority: st.priority,
+      assigneeIds: st.assigneeIds,
+      cadence: st.cadence,
+      dayOfWeek: st.dayOfWeek,
+      dayOfMonth: st.dayOfMonth,
+      hourUtc: st.hourUtc,
+      dueInDays: st.dueInDays,
+      nextRunAt: st.nextRunAt,
+      lastRunAt: st.lastRunAt,
+      enabled: st.enabled,
+      blueprintId: st.blueprintId,
+      createdByActorId: st.createdByActorId,
+      createdAt: st.createdAt,
+    }));
   },
 });
 
@@ -1286,7 +1438,7 @@ export const updateScheduledTask = mutation({
   handler: async (ctx, { apiKey, scheduledTaskId, enabled }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     const st = await ctx.db.get(scheduledTaskId);
-    if (!st) throw new Error("Not found");
+    if (!st) throw new ConvexError("Scheduled task not found");
     await requireListAccessForAgent(ctx, st.listId, agent);
     if (enabled !== undefined) {
       await ctx.db.patch(scheduledTaskId, {
@@ -1354,7 +1506,18 @@ export const listWebhooks = query({
         q.eq("ownerType", "agent").eq("ownerId", agent._id),
       )
       .collect();
-    return subs.map(({ secret: _secret, ...rest }) => rest);
+    return subs.map((s) => ({
+      subscriptionId: s._id,
+      url: s.url,
+      eventTypes: s.eventTypes,
+      listId: s.listId,
+      scopeType: s.scopeType,
+      scopeId: s.scopeId,
+      enabled: s.enabled,
+      failureCount: s.failureCount,
+      disabledAt: s.disabledAt,
+      createdAt: s.createdAt,
+    }));
   },
 });
 
@@ -1365,7 +1528,9 @@ export const deleteWebhook = mutation({
     const sub = await ctx.db.get(subscriptionId);
     if (!sub) return;
     if (sub.ownerType !== "agent" || sub.ownerId !== agent._id) {
-      throw new Error("Forbidden");
+      throw new ConvexError(
+        "You can only delete webhooks this agent registered itself. Call list_webhooks to see yours.",
+      );
     }
     const deliveries = await ctx.db
       .query("webhookDeliveries")
@@ -1463,7 +1628,7 @@ export const createSkill = mutation({
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
-    if (!slug) throw new Error("Slug is required");
+    if (!slug) throw new ConvexError("Slug is required");
     const existing = await ctx.db
       .query("skills")
       .withIndex("by_scope", (q) =>
@@ -1471,7 +1636,7 @@ export const createSkill = mutation({
       )
       .collect();
     if (existing.some((s) => s.slug === slug)) {
-      throw new Error("A skill with this slug already exists");
+      throw new ConvexError("A skill with this slug already exists");
     }
     return await ctx.db.insert("skills", {
       scopeType: agent.parentType,
@@ -1586,7 +1751,16 @@ export const searchTasks = query({
     const limit = Math.min(args.limit ?? 20, 50);
     // Reuse the scope walk from listTasks via the embeddings-free path:
     // walk lists and substring-match. Fine at target scale.
-    const results: { taskId: Id<"tasks">; listId: Id<"lists">; title: string }[] = [];
+    const results: {
+      taskId: Id<"tasks">;
+      listId: Id<"lists">;
+      title: string;
+      statusId: Id<"listStatuses">;
+      statusCategory: "open" | "in_progress" | "complete" | "closed";
+      priority: "urgent" | "high" | "normal" | "low" | undefined;
+      assigneeIds: string[];
+      dueDate: number | undefined;
+    }[] = [];
     const spaces = await ctx.db
       .query("spaces")
       .withIndex("by_parent", (q) =>
@@ -1618,7 +1792,17 @@ export const searchTasks = query({
           for (const t of tasks) {
             const hay = `${t.title}\n${t.description ?? ""}`.toLowerCase();
             if (hay.includes(needle)) {
-              results.push({ taskId: t._id, listId: l._id, title: t.title });
+              const status = await ctx.db.get(t.statusId);
+              results.push({
+                taskId: t._id,
+                listId: l._id,
+                title: t.title,
+                statusId: t.statusId,
+                statusCategory: status?.category ?? "open",
+                priority: t.priority,
+                assigneeIds: t.assigneeClerkIds,
+                dueDate: t.dueDate,
+              });
               if (results.length >= limit) break outer;
             }
           }
@@ -1640,6 +1824,41 @@ export const _validateKey = internalQuery({
       scopeType: agent.parentType,
       scopeId: agent.parentId,
     };
+  },
+});
+
+// Post-filter for semantic search (agentAi.search): the vector index only
+// scopes by user/workspace, so list-restricted agents need their task hits
+// narrowed to allowedListIds here. Doc hits pass through — restricted
+// agents can read every doc in scope (mirrors listDocs/getDoc, which don't
+// consult the allow-list).
+export const _filterSearchHits = internalQuery({
+  args: {
+    apiKey: v.string(),
+    hits: v.array(
+      v.object({
+        parentType: v.union(v.literal("doc"), v.literal("task")),
+        parentId: v.string(),
+        textPreview: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, { apiKey, hits }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    if (agent.allowedListIds === undefined) return hits;
+    const out = [];
+    for (const hit of hits) {
+      if (hit.parentType === "doc") {
+        out.push(hit);
+        continue;
+      }
+      const taskId = ctx.db.normalizeId("tasks", hit.parentId);
+      if (!taskId) continue;
+      const task = await ctx.db.get(taskId);
+      if (!task) continue;
+      if (agentCanTouchList(agent, task.listId)) out.push(hit);
+    }
+    return out;
   },
 });
 
@@ -1797,7 +2016,7 @@ export const handoffTask = mutation({
         target.parentType !== agent.parentType ||
         target.parentId !== agent.parentId
       ) {
-        throw new Error("Recipient is not in this scope");
+        throw new ConvexError("Recipient is not in this scope");
       }
     } else if (agent.parentType === "workspace") {
       const member = await ctx.db
@@ -1808,9 +2027,9 @@ export const handoffTask = mutation({
             .eq("workspaceId", agent.parentId as Id<"workspaces">),
         )
         .unique();
-      if (!member) throw new Error("Recipient is not in this scope");
+      if (!member) throw new ConvexError("Recipient is not in this scope");
     } else if (args.toId !== agent.parentId) {
-      throw new Error("Recipient is not in this scope");
+      throw new ConvexError("Recipient is not in this scope");
     }
     await handoffTaskCore(
       ctx,
@@ -1941,7 +2160,9 @@ export const finishRun = mutation({
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
     const run = await ctx.db.get(args.runId);
-    if (!run || run.agentId !== agent._id) throw new Error("Run not found");
+    if (!run || run.agentId !== agent._id) {
+      throw new ConvexError("Run not found or it doesn't belong to you");
+    }
     await ctx.db.patch(args.runId, {
       status: args.status,
       summary: args.summary?.slice(0, 2000),
@@ -2044,7 +2265,7 @@ export const logTime = mutation({
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     await requireTaskAccessForAgent(ctx, args.taskId, agent);
-    if (args.durationMs <= 0) throw new Error("durationMs must be positive");
+    if (args.durationMs <= 0) throw new ConvexError("durationMs must be positive");
     const startedAt = args.startedAt ?? Date.now() - args.durationMs;
     return await ctx.db.insert("timeEntries", {
       taskId: args.taskId,
@@ -2087,12 +2308,32 @@ export const listGoals = query({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
-    return await ctx.db
+    const rows = await ctx.db
       .query("goals")
       .withIndex("by_parent", (q) =>
         q.eq("parentType", agent.parentType).eq("parentId", agent.parentId),
       )
       .collect();
+    // Same derived overlay humans see: a project-linked goal's progress and
+    // status come from the linked list's rollup, so agents and humans can
+    // never read different numbers for the same goal.
+    const derived = await Promise.all(
+      rows.map((g) => withDerivedProgress(ctx, g)),
+    );
+    return derived.map((g) => ({
+      goalId: g._id,
+      title: g.title,
+      description: g.description,
+      targetType: g.targetType,
+      targetValue: g.targetValue,
+      currentValue: g.currentValue,
+      unit: g.unit,
+      dueDate: g.dueDate,
+      status: g.status,
+      linked: g.linked,
+      sourceListId: g.sourceListId,
+      createdAt: g.createdAt,
+    }));
   },
 });
 
@@ -2144,12 +2385,27 @@ export const setGoalProgress = mutation({
       goal.parentType !== agent.parentType ||
       goal.parentId !== agent.parentId
     ) {
-      throw new Error("Goal not found");
+      throw new ConvexError("Goal not found");
     }
-    const complete = args.currentValue >= goal.targetValue;
+    // Same rule as the human mutation: a project-linked goal derives its
+    // progress from the list — manual writes would silently diverge.
+    if (goal.sourceListId) {
+      throw new ConvexError(
+        "This goal tracks a project automatically — its progress comes from completed tasks in the linked list. Complete tasks there instead (or ask a human to unlink the goal).",
+      );
+    }
+    const complete =
+      goal.status !== "abandoned" &&
+      goal.targetValue > 0 &&
+      args.currentValue >= goal.targetValue;
     await ctx.db.patch(args.goalId, {
       currentValue: args.currentValue,
-      status: complete ? "complete" : "open",
+      status:
+        goal.status === "abandoned"
+          ? "abandoned"
+          : complete
+            ? "complete"
+            : "open",
       completedAt: complete ? Date.now() : undefined,
     });
     await emitEvent(ctx, {
@@ -2178,10 +2434,18 @@ export const listAutomationsForList = query({
   handler: async (ctx, { apiKey, listId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
     await requireListAccessForAgent(ctx, listId, agent);
-    return await ctx.db
+    const rows = await ctx.db
       .query("listAutomations")
       .withIndex("by_list", (q) => q.eq("listId", listId))
       .collect();
+    return rows.map((a) => ({
+      automationId: a._id,
+      listId: a.listId,
+      trigger: a.trigger,
+      action: a.action,
+      enabled: a.enabled,
+      createdAt: a.createdAt,
+    }));
   },
 });
 
@@ -2248,7 +2512,7 @@ export const applyTemplate = mutation({
       );
     } else {
       const folder = await ctx.db.get(args.parentId as Id<"folders">);
-      if (!folder) throw new Error("Folder not found");
+      if (!folder) throw new ConvexError("Folder not found");
       await requireSpaceAccessForAgent(ctx, folder.spaceId, agent);
     }
     return await applyListTemplateCore(
@@ -2301,7 +2565,7 @@ export const setTaskFieldValue = mutation({
     const { task } = await requireTaskAccessForAgent(ctx, args.taskId, agent);
     const field = await ctx.db.get(args.fieldId);
     if (!field || field.listId !== task.listId) {
-      throw new Error("Field does not belong to this task's list");
+      throw new ConvexError("Field does not belong to this task's list");
     }
     const existing = await ctx.db
       .query("taskFieldValues")
@@ -2376,10 +2640,10 @@ export const createChecklistTemplate = mutation({
   handler: async (ctx, { apiKey, name, items }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     requireUnrestricted(agent);
-    if (!name.trim()) throw new Error("Name is required");
+    if (!name.trim()) throw new ConvexError("Name is required");
     const cleanItems = items.map((i) => i.trim()).filter(Boolean);
     if (cleanItems.length === 0) {
-      throw new Error("At least one checklist item is required");
+      throw new ConvexError("At least one checklist item is required");
     }
     return await ctx.db.insert("checklistTemplates", {
       scopeType: agent.parentType,
@@ -2410,7 +2674,7 @@ export const applyChecklistTemplate = mutation({
       template.scopeType !== agent.parentType ||
       template.scopeId !== agent.parentId
     ) {
-      throw new Error("Checklist template not found");
+      throw new ConvexError("Checklist template not found");
     }
     const existing = task.checklist ?? [];
     const additions = template.items.map((text, i) => ({
@@ -2506,6 +2770,133 @@ export const getTaskNetwork = query({
   },
 });
 
+// ── Roadmaps ───────────────────────────────────────────────────────────
+
+// The workspace's roadmaps with their phases and the projects (lists)
+// slotted into them — same rollup numbers humans see. Restricted agents
+// only see projects on their allow-list; personal-scope agents have no
+// workspace to read roadmaps from.
+export const getRoadmaps = query({
+  args: { apiKey: v.string() },
+  handler: async (ctx, { apiKey }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    if (agent.parentType !== "workspace") {
+      throw new ConvexError("Roadmaps require a workspace-scoped agent");
+    }
+    const workspaceId = agent.parentId as Id<"workspaces">;
+    const roadmaps = await ctx.db
+      .query("roadmaps")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+    roadmaps.sort((a, b) => a.position - b.position);
+    const out = [];
+    for (const rm of roadmaps) {
+      const assigned = await ctx.db
+        .query("lists")
+        .withIndex("by_roadmap", (q) => q.eq("roadmapId", rm._id))
+        .collect();
+      const projects = [];
+      for (const list of assigned) {
+        if (!agentCanTouchList(agent, list._id)) continue;
+        const space = await getSpaceForList(ctx, list);
+        if (
+          !space ||
+          space.parentType !== "workspace" ||
+          space.parentId !== workspaceId
+        ) {
+          continue;
+        }
+        if (space.archivedAt !== undefined) continue;
+        const rollup = await getRollup(ctx, list._id);
+        projects.push({
+          listId: list._id,
+          name: list.name,
+          phaseId: list.roadmapPhaseId,
+          position: list.roadmapPosition ?? 0,
+          total: rollup?.total ?? 0,
+          done: rollup?.done ?? 0,
+        });
+      }
+      projects.sort((a, b) => a.position - b.position);
+      out.push({
+        roadmapId: rm._id,
+        name: rm.name,
+        description: rm.description,
+        phases: rm.phases,
+        projects,
+      });
+    }
+    return out;
+  },
+});
+
+// Put a project (list) into a roadmap phase, or pull it out with
+// roadmapId: null. Structure-level: off-limits to list-restricted agents.
+// Mirrors the validation in roadmaps.assignProject.
+export const assignProjectToPhase = mutation({
+  args: {
+    apiKey: v.string(),
+    listId: v.id("lists"),
+    roadmapId: v.union(v.id("roadmaps"), v.null()),
+    phaseId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    if (agent.parentType !== "workspace") {
+      throw new ConvexError("Roadmaps require a workspace-scoped agent");
+    }
+    const { space } = await requireListAccessForAgent(
+      ctx,
+      args.listId,
+      agent,
+    );
+    if (args.roadmapId === null) {
+      await ctx.db.patch(args.listId, {
+        roadmapId: undefined,
+        roadmapPhaseId: undefined,
+        roadmapPosition: undefined,
+      });
+      return;
+    }
+    if (space.parentType !== "workspace") {
+      throw new ConvexError("Only workspace projects can join a roadmap");
+    }
+    const roadmap = await ctx.db.get(args.roadmapId);
+    if (!roadmap || roadmap.workspaceId !== space.parentId) {
+      throw new ConvexError("Roadmap belongs to a different workspace");
+    }
+    // An explicit phaseId that no longer exists (deleted concurrently) is
+    // an error, not a silent drop into the first phase.
+    const phase =
+      args.phaseId !== undefined
+        ? roadmap.phases.find((p) => p.id === args.phaseId)
+        : roadmap.phases[0];
+    if (!phase) {
+      throw new ConvexError(
+        args.phaseId !== undefined ? "Phase not found" : "Roadmap has no phases",
+      );
+    }
+    const siblings = await ctx.db
+      .query("lists")
+      .withIndex("by_roadmap", (q) => q.eq("roadmapId", roadmap._id))
+      .collect();
+    const inPhase = siblings.filter(
+      (l) => l.roadmapPhaseId === phase.id && l._id !== args.listId,
+    );
+    // max+1, not count: unassigns leave gaps, so length would collide.
+    const maxPosition = inPhase.reduce(
+      (m, l) => Math.max(m, l.roadmapPosition ?? 0),
+      -1,
+    );
+    await ctx.db.patch(args.listId, {
+      roadmapId: roadmap._id,
+      roadmapPhaseId: phase.id,
+      roadmapPosition: maxPosition + 1,
+    });
+  },
+});
+
 // ── Comment management (author-only) ───────────────────────────────────
 
 export const updateComment = mutation({
@@ -2514,9 +2905,9 @@ export const updateComment = mutation({
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     const msg = await ctx.db.get(args.messageId);
     if (!msg || msg.authorClerkId !== agent._id) {
-      throw new Error("Only the author can edit");
+      throw new ConvexError("Only the author can edit");
     }
-    if (!args.body.trim()) throw new Error("Empty message");
+    if (!args.body.trim()) throw new ConvexError("Empty message");
     await ctx.db.patch(args.messageId, {
       body: args.body,
       editedAt: Date.now(),
@@ -2531,7 +2922,7 @@ export const deleteComment = mutation({
     const msg = await ctx.db.get(messageId);
     if (!msg) return;
     if (msg.authorClerkId !== agent._id) {
-      throw new Error("Only the author can delete");
+      throw new ConvexError("Only the author can delete");
     }
     const replies = await ctx.db
       .query("messages")
@@ -2563,7 +2954,7 @@ export const resolveComment = mutation({
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     const msg = await ctx.db.get(args.messageId);
-    if (!msg) throw new Error("Message not found");
+    if (!msg) throw new ConvexError("Message not found");
     await requireMessageParentAccessForAgent(
       ctx,
       msg.parentType,
@@ -2626,7 +3017,7 @@ export const instantiateBlueprint = mutation({
       bp.scopeType !== agent.parentType ||
       bp.scopeId !== agent.parentId
     ) {
-      throw new Error("Blueprint not found in your scope");
+      throw new ConvexError("Blueprint not found in your scope");
     }
     return await createTaskCore(
       ctx,

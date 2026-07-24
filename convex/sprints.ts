@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -22,7 +22,7 @@ async function requireWorkspaceMember(
       q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
     )
     .unique();
-  if (!member) throw new Error("Forbidden");
+  if (!member) throw new ConvexError("Forbidden");
   return identity.subject;
 }
 
@@ -59,9 +59,9 @@ export async function createSprintCore(
   },
   actor: Actor,
 ): Promise<Id<"sprints">> {
-  if (!args.name.trim()) throw new Error("Sprint name is required");
+  if (!args.name.trim()) throw new ConvexError("Sprint name is required");
   if (args.endDate <= args.startDate) {
-    throw new Error("Sprint must end after it starts");
+    throw new ConvexError("Sprint must end after it starts");
   }
   const sprintId = await ctx.db.insert("sprints", {
     workspaceId: args.workspaceId,
@@ -94,7 +94,7 @@ export async function updateSprintCore(
   actor: Actor,
 ): Promise<void> {
   const sprint = await ctx.db.get(args.sprintId);
-  if (!sprint) throw new Error("Sprint not found");
+  if (!sprint) throw new ConvexError("Sprint not found");
   const patch: Record<string, unknown> = {};
   if (args.name !== undefined && args.name.trim()) patch.name = args.name;
   if (args.goal !== undefined) patch.goal = args.goal;
@@ -566,7 +566,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const sprint = await ctx.db.get(args.sprintId);
-    if (!sprint) throw new Error("Sprint not found");
+    if (!sprint) throw new ConvexError("Sprint not found");
     const subject = await requireWorkspaceMember(ctx, sprint.workspaceId);
     const actor = await userActor(ctx, subject);
     await updateSprintCore(ctx, args, actor);

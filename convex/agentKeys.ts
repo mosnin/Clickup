@@ -1,7 +1,7 @@
 "use node";
 
 import { randomBytes, createHash } from "crypto";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
 
@@ -17,7 +17,7 @@ export const createKey = action({
     { agentId },
   ): Promise<{ key: string; keyPrefix: string }> => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
     // Throws if the caller can't manage this agent.
     await ctx.runQuery(internal.agents._assertManageAccess, { agentId });
 

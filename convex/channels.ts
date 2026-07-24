@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
@@ -17,7 +17,7 @@ async function requireScopeMembership(
 ): Promise<string> {
   const identity = await requireIdentity(ctx);
   if (scopeType === "user") {
-    if (scopeId !== identity.subject) throw new Error("Forbidden");
+    if (scopeId !== identity.subject) throw new ConvexError("Forbidden");
   } else {
     const member = await ctx.db
       .query("memberships")
@@ -27,7 +27,7 @@ async function requireScopeMembership(
           .eq("workspaceId", scopeId as Id<"workspaces">),
       )
       .unique();
-    if (!member) throw new Error("Forbidden");
+    if (!member) throw new ConvexError("Forbidden");
   }
   return identity.subject;
 }
@@ -43,7 +43,7 @@ export async function createChannelCore(
     .replace(/[^a-z0-9-_ ]/g, "")
     .replace(/\s+/g, "-")
     .slice(0, 60);
-  if (!name) throw new Error("Channel name is required");
+  if (!name) throw new ConvexError("Channel name is required");
   const existing = await ctx.db
     .query("channels")
     .withIndex("by_scope", (q) =>

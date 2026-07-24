@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
@@ -173,7 +173,7 @@ export async function applyListTemplateCore(
   creatorId: string,
 ): Promise<Id<"lists">> {
     const template = LIST_TEMPLATES.find((t) => t.id === args.templateId);
-    if (!template) throw new Error("Unknown template");
+    if (!template) throw new ConvexError("Unknown template");
 
     const siblings = await ctx.db
       .query("lists")

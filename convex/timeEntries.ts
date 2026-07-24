@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireIdentity, requireTaskAccess } from "./_authz";
 
@@ -95,7 +95,7 @@ export const stop = mutation({
     }
     if (!entry) return;
     if (entry.userClerkId !== identity.subject) {
-      throw new Error("Only the owning user can stop this entry");
+      throw new ConvexError("Only the owning user can stop this entry");
     }
     if (entry.endedAt !== undefined) return; // already stopped
 
@@ -116,9 +116,9 @@ export const update = mutation({
   handler: async (ctx, { entryId, description, billable }) => {
     const identity = await requireIdentity(ctx);
     const entry = await ctx.db.get(entryId);
-    if (!entry) throw new Error("Entry not found");
+    if (!entry) throw new ConvexError("Entry not found");
     if (entry.userClerkId !== identity.subject) {
-      throw new Error("Only the owning user can edit this entry");
+      throw new ConvexError("Only the owning user can edit this entry");
     }
     const patch: Record<string, unknown> = {};
     if (description !== undefined) patch.description = description;
@@ -134,7 +134,7 @@ export const remove = mutation({
     const entry = await ctx.db.get(entryId);
     if (!entry) return;
     if (entry.userClerkId !== identity.subject) {
-      throw new Error("Only the owning user can delete this entry");
+      throw new ConvexError("Only the owning user can delete this entry");
     }
     await ctx.db.delete(entryId);
   },

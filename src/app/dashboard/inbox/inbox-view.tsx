@@ -21,6 +21,7 @@ import {
   Stagger,
   StaggerItem,
 } from "@/components/motion";
+import { errorMessage } from "@/lib/errors";
 
 // The one inbox. Everything that needs the user's attention lives here, in
 // order of urgency: approvals to grant, mentions to answer, updates to skim.
@@ -33,13 +34,6 @@ const CONTEXT_KIND: Record<string, string> = {
   channel: "Channel",
   space: "Chat",
 };
-
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
 
 export function Inbox() {
   const mentions = useQuery(api.mentions.feedForCurrent, {});

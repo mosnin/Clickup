@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireListAccess } from "./_authz";
 
@@ -42,7 +42,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     await requireListAccess(ctx, args.listId);
     if (args.type === "dropdown" && (!args.options || args.options.length === 0)) {
-      throw new Error("Dropdown fields need at least one option");
+      throw new ConvexError("Dropdown fields need at least one option");
     }
     const siblings = await ctx.db
       .query("customFields")
@@ -63,7 +63,7 @@ export const rename = mutation({
   args: { fieldId: v.id("customFields"), name: v.string() },
   handler: async (ctx, { fieldId, name }) => {
     const field = await ctx.db.get(fieldId);
-    if (!field) throw new Error("Field not found");
+    if (!field) throw new ConvexError("Field not found");
     await requireListAccess(ctx, field.listId);
     await ctx.db.patch(fieldId, { name });
   },
@@ -76,9 +76,9 @@ export const updateOptions = mutation({
   },
   handler: async (ctx, { fieldId, options }) => {
     const field = await ctx.db.get(fieldId);
-    if (!field) throw new Error("Field not found");
+    if (!field) throw new ConvexError("Field not found");
     if (field.type !== "dropdown") {
-      throw new Error("Only dropdown fields have options");
+      throw new ConvexError("Only dropdown fields have options");
     }
     await requireListAccess(ctx, field.listId);
     await ctx.db.patch(fieldId, { options });

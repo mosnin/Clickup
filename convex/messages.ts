@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -210,7 +210,7 @@ export async function createMessageCore(
   actor: Actor,
   workspaceId: Id<"workspaces"> | null,
 ): Promise<Id<"messages">> {
-  if (!args.body.trim()) throw new Error("Empty message");
+  if (!args.body.trim()) throw new ConvexError("Empty message");
 
   if (args.parentMessageId) {
     const root = await ctx.db.get(args.parentMessageId);
@@ -219,7 +219,7 @@ export async function createMessageCore(
       root.parentType !== args.parentType ||
       root.parentId !== args.parentId
     ) {
-      throw new Error("Reply parent must belong to the same context");
+      throw new ConvexError("Reply parent must belong to the same context");
     }
   }
 
@@ -425,9 +425,9 @@ export const update = mutation({
   handler: async (ctx, { messageId, body, mentionClerkIds }) => {
     const identity = await requireIdentity(ctx);
     const msg = await ctx.db.get(messageId);
-    if (!msg) throw new Error("Message not found");
+    if (!msg) throw new ConvexError("Message not found");
     if (msg.authorClerkId !== identity.subject) {
-      throw new Error("Only the author can edit");
+      throw new ConvexError("Only the author can edit");
     }
     const { workspaceId } = await requireMessageParentAccess(
       ctx,
@@ -473,7 +473,7 @@ export const remove = mutation({
     const msg = await ctx.db.get(messageId);
     if (!msg) return;
     if (msg.authorClerkId !== identity.subject) {
-      throw new Error("Only the author can delete");
+      throw new ConvexError("Only the author can delete");
     }
     // Cascade replies and mentions.
     const replies = await ctx.db
@@ -504,7 +504,7 @@ export const resolve = mutation({
   handler: async (ctx, { messageId, resolved }) => {
     const identity = await requireIdentity(ctx);
     const msg = await ctx.db.get(messageId);
-    if (!msg) throw new Error("Message not found");
+    if (!msg) throw new ConvexError("Message not found");
     await requireMessageParentAccess(ctx, msg.parentType, msg.parentId);
     if (resolved) {
       await ctx.db.patch(messageId, {

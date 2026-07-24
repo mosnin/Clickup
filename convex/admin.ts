@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import {
@@ -116,14 +116,14 @@ export const suspendUser = mutation({
   args: { clerkId: v.string(), reason: v.string() },
   handler: async (ctx, { clerkId, reason }) => {
     const admin = await requirePlatformAdmin(ctx);
-    if (!reason.trim()) throw new Error("A reason is required");
+    if (!reason.trim()) throw new ConvexError("A reason is required");
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
       .unique();
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
     if (isEmailRootAdmin(user.email)) {
-      throw new Error("Cannot suspend a root platform admin");
+      throw new ConvexError("Cannot suspend a root platform admin");
     }
     // A suspension is an account hold — but it must not become a lateral or
     // upward attack on the admin hierarchy. Support admins (read + holds on
@@ -138,10 +138,10 @@ export const suspendUser = mutation({
       .unique();
     if (targetAdmin && !targetAdmin.revokedAt) {
       if (admin.role !== "superadmin") {
-        throw new Error("Support admins cannot suspend a platform admin");
+        throw new ConvexError("Support admins cannot suspend a platform admin");
       }
       if (targetAdmin.role === "superadmin" && !admin.viaEnv) {
-        throw new Error(
+        throw new ConvexError(
           "Only a root admin can suspend another superadmin",
         );
       }
@@ -167,7 +167,7 @@ export const reactivateUser = mutation({
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
       .unique();
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
     await ctx.db.patch(user._id, {
       suspendedAt: undefined,
       suspendedReason: undefined,
@@ -222,9 +222,9 @@ export const suspendWorkspace = mutation({
   args: { workspaceId: v.id("workspaces"), reason: v.string() },
   handler: async (ctx, { workspaceId, reason }) => {
     const admin = await requirePlatformAdmin(ctx);
-    if (!reason.trim()) throw new Error("A reason is required");
+    if (!reason.trim()) throw new ConvexError("A reason is required");
     const ws = await ctx.db.get(workspaceId);
-    if (!ws) throw new Error("Workspace not found");
+    if (!ws) throw new ConvexError("Workspace not found");
     await ctx.db.patch(workspaceId, {
       suspendedAt: Date.now(),
       suspendedReason: reason.trim(),
@@ -243,7 +243,7 @@ export const reactivateWorkspace = mutation({
   handler: async (ctx, { workspaceId }) => {
     const admin = await requirePlatformAdmin(ctx);
     const ws = await ctx.db.get(workspaceId);
-    if (!ws) throw new Error("Workspace not found");
+    if (!ws) throw new ConvexError("Workspace not found");
     await ctx.db.patch(workspaceId, {
       suspendedAt: undefined,
       suspendedReason: undefined,
@@ -301,7 +301,7 @@ export const setAgentStatus = mutation({
     // wide, beyond support's "read + account-holds" remit — superadmin only.
     const admin = await requirePlatformAdmin(ctx, { minRole: "superadmin" });
     const agent = await ctx.db.get(agentId);
-    if (!agent) throw new Error("Agent not found");
+    if (!agent) throw new ConvexError("Agent not found");
     await ctx.db.patch(agentId, { status });
     await logAdminAction(ctx, admin, `agent.${status}`, {
       targetType: "agent",
@@ -341,13 +341,13 @@ export const grantAdmin = mutation({
   handler: async (ctx, { email, role }) => {
     const admin = await requirePlatformAdmin(ctx, { minRole: "superadmin" });
     const target = email.trim().toLowerCase();
-    if (!target) throw new Error("Email required");
+    if (!target) throw new ConvexError("Email required");
     const user = await ctx.db
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", target))
       .unique();
     if (!user) {
-      throw new Error("No user with that email has signed in yet");
+      throw new ConvexError("No user with that email has signed in yet");
     }
     const existing = await ctx.db
       .query("platformAdmins")
@@ -385,15 +385,15 @@ export const revokeAdmin = mutation({
   handler: async (ctx, { adminId }) => {
     const admin = await requirePlatformAdmin(ctx, { minRole: "superadmin" });
     const row = await ctx.db.get(adminId);
-    if (!row) throw new Error("Admin not found");
+    if (!row) throw new ConvexError("Admin not found");
     if (row.clerkId === admin.clerkId) {
-      throw new Error("You cannot revoke your own admin access");
+      throw new ConvexError("You cannot revoke your own admin access");
     }
     // Same lateral-attack protection as suspendUser: a granted (non-root)
     // superadmin must not be able to de-admin a peer superadmin. Only the
     // env-allowlisted root may revoke a granted superadmin.
     if (!row.revokedAt && row.role === "superadmin" && !admin.viaEnv) {
-      throw new Error("Only a root admin can revoke another superadmin");
+      throw new ConvexError("Only a root admin can revoke another superadmin");
     }
     await ctx.db.patch(adminId, {
       revokedAt: Date.now(),
@@ -522,7 +522,7 @@ export const setSecuritySetting = mutation({
   handler: async (ctx, { key, value }) => {
     const admin = await requirePlatformAdmin(ctx, { minRole: "superadmin" });
     if (!SETTING_KEYS.includes(key as (typeof SETTING_KEYS)[number])) {
-      throw new Error("Unknown setting");
+      throw new ConvexError("Unknown setting");
     }
     const existing = await ctx.db
       .query("platformSettings")
@@ -556,9 +556,9 @@ export const inspectWorkspace = mutation({
   args: { workspaceId: v.id("workspaces"), reason: v.string() },
   handler: async (ctx, { workspaceId, reason }) => {
     const admin = await requirePlatformAdmin(ctx);
-    if (!reason.trim()) throw new Error("A reason is required");
+    if (!reason.trim()) throw new ConvexError("A reason is required");
     const ws = await ctx.db.get(workspaceId);
-    if (!ws) throw new Error("Workspace not found");
+    if (!ws) throw new ConvexError("Workspace not found");
     await logAdminAction(ctx, admin, "workspace.break_glass", {
       targetType: "workspace",
       targetId: workspaceId,

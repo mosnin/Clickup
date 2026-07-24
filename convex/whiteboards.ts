@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireDocLikeParentAccess, requireIdentity } from "./_authz";
 
@@ -74,7 +74,7 @@ export const rename = mutation({
   handler: async (ctx, { whiteboardId, title }) => {
     await requireIdentity(ctx);
     const wb = await ctx.db.get(whiteboardId);
-    if (!wb) throw new Error("Whiteboard not found");
+    if (!wb) throw new ConvexError("Whiteboard not found");
     await requireDocLikeParentAccess(ctx, wb.parentType, wb.parentId);
     await ctx.db.patch(whiteboardId, {
       title: title.trim() || "Untitled board",
@@ -87,7 +87,7 @@ export const updateSnapshot = mutation({
   handler: async (ctx, { whiteboardId, snapshot }) => {
     await requireIdentity(ctx);
     const wb = await ctx.db.get(whiteboardId);
-    if (!wb) throw new Error("Whiteboard not found");
+    if (!wb) throw new ConvexError("Whiteboard not found");
     await requireDocLikeParentAccess(ctx, wb.parentType, wb.parentId);
     await ctx.db.patch(whiteboardId, { snapshot, updatedAt: Date.now() });
   },

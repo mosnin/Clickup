@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
@@ -116,7 +116,7 @@ export const createFromTemplate = mutation({
     // Scope check: personal space must be the caller's; workspace requires
     // membership.
     if (parentType === "user") {
-      if (parentId !== identity.subject) throw new Error("Forbidden");
+      if (parentId !== identity.subject) throw new ConvexError("Forbidden");
     } else {
       const membership = await ctx.db
         .query("memberships")
@@ -126,13 +126,13 @@ export const createFromTemplate = mutation({
             .eq("workspaceId", parentId as Id<"workspaces">),
         )
         .unique();
-      if (!membership) throw new Error("Forbidden");
+      if (!membership) throw new ConvexError("Forbidden");
     }
 
     const tpl = AGENT_TEMPLATES.find((t) => t.slug === slug);
-    if (!tpl) throw new Error("Unknown template");
+    if (!tpl) throw new ConvexError("Unknown template");
     if (tpl.requiresWorkspace && parentType === "user") {
-      throw new Error(
+      throw new ConvexError(
         "This template needs a workspace — its agent plans sprints, which are workspace-only.",
       );
     }

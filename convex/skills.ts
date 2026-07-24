@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
@@ -132,7 +132,7 @@ async function requireScopeMembership(
 ): Promise<string> {
   const identity = await requireIdentity(ctx);
   if (scopeType === "user") {
-    if (scopeId !== identity.subject) throw new Error("Forbidden");
+    if (scopeId !== identity.subject) throw new ConvexError("Forbidden");
   } else {
     const member = await ctx.db
       .query("memberships")
@@ -142,7 +142,7 @@ async function requireScopeMembership(
           .eq("workspaceId", scopeId as Id<"workspaces">),
       )
       .unique();
-    if (!member) throw new Error("Forbidden");
+    if (!member) throw new ConvexError("Forbidden");
   }
   return identity.subject;
 }
@@ -236,7 +236,7 @@ export const create = mutation({
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
-    if (!slug) throw new Error("Slug is required");
+    if (!slug) throw new ConvexError("Slug is required");
     const existing = await ctx.db
       .query("skills")
       .withIndex("by_scope", (q) =>
@@ -244,7 +244,7 @@ export const create = mutation({
       )
       .collect();
     if (existing.some((s) => s.slug === slug)) {
-      throw new Error("A skill with this slug already exists");
+      throw new ConvexError("A skill with this slug already exists");
     }
     return await ctx.db.insert("skills", {
       scopeType: args.scopeType,
@@ -271,7 +271,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const skill = await ctx.db.get(args.skillId);
-    if (!skill) throw new Error("Skill not found");
+    if (!skill) throw new ConvexError("Skill not found");
     await requireScopeMembership(ctx, skill.scopeType, skill.scopeId);
     const patch: Record<string, unknown> = { updatedAt: Date.now() };
     if (args.name !== undefined) patch.name = args.name;

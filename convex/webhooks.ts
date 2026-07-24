@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import {
   internalMutation,
   internalQuery,
@@ -37,10 +37,10 @@ export function validateWebhookUrl(url: string): void {
   try {
     parsed = new URL(url);
   } catch {
-    throw new Error("Invalid URL");
+    throw new ConvexError("Invalid URL");
   }
   if (parsed.protocol !== "https:") {
-    throw new Error("Webhook URL must be https://");
+    throw new ConvexError("Webhook URL must be https://");
   }
   const host = parsed.hostname.toLowerCase();
   const privatePatterns = [
@@ -57,7 +57,7 @@ export function validateWebhookUrl(url: string): void {
     /\.(local|internal|localdomain)$/,
   ];
   if (privatePatterns.some((re) => re.test(host))) {
-    throw new Error("Webhook URL must not point at a private address");
+    throw new ConvexError("Webhook URL must not point at a private address");
   }
 }
 
@@ -100,7 +100,7 @@ async function requireScopeMembership(
 ): Promise<string> {
   const identity = await requireIdentity(ctx);
   if (scopeType === "user") {
-    if (scopeId !== identity.subject) throw new Error("Forbidden");
+    if (scopeId !== identity.subject) throw new ConvexError("Forbidden");
   } else {
     const member = await (
       ctx as MutationCtx
@@ -112,7 +112,7 @@ async function requireScopeMembership(
           .eq("workspaceId", scopeId as Id<"workspaces">),
       )
       .unique();
-    if (!member) throw new Error("Forbidden");
+    if (!member) throw new ConvexError("Forbidden");
   }
   return identity.subject;
 }
@@ -182,7 +182,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const sub = await ctx.db.get(args.subscriptionId);
-    if (!sub) throw new Error("Subscription not found");
+    if (!sub) throw new ConvexError("Subscription not found");
     await requireScopeMembership(ctx, sub.scopeType, sub.scopeId);
     const patch: Record<string, unknown> = {};
     if (args.enabled !== undefined) {

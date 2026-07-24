@@ -1,10 +1,12 @@
 import { randomBytes } from "crypto";
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { ConvexHttpClient } from "convex/browser";
 import type { FunctionReference } from "convex/server";
 import { api } from "@convex/_generated/api";
+import { ConvexError } from "convex/values";
 
 // Hosted MCP server (Streamable HTTP) at POST /api/mcp.
 //
@@ -66,6 +68,94 @@ const checklistArg = z
   )
   .describe("Full checklist (replaces the existing one)");
 
+// Annotation hints surfaced to MCP clients on tools/list. Reads are marked
+// readOnlyHint; delete_* tools destructiveHint; safely-retryable mutations
+// idempotentHint. Everything operates on the closed operate.to workspace,
+// so openWorldHint is false across the board.
+const READ_TOOLS = new Set([
+  "whoami",
+  "get_tree",
+  "list_statuses",
+  "list_tasks",
+  "get_task",
+  "search_tasks",
+  "semantic_search",
+  "list_comments",
+  "list_my_mentions",
+  "list_members",
+  "list_sprints",
+  "sprint_summary",
+  "get_sprint_board",
+  "get_sprint_planning",
+  "get_roadmaps",
+  "list_scheduled_tasks",
+  "list_events",
+  "list_webhooks",
+  "list_skills",
+  "get_skill",
+  "list_blueprints",
+  "list_docs",
+  "get_doc",
+  "next_task",
+  "list_channels",
+  "list_time_entries",
+  "list_goals",
+  "list_automations",
+  "list_templates",
+  "list_custom_fields",
+  "list_checklist_templates",
+  "get_portfolio",
+  "get_task_network",
+  "get_wallet",
+  "buy_credits", // returns a payment challenge; charges nothing by itself
+]);
+const DESTRUCTIVE_TOOLS = new Set([
+  "delete_task",
+  "delete_scheduled_task",
+  "delete_webhook",
+  "delete_automation",
+  "delete_comment",
+]);
+const IDEMPOTENT_TOOLS = new Set([
+  "heartbeat",
+  "update_task",
+  "set_estimate",
+  "complete_task",
+  "set_checklist",
+  "add_dependency",
+  "remove_dependency",
+  "release_task",
+  "mark_mention_read",
+  "update_sprint",
+  "set_sprint_capacity",
+  "set_sprint_retrospective",
+  "assign_project_to_phase",
+  "set_scheduled_task_enabled",
+  "update_doc",
+  "set_goal_progress",
+  "set_task_field",
+  "clear_task_field",
+  "update_comment",
+  "resolve_comment",
+  "create_channel", // create-by-name returns the existing channel
+]);
+
+function titleFor(name: string): string {
+  if (name === "whoami") return "Who am I?";
+  const words = name.split("_").join(" ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function annotationsFor(name: string): ToolAnnotations {
+  return {
+    title: titleFor(name),
+    openWorldHint: false,
+    ...(READ_TOOLS.has(name) ? { readOnlyHint: true } : {}),
+    ...(DESTRUCTIVE_TOOLS.has(name) ? { destructiveHint: true } : {}),
+    ...(IDEMPOTENT_TOOLS.has(name) ? { idempotentHint: true } : {}),
+  };
+}
+
 type ToolDef = {
   name: string;
   description: string;
@@ -84,7 +174,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "whoami",
     description:
-      "Who am I? Returns this agent's id, name, and scope (personal space or workspace). Call once at session start; use the returned ids when other tools need them.",
+      "Who am I? Returns this agent's id, name, and scope (personal space or workspace). Call once at session start; use the returned ids when other tools need them. Also returns your role, allowed lists, remaining daily budget, and billing status — check it to know your limits before you hit them.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.whoami), { apiKey: k }),
   },
@@ -147,13 +237,13 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_tasks",
     description:
-      "List tasks. Filter by listId or sprintId, or omit both to sweep my whole scope. assignedToMe narrows to my assignments. Completed/closed tasks are hidden unless includeCompleted.",
+      "List tasks. Filter by listId or sprintId, or omit both to sweep my whole scope. assignedToMe narrows to my assignments. Completed/closed tasks are hidden unless includeCompleted. Returns at most `limit` rows (default 100, max 500); long descriptions are truncated (descriptionTruncated: true) — get_task returns the full text.",
     shape: {
       listId: z.string().optional(),
       sprintId: z.string().optional(),
       assignedToMe: z.boolean().optional(),
       includeCompleted: z.boolean().optional(),
-      limit: z.number().optional().describe("max results, default 200"),
+      limit: z.number().optional().describe("max results, default 100, max 500"),
     },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listTasks), { apiKey: k, ...a }),
@@ -161,7 +251,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_task",
     description:
-      "Full detail of one task: status, checklist, dependencies (with open/closed state), claim, subtasks, and the last 50 comments.",
+      "Full detail of one task: status, checklist, dependencies (with open/closed state), claim, subtasks, and the last 50 comments. Also returns listName, attachments (with download urls), and the list's SOP when one is attached.",
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.getTask), { apiKey: k, ...a }),
@@ -335,7 +425,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_comments",
     description:
-      "Comments/chat under a task, space, or workspace (workspace = team chat).",
+      "Comments/chat under a task, space, workspace, or channel (workspace = team chat). Returns the newest 100.",
     shape: {
       parentType: z.enum(["task", "space", "workspace", "channel"]),
       parentId: z.string(),
@@ -404,7 +494,8 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "list_sprints",
-    description: "All sprints in my workspace, newest first.",
+    description:
+      "All sprints in my workspace, newest first (each row's id field is sprintId). Requires a workspace-scoped agent — personal-space agents have no workspace to hold sprints.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.listSprints), { apiKey: k }),
   },
@@ -475,6 +566,36 @@ const TOOLS: ToolDef[] = [
       c.query(asQuery(api.agentApi.getSprintPlanning), { apiKey: k, ...a }),
   },
 
+  // ── Roadmaps ─────────────────────────────────────────────────────
+  {
+    name: "get_roadmaps",
+    description:
+      "The workspace's roadmaps: ordered phases (Now/Next/Later style) with the projects in each and their done/total. Workspace-scoped agents only.",
+    shape: {},
+    run: (c, k) => c.query(asQuery(api.agentApi.getRoadmaps), { apiKey: k }),
+  },
+  {
+    name: "assign_project_to_phase",
+    description:
+      "Put a project (list) into a roadmap phase, or pull it out with roadmapId null.",
+    shape: {
+      listId: z.string(),
+      roadmapId: z
+        .string()
+        .nullable()
+        .describe("null removes the project from its roadmap"),
+      phaseId: z
+        .string()
+        .optional()
+        .describe("phase id from get_roadmaps; defaults to the first phase"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.assignProjectToPhase), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+
   // ── Scheduled recurring tasks ────────────────────────────────────
   {
     name: "create_scheduled_task",
@@ -500,7 +621,8 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "list_scheduled_tasks",
-    description: "Recurring task definitions on a list.",
+    description:
+      "Recurring task definitions on a list (each row's id field is scheduledTaskId).",
     shape: { listId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listScheduledTasks), { apiKey: k, ...a }),
@@ -530,10 +652,10 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_events",
     description:
-      "Activity log for my scope (task/comment/sprint events), oldest first. Poll with sinceCreatedAt = the last event's createdAt for a cursor. Prefer register_webhook for push.",
+      "Activity log for my scope (task/comment/sprint/agent events), newest first. limit defaults to 200 (also the max). Events are retained 90 days. Poll with sinceCreatedAt = the newest createdAt you've seen for a cursor. Prefer register_webhook for push.",
     shape: {
       sinceCreatedAt: z.number().optional(),
-      limit: z.number().optional(),
+      limit: z.number().optional().describe("default 200, max 200"),
     },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listEvents), { apiKey: k, ...a }),
@@ -541,7 +663,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "register_webhook",
     description:
-      "Push events to my runtime instead of polling: POSTs each matching event to url, HMAC-SHA256 signed (X-Webhook-Signature: sha256=<hex of body with the returned secret>). eventTypes empty = all (task.*, comment.*, mention.*, sprint.*). Optional listId filter.",
+      "Push events to my runtime instead of polling: POSTs each matching event to url, HMAC-SHA256 signed (X-Webhook-Signature: sha256=<hex of body with the returned secret>). eventTypes empty = all (task.*, comment.*, mention.*, sprint.*, agent.*, goal.*). Optional listId filter.",
     shape: {
       url: z.string().describe("https:// endpoint on my runtime"),
       eventTypes: z.array(z.string()).optional(),
@@ -557,7 +679,8 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "list_webhooks",
-    description: "Webhooks I've registered (secrets not included).",
+    description:
+      "Webhooks I've registered (each row's id field is subscriptionId; secrets not included).",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.listWebhooks), { apiKey: k }),
   },
@@ -769,7 +892,8 @@ const TOOLS: ToolDef[] = [
   // ── Goals ────────────────────────────────────────────────────────
   {
     name: "list_goals",
-    description: "Goals/OKRs in my scope with target and current progress.",
+    description:
+      "Goals/OKRs in my scope with target and current progress (each row's id field is goalId).",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.listGoals), { apiKey: k }),
   },
@@ -803,7 +927,8 @@ const TOOLS: ToolDef[] = [
   // ── Automations ──────────────────────────────────────────────────
   {
     name: "list_automations",
-    description: "Automation rules on a list (trigger → action).",
+    description:
+      "Automation rules on a list (trigger → action; each row's id field is automationId).",
     shape: { listId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listAutomationsForList), { apiKey: k, ...a }),
@@ -866,7 +991,8 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "apply_template",
-    description: "Create a new list from a template inside a space or folder.",
+    description:
+      "Create a new list from a template inside a space or folder. templateId comes from list_templates.",
     shape: {
       templateId: z.string(),
       name: z.string(),
@@ -999,7 +1125,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "buy_credits",
     description:
-      "Get an x402 payment challenge to purchase `credits` credits. Returns the standard 402 body: `accepts[0]` carries the scheme, network, asset, payTo address, and maxAmountRequired (atomic units). Build a signed X-PAYMENT authorization for those requirements, then call settle_payment.",
+      "Returns an x402 payment challenge (network, asset, amount, payTo) to purchase `credits` credits — the standard 402 body, with `accepts[0]` carrying the scheme, network, asset, payTo address, and maxAmountRequired (atomic units). Requires an external EIP-3009-capable wallet/signer to produce the X-PAYMENT authorization — if you don't have signing capability, ask a human to top up the wallet from the Billing tab. Then call settle_payment.",
     shape: {
       credits: z.number().int().positive().describe("credits to purchase"),
     },
@@ -1074,36 +1200,61 @@ const handler = createMcpHandler(
     );
 
     for (const tool of TOOLS) {
-      server.tool(tool.name, tool.description, tool.shape, async (args, extra) => {
-        const apiKey = extra.authInfo?.token;
-        if (!apiKey) {
-          return {
-            content: [{ type: "text" as const, text: "Error: missing API key" }],
-            isError: true,
-          };
-        }
-        try {
-          const result = await tool.run(convexClient(), apiKey, args);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify(result ?? { ok: true }, null, 2),
-              },
-            ],
-          };
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          return {
-            content: [{ type: "text" as const, text: `Error: ${message}` }],
-            isError: true,
-          };
-        }
-      });
+      server.registerTool(
+        tool.name,
+        {
+          description: tool.description,
+          inputSchema: tool.shape,
+          annotations: annotationsFor(tool.name),
+        },
+        async (args, extra) => {
+          const apiKey = extra.authInfo?.token;
+          if (!apiKey) {
+            return {
+              content: [
+                { type: "text" as const, text: "Error: missing API key" },
+              ],
+              isError: true,
+            };
+          }
+          try {
+            const result = await tool.run(convexClient(), apiKey, args);
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  // Compact on purpose: pretty-printing roughly doubles the
+                  // token cost of every list-shaped response.
+                  text: JSON.stringify(result ?? { ok: true }),
+                },
+              ],
+            };
+          } catch (err) {
+            // ConvexError.data survives production redaction (plain Error
+            // messages become "Server Error" on the wire) — surface it so
+            // refusal messages and the x402 challenge reach the agent intact.
+            let message: string;
+            if (err instanceof ConvexError) {
+              message =
+                typeof err.data === "string"
+                  ? err.data
+                  : JSON.stringify(err.data);
+            } else {
+              message = err instanceof Error ? err.message : String(err);
+            }
+            return {
+              content: [{ type: "text" as const, text: `Error: ${message}` }],
+              isError: true,
+            };
+          }
+        },
+      );
     }
   },
   {
     serverInfo: { name: "operate-agents", version: "1.0.0" },
+    instructions:
+      "You are an agent teammate in operate.to. First: call whoami, then fetch the 'collaboration-protocol' skill with get_skill and follow it. Find work with next_task, claim_task before working, heartbeat while working, complete_task when done. All ids are opaque strings returned by other tools; dates accept ISO 8601 or epoch ms.",
   },
   {
     basePath: "/api",

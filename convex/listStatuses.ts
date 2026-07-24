@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
@@ -106,7 +106,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const status = await ctx.db.get(args.statusId);
-    if (!status) throw new Error("Status not found");
+    if (!status) throw new ConvexError("Status not found");
     await requireListAccess(ctx, status.listId);
 
     const patch: Record<string, unknown> = {};
@@ -138,15 +138,15 @@ export const remove = mutation({
   },
   handler: async (ctx, { statusId, replaceWithId }) => {
     if (statusId === replaceWithId) {
-      throw new Error("Replacement status must differ from the deleted one");
+      throw new ConvexError("Replacement status must differ from the deleted one");
     }
     const status = await ctx.db.get(statusId);
-    if (!status) throw new Error("Status not found");
+    if (!status) throw new ConvexError("Status not found");
     await requireListAccess(ctx, status.listId);
 
     const replacement = await ctx.db.get(replaceWithId);
     if (!replacement || replacement.listId !== status.listId) {
-      throw new Error("Replacement status must belong to the same list");
+      throw new ConvexError("Replacement status must belong to the same list");
     }
 
     const tasksToReassign = await ctx.db

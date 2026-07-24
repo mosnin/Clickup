@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
@@ -66,7 +66,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const auto = await ctx.db.get(args.automationId);
-    if (!auto) throw new Error("Automation not found");
+    if (!auto) throw new ConvexError("Automation not found");
     await requireListAccess(ctx, auto.listId);
     const patch: Record<string, unknown> = {};
     if (args.trigger !== undefined) patch.trigger = args.trigger;

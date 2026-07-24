@@ -8,7 +8,7 @@
 // _authz.canAccessSpace; archived spaces are always skipped (their data
 // stays, it just doesn't show up on live surfaces).
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
@@ -54,7 +54,7 @@ async function requireWorkspaceMember(
       q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
     )
     .unique();
-  if (!member) throw new Error("Forbidden");
+  if (!member) throw new ConvexError("Forbidden");
   return identity;
 }
 

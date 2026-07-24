@@ -57,6 +57,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import { errorMessage } from "@/lib/errors";
 
 // Home: the Square dashboard-5 shell's page composition (Phase H), wired to
 // live Convex data. Two reactive queries drive every tile — homeOverview.get
@@ -117,13 +118,6 @@ const DEFAULT_LAYOUT: WidgetId[] = WIDGETS.map((w) => w.id);
 const WIDGET_BY_ID = new Map<WidgetId, (typeof WIDGETS)[number]>(
   WIDGETS.map((w) => [w.id, w]),
 );
-
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
 
 function startOfToday(): number {
   const d = new Date();

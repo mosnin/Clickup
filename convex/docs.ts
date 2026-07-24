@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
@@ -83,16 +83,16 @@ export const create = mutation({
     );
     if (parentDocId) {
       const parentDoc = await ctx.db.get(parentDocId);
-      if (!parentDoc) throw new Error("Parent doc not found");
+      if (!parentDoc) throw new ConvexError("Parent doc not found");
       if (
         parentDoc.parentType !== parentType ||
         parentDoc.parentId !== parentId
       ) {
-        throw new Error("Parent doc is in a different scope");
+        throw new ConvexError("Parent doc is in a different scope");
       }
       const parentDepth = await docDepth(ctx, parentDoc);
       if (parentDepth + 1 > MAX_DOC_DEPTH) {
-        throw new Error("Maximum nesting depth reached");
+        throw new ConvexError("Maximum nesting depth reached");
       }
     }
     const now = Date.now();
@@ -178,7 +178,7 @@ export const move = mutation({
   handler: async (ctx, { docId, parentDocId }) => {
     await requireIdentity(ctx);
     const doc = await ctx.db.get(docId);
-    if (!doc) throw new Error("Doc not found");
+    if (!doc) throw new ConvexError("Doc not found");
     await requireDocLikeParentAccess(ctx, doc.parentType, doc.parentId);
 
     if (parentDocId === null) {
@@ -186,16 +186,16 @@ export const move = mutation({
       return;
     }
     if (parentDocId === docId) {
-      throw new Error("A doc cannot be its own parent");
+      throw new ConvexError("A doc cannot be its own parent");
     }
 
     const newParent = await ctx.db.get(parentDocId);
-    if (!newParent) throw new Error("Parent doc not found");
+    if (!newParent) throw new ConvexError("Parent doc not found");
     if (
       newParent.parentType !== doc.parentType ||
       newParent.parentId !== doc.parentId
     ) {
-      throw new Error("Parent doc is in a different scope");
+      throw new ConvexError("Parent doc is in a different scope");
     }
 
     // Cycle check: walking up from the new parent must not reach docId —
@@ -204,7 +204,7 @@ export const move = mutation({
     let hops = 0;
     while (cursor) {
       if (cursor._id === docId) {
-        throw new Error("Cannot move a doc under one of its own descendants");
+        throw new ConvexError("Cannot move a doc under one of its own descendants");
       }
       if (!cursor.parentDocId || hops >= MAX_DOC_DEPTH + 5) break;
       cursor = await ctx.db.get(cursor.parentDocId);
@@ -213,7 +213,7 @@ export const move = mutation({
 
     const parentDepth = await docDepth(ctx, newParent);
     if (parentDepth + 1 > MAX_DOC_DEPTH) {
-      throw new Error("Maximum nesting depth reached");
+      throw new ConvexError("Maximum nesting depth reached");
     }
 
     // The doc's own descendants move with it — their depths shift too.
@@ -236,7 +236,7 @@ export const move = mutation({
     };
     const height = await subtreeHeight(docId, 0);
     if (parentDepth + 1 + height > MAX_DOC_DEPTH) {
-      throw new Error(
+      throw new ConvexError(
         "Moving this doc here would push its subpages past the nesting limit",
       );
     }
@@ -250,7 +250,7 @@ export const rename = mutation({
   handler: async (ctx, { docId, title }) => {
     await requireIdentity(ctx);
     const doc = await ctx.db.get(docId);
-    if (!doc) throw new Error("Doc not found");
+    if (!doc) throw new ConvexError("Doc not found");
     await requireDocLikeParentAccess(ctx, doc.parentType, doc.parentId);
     await ctx.db.patch(docId, { title: title.trim() || "Untitled" });
   },
@@ -261,7 +261,7 @@ export const updateContent = mutation({
   handler: async (ctx, { docId, content }) => {
     await requireIdentity(ctx);
     const doc = await ctx.db.get(docId);
-    if (!doc) throw new Error("Doc not found");
+    if (!doc) throw new ConvexError("Doc not found");
     await requireDocLikeParentAccess(ctx, doc.parentType, doc.parentId);
     await ctx.db.patch(docId, { content, updatedAt: Date.now() });
     await ctx.scheduler.runAfter(0, internal.ai.indexDocument, { docId });

@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -17,7 +17,7 @@ export const create = mutation({
   args: { name: v.string() },
   handler: async (ctx, { name }) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
     await assertNotSuspended(ctx, identity.subject);
 
     const baseSlug = slugify(name) || "workspace";
@@ -121,7 +121,7 @@ async function requireMemberManageAccess(
     )
     .unique();
   if (!membership || membership.role === "member") {
-    throw new Error("Only owners and admins can manage members");
+    throw new ConvexError("Only owners and admins can manage members");
   }
   return membership;
 }
@@ -137,7 +137,7 @@ async function getMembership(
       q.eq("userClerkId", memberClerkId).eq("workspaceId", workspaceId),
     )
     .unique();
-  if (!membership) throw new Error("Not a member of this workspace");
+  if (!membership) throw new ConvexError("Not a member of this workspace");
   return membership;
 }
 
@@ -180,13 +180,13 @@ export const updateMemberRole = mutation({
       (role === "owner" || target.role === "owner") &&
       myMembership.role !== "owner"
     ) {
-      throw new Error("Only an owner can change an owner's role");
+      throw new ConvexError("Only an owner can change an owner's role");
     }
 
     if (target.role === "owner" && role !== "owner") {
       const owners = await countOwners(ctx, workspaceId);
       if (owners <= 1) {
-        throw new Error(
+        throw new ConvexError(
           "Workspace needs at least one owner — promote someone else first",
         );
       }
@@ -208,7 +208,7 @@ export const removeMember = mutation({
   handler: async (ctx, { workspaceId, memberClerkId }) => {
     const identity = await requireIdentity(ctx);
     if (memberClerkId === identity.subject) {
-      throw new Error("Use leaveWorkspace to remove yourself");
+      throw new ConvexError("Use leaveWorkspace to remove yourself");
     }
     const myMembership = await requireMemberManageAccess(
       ctx,
@@ -219,11 +219,11 @@ export const removeMember = mutation({
 
     if (target.role === "owner") {
       if (myMembership.role !== "owner") {
-        throw new Error("Only an owner can remove another owner");
+        throw new ConvexError("Only an owner can remove another owner");
       }
       const owners = await countOwners(ctx, workspaceId);
       if (owners <= 1) {
-        throw new Error(
+        throw new ConvexError(
           "Can't remove the last owner — transfer ownership first",
         );
       }
@@ -244,7 +244,7 @@ export const leaveWorkspace = mutation({
     if (membership.role === "owner") {
       const owners = await countOwners(ctx, workspaceId);
       if (owners <= 1) {
-        throw new Error(
+        throw new ConvexError(
           "You're the only owner — promote someone else before leaving",
         );
       }

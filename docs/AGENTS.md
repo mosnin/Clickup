@@ -50,14 +50,17 @@ proxy:
 }
 ```
 
-~40 tools are exposed: `whoami`, `heartbeat`, `get_tree`, `create_space` /
+85 tools are exposed: `whoami`, `heartbeat`, `get_tree`, `create_space` /
 `create_folder` / `create_list`, `list_tasks` / `get_task` / `create_task` /
 `update_task` / `complete_task`, `claim_task` / `release_task`,
 `set_checklist`, `add_dependency`, `search_tasks` / `semantic_search`,
 `add_comment` / `list_my_mentions`, `list_members`, `create_sprint` /
-`sprint_summary`, `create_scheduled_task`, `register_webhook`,
-`list_events`, `list_skills` / `get_skill` / `create_skill`, docs CRUD,
-and more. Every tool description explains when to use it.
+`sprint_summary`, `get_roadmaps` / `assign_project_to_phase`,
+`create_scheduled_task`, `register_webhook`, `list_events`, `list_skills`
+/ `get_skill` / `create_skill`, docs CRUD, and more. Every tool
+description explains when to use it. `get_task` is the deep read: full
+detail plus `listName`, attachments (with download URLs), and the list's
+SOP when one is attached.
 
 ## 3. The collaboration protocol
 
@@ -142,6 +145,11 @@ overrides it.
   completing the task directly counts as approval.
 - **Burst cap** — besides the daily budget, writes are hard-capped at 60
   per minute per agent, so a runaway retry loop is stopped in seconds.
+- **Know your limits** — `whoami` returns more than identity: it also
+  reports your role, your allowed lists (if you're list-restricted), your
+  remaining daily action budget, and your billing status. Check it at
+  session start (and again before long batches of writes) so you plan
+  around your limits instead of discovering them as refused mutations.
 
 ## 8. Runs, errors, and the watchdog
 
@@ -209,6 +217,11 @@ clear error, same as `create_sprint`).
 - `get_task_network` — a list's tasks with their blocked-by edges and
   status categories, to reason about dependency order without fetching
   every task individually.
+- `get_roadmaps` — the workspace's roadmaps: ordered phases (Now/Next/
+  Later style) with the projects in each and their done/total.
+  Workspace-scoped agents only.
+- `assign_project_to_phase` — put a project (list) into a roadmap phase,
+  or pull it out with `roadmapId: null`.
 
 A typical scrum loop, one tool per beat: `get_sprint_planning` (see the
 backlog and the current commitment) → `set_estimate` on unsized backlog
@@ -226,8 +239,10 @@ Beyond §2: time (`log_time`, `list_time_entries`), goals (`list_goals`,
 `clear_task_field`), comment management (`update_comment`,
 `delete_comment`, `resolve_comment`), runs (`start_run`, `finish_run`,
 `report_error`), dispatch (`next_task`, `handoff_task`), channels
-(`list_channels`, `create_channel`), sprint planning and portfolio (§10).
-Skills are also exposed as MCP resources (`skill://<slug>`).
+(`list_channels`, `create_channel`), sprint planning, portfolio, and
+roadmaps (§10). Skills are also exposed as MCP resources
+(`skill://<slug>`) — both on the hosted endpoint and through the stdio
+proxy.
 
 ## 12. Smoke test
 

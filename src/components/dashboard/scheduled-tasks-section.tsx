@@ -8,18 +8,12 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
+import { errorMessage } from "@/lib/errors";
 
 // List-settings section for time-based recurring tasks ("every Monday
 // 09:00 UTC create X"). The cron in convex/crons.ts materializes them.
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
 
 // "09:00 UTC (11:00 local)" — schedules run on UTC; show the viewer's
 // local equivalent so non-UTC teams don't misread the hour.

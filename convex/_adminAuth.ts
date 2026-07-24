@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 
@@ -40,7 +41,7 @@ async function currentUser(
   ctx: QueryCtx | MutationCtx,
 ): Promise<{ subject: string; user: Doc<"users"> | null; email: string }> {
   const identity = await ctx.auth.getUserIdentity();
-  if (!identity) throw new Error("Not authenticated");
+  if (!identity) throw new ConvexError("Not authenticated");
   const user = await ctx.db
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
@@ -52,7 +53,7 @@ async function currentUser(
   // route through _authz.requireIdentity. Enforce it at the single choke
   // point every admin function resolves through.
   if (user?.suspendedAt) {
-    throw new Error("Account suspended");
+    throw new ConvexError("Account suspended");
   }
   // Prefer the mirrored (webhook-verified) email for the env-allowlist
   // decision; the identity.email fallback only applies before the user row
@@ -80,10 +81,10 @@ export async function requirePlatformAdmin(
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", subject))
     .unique();
   if (!row || row.revokedAt) {
-    throw new Error("Forbidden: platform admin access required");
+    throw new ConvexError("Forbidden: platform admin access required");
   }
   if (opts?.minRole === "superadmin" && row.role !== "superadmin") {
-    throw new Error("Forbidden: superadmin access required");
+    throw new ConvexError("Forbidden: superadmin access required");
   }
   return {
     clerkId: subject,

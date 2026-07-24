@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import {
   query,
   mutation,
@@ -171,7 +171,7 @@ export const topupRequirements = query({
   handler: async (ctx, { apiKey, credits }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "read");
     if (!Number.isInteger(credits) || credits <= 0) {
-      throw new Error("credits must be a positive integer");
+      throw new ConvexError("credits must be a positive integer");
     }
     const cfg = x402Config();
     const resource = topupResource(agent.parentType, agent.parentId);
@@ -227,10 +227,10 @@ export const applySettlement = internalMutation({
       .withIndex("by_nonce", (q) => q.eq("nonce", args.nonce))
       .collect();
     if (sameNonce.some((p) => p.status === "settled")) {
-      throw new Error("This payment has already been settled");
+      throw new ConvexError("This payment has already been settled");
     }
     if (!Number.isInteger(args.creditsGranted) || args.creditsGranted <= 0) {
-      throw new Error("creditsGranted must be a positive integer");
+      throw new ConvexError("creditsGranted must be a positive integer");
     }
 
     await ctx.db.insert("payments", {
@@ -297,7 +297,7 @@ export const walletForScope = query({
   handler: async (ctx, { scopeType, scopeId }) => {
     const { subject } = await requireIdentity(ctx);
     if (!(await canAccessScope(ctx, scopeType, scopeId, subject))) {
-      throw new Error("Forbidden");
+      throw new ConvexError("Forbidden");
     }
     const wallet = await getWallet(ctx, scopeType, scopeId);
     const metering = await readMetering(ctx);
@@ -383,7 +383,7 @@ export const setMeteringConfig = mutation({
     // configured (or the mock is explicitly opted into). Otherwise metering
     // would be enforced while agents could self-mint credits through the mock.
     if (enabled === true && !facilitatorConfigured(x402Config())) {
-      throw new Error(
+      throw new ConvexError(
         "Refusing to enable metering: no payment facilitator is configured. Set X402_FACILITATOR_URL first (or X402_ALLOW_MOCK=1 for development only).",
       );
     }
@@ -410,7 +410,7 @@ export const setMeteringConfig = mutation({
     if (enabled !== undefined) await put("x402.metering", enabled ? "on" : "off");
     if (actionCredits !== undefined) {
       if (!Number.isInteger(actionCredits) || actionCredits < 0) {
-        throw new Error("actionCredits must be a non-negative integer");
+        throw new ConvexError("actionCredits must be a non-negative integer");
       }
       await put("x402.actionCredits", actionCredits);
     }

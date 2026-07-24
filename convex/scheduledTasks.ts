@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
@@ -80,7 +80,7 @@ export async function createScheduledTaskCore(
   args: CreateScheduledTaskArgs,
   actor: Actor,
 ): Promise<Id<"scheduledTasks">> {
-  if (!args.title.trim()) throw new Error("Title is required");
+  if (!args.title.trim()) throw new ConvexError("Title is required");
   const hourUtc = Math.min(Math.max(args.hourUtc ?? 9, 0), 23);
   return await ctx.db.insert("scheduledTasks", {
     listId: args.listId,
@@ -149,7 +149,7 @@ export const create = mutation({
         scope.scopeType !== bp.scopeType ||
         scope.scopeId !== bp.scopeId
       ) {
-        throw new Error("Blueprint belongs to a different scope");
+        throw new ConvexError("Blueprint belongs to a different scope");
       }
     }
     const actor = await userActor(ctx, identity.subject);
@@ -166,7 +166,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const st = await ctx.db.get(args.scheduledTaskId);
-    if (!st) throw new Error("Not found");
+    if (!st) throw new ConvexError("Not found");
     await requireListAccess(ctx, st.listId);
     const patch: Record<string, unknown> = {};
     if (args.enabled !== undefined) {

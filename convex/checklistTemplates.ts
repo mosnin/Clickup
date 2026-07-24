@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -19,7 +19,7 @@ async function requireScopeAccess(
 ): Promise<{ subject: string }> {
   const identity = await requireIdentity(ctx);
   if (scopeType === "user") {
-    if (scopeId !== identity.subject) throw new Error("Forbidden");
+    if (scopeId !== identity.subject) throw new ConvexError("Forbidden");
   } else {
     const member = await ctx.db
       .query("memberships")
@@ -29,7 +29,7 @@ async function requireScopeAccess(
           .eq("workspaceId", scopeId as Id<"workspaces">),
       )
       .unique();
-    if (!member) throw new Error("Forbidden");
+    if (!member) throw new ConvexError("Forbidden");
   }
   return { subject: identity.subject };
 }
@@ -98,10 +98,10 @@ export const create = mutation({
     );
     const items = args.items.map((i) => i.trim()).filter((i) => i.length > 0);
     if (items.length === 0) {
-      throw new Error("A template needs at least one item");
+      throw new ConvexError("A template needs at least one item");
     }
     const name = args.name.trim();
-    if (!name) throw new Error("A template needs a name");
+    if (!name) throw new ConvexError("A template needs a name");
 
     const actor = await userActor(ctx, subject);
     return await ctx.db.insert("checklistTemplates", {
@@ -119,7 +119,7 @@ export const remove = mutation({
   args: { templateId: v.id("checklistTemplates") },
   handler: async (ctx, { templateId }) => {
     const template = await ctx.db.get(templateId);
-    if (!template) throw new Error("Template not found");
+    if (!template) throw new ConvexError("Template not found");
     await requireScopeAccess(ctx, template.scopeType, template.scopeId);
     await ctx.db.delete(templateId);
   },
@@ -135,13 +135,13 @@ export const saveFromTask = mutation({
       .map((i) => i.text.trim())
       .filter((t) => t.length > 0);
     if (items.length === 0) {
-      throw new Error("This task has no checklist items to save yet");
+      throw new ConvexError("This task has no checklist items to save yet");
     }
     const trimmedName = name.trim();
-    if (!trimmedName) throw new Error("A template needs a name");
+    if (!trimmedName) throw new ConvexError("A template needs a name");
 
     const scope = await scopeForList(ctx, list);
-    if (!scope) throw new Error("Orphan list");
+    if (!scope) throw new ConvexError("Orphan list");
     const actor = await userActor(ctx, identity.subject);
     return await ctx.db.insert("checklistTemplates", {
       scopeType: scope.scopeType,
@@ -164,17 +164,17 @@ export const applyToTask = mutation({
   handler: async (ctx, { taskId, templateId }) => {
     const { task, list, identity } = await requireTaskAccess(ctx, taskId);
     const template = await ctx.db.get(templateId);
-    if (!template) throw new Error("Template not found");
+    if (!template) throw new ConvexError("Template not found");
 
     const scope = await scopeForList(ctx, list);
-    if (!scope) throw new Error("Orphan list");
+    if (!scope) throw new ConvexError("Orphan list");
     const matchesTaskScope =
       template.scopeType === scope.scopeType &&
       template.scopeId === scope.scopeId;
     const matchesPersonalScope =
       template.scopeType === "user" && template.scopeId === identity.subject;
     if (!matchesTaskScope && !matchesPersonalScope) {
-      throw new Error("Forbidden");
+      throw new ConvexError("Forbidden");
     }
 
     const existing = task.checklist ?? [];

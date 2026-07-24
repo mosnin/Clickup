@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { requireIdentity } from "./_authz";
@@ -54,7 +54,7 @@ export const markRead = mutation({
   handler: async (ctx, { notificationId }) => {
     const { subject } = await requireIdentity(ctx);
     const n = await ctx.db.get(notificationId);
-    if (!n || n.userClerkId !== subject) throw new Error("Not found");
+    if (!n || n.userClerkId !== subject) throw new ConvexError("Not found");
     if (n.readAt === undefined) {
       await ctx.db.patch(notificationId, { readAt: Date.now() });
     }

@@ -19,6 +19,7 @@ import {
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
+import { errorMessage } from "@/lib/errors";
 
 // The Overview surface: what makes a list a real PROJECT. Description +
 // notes on the left, health/owner/target date + at-a-glance metadata on the
@@ -45,13 +46,6 @@ const STATUS_CHIPS: { key: ProjectStatus; label: string; className: string }[] =
   },
   { key: "paused", label: "Paused", className: "bg-muted" },
 ];
-
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
 
 export function OverviewView({
   listId,

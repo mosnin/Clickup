@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -38,7 +38,7 @@ async function requireWorkspaceMember(
       q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
     )
     .unique();
-  if (!membership) throw new Error("Not a member of this workspace");
+  if (!membership) throw new ConvexError("Not a member of this workspace");
   return identity.subject;
 }
 
@@ -68,9 +68,9 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const subject = await requireWorkspaceMember(ctx, args.workspaceId);
     const name = args.name.trim();
-    if (!name) throw new Error("Field name is required");
+    if (!name) throw new ConvexError("Field name is required");
     if (args.type === "dropdown" && (!args.options || args.options.length === 0)) {
-      throw new Error("Dropdown fields need at least one option");
+      throw new ConvexError("Dropdown fields need at least one option");
     }
     return await ctx.db.insert("fieldLibrary", {
       workspaceId: args.workspaceId,
@@ -99,7 +99,7 @@ export const applyToList = mutation({
   args: { fieldId: v.id("fieldLibrary"), listId: v.id("lists") },
   handler: async (ctx, args) => {
     const field = await ctx.db.get(args.fieldId);
-    if (!field) throw new Error("Field not found");
+    if (!field) throw new ConvexError("Field not found");
     await requireWorkspaceMember(ctx, field.workspaceId);
     const { list } = await requireListAccess(ctx, args.listId);
     const scope = await scopeForList(ctx, list);
@@ -108,7 +108,7 @@ export const applyToList = mutation({
       scope.scopeType !== "workspace" ||
       scope.scopeId !== (field.workspaceId as string)
     ) {
-      throw new Error("This field belongs to a different workspace");
+      throw new ConvexError("This field belongs to a different workspace");
     }
     const existing = await ctx.db
       .query("customFields")
@@ -119,7 +119,7 @@ export const applyToList = mutation({
         (f) => f.name.toLowerCase() === field.name.toLowerCase(),
       )
     ) {
-      throw new Error(`This list already has a "${field.name}" field`);
+      throw new ConvexError(`This list already has a "${field.name}" field`);
     }
     return await ctx.db.insert("customFields", {
       listId: list._id,

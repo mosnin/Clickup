@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
@@ -14,7 +14,7 @@ export const exportWorkspace = query({
   handler: async (ctx, { workspaceId }) => {
     const identity = await requireIdentity(ctx);
     const workspace = await ctx.db.get(workspaceId);
-    if (!workspace) throw new Error("Workspace not found");
+    if (!workspace) throw new ConvexError("Workspace not found");
     const membership = await ctx.db
       .query("memberships")
       .withIndex("by_user_and_workspace", (q) =>
@@ -22,7 +22,7 @@ export const exportWorkspace = query({
       )
       .unique();
     if (!membership || membership.role === "member") {
-      throw new Error("Only workspace owners and admins can export data");
+      throw new ConvexError("Only workspace owners and admins can export data");
     }
 
     const spaces = await ctx.db

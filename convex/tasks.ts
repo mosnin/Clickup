@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
@@ -202,14 +202,14 @@ async function validateSprintForList(
   list: Doc<"lists">,
 ): Promise<void> {
   const sprint = await ctx.db.get(sprintId);
-  if (!sprint) throw new Error("Sprint not found");
+  if (!sprint) throw new ConvexError("Sprint not found");
   const scope = await scopeForList(ctx, list);
   if (
     !scope ||
     scope.scopeType !== "workspace" ||
     scope.scopeId !== sprint.workspaceId
   ) {
-    throw new Error("Sprint belongs to a different workspace");
+    throw new ConvexError("Sprint belongs to a different workspace");
   }
 }
 
@@ -224,12 +224,12 @@ async function validateBlockers(
   const scope = await scopeForList(ctx, list);
   for (const id of blockerIds) {
     if (selfId !== undefined && id === selfId) {
-      throw new Error("A task can't block itself");
+      throw new ConvexError("A task can't block itself");
     }
     const blocker = await ctx.db.get(id);
-    if (!blocker) throw new Error("Blocking task not found");
+    if (!blocker) throw new ConvexError("Blocking task not found");
     const blockerList = await ctx.db.get(blocker.listId);
-    if (!blockerList) throw new Error("Blocking task not found");
+    if (!blockerList) throw new ConvexError("Blocking task not found");
     const blockerScope = await scopeForList(ctx, blockerList);
     if (
       !scope ||
@@ -237,7 +237,7 @@ async function validateBlockers(
       blockerScope.scopeType !== scope.scopeType ||
       blockerScope.scopeId !== scope.scopeId
     ) {
-      throw new Error("Blocking task is outside this scope");
+      throw new ConvexError("Blocking task is outside this scope");
     }
   }
 }
@@ -297,7 +297,7 @@ export async function createTaskCore(
   actor: Actor,
 ): Promise<Id<"tasks">> {
   const list = await ctx.db.get(args.listId);
-  if (!list) throw new Error("List not found");
+  if (!list) throw new ConvexError("List not found");
 
   let statusId = args.statusId;
   let bornCategory: string;
@@ -307,7 +307,7 @@ export async function createTaskCore(
       .withIndex("by_list", (q) => q.eq("listId", args.listId))
       .collect();
     if (all.length === 0) {
-      throw new Error("List has no statuses configured");
+      throw new ConvexError("List has no statuses configured");
     }
     const sorted = [...all].sort((a, b) => a.position - b.position);
     const chosen = sorted.find((s) => s.category === "open") ?? sorted[0];
@@ -316,7 +316,7 @@ export async function createTaskCore(
   } else {
     const status = await ctx.db.get(statusId);
     if (!status || status.listId !== args.listId) {
-      throw new Error("statusId must belong to the same list");
+      throw new ConvexError("statusId must belong to the same list");
     }
     bornCategory = status.category;
   }
@@ -455,9 +455,9 @@ export async function updateTaskCore(
   actor: Actor,
 ): Promise<void> {
   const task = await ctx.db.get(args.taskId);
-  if (!task) throw new Error("Task not found");
+  if (!task) throw new ConvexError("Task not found");
   const list = await ctx.db.get(task.listId);
-  if (!list) throw new Error("Orphan task");
+  if (!list) throw new ConvexError("Orphan task");
 
   // Detect "transition into complete" before applying the patch so we
   // can run automations + spawn the recurring instance afterwards.
@@ -470,7 +470,7 @@ export async function updateTaskCore(
   if (args.statusId !== undefined && args.statusId !== task.statusId) {
     const newStatus = await ctx.db.get(args.statusId);
     if (!newStatus || newStatus.listId !== task.listId) {
-      throw new Error("statusId must belong to the same list");
+      throw new ConvexError("statusId must belong to the same list");
     }
     newStatusName = newStatus.name;
     willBeComplete =
@@ -478,7 +478,7 @@ export async function updateTaskCore(
     if (!wasComplete && willBeComplete) {
       const blockers = await openBlockers(ctx, task);
       if (blockers.length > 0) {
-        throw new Error(
+        throw new ConvexError(
           `Task is blocked by incomplete task(s): ${blockers
             .map((b) => `"${b.title}"`)
             .join(", ")}`,
@@ -488,8 +488,10 @@ export async function updateTaskCore(
       // a human approves. A human completing it directly IS the approval.
       if (task.requiresApproval && task.approvedAt === undefined) {
         if (actor.type !== "user") {
-          throw new Error(
-            "This task requires human approval before it can be completed. Ask a human to approve it (or comment @mentioning them).",
+          throw new ConvexError(
+            actor.type === "agent"
+              ? "This task requires human approval before completion. Call request_approval with a note on what to review — it lands in the humans' inbox and emails them; the task.approved event (or get_task) tells you when to complete."
+              : "This task requires human approval before it can be completed.",
           );
         }
       }
@@ -575,7 +577,7 @@ export async function updateTaskCore(
     // Agents may raise the gate but never lower it — otherwise the gate
     // is meaningless.
     if (args.requiresApproval === false && actor.type !== "user") {
-      throw new Error("Only a human can remove the approval requirement");
+      throw new ConvexError("Only a human can remove the approval requirement");
     }
     patch.requiresApproval = args.requiresApproval || undefined;
     if (args.requiresApproval === false) {
@@ -657,6 +659,24 @@ export async function updateTaskCore(
   }
 }
 
+// Resolve a claimant/actor id to a display name: agents by document id,
+// humans by clerkId (same resolution order as events.ts's actor helpers).
+async function actorDisplayName(
+  ctx: MutationCtx,
+  actorId: string,
+): Promise<string> {
+  const agentId = ctx.db.normalizeId("agents", actorId);
+  if (agentId) {
+    const agent = await ctx.db.get(agentId);
+    if (agent) return agent.name;
+  }
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", actorId))
+    .unique();
+  return user?.name ?? user?.email ?? "someone";
+}
+
 // Soft work-lock so two agents don't pick up the same task. Claims expire
 // after CLAIM_TTL_MS; humans can always force-release from the UI.
 export async function claimTaskCore(
@@ -665,7 +685,7 @@ export async function claimTaskCore(
   actor: Actor,
 ): Promise<void> {
   const task = await ctx.db.get(taskId);
-  if (!task) throw new Error("Task not found");
+  if (!task) throw new ConvexError("Task not found");
   const now = Date.now();
   if (
     task.claimedByActorId !== undefined &&
@@ -673,7 +693,14 @@ export async function claimTaskCore(
     task.claimedAt !== undefined &&
     now - task.claimedAt < CLAIM_TTL_MS
   ) {
-    throw new Error("Task is already claimed");
+    const holderName = await actorDisplayName(ctx, task.claimedByActorId);
+    const minutesLeft = Math.max(
+      1,
+      Math.ceil((task.claimedAt + CLAIM_TTL_MS - now) / 60_000),
+    );
+    throw new ConvexError(
+      `Task is already claimed by ${holderName} (claim expires in ~${minutesLeft}m). Wait, pick another task, or ask them to hand it off.`,
+    );
   }
   await ctx.db.patch(taskId, { claimedByActorId: actor.id, claimedAt: now });
   const updated = (await ctx.db.get(taskId))!;
@@ -687,10 +714,10 @@ export async function releaseTaskCore(
   force = false,
 ): Promise<void> {
   const task = await ctx.db.get(taskId);
-  if (!task) throw new Error("Task not found");
+  if (!task) throw new ConvexError("Task not found");
   if (task.claimedByActorId === undefined) return;
   if (task.claimedByActorId !== actor.id && !force) {
-    throw new Error("Task is claimed by someone else");
+    throw new ConvexError("Task is claimed by someone else");
   }
   await ctx.db.patch(taskId, {
     claimedByActorId: undefined,
@@ -712,7 +739,7 @@ export async function handoffTaskCore(
   actor: Actor,
 ): Promise<void> {
   const task = await ctx.db.get(taskId);
-  if (!task) throw new Error("Task not found");
+  if (!task) throw new ConvexError("Task not found");
   if (task.claimedByActorId === actor.id) {
     await ctx.db.patch(taskId, {
       claimedByActorId: undefined,
@@ -1132,7 +1159,7 @@ export const approve = mutation({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, { taskId }) => {
     const { task, identity } = await requireTaskAccess(ctx, taskId);
-    if (!task.requiresApproval) throw new Error("Task has no approval gate");
+    if (!task.requiresApproval) throw new ConvexError("Task has no approval gate");
     const actor = await userActor(ctx, identity.subject);
     await ctx.db.patch(taskId, {
       approvedByClerkId: identity.subject,
@@ -1187,7 +1214,7 @@ export const toggleComplete = mutation({
       : (sorted.find((s) => s.category === "complete") ??
         sorted.find((s) => s.category === "closed"));
     if (!next) {
-      throw new Error(
+      throw new ConvexError(
         isDone
           ? "This list has no open-category status to reopen into — add one in List settings."
           : "This list has no complete-category status — add one in List settings.",
@@ -1226,7 +1253,7 @@ export const reorder = mutation({
     if (statusId) {
       newStatus = await ctx.db.get(statusId);
       if (!newStatus || newStatus.listId !== listId) {
-        throw new Error("statusId must belong to the same list");
+        throw new ConvexError("statusId must belong to the same list");
       }
     }
     const actor = await userActor(ctx, identity.subject);
@@ -1275,7 +1302,7 @@ export const reorder = mutation({
         }
       }
       if (refused.length > 0) {
-        throw new Error(refused.join(" · "));
+        throw new ConvexError(refused.join(" · "));
       }
     }
 

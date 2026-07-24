@@ -28,6 +28,7 @@ import {
   Stagger,
   StaggerItem,
 } from "@/components/motion";
+import { errorMessage } from "@/lib/errors";
 
 // Roadmap tab on the workspace page: workspace projects (lists) slotted
 // into the ordered phases of one or more roadmaps ("Now / Next / Later",
@@ -35,13 +36,6 @@ import {
 // move between phases, reorder within one, and fall back to the
 // "Not on roadmap" rail at the bottom when unassigned. All data lives in
 // convex/roadmaps.ts — this file is pure surface.
-
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
 
 type RoadmapList = NonNullable<
   NonNullable<ReturnType<typeof useQuery<typeof api.roadmaps.listForWorkspace>>>

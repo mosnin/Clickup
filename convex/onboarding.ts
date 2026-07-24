@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation } from "./_generated/server";
 import { assertNotSuspended } from "./_authz";
 import type { Id } from "./_generated/dataModel";
@@ -29,11 +29,11 @@ export const completeSetup = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
     await assertNotSuspended(ctx, identity.subject);
     const workspaceName = args.workspaceName.trim();
     const agentName = args.agentName.trim() || "Scout";
-    if (!workspaceName) throw new Error("Workspace name is required");
+    if (!workspaceName) throw new ConvexError("Workspace name is required");
 
     // Idempotency: the client re-runs this mutation on mount (effect in
     // onboarding-flow.tsx), which a reload or back-button navigation can
@@ -82,7 +82,7 @@ export const completeSetup = mutation({
       // would have created (e.g. created directly via workspaces.create,
       // never through onboarding). Refuse rather than insert a second
       // workspace under the same owner.
-      throw new Error(
+      throw new ConvexError(
         "You already have a workspace. Add an agent from the Agents page to finish setup.",
       );
     }

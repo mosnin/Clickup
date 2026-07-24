@@ -5,7 +5,7 @@
 // just at pin time) so a favorite silently stops resolving the moment the
 // underlying access is revoked; `listForCurrentUser` skips rows that no
 // longer resolve rather than deleting them (queries can't write).
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -87,7 +87,7 @@ export const toggle = mutation({
     }
 
     if (!(await canAccessEntity(ctx, entityType, entityId))) {
-      throw new Error("Not found or access denied");
+      throw new ConvexError("Not found or access denied");
     }
 
     const mine = await ctx.db

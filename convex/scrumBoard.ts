@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -25,7 +25,7 @@ async function requireWorkspaceMember(
       q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
     )
     .unique();
-  if (!member) throw new Error("Forbidden");
+  if (!member) throw new ConvexError("Forbidden");
   return identity.subject;
 }
 
@@ -205,7 +205,7 @@ export const moveTask = mutation({
     if (task.sprintId) {
       const sprint = await ctx.db.get(task.sprintId);
       if (sprint?.status === "complete") {
-        throw new Error(
+        throw new ConvexError(
           "This sprint is complete — reopen it to change its work",
         );
       }
@@ -219,7 +219,7 @@ export const moveTask = mutation({
       .filter((s) => s.category === category)
       .sort((a, b) => a.position - b.position)[0];
     if (!target) {
-      throw new Error(
+      throw new ConvexError(
         `This task's list has no "${category.replace("_", " ")}" status configured`,
       );
     }

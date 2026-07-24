@@ -1,6 +1,6 @@
 "use node";
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import OpenAI from "openai";
 import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
@@ -126,16 +126,16 @@ export const brainSearch = action({
   },
   handler: async (ctx, { scopeType, scopeId, query }): Promise<BrainResult> => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
 
     // Authorize the scope before doing any work.
     if (scopeType === "user") {
-      if (scopeId !== identity.subject) throw new Error("Forbidden");
+      if (scopeId !== identity.subject) throw new ConvexError("Forbidden");
     } else {
       const ok = await ctx.runQuery(internal.aiDb._isWorkspaceMember, {
         workspaceId: scopeId as Id<"workspaces">,
       });
-      if (!ok) throw new Error("Forbidden");
+      if (!ok) throw new ConvexError("Forbidden");
     }
 
     const client = makeClient();
@@ -216,7 +216,7 @@ export const writerContinue = action({
   args: { prompt: v.string(), context: v.optional(v.string()) },
   handler: async (ctx, { prompt, context }) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
     const client = makeClient();
     if (!client) {
       return "AI is not configured on this server.";
@@ -249,7 +249,7 @@ export const taskAutofill = action({
   args: { title: v.string() },
   handler: async (ctx, { title }) => {
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
+    if (!identity) throw new ConvexError("Not authenticated");
     const client = makeClient();
     if (!client) {
       return { description: "" };

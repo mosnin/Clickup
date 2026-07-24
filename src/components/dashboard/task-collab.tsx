@@ -16,13 +16,7 @@ import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { AnimatedBar, AnimatePresence, EASE, motion } from "@/components/motion";
-
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
+import { errorMessage } from "@/lib/errors";
 
 // Collaboration sections for the task detail page: approval/claim banners,
 // assignees (humans AND agents), sprint membership, acceptance-criteria

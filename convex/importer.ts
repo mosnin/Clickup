@@ -1,5 +1,5 @@
 // CSV import: rows become tasks via the shared task cores.
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation } from "./_generated/server";
 import { requireListAccess } from "./_authz";
 import { createTaskCore } from "./tasks";
@@ -38,7 +38,7 @@ export const importTasks = mutation({
   },
   handler: async (ctx, { listId, rows }) => {
     if (rows.length > MAX_ROWS_PER_CALL) {
-      throw new Error(
+      throw new ConvexError(
         `Too many rows in one import call (${rows.length}); send at most ${MAX_ROWS_PER_CALL} per call.`,
       );
     }

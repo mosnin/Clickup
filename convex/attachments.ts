@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireIdentity, requireTaskAccess } from "./_authz";
 
@@ -27,7 +27,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const { identity } = await requireTaskAccess(ctx, args.taskId);
     if (args.sizeBytes > MAX_ATTACHMENT_BYTES) {
-      throw new Error("Attachments are limited to 50 MB");
+      throw new ConvexError("Attachments are limited to 50 MB");
     }
     return await ctx.db.insert("attachments", {
       taskId: args.taskId,

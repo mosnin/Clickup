@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireTaskAccess } from "./_authz";
 
@@ -33,9 +33,9 @@ export const set = mutation({
   handler: async (ctx, args) => {
     const { task } = await requireTaskAccess(ctx, args.taskId);
     const field = await ctx.db.get(args.fieldId);
-    if (!field) throw new Error("Field not found");
+    if (!field) throw new ConvexError("Field not found");
     if (field.listId !== task.listId) {
-      throw new Error("Field does not belong to this task's list");
+      throw new ConvexError("Field does not belong to this task's list");
     }
 
     const existing = await ctx.db

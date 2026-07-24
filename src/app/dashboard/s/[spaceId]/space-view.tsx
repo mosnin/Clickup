@@ -31,6 +31,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { Picker } from "@/components/ui/picker";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/toast";
+import { errorMessage } from "@/lib/errors";
 
 // The Space page: a ClickUp-style Space now has identity (name/color/
 // description), privacy (creator/owner-governed membership), an archive
@@ -85,13 +86,6 @@ const CATEGORY_LABEL: Record<StatusCategory, string> = {
   complete: "Complete",
   closed: "Closed",
 };
-
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
 
 export function SpaceView({ spaceId }: { spaceId: string }) {
   const id = spaceId as Id<"spaces">;

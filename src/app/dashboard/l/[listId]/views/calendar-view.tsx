@@ -26,13 +26,7 @@ import {
   PriorityDot,
   type TaskPriority,
 } from "@/components/dashboard/priority";
-
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
+import { errorMessage } from "@/lib/errors";
 
 // A calendar you can schedule on: drag a task chip onto a day to reschedule,
 // click a day's empty space to create a task due that day, click a chip to

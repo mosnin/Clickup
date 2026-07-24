@@ -31,6 +31,7 @@ import { Picker } from "@/components/ui/picker";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ScheduledTasksSection } from "@/components/dashboard/scheduled-tasks-section";
 import { useListScope } from "../use-list-scope";
+import { errorMessage } from "@/lib/errors";
 
 type StatusCategory = Doc<"listStatuses">["category"];
 type FieldType = Doc<"customFields">["type"];
@@ -67,13 +68,6 @@ function EmptyRow({ children }: { children: React.ReactNode }) {
     <div className="p-4 text-center text-sm text-muted-foreground">
       {children}
     </div>
-  );
-}
-
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
   );
 }
 

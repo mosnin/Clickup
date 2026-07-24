@@ -5,7 +5,7 @@
 // URL, not a login-gated route — so they must never leak anything beyond
 // the fields a visitor is meant to see, and never accept a listId/token
 // they didn't already have.
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireListAccess } from "./_authz";
 import { createTaskCore } from "./tasks";
@@ -48,14 +48,14 @@ export const create = mutation({
   handler: async (ctx, { listId, title }) => {
     const { identity } = await requireListAccess(ctx, listId);
     const trimmed = title.trim();
-    if (!trimmed) throw new Error("Title is required");
+    if (!trimmed) throw new ConvexError("Title is required");
 
     const existing = await ctx.db
       .query("forms")
       .withIndex("by_list", (q) => q.eq("listId", listId))
       .collect();
     if (existing.length >= MAX_FORMS_PER_LIST) {
-      throw new Error(`A list can have at most ${MAX_FORMS_PER_LIST} forms`);
+      throw new ConvexError(`A list can have at most ${MAX_FORMS_PER_LIST} forms`);
     }
 
     return await ctx.db.insert("forms", {
@@ -81,13 +81,13 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const form = await ctx.db.get(args.formId);
-    if (!form) throw new Error("Form not found");
+    if (!form) throw new ConvexError("Form not found");
     await requireListAccess(ctx, form.listId);
 
     const patch: Record<string, unknown> = {};
     if (args.title !== undefined) {
       const trimmed = args.title.trim();
-      if (!trimmed) throw new Error("Title is required");
+      if (!trimmed) throw new ConvexError("Title is required");
       patch.title = trimmed;
     }
     if (args.description !== undefined) {
@@ -155,12 +155,12 @@ export const submitPublic = mutation({
       .withIndex("by_token", (q) => q.eq("token", args.token))
       .unique();
     if (!form || !form.enabled) {
-      throw new Error("This form is closed");
+      throw new ConvexError("This form is closed");
     }
 
     const title = args.title.trim();
     if (!title || title.length > MAX_TITLE_LENGTH) {
-      throw new Error(
+      throw new ConvexError(
         `Title must be between 1 and ${MAX_TITLE_LENGTH} characters`,
       );
     }
@@ -172,7 +172,7 @@ export const submitPublic = mutation({
       submittedDescription &&
       submittedDescription.length > MAX_DESCRIPTION_LENGTH
     ) {
-      throw new Error(
+      throw new ConvexError(
         `Description must be under ${MAX_DESCRIPTION_LENGTH} characters`,
       );
     }

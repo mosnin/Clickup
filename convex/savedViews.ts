@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireListAccess } from "./_authz";
 
@@ -45,17 +45,17 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const { identity } = await requireListAccess(ctx, args.listId);
     const name = args.name.trim().slice(0, 60);
-    if (!name) throw new Error("Give the view a name");
+    if (!name) throw new ConvexError("Give the view a name");
 
     const existing = await ctx.db
       .query("savedViews")
       .withIndex("by_list", (q) => q.eq("listId", args.listId))
       .collect();
     if (existing.length >= MAX_VIEWS_PER_LIST) {
-      throw new Error("This list already has the maximum number of saved views");
+      throw new ConvexError("This list already has the maximum number of saved views");
     }
     if (existing.some((r) => r.name.toLowerCase() === name.toLowerCase())) {
-      throw new Error("A view with that name already exists");
+      throw new ConvexError("A view with that name already exists");
     }
 
     return await ctx.db.insert("savedViews", {

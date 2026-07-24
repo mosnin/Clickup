@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -24,7 +24,7 @@ async function requireWorkspaceMember(
       q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
     )
     .unique();
-  if (!member) throw new Error("Forbidden");
+  if (!member) throw new ConvexError("Forbidden");
   return identity.subject;
 }
 
@@ -229,9 +229,9 @@ export const commit = mutation({
   args: { sprintId: v.id("sprints"), taskId: v.id("tasks") },
   handler: async (ctx, { sprintId, taskId }) => {
     const sprint = await ctx.db.get(sprintId);
-    if (!sprint) throw new Error("Sprint not found");
+    if (!sprint) throw new ConvexError("Sprint not found");
     if (sprint.status === "complete") {
-      throw new Error(
+      throw new ConvexError(
         "This sprint is complete — reopen it to change its work",
       );
     }
@@ -248,7 +248,7 @@ export const uncommit = mutation({
     if (task.sprintId) {
       const sprint = await ctx.db.get(task.sprintId);
       if (sprint?.status === "complete") {
-        throw new Error(
+        throw new ConvexError(
           "This sprint is complete — reopen it to change its work",
         );
       }

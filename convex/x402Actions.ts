@@ -1,6 +1,6 @@
 "use node";
 
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -124,13 +124,13 @@ export const settleTopup = action({
   },
   handler: async (ctx, { apiKey, xPayment, credits }): Promise<SettleResult> => {
     if (!Number.isInteger(credits) || credits <= 0) {
-      throw new Error("credits must be a positive integer");
+      throw new ConvexError("credits must be a positive integer");
     }
     const cfg = x402Config();
     // Fail closed: never settle (and never mint credits) unless a real
     // facilitator is configured or the mock is explicitly opted into for dev.
     if (!facilitatorConfigured(cfg)) {
-      throw new Error(
+      throw new ConvexError(
         "Payment facilitator not configured. Set X402_FACILITATOR_URL (production), or X402_ALLOW_MOCK=1 for development only.",
       );
     }
@@ -149,7 +149,7 @@ export const settleTopup = action({
     try {
       payment = decodeXPayment(xPayment);
     } catch {
-      throw new Error("X-PAYMENT is not valid base64 JSON");
+      throw new ConvexError("X-PAYMENT is not valid base64 JSON");
     }
 
     // Determine the nonce up front so a failure can still be recorded.
@@ -174,14 +174,14 @@ export const settleTopup = action({
           facilitator: facilitatorLabel,
         });
       }
-      throw new Error(`Payment failed: ${result.reason ?? "unknown"}`);
+      throw new ConvexError(`Payment failed: ${result.reason ?? "unknown"}`);
     }
 
     // A settlement must carry a stable, non-empty reference (the payment
     // nonce, or the on-chain tx ref) — it's the replay key. Refuse if neither.
     const settlementNonce = nonce || result.txReference;
     if (!settlementNonce) {
-      throw new Error("Settlement produced no payment reference");
+      throw new ConvexError("Settlement produced no payment reference");
     }
     const applied: { balance: number; creditsGranted: number } =
       await ctx.runMutation(internal.x402.applySettlement, {

@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -28,7 +28,7 @@ async function requireManageAccess(
   subject: string,
 ): Promise<Doc<"workspaces">> {
   const ws = await ctx.db.get(workspaceId);
-  if (!ws) throw new Error("Workspace not found");
+  if (!ws) throw new ConvexError("Workspace not found");
   const membership = await ctx.db
     .query("memberships")
     .withIndex("by_user_and_workspace", (q) =>
@@ -36,7 +36,7 @@ async function requireManageAccess(
     )
     .unique();
   if (!membership || membership.role === "member") {
-    throw new Error("Only owners and admins can manage invites");
+    throw new ConvexError("Only owners and admins can manage invites");
   }
   return ws;
 }
@@ -57,7 +57,7 @@ export const create = mutation({
 
     const email = args.email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      throw new Error("Enter a valid email address");
+      throw new ConvexError("Enter a valid email address");
     }
 
     // Already a member?
@@ -74,7 +74,7 @@ export const create = mutation({
             .eq("workspaceId", args.workspaceId),
         )
         .unique();
-      if (member) throw new Error("They're already a member");
+      if (member) throw new ConvexError("They're already a member");
     }
 
     // Duplicate pending invite?
@@ -83,7 +83,7 @@ export const create = mutation({
       .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
       .collect();
     if (existing.some((i) => i.email === email && isPending(i))) {
-      throw new Error("An invite to that email is already pending");
+      throw new ConvexError("An invite to that email is already pending");
     }
 
     const inviter = await ctx.db
@@ -151,7 +151,7 @@ export const revoke = mutation({
   handler: async (ctx, { inviteId }) => {
     const { subject } = await requireIdentity(ctx);
     const invite = await ctx.db.get(inviteId);
-    if (!invite) throw new Error("Invite not found");
+    if (!invite) throw new ConvexError("Invite not found");
     await requireManageAccess(ctx, invite.workspaceId, subject);
     if (isPending(invite)) {
       await ctx.db.patch(inviteId, { revokedAt: Date.now() });
@@ -227,13 +227,13 @@ export const accept = mutation({
   handler: async (ctx, { inviteId }) => {
     const { subject } = await requireIdentity(ctx);
     const invite = await ctx.db.get(inviteId);
-    if (!invite || !isPending(invite)) throw new Error("Invite no longer valid");
+    if (!invite || !isPending(invite)) throw new ConvexError("Invite no longer valid");
     const me = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", subject))
       .unique();
     if (me?.email?.toLowerCase() !== invite.email) {
-      throw new Error("This invite was sent to a different email");
+      throw new ConvexError("This invite was sent to a different email");
     }
     return { workspaceId: await joinWorkspace(ctx, invite, subject) };
   },
@@ -250,7 +250,7 @@ export const decline = mutation({
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", subject))
       .unique();
     if (me?.email?.toLowerCase() !== invite.email) {
-      throw new Error("This invite was sent to a different email");
+      throw new ConvexError("This invite was sent to a different email");
     }
     await ctx.db.patch(inviteId, { revokedAt: Date.now() });
   },
@@ -288,7 +288,7 @@ export const acceptByToken = mutation({
       .query("invites")
       .withIndex("by_token", (q) => q.eq("token", token))
       .unique();
-    if (!invite || !isPending(invite)) throw new Error("Invite no longer valid");
+    if (!invite || !isPending(invite)) throw new ConvexError("Invite no longer valid");
     return { workspaceId: await joinWorkspace(ctx, invite, subject) };
   },
 });

@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -31,7 +31,7 @@ async function requireWorkspaceMember(
       q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
     )
     .unique();
-  if (!membership) throw new Error("Not a member of this workspace");
+  if (!membership) throw new ConvexError("Not a member of this workspace");
   return { identity, membership };
 }
 
@@ -40,7 +40,7 @@ async function requireRoadmap(
   roadmapId: Id<"roadmaps">,
 ) {
   const roadmap = await ctx.db.get(roadmapId);
-  if (!roadmap) throw new Error("Roadmap not found");
+  if (!roadmap) throw new ConvexError("Roadmap not found");
   const { identity } = await requireWorkspaceMember(ctx, roadmap.workspaceId);
   return { roadmap, identity };
 }
@@ -135,7 +135,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     await requireWorkspaceMember(ctx, args.workspaceId);
     const name = args.name.trim();
-    if (!name) throw new Error("Roadmap name is required");
+    if (!name) throw new ConvexError("Roadmap name is required");
     const siblings = await ctx.db
       .query("roadmaps")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId))
@@ -162,7 +162,7 @@ export const update = mutation({
     const patch: Record<string, unknown> = {};
     if (args.name !== undefined) {
       const name = args.name.trim();
-      if (!name) throw new Error("Roadmap name is required");
+      if (!name) throw new ConvexError("Roadmap name is required");
       patch.name = name;
     }
     if (args.description !== undefined) {
@@ -202,7 +202,7 @@ export const addPhase = mutation({
   handler: async (ctx, args) => {
     const { roadmap } = await requireRoadmap(ctx, args.roadmapId);
     const name = args.name.trim();
-    if (!name) throw new Error("Phase name is required");
+    if (!name) throw new ConvexError("Phase name is required");
     await ctx.db.patch(roadmap._id, {
       phases: [
         ...roadmap.phases,
@@ -224,7 +224,7 @@ export const updatePhase = mutation({
     const phases = roadmap.phases.map((p) => {
       if (p.id !== args.phaseId) return p;
       const name = args.name !== undefined ? args.name.trim() : p.name;
-      if (!name) throw new Error("Phase name is required");
+      if (!name) throw new ConvexError("Phase name is required");
       return {
         ...p,
         name,
@@ -274,14 +274,14 @@ export const assignProject = mutation({
   handler: async (ctx, args) => {
     const resolved = await workspaceOfList(ctx, args.listId);
     if (!resolved) {
-      throw new Error("Only workspace projects can join a roadmap");
+      throw new ConvexError("Only workspace projects can join a roadmap");
     }
     const { identity } = await requireWorkspaceMember(
       ctx,
       resolved.workspaceId,
     );
     if (!(await canAccessSpace(ctx, resolved.space, { subject: identity.subject }))) {
-      throw new Error("No access to this project");
+      throw new ConvexError("No access to this project");
     }
     if (args.roadmapId === null) {
       await ctx.db.patch(args.listId, {
@@ -293,7 +293,7 @@ export const assignProject = mutation({
     }
     const roadmap = await ctx.db.get(args.roadmapId);
     if (!roadmap || roadmap.workspaceId !== resolved.workspaceId) {
-      throw new Error("Roadmap belongs to a different workspace");
+      throw new ConvexError("Roadmap belongs to a different workspace");
     }
     // An explicit phaseId that no longer exists (deleted concurrently) is
     // an error, not a silent drop into the first phase.
@@ -302,7 +302,7 @@ export const assignProject = mutation({
         ? roadmap.phases.find((p) => p.id === args.phaseId)
         : roadmap.phases[0];
     if (!phase) {
-      throw new Error(
+      throw new ConvexError(
         args.phaseId !== undefined ? "Phase not found" : "Roadmap has no phases",
       );
     }

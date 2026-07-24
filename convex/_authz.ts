@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 
@@ -15,7 +16,7 @@ export async function requireIdentity(
   ctx: QueryCtx | MutationCtx,
 ): Promise<Identity> {
   const identity = await ctx.auth.getUserIdentity();
-  if (!identity) throw new Error("Not authenticated");
+  if (!identity) throw new ConvexError("Not authenticated");
   // Platform-admin suspension is enforced here so it covers every
   // authenticated read and write in one place. One indexed lookup; a
   // user row that doesn't exist yet (pre-bootstrap) is allowed through.
@@ -24,7 +25,7 @@ export async function requireIdentity(
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
     .unique();
   if (user?.suspendedAt) {
-    throw new Error("Account suspended");
+    throw new ConvexError("Account suspended");
   }
   return { subject: identity.subject };
 }
@@ -41,7 +42,7 @@ export async function assertNotSuspended(
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", subject))
     .unique();
-  if (user?.suspendedAt) throw new Error("Account suspended");
+  if (user?.suspendedAt) throw new ConvexError("Account suspended");
 }
 
 export async function canAccessSpace(
@@ -94,11 +95,11 @@ export async function requireListAccess(
 ): Promise<{ list: Doc<"lists">; space: Doc<"spaces">; identity: Identity }> {
   const identity = await requireIdentity(ctx);
   const list = await ctx.db.get(listId);
-  if (!list) throw new Error("List not found");
+  if (!list) throw new ConvexError("List not found");
   const space = await getSpaceForList(ctx, list);
-  if (!space) throw new Error("Orphan list");
+  if (!space) throw new ConvexError("Orphan list");
   if (!(await canAccessSpace(ctx, space, identity))) {
-    throw new Error("Forbidden");
+    throw new ConvexError("Forbidden");
   }
   return { list, space, identity };
 }
@@ -109,9 +110,9 @@ export async function requireSpaceAccess(
 ): Promise<{ space: Doc<"spaces">; identity: Identity }> {
   const identity = await requireIdentity(ctx);
   const space = await ctx.db.get(spaceId);
-  if (!space) throw new Error("Space not found");
+  if (!space) throw new ConvexError("Space not found");
   if (!(await canAccessSpace(ctx, space, identity))) {
-    throw new Error("Forbidden");
+    throw new ConvexError("Forbidden");
   }
   return { space, identity };
 }
@@ -126,11 +127,11 @@ export async function requireFolderAccess(
 }> {
   const identity = await requireIdentity(ctx);
   const folder = await ctx.db.get(folderId);
-  if (!folder) throw new Error("Folder not found");
+  if (!folder) throw new ConvexError("Folder not found");
   const space = await ctx.db.get(folder.spaceId);
-  if (!space) throw new Error("Orphan folder");
+  if (!space) throw new ConvexError("Orphan folder");
   if (!(await canAccessSpace(ctx, space, identity))) {
-    throw new Error("Forbidden");
+    throw new ConvexError("Forbidden");
   }
   return { folder, space, identity };
 }
@@ -146,13 +147,13 @@ export async function requireTaskAccess(
 }> {
   const identity = await requireIdentity(ctx);
   const task = await ctx.db.get(taskId);
-  if (!task) throw new Error("Task not found");
+  if (!task) throw new ConvexError("Task not found");
   const list = await ctx.db.get(task.listId);
-  if (!list) throw new Error("Orphan task");
+  if (!list) throw new ConvexError("Orphan task");
   const space = await getSpaceForList(ctx, list);
-  if (!space) throw new Error("Orphan list");
+  if (!space) throw new ConvexError("Orphan list");
   if (!(await canAccessSpace(ctx, space, identity))) {
-    throw new Error("Forbidden");
+    throw new ConvexError("Forbidden");
   }
   return { task, list, space, identity };
 }
@@ -167,20 +168,20 @@ export async function requireDocLikeParentAccess(
 ): Promise<{ identity: Identity }> {
   const identity = await requireIdentity(ctx);
   if (parentType === "user") {
-    if (parentId !== identity.subject) throw new Error("Forbidden");
+    if (parentId !== identity.subject) throw new ConvexError("Forbidden");
     return { identity };
   }
   if (parentType === "workspace") {
     const workspaceId = parentId as Id<"workspaces">;
     const workspace = await ctx.db.get(workspaceId);
-    if (!workspace) throw new Error("Workspace not found");
+    if (!workspace) throw new ConvexError("Workspace not found");
     const membership = await ctx.db
       .query("memberships")
       .withIndex("by_user_and_workspace", (q) =>
         q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
       )
       .unique();
-    if (!membership) throw new Error("Forbidden");
+    if (!membership) throw new ConvexError("Forbidden");
     return { identity };
   }
   await requireSpaceAccess(ctx, parentId as Id<"spaces">);
@@ -199,9 +200,9 @@ export async function requireMessageParentAccess(
   if (parentType === "channel") {
     const identity = await requireIdentity(ctx);
     const channel = await ctx.db.get(parentId as Id<"channels">);
-    if (!channel) throw new Error("Channel not found");
+    if (!channel) throw new ConvexError("Channel not found");
     if (channel.scopeType === "user") {
-      if (channel.scopeId !== identity.subject) throw new Error("Forbidden");
+      if (channel.scopeId !== identity.subject) throw new ConvexError("Forbidden");
       return { identity, workspaceId: null };
     }
     const workspaceId = channel.scopeId as Id<"workspaces">;
@@ -211,7 +212,7 @@ export async function requireMessageParentAccess(
         q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
       )
       .unique();
-    if (!membership) throw new Error("Forbidden");
+    if (!membership) throw new ConvexError("Forbidden");
     return { identity, workspaceId };
   }
   if (parentType === "task") {
@@ -238,13 +239,13 @@ export async function requireMessageParentAccess(
   const identity = await requireIdentity(ctx);
   const workspaceId = parentId as Id<"workspaces">;
   const workspace = await ctx.db.get(workspaceId);
-  if (!workspace) throw new Error("Workspace not found");
+  if (!workspace) throw new ConvexError("Workspace not found");
   const membership = await ctx.db
     .query("memberships")
     .withIndex("by_user_and_workspace", (q) =>
       q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
     )
     .unique();
-  if (!membership) throw new Error("Forbidden");
+  if (!membership) throw new ConvexError("Forbidden");
   return { identity, workspaceId };
 }

@@ -65,6 +65,7 @@ import { TemplatePicker } from "@/components/dashboard/template-picker";
 import { NewWorkspaceDialog } from "@/components/dashboard/new-workspace-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useToast } from "@/components/toast";
+import { errorMessage } from "@/lib/errors";
 
 type SidebarTree = NonNullable<ReturnType<typeof useTreeQuery>>;
 type SpaceNode = SidebarTree["workspaces"][number]["spaces"][number];
@@ -75,16 +76,6 @@ function useTreeQuery() {
 
 function initialOf(name: string): string {
   return (Array.from(name.trim())[0] ?? "?").toUpperCase();
-}
-
-// Same shape as the helper in space-view.tsx: Convex wraps thrown
-// ConvexError/Error messages in "Uncaught Error: …"; strip that noise so
-// the toast shows the server's actual reason.
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
 }
 
 // ── Root ─────────────────────────────────────────────────────────────────

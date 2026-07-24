@@ -42,13 +42,22 @@ export const search = action({
     const rows = await ctx.runQuery(internal.aiDb._embeddingsByIds, {
       ids: hits.map((h) => h._id),
     });
-    return {
-      configured: true,
-      results: rows.map((r: Doc<"embeddings">) => ({
+    // List-restricted agents: drop task hits outside the allow-list (docs
+    // pass through — restricted agents can read every doc in scope, same
+    // as agentApi.listDocs/getDoc). The vector filter above only scopes by
+    // user/workspace, so this second pass enforces the finer boundary.
+    const results: {
+      parentType: "doc" | "task";
+      parentId: string;
+      textPreview: string;
+    }[] = await ctx.runQuery(internal.agentApi._filterSearchHits, {
+      apiKey,
+      hits: rows.map((r: Doc<"embeddings">) => ({
         parentType: r.parentType,
         parentId: r.parentId,
         textPreview: r.textPreview,
       })),
-    };
+    });
+    return { configured: true, results };
   },
 });

@@ -9,16 +9,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
-
-// Same shape as the helper in space-view.tsx: Convex wraps thrown
-// ConvexError/Error messages in "Uncaught Error: …"; strip that noise so
-// the toast shows the server's actual reason.
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
+import { errorMessage } from "@/lib/errors";
 
 // Lightweight modal — no Radix dependency. Backdrop click + Esc close.
 type ParentSpec =

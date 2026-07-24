@@ -26,6 +26,7 @@ import {
   Stagger,
   StaggerItem,
 } from "@/components/motion";
+import { errorMessage } from "@/lib/errors";
 
 // Operations tab on the workspace page: the "is the machine running?"
 // surface for a team operating an agent labor force. Three rhythms in one
@@ -34,13 +35,6 @@ import {
 // blueprints (the reusable definitions schedules and humans instantiate).
 // All data lives in convex/opsOverview.ts + taskBlueprints.ts +
 // scheduledTasks.ts — this file is pure surface.
-
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
 
 type Ops = NonNullable<
   ReturnType<typeof useQuery<typeof api.opsOverview.workspaceOps>>

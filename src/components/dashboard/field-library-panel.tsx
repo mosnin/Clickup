@@ -10,6 +10,7 @@ import { Picker } from "@/components/ui/picker";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
+import { errorMessage } from "@/lib/errors";
 
 // Workspace field library: define a custom field once here, then stamp it
 // onto any project ("Apply to project…"). Applying copies the definition
@@ -34,13 +35,6 @@ const TYPE_OPTIONS = (Object.keys(TYPE_LABEL) as FieldType[]).map((t) => ({
   id: t,
   label: TYPE_LABEL[t],
 }));
-
-function errorMessage(e: unknown, fallback: string): string {
-  const raw = e instanceof Error ? e.message : String(e);
-  return (
-    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || fallback
-  );
-}
 
 export function FieldLibraryPanel({
   workspaceId,
