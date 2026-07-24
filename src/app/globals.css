@@ -198,43 +198,6 @@ body {
   }
 }
 
-/* ── Border beam ──────────────────────────────────────────────────────────
-   A light that travels around an element's border — signals "alive /
-   listening." The parent must be position:relative with a border-radius;
-   render <BorderBeam/> as its last child. */
-.border-beam {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  border: var(--bb-width, 1.5px) solid transparent;
-  mask:
-    linear-gradient(transparent, transparent),
-    linear-gradient(#000, #000);
-  mask-clip: padding-box, border-box;
-  mask-composite: intersect;
-}
-.border-beam::after {
-  content: "";
-  position: absolute;
-  aspect-ratio: 1;
-  width: var(--bb-size, 64px);
-  background: linear-gradient(
-    to left,
-    var(--bb-from, var(--color-azure-400, #5aa8ff)),
-    var(--bb-to, var(--color-azure-600, #2b6fff)),
-    transparent
-  );
-  offset-path: rect(0 auto auto 0 round var(--bb-size, 64px));
-  offset-anchor: 90% 50%;
-  animation: border-beam-travel var(--bb-duration, 7s) linear infinite;
-  animation-delay: var(--bb-delay, 0s);
-}
-@keyframes border-beam-travel {
-  to {
-    offset-distance: 100%;
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .t-resize {
@@ -242,10 +205,6 @@ body {
   }
   .orb-core {
     animation: none;
-  }
-  .border-beam::after {
-    animation: none;
-    opacity: 0;
   }
   .text-gradient,
   .mk-gradient-fill {
@@ -279,10 +238,7 @@ body {
   --color-navy-900: #101010;
   --color-navy-950: #090909;
 
-  /* Warm sunset accent ramp (amber → coral → rose). The token names stay
-     "azure" but carry warm values here, so every accent — links, dots,
-     rings, eyebrow chips, border beams — turns warm across the logged-out
-     site in one place. Lightened at the top end for contrast on charcoal. */
+  
   --color-azure-100: #3a2418;
   --color-azure-200: #5c3320;
   --color-azure-300: #ffc27a;

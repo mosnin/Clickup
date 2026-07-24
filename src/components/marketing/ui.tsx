@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { BorderBeam } from "@/components/ui/border-beam";
+import { BorderBeam } from "@/components/ui/beam";
 
 // Marketing v2 primitives — the shared visual grammar of the logged-out
 // site. Azure/navy hero band, white content sections, rounded-2xl cards,
@@ -190,8 +190,9 @@ export function ScreenshotFrame({
   beam?: boolean;
   className?: string;
 }) {
-  return (
+  const frame = (
     <div
+      data-tone={tone}
       className={cn(
         "relative overflow-hidden rounded-[20px] p-1.5 shadow-2xl mk-panel-2",
         className,
@@ -224,16 +225,14 @@ export function ScreenshotFrame({
       ) : (
         <Placeholder label={label} ratio={ratio} className="rounded-[14px]" />
       )}
-      {beam && (
-        <BorderBeam
-          size={100}
-          duration={8}
-          width={1.5}
-          from={tone === "dark" ? "var(--color-azure-300)" : undefined}
-          to={tone === "dark" ? "var(--color-azure-500)" : undefined}
-        />
-      )}
     </div>
+  );
+  return beam ? (
+    <BorderBeam size="md" colorVariant="colorful">
+      {frame}
+    </BorderBeam>
+  ) : (
+    frame
   );
 }
 

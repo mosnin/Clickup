@@ -6,7 +6,7 @@ import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PRICING } from "@/lib/marketing-content";
 import { Container, CtaButton, SectionHeading } from "@/components/marketing/ui";
-import { BorderBeam } from "@/components/ui/border-beam";
+import { BorderBeam } from "@/components/ui/beam";
 import { DUR, EASE_OUT, GsapReveal, prefersReducedMotion, useGsap, isHoverCapable } from "@/components/marketing/gsap";
 
 type Billing = "monthly" | "annual";
@@ -147,16 +147,16 @@ export function PricingSection() {
         <GsapReveal stagger className="mt-10 grid items-stretch gap-6 lg:grid-cols-3">
           {PRICING.tiers.map((tier) => {
             const { price, period } = tierPrice(tier.name, billing);
-            return (
+            const card = (
               <div
                 key={tier.name}
                 ref={tier.featured ? featuredCardRef : undefined}
                 onMouseEnter={(e) => handleCardEnter(e, tier.featured)}
                 onMouseLeave={(e) => handleCardLeave(e, tier.featured)}
                 className={cn(
-                  "relative flex flex-col rounded-[20px] p-7",
+                  "relative flex w-full flex-col rounded-[20px] p-7",
                   tier.featured
-                    ? "mk-panel-2 text-white shadow-2xl lg:-translate-y-2"
+                    ? "mk-panel-2 text-white shadow-2xl"
                     : "bg-background ring-1 ring-border",
                 )}
               >
@@ -236,16 +236,21 @@ export function PricingSection() {
                   </CtaButton>
                 </div>
 
-                {tier.featured && (
-                  <BorderBeam
-                    size={90}
-                    duration={9}
-                    width={1.5}
-                    from="var(--color-azure-300)"
-                    to="var(--color-azure-500)"
-                  />
-                )}
               </div>
+            );
+            // The featured tier keeps its lift on the wrapper so the beam
+            // travels with the raised card.
+            return tier.featured ? (
+              <BorderBeam
+                key={tier.name}
+                size="md"
+                colorVariant="colorful"
+                className="flex lg:-translate-y-2"
+              >
+                {card}
+              </BorderBeam>
+            ) : (
+              card
             );
           })}
         </GsapReveal>

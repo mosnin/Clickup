@@ -42,7 +42,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import { BorderBeam } from "@/components/ui/border-beam";
+import { BorderBeam } from "@/components/ui/beam";
 import {
   Table,
   TableBody,
@@ -284,6 +284,7 @@ export default function DashboardHome() {
             transition={{ duration: 0.5, ease: EASE }}
             className="overflow-hidden"
           >
+            <BorderBeam size="md" colorVariant="colorful">
             <Link
               href="/dashboard/agents"
               className="lift relative flex items-center gap-4 rounded-2xl panel p-5"
@@ -307,10 +308,8 @@ export default function DashboardHome() {
                 </span>
               </span>
               <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-              {/* The beam says "listening" while we wait for the first
-                  heartbeat — it's the one live moment on an idle Home. */}
-              <BorderBeam size={72} duration={6} />
             </Link>
+            </BorderBeam>
           </motion.div>
         )}
       </AnimatePresence>

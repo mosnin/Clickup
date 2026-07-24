@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import gsap from "gsap";
 import { Container, CtaButton, ScreenshotFrame } from "@/components/marketing/ui";
-import { BorderBeam } from "@/components/ui/border-beam";
+import { BorderBeam } from "@/components/ui/beam";
 import { useGsap, EASE_OUT, DUR } from "@/components/marketing/gsap";
 import { CTA_PANEL } from "@/lib/marketing-content";
 
@@ -58,6 +58,7 @@ export function CtaPanel() {
   return (
     <section className="bg-background py-24">
       <Container>
+        <BorderBeam size="md" colorVariant="colorful">
         <div className="relative overflow-hidden rounded-[28px] mk-band ring-1 ring-white/10">
           <svg
             aria-hidden="true"
@@ -147,14 +148,8 @@ export function CtaPanel() {
             </div>
           </div>
 
-          <BorderBeam
-            size={110}
-            duration={9}
-            width={1.5}
-            from="var(--color-azure-300)"
-            to="var(--color-azure-500)"
-          />
         </div>
+        </BorderBeam>
       </Container>
     </section>
   );
