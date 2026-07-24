@@ -58,6 +58,70 @@ const nullableDateArg = z
   .describe("ISO 8601 date/time, epoch ms, or null to clear");
 
 const priorityArg = z.enum(["urgent", "high", "normal", "low"]);
+// The full ClickUp-parity custom-field type set. Kept in one place so
+// create_custom_field and its docs can't drift from the Convex validator in
+// convex/_customFields.ts.
+const fieldTypeArg = z.enum([
+  "text",
+  "long_text",
+  "number",
+  "money",
+  "dropdown",
+  "labels",
+  "date",
+  "checkbox",
+  "email",
+  "phone",
+  "url",
+  "location",
+  "rating",
+  "progress",
+  "people",
+  "files",
+  "relationship",
+  "rollup",
+  "formula",
+  "voting",
+]);
+
+const fieldConfigArg = z
+  .object({
+    currency: z.string().optional().describe("money: ISO 4217, e.g. USD"),
+    precision: z.number().optional().describe("number/money: 0–4 decimals"),
+    min: z.number().optional(),
+    max: z.number().optional(),
+    ratingMax: z.number().optional().describe("rating: 2–10 stars (default 5)"),
+    multiple: z
+      .boolean()
+      .optional()
+      .describe("people/relationship: allow more than one entry"),
+    relationListId: z
+      .string()
+      .optional()
+      .describe("relationship: the list linked tasks must come from"),
+    formula: z
+      .string()
+      .optional()
+      .describe(
+        'formula: arithmetic over other numeric fields, e.g. "{Hours} * {Rate}"',
+      ),
+    rollup: z
+      .object({
+        source: z.enum(["subtasks", "relationship"]),
+        op: z.enum(["sum", "avg", "count"]),
+        sourceFieldId: z
+          .string()
+          .optional()
+          .describe("the numeric field being rolled up (not needed for count)"),
+        relationFieldId: z
+          .string()
+          .optional()
+          .describe('required when source is "relationship"'),
+      })
+      .optional(),
+  })
+  .describe("Per-type configuration; only the keys your type uses are read");
+
 const checklistArg = z
   .array(
     z.object({
@@ -102,10 +166,15 @@ const READ_TOOLS = new Set([
   "list_goals",
   "list_automations",
   "list_templates",
+  "get_template",
+  "list_starter_templates",
+  "list_sprint_templates",
   "list_custom_fields",
+  "get_task_fields",
   "list_checklist_templates",
   "get_portfolio",
   "get_task_network",
+  "list_milestones",
   "get_wallet",
   "buy_credits", // returns a payment challenge; charges nothing by itself
 ]);
@@ -116,7 +185,9 @@ const DESTRUCTIVE_TOOLS = new Set([
   "delete_automation",
   "delete_comment",
   "delete_list",
+  "delete_folder",
   "remove_roadmap_phase",
+  "delete_milestone",
 ]);
 const IDEMPOTENT_TOOLS = new Set([
   "heartbeat",
@@ -135,8 +206,13 @@ const IDEMPOTENT_TOOLS = new Set([
   "rename_list",
   "update_list_meta",
   "reorder_lists",
+  "move_list",
+  "rename_folder",
+  "reorder_folders",
   "reorder_tasks",
   "update_roadmap_phase",
+  "update_milestone",
+  "set_task_milestone",
   "set_scheduled_task_enabled",
   "update_doc",
   "set_goal_progress",
@@ -220,6 +296,30 @@ const TOOLS: ToolDef[] = [
       c.mutation(asMutation(api.agentApi.createFolder), { apiKey: k, ...a }),
   },
   {
+    name: "rename_folder",
+    description:
+      "Rename a folder. Fix your own typos — no human needed. folderId comes from get_tree.",
+    shape: { folderId: z.string(), name: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.renameFolder), { apiKey: k, ...a }),
+  },
+  {
+    name: "delete_folder",
+    description:
+      "Delete a folder. This is a grouping change, NOT a content deletion: every list inside moves up to the parent space and keeps its tasks, statuses, fields, and history.",
+    shape: { folderId: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.deleteFolder), { apiKey: k, ...a }),
+  },
+  {
+    name: "reorder_folders",
+    description:
+      "Reorder the folders inside one space. Pass the full desired order of folder ids; ids that no longer live in this space are skipped. Folder order is independent of list order.",
+    shape: { spaceId: z.string(), orderedIds: z.array(z.string()) },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.reorderFolders), { apiKey: k, ...a }),
+  },
+  {
     name: "create_list",
     description:
       "Create a task list inside a space or folder. Seeds default statuses (To Do / In Progress / Complete / Closed).",
@@ -281,6 +381,18 @@ const TOOLS: ToolDef[] = [
       c.mutation(asMutation(api.agentApi.reorderLists), { apiKey: k, ...a }),
   },
   {
+    name: "move_list",
+    description:
+      "Regroup a list: into a folder, back out to its space, or over to a sibling folder. The destination must be in the same space as the list — a space is a visibility boundary, so crossing one is refused rather than silently changing who can see the tasks.",
+    shape: {
+      listId: z.string(),
+      parentType: z.enum(["space", "folder"]),
+      parentId: z.string().describe("the destination space or folder id"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.moveList), { apiKey: k, ...a }),
+  },
+  {
     name: "list_statuses",
     description:
       "Workflow statuses of a list (id, name, category). Needed when setting a task's statusId directly.",
@@ -307,11 +419,11 @@ const TOOLS: ToolDef[] = [
   {
     name: "create_custom_field",
     description:
-      "Add a custom field to a list (text, number, dropdown, date, or checkbox). Dropdowns need options (id + label). Set values with set_task_field.",
+      "Add a custom field to a list. Types: text, long_text, number, money, dropdown, labels (multi-select), date, checkbox, email, phone, url, location, rating, progress, people, files, relationship, voting, plus the computed rollup and formula. dropdown/labels need options (id + label). money takes config.currency; rating config.ratingMax; number config.precision/min/max; relationship config.relationListId; formula config.formula (arithmetic over other numeric fields as {Field name}); rollup config.rollup ({ source, op, sourceFieldId, relationFieldId }). Set values with set_task_field.",
     shape: {
       listId: z.string(),
       name: z.string(),
-      type: z.enum(["text", "number", "dropdown", "date", "checkbox"]),
+      type: fieldTypeArg,
       options: z
         .array(
           z.object({
@@ -321,10 +433,75 @@ const TOOLS: ToolDef[] = [
           }),
         )
         .optional()
-        .describe("dropdown only"),
+        .describe("dropdown and labels only"),
+      config: fieldConfigArg.optional(),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.createCustomField), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+
+  // ── Milestones ───────────────────────────────────────────────────
+  {
+    name: "list_milestones",
+    description:
+      "The dated checkpoints inside one project: name, targetDate, status, and derived progress (done/total of the tasks linked to each). Read this before planning dates — it's the project's internal timeline.",
+    shape: { listId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.listMilestones), { apiKey: k, ...a }),
+  },
+  {
+    name: "create_milestone",
+    description:
+      "Add a dated checkpoint to a project (e.g. 'Beta cut', 'Design freeze'). Link tasks to it with set_task_milestone; its progress then derives from those tasks.",
+    shape: {
+      listId: z.string(),
+      name: z.string(),
+      description: z.string().optional(),
+      targetDate: dateArg.optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.createMilestone), {
+        apiKey: k,
+        ...a,
+        targetDate: ms(a.targetDate) ?? undefined,
+      }),
+  },
+  {
+    name: "update_milestone",
+    description:
+      "Rename a milestone, move its target date, edit its description, or mark it complete/open. null clears an optional field; omitted fields stay untouched.",
+    shape: {
+      milestoneId: z.string(),
+      name: z.string().optional(),
+      description: z.string().nullable().optional(),
+      targetDate: nullableDateArg.optional(),
+      status: z.enum(["open", "complete"]).optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.updateMilestone), {
+        apiKey: k,
+        ...a,
+        targetDate: ms(a.targetDate),
+      }),
+  },
+  {
+    name: "delete_milestone",
+    description:
+      "Delete a milestone. Tasks linked to it are unlinked, never deleted.",
+    shape: { milestoneId: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.deleteMilestone), { apiKey: k, ...a }),
+  },
+  {
+    name: "set_task_milestone",
+    description:
+      "Put a task under one of its project's milestones, or pass milestoneId null to detach it. The milestone must belong to the task's own project.",
+    shape: { taskId: z.string(), milestoneId: z.string().nullable() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.setTaskMilestone), {
         apiKey: k,
         ...a,
       }),
@@ -656,6 +833,31 @@ const TOOLS: ToolDef[] = [
       "All sprints in my workspace, newest first (each row's id field is sprintId). Requires a workspace-scoped agent — personal-space agents have no workspace to hold sprints.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.listSprints), { apiKey: k }),
+  },
+  {
+    name: "list_sprint_templates",
+    description:
+      "Built-in sprint playbooks: each carries a length, a goal template, ceremonies, and starter tasks with estimates and acceptance criteria. Returns the catalog plus its category/complexity/use-case facets. Workspace-scoped agents only.",
+    shape: {},
+    run: (c, k) =>
+      c.query(asQuery(api.agentApi.listSprintTemplates), { apiKey: k }),
+  },
+  {
+    name: "apply_sprint_template",
+    description:
+      "Create a sprint from a template slug (list_sprint_templates). endDate is derived from the template's length. Pass listId to also materialize its ceremonies and starter tasks into that list, already attached to the sprint and with due dates clamped to the sprint window; omit it to get the timebox alone and place the work yourself. Optional name overrides the template's. Workspace-scoped agents only; the destination list must be one you're allowed to touch.",
+    shape: {
+      slug: z.string(),
+      startDate: dateArg,
+      listId: z.string().optional(),
+      name: z.string().optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.applySprintTemplate), {
+        apiKey: k,
+        ...a,
+        startDate: ms(a.startDate),
+      }),
   },
   {
     name: "update_sprint",
@@ -1209,14 +1411,54 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_templates",
     description:
-      "Built-in list templates (software sprint, marketing campaign, personal to-do, sales pipeline) that seed statuses + fields + sample tasks.",
-    shape: {},
-    run: (c, k) => c.query(asQuery(api.agentApi.listTemplates), { apiKey: k }),
+      "Browse the Template Center: ready-made lists, tasks, docs, whiteboards, and saved views, each with what it creates (statuses/fields/task counts and sample lines). Filter by entityType, category, useCase, complexity, or a free-text search; the response also returns the facet vocabulary so you can narrow down without guessing. Read a slug in full with get_template, then create it with apply_template.",
+    shape: {
+      entityType: z
+        .enum(["list", "task", "doc", "whiteboard", "view"])
+        .optional(),
+      category: z.string().optional(),
+      useCase: z.string().optional(),
+      complexity: z.enum(["beginner", "intermediate", "advanced"]).optional(),
+      search: z.string().optional().describe("matches name, description, slug"),
+    },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.listCatalogTemplates), { apiKey: k, ...a }),
+  },
+  {
+    name: "get_template",
+    description:
+      "The full payload of one Template Center template — every status, field, task, checklist, doc section, or board frame it will create — plus the destinationType apply_template expects for it. Read this before applying anything you haven't used before.",
+    shape: { slug: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getCatalogTemplate), { apiKey: k, ...a }),
   },
   {
     name: "apply_template",
     description:
-      "Create a new list from a template inside a space or folder. templateId comes from list_templates.",
+      "Create real work from a Template Center template. destinationType depends on the entity type (get_template tells you): a list template goes into a space or folder, a task or view template onto a list, a doc or whiteboard template into a space. Optional name overrides the template's own. Returns { entityType, id, name }. Creates structure, so list-restricted agents can't call it.",
+    shape: {
+      slug: z.string(),
+      name: z.string().optional(),
+      destinationType: z.enum(["space", "folder", "list"]),
+      destinationId: z.string(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.applyCatalogTemplate), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "list_starter_templates",
+    description:
+      "The four built-in starter list presets (software sprint, marketing campaign, personal to-do, sales pipeline) that seed statuses + fields + sample tasks. For the richer catalog across five entity types, use list_templates.",
+    shape: {},
+    run: (c, k) => c.query(asQuery(api.agentApi.listTemplates), { apiKey: k }),
+  },
+  {
+    name: "apply_starter_template",
+    description:
+      "Create a new list from one of the four starter presets inside a space or folder. templateId comes from list_starter_templates.",
     shape: {
       templateId: z.string(),
       name: z.string(),
@@ -1231,15 +1473,23 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_custom_fields",
     description:
-      "Custom field definitions on a list (text/number/dropdown/date/checkbox; dropdowns carry options).",
+      "Custom field definitions on a list: type, options, and the per-type config (currency, precision, min/max, ratingMax, relationListId, formula, rollup) plus a writeHint naming the exact argument set_task_field wants. Read this before writing any field value. Fields marked computed:true (rollup, formula) are derived and can't be written.",
     shape: { listId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listCustomFields), { apiKey: k, ...a }),
   },
   {
+    name: "get_task_fields",
+    description:
+      "Every custom field on one task with its resolved value — option labels, money amount + currency, people ids, linked task ids, files, vote counts, and the computed rollup/formula results that have no stored value. The read that pairs with set_task_field.",
+    shape: { taskId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getTaskFields), { apiKey: k, ...a }),
+  },
+  {
     name: "set_task_field",
     description:
-      "Set a custom field value on a task. Pass exactly one of textValue/numberValue/booleanValue/dateValue matching the field's type; dropdowns take the option id in textValue.",
+      "Set a custom field value on a task. Send the argument that matches the field's type (list_custom_fields returns a writeHint per field): text/long_text/email/phone/url → textValue; number/rating/progress → numberValue; money → numberValue (+ optional currency); checkbox → booleanValue; date → dateValue; dropdown → textValue holding the option id; labels → optionIds; people → actorIds (clerkIds or agent ids from list_members); relationship → taskIds; files → files; location → location; voting → booleanValue (true adds YOUR vote, false removes it). Values are validated server-side against the field's config — an empty value clears the field. rollup and formula fields are computed and refuse writes.",
     shape: {
       taskId: z.string(),
       fieldId: z.string(),
@@ -1247,6 +1497,40 @@ const TOOLS: ToolDef[] = [
       numberValue: z.number().optional(),
       booleanValue: z.boolean().optional(),
       dateValue: dateArg.optional(),
+      currency: z
+        .string()
+        .optional()
+        .describe("money only: 3-letter ISO code, e.g. USD"),
+      optionIds: z
+        .array(z.string())
+        .optional()
+        .describe("labels only: the option ids to apply"),
+      actorIds: z
+        .array(z.string())
+        .optional()
+        .describe("people only: clerkIds or agent ids"),
+      taskIds: z
+        .array(z.string())
+        .optional()
+        .describe("relationship only: linked task ids"),
+      location: z
+        .object({
+          label: z.string(),
+          lat: z.number().optional(),
+          lng: z.number().optional(),
+        })
+        .optional(),
+      files: z
+        .array(
+          z.object({
+            storageId: z.string(),
+            name: z.string(),
+            mimeType: z.string(),
+            sizeBytes: z.number(),
+          }),
+        )
+        .optional()
+        .describe("files only: Convex storage ids with their metadata"),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.setTaskFieldValue), {
@@ -1257,7 +1541,8 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "clear_task_field",
-    description: "Clear a custom field value on a task.",
+    description:
+      "Clear a custom field value on a task. On a voting field this removes only your own vote.",
     shape: { taskId: z.string(), fieldId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.clearTaskFieldValue), {

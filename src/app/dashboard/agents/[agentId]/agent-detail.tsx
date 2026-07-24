@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { eventLabel } from "@/lib/event-labels";
 import { useToast } from "@/components/toast";
-import { Monogram } from "@/components/dashboard/monogram";
+import { Orb } from "@/components/dashboard/orb";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -133,7 +133,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
       />
 
       <header className="flex items-start gap-3">
-        <Monogram name={agent.name} size="lg" />
+        <Orb seed={agent._id} label={agent.name} size="lg" />
         <div className="min-w-0 flex-1">
           {agent.description && (
             <p className="text-sm text-muted-foreground">

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAction, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Button } from "@/components/ui/button";
-import { Monogram } from "@/components/dashboard/monogram";
+import { Orb } from "@/components/dashboard/orb";
 import { cn } from "@/lib/utils";
 import GradientText from "@/components/gradient-text";
 import { BorderBeam } from "@/components/ui/beam";
@@ -453,7 +453,11 @@ function LivePreview({
           >
             <BeamWhen active={stage === "live"}>
             <div className="flex items-center gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5">
-              <Monogram name={agentName.trim() || "Your agent"} />
+              <Orb
+                seed={agentName.trim() || "Your agent"}
+                label={agentName.trim() || "Your agent"}
+                size="sm"
+              />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">
                   {agentName.trim() || "Your agent"}

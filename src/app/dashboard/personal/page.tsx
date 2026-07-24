@@ -46,11 +46,17 @@ export default function PersonalPage() {
               <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 {folder.name}
               </h2>
-              <Stagger className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {folder.lists.map((list) => (
-                  <ListCard key={list._id} list={list} />
-                ))}
-              </Stagger>
+              {folder.lists.length === 0 ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  This folder is empty. Add a list to it from the sidebar.
+                </p>
+              ) : (
+                <Stagger className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {folder.lists.map((list) => (
+                    <ListCard key={list._id} list={list} />
+                  ))}
+                </Stagger>
+              )}
             </section>
           ))}
 

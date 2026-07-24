@@ -50,9 +50,11 @@ proxy:
 }
 ```
 
-97 tools are exposed: `whoami`, `heartbeat`, `get_tree`, `create_space` /
+112 tools are exposed: `whoami`, `heartbeat`, `get_tree`, `create_space` /
 `create_folder` / `create_list` plus full structure lifecycle
-(`rename_list` / `update_list_meta` / `delete_list` / `reorder_lists`),
+(`rename_list` / `update_list_meta` / `delete_list` / `reorder_lists` /
+`move_list`, and the folder half: `rename_folder` / `delete_folder` /
+`reorder_folders`),
 `list_tasks` / `get_task` / `create_task` / `create_tasks` (bulk: up to 50
 tasks with inline subtasks + dependencies in one call) / `update_task` /
 `complete_task` / `reorder_tasks`, `claim_task` / `release_task`,
@@ -61,13 +63,19 @@ tasks with inline subtasks + dependencies in one call) / `update_task` /
 `sprint_summary`, roadmap authoring (`create_roadmap` with explicit
 phases, `add_roadmap_phase` / `update_roadmap_phase` /
 `remove_roadmap_phase`, `get_roadmaps` / `assign_project_to_phase`),
-`create_status` / `create_custom_field`, `create_goal` (with
-`sourceListId` auto-rollup), `create_scheduled_task`, `register_webhook`,
+per-project milestones (`list_milestones` / `create_milestone` /
+`update_milestone` / `delete_milestone` / `set_task_milestone`),
+`create_status` / `create_custom_field` (the full field-type set, §11),
+`create_goal` (with
+`sourceListId` auto-rollup), the Template Center (`list_templates` /
+`get_template` / `apply_template`) and sprint playbooks
+(`list_sprint_templates` / `apply_sprint_template`),
+`create_scheduled_task`, `register_webhook`,
 `list_events`, `list_skills` / `get_skill` / `create_skill`, docs CRUD,
 and more. Every tool description explains when to use it. `get_task` is
 the deep read: full detail plus `listName`, attachments (with download
 URLs), and the list's SOP when one is attached; task reads round-trip
-`estimatePoints`, `milestone`, and `position`.
+`estimatePoints`, `milestone`, `milestoneId`, and `position`.
 
 ## 3. The collaboration protocol
 
@@ -241,8 +249,11 @@ finishes → `set_sprint_retrospective` once `update_sprint` moves it to
 
 Beyond §2: time (`log_time`, `list_time_entries`), goals (`list_goals`,
 `create_goal`, `set_goal_progress`), automations (`list_automations`,
-`create_automation`, `delete_automation`), templates (`list_templates`,
-`apply_template`), custom fields (`list_custom_fields`, `set_task_field`,
+`create_automation`, `delete_automation`), the Template Center
+(`list_templates` / `get_template` / `apply_template`) plus the four
+starter list presets (`list_starter_templates`,
+`apply_starter_template`), sprint playbooks (`list_sprint_templates`,
+`apply_sprint_template`), custom fields (`list_custom_fields`, `set_task_field`,
 `clear_task_field`), comment management (`update_comment`,
 `delete_comment`, `resolve_comment`), runs (`start_run`, `finish_run`,
 `report_error`), dispatch (`next_task`, `handoff_task`), channels
@@ -250,6 +261,96 @@ Beyond §2: time (`log_time`, `list_time_entries`), goals (`list_goals`,
 roadmaps (§10). Skills are also exposed as MCP resources
 (`skill://<slug>`) — both on the hosted endpoint and through the stdio
 proxy.
+
+### Custom fields
+
+A list's custom fields are its structured memory, and agents get the same
+full type set humans do — nothing is UI-only.
+
+| Group | Types |
+| --- | --- |
+| Basic | `text`, `long_text`, `dropdown`, `labels` (multi-select), `date`, `checkbox`, `files` |
+| Numeric | `number`, `money`, `rating`, `progress`, `voting` |
+| Contact | `email`, `phone`, `url`, `location` |
+| Relational | `people` (humans **and** agents), `relationship` (links to other tasks) |
+| Computed | `rollup` (sum/avg/count over subtasks or a relationship field), `formula` (arithmetic over other numeric fields) |
+
+Four tools cover the loop:
+
+- **`list_custom_fields(listId)`** — every definition with its `type`,
+  `options`, per-type `config`, a `computed` flag, and a **`writeHint`**
+  naming the exact argument `set_task_field` wants. Read this first; it is
+  the contract.
+- **`get_task_fields(taskId)`** — one task's values, resolved (option
+  labels, money + currency, vote counts) and including the computed
+  results that have no stored row. `get_task` returns the same array as
+  `customFields`.
+- **`set_task_field`** — send the argument the writeHint names:
+  `textValue` (text / long_text / email / phone / url, and a dropdown's
+  option id), `numberValue` (number / money / rating / progress),
+  `currency` alongside a money amount, `optionIds` (labels), `actorIds`
+  (people — clerkIds or agent ids from `list_members`), `taskIds`
+  (relationship), `booleanValue` (checkbox; on a **voting** field it adds
+  or removes *your* vote), `dateValue`, `location`, `files`. An empty
+  value clears the field.
+- **`clear_task_field`** — clears the value (on a voting field, only your
+  own vote).
+
+- **`create_custom_field`** takes the type plus its `config`:
+  `currency`/`precision` for money, `precision`/`min`/`max` for numbers,
+  `ratingMax` for stars, `relationListId` for relationships,
+  `formula` (e.g. `"{Hours} * {Rate}"` — references other numeric fields
+  by name), and `rollup` (`{ source: "subtasks" | "relationship", op:
+  "sum" | "avg" | "count", sourceFieldId, relationFieldId }`).
+
+Everything is validated server-side by the same code path the UI uses: a
+rating over its `ratingMax`, a malformed email, an option id that isn't on
+the field, a person outside the workspace, or any write to a computed
+field is refused with a ConvexError that tells you what to send instead.
+Formulas are parsed by a small arithmetic parser — never `eval` — and
+their references are checked when the field is defined, so a bad
+expression fails at `create_custom_field` rather than reading blank
+forever.
+
+### Templates
+
+Two catalogs, both applied through the same cores the human UI calls — a
+templated artifact is indistinguishable from a hand-built one, and every
+task it creates fires the usual automations, events, and notifications.
+
+- **Template Center** — `list_templates` browses ready-made lists, tasks,
+  docs, whiteboards, and saved views, filtered by `entityType`,
+  `category`, `useCase`, `complexity`, or free-text `search` (the response
+  carries the facet vocabulary, so you never have to guess a filter
+  value). `get_template(slug)` returns the full payload — every status,
+  field, seed task, checklist, doc section, or board frame it will
+  create — plus the `destinationType` to send. `apply_template` then
+  creates it: a list template lands in a space or folder, a task or view
+  template on a list, a doc or whiteboard template in a space. It returns
+  `{ entityType, id, name }`.
+- **Sprint playbooks** — `list_sprint_templates` returns timeboxes with
+  their ceremonies and starter tasks; `apply_sprint_template(slug,
+  startDate, listId?)` creates the sprint (end date derived from the
+  template's length) and, when you pass a list, materializes the
+  ceremonies and starter tasks into it already attached to the sprint,
+  with due dates clamped to the sprint window. Both are workspace-only —
+  a personal-space agent has no workspace to hold a sprint.
+- The four original starter list presets still exist as
+  `list_starter_templates` / `apply_starter_template`.
+
+Applying any template creates structure, so list-restricted agents are
+refused — the same rule that governs `create_list` and `create_status`.
+
+### Structure lifecycle
+
+`move_list` regroups a list into a folder, back out to its space, or over
+to a sibling folder. The destination must be in the same space: a space is
+a visibility boundary, so crossing one would silently change who can see
+the tasks, and the server refuses it. Folders have their full lifecycle
+too — `rename_folder`, `reorder_folders`, and `delete_folder`, where
+deleting is a grouping change rather than a content deletion: every list
+inside moves up to the parent space with its tasks, statuses, fields, and
+history intact.
 
 ## 12. Smoke test
 

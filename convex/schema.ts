@@ -205,6 +205,26 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_workspace", ["workspaceId"]),
 
+  // ── Milestones (per project) ──
+  // Named, dated checkpoints INSIDE one project (list): "Beta cut",
+  // "Design freeze". Tasks join a milestone via tasks.milestoneId, so a
+  // milestone's progress derives from its tasks' statuses (see
+  // milestones.ts) rather than being tracked by hand. Deleting a milestone
+  // only clears the link — it never deletes tasks.
+  milestones: defineTable({
+    listId: v.id("lists"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    // Local-midnight ms, same convention as lists.targetDate.
+    targetDate: v.optional(v.number()),
+    position: v.number(),
+    status: v.union(v.literal("open"), v.literal("complete")),
+    completedAt: v.optional(v.number()),
+    // clerkId (human) or agent document id — the actor pattern's id shape.
+    createdByActorId: v.string(),
+    createdAt: v.number(),
+  }).index("by_list", ["listId"]),
+
   // Per-list custom workflow stages. Every list seeds 4 defaults
   // (To Do / In Progress / Complete / Closed) on creation; users can
   // rename, recolor, add, or delete them.
@@ -230,17 +250,44 @@ export default defineSchema({
   }).index("by_list", ["listId"]),
 
   // Per-list field definitions (one row per column the user adds).
+  //
+  // The type union is the full ClickUp-parity set. Everything type-specific
+  // beyond the option list lives in `config`, so adding a type never means
+  // adding another top-level column. Validation for every type — of both the
+  // definition and each value written against it — lives in
+  // convex/_customFields.ts and is shared by the human mutations and the
+  // key-authenticated agent API.
   customFields: defineTable({
     listId: v.id("lists"),
     name: v.string(),
     type: v.union(
+      // Basic
       v.literal("text"),
-      v.literal("number"),
+      v.literal("long_text"),
       v.literal("dropdown"),
+      v.literal("labels"),
       v.literal("date"),
       v.literal("checkbox"),
+      v.literal("files"),
+      // Numeric
+      v.literal("number"),
+      v.literal("money"),
+      v.literal("rating"),
+      v.literal("progress"),
+      v.literal("voting"),
+      // Contact
+      v.literal("email"),
+      v.literal("phone"),
+      v.literal("url"),
+      v.literal("location"),
+      // Relational
+      v.literal("people"),
+      v.literal("relationship"),
+      // Computed (derived on read, never written)
+      v.literal("rollup"),
+      v.literal("formula"),
     ),
-    // Only set for `type === "dropdown"`.
+    // Only set for `type === "dropdown"` and `type === "labels"`.
     options: v.optional(
       v.array(
         v.object({
@@ -250,14 +297,55 @@ export default defineSchema({
         }),
       ),
     ),
+    // Per-type configuration. Only the keys a given type uses are stored.
+    config: v.optional(
+      v.object({
+        // money: ISO 4217 code. number/money: decimal places.
+        currency: v.optional(v.string()),
+        precision: v.optional(v.number()),
+        // number: inclusive bounds.
+        min: v.optional(v.number()),
+        max: v.optional(v.number()),
+        // rating: how many stars (2–10, default 5).
+        ratingMax: v.optional(v.number()),
+        // people/relationship: allow more than one entry (default true).
+        multiple: v.optional(v.boolean()),
+        // relationship: the list linked tasks must come from.
+        relationListId: v.optional(v.id("lists")),
+        // formula: an arithmetic expression over other numeric fields on
+        // this list, referenced as {Field name}. Parsed by a hand-rolled
+        // recursive-descent parser — never eval'd.
+        formula: v.optional(v.string()),
+        // rollup: derive a number from subtasks or from the tasks a
+        // relationship field links to.
+        rollup: v.optional(
+          v.object({
+            source: v.union(
+              v.literal("subtasks"),
+              v.literal("relationship"),
+            ),
+            op: v.union(
+              v.literal("sum"),
+              v.literal("avg"),
+              v.literal("count"),
+            ),
+            sourceFieldId: v.optional(v.id("customFields")),
+            relationFieldId: v.optional(v.id("customFields")),
+          }),
+        ),
+      }),
+    ),
     position: v.number(),
     createdAt: v.number(),
   }).index("by_list", ["listId"]),
 
   // Sparse value rows: one per (task, field) pair that has a value set.
-  // The four optional `*Value` columns let each row hold the right
-  // primitive without packing JSON. Dropdown stores its option id in
-  // `textValue`.
+  // Each optional column lets a row hold the right shape without packing
+  // JSON. Dropdown stores its option id in `textValue`; labels store option
+  // ids in `optionIds`; people and voting store principal ids (clerkId or
+  // agent doc id) in `actorIds`; relationship stores linked task ids.
+  // Computed types (rollup/formula) never have a row — their value is
+  // derived on read by computeDerivedValues().
   taskFieldValues: defineTable({
     taskId: v.id("tasks"),
     fieldId: v.id("customFields"),
@@ -265,6 +353,28 @@ export default defineSchema({
     numberValue: v.optional(v.number()),
     booleanValue: v.optional(v.boolean()),
     dateValue: v.optional(v.number()),
+    // ISO 4217 code stored alongside a money amount.
+    currency: v.optional(v.string()),
+    optionIds: v.optional(v.array(v.string())),
+    actorIds: v.optional(v.array(v.string())),
+    taskIds: v.optional(v.array(v.id("tasks"))),
+    location: v.optional(
+      v.object({
+        label: v.string(),
+        lat: v.optional(v.number()),
+        lng: v.optional(v.number()),
+      }),
+    ),
+    files: v.optional(
+      v.array(
+        v.object({
+          storageId: v.id("_storage"),
+          name: v.string(),
+          mimeType: v.string(),
+          sizeBytes: v.number(),
+        }),
+      ),
+    ),
   })
     .index("by_task", ["taskId"])
     .index("by_field", ["fieldId"])
@@ -332,6 +442,10 @@ export default defineSchema({
     //     render it as a diamond marker instead of a duration bar.
     estimatePoints: v.optional(v.number()),
     milestone: v.optional(v.boolean()),
+    // Membership in one of this project's dated checkpoints (see the
+    // `milestones` table). Distinct from the `milestone` boolean above,
+    // which flags a task as being a date-anchored deliverable itself.
+    milestoneId: v.optional(v.id("milestones")),
     // Set by the watchdog when it emits task.overdue, so each task nags
     // at most once per overdue period.
     overdueNotifiedAt: v.optional(v.number()),
@@ -346,6 +460,7 @@ export default defineSchema({
     .index("by_list_and_status", ["listId", "statusId"])
     .index("by_parent_task", ["parentTaskId"])
     .index("by_sprint", ["sprintId"])
+    .index("by_milestone", ["milestoneId"])
     // Watchdog ranges: claimed tasks are claimedByActorId > "" (absent
     // fields sort before all strings); due tasks are 0 < dueDate < now.
     .index("by_claimed", ["claimedByActorId"])
@@ -850,6 +965,15 @@ export default defineSchema({
   userSettings: defineTable({
     clerkId: v.string(),
     homeWidgets: v.optional(v.array(v.string())),
+    // Per-list "Customize view" preferences, so a saved setup follows the
+    // user across devices instead of living only in that browser's
+    // localStorage. `settings` is the same compact `vs`/`vf` query-string
+    // encoding src/lib/view-settings.ts already writes into the URL, so the
+    // three storage layers (URL, server, localStorage) speak one language.
+    // Capped and most-recent-first — see userSettings.setListViewSettings.
+    listViewSettings: v.optional(
+      v.array(v.object({ listId: v.id("lists"), settings: v.string() })),
+    ),
   }).index("by_clerk", ["clerkId"]),
 
   // ── Phase L: workspace field library ──

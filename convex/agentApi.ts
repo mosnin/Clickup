@@ -12,6 +12,7 @@ import {
   agentActor,
   agentCanTouchList,
   requireAgentByKey,
+  requireFolderAccessForAgent,
   requireListAccessForAgent,
   requireSpaceAccessForAgent,
   requireTaskAccessForAgent,
@@ -22,6 +23,18 @@ import {
   DEFAULT_DAILY_ACTION_LIMIT,
 } from "./_agentAuth";
 import { getSpaceForList } from "./_authz";
+import {
+  assertValueReferences,
+  computeDerivedValues,
+  fieldConfigValidator,
+  fieldOptionValidator,
+  fieldTypeValidator,
+  fieldValueArgs,
+  fieldValueSummary,
+  isComputedType,
+  normalizeFieldDefinition,
+  normalizeFieldValue,
+} from "./_customFields";
 import { x402Config } from "./_x402";
 import {
   CLAIM_TTL_MS,
@@ -34,11 +47,24 @@ import {
   updateTaskCore,
 } from "./tasks";
 import {
+  moveListCore,
   renameListCore,
   removeListCore,
   reorderListsCore,
   updateListMetaCore,
 } from "./lists";
+import {
+  createFolderCore,
+  removeFolderCore,
+  renameFolderCore,
+  reorderFoldersCore,
+} from "./folders";
+import {
+  createMilestoneCore,
+  milestonesWithProgress,
+  removeMilestoneCore,
+  updateMilestoneCore,
+} from "./milestones";
 import {
   addPhaseCore,
   createRoadmapCore,
@@ -47,17 +73,32 @@ import {
 } from "./roadmaps";
 import { createMessageCore, scopeForMessageParent } from "./messages";
 import {
+  applySprintTemplateCore,
   createSprintCore,
   sprintSummaryCore,
   updateSprintCore,
 } from "./sprints";
+import { sprintTemplateCatalog } from "./sprintTemplates";
 import { createScheduledTaskCore, computeNextRunAt } from "./scheduledTasks";
 import { createSubscription } from "./webhooks";
 import { skillsForScope } from "./skills";
 import { withDerivedProgress } from "./goals";
 import { blueprintTaskFields } from "./taskBlueprints";
 import { createChannelCore } from "./channels";
-import { applyListTemplateCore, templateCatalog } from "./templates";
+import {
+  applyCatalogDocTemplateCore,
+  applyCatalogListTemplateCore,
+  applyCatalogTaskTemplateCore,
+  applyCatalogViewTemplateCore,
+  applyCatalogWhiteboardTemplateCore,
+  applyListTemplateCore,
+  templateCatalog,
+} from "./templates";
+import {
+  findTemplate,
+  summarizeTemplate,
+  templateCenterCatalog,
+} from "./templateCatalog";
 import { seedDefaultStatuses } from "./listStatuses";
 import { emitEvent, scopeForList } from "./events";
 import { getRollup } from "./rollups";
@@ -239,6 +280,9 @@ async function taskView(ctx: QueryCtx | MutationCtx, task: Doc<"tasks">) {
     // agent wrote (write-only fields are a data trap).
     estimatePoints: task.estimatePoints,
     milestone: task.milestone ?? false,
+    // Which of the project's dated checkpoints this task belongs to (null
+    // when it belongs to none) — see list_milestones / set_task_milestone.
+    milestoneId: task.milestoneId ?? null,
     position: task.position,
     createdAt: task.createdAt,
     completedAt: task.completedAt,
@@ -507,23 +551,17 @@ export const createSpace = mutation({
   },
 });
 
+// Routed through createFolderCore, so an agent-created folder lands in the
+// activity feed as `folder.created` exactly like a human-created one — and
+// picks up the core's append-after-max positioning instead of a row count
+// that collides once a folder has been deleted.
 export const createFolder = mutation({
   args: { apiKey: v.string(), spaceId: v.id("spaces"), name: v.string() },
   handler: async (ctx, { apiKey, spaceId, name }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     requireUnrestricted(agent);
-    await requireSpaceAccessForAgent(ctx, spaceId, agent);
-    if (!name.trim()) throw new ConvexError("Name is required");
-    const siblings = await ctx.db
-      .query("folders")
-      .withIndex("by_space", (q) => q.eq("spaceId", spaceId))
-      .collect();
-    return await ctx.db.insert("folders", {
-      name: name.trim(),
-      spaceId,
-      position: siblings.length,
-      createdAt: Date.now(),
-    });
+    const { space } = await requireSpaceAccessForAgent(ctx, spaceId, agent);
+    return await createFolderCore(ctx, space, name, agentActor(agent));
   },
 });
 
@@ -731,6 +769,26 @@ export const getTask = query({
       .query("taskFieldValues")
       .withIndex("by_task", (q) => q.eq("taskId", taskId))
       .collect();
+    // Custom fields travel with the deep read, resolved (option labels,
+    // money currency, vote counts) and including the computed types that
+    // have no stored row. get_task_fields returns the same shape alone.
+    const customFieldDefs = await ctx.db
+      .query("customFields")
+      .withIndex("by_list", (q) => q.eq("listId", task.listId))
+      .collect();
+    const fieldRowsById = new Map(
+      fieldValues.map((r) => [r.fieldId as string, r]),
+    );
+    const derived = new Map(
+      (
+        await computeDerivedValues(ctx, task, customFieldDefs, fieldValues)
+      ).map((c) => [c.fieldId as string, c.value]),
+    );
+    const customFields = customFieldDefs
+      .sort((a, b) => a.position - b.position)
+      .map((f) =>
+        fieldValueSummary(f, fieldRowsById.get(f._id), derived.get(f._id)),
+      );
     const attachmentRows = await ctx.db
       .query("attachments")
       .withIndex("by_task", (q) => q.eq("taskId", taskId))
@@ -751,12 +809,20 @@ export const getTask = query({
       listName: taskList?.name ?? null,
       attachments,
       sop,
+      customFields,
+      // Raw rows kept for backwards compatibility with existing agents.
       fieldValues: fieldValues.map((fv) => ({
         fieldId: fv.fieldId,
         textValue: fv.textValue,
         numberValue: fv.numberValue,
         booleanValue: fv.booleanValue,
         dateValue: fv.dateValue,
+        currency: fv.currency,
+        optionIds: fv.optionIds,
+        actorIds: fv.actorIds,
+        taskIds: fv.taskIds,
+        location: fv.location,
+        files: fv.files,
       })),
       subtasks: await Promise.all(subtasks.map((s) => taskView(ctx, s))),
       comments: comments
@@ -2548,7 +2614,283 @@ export const deleteAutomation = mutation({
   },
 });
 
-// ── List templates ─────────────────────────────────────────────────────
+// ── Sprint templates ───────────────────────────────────────────────────
+// The built-in sprint playbooks (convex/sprintTemplates.ts): a timebox with
+// its ceremonies and starter tasks. Sprints are workspace-level objects, so
+// both ends are workspace-only — a personal-scope agent is refused with the
+// same message create_sprint gives, rather than being handed a catalog it
+// could never apply.
+
+export const listSprintTemplates = query({
+  args: { apiKey: v.string() },
+  handler: async (ctx, { apiKey }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    requireWorkspaceAgent(agent);
+    return sprintTemplateCatalog();
+  },
+});
+
+export const applySprintTemplate = mutation({
+  args: {
+    apiKey: v.string(),
+    slug: v.string(),
+    startDate: v.number(),
+    listId: v.optional(v.id("lists")),
+    name: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    // Creating a sprint reshapes the workspace, so it's structure-level —
+    // the same gate create_sprint uses.
+    requireUnrestricted(agent);
+    const workspaceId = requireWorkspaceAgent(agent);
+    // Workspace membership doesn't imply access to every list (private
+    // spaces), and an allow-listed agent must not seed tasks outside its
+    // lists — so the destination is checked on its own terms.
+    if (args.listId !== undefined) {
+      await requireListAccessForAgent(ctx, args.listId, agent);
+    }
+    return await applySprintTemplateCore(
+      ctx,
+      {
+        workspaceId,
+        slug: args.slug,
+        startDate: args.startDate,
+        listId: args.listId,
+        name: args.name,
+      },
+      agentActor(agent),
+    );
+  },
+});
+
+// ── Template Center ────────────────────────────────────────────────────
+// The full catalog (convex/templateCatalog.ts) across five entity types —
+// list, task, doc, whiteboard, and saved view — applied through the same
+// cores the human Template Center calls.
+
+/** The destination shape each entity type accepts. */
+const TEMPLATE_DESTINATIONS: Record<string, ("space" | "folder" | "list")[]> = {
+  list: ["space", "folder"],
+  task: ["list"],
+  doc: ["space"],
+  whiteboard: ["space"],
+  view: ["list"],
+};
+
+export const listCatalogTemplates = query({
+  args: {
+    apiKey: v.string(),
+    entityType: v.optional(v.string()),
+    category: v.optional(v.string()),
+    useCase: v.optional(v.string()),
+    complexity: v.optional(v.string()),
+    search: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAgentByKey(ctx, args.apiKey);
+    const catalog = templateCenterCatalog();
+    const needle = args.search?.trim().toLowerCase();
+    const templates = catalog.templates.filter(
+      (t) =>
+        (args.entityType === undefined || t.entityType === args.entityType) &&
+        (args.category === undefined || t.category === args.category) &&
+        (args.complexity === undefined || t.complexity === args.complexity) &&
+        (args.useCase === undefined || t.useCases.includes(args.useCase)) &&
+        (needle === undefined ||
+          needle === "" ||
+          `${t.slug} ${t.name} ${t.description} ${t.useCases.join(" ")}`
+            .toLowerCase()
+            .includes(needle)),
+    );
+    return {
+      templates,
+      matched: templates.length,
+      total: catalog.templates.length,
+      // The filter vocabulary, so an agent can narrow down without guessing.
+      facets: {
+        entityTypes: catalog.entityTypes,
+        categories: catalog.categories,
+        complexities: catalog.complexities,
+        useCases: catalog.useCases,
+      },
+    };
+  },
+});
+
+export const getCatalogTemplate = query({
+  args: { apiKey: v.string(), slug: v.string() },
+  handler: async (ctx, { apiKey, slug }) => {
+    await requireAgentByKey(ctx, apiKey);
+    const template = findTemplate(slug);
+    if (!template) {
+      throw new ConvexError(
+        `Unknown template "${slug}". Call list_templates for the available slugs.`,
+      );
+    }
+    return {
+      summary: summarizeTemplate(template),
+      // Everything the template will actually create, verbatim.
+      template,
+      // What apply_template's destinationType must be for this entity type.
+      destinationTypes: TEMPLATE_DESTINATIONS[template.entityType],
+    };
+  },
+});
+
+export const applyCatalogTemplate = mutation({
+  args: {
+    apiKey: v.string(),
+    slug: v.string(),
+    name: v.optional(v.string()),
+    destinationType: v.union(
+      v.literal("space"),
+      v.literal("folder"),
+      v.literal("list"),
+    ),
+    destinationId: v.string(),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    entityType: "list" | "task" | "doc" | "whiteboard" | "view";
+    id: string;
+    name: string;
+  }> => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    // Applying a template creates structure (lists, statuses, fields, docs,
+    // boards), so it's off-limits to list-restricted agents — same posture
+    // as create_list and the starter-template tool.
+    requireUnrestricted(agent);
+
+    const template = findTemplate(args.slug);
+    if (!template) {
+      throw new ConvexError(
+        `Unknown template "${args.slug}". Call list_templates for the available slugs.`,
+      );
+    }
+    if (
+      !TEMPLATE_DESTINATIONS[template.entityType].includes(args.destinationType)
+    ) {
+      throw new ConvexError(
+        `A ${template.entityType} template can't be applied to a ${args.destinationType} — send destinationType "${TEMPLATE_DESTINATIONS[template.entityType].join('" or "')}".`,
+      );
+    }
+
+    // Authorization resolves up the hierarchy exactly as every other agent
+    // write does.
+    if (args.destinationType === "space") {
+      await requireSpaceAccessForAgent(
+        ctx,
+        args.destinationId as Id<"spaces">,
+        agent,
+      );
+    } else if (args.destinationType === "folder") {
+      await requireFolderAccessForAgent(
+        ctx,
+        args.destinationId as Id<"folders">,
+        agent,
+      );
+    } else {
+      await requireListAccessForAgent(
+        ctx,
+        args.destinationId as Id<"lists">,
+        agent,
+      );
+    }
+
+    const actor = agentActor(agent);
+
+    if (template.entityType === "list") {
+      const id = await applyCatalogListTemplateCore(
+        ctx,
+        {
+          slug: args.slug,
+          name: args.name,
+          parentType: args.destinationType === "space" ? "space" : "folder",
+          parentId: args.destinationId,
+        },
+        actor,
+      );
+      return {
+        entityType: "list",
+        id,
+        name: args.name?.trim() || template.name,
+      };
+    }
+
+    if (template.entityType === "task") {
+      const id = await applyCatalogTaskTemplateCore(
+        ctx,
+        {
+          slug: args.slug,
+          name: args.name,
+          listId: args.destinationId as Id<"lists">,
+        },
+        actor,
+      );
+      return {
+        entityType: "task",
+        id,
+        name: args.name?.trim() || template.task.title,
+      };
+    }
+
+    if (template.entityType === "doc") {
+      const id = await applyCatalogDocTemplateCore(
+        ctx,
+        {
+          slug: args.slug,
+          name: args.name,
+          parentType: "space",
+          parentId: args.destinationId,
+        },
+        agent._id,
+      );
+      return {
+        entityType: "doc",
+        id,
+        name: args.name?.trim() || template.doc.title,
+      };
+    }
+
+    if (template.entityType === "whiteboard") {
+      const id = await applyCatalogWhiteboardTemplateCore(
+        ctx,
+        {
+          slug: args.slug,
+          name: args.name,
+          parentType: "space",
+          parentId: args.destinationId,
+        },
+        agent._id,
+      );
+      return {
+        entityType: "whiteboard",
+        id,
+        name: args.name?.trim() || template.whiteboard.title,
+      };
+    }
+
+    const id = await applyCatalogViewTemplateCore(
+      ctx,
+      {
+        slug: args.slug,
+        name: args.name,
+        listId: args.destinationId as Id<"lists">,
+      },
+      agent._id,
+    );
+    return {
+      entityType: "view",
+      id,
+      name: args.name?.trim() || template.view.name,
+    };
+  },
+});
+
+// ── Starter list templates (the four built-in list presets) ────────────
 
 export const listTemplates = query({
   args: { apiKey: v.string() },
@@ -2611,7 +2953,72 @@ export const listCustomFields = query({
         name: f.name,
         type: f.type,
         options: f.options,
+        // The config IS the contract: it tells you what to send (currency,
+        // decimal places, bounds, how many stars) and, for computed types,
+        // why you can't send anything at all.
+        config: f.config ?? null,
+        computed: isComputedType(f.type),
+        writeHint: FIELD_WRITE_HINTS[f.type],
       }));
+  },
+});
+
+// One line per type telling an agent exactly which argument set_task_field
+// expects. Surfaced on every list_custom_fields read so a tool call doesn't
+// need a round trip through an error to get the shape right.
+const FIELD_WRITE_HINTS: Record<string, string> = {
+  text: "textValue: string",
+  long_text: "textValue: string (up to 20k chars)",
+  number: "numberValue: number",
+  money: "numberValue: number, currency?: 3-letter code",
+  dropdown: "textValue: the option id",
+  labels: "optionIds: string[] of option ids",
+  date: "dateValue: ISO date or epoch ms",
+  checkbox: "booleanValue: true | false",
+  email: "textValue: an email address",
+  phone: "textValue: a phone number",
+  url: "textValue: an http(s) URL",
+  location: "location: { label, lat?, lng? }",
+  rating: "numberValue: 1..ratingMax (0 clears)",
+  progress: "numberValue: 0..100",
+  people: "actorIds: string[] of clerkIds or agent ids (see list_members)",
+  files: "files: [{ storageId, name, mimeType, sizeBytes }]",
+  relationship: "taskIds: string[] of task ids",
+  voting: "booleanValue: true to add your vote, false to remove it",
+  rollup: "computed — read only",
+  formula: "computed — read only",
+};
+
+/**
+ * Every custom field on a task with its resolved value, including the
+ * computed ones (formula results, rollup results, vote counts) that have no
+ * stored row and therefore never appear in a raw value read.
+ */
+export const getTaskFields = query({
+  args: { apiKey: v.string(), taskId: v.id("tasks") },
+  handler: async (ctx, { apiKey, taskId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
+    const fields = await ctx.db
+      .query("customFields")
+      .withIndex("by_list", (q) => q.eq("listId", task.listId))
+      .collect();
+    const rows = await ctx.db
+      .query("taskFieldValues")
+      .withIndex("by_task", (q) => q.eq("taskId", taskId))
+      .collect();
+    const byField = new Map(rows.map((r) => [r.fieldId as string, r]));
+    const computed = new Map(
+      (await computeDerivedValues(ctx, task, fields, rows)).map((c) => [
+        c.fieldId as string,
+        c.value,
+      ]),
+    );
+    return fields
+      .sort((a, b) => a.position - b.position)
+      .map((f) =>
+        fieldValueSummary(f, byField.get(f._id), computed.get(f._id)),
+      );
   },
 });
 
@@ -2620,10 +3027,7 @@ export const setTaskFieldValue = mutation({
     apiKey: v.string(),
     taskId: v.id("tasks"),
     fieldId: v.id("customFields"),
-    textValue: v.optional(v.string()),
-    numberValue: v.optional(v.number()),
-    booleanValue: v.optional(v.boolean()),
-    dateValue: v.optional(v.number()),
+    ...fieldValueArgs,
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
@@ -2638,12 +3042,23 @@ export const setTaskFieldValue = mutation({
         q.eq("taskId", args.taskId).eq("fieldId", args.fieldId),
       )
       .unique();
-    const patch = {
-      textValue: args.textValue,
-      numberValue: args.numberValue,
-      booleanValue: args.booleanValue,
-      dateValue: args.dateValue,
-    };
+
+    // Same validator the UI writes through — an agent gets identical
+    // refusals, with the message telling it what to send instead.
+    const patch = normalizeFieldValue(field, args, {
+      voterId: agent._id,
+      existing,
+    });
+    if (patch === null) {
+      if (existing) await ctx.db.delete(existing._id);
+      return null;
+    }
+    await assertValueReferences(ctx, field, patch);
+    // A list-restricted agent must be able to reach every task it links.
+    for (const linkedId of patch.taskIds ?? []) {
+      await requireTaskAccessForAgent(ctx, linkedId, agent);
+    }
+
     if (existing) {
       await ctx.db.patch(existing._id, patch);
       return existing._id;
@@ -2671,7 +3086,17 @@ export const clearTaskFieldValue = mutation({
         q.eq("taskId", args.taskId).eq("fieldId", args.fieldId),
       )
       .unique();
-    if (existing) await ctx.db.delete(existing._id);
+    if (!existing) return;
+    // Voting fields: clearing removes only this agent's vote.
+    const field = await ctx.db.get(args.fieldId);
+    if (field?.type === "voting") {
+      const kept = (existing.actorIds ?? []).filter((id) => id !== agent._id);
+      if (kept.length > 0) {
+        await ctx.db.patch(existing._id, { actorIds: kept });
+        return;
+      }
+    }
+    await ctx.db.delete(existing._id);
   },
 });
 
@@ -3153,6 +3578,93 @@ export const reorderLists = mutation({
   },
 });
 
+// Regroup a list inside its space: space → folder, folder → space, folder →
+// sibling folder. Both ends are access-checked independently, and
+// moveListCore itself refuses any destination outside the list's current
+// space — a space is a visibility boundary, so "moving" across one would
+// silently change who can see the tasks.
+export const moveList = mutation({
+  args: {
+    apiKey: v.string(),
+    listId: v.id("lists"),
+    parentType: v.union(v.literal("space"), v.literal("folder")),
+    parentId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const { list } = await requireListAccessForAgent(ctx, args.listId, agent);
+    if (args.parentType === "space") {
+      await requireSpaceAccessForAgent(
+        ctx,
+        args.parentId as Id<"spaces">,
+        agent,
+      );
+    } else {
+      await requireFolderAccessForAgent(
+        ctx,
+        args.parentId as Id<"folders">,
+        agent,
+      );
+    }
+    await moveListCore(
+      ctx,
+      list,
+      { parentType: args.parentType, parentId: args.parentId },
+      agentActor(agent),
+    );
+  },
+});
+
+// ── Folder lifecycle ───────────────────────────────────────────────────
+// Agents could create folders but never fix or unpick them. Same cores the
+// human sidebar calls, so renames/deletes emit `folder.renamed` /
+// `folder.deleted` with the agent as the actor. Structure-level throughout.
+
+export const renameFolder = mutation({
+  args: { apiKey: v.string(), folderId: v.id("folders"), name: v.string() },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const { folder, space } = await requireFolderAccessForAgent(
+      ctx,
+      args.folderId,
+      agent,
+    );
+    await renameFolderCore(ctx, folder, space, args.name, agentActor(agent));
+  },
+});
+
+// Deleting a folder is a grouping change, not a content deletion: every list
+// inside it moves up to the parent space with its tasks intact.
+export const deleteFolder = mutation({
+  args: { apiKey: v.string(), folderId: v.id("folders") },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const { folder, space } = await requireFolderAccessForAgent(
+      ctx,
+      args.folderId,
+      agent,
+    );
+    await removeFolderCore(ctx, folder, space, agentActor(agent));
+  },
+});
+
+export const reorderFolders = mutation({
+  args: {
+    apiKey: v.string(),
+    spaceId: v.id("spaces"),
+    orderedIds: v.array(v.id("folders")),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    await requireSpaceAccessForAgent(ctx, args.spaceId, agent);
+    await reorderFoldersCore(ctx, args.spaceId, args.orderedIds);
+  },
+});
+
 // Task-level ordering: "do these in this order" without overloading
 // dependencies. Same global-renumber semantics as the human Board/List
 // drag (tasks.reorder); position round-trips through list_tasks/get_task.
@@ -3168,6 +3680,138 @@ export const reorderTasks = mutation({
     await reorderTasksCore(
       ctx,
       { listId: args.listId, orderedIds: args.orderedIds },
+      agentActor(agent),
+    );
+  },
+});
+
+// ── Milestones (per project) ───────────────────────────────────────────
+// Dated checkpoints inside one project. Authoring them changes the shape of
+// the project (like statuses and custom fields), so it's structure-level:
+// requireUnrestricted. Linking a task to one is ordinary task work, so
+// list-restricted agents can do it on lists they're allowed to touch.
+
+async function requireMilestoneForAgent(
+  ctx: QueryCtx | MutationCtx,
+  milestoneId: Id<"milestones">,
+  agent: Doc<"agents">,
+): Promise<Doc<"milestones">> {
+  const milestone = await ctx.db.get(milestoneId);
+  if (!milestone) {
+    throw new ConvexError(
+      "Milestone not found. Call list_milestones for this project's checkpoints.",
+    );
+  }
+  await requireListAccessForAgent(ctx, milestone.listId, agent);
+  return milestone;
+}
+
+export const listMilestones = query({
+  args: { apiKey: v.string(), listId: v.id("lists") },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    await requireListAccessForAgent(ctx, args.listId, agent);
+    const milestones = await milestonesWithProgress(ctx, args.listId);
+    return milestones.map((m) => ({
+      milestoneId: m._id,
+      listId: m.listId,
+      name: m.name,
+      description: m.description,
+      targetDate: m.targetDate,
+      status: m.status,
+      completedAt: m.completedAt,
+      position: m.position,
+      total: m.total,
+      done: m.done,
+    }));
+  },
+});
+
+export const createMilestone = mutation({
+  args: {
+    apiKey: v.string(),
+    listId: v.id("lists"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    targetDate: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const { list } = await requireListAccessForAgent(ctx, args.listId, agent);
+    const milestoneId = await createMilestoneCore(
+      ctx,
+      list,
+      {
+        name: args.name,
+        description: args.description,
+        targetDate: args.targetDate,
+      },
+      agentActor(agent),
+    );
+    return { milestoneId };
+  },
+});
+
+export const updateMilestone = mutation({
+  args: {
+    apiKey: v.string(),
+    milestoneId: v.id("milestones"),
+    // null clears an optional field; omitted fields stay untouched.
+    name: v.optional(v.string()),
+    description: v.optional(v.union(v.string(), v.null())),
+    targetDate: v.optional(v.union(v.number(), v.null())),
+    status: v.optional(v.union(v.literal("open"), v.literal("complete"))),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const milestone = await requireMilestoneForAgent(
+      ctx,
+      args.milestoneId,
+      agent,
+    );
+    await updateMilestoneCore(
+      ctx,
+      milestone,
+      {
+        name: args.name,
+        description: args.description,
+        targetDate: args.targetDate,
+        status: args.status,
+      },
+      agentActor(agent),
+    );
+  },
+});
+
+export const deleteMilestone = mutation({
+  args: { apiKey: v.string(), milestoneId: v.id("milestones") },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const milestone = await requireMilestoneForAgent(
+      ctx,
+      args.milestoneId,
+      agent,
+    );
+    await removeMilestoneCore(ctx, milestone, agentActor(agent));
+  },
+});
+
+export const setTaskMilestone = mutation({
+  args: {
+    apiKey: v.string(),
+    taskId: v.id("tasks"),
+    // null detaches the task from its milestone.
+    milestoneId: v.union(v.id("milestones"), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    await updateTaskCore(
+      ctx,
+      { taskId: args.taskId, milestoneId: args.milestoneId },
       agentActor(agent),
     );
   },
@@ -3314,43 +3958,37 @@ export const createCustomField = mutation({
     apiKey: v.string(),
     listId: v.id("lists"),
     name: v.string(),
-    type: v.union(
-      v.literal("text"),
-      v.literal("number"),
-      v.literal("dropdown"),
-      v.literal("date"),
-      v.literal("checkbox"),
-    ),
-    options: v.optional(
-      v.array(
-        v.object({
-          id: v.string(),
-          label: v.string(),
-          color: v.optional(v.string()),
-        }),
-      ),
-    ),
+    type: fieldTypeValidator,
+    options: v.optional(v.array(fieldOptionValidator)),
+    config: v.optional(fieldConfigValidator),
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     requireUnrestricted(agent);
     await requireListAccessForAgent(ctx, args.listId, agent);
-    if (!args.name.trim()) throw new ConvexError("Field name is required");
-    if (
-      args.type === "dropdown" &&
-      (!args.options || args.options.length === 0)
-    ) {
-      throw new ConvexError("Dropdown fields need at least one option");
-    }
+    const name = args.name.trim();
+    if (!name) throw new ConvexError("Field name is required");
+
     const siblings = await ctx.db
       .query("customFields")
       .withIndex("by_list", (q) => q.eq("listId", args.listId))
       .collect();
+    // Identical definition rules to customFields.create — formulas are
+    // parsed and their references checked here too, so an agent finds out
+    // its expression is wrong at definition time, not on every read.
+    const { options, config } = normalizeFieldDefinition({
+      type: args.type,
+      options: args.options,
+      config: args.config,
+      siblings,
+      selfName: name,
+    });
     const fieldId = await ctx.db.insert("customFields", {
       listId: args.listId,
-      name: args.name.trim(),
+      name,
       type: args.type,
-      options: args.type === "dropdown" ? args.options : undefined,
+      options,
+      config,
       position: siblings.length,
       createdAt: Date.now(),
     });

@@ -168,12 +168,16 @@ body {
    class="orb-sheen"/></span>. */
 .orb {
   position: relative;
-  border-radius: 9999px;
   overflow: hidden;
-  background: var(--orb-a, #8b8bff);
+  background: var(--orb-b, #8b8bff);
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0.1) inset,
     0 4px 14px -4px var(--orb-b, #8b8bff);
+}
+/* Organizations, spaces and the personal area get the same living gradient
+   in a squircle, so containers read as places and agents read as beings. */
+.orb-squircle {
+  border-radius: 32%;
 }
 .orb-core {
   position: absolute;
@@ -185,7 +189,9 @@ body {
     var(--orb-c),
     var(--orb-a)
   );
-  filter: blur(5px);
+  /* Blur enough to read as a lit sphere, not so much that the hue washes
+     out — heavy blur is what made every orb look like the same warm smear. */
+  filter: blur(3px);
   animation: orb-spin 7s linear infinite;
 }
 .orb-sheen {
@@ -194,9 +200,19 @@ body {
   border-radius: inherit;
   background: radial-gradient(
     circle at 32% 26%,
-    rgb(255 255 255 / 0.6),
-    transparent 46%
+    rgb(255 255 255 / 0.45),
+    transparent 44%
   );
+}
+/* The initial rides above the gradient; the shadow keeps it legible over
+   both the bright sheen and the darker lower half. */
+.orb-label {
+  position: relative;
+  z-index: 1;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
+  line-height: 1;
 }
 @keyframes orb-spin {
   to {
@@ -492,6 +508,46 @@ body {
   outline: none;
   background: var(--color-background);
   box-shadow: 0 0 0 2px var(--color-foreground);
+}
+
+/* Segmented control: a recessed neutral track with a raised WHITE active pill
+   — deliberately not the black primary-button fill, which stays reserved for
+   real actions. Use for view/tab/mode toggles: `.segmented` on the track,
+   `.segmented-on` on the selected option.
+
+   These were documented in CLAUDE.md long before they existed in the
+   stylesheet, so components that followed the guidance were silently
+   unstyled. Defining them here makes the documented grammar real. */
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0.2rem;
+  border-radius: 9999px;
+  background: var(--color-muted);
+}
+.segmented > * {
+  border-radius: 9999px;
+  padding: 0.3rem 0.85rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  color: var(--color-muted-foreground);
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+  white-space: nowrap;
+}
+.segmented > *:hover {
+  color: var(--color-foreground);
+}
+.segmented-on {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-weight: 500;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.08),
+    0 0 0 1px rgb(0 0 0 / 0.03);
 }
 
 /* ── Shell fusion panel (Phase H) ─────────────────────────────────────────

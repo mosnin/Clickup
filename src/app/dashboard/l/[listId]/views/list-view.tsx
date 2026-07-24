@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { ChevronRight, Plus, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -21,6 +21,7 @@ import {
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { TaskBadges } from "@/components/dashboard/task-badges";
 import { ChecklistChip } from "@/components/dashboard/checklist";
+import { Monogram } from "@/components/dashboard/monogram";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
 import {
   PRIORITY_LABEL,
@@ -28,11 +29,19 @@ import {
   type TaskPriority,
 } from "@/components/dashboard/priority";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { parseQuickAdd } from "@/lib/quick-add";
 import { QuickAddChips } from "@/components/dashboard/quick-add-chips";
 import { useToast } from "@/components/toast";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
+import {
+  BUILTIN_FIELDS,
+  DEFAULT_VIEW_SETTINGS,
+  isBuiltinFieldKey,
+  type GroupBy,
+  type ViewSettings,
+} from "@/lib/view-settings";
 
 export function ListView({
   listId,
@@ -40,18 +49,53 @@ export function ListView({
   statuses,
   fields,
   filtered = false,
+  settings = DEFAULT_VIEW_SETTINGS,
+  visibleFields,
+  parentTitles,
+  locationLabel,
 }: {
   listId: Id<"lists">;
   tasks: Doc<"tasks">[];
   statuses: Doc<"listStatuses">[];
   fields: Doc<"customFields">[];
   filtered?: boolean;
+  /** Customize-view settings (display toggles, grouping, subtask mode). */
+  settings?: ViewSettings;
+  /** Ordered visible field keys — resolved by the list page. */
+  visibleFields?: string[];
+  /** taskId → title, for the "show subtask parent names" chip. */
+  parentTitles?: Map<string, string>;
+  /** Space › Folder › List breadcrumb; undefined when the toggle is off. */
+  locationLabel?: string;
 }) {
   // Multi-select for bulk actions. A Set of task ids; the bulk bar floats in
   // when anything is selected.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Rows hidden while a bulk-delete undo toast is live.
   const [pendingDelete, setPendingDelete] = useState<Set<string>>(new Set());
+
+  const columns = useMemo(
+    () =>
+      (visibleFields ?? ["status", "priority", "due"]).map((key) => ({
+        key,
+        label: isBuiltinFieldKey(key)
+          ? (BUILTIN_FIELDS.find((f) => f.key === key)?.label ?? key)
+          : (fields.find((f) => f._id === key)?.name ?? "Field"),
+      })),
+    [visibleFields, fields],
+  );
+  // Total column count: select + complete + title, the metadata columns, and
+  // the trailing action cell.
+  const columnCount = columns.length + 4;
+
+  // Assignee names (humans AND agents) are needed for the Assignees column
+  // and for assignee grouping — fetched only when one of those is on.
+  const needsPeople =
+    columns.some((c) => c.key === "assignees") || settings.group === "assignee";
+  const assignable = useQuery(
+    api.agents.listAssignableForList,
+    needsPeople ? { listId } : "skip",
+  );
 
   // `tasks` here is already filtered to top-level rows by the list page.
   // Subtasks (tasks.parentTaskId) come from the same tasks.listForList
@@ -60,6 +104,9 @@ export function ListView({
   const allTasks = useQuery(api.tasks.listForList, { listId });
   const childrenByParent = useMemo(() => {
     const map = new Map<string, Doc<"tasks">[]>();
+    // In flat mode every subtask is already a row of its own, so nesting is
+    // switched off entirely rather than showing each subtask twice.
+    if (settings.subtasks === "flat") return map;
     for (const t of allTasks ?? []) {
       if (!t.parentTaskId) continue;
       const arr = map.get(t.parentTaskId) ?? [];
@@ -68,7 +115,7 @@ export function ListView({
     }
     for (const arr of map.values()) arr.sort((a, b) => a.position - b.position);
     return map;
-  }, [allTasks]);
+  }, [allTasks, settings.subtasks]);
   const shown = useMemo(
     () => tasks.filter((t) => !pendingDelete.has(t._id)),
     [tasks, pendingDelete],
@@ -78,6 +125,14 @@ export function ListView({
     [shown],
   );
   const selectedVisible = [...selected].filter((id) => visibleIds.has(id));
+
+  const groups = useMemo(
+    () =>
+      buildGroups(shown, settings, statuses, (id) =>
+        assignable?.find((a) => a.id === id)?.name,
+      ),
+    [shown, settings, statuses, assignable],
+  );
 
   function toggleSelect(id: string) {
     setSelected((prev) => {
@@ -93,6 +148,35 @@ export function ListView({
       selectedVisible.length === shown.length && shown.length > 0
         ? new Set()
         : new Set(shown.map((t) => t._id)),
+    );
+  }
+
+  function renderRow(task: Doc<"tasks">, index: number) {
+    return (
+      <TaskRow
+        // Remounting on a subtask-mode change resets each row's expansion
+        // to the mode's default (collapsed vs expanded) without a sync effect.
+        key={`${task._id}:${settings.subtasks}`}
+        task={task}
+        listId={listId}
+        statuses={statuses}
+        fields={fields}
+        columns={columns}
+        columnCount={columnCount}
+        index={index}
+        selected={selected.has(task._id)}
+        onToggleSelect={() => toggleSelect(task._id)}
+        subtasks={childrenByParent.get(task._id) ?? []}
+        settings={settings}
+        parentTitle={
+          task.parentTaskId
+            ? parentTitles?.get(task.parentTaskId as string)
+            : undefined
+        }
+        locationLabel={locationLabel}
+        people={assignable}
+        defaultExpanded={settings.subtasks === "expanded"}
+      />
     );
   }
 
@@ -114,12 +198,16 @@ export function ListView({
                 </TableHead>
                 <TableHead scope="col" className="w-10" />
                 <TableHead scope="col">Title</TableHead>
-                <TableHead scope="col" className="hidden sm:table-cell">Status</TableHead>
-                <TableHead scope="col" className="hidden sm:table-cell">Priority</TableHead>
-                <TableHead scope="col" className="hidden md:table-cell">Due</TableHead>
-                {fields.map((f) => (
-                  <TableHead scope="col" key={f._id} className="hidden md:table-cell">
-                    {f.name}
+                {columns.map((c, i) => (
+                  <TableHead
+                    scope="col"
+                    key={c.key}
+                    className={cn(
+                      "truncate",
+                      i < 2 ? "hidden sm:table-cell" : "hidden md:table-cell",
+                    )}
+                  >
+                    {c.label}
                   </TableHead>
                 ))}
                 <TableHead scope="col" />
@@ -129,7 +217,7 @@ export function ListView({
               {shown.length === 0 && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell
-                    colSpan={7 + fields.length}
+                    colSpan={columnCount}
                     className="whitespace-normal py-14 text-center text-sm text-muted-foreground"
                   >
                     {filtered
@@ -138,19 +226,34 @@ export function ListView({
                   </TableCell>
                 </TableRow>
               )}
-              {shown.map((task, i) => (
-                <TaskRow
-                  key={task._id}
-                  task={task}
-                  listId={listId}
-                  statuses={statuses}
-                  fields={fields}
-                  index={i}
-                  selected={selected.has(task._id)}
-                  onToggleSelect={() => toggleSelect(task._id)}
-                  subtasks={childrenByParent.get(task._id) ?? []}
-                />
-              ))}
+              {shown.length > 0 &&
+                (groups === null
+                  ? shown.map((task, i) => renderRow(task, i))
+                  : groups.map((group) => {
+                    let cursor = 0;
+                    return (
+                      <Fragment key={group.key}>
+                        <GroupHeaderRow
+                          label={group.label}
+                          count={group.tasks.length}
+                          color={group.color}
+                          columnCount={columnCount}
+                        />
+                        {group.tasks.length === 0 ? (
+                          <TableRow className="hover:bg-transparent">
+                            <TableCell
+                              colSpan={columnCount}
+                              className="whitespace-normal py-3 pl-10 text-xs text-muted-foreground"
+                            >
+                              Nothing in {group.label.toLowerCase()}.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          group.tasks.map((task) => renderRow(task, cursor++))
+                        )}
+                      </Fragment>
+                    );
+                    }))}
             </TableBody>
           </Table>
           <NewTaskRow listId={listId} />
@@ -173,6 +276,168 @@ export function ListView({
         }
       />
     </>
+  );
+}
+
+// ── Grouping ─────────────────────────────────────────────────────────────
+// Group by status / assignee / priority / due date / milestone. Only status
+// can produce a group with nothing in it, and that group is dropped unless
+// "Show empty statuses" is on — every other dimension is derived from the
+// tasks themselves, so an empty bucket never exists.
+
+type TaskGroup = {
+  key: string;
+  label: string;
+  color?: string;
+  tasks: Doc<"tasks">[];
+};
+
+function buildGroups(
+  tasks: Doc<"tasks">[],
+  settings: ViewSettings,
+  statuses: Doc<"listStatuses">[],
+  nameFor: (id: string) => string | undefined,
+): TaskGroup[] | null {
+  const group: GroupBy = settings.group;
+  if (group === "none") return null;
+
+  if (group === "status") {
+    const sorted = [...statuses].sort((a, b) => a.position - b.position);
+    const groups: TaskGroup[] = sorted.map((s) => ({
+      key: s._id as string,
+      label: s.name,
+      color: s.color,
+      tasks: tasks.filter((t) => t.statusId === s._id),
+    }));
+    // A task whose status was deleted mid-session still deserves a home.
+    const orphans = tasks.filter(
+      (t) => !sorted.some((s) => s._id === t.statusId),
+    );
+    if (orphans.length) {
+      groups.push({ key: "__no_status", label: "No status", tasks: orphans });
+    }
+    return settings.emptyStatuses
+      ? groups
+      : groups.filter((g) => g.tasks.length > 0);
+  }
+
+  if (group === "priority") {
+    const buckets = PRIORITY_ORDER.map((p) => ({
+      key: p as string,
+      label: PRIORITY_LABEL[p],
+      tasks: tasks.filter((t) => t.priority === p),
+    }));
+    buckets.push({
+      key: "__none",
+      label: "No priority",
+      tasks: tasks.filter((t) => !t.priority),
+    });
+    return buckets.filter((b) => b.tasks.length > 0);
+  }
+
+  if (group === "milestone") {
+    return [
+      {
+        key: "__milestone",
+        label: "Milestones",
+        tasks: tasks.filter((t) => t.milestone),
+      },
+      {
+        key: "__tasks",
+        label: "Tasks",
+        tasks: tasks.filter((t) => !t.milestone),
+      },
+    ].filter((b) => b.tasks.length > 0);
+  }
+
+  if (group === "due") {
+    const now = new Date();
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    ).getTime();
+    const endOfToday = startOfToday + 24 * 60 * 60 * 1000;
+    const endOfWeek = startOfToday + 7 * 24 * 60 * 60 * 1000;
+    const bucketOf = (t: Doc<"tasks">) => {
+      if (t.dueDate === undefined) return "none";
+      if (t.dueDate < startOfToday) return "overdue";
+      if (t.dueDate < endOfToday) return "today";
+      if (t.dueDate < endOfWeek) return "week";
+      return "later";
+    };
+    const labels: { key: string; label: string }[] = [
+      { key: "overdue", label: "Overdue" },
+      { key: "today", label: "Today" },
+      { key: "week", label: "Next 7 days" },
+      { key: "later", label: "Later" },
+      { key: "none", label: "No due date" },
+    ];
+    return labels
+      .map((l) => ({
+        key: l.key,
+        label: l.label,
+        tasks: tasks.filter((t) => bucketOf(t) === l.key),
+      }))
+      .filter((b) => b.tasks.length > 0);
+  }
+
+  // assignee — one group per first assignee, then the unassigned pile.
+  const keys = new Set<string>();
+  for (const t of tasks) keys.add(t.assigneeClerkIds[0] ?? "__unassigned");
+  const people = [...keys]
+    .filter((k) => k !== "__unassigned")
+    .map((k) => ({
+      key: k,
+      label: nameFor(k) ?? "Teammate",
+      tasks: tasks.filter((t) => (t.assigneeClerkIds[0] ?? "") === k),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  const groups: TaskGroup[] = [...people];
+  if (keys.has("__unassigned")) {
+    groups.push({
+      key: "__unassigned",
+      label: "Unassigned",
+      tasks: tasks.filter((t) => t.assigneeClerkIds.length === 0),
+    });
+  }
+  return groups;
+}
+
+function GroupHeaderRow({
+  label,
+  count,
+  color,
+  columnCount,
+}: {
+  label: string;
+  count: number;
+  color?: string;
+  columnCount: number;
+}) {
+  return (
+    <TableRow className="hover:bg-transparent">
+      <TableCell
+        colSpan={columnCount}
+        className="whitespace-normal bg-muted/40 py-2"
+      >
+        <span className="flex min-w-0 items-center gap-2">
+          {color && (
+            <span
+              aria-hidden
+              className="h-2 w-2 flex-shrink-0 rounded-full"
+              style={{ backgroundColor: color }}
+            />
+          )}
+          <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {label}
+          </span>
+          <span className="flex-shrink-0 text-[11px] tabular-nums text-muted-foreground">
+            {count}
+          </span>
+        </span>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -358,27 +623,43 @@ function BulkMenuItem({
   );
 }
 
+type Person = { id: string; name: string; kind: "user" | "agent" };
+
 function TaskRow({
   task,
   listId,
   statuses,
   fields,
+  columns,
+  columnCount,
   index,
   selected,
   onToggleSelect,
   subtasks,
+  settings,
+  parentTitle,
+  locationLabel,
+  people,
+  defaultExpanded,
 }: {
   task: Doc<"tasks">;
   listId: Id<"lists">;
   statuses: Doc<"listStatuses">[];
   fields: Doc<"customFields">[];
+  columns: { key: string; label: string }[];
+  columnCount: number;
   index: number;
   selected: boolean;
   onToggleSelect: () => void;
   subtasks: Doc<"tasks">[];
+  settings: ViewSettings;
+  parentTitle?: string;
+  locationLabel?: string;
+  people?: Person[];
+  defaultExpanded: boolean;
 }) {
   const searchParams = useSearchParams();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const update = useMutation(api.tasks.update);
   // Optimistic: the check fills instantly, before the server round-trip.
   // The server result reconciles it (and reverts if a blocker/approval
@@ -413,18 +694,182 @@ function TaskRow({
   const values = useQuery(api.taskFieldValues.listForTask, {
     taskId: task._id,
   });
+  // Rollup/formula results and vote counts have no stored row — they're
+  // derived per read. One query per row (not per cell), and only when this
+  // list actually defines a derived type; Convex dedupes the subscription
+  // against the identical query the task page/Table view would make.
+  const computed = useQuery(
+    api.taskFieldValues.computedForTask,
+    fields.some(
+      (f) => f.type === "rollup" || f.type === "formula" || f.type === "voting",
+    )
+      ? { taskId: task._id }
+      : "skip",
+  );
+  // The signed-in principal, so a voting cell knows whether you voted.
+  const currentUser = useQuery(api.users.current, {});
   const valuesByField = useMemo(() => {
     const map = new Map<string, Doc<"taskFieldValues">>();
     for (const v of values ?? []) map.set(v.fieldId, v);
     return map;
   }, [values]);
+  const computedByField = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const c of computed ?? []) map.set(c.fieldId, c.value);
+    return map;
+  }, [computed]);
 
   const status = statuses.find((s) => s._id === task.statusId);
   const isDone =
     status?.category === "complete" || status?.category === "closed";
+  const wrap = settings.wrapText;
 
   // Hidden while its undo toast is live — delete commits on expiry.
   if (deleting) return null;
+
+  function renderCell(key: string) {
+    if (key === "status") {
+      return (
+        <select
+          aria-label="Status"
+          value={task.statusId}
+          onChange={async (e) => {
+            const nextStatusId = e.currentTarget.value as Id<"listStatuses">;
+            try {
+              await update({ taskId: task._id, statusId: nextStatusId });
+            } catch (err) {
+              const raw = err instanceof Error ? err.message : String(err);
+              const msg = raw
+                .split("Uncaught Error:")
+                .pop()
+                ?.split("\n")[0]
+                ?.trim();
+              toast(msg || "Couldn't update status", { kind: "error" });
+            }
+          }}
+          className="soft-field px-2 py-1 text-xs"
+          style={{
+            backgroundColor: status ? `${status.color}33` : undefined,
+          }}
+        >
+          {statuses.map((s) => (
+            <option key={s._id} value={s._id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    if (key === "priority") {
+      return (
+        <select
+          aria-label="Priority"
+          value={task.priority ?? ""}
+          onChange={(e) => {
+            const value = e.currentTarget.value;
+            // Explicit null clears the priority — undefined would be
+            // dropped from the wire and the clear silently ignored.
+            update({
+              taskId: task._id,
+              priority: (value || null) as TaskPriority | null,
+            });
+          }}
+          className="soft-field px-2 py-1 text-xs"
+        >
+          <option value="">None</option>
+          {PRIORITY_ORDER.map((p) => (
+            <option key={p} value={p}>
+              {PRIORITY_LABEL[p]}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    if (key === "start") {
+      return (
+        <input
+          type="date"
+          aria-label="Start date"
+          value={task.startDate ? toDateInputValue(task.startDate) : ""}
+          onChange={(e) =>
+            update({
+              taskId: task._id,
+              startDate: fromDateInputValue(e.currentTarget.value) ?? null,
+            })
+          }
+          className="soft-field px-2 py-1 text-xs"
+        />
+      );
+    }
+    if (key === "due") {
+      return (
+        <input
+          type="date"
+          aria-label="Due date"
+          value={task.dueDate ? toDateInputValue(task.dueDate) : ""}
+          onChange={(e) =>
+            update({
+              taskId: task._id,
+              dueDate: fromDateInputValue(e.currentTarget.value) ?? null,
+            })
+          }
+          className="soft-field px-2 py-1 text-xs"
+        />
+      );
+    }
+    if (key === "assignees") {
+      if (task.assigneeClerkIds.length === 0) {
+        return <span className="text-xs text-muted-foreground">—</span>;
+      }
+      return (
+        <span className="flex items-center -space-x-1.5">
+          {task.assigneeClerkIds.slice(0, 3).map((id) => {
+            const name = people?.find((p) => p.id === id)?.name ?? "Teammate";
+            return (
+              <Monogram key={id} name={name} seed={id} size="sm" />
+            );
+          })}
+          {task.assigneeClerkIds.length > 3 && (
+            <span className="pl-2.5 text-[11px] text-muted-foreground">
+              +{task.assigneeClerkIds.length - 3}
+            </span>
+          )}
+        </span>
+      );
+    }
+    if (key === "points") {
+      return (
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {task.estimatePoints ?? "—"}
+        </span>
+      );
+    }
+    const field = fields.find((f) => f._id === key);
+    if (!field) return null;
+    return (
+      <CustomFieldInput
+        field={field}
+        value={valuesByField.get(field._id)}
+        taskId={task._id}
+        computed={computedByField.get(field._id)}
+        currentActorId={currentUser?.clerkId}
+        onCommit={(value) => {
+          // Every write is validated server-side; a refusal carries a
+          // message the user can act on, so surface it rather than
+          // dropping the rejection on the floor.
+          const op =
+            value === null
+              ? clearValue({ taskId: task._id, fieldId: field._id })
+              : setValue({ taskId: task._id, fieldId: field._id, ...value });
+          op.catch((e) =>
+            toast(errorMessage(e, "Couldn't update that field"), {
+              kind: "error",
+            }),
+          );
+        }}
+      />
+    );
+  }
 
   return (
     <>
@@ -492,8 +937,13 @@ function TaskRow({
           </motion.svg>
         </motion.button>
       </TableCell>
-      <TableCell>
-        <span className="flex items-center gap-1">
+      <TableCell className={cn("min-w-0", wrap && "whitespace-normal")}>
+        <span
+          className={cn(
+            "flex min-w-0 gap-1",
+            wrap ? "flex-wrap items-start" : "items-center",
+          )}
+        >
           {subtasks.length > 0 && (
             <button
               type="button"
@@ -521,7 +971,8 @@ function TaskRow({
             href={taskPeekHref(searchParams, task._id)}
             scroll={false}
             className={cn(
-              "truncate hover:underline",
+              "min-w-0 hover:underline",
+              wrap ? "break-words" : "truncate",
               isDone && "text-muted-foreground line-through",
             )}
           >
@@ -540,87 +991,19 @@ function TaskRow({
             </span>
           )}
         </span>
-      </TableCell>
-      <TableCell className="hidden sm:table-cell">
-        <select
-          aria-label="Status"
-          value={task.statusId}
-          onChange={async (e) => {
-            const nextStatusId = e.currentTarget.value as Id<"listStatuses">;
-            try {
-              await update({ taskId: task._id, statusId: nextStatusId });
-            } catch (err) {
-              const raw = err instanceof Error ? err.message : String(err);
-              const msg = raw
-                .split("Uncaught Error:")
-                .pop()
-                ?.split("\n")[0]
-                ?.trim();
-              toast(msg || "Couldn't update status", { kind: "error" });
-            }
-          }}
-          className="soft-field px-2 py-1 text-xs"
-          style={{
-            backgroundColor: status ? `${status.color}33` : undefined,
-          }}
-        >
-          {statuses.map((s) => (
-            <option key={s._id} value={s._id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      </TableCell>
-      <TableCell className="hidden sm:table-cell">
-        <select
-          aria-label="Priority"
-          value={task.priority ?? ""}
-          onChange={(e) => {
-            const value = e.currentTarget.value;
-            // Explicit null clears the priority — undefined would be
-            // dropped from the wire and the clear silently ignored.
-            update({
-              taskId: task._id,
-              priority: (value || null) as TaskPriority | null,
-            });
-          }}
-          className="soft-field px-2 py-1 text-xs"
-        >
-          <option value="">None</option>
-          {PRIORITY_ORDER.map((p) => (
-            <option key={p} value={p}>
-              {PRIORITY_LABEL[p]}
-            </option>
-          ))}
-        </select>
-      </TableCell>
-      <TableCell className="hidden md:table-cell">
-        <input
-          type="date"
-          aria-label="Due date"
-          value={task.dueDate ? toDateInputValue(task.dueDate) : ""}
-          onChange={(e) =>
-            update({
-              taskId: task._id,
-              dueDate: fromDateInputValue(e.currentTarget.value) ?? null,
-            })
-          }
-          className="soft-field px-2 py-1 text-xs"
+        <RowContext
+          location={locationLabel}
+          parentTitle={settings.showSubtaskParents ? parentTitle : undefined}
         />
       </TableCell>
-      {fields.map((f) => (
-        <TableCell key={f._id} className="hidden md:table-cell">
-          <CustomFieldInput
-            field={f}
-            value={valuesByField.get(f._id)}
-            onCommit={(value) => {
-              if (value === null) {
-                clearValue({ taskId: task._id, fieldId: f._id });
-              } else {
-                setValue({ taskId: task._id, fieldId: f._id, ...value });
-              }
-            }}
-          />
+      {columns.map((c, i) => (
+        <TableCell
+          key={c.key}
+          className={cn(
+            i < 2 ? "hidden sm:table-cell" : "hidden md:table-cell",
+          )}
+        >
+          {renderCell(c.key)}
         </TableCell>
       ))}
       <TableCell className="text-right">
@@ -648,11 +1031,37 @@ function TaskRow({
               task={child}
               listId={listId}
               statuses={statuses}
-              colSpan={5 + fields.length}
+              colSpan={columnCount - 2}
+              settings={settings}
+              parentTitle={settings.showSubtaskParents ? task.title : undefined}
+              locationLabel={locationLabel}
             />
           ))}
       </AnimatePresence>
     </>
+  );
+}
+
+// The quiet second line under a task title: where the task lives, and which
+// task it belongs to. Both are opt-in from the Customize view panel, so the
+// row stays a single line unless you asked for more.
+function RowContext({
+  location,
+  parentTitle,
+}: {
+  location?: string;
+  parentTitle?: string;
+}) {
+  if (!location && !parentTitle) return null;
+  return (
+    <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+      {parentTitle && (
+        <span className="min-w-0 max-w-full truncate">↳ {parentTitle}</span>
+      )}
+      {location && (
+        <span className="min-w-0 max-w-full truncate">{location}</span>
+      )}
+    </span>
   );
 }
 
@@ -665,11 +1074,17 @@ function ChildTaskRow({
   listId,
   statuses,
   colSpan,
+  settings,
+  parentTitle,
+  locationLabel,
 }: {
   task: Doc<"tasks">;
   listId: Id<"lists">;
   statuses: Doc<"listStatuses">[];
   colSpan: number;
+  settings: ViewSettings;
+  parentTitle?: string;
+  locationLabel?: string;
 }) {
   const searchParams = useSearchParams();
   const toggleComplete = useMutation(
@@ -756,22 +1171,31 @@ function ChildTaskRow({
         </motion.button>
       </TableCell>
       <TableCell colSpan={colSpan} className="whitespace-normal">
-        <span className="flex items-center gap-2 pl-4">
-          <Link
-            href={taskPeekHref(searchParams, task._id)}
-            scroll={false}
+        <span className="flex min-w-0 flex-col pl-4">
+          <span
             className={cn(
-              "truncate text-xs hover:underline",
-              isDone && "text-muted-foreground line-through",
+              "flex min-w-0 gap-2",
+              settings.wrapText ? "flex-wrap items-start" : "items-center",
             )}
           >
-            {task.title}
-          </Link>
-          {task.dueDate && (
-            <span className="flex-shrink-0 text-[11px] text-muted-foreground">
-              {toDateInputValue(task.dueDate)}
-            </span>
-          )}
+            <Link
+              href={taskPeekHref(searchParams, task._id)}
+              scroll={false}
+              className={cn(
+                "min-w-0 text-xs hover:underline",
+                settings.wrapText ? "break-words" : "truncate",
+                isDone && "text-muted-foreground line-through",
+              )}
+            >
+              {task.title}
+            </Link>
+            {task.dueDate && (
+              <span className="flex-shrink-0 text-[11px] text-muted-foreground">
+                {toDateInputValue(task.dueDate)}
+              </span>
+            )}
+          </span>
+          <RowContext location={locationLabel} parentTitle={parentTitle} />
         </span>
       </TableCell>
     </motion.tr>

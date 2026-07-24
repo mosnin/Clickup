@@ -5,6 +5,8 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { canAccessSpace, requireIdentity, requireListAccess } from "./_authz";
 import type { Actor } from "./_agentAuth";
 import { emitEvent, scopeForList, userActor } from "./events";
+import { createTaskCore } from "./tasks";
+import { findSprintTemplate, sprintTemplateCatalog } from "./sprintTemplates";
 
 // Sprints: workspace-level timeboxes that tasks from any list in the
 // workspace can be pulled into (tasks.sprintId). Status flows
@@ -125,6 +127,114 @@ export async function updateSprintCore(
   } else if (Object.keys(patch).length > 0) {
     await emitSprintEvent(ctx, updated, "sprint.updated", actor);
   }
+}
+
+// Applies a sprint template (convex/sprintTemplates.ts): creates the
+// sprint through createSprintCore, then materializes the template's
+// ceremonies and starter tasks into `listId` through createTaskCore with
+// the sprint already attached. One transaction, both cores, so events,
+// automations, routing, and notifications fire exactly as they would for
+// hand-created work — there is no template-only write path.
+//
+// `listId` is optional: without it the caller gets the timebox alone (an
+// agent may want to place the work itself), with it the sprint arrives
+// already planned. Ceremony/task day offsets are clamped to the sprint
+// window so nothing is due after the sprint ends.
+export async function applySprintTemplateCore(
+  ctx: MutationCtx,
+  args: {
+    workspaceId: Id<"workspaces">;
+    slug: string;
+    startDate: number;
+    listId?: Id<"lists">;
+    name?: string;
+  },
+  actor: Actor,
+): Promise<{ sprintId: Id<"sprints">; taskIds: Id<"tasks">[] }> {
+  const template = findSprintTemplate(args.slug);
+  if (!template) {
+    throw new ConvexError(
+      `Unknown sprint template "${args.slug}". Read sprints.templateCatalog for the available slugs.`,
+    );
+  }
+
+  const startDate = args.startDate;
+  const endDate = startDate + template.lengthDays * ONE_DAY_MS;
+  const sprintId = await createSprintCore(
+    ctx,
+    {
+      workspaceId: args.workspaceId,
+      name: args.name?.trim() || template.name,
+      goal: template.goalTemplate,
+      startDate,
+      endDate,
+      capacityPoints: template.capacityPoints,
+    },
+    actor,
+  );
+
+  const taskIds: Id<"tasks">[] = [];
+  if (args.listId === undefined) return { sprintId, taskIds };
+
+  const list = await ctx.db.get(args.listId);
+  if (!list) throw new ConvexError("List not found");
+  const scope = await scopeForList(ctx, list);
+  if (
+    !scope ||
+    scope.scopeType !== "workspace" ||
+    scope.scopeId !== args.workspaceId
+  ) {
+    throw new ConvexError(
+      "The destination list must live in the same workspace as the sprint",
+    );
+  }
+
+  const dueAt = (dayOffset: number) =>
+    Math.min(startDate + Math.max(0, dayOffset) * ONE_DAY_MS, endDate);
+
+  for (const ceremony of template.ceremonies) {
+    taskIds.push(
+      await createTaskCore(
+        ctx,
+        {
+          listId: args.listId,
+          title: ceremony.title,
+          description: ceremony.description,
+          dueDate: dueAt(ceremony.dayOffset),
+          estimatePoints: ceremony.estimatePoints,
+          recurrence: ceremony.recurrence,
+          sprintId,
+        },
+        actor,
+      ),
+    );
+  }
+
+  const lastDay = Math.max(0, template.lengthDays - 1);
+  for (const starter of template.starterTasks) {
+    taskIds.push(
+      await createTaskCore(
+        ctx,
+        {
+          listId: args.listId,
+          title: starter.title,
+          description: starter.description,
+          priority: starter.priority,
+          dueDate: dueAt(starter.dueDayOffset ?? lastDay),
+          estimatePoints: starter.estimatePoints,
+          sprintId,
+          checklist: starter.checklist.map((text) => ({
+            id: crypto.randomUUID(),
+            text,
+            done: false,
+          })),
+        },
+        actor,
+      ),
+    );
+  }
+
+  return { sprintId, taskIds };
 }
 
 // Resolves whether `listId`'s space is visible to `subject` — a private
@@ -544,6 +654,33 @@ export const create = mutation({
     const subject = await requireWorkspaceMember(ctx, args.workspaceId);
     const actor = await userActor(ctx, subject);
     return await createSprintCore(ctx, args, actor);
+  },
+});
+
+// The built-in sprint template catalog plus its filter facets. Static
+// code, so no auth gate — same posture as `templates.list`.
+export const templateCatalog = query({
+  args: {},
+  handler: async () => sprintTemplateCatalog(),
+});
+
+export const applyTemplate = mutation({
+  args: {
+    workspaceId: v.id("workspaces"),
+    slug: v.string(),
+    startDate: v.number(),
+    listId: v.optional(v.id("lists")),
+    name: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const subject = await requireWorkspaceMember(ctx, args.workspaceId);
+    // Membership alone doesn't grant access to every list (private
+    // spaces), so gate the destination separately.
+    if (args.listId !== undefined) {
+      await requireListAccess(ctx, args.listId);
+    }
+    const actor = await userActor(ctx, subject);
+    return await applySprintTemplateCore(ctx, args, actor);
   },
 });
 

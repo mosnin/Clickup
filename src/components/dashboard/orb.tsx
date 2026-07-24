@@ -1,53 +1,59 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { orbVars } from "@/lib/identity-color";
 
-// A living agent orb: a glowing, slowly-swirling gradient sphere whose color
-// is a deterministic-random hue derived from the agent's id/name, so each
-// agent reads as its own orb and keeps the same color across renders. Pure
-// CSS (see globals.css .orb) — no WebGL, so it's cheap to render many at
-// once in a list, unlike a per-instance shader canvas.
+// The living identity mark: a glowing, slowly-swirling gradient whose color
+// comes from the shared identity ramp (lib/identity-color), so an entity is
+// the same color everywhere it appears. Pure CSS (see globals.css .orb) — no
+// WebGL, so a list can render dozens cheaply, unlike a per-instance shader.
+//
+// `label` overlays the entity's initial on top of the gradient; `shape`
+// switches between the round agent orb and the squircle used for
+// organizations, spaces and the personal area.
 
-const SIZE: Record<"sm" | "md" | "lg", string> = {
-  sm: "h-8 w-8",
-  md: "h-10 w-10",
-  lg: "h-12 w-12",
+const SIZE: Record<"xs" | "sm" | "md" | "lg", string> = {
+  xs: "h-6 w-6 text-[10px]",
+  sm: "h-8 w-8 text-xs",
+  md: "h-10 w-10 text-sm",
+  lg: "h-12 w-12 text-base",
 };
-
-function hueFor(seed: string): number {
-  // FNV-1a hash → stable 0-359 hue.
-  let h = 2166136261;
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return Math.abs(h) % 360;
-}
 
 export function Orb({
   seed,
   size = "md",
+  shape = "circle",
+  label,
+  color,
   className,
 }: {
   seed: string;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
+  shape?: "circle" | "squircle";
+  /** Initial rendered over the gradient. Omit for a pure orb. */
+  label?: string;
+  /** Explicit color (e.g. a space's chosen swatch); overrides the seed. */
+  color?: string;
   className?: string;
 }) {
-  const hue = hueFor(seed);
+  const initial = label
+    ? (Array.from(label.trim())[0] ?? "?").toUpperCase()
+    : null;
   return (
     <span
       aria-hidden
-      className={cn("orb inline-block shrink-0", SIZE[size], className)}
-      style={
-        {
-          "--orb-a": `hsl(${hue} 85% 63%)`,
-          "--orb-b": `hsl(${(hue + 45) % 360} 85% 58%)`,
-          "--orb-c": `hsl(${(hue + 310) % 360} 80% 66%)`,
-        } as React.CSSProperties
-      }
+      title={label}
+      className={cn(
+        "orb inline-flex shrink-0 items-center justify-center",
+        shape === "squircle" ? "orb-squircle" : "rounded-full",
+        SIZE[size],
+        className,
+      )}
+      style={orbVars(seed, color) as React.CSSProperties}
     >
       <span className="orb-core" />
       <span className="orb-sheen" />
+      {initial && <span className="orb-label">{initial}</span>}
     </span>
   );
 }

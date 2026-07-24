@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Monogram } from "@/components/dashboard/monogram";
+import { Orb } from "@/components/dashboard/orb";
 import { BillingTab } from "@/components/dashboard/billing-panel";
 import { ConnectSnippet } from "@/components/dashboard/connect-snippet";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -404,7 +404,7 @@ function FleetSpend() {
               key={a.name}
               className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs"
             >
-              <Monogram name={a.name} size="sm" />
+              <Orb seed={a.name} label={a.name} size="xs" />
               {a.name}
               <span className="tabular-nums text-muted-foreground">
                 ${a.cost.toFixed(2)}
@@ -522,7 +522,7 @@ function TemplateGallery({
                 className="lift flex h-full w-full flex-col rounded-2xl bento-tile p-4 text-left disabled:opacity-60"
               >
                 <span className="flex items-center gap-2">
-                  <Monogram name={t.name} />
+                  <Orb seed={t.slug} label={t.name} size="sm" />
                   <span className="font-medium">{t.name}</span>
                   {pendingSlug === t.slug && (
                     <span className="ml-auto text-xs text-muted-foreground">
@@ -795,7 +795,7 @@ function AgentCard({
   return (
     <Card className="lift gap-3 rounded-2xl p-4">
       <div className="flex items-start gap-3">
-        <Monogram name={agent.name} size="lg" />
+        <Orb seed={agent._id} label={agent.name} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Link

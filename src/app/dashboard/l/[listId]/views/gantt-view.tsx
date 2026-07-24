@@ -77,6 +77,23 @@ type TaskRow = {
   isMilestone: boolean;
   y: number;
 };
+// A project milestone (convex/milestones.ts) — a checkpoint of the project
+// itself, not a task. Drawn with the same diamond treatment as a
+// task-milestone, pinned to the top of the chart and never grouped.
+type ProjectMilestone = {
+  _id: string;
+  name: string;
+  targetDate?: number;
+  status: "open" | "complete";
+  done: number;
+  total: number;
+};
+type MilestoneRow = {
+  kind: "milestone";
+  milestone: ProjectMilestone;
+  offset: number;
+  y: number;
+};
 type HeaderRow = {
   kind: "header";
   key: string;
@@ -84,7 +101,7 @@ type HeaderRow = {
   count: number;
   y: number;
 };
-type Row = TaskRow | HeaderRow;
+type Row = TaskRow | HeaderRow | MilestoneRow;
 
 type DayGroup = { key: string; label: string; count: number; startIndex: number };
 
@@ -156,6 +173,17 @@ export function GanttView({
     effectiveGroup === "assignee" ? { listId } : "skip",
   );
 
+  const projectMilestones = useQuery(api.milestones.listForList, { listId }) as
+    | ProjectMilestone[]
+    | undefined;
+  const datedMilestones = useMemo(
+    () =>
+      (projectMilestones ?? [])
+        .filter((m) => m.targetDate !== undefined)
+        .sort((a, b) => (a.targetDate ?? 0) - (b.targetDate ?? 0)),
+    [projectMilestones],
+  );
+
   const datedTasks = useMemo(
     () =>
       tasks
@@ -185,9 +213,15 @@ export function GanttView({
         if (d > end) end = d;
       }
     }
+    // A checkpoint outside the task window still has to land on the grid.
+    for (const m of datedMilestones) {
+      const d = startOfDay(new Date(m.targetDate!));
+      if (d < start) start = d;
+      if (d > end) end = d;
+    }
     const days = eachDayOfInterval({ start, end });
     return { start, days };
-  }, [datedTasks]);
+  }, [datedTasks, datedMilestones]);
 
   const totalWidth = days.length * DAY_PX;
   const today = startOfDay(new Date());
@@ -248,6 +282,22 @@ export function GanttView({
       y += GROUP_HEADER_PX;
     }
 
+    // Project checkpoints ride above the task rows in every mode: they
+    // frame the plan, and grouping them by status/assignee is meaningless
+    // (they belong to the project, not to a person or a column).
+    for (const m of datedMilestones) {
+      out.push({
+        kind: "milestone",
+        milestone: m,
+        offset: differenceInCalendarDays(
+          startOfDay(new Date(m.targetDate!)),
+          start,
+        ),
+        y,
+      });
+      y += ROW_PX;
+    }
+
     if (effectiveGroup === "status") {
       const ordered = [...statuses].sort((a, b) => a.position - b.position);
       for (const s of ordered) {
@@ -290,7 +340,7 @@ export function GanttView({
 
     return { rows: out, bodyHeight: y };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveGroup, statuses, people, datedTasks, msOnly, start]);
+  }, [effectiveGroup, statuses, people, datedTasks, datedMilestones, msOnly, start]);
 
   // Live (drag-adjusted) day offsets for a row — shared by the bar/diamond
   // render and the dependency-arrow anchors so they never disagree while a
@@ -488,7 +538,7 @@ export function GanttView({
     window.addEventListener("pointerup", onUp);
   }
 
-  if (datedTasks.length === 0) {
+  if (datedTasks.length === 0 && datedMilestones.length === 0) {
     return (
       <EmptyState
         title="Nothing on the timeline yet"
@@ -526,7 +576,7 @@ export function GanttView({
           <EmptyState
             compact
             title="No milestones yet"
-            message="Mark a task as a milestone to see it here."
+            message="Mark a task as a milestone, or add a project milestone on Overview, to see it here."
           />
         </div>
       ) : (
@@ -634,6 +684,56 @@ export function GanttView({
                     <span className="ml-1.5 text-[11px] normal-case tracking-normal text-muted-foreground/70">
                       {row.count}
                     </span>
+                  </div>
+                );
+              }
+
+              if (row.kind === "milestone") {
+                const m = row.milestone;
+                const complete = m.status === "complete";
+                return (
+                  <div
+                    key={m._id}
+                    className="flex"
+                    style={{ height: ROW_PX }}
+                  >
+                    <div
+                      className="flex flex-shrink-0 items-center gap-1.5 px-4 py-2.5 text-sm"
+                      style={{ width: HEADER_COL_PX }}
+                      title={m.name}
+                    >
+                      <span className="min-w-0 truncate font-medium">
+                        {m.name}
+                      </span>
+                      <span className="flex-shrink-0 text-xs tabular-nums text-muted-foreground">
+                        {m.done}/{m.total}
+                      </span>
+                    </div>
+                    <div
+                      className="relative flex-1"
+                      style={{ background: gridBackground(DAY_PX) }}
+                    >
+                      <div
+                        className="absolute top-1/2 flex -translate-y-1/2 items-center gap-1.5"
+                        style={{ left: row.offset * DAY_PX + DAY_PX / 2 - 6 }}
+                        title={`${format(addDays(start, row.offset), "MMM d")} · project milestone${
+                          complete ? " · complete" : ""
+                        }`}
+                      >
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "h-3 w-3 flex-shrink-0 rotate-45 shadow-sm",
+                            complete
+                              ? "bg-foreground"
+                              : "border-[1.5px] border-foreground/70",
+                          )}
+                        />
+                        <span className="pointer-events-none whitespace-nowrap text-xs font-medium text-foreground/80">
+                          {m.name}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 );
               }

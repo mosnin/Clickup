@@ -218,10 +218,12 @@ export const overview = query({
     }
 
     const now = Date.now();
-    const folders = await ctx.db
-      .query("folders")
-      .withIndex("by_space", (q) => q.eq("spaceId", spaceId))
-      .collect();
+    const folders = (
+      await ctx.db
+        .query("folders")
+        .withIndex("by_space", (q) => q.eq("spaceId", spaceId))
+        .collect()
+    ).sort((a, b) => a.position - b.position || a.createdAt - b.createdAt);
     const folderName = new Map(folders.map((f) => [f._id as string, f.name]));
 
     const direct = await ctx.db

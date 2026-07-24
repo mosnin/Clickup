@@ -52,6 +52,10 @@ import {
   PriorityDot,
   type TaskPriority,
 } from "@/components/dashboard/priority";
+import {
+  DEFAULT_VIEW_SETTINGS,
+  type ViewSettings,
+} from "@/lib/view-settings";
 
 // Swimlanes: group the same status columns into horizontal bands. "none" is
 // the original single-row board — its layout and DnD wiring stay byte-for-
@@ -94,10 +98,19 @@ export function BoardView({
   listId,
   tasks,
   statuses,
+  settings = DEFAULT_VIEW_SETTINGS,
+  parentTitles,
+  locationLabel,
 }: {
   listId: Id<"lists">;
   tasks: Doc<"tasks">[];
   statuses: Doc<"listStatuses">[];
+  /** Customize-view settings — empty columns, wrapping, card context. */
+  settings?: ViewSettings;
+  /** taskId → title, for the "show subtask parent names" chip. */
+  parentTitles?: Map<string, string>;
+  /** Space › Folder › List breadcrumb; undefined when the toggle is off. */
+  locationLabel?: string;
 }) {
   // Optimistic local copy so drag-drop feels instant. Server is the source
   // of truth and reconciles back via the live query whenever it returns.
@@ -131,6 +144,18 @@ export function BoardView({
       bucket.sort((a, b) => a.position - b.position);
     return map;
   }, [orderedTasks, sortedStatuses]);
+
+  // "Show empty statuses" off collapses the board to the columns that
+  // actually hold work. Emptiness is measured across the whole list (like
+  // WIP), so switching swimlanes on doesn't change which columns exist.
+  // Drag math still runs against every status — only the rendering shrinks.
+  const renderedStatuses = useMemo(
+    () =>
+      settings.emptyStatuses
+        ? sortedStatuses
+        : sortedStatuses.filter((s) => (columns.get(s._id) ?? []).length > 0),
+    [settings.emptyStatuses, sortedStatuses, columns],
+  );
 
   // Resolve display names for assignee lanes — humans AND agents, so an
   // agent-assigned task gets its real name/badge instead of falling back to
@@ -384,7 +409,7 @@ export function BoardView({
       >
         {laneMode === "none" ? (
           <div className="flex gap-3 overflow-x-auto overscroll-x-contain pb-2">
-            {sortedStatuses.map((status, i) => {
+            {renderedStatuses.map((status, i) => {
               const columnTasks = columns.get(status._id) ?? [];
               return (
                 <motion.div
@@ -398,6 +423,9 @@ export function BoardView({
                     status={status}
                     tasks={columnTasks}
                     domId={columnDomId(null, status._id)}
+                    settings={settings}
+                    parentTitles={parentTitles}
+                    locationLabel={locationLabel}
                   />
                 </motion.div>
               );
@@ -416,7 +444,7 @@ export function BoardView({
               >
                 <LaneHeader lane={lane} laneMode={laneMode} />
                 <div className="flex gap-3 overflow-x-auto overscroll-x-contain pb-1 pt-2">
-                  {sortedStatuses.map((status) => {
+                  {renderedStatuses.map((status) => {
                     const bucket = (columns.get(status._id) ?? []).filter(
                       (t) => laneKeyFor(t, laneMode) === lane.key,
                     );
@@ -428,6 +456,9 @@ export function BoardView({
                         tasks={bucket}
                         domId={columnDomId(lane.key, status._id)}
                         totalInStatus={(columns.get(status._id) ?? []).length}
+                        settings={settings}
+                        parentTitles={parentTitles}
+                        locationLabel={locationLabel}
                       />
                     );
                   })}
@@ -564,6 +595,9 @@ function Column({
   tasks,
   domId,
   totalInStatus,
+  settings,
+  parentTitles,
+  locationLabel,
 }: {
   listId: Id<"lists">;
   status: Doc<"listStatuses">;
@@ -574,6 +608,9 @@ function Column({
   // lane mode would silently change (and usually hide) what "over WIP"
   // means.
   totalInStatus?: number;
+  settings: ViewSettings;
+  parentTitles?: Map<string, string>;
+  locationLabel?: string;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: domId });
 
@@ -648,7 +685,18 @@ function Column({
             </li>
           )}
           {tasks.map((task) => (
-            <TaskCard key={task._id} task={task} listId={listId} />
+            <TaskCard
+              key={task._id}
+              task={task}
+              listId={listId}
+              settings={settings}
+              parentTitle={
+                settings.showSubtaskParents && task.parentTaskId
+                  ? parentTitles?.get(task.parentTaskId as string)
+                  : undefined
+              }
+              locationLabel={locationLabel}
+            />
           ))}
         </ul>
       </SortableContext>
@@ -811,9 +859,15 @@ function ColumnAdd({
 
 function TaskCard({
   task,
+  settings,
+  parentTitle,
+  locationLabel,
 }: {
   task: Doc<"tasks">;
   listId: Id<"lists">;
+  settings: ViewSettings;
+  parentTitle?: string;
+  locationLabel?: string;
 }) {
   const searchParams = useSearchParams();
   const {
@@ -852,7 +906,7 @@ function TaskCard({
           <Link
             href={taskPeekHref(searchParams, task._id)}
             scroll={false}
-            className="flex flex-1 items-start gap-1.5 text-sm font-medium hover:underline"
+            className="flex min-w-0 flex-1 items-start gap-1.5 text-sm font-medium hover:underline"
           >
             {task.milestone && (
               <span
@@ -861,12 +915,15 @@ function TaskCard({
                 className="mt-1 h-2 w-2 flex-shrink-0 rotate-45 border border-foreground/60"
               />
             )}
-            <span className="min-w-0">
+            <span
+              className={cn("min-w-0", !settings.wrapText && "line-clamp-2")}
+            >
               {task.title}
               <TaskBadges task={task} />
             </span>
           </Link>
         </div>
+        <CardContext parentTitle={parentTitle} location={locationLabel} />
         <CardMeta task={task} />
       </Card>
     </li>
@@ -902,6 +959,24 @@ function CardChrome({
       </p>
       <CardMeta task={task} />
     </Card>
+  );
+}
+
+// The card's quiet context line: which task this is a subtask of, and where
+// it lives. Both are opt-in from the Customize view panel.
+function CardContext({
+  parentTitle,
+  location,
+}: {
+  parentTitle?: string;
+  location?: string;
+}) {
+  if (!parentTitle && !location) return null;
+  return (
+    <div className="flex min-w-0 flex-col text-[11px] text-muted-foreground">
+      {parentTitle && <span className="truncate">↳ {parentTitle}</span>}
+      {location && <span className="truncate">{location}</span>}
+    </div>
   );
 }
 

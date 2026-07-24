@@ -50,7 +50,7 @@ Etiquette: don't edit a task's description someone else owns without a comment; 
 
 Goal: produce a committed, balanced sprint.
 
-1. **Timebox**: agree the window (default: 2 weeks starting next Monday). Create it with \`create_sprint\` (status stays "planned" until kickoff).
+1. **Timebox**: agree the window (default: 2 weeks starting next Monday). Before hand-rolling one, check \`list_sprint_templates\` — the built-in playbooks carry a length, a goal template, ceremonies, and starter tasks with estimates and acceptance criteria already written. \`apply_sprint_template(slug, startDate, listId)\` creates the sprint AND materializes that work into the list, attached to the sprint with due dates clamped to the window; drop \`listId\` to get the timebox alone. Nothing to reuse? \`create_sprint\` (status stays "planned" until kickoff). Both are workspace-only.
 2. **Gather candidates**: \`list_tasks\` across the backlog lists, filter to open tasks. Rank by priority, then due date, then age.
 3. **Estimate capacity**: \`list_members\` for the roster. Assume each member (human or agent) can own 5–8 tasks per 2-week sprint unless workload data says otherwise.
 4. **Fill the sprint**: for each chosen task, \`update_task\` with \`sprintId\` and an assignee. Balance assignments; leave ~20% slack for urgent arrivals.
@@ -90,7 +90,17 @@ For each task from \`list_tasks\` that is missing metadata:
 3. **Assignee**: match the task to the best member by their recent activity (\`list_events\`), or leave unassigned and note why.
 4. **Dependencies**: if the task obviously needs another open task first, \`add_dependency\`.
 5. **Split**: if a task is really 3+ tasks, create subtasks with \`create_task\` (parentTaskId) and a checklist on the parent.
-6. Leave an \`add_comment\` audit trail on anything you changed materially, so humans can review your triage decisions.`,
+6. Leave an \`add_comment\` audit trail on anything you changed materially, so humans can review your triage decisions.
+
+## Custom fields are part of triage
+
+Lists carry structured fields beyond title/status/priority, and a half-filled field is invisible to every report and filter downstream. Treat them as required triage output.
+
+1. \`list_custom_fields(listId)\` once per list. Each field returns its \`type\`, \`options\`, \`config\`, and a \`writeHint\` naming the exact argument to send. Fields with \`computed: true\` (rollup, formula) are derived — never try to write them.
+2. \`get_task_fields(taskId)\` to see what's already filled, including the computed values.
+3. \`set_task_field\` per gap, sending the argument the writeHint asks for: \`textValue\` for text/long_text/email/phone/url and for a dropdown's option id, \`numberValue\` for number/money/rating/progress, \`optionIds\` for labels, \`actorIds\` for people (ids from \`list_members\`), \`taskIds\` for relationship, \`booleanValue\` for checkbox and for voting (true adds your vote), \`dateValue\` for date, \`location\` for location, \`files\` for files.
+4. Values are validated server-side against the field's config — a rating above its \`ratingMax\`, a bad email, or an option id that doesn't exist is refused with a message telling you what to send. Read the refusal and correct it; don't retry the same call.
+5. \`clear_task_field\` when a value is wrong and you have nothing better to put there. Empty is honest; a wrong value isn't.`,
   },
   {
     slug: "project-kickoff",
@@ -101,14 +111,16 @@ For each task from \`list_tasks\` that is missing metadata:
 
 Input: a short brief (goal, rough deadline, who's involved).
 
+0. **Don't start from a blank page**: \`list_templates\` first, filtered by \`useCase\` or \`search\` against the brief. The Template Center covers lists (with their statuses, fields, and starter tasks), single tasks, docs, whiteboards, and saved view presets. \`get_template(slug)\` shows exactly what a slug will create before you commit; \`apply_template(slug, destinationType, destinationId, name?)\` creates it — a list template into a space or folder, a task or view template onto a list, a doc or whiteboard into a space. Applying a template is the same write path as building by hand, so everything below still applies on top of it. Adopt the parts that fit, then fill the gaps with the steps below.
 1. **Roadmap first** (workspace scope): \`create_roadmap\` named after the project with explicit \`phases\` — one per milestone, each with a \`targetDate\` walking back from the deadline. This is the plan's spine; skip the Now/Next/Later defaults by passing your own phases.
-2. **Structure**: \`create_space\` named after the project. Inside it, \`create_list\` per milestone (or "Backlog" + "Milestones" for a small project). Then \`assign_project_to_phase\` to place each list on the roadmap, and \`update_list_meta\` to set each project's description and target date. Typo'd a name? \`rename_list\`. Wrong shape? \`delete_list\` and redo.
-3. **Plan in bulk**: decompose each milestone with ONE \`create_tasks\` call — epic tasks flagged \`milestone: true\` with \`estimatePoints\` and due dates, subtasks nested via \`parentRef\`, and cross-task dependencies via \`dependsOn\` (refs or task ids, cross-list allowed). Encode quality gates ("p95 < 200ms") as \`checklist\` acceptance criteria. Use \`reorder_tasks\` if execution order matters beyond dependencies.
-4. **Workflow fit**: need a stage or field the defaults lack? \`create_status\` (e.g. "QA", category in_progress) and \`create_custom_field\` (e.g. a "Severity" dropdown).
-5. **Track it**: \`create_goal\` with \`sourceListId\` pointing at the main list — progress then rolls up automatically from completed tasks. \`create_sprint\` for the first timebox and pull tasks in.
-6. **Kickoff doc**: \`create_doc\` titled "<Project>, brief" containing the goal, scope boundaries, milestone table, and links/ids of the milestone tasks. Write project conventions as a custom skill (\`create_skill\`) so future agents inherit them.
-7. **Recurring heartbeat**: \`create_scheduled_task\` for a weekly "<Project> status update" task assigned to yourself.
-8. **Announce**: workspace-chat comment mentioning everyone involved, linking the doc and the first tasks.`,
+2. **Structure**: \`create_space\` named after the project. Inside it, \`create_list\` per milestone (or "Backlog" + "Milestones" for a small project). Group related lists with \`create_folder\`, and regroup later with \`move_list\` (into a folder, back out to the space, or over to a sibling — the destination must be in the same space). Then \`assign_project_to_phase\` to place each list on the roadmap, and \`update_list_meta\` to set each project's description and target date. Typo'd a name? \`rename_list\` / \`rename_folder\`. Wrong grouping? \`reorder_folders\` / \`reorder_lists\`, or \`delete_folder\` — that one only ungroups, every list inside moves up to the space with its tasks intact. Wrong shape entirely? \`delete_list\` and redo.
+3. **Checkpoints inside each project**: \`create_milestone\` per dated checkpoint of that project ("Design freeze", "Beta cut") with its \`targetDate\`. Roadmap phases sequence PROJECTS; milestones are the timeline INSIDE one project — use both when a project spans weeks. \`list_milestones\` shows derived progress (done/total of linked tasks) at any time.
+4. **Plan in bulk**: decompose each milestone with ONE \`create_tasks\` call — epic tasks flagged \`milestone: true\` with \`estimatePoints\` and due dates, subtasks nested via \`parentRef\`, and cross-task dependencies via \`dependsOn\` (refs or task ids, cross-list allowed). Encode quality gates ("p95 < 200ms") as \`checklist\` acceptance criteria. Then \`set_task_milestone\` each task onto the checkpoint it belongs to, so every milestone's progress moves on its own. Use \`reorder_tasks\` if execution order matters beyond dependencies.
+5. **Workflow fit**: need a stage or field the defaults lack? \`create_status\` (e.g. "QA", category in_progress) and \`create_custom_field\`. Fields are the project's structured memory — define them at kickoff, not after the data is already lost. The full type set: text, long_text, number, money (\`config.currency\`), dropdown, labels (multi-select), date, checkbox, email, phone, url, location, rating (\`config.ratingMax\`), progress, people, files, relationship (\`config.relationListId\`), voting, plus the computed \`rollup\` (sum/avg/count over subtasks or a relationship field) and \`formula\` (arithmetic over other numeric fields, written as \`{Field name} * 2\`). A kickoff usually wants at least: a "Severity" or "Impact" dropdown, an "Owner" people field, an "Effort" number, and a formula or rollup that turns those into one number humans can sort by. Then fill them as you create tasks (\`set_task_field\`) — \`list_custom_fields\` returns a \`writeHint\` per field naming the exact argument to send.
+6. **Track it**: \`create_goal\` with \`sourceListId\` pointing at the main list — progress then rolls up automatically from completed tasks. \`create_sprint\` for the first timebox and pull tasks in.
+7. **Kickoff doc**: \`create_doc\` titled "<Project>, brief" containing the goal, scope boundaries, milestone table, and links/ids of the milestone tasks. Write project conventions as a custom skill (\`create_skill\`) so future agents inherit them.
+8. **Recurring heartbeat**: \`create_scheduled_task\` for a weekly "<Project> status update" task assigned to yourself.
+9. **Announce**: workspace-chat comment mentioning everyone involved, linking the doc and the first tasks.`,
   },
   {
     slug: "progress-reporter",

@@ -8,6 +8,7 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Picker } from "@/components/ui/picker";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { Clips } from "@/components/dashboard/clips";
@@ -24,6 +25,7 @@ import {
 import { TimeTracker } from "@/components/dashboard/time-tracker";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { useToast } from "@/components/toast";
 import { motion } from "@/components/motion";
@@ -53,6 +55,11 @@ export function TaskDetail({
   const statuses = useQuery(api.listStatuses.listForList, { listId: lid });
   const fields = useQuery(api.customFields.listForList, { listId: lid });
   const values = useQuery(api.taskFieldValues.listForTask, { taskId: tid });
+  // Rollups, formulas, and vote counts have no stored row — they're derived
+  // per read and merged into the editors by fieldId.
+  const computed = useQuery(api.taskFieldValues.computedForTask, {
+    taskId: tid,
+  });
 
   if (
     list === undefined ||
@@ -87,6 +94,7 @@ export function TaskDetail({
       statuses={statuses}
       fields={fields}
       values={values}
+      computed={computed ?? []}
     />
   );
 }
@@ -102,6 +110,7 @@ function TaskEditor({
   statuses,
   fields,
   values,
+  computed,
 }: {
   task: Doc<"tasks">;
   listName: string;
@@ -109,9 +118,12 @@ function TaskEditor({
   statuses: Doc<"listStatuses">[];
   fields: Doc<"customFields">[];
   values: Doc<"taskFieldValues">[];
+  computed: { fieldId: Id<"customFields">; value: number | null }[];
 }) {
   const update = useMutation(api.tasks.update);
   const toggleComplete = useMutation(api.tasks.toggleComplete);
+  // Voting fields need to know whether *you* have voted.
+  const currentUser = useQuery(api.users.current, {});
   const setValue = useMutation(api.taskFieldValues.set);
   const clearValue = useMutation(api.taskFieldValues.clear);
   const taskAutofill = useAction(api.ai.taskAutofill);
@@ -168,6 +180,11 @@ function TaskEditor({
     for (const v of values) map.set(v.fieldId, v);
     return map;
   }, [values]);
+  const computedByField = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const c of computed) map.set(c.fieldId, c.value);
+    return map;
+  }, [computed]);
 
   const currentStatus = statuses.find((s) => s._id === task.statusId);
   const isDone =
@@ -529,6 +546,8 @@ function TaskEditor({
             </button>
           </Field>
 
+          <TaskMilestonePicker task={task} listId={listId} />
+
           <section>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Assignees
@@ -587,6 +606,9 @@ function TaskEditor({
                       field={field}
                       value={valuesByField.get(field._id)}
                       size="md"
+                      taskId={task._id}
+                      computed={computedByField.get(field._id)}
+                      currentActorId={currentUser?.clerkId}
                       onCommit={(value) => {
                         const op =
                           value === null
@@ -630,6 +652,64 @@ function TaskEditor({
         </aside>
       </div>
     </div>
+  );
+}
+
+// Which of the project's dated checkpoints this task belongs to. Attaching
+// it moves that milestone's derived progress bar on the project Overview;
+// "No milestone" detaches. Hidden entirely until the project has one, so
+// the rail doesn't grow a dead control.
+function TaskMilestonePicker({
+  task,
+  listId,
+}: {
+  task: Doc<"tasks">;
+  listId: Id<"lists">;
+}) {
+  const milestones = useQuery(api.milestones.listForList, { listId }) as
+    | { _id: Id<"milestones">; name: string; status: "open" | "complete" }[]
+    | undefined;
+  const update = useMutation(api.tasks.update);
+  const { toast } = useToast();
+
+  if (milestones === undefined || milestones.length === 0) return null;
+
+  const current = milestones.find((m) => m._id === task.milestoneId);
+
+  return (
+    <section>
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Milestone
+      </h2>
+      <Picker
+        label={current ? current.name : "No milestone"}
+        selectedId={task.milestoneId ?? "none"}
+        options={[
+          { id: "none", label: "No milestone" },
+          ...milestones.map((m) => ({
+            id: m._id as string,
+            label: m.name,
+            hint: m.status === "complete" ? "complete" : undefined,
+          })),
+        ]}
+        onSelect={(id) => {
+          update({
+            taskId: task._id,
+            milestoneId: id === "none" ? null : (id as Id<"milestones">),
+          }).catch((err) =>
+            toast(errorMessage(err, "Couldn't update the milestone"), {
+              kind: "error",
+            }),
+          );
+        }}
+      />
+      <Link
+        href={`/dashboard/l/${listId}?view=overview`}
+        className="mt-1.5 inline-block text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+      >
+        Manage milestones
+      </Link>
+    </section>
   );
 }
 

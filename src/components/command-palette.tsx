@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   Bot,
+  LayoutTemplate,
   CornerDownLeft,
   FileText,
   Home,
@@ -260,6 +261,7 @@ export function CommandPalette() {
       { key: "inbox", group: "Go to", label: "Inbox", icon: Inbox, run: nav("/dashboard/inbox") },
       { key: "personal", group: "Go to", label: "Personal space", icon: Home, run: nav("/dashboard/personal") },
       { key: "agents", group: "Go to", label: "Agents", icon: Bot, run: nav("/dashboard/agents") },
+      { key: "templates", group: "Go to", label: "Templates", icon: LayoutTemplate, run: nav("/dashboard/templates") },
     ];
     out.push(...statics.filter((s) => match(s.label)));
 

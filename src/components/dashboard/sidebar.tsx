@@ -13,19 +13,23 @@ import {
   Columns3,
   FileText,
   Folder,
+  FolderInput,
   FolderKanban,
+  LayoutTemplate,
   Home,
   Inbox,
   LayoutGrid,
   List as ListIcon,
   ListTodo,
   Lock,
+  MoreHorizontal,
   Pencil,
   Plus,
   Search,
   ShieldCheck,
   Star,
   Trash2,
+  X,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -59,13 +63,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Picker } from "@/components/ui/picker";
 import { InlineCreate } from "@/components/dashboard/inline-create";
+import { Orb } from "@/components/dashboard/orb";
 import { RunningTimerChip } from "@/components/dashboard/running-timer-chip";
 import { TemplatePicker } from "@/components/dashboard/template-picker";
 import { NewWorkspaceDialog } from "@/components/dashboard/new-workspace-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
+import { useFolderExpanded } from "@/lib/folder-collapse";
 
 type SidebarTree = NonNullable<ReturnType<typeof useTreeQuery>>;
 type SpaceNode = SidebarTree["workspaces"][number]["spaces"][number];
@@ -74,9 +81,9 @@ function useTreeQuery() {
   return useQuery(api.sidebar.tree, {});
 }
 
-function initialOf(name: string): string {
-  return (Array.from(name.trim())[0] ?? "?").toUpperCase();
-}
+// (No local initial-of helper: every identity mark in this tree renders
+// through <Orb label=…> / <Monogram>, which derive the initial and the
+// color from the shared identity ramp themselves.)
 
 // ── Root ─────────────────────────────────────────────────────────────────
 //
@@ -168,19 +175,19 @@ function SidebarHeaderSwitcher() {
 
   const currentName =
     ctx.kind === "workspace" ? ctx.workspace.name : (tree?.personal?.name ?? "Personal");
-  const currentColor = ctx.kind === "workspace" ? undefined : tree?.personal?.color;
+  // Identity marks are seeded by the entity's stable id, never by its name
+  // or a flat brand fill, so a workspace/space is the same color here, in
+  // the tree, and everywhere else it appears (lib/identity-color).
+  const currentSeed =
+    ctx.kind === "workspace"
+      ? ctx.workspace._id
+      : (tree?.personal?._id ?? tree?.currentClerkId ?? "personal");
 
   return (
     <SidebarHeader>
       <DropdownMenu>
         <DropdownMenuTrigger className="flex w-full min-w-0 items-center gap-2 rounded-lg p-1 text-left outline-none hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center">
-          <span
-            aria-hidden
-            style={currentColor ? { backgroundColor: currentColor } : undefined}
-            className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sidebar-primary text-sm font-bold text-sidebar-primary-foreground"
-          >
-            {initialOf(currentName)}
-          </span>
+          <Orb seed={currentSeed} label={currentName} shape="squircle" size="sm" />
           <span className="min-w-0 flex-1 truncate font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
             {currentName}
           </span>
@@ -193,9 +200,13 @@ function SidebarHeaderSwitcher() {
           {tree?.personal && (
             <DropdownMenuItem asChild>
               <Link href="/dashboard/personal">
-                <span className="mr-1 flex size-5 shrink-0 items-center justify-center rounded bg-primary/20 text-xs font-bold text-primary">
-                  {initialOf(tree.personal.name)}
-                </span>
+                <Orb
+                  seed={tree.personal._id}
+                  label={tree.personal.name}
+                  shape="squircle"
+                  size="xs"
+                  className="mr-1 h-5 w-5 text-[9px]"
+                />
                 <span className="truncate">{tree.personal.name}</span>
                 {ctx.kind === "personal" && <Check className="ml-auto size-4" />}
               </Link>
@@ -204,9 +215,13 @@ function SidebarHeaderSwitcher() {
           {tree?.workspaces.map((ws) => (
             <DropdownMenuItem key={ws._id} asChild>
               <Link href={`/dashboard/w/${ws._id}`}>
-                <span className="mr-1 flex size-5 shrink-0 items-center justify-center rounded bg-emerald-500/20 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                  {initialOf(ws.name)}
-                </span>
+                <Orb
+                  seed={ws._id}
+                  label={ws.name}
+                  shape="squircle"
+                  size="xs"
+                  className="mr-1 h-5 w-5 text-[9px]"
+                />
                 <span className="min-w-0 flex-1 truncate">{ws.name}</span>
                 <span className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
                   {ws.role}
@@ -268,6 +283,12 @@ function SidebarContentBody() {
               label="Agents"
               icon={Bot}
               iconColor="text-violet-500"
+            />
+            <NavMenuItem
+              href="/dashboard/templates"
+              label="Templates"
+              icon={LayoutTemplate}
+              iconColor="text-sky-500"
             />
           </SidebarMenu>
         </SidebarGroupContent>
@@ -375,7 +396,17 @@ function FavoritesGroup() {
               <SidebarMenuItem key={`${f.entityType}:${f.entityId}`}>
                 <SidebarMenuButton asChild isActive={active} tooltip={f.name}>
                   <Link href={f.href} aria-current={active ? "page" : undefined}>
-                    {f.color ? (
+                    {/* A favorited Space carries the same identity orb it
+                        has in the tree; lists/docs keep their own mark. */}
+                    {f.entityType === "space" ? (
+                      <Orb
+                        seed={f.entityId}
+                        label={f.name}
+                        shape="squircle"
+                        size="xs"
+                        className="h-4 w-4 text-[8px]"
+                      />
+                    ) : f.color ? (
                       <span
                         aria-hidden
                         className="inline-block size-2 flex-shrink-0 rounded-full"
@@ -551,7 +582,10 @@ function SpaceCreateMenu({
           type="button"
           aria-label="Add to space"
           title="Add"
-          className="tap-target flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/space:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 group-data-[collapsible=icon]:hidden"
+          // Always visible on touch (no hover to reveal it), hover-revealed
+          // from `sm:` up — this is the only path to "new folder"/"new
+          // list" for a space, so it must never be hover-gated on mobile.
+          className="tap-target flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:opacity-100 data-[state=open]:opacity-100 group-data-[collapsible=icon]:hidden sm:opacity-0 sm:group-hover/space:opacity-100"
         >
           <Plus className="size-3.5" />
         </button>
@@ -637,10 +671,17 @@ function SpaceTree({ space, linkHref }: { space: SpaceNode; linkHref: string }) 
         </button>
         <SidebarMenuButton asChild isActive={active} tooltip={space.name} className="min-w-0 flex-1">
           <Link href={linkHref} aria-current={active ? "page" : undefined}>
-            <span
-              aria-hidden
-              className="inline-block size-2 flex-shrink-0 rounded-full"
-              style={{ backgroundColor: space.color ?? "#a9c6f2" }}
+            {/* Sized down to the 16px icon slot the sibling rows use, so
+                swapping the old color dot for the orb doesn't change the
+                row's rhythm or height (the button is a fixed h-8 with
+                overflow-hidden — a full 24px xs orb would be clipped). */}
+            <Orb
+              seed={space._id}
+              label={space.name}
+              color={space.color}
+              shape="squircle"
+              size="xs"
+              className="h-4 w-4 text-[8px]"
             />
             <span className="truncate">{space.name}</span>
             {space.private && <Lock className="ml-auto size-3 flex-shrink-0" aria-hidden />}
@@ -677,11 +718,20 @@ function SpaceTree({ space, linkHref }: { space: SpaceNode; linkHref: string }) 
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>
           )}
+          {/* Ordering rule (mirrored on the Space page): folders first,
+              then space-direct lists — the server already sorts each by
+              position with a createdAt tiebreak. */}
           {space.folders.map((folder) => (
-            <FolderTree key={folder._id} folder={folder} />
+            <FolderTree key={folder._id} folder={folder} space={space} />
           ))}
           {space.lists.map((list) => (
-            <ListSubItem key={list._id} listId={list._id} name={list.name} />
+            <ListSubItem
+              key={list._id}
+              listId={list._id}
+              name={list.name}
+              space={space}
+              parent={{ type: "space", id: space._id }}
+            />
           ))}
           {space.docs.map((doc) => (
             <DocSubItem key={doc._id} docId={doc._id} title={doc.title} />
@@ -705,9 +755,66 @@ function SpaceTree({ space, linkHref }: { space: SpaceNode; linkHref: string }) 
   );
 }
 
-function FolderTree({ folder }: { folder: SpaceNode["folders"][number] }) {
+// A row's overflow menu. One "⋯" trigger instead of a strip of inline
+// icon buttons keeps folder and list rows the same width at 360px — the
+// row can never widen past the name, which truncates.
+function RowMenu({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          title={label}
+          // Visible by default, hover-revealed from `sm:` up — a touch
+          // device has no hover, so an opacity-0 trigger would make these
+          // actions unreachable on mobile entirely.
+          className="tap-target flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:opacity-100 data-[state=open]:opacity-100 sm:opacity-0 sm:group-hover/row:opacity-100"
+        >
+          <MoreHorizontal className="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-44">
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// Destinations for "move a list": the Space itself plus each of its
+// folders, minus wherever the list already lives. Crossing into another
+// Space is deliberately not offered — the server refuses it too, because a
+// Space is a visibility boundary.
+function moveDestinations(
+  space: SpaceNode,
+  parent: { type: "space" | "folder"; id: string },
+): { id: string; label: string; hint: string }[] {
+  const out: { id: string; label: string; hint: string }[] = [];
+  if (parent.type !== "space") {
+    out.push({ id: `space:${space._id}`, label: space.name, hint: "space" });
+  }
+  for (const f of space.folders) {
+    if (parent.type === "folder" && parent.id === f._id) continue;
+    out.push({ id: `folder:${f._id}`, label: f.name, hint: "folder" });
+  }
+  return out;
+}
+
+function FolderTree({
+  folder,
+  space,
+}: {
+  folder: SpaceNode["folders"][number];
+  space: SpaceNode;
+}) {
   const router = useRouter();
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useFolderExpanded(folder._id);
   const [addingList, setAddingList] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [hidden, setHidden] = useState(false);
@@ -717,17 +824,19 @@ function FolderTree({ folder }: { folder: SpaceNode["folders"][number] }) {
   const { toast } = useToast();
 
   // Deferred delete: hide the row immediately, only actually removing the
-  // folder (and its cascade) once the undo window closes — same pattern as
-  // every other delete in the app (grep `onExpire`).
+  // folder once the undo window closes — same pattern as every other
+  // delete in the app (grep `onExpire`). Deleting a folder keeps its
+  // lists: the server moves them up to the Space.
   if (hidden) return null;
 
   return (
     <SidebarMenuSubItem>
-      <div className="group/folder flex min-w-0 items-center gap-0.5">
+      <div className="group/row flex min-w-0 items-center gap-0.5">
         <button
           type="button"
           aria-label={expanded ? "Collapse" : "Expand"}
-          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          onClick={() => setExpanded()}
           className="flex size-4 flex-shrink-0 items-center justify-center text-muted-foreground"
         >
           <ChevronRight
@@ -753,50 +862,45 @@ function FolderTree({ folder }: { folder: SpaceNode["folders"][number] }) {
             }}
           />
         ) : (
-          <span className="flex min-w-0 flex-1 items-center gap-2 truncate px-1 text-sm text-sidebar-foreground/80">
+          <span className="flex min-w-0 flex-1 items-center gap-2 px-1 text-sm text-sidebar-foreground/80">
             <Folder className="size-3.5 flex-shrink-0" aria-hidden />
             <span className="truncate">{folder.name}</span>
           </span>
         )}
         {!renaming && (
-          <>
-            <button
-              type="button"
-              onClick={() => setRenaming(true)}
-              aria-label="Rename folder"
-              title="Rename folder"
-              className="tap-target flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/folder:opacity-100 focus-visible:opacity-100"
-            >
-              <Pencil className="size-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setHidden(true);
-                toast(`"${folder.name}" deleted`, {
-                  action: { label: "Undo", onClick: () => setHidden(false) },
-                  onExpire: () => void removeFolder({ folderId: folder._id }),
-                });
-              }}
-              aria-label="Delete folder"
-              title="Delete folder"
-              className="tap-target flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/folder:opacity-100 focus-visible:opacity-100"
-            >
-              <Trash2 className="size-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
+          <RowMenu label={`Folder actions for ${folder.name}`}>
+            <DropdownMenuItem
+              onSelect={() => {
                 setExpanded(true);
                 setAddingList(true);
               }}
-              aria-label="Add list"
-              title="Add list"
-              className="tap-target flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-hover/folder:opacity-100 focus-visible:opacity-100"
             >
-              <Plus className="size-3.5" />
-            </button>
-          </>
+              <Plus className="text-muted-foreground" />
+              New list
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setRenaming(true)}>
+              <Pencil className="text-muted-foreground" />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => {
+                setHidden(true);
+                toast(
+                  folder.lists.length > 0
+                    ? `"${folder.name}" deleted — its lists moved to ${space.name}`
+                    : `"${folder.name}" deleted`,
+                  {
+                    action: { label: "Undo", onClick: () => setHidden(false) },
+                    onExpire: () => void removeFolder({ folderId: folder._id }),
+                  },
+                );
+              }}
+            >
+              <Trash2 className="text-muted-foreground" />
+              Delete folder
+            </DropdownMenuItem>
+          </RowMenu>
         )}
       </div>
       {expanded && (
@@ -826,11 +930,19 @@ function FolderTree({ folder }: { folder: SpaceNode["folders"][number] }) {
             </SidebarMenuSubItem>
           )}
           {folder.lists.map((list) => (
-            <ListSubItem key={list._id} listId={list._id} name={list.name} />
+            <ListSubItem
+              key={list._id}
+              listId={list._id}
+              name={list.name}
+              space={space}
+              parent={{ type: "folder", id: folder._id }}
+            />
           ))}
           {folder.lists.length === 0 && !addingList && (
             <SidebarMenuSubItem className="px-1 py-1">
-              <p className="px-1 pb-1 text-xs text-muted-foreground">No lists yet.</p>
+              <p className="px-1 pb-1 text-xs text-muted-foreground">
+                This folder is empty.
+              </p>
               <SidebarMenuSubButton asChild size="sm">
                 <button type="button" onClick={() => setAddingList(true)}>
                   <Plus />
@@ -845,18 +957,126 @@ function FolderTree({ folder }: { folder: SpaceNode["folders"][number] }) {
   );
 }
 
-function ListSubItem({ listId, name }: { listId: Id<"lists">; name: string }) {
+function ListSubItem({
+  listId,
+  name,
+  space,
+  parent,
+}: {
+  listId: Id<"lists">;
+  name: string;
+  space: SpaceNode;
+  parent: { type: "space" | "folder"; id: string };
+}) {
   const pathname = usePathname();
+  const [renaming, setRenaming] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const renameList = useMutation(api.lists.rename);
+  const moveList = useMutation(api.lists.move);
+  const removeList = useMutation(api.lists.remove);
+  const { toast } = useToast();
+
   // Active on the list page and its sub-routes (settings, task detail).
   const active = pathname.startsWith(`/dashboard/l/${listId}`);
+  const destinations = moveDestinations(space, parent);
+
+  if (hidden) return null;
+
+  if (renaming) {
+    return (
+      <SidebarMenuSubItem className="py-1">
+        <InlineCreate
+          placeholder="List name…"
+          initialValue={name}
+          onCancel={() => setRenaming(false)}
+          onSubmit={async (next) => {
+            try {
+              await renameList({ listId, name: next });
+              setRenaming(false);
+            } catch (e) {
+              toast(errorMessage(e, "Couldn't rename list"), { kind: "error" });
+              setRenaming(false);
+            }
+          }}
+        />
+      </SidebarMenuSubItem>
+    );
+  }
+
+  if (moving) {
+    return (
+      <SidebarMenuSubItem className="py-1">
+        <div className="flex min-w-0 items-center gap-1">
+          <Picker
+            dashed
+            className="min-w-0 flex-1"
+            label="Move to…"
+            options={destinations}
+            onSelect={async (value) => {
+              const [type, id] = value.split(":");
+              setMoving(false);
+              try {
+                await moveList({
+                  listId,
+                  parentType: type === "folder" ? "folder" : "space",
+                  parentId: id,
+                });
+                toast(`"${name}" moved`);
+              } catch (e) {
+                toast(errorMessage(e, "Couldn't move list"), { kind: "error" });
+              }
+            }}
+          />
+          <button
+            type="button"
+            aria-label="Cancel move"
+            onClick={() => setMoving(false)}
+            className="tap-target flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-sidebar-accent-foreground"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      </SidebarMenuSubItem>
+    );
+  }
+
   return (
     <SidebarMenuSubItem>
-      <SidebarMenuSubButton asChild isActive={active}>
-        <Link href={`/dashboard/l/${listId}`} aria-current={active ? "page" : undefined}>
-          <ListIcon aria-hidden />
-          <span className="truncate">{name}</span>
-        </Link>
-      </SidebarMenuSubButton>
+      <div className="group/row flex min-w-0 items-center gap-0.5">
+        <SidebarMenuSubButton asChild isActive={active} className="min-w-0 flex-1">
+          <Link href={`/dashboard/l/${listId}`} aria-current={active ? "page" : undefined}>
+            <ListIcon aria-hidden />
+            <span className="truncate">{name}</span>
+          </Link>
+        </SidebarMenuSubButton>
+        <RowMenu label={`List actions for ${name}`}>
+          <DropdownMenuItem
+            disabled={destinations.length === 0}
+            onSelect={() => setMoving(true)}
+          >
+            <FolderInput className="text-muted-foreground" />
+            Move…
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setRenaming(true)}>
+            <Pencil className="text-muted-foreground" />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => {
+              setHidden(true);
+              toast(`"${name}" deleted`, {
+                action: { label: "Undo", onClick: () => setHidden(false) },
+                onExpire: () => void removeList({ listId }),
+              });
+            }}
+          >
+            <Trash2 className="text-muted-foreground" />
+            Delete list
+          </DropdownMenuItem>
+        </RowMenu>
+      </div>
     </SidebarMenuSubItem>
   );
 }

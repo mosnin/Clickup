@@ -11,6 +11,7 @@
 import type * as _adminAuth from "../_adminAuth.js";
 import type * as _agentAuth from "../_agentAuth.js";
 import type * as _authz from "../_authz.js";
+import type * as _customFields from "../_customFields.js";
 import type * as _x402 from "../_x402.js";
 import type * as admin from "../admin.js";
 import type * as agentAi from "../agentAi.js";
@@ -45,6 +46,7 @@ import type * as lists from "../lists.js";
 import type * as maintenance from "../maintenance.js";
 import type * as mentions from "../mentions.js";
 import type * as messages from "../messages.js";
+import type * as milestones from "../milestones.js";
 import type * as myWork from "../myWork.js";
 import type * as network from "../network.js";
 import type * as notificationCenter from "../notificationCenter.js";
@@ -69,6 +71,7 @@ import type * as taskBlueprints from "../taskBlueprints.js";
 import type * as taskFieldValues from "../taskFieldValues.js";
 import type * as tasks from "../tasks.js";
 import type * as team from "../team.js";
+import type * as templateCatalog from "../templateCatalog.js";
 import type * as templates from "../templates.js";
 import type * as timeEntries from "../timeEntries.js";
 import type * as userSettings from "../userSettings.js";
@@ -90,6 +93,7 @@ declare const fullApi: ApiFromModules<{
   _adminAuth: typeof _adminAuth;
   _agentAuth: typeof _agentAuth;
   _authz: typeof _authz;
+  _customFields: typeof _customFields;
   _x402: typeof _x402;
   admin: typeof admin;
   agentAi: typeof agentAi;
@@ -124,6 +128,7 @@ declare const fullApi: ApiFromModules<{
   maintenance: typeof maintenance;
   mentions: typeof mentions;
   messages: typeof messages;
+  milestones: typeof milestones;
   myWork: typeof myWork;
   network: typeof network;
   notificationCenter: typeof notificationCenter;
@@ -148,6 +153,7 @@ declare const fullApi: ApiFromModules<{
   taskFieldValues: typeof taskFieldValues;
   tasks: typeof tasks;
   team: typeof team;
+  templateCatalog: typeof templateCatalog;
   templates: typeof templates;
   timeEntries: typeof timeEntries;
   userSettings: typeof userSettings;

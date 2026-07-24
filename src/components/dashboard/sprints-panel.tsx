@@ -15,8 +15,11 @@ import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { useToast } from "@/components/toast";
 import { ScrumBoard } from "@/components/dashboard/scrum-board";
 import { SprintPlanning } from "@/components/dashboard/sprint-planning";
+import { SprintTemplateGallery } from "@/components/dashboard/sprint-template-gallery";
+import { BorderBeam } from "@/components/ui/beam";
 import {
   AnimatedBar,
+  AnimatedNumber,
   AnimatePresence,
   EASE,
   motion,
@@ -54,22 +57,61 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
   // "Create the first sprint", etc. land here with the form already open).
   const searchParams = useSearchParams();
   const [creating, setCreating] = useState(searchParams.get("new") === "1");
+  const [templating, setTemplating] = useState(false);
 
   if (sprints === undefined) {
     return <Card className="h-40 animate-pulse bg-muted/30" />;
   }
 
+  const active = sprints.find((s) => s.status === "active");
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
+    <div className="min-w-0 space-y-4">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <p className="min-w-0 max-w-prose text-sm text-muted-foreground">
           Timebox work across every list in this workspace. Agents can plan
           and run sprints too (see the &quot;Sprint planner&quot; skill).
         </p>
-        <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" /> New sprint
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => {
+              setTemplating((v) => !v);
+              setCreating(false);
+            }}
+          >
+            <Plus className="h-4 w-4" /> New sprint from template
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setCreating(true);
+              setTemplating(false);
+            }}
+          >
+            Blank sprint
+          </Button>
+        </div>
       </div>
+
+      <AnimatePresence initial={false}>
+        {templating && (
+          <motion.div
+            key="gallery"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.35, ease: EASE }}
+            className="min-w-0 overflow-hidden"
+          >
+            <SprintTemplateGallery
+              workspaceId={workspaceId}
+              onClose={() => setTemplating(false)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {creating && (
         <CreateSprintForm
@@ -78,18 +120,26 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
         />
       )}
 
+      {active && <ActiveSprintHero sprint={active} />}
+
       <VelocityStrip workspaceId={workspaceId} />
 
-      {sprints.length === 0 && !creating && (
+      {sprints.length === 0 && !creating && !templating && (
         <div className="rounded-2xl panel px-6 py-14 text-center">
           <p className="text-sm font-semibold">Plan work in timeboxes</p>
           <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
             A sprint collects tasks into a start-to-finish window, so humans
-            and agents burn down the same list together.
+            and agents burn down the same list together. Start from a
+            template and the ceremonies and first tasks come with it.
           </p>
-          <Button size="sm" className="mt-4" onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" /> New sprint
-          </Button>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <Button size="sm" onClick={() => setTemplating(true)}>
+              <Plus className="h-4 w-4" /> Browse templates
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+              Blank sprint
+            </Button>
+          </div>
         </div>
       )}
 
@@ -101,6 +151,119 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
         ))}
       </Stagger>
     </div>
+  );
+}
+
+// The running sprint, promoted out of the list: goal, pace, and rollup at
+// a glance so the tab answers "are we going to make it?" without anyone
+// expanding a card. The beam marks it as the one live timebox.
+function ActiveSprintHero({
+  sprint,
+}: {
+  sprint: {
+    _id: Id<"sprints">;
+    name: string;
+    goal?: string;
+    startDate: number;
+    endDate: number;
+    taskCount: number;
+    doneCount: number;
+    capacityPoints?: number;
+  };
+}) {
+  const summary = useQuery(api.sprints.summary, { sprintId: sprint._id });
+  const totals = summary?.totals;
+  const total = totals?.total ?? sprint.taskCount;
+  const done = totals?.done ?? sprint.doneCount;
+  const inProgress = totals?.inProgress ?? 0;
+  const open = totals?.open ?? Math.max(0, total - done);
+
+  const now = Date.now();
+  const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+  const span = Math.max(1, sprint.endDate - sprint.startDate);
+  const elapsedPct = Math.min(
+    100,
+    Math.max(0, Math.round(((now - sprint.startDate) / span) * 100)),
+  );
+  const daysLeft = Math.max(
+    0,
+    Math.ceil((sprint.endDate - now) / ONE_DAY_MS),
+  );
+  // "Behind" only once the sprint is far enough in for the comparison to
+  // mean anything — a day-one sprint is always 0% done.
+  const behind = elapsedPct > 25 && pct + 20 < elapsedPct;
+
+  const stats = [
+    { label: "Done", value: done },
+    { label: "In progress", value: inProgress },
+    { label: "Open", value: open },
+    { label: "Days left", value: daysLeft },
+  ];
+
+  return (
+    <BorderBeam size="md" colorVariant="colorful" className="flex min-w-0">
+      <div className="panel min-w-0 flex-1 rounded-2xl p-5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] uppercase tracking-wider text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+            Active
+          </span>
+          <p className="min-w-0 truncate font-semibold tracking-tight">
+            {sprint.name}
+          </p>
+          <span className="ml-auto text-xs text-muted-foreground">
+            {new Date(sprint.startDate).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+            })}{" "}
+            –{" "}
+            {new Date(sprint.endDate).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+            })}
+          </span>
+        </div>
+
+        {sprint.goal && (
+          <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
+            {sprint.goal}
+          </p>
+        )}
+
+        <div className="mt-4 flex min-w-0 items-baseline gap-2">
+          <AnimatedNumber
+            value={pct}
+            className="text-3xl font-semibold tabular-nums"
+          />
+          <span className="text-3xl font-semibold">%</span>
+          <span
+            className={cn(
+              "ml-auto text-xs font-medium",
+              behind ? "text-danger" : "text-muted-foreground",
+            )}
+          >
+            {behind
+              ? `Behind pace — ${elapsedPct}% of the timebox spent`
+              : `${elapsedPct}% of the timebox spent`}
+          </span>
+        </div>
+        <AnimatedBar
+          pct={pct}
+          className="mt-2 h-2 overflow-hidden rounded-full bg-muted"
+          barClassName="h-full rounded-full bg-brand-600"
+        />
+
+        <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {stats.map((s) => (
+            <div key={s.label} className="bento-tile min-w-0 px-3 py-2">
+              <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                {s.label}
+              </dt>
+              <dd className="text-lg font-semibold tabular-nums">{s.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </BorderBeam>
   );
 }
 

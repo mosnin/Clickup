@@ -1,6 +1,13 @@
 import { query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 
+function byPosition(
+  a: { position: number; createdAt: number },
+  b: { position: number; createdAt: number },
+): number {
+  return a.position - b.position || a.createdAt - b.createdAt;
+}
+
 // Single query that returns the full sidebar tree. Convex re-runs this on
 // every relevant table change, so subscribers get live updates without
 // stitching multiple queries.
@@ -36,9 +43,12 @@ export const tree = query({
         .withIndex("by_space", (q) => q.eq("spaceId", space._id))
         .collect();
 
+      // Ordering rule (mirrored on the Space page): folders first, then
+      // space-direct lists — each by position with a createdAt tiebreak so
+      // rows never shuffle when two siblings share a position.
       const folderNodes = await Promise.all(
         folders
-          .sort((a, b) => a.position - b.position)
+          .sort(byPosition)
           .map(async (folder) => {
             const lists = await ctx.db
               .query("lists")
@@ -49,7 +59,8 @@ export const tree = query({
             return {
               _id: folder._id,
               name: folder.name,
-              lists: lists.sort((a, b) => a.position - b.position),
+              position: folder.position,
+              lists: lists.sort(byPosition),
             };
           }),
       );
@@ -81,7 +92,7 @@ export const tree = query({
         color: space.color,
         private: space.private ?? false,
         folders: folderNodes,
-        lists: directLists.sort((a, b) => a.position - b.position),
+        lists: directLists.sort(byPosition),
         docs: docs
           // Subpages live under their parent doc, not as flat tree rows.
           .filter((d) => d.parentDocId === undefined)

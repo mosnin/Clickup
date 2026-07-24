@@ -447,6 +447,8 @@ export type UpdateTaskArgs = {
   requiresApproval?: boolean;
   estimatePoints?: number | null;
   milestone?: boolean;
+  /** Join (or leave, with null) one of this project's milestones. */
+  milestoneId?: Id<"milestones"> | null;
 };
 
 export async function updateTaskCore(
@@ -572,6 +574,18 @@ export async function updateTaskCore(
   if (args.milestone !== undefined) {
     patch.milestone = args.milestone || undefined;
     changedFields.push("milestone");
+  }
+  if (args.milestoneId !== undefined) {
+    if (args.milestoneId !== null) {
+      // A milestone is a checkpoint of ONE project: linking across projects
+      // would make its derived progress count work it can't see.
+      const milestone = await ctx.db.get(args.milestoneId);
+      if (!milestone || milestone.listId !== task.listId) {
+        throw new ConvexError("Milestone belongs to a different project");
+      }
+    }
+    patch.milestoneId = args.milestoneId ?? undefined;
+    changedFields.push("milestoneId");
   }
   if (args.requiresApproval !== undefined) {
     // Agents may raise the gate but never lower it — otherwise the gate
@@ -1125,6 +1139,7 @@ export const update = mutation({
     requiresApproval: v.optional(v.boolean()),
     estimatePoints: v.optional(v.union(v.number(), v.null())),
     milestone: v.optional(v.boolean()),
+    milestoneId: v.optional(v.union(v.id("milestones"), v.null())),
   },
   handler: async (ctx, args) => {
     const { identity } = await requireTaskAccess(ctx, args.taskId);
@@ -1147,6 +1162,7 @@ export const update = mutation({
         requiresApproval: args.requiresApproval,
         estimatePoints: args.estimatePoints,
         milestone: args.milestone,
+        milestoneId: args.milestoneId,
       },
       actor,
     );

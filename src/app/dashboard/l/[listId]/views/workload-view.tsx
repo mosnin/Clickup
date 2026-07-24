@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { cn } from "@/lib/utils";
+import { identityFill } from "@/lib/identity-color";
 
 const UNASSIGNED_ID = "__unassigned__";
 const MAX_CHIPS = 5;
@@ -277,7 +278,8 @@ function PersonRow({
         ) : (
           <span
             aria-hidden
-            className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-medium text-white"
+            style={identityFill(bucket.id)}
+            className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-medium text-white"
           >
             {initial}
           </span>

@@ -5,7 +5,17 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/toast";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, Check, Copy, Plus, Settings, Trash2, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Plus,
+  Settings,
+  Trash2,
+  X,
+} from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
@@ -30,11 +40,22 @@ import {
 import { Picker } from "@/components/ui/picker";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ScheduledTasksSection } from "@/components/dashboard/scheduled-tasks-section";
+import { FieldTypePicker } from "@/components/dashboard/field-type-picker";
 import { useListScope } from "../use-list-scope";
 import { errorMessage } from "@/lib/errors";
+import {
+  DEFAULT_OPTION_COLORS,
+  defaultConfigFor,
+  fieldTypeLabel,
+  isComputedType,
+  isNumericType,
+  usesOptions,
+  type FieldConfig,
+  type FieldOption,
+  type FieldType,
+} from "@/lib/custom-fields";
 
 type StatusCategory = Doc<"listStatuses">["category"];
-type FieldType = Doc<"customFields">["type"];
 
 const CATEGORY_LABEL: Record<StatusCategory, string> = {
   open: "Open",
@@ -43,13 +64,8 @@ const CATEGORY_LABEL: Record<StatusCategory, string> = {
   closed: "Closed",
 };
 
-const FIELD_TYPE_LABEL: Record<FieldType, string> = {
-  text: "Text",
-  number: "Number",
-  dropdown: "Dropdown",
-  date: "Date",
-  checkbox: "Checkbox",
-};
+// Field-type labels/groups/metadata live in one place now (src/lib/custom-fields.ts)
+// so the settings page, the type picker, and the inline editors can't drift.
 
 // Shared shape for a "row list inside a Card" section — a bordered
 // container with divided rows, plus a distinct dashed-border row at the
@@ -810,6 +826,12 @@ function CreateStatusForm({
   );
 }
 
+// ── Custom fields ──────────────────────────────────────────────────────
+// Field management lives here: create (through the grouped type picker with
+// live previews), rename, reconfigure, reorder, and delete with an undo
+// window. Everything the server accepts is reachable from this panel, so a
+// human never has to drop to the agent API to use a field type.
+
 function FieldsSection({
   listId,
   fields,
@@ -820,28 +842,52 @@ function FieldsSection({
   const create = useMutation(api.customFields.create);
   const rename = useMutation(api.customFields.rename);
   const updateOptions = useMutation(api.customFields.updateOptions);
+  const updateConfig = useMutation(api.customFields.updateConfig);
+  const reorder = useMutation(api.customFields.reorder);
   const remove = useMutation(api.customFields.remove);
+  const { toast } = useToast();
+
+  const ordered = [...fields].sort((a, b) => a.position - b.position);
+
+  async function move(index: number, delta: number) {
+    const next = [...ordered];
+    const target = index + delta;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    try {
+      await reorder({ listId, orderedIds: next.map((f) => f._id) });
+    } catch (e) {
+      toast(errorMessage(e, "Couldn't reorder fields"), { kind: "error" });
+    }
+  }
 
   return (
     <Card className="rounded-2xl">
       <CardHeader>
         <CardTitle>Custom fields</CardTitle>
         <CardDescription>
-          Add columns to track per-task data beyond the defaults.
+          Twenty field types, from money and ratings to relationships,
+          rollups, and formulas. Agents connected over MCP read and write
+          every one of them.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <RowList>
-          {fields.length === 0 && (
-            <EmptyRow>No custom fields yet.</EmptyRow>
-          )}
-          {fields.map((field) => (
+          {ordered.length === 0 && <EmptyRow>No custom fields yet.</EmptyRow>}
+          {ordered.map((field, i) => (
             <FieldRow
               key={field._id}
               field={field}
+              siblings={ordered.filter((f) => f._id !== field._id)}
+              first={i === 0}
+              last={i === ordered.length - 1}
+              onMove={(delta) => move(i, delta)}
               onRename={(name) => rename({ fieldId: field._id, name })}
               onUpdateOptions={(options) =>
                 updateOptions({ fieldId: field._id, options })
+              }
+              onUpdateConfig={(config) =>
+                updateConfig({ fieldId: field._id, config })
               }
               onDelete={() => remove({ fieldId: field._id })}
             />
@@ -849,8 +895,9 @@ function FieldsSection({
         </RowList>
 
         <CreateFieldForm
-          onSubmit={(name, type, options) =>
-            create({ listId, name, type, options })
+          siblings={ordered}
+          onSubmit={(name, type, options, config) =>
+            create({ listId, name, type, options, config })
           }
         />
       </CardContent>
@@ -860,21 +907,39 @@ function FieldsSection({
 
 function FieldRow({
   field,
+  siblings,
+  first,
+  last,
+  onMove,
   onRename,
   onUpdateOptions,
+  onUpdateConfig,
   onDelete,
 }: {
   field: Doc<"customFields">;
+  siblings: Doc<"customFields">[];
+  first: boolean;
+  last: boolean;
+  onMove: (delta: number) => void;
   onRename: (name: string) => Promise<unknown>;
-  onUpdateOptions: (
-    options: { id: string; label: string; color?: string }[],
-  ) => Promise<unknown>;
+  onUpdateOptions: (options: FieldOption[]) => Promise<unknown>;
+  onUpdateConfig: (config: FieldConfig) => Promise<unknown>;
   onDelete: () => Promise<unknown>;
 }) {
   const [name, setName] = useState(field.name);
-  const [showOptions, setShowOptions] = useState(false);
+  const [panel, setPanel] = useState<"none" | "options" | "config">("none");
   const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
+
+  const configurable =
+    field.type === "money" ||
+    field.type === "number" ||
+    field.type === "rating" ||
+    field.type === "formula" ||
+    field.type === "rollup" ||
+    field.type === "people" ||
+    field.type === "relationship";
+
   if (deleting) return null;
 
   return (
@@ -884,67 +949,144 @@ function FieldRow({
           variant="secondary"
           className="flex-shrink-0 text-[10px] uppercase tracking-wider"
         >
-          {FIELD_TYPE_LABEL[field.type]}
+          {fieldTypeLabel(field.type)}
         </Badge>
         <Input
           value={name}
+          aria-label={`${field.name} name`}
           onChange={(e) => setName(e.currentTarget.value)}
-          onBlur={() => {
-            if (name.trim() && name !== field.name) onRename(name.trim());
-            else if (!name.trim()) setName(field.name);
+          onBlur={async () => {
+            if (!name.trim()) return setName(field.name);
+            if (name === field.name) return;
+            try {
+              await onRename(name.trim());
+              toast("Saved");
+            } catch (e) {
+              setName(field.name);
+              toast(errorMessage(e, "Couldn't rename that field"), {
+                kind: "error",
+              });
+            }
           }}
-          className="flex-1"
+          className="min-w-0 flex-1"
         />
-        {field.type === "dropdown" && (
+        {/* Wraps rather than widening the page at 360px. */}
+        <div className="flex flex-shrink-0 flex-wrap items-center gap-1">
+          {usesOptions(field.type) && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                setPanel((p) => (p === "options" ? "none" : "options"))
+              }
+            >
+              Options ({field.options?.length ?? 0})
+            </Button>
+          )}
+          {configurable && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                setPanel((p) => (p === "config" ? "none" : "config"))
+              }
+            >
+              Configure
+            </Button>
+          )}
+          <button
+            type="button"
+            aria-label={`Move ${field.name} up`}
+            disabled={first}
+            onClick={() => onMove(-1)}
+            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+          >
+            <ChevronUp className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label={`Move ${field.name} down`}
+            disabled={last}
+            onClick={() => onMove(1)}
+            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
           <Button
             type="button"
-            size="sm"
             variant="ghost"
-            onClick={() => setShowOptions((v) => !v)}
-            className="flex-shrink-0"
+            size="icon"
+            aria-label="Delete field"
+            onClick={() => {
+              setDeleting(true);
+              toast(`"${field.name}" deleted, values go with it`, {
+                action: { label: "Undo", onClick: () => setDeleting(false) },
+                onExpire: () => {
+                  onDelete().catch((e) => {
+                    setDeleting(false);
+                    toast(errorMessage(e, "Couldn't delete that field"), {
+                      kind: "error",
+                    });
+                  });
+                },
+              });
+            }}
+            className="tap-target text-muted-foreground hover:text-foreground"
           >
-            Options ({field.options?.length ?? 0})
+            <Trash2 className="h-4 w-4" />
           </Button>
-        )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="Delete field"
-          onClick={() => {
-            setDeleting(true);
-            toast(`"${field.name}" deleted, values go with it`, {
-              action: { label: "Undo", onClick: () => setDeleting(false) },
-              onExpire: () => onDelete(),
-            });
-          }}
-          className="tap-target flex-shrink-0 text-muted-foreground hover:text-foreground"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        </div>
       </div>
 
-      {field.type === "dropdown" && showOptions && (
-        <DropdownOptionsEditor
+      {panel === "options" && usesOptions(field.type) && (
+        <OptionsEditor
           options={field.options ?? []}
           onChange={onUpdateOptions}
         />
+      )}
+      {panel === "config" && (
+        <div className="mt-3 rounded-xl bg-muted p-3">
+          <FieldConfigEditor
+            type={field.type}
+            config={field.config ?? {}}
+            siblings={siblings}
+            onChange={async (next) => {
+              try {
+                await onUpdateConfig(next);
+                toast("Saved");
+              } catch (e) {
+                toast(errorMessage(e, "Couldn't save that configuration"), {
+                  kind: "error",
+                });
+              }
+            }}
+          />
+        </div>
       )}
     </div>
   );
 }
 
-function DropdownOptionsEditor({
+function OptionsEditor({
   options,
   onChange,
 }: {
-  options: { id: string; label: string; color?: string }[];
-  onChange: (
-    options: { id: string; label: string; color?: string }[],
-  ) => Promise<unknown>;
+  options: FieldOption[];
+  onChange: (options: FieldOption[]) => Promise<unknown>;
 }) {
   const [draft, setDraft] = useState("");
-  const [color, setColor] = useState("#a9c6f2");
+  const [color, setColor] = useState(DEFAULT_OPTION_COLORS[0]);
+  const { toast } = useToast();
+
+  async function apply(next: FieldOption[]) {
+    try {
+      await onChange(next);
+    } catch (e) {
+      toast(errorMessage(e, "Couldn't update options"), { kind: "error" });
+    }
+  }
 
   return (
     <div className="mt-3 rounded-xl bg-muted p-3">
@@ -956,16 +1098,18 @@ function DropdownOptionsEditor({
           >
             <span
               aria-hidden
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ backgroundColor: opt.color ?? "#c9ccd4" }}
+              className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
+              style={{
+                backgroundColor:
+                  opt.color ??
+                  DEFAULT_OPTION_COLORS[i % DEFAULT_OPTION_COLORS.length],
+              }}
             />
-            <span className="flex-1">{opt.label}</span>
+            <span className="min-w-0 flex-1 truncate">{opt.label}</span>
             <button
               type="button"
-              onClick={() =>
-                onChange(options.filter((_, idx) => idx !== i))
-              }
-              className="text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => apply(options.filter((_, idx) => idx !== i))}
+              className="flex-shrink-0 text-xs text-muted-foreground hover:text-foreground"
               aria-label={`Remove ${opt.label}`}
             >
               <X className="h-3 w-3" />
@@ -985,7 +1129,7 @@ function DropdownOptionsEditor({
           value={draft}
           onChange={(e) => setDraft(e.currentTarget.value)}
           placeholder="New option"
-          className="h-8 flex-1"
+          className="h-8 min-w-0 flex-1"
         />
         <Button
           type="button"
@@ -993,13 +1137,9 @@ function DropdownOptionsEditor({
           disabled={!draft.trim()}
           className="flex-shrink-0"
           onClick={async () => {
-            await onChange([
+            await apply([
               ...options,
-              {
-                id: crypto.randomUUID(),
-                label: draft.trim(),
-                color,
-              },
+              { id: crypto.randomUUID(), label: draft.trim(), color },
             ]);
             setDraft("");
           }}
@@ -1011,77 +1151,388 @@ function DropdownOptionsEditor({
   );
 }
 
+// Per-type configuration. Only the controls a type actually uses are shown,
+// so "Configure" never opens onto a wall of irrelevant inputs.
+function FieldConfigEditor({
+  type,
+  config,
+  siblings,
+  onChange,
+}: {
+  type: FieldType;
+  config: FieldConfig;
+  siblings: Doc<"customFields">[];
+  onChange: (config: FieldConfig) => void | Promise<unknown>;
+}) {
+  const numericSiblings = siblings.filter((f) => isNumericType(f.type));
+  const relationSiblings = siblings.filter((f) => f.type === "relationship");
+
+  function patch(next: Partial<FieldConfig>) {
+    onChange({ ...config, ...next });
+  }
+
+  return (
+    <div className="space-y-3">
+      {type === "money" && (
+        <ConfigRow label="Currency">
+          <Input
+            defaultValue={config.currency ?? "USD"}
+            maxLength={3}
+            aria-label="Currency code"
+            onBlur={(e) =>
+              patch({ currency: e.currentTarget.value.toUpperCase() })
+            }
+            className="h-8 w-24 uppercase"
+          />
+        </ConfigRow>
+      )}
+
+      {(type === "number" || type === "money") && (
+        <ConfigRow label="Decimals">
+          <Input
+            type="number"
+            min={0}
+            max={4}
+            defaultValue={config.precision ?? (type === "money" ? 2 : 0)}
+            aria-label="Decimal places"
+            onBlur={(e) => {
+              const n = Number(e.currentTarget.value);
+              patch({ precision: Number.isFinite(n) ? n : undefined });
+            }}
+            className="h-8 w-20"
+          />
+        </ConfigRow>
+      )}
+
+      {type === "number" && (
+        <ConfigRow label="Range">
+          <span className="flex items-center gap-2">
+            <Input
+              type="number"
+              placeholder="min"
+              defaultValue={config.min ?? ""}
+              aria-label="Minimum"
+              onBlur={(e) => {
+                const raw = e.currentTarget.value;
+                patch({ min: raw === "" ? undefined : Number(raw) });
+              }}
+              className="h-8 w-24"
+            />
+            <Input
+              type="number"
+              placeholder="max"
+              defaultValue={config.max ?? ""}
+              aria-label="Maximum"
+              onBlur={(e) => {
+                const raw = e.currentTarget.value;
+                patch({ max: raw === "" ? undefined : Number(raw) });
+              }}
+              className="h-8 w-24"
+            />
+          </span>
+        </ConfigRow>
+      )}
+
+      {type === "rating" && (
+        <ConfigRow label="Stars">
+          <Input
+            type="number"
+            min={2}
+            max={10}
+            defaultValue={config.ratingMax ?? 5}
+            aria-label="Maximum stars"
+            onBlur={(e) => {
+              const n = Number(e.currentTarget.value);
+              patch({ ratingMax: Number.isFinite(n) ? n : 5 });
+            }}
+            className="h-8 w-20"
+          />
+        </ConfigRow>
+      )}
+
+      {(type === "people" || type === "relationship") && (
+        <ConfigRow label="Allow multiple">
+          <Checkbox
+            checked={config.multiple !== false}
+            onCheckedChange={(checked) => patch({ multiple: !!checked })}
+            aria-label="Allow multiple entries"
+          />
+        </ConfigRow>
+      )}
+
+      {type === "formula" && (
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Formula
+          </p>
+          <Input
+            defaultValue={config.formula ?? ""}
+            placeholder="{Hours} * {Rate}"
+            aria-label="Formula"
+            onBlur={(e) => patch({ formula: e.currentTarget.value })}
+            className="h-9 font-mono text-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            Arithmetic (+ − × ÷ and parentheses) over this list&apos;s numeric
+            fields, referenced in braces.{" "}
+            {numericSiblings.length > 0 ? (
+              <>Available: {numericSiblings.map((f) => `{${f.name}}`).join(", ")}</>
+            ) : (
+              <>Add a number field first.</>
+            )}
+          </p>
+        </div>
+      )}
+
+      {type === "rollup" && (
+        <div className="space-y-3">
+          <ConfigRow label="From">
+            <Select
+              value={config.rollup?.source ?? "subtasks"}
+              onValueChange={(v) =>
+                patch({
+                  rollup: {
+                    op: config.rollup?.op ?? "sum",
+                    sourceFieldId: config.rollup?.sourceFieldId,
+                    relationFieldId: config.rollup?.relationFieldId,
+                    source: v as "subtasks" | "relationship",
+                  },
+                })
+              }
+            >
+              <SelectTrigger size="sm" className="w-40 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="subtasks">Subtasks</SelectItem>
+                <SelectItem value="relationship">Linked tasks</SelectItem>
+              </SelectContent>
+            </Select>
+          </ConfigRow>
+          <ConfigRow label="Operation">
+            <Select
+              value={config.rollup?.op ?? "sum"}
+              onValueChange={(v) =>
+                patch({
+                  rollup: {
+                    source: config.rollup?.source ?? "subtasks",
+                    sourceFieldId: config.rollup?.sourceFieldId,
+                    relationFieldId: config.rollup?.relationFieldId,
+                    op: v as "sum" | "avg" | "count",
+                  },
+                })
+              }
+            >
+              <SelectTrigger size="sm" className="w-40 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sum">Sum</SelectItem>
+                <SelectItem value="avg">Average</SelectItem>
+                <SelectItem value="count">Count</SelectItem>
+              </SelectContent>
+            </Select>
+          </ConfigRow>
+          {config.rollup?.op !== "count" && (
+            <ConfigRow label="Of field">
+              <Picker
+                label={
+                  numericSiblings.find(
+                    (f) => f._id === config.rollup?.sourceFieldId,
+                  )?.name ?? "Choose a numeric field"
+                }
+                selectedId={config.rollup?.sourceFieldId}
+                dashed={!config.rollup?.sourceFieldId}
+                options={numericSiblings.map((f) => ({
+                  id: f._id,
+                  label: f.name,
+                  hint: fieldTypeLabel(f.type),
+                }))}
+                onSelect={(id) =>
+                  patch({
+                    rollup: {
+                      source: config.rollup?.source ?? "subtasks",
+                      op: config.rollup?.op ?? "sum",
+                      relationFieldId: config.rollup?.relationFieldId,
+                      sourceFieldId: id as Id<"customFields">,
+                    },
+                  })
+                }
+              />
+            </ConfigRow>
+          )}
+          {config.rollup?.source === "relationship" && (
+            <ConfigRow label="Via">
+              <Picker
+                label={
+                  relationSiblings.find(
+                    (f) => f._id === config.rollup?.relationFieldId,
+                  )?.name ?? "Choose a relationship field"
+                }
+                selectedId={config.rollup?.relationFieldId}
+                dashed={!config.rollup?.relationFieldId}
+                options={relationSiblings.map((f) => ({
+                  id: f._id,
+                  label: f.name,
+                }))}
+                onSelect={(id) =>
+                  patch({
+                    rollup: {
+                      source: "relationship",
+                      op: config.rollup?.op ?? "sum",
+                      sourceFieldId: config.rollup?.sourceFieldId,
+                      relationFieldId: id as Id<"customFields">,
+                    },
+                  })
+                }
+              />
+            </ConfigRow>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConfigRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </span>
+      <span className="min-w-0">{children}</span>
+    </div>
+  );
+}
+
 function CreateFieldForm({
+  siblings,
   onSubmit,
 }: {
+  siblings: Doc<"customFields">[];
   onSubmit: (
     name: string,
     type: FieldType,
-    options?: { id: string; label: string; color?: string }[],
+    options: FieldOption[] | undefined,
+    config: FieldConfig | undefined,
   ) => Promise<unknown>;
 }) {
+  const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [type, setType] = useState<FieldType>("text");
+  const [type, setType] = useState<FieldType | null>(null);
+  const [config, setConfig] = useState<FieldConfig>({});
   const [pending, setPending] = useState(false);
   const { toast } = useToast();
 
-  return (
-    <form
-      onSubmit={async (e) => {
-        e.preventDefault();
-        if (!name.trim()) return;
-        setPending(true);
-        try {
-          await onSubmit(
-            name.trim(),
-            type,
-            type === "dropdown"
-              ? [
-                  {
-                    id: crypto.randomUUID(),
-                    label: "Option 1",
-                    color: "#a9c6f2",
-                  },
-                ]
-              : undefined,
-          );
-          setName("");
-          setType("text");
-        } catch (e) {
-          toast(errorMessage(e, "Couldn't create field"), { kind: "error" });
-        } finally {
-          setPending(false);
-        }
-      }}
-      className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-3 sm:flex-row sm:items-center"
-    >
-      <Input
-        placeholder="New field name"
-        value={name}
-        onChange={(e) => setName(e.currentTarget.value)}
-        className="flex-1"
-      />
-      <Select value={type} onValueChange={(v) => setType(v as FieldType)}>
-        <SelectTrigger size="sm" className="w-36 flex-shrink-0 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {(Object.keys(FIELD_TYPE_LABEL) as FieldType[]).map((t) => (
-            <SelectItem key={t} value={t}>
-              {FIELD_TYPE_LABEL[t]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Button
-        type="submit"
-        size="sm"
-        disabled={!name.trim() || pending}
-        className="flex-shrink-0"
+  function reset() {
+    setOpen(false);
+    setName("");
+    setType(null);
+    setConfig({});
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border p-3 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground"
       >
         <Plus className="h-4 w-4" /> Add field
-      </Button>
-    </form>
+      </button>
+    );
+  }
+
+  return (
+    <div className="space-y-4 rounded-xl border border-dashed border-border p-3">
+      <FieldTypePicker
+        value={type}
+        onChange={(t) => {
+          setType(t);
+          setConfig(defaultConfigFor(t) ?? {});
+        }}
+      />
+
+      {type && (
+        <div className="space-y-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Input
+              autoFocus
+              placeholder={`${fieldTypeLabel(type)} field name`}
+              aria-label="Field name"
+              value={name}
+              onChange={(e) => setName(e.currentTarget.value)}
+              className="min-w-0 flex-1"
+            />
+            <div className="flex flex-shrink-0 items-center gap-2">
+              <Button type="button" size="sm" variant="ghost" onClick={reset}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={!name.trim() || pending}
+                onClick={async () => {
+                  setPending(true);
+                  try {
+                    await onSubmit(
+                      name.trim(),
+                      type,
+                      usesOptions(type)
+                        ? [
+                            {
+                              id: crypto.randomUUID(),
+                              label: "Option 1",
+                              color: DEFAULT_OPTION_COLORS[0],
+                            },
+                          ]
+                        : undefined,
+                      Object.keys(config).length > 0 ? config : undefined,
+                    );
+                    reset();
+                  } catch (e) {
+                    toast(errorMessage(e, "Couldn't create field"), {
+                      kind: "error",
+                    });
+                  } finally {
+                    setPending(false);
+                  }
+                }}
+              >
+                Create field
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-muted p-3">
+            <FieldConfigEditor
+              type={type}
+              config={config}
+              siblings={siblings}
+              onChange={setConfig}
+            />
+            {isComputedType(type) && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Computed fields are derived on every read — nobody types into
+                them, and agents get the same number over MCP.
+              </p>
+            )}
+            {usesOptions(type) && (
+              <p className="text-xs text-muted-foreground">
+                One starter option is created for you. Add the rest from
+                Options once the field exists.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

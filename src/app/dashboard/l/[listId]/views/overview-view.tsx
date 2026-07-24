@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Picker, type PickerOption } from "@/components/ui/picker";
 import { Monogram } from "@/components/dashboard/monogram";
 import { EmptyState } from "@/components/dashboard/empty-state";
+import { InlineCreate } from "@/components/dashboard/inline-create";
 import {
   AnimatedBar,
   Stagger,
@@ -19,6 +20,7 @@ import Counter, { placesFor } from "@/components/counter";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
+import { timeAgo } from "@/lib/time";
 import { errorMessage } from "@/lib/errors";
 
 // The Overview surface: what makes a list a real PROJECT. Description +
@@ -63,6 +65,7 @@ export function OverviewView({
       <div className="min-w-0 space-y-6">
         <AboutCard listId={listId} list={list} />
         <ProgressCard listId={listId} tasks={tasks} statuses={statuses} />
+        <MilestonesCard listId={listId} />
       </div>
       <div className="space-y-6">
         <StatusCard listId={listId} list={list} />
@@ -288,6 +291,279 @@ function ProgressCard({
         </>
       )}
     </Card>
+  );
+}
+
+// The project's own dated checkpoints. Each row derives its progress from
+// the tasks linked to it (tasks.milestoneId), so the bar moves as the work
+// does — nothing here is typed in twice.
+type MilestoneRow = {
+  _id: Id<"milestones">;
+  name: string;
+  targetDate?: number;
+  status: "open" | "complete";
+  completedAt?: number;
+  total: number;
+  done: number;
+};
+
+function MilestonesCard({ listId }: { listId: Id<"lists"> }) {
+  const milestones = useQuery(api.milestones.listForList, { listId });
+  const create = useMutation(api.milestones.create);
+  const remove = useMutation(api.milestones.remove);
+  const { toast } = useToast();
+  const [creating, setCreating] = useState(false);
+  // Deleted rows disappear immediately and the mutation only fires when the
+  // undo window closes — the app-wide destructive pattern.
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+
+  if (milestones === undefined) {
+    return (
+      <Card className="rounded-2xl p-5">
+        <div className="h-3 w-24 animate-pulse rounded-full bg-muted" />
+        <div className="mt-4 space-y-2">
+          {[0, 1].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-xl bg-muted/40" />
+          ))}
+        </div>
+      </Card>
+    );
+  }
+
+  const visible = (milestones as MilestoneRow[]).filter(
+    (m) => !hiddenIds.has(m._id),
+  );
+
+  async function submitCreate(name: string) {
+    try {
+      await create({ listId, name });
+      setCreating(false);
+    } catch (e) {
+      toast(errorMessage(e, "Couldn't add the milestone"), { kind: "error" });
+    }
+  }
+
+  function deleteMilestone(m: MilestoneRow) {
+    const unhide = () =>
+      setHiddenIds((prev) => {
+        const next = new Set(prev);
+        next.delete(m._id);
+        return next;
+      });
+    setHiddenIds((prev) => new Set(prev).add(m._id));
+    toast(
+      m.total > 0
+        ? `${m.name} deleted — its ${m.total} task${m.total === 1 ? "" : "s"} stay put`
+        : `${m.name} deleted`,
+      {
+        action: { label: "Undo", onClick: unhide },
+        onExpire: () =>
+          void remove({ milestoneId: m._id }).catch((e) => {
+            // Failed commit: un-hide so the still-existing row reappears.
+            unhide();
+            toast(errorMessage(e, "Couldn't delete the milestone"), {
+              kind: "error",
+            });
+          }),
+      },
+    );
+  }
+
+  return (
+    <Card className="rounded-2xl p-5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          Milestones
+        </span>
+        {!creating && (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="tap-target text-xs text-muted-foreground hover:text-foreground"
+          >
+            Add milestone
+          </button>
+        )}
+      </div>
+
+      {visible.length === 0 && !creating ? (
+        <EmptyState
+          compact
+          title="No checkpoints yet"
+          message="Milestones are the dated checkpoints inside this project — a beta cut, a design freeze. Link tasks to one and its progress tracks itself."
+          action={
+            <Button variant="outline" size="sm" onClick={() => setCreating(true)}>
+              Add milestone
+            </Button>
+          }
+        />
+      ) : (
+        <Stagger className="mt-4 space-y-2">
+          {visible.map((m) => (
+            <StaggerItem key={m._id}>
+              <MilestoneRowCard milestone={m} onDelete={() => deleteMilestone(m)} />
+            </StaggerItem>
+          ))}
+        </Stagger>
+      )}
+
+      {creating && (
+        <InlineCreate
+          className="mt-3"
+          placeholder="Milestone name…"
+          onCancel={() => setCreating(false)}
+          onSubmit={submitCreate}
+        />
+      )}
+    </Card>
+  );
+}
+
+type MilestonePatch = {
+  name?: string;
+  description?: string | null;
+  targetDate?: number | null;
+  status?: "open" | "complete";
+};
+
+function MilestoneRowCard({
+  milestone,
+  onDelete,
+}: {
+  milestone: MilestoneRow;
+  onDelete: () => void;
+}) {
+  const update = useMutation(api.milestones.update);
+  const { toast } = useToast();
+  const [renaming, setRenaming] = useState(false);
+
+  const done = milestone.status === "complete";
+  const pct =
+    milestone.total > 0 ? (milestone.done / milestone.total) * 100 : done ? 100 : 0;
+  const overdue =
+    !done &&
+    milestone.targetDate !== undefined &&
+    milestone.targetDate < Date.now();
+
+  async function save(patch: MilestonePatch, failure: string) {
+    try {
+      await update({ milestoneId: milestone._id, ...patch });
+      toast("Saved");
+    } catch (e) {
+      toast(errorMessage(e, failure), { kind: "error" });
+    }
+  }
+
+  return (
+    <div className="bento-tile p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          {renaming ? (
+            <InlineCreate
+              placeholder="Milestone name…"
+              initialValue={milestone.name}
+              onCancel={() => setRenaming(false)}
+              onSubmit={async (name) => {
+                await save({ name }, "Couldn't rename the milestone");
+                setRenaming(false);
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setRenaming(true)}
+              title="Rename"
+              className={cn(
+                "block max-w-full truncate text-left text-sm font-medium hover:underline",
+                done && "text-muted-foreground line-through",
+              )}
+            >
+              {milestone.name}
+            </button>
+          )}
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {done && milestone.completedAt !== undefined
+              ? `Reached ${timeAgo(milestone.completedAt)}`
+              : milestone.total === 0
+                ? "No tasks linked yet"
+                : `${milestone.done} of ${milestone.total} task${
+                    milestone.total === 1 ? "" : "s"
+                  } done`}
+            {overdue && " · past its target date"}
+          </p>
+        </div>
+
+        <div className="flex flex-shrink-0 items-center gap-1.5">
+          <button
+            type="button"
+            aria-pressed={done}
+            onClick={() =>
+              void save(
+                { status: done ? "open" : "complete" },
+                "Couldn't update the milestone",
+              )
+            }
+            className={cn(
+              "rounded-full px-2.5 py-1 text-xs font-medium text-foreground transition-opacity",
+              done
+                ? "bg-pastel-green dark:text-neutral-900"
+                : overdue
+                  ? "bg-pastel-red dark:text-neutral-900"
+                  : "bg-muted",
+            )}
+          >
+            {done ? "Complete" : overdue ? "Overdue" : "Open"}
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="tap-target text-xs text-muted-foreground hover:text-foreground"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <AnimatedBar
+        pct={pct}
+        className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted"
+        barClassName={cn(
+          "h-full rounded-full",
+          done ? "bg-pastel-green" : "bg-brand-600",
+        )}
+      />
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <input
+          type="date"
+          aria-label={`Target date for ${milestone.name}`}
+          value={
+            milestone.targetDate ? toDateInputValue(milestone.targetDate) : ""
+          }
+          onChange={(e) =>
+            void save(
+              {
+                targetDate:
+                  fromDateInputValue(e.currentTarget.value) ?? null,
+              },
+              "Couldn't save the target date",
+            )
+          }
+          className="soft-field min-w-0 px-2 py-1 text-xs"
+        />
+        {milestone.targetDate !== undefined && (
+          <button
+            type="button"
+            onClick={() =>
+              void save({ targetDate: null }, "Couldn't clear the target date")
+            }
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            Clear date
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

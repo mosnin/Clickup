@@ -32,9 +32,17 @@ export const EVENT_LABEL: Record<string, string> = {
   "roadmap.phase_added": "added a phase to",
   "roadmap.phase_updated": "updated a phase of",
   "roadmap.phase_removed": "removed a phase from",
+  "milestone.created": "added milestone",
+  "milestone.updated": "updated milestone",
+  "milestone.completed": "reached milestone",
+  "milestone.deleted": "deleted milestone",
   "list.renamed": "renamed project",
   "list.updated": "updated project",
   "list.deleted": "deleted project",
+  "list.moved": "moved project",
+  "folder.created": "created folder",
+  "folder.renamed": "renamed folder",
+  "folder.deleted": "deleted folder",
 };
 
 export function eventLabel(type: string): string {
@@ -75,8 +83,19 @@ export function eventHref(e: {
   if (e.entityType === "roadmap" && e.scopeType === "workspace") {
     return `/dashboard/w/${e.scopeId}?tab=roadmap`;
   }
+  // A milestone has no page of its own — it lives on its project's
+  // Overview, which is still the right landing spot after a delete.
+  if (e.entityType === "milestone" && e.listId) {
+    return `/dashboard/l/${e.listId}?view=overview`;
+  }
   if (e.entityType === "list" && e.type !== "list.deleted") {
     return `/dashboard/l/${e.entityId}`;
+  }
+  // A folder has no page of its own — it lives inside its Space, and a
+  // deleted folder's Space is still the right place to land.
+  if (e.entityType === "folder") {
+    const p = (e.payload ?? {}) as { spaceId?: string };
+    return p.spaceId ? `/dashboard/s/${p.spaceId}` : null;
   }
   return null;
 }

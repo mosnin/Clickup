@@ -26,11 +26,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
+import { identityFill } from "@/lib/identity-color";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { parseQuickAdd } from "@/lib/quick-add";
 import { QuickAddChips } from "@/components/dashboard/quick-add-chips";
 import { EASE, motion } from "@/components/motion";
 import { useToast } from "@/components/toast";
+import {
+  BUILTIN_FIELDS,
+  DEFAULT_BUILTIN_FIELDS,
+  DEFAULT_VIEW_SETTINGS,
+  isBuiltinFieldKey,
+  type ViewSettings,
+} from "@/lib/view-settings";
 
 // Dense spreadsheet-style TABLE view — the power-user surface. Every cell is
 // directly editable in place; the header row sorts client-side. This mirrors
@@ -38,10 +47,39 @@ import { useToast } from "@/components/toast";
 // toggleComplete + inline soft-field editors) but trades ListView's mobile
 // affordances for maximum information density.
 //
+// Columns come from the same Customize-view contract ListView reads
+// (src/lib/view-settings.ts): the list page resolves `visibleFields` with
+// resolveVisibleFields() and this view renders exactly those keys, in that
+// order — so turning a column off in the panel turns it off in both views.
+// `settings.wrapText` is honored the same way too.
+//
 // Renders on the vendored Square shell's Table/Card primitives (Phase H);
 // the sort/edit logic underneath is unchanged.
 
-type SortKey = "title" | "status" | "priority" | "start" | "due" | "points";
+type SortKey = "title" | "status" | "priority" | "due" | "points";
+
+// The visible-field keys that can also be sorted on. Assignees and custom
+// fields render a plain header — there's no single stable ordering for them.
+const SORTABLE: Record<string, SortKey> = {
+  status: "status",
+  priority: "priority",
+  due: "due",
+  points: "points",
+};
+
+// Per-column widths, so a table with a custom field set still lays out
+// predictably instead of collapsing to content width.
+const COLUMN_WIDTH: Record<string, string> = {
+  status: "min-w-[140px]",
+  priority: "min-w-[120px]",
+  assignees: "min-w-[160px]",
+  due: "min-w-[120px]",
+  points: "min-w-[90px]",
+};
+
+function columnWidth(key: string): string {
+  return COLUMN_WIDTH[key] ?? "min-w-[140px]";
+}
 
 // Vendored TableRow's own class string, applied by hand to the body rows
 // because those rows are `motion.tr` (framer-motion needs the real DOM
@@ -54,14 +92,34 @@ export function TableView({
   tasks,
   statuses,
   fields,
+  settings = DEFAULT_VIEW_SETTINGS,
+  visibleFields,
 }: {
   listId: Id<"lists">;
   tasks: Doc<"tasks">[];
   statuses: Doc<"listStatuses">[];
   fields: Doc<"customFields">[];
+  /** Customize-view settings (currently: wrapText). */
+  settings?: ViewSettings;
+  /** Ordered visible field keys — resolved by the list page. */
+  visibleFields?: string[];
 }) {
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const columns = useMemo(
+    () =>
+      (visibleFields ?? [...DEFAULT_BUILTIN_FIELDS]).map((key) => ({
+        key,
+        label: isBuiltinFieldKey(key)
+          ? (BUILTIN_FIELDS.find((f) => f.key === key)?.label ?? key)
+          : (fields.find((f) => f._id === key)?.name ?? "Field"),
+      })),
+    [visibleFields, fields],
+  );
+  // The two fixed columns every row carries: the completion toggle and the
+  // title. Everything after them is customizable.
+  const columnCount = columns.length + 2;
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -92,8 +150,6 @@ export function TableView({
             : -1;
           return idx === -1 ? Infinity : idx;
         }
-        case "start":
-          return t.startDate ?? Infinity;
         case "due":
           return t.dueDate ?? Infinity;
         case "points":
@@ -129,65 +185,40 @@ export function TableView({
                   onClick={toggleSort}
                   className="min-w-[220px]"
                 />
-                <SortHeader
-                  label="Status"
-                  sortKey="status"
-                  active={sortKey}
-                  dir={sortDir}
-                  onClick={toggleSort}
-                  className="min-w-[140px]"
-                />
-                <SortHeader
-                  label="Priority"
-                  sortKey="priority"
-                  active={sortKey}
-                  dir={sortDir}
-                  onClick={toggleSort}
-                  className="min-w-[120px]"
-                />
-                <TableHead scope="col" className="min-w-[160px] text-xs uppercase tracking-wider text-muted-foreground">
-                  Assignees
-                </TableHead>
-                <SortHeader
-                  label="Start"
-                  sortKey="start"
-                  active={sortKey}
-                  dir={sortDir}
-                  onClick={toggleSort}
-                  className="min-w-[120px]"
-                />
-                <SortHeader
-                  label="Due"
-                  sortKey="due"
-                  active={sortKey}
-                  dir={sortDir}
-                  onClick={toggleSort}
-                  className="min-w-[120px]"
-                />
-                <SortHeader
-                  label="Points"
-                  sortKey="points"
-                  active={sortKey}
-                  dir={sortDir}
-                  onClick={toggleSort}
-                  className="min-w-[90px] text-right"
-                />
-                {fields.map((f) => (
-                  <TableHead
-                    scope="col"
-                    key={f._id}
-                    className="min-w-[140px] text-xs uppercase tracking-wider text-muted-foreground"
-                  >
-                    {f.name}
-                  </TableHead>
-                ))}
+                {columns.map((c) =>
+                  SORTABLE[c.key] ? (
+                    <SortHeader
+                      key={c.key}
+                      label={c.label}
+                      sortKey={SORTABLE[c.key]}
+                      active={sortKey}
+                      dir={sortDir}
+                      onClick={toggleSort}
+                      className={cn(
+                        columnWidth(c.key),
+                        c.key === "points" && "text-right",
+                      )}
+                    />
+                  ) : (
+                    <TableHead
+                      scope="col"
+                      key={c.key}
+                      className={cn(
+                        columnWidth(c.key),
+                        "text-xs uppercase tracking-wider text-muted-foreground",
+                      )}
+                    >
+                      {c.label}
+                    </TableHead>
+                  ),
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
               {sorted.length === 0 && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell
-                    colSpan={8 + fields.length}
+                    colSpan={columnCount}
                     className="whitespace-normal py-14 text-center text-sm text-muted-foreground"
                   >
                     Nothing here yet. Add the first task below.
@@ -201,6 +232,8 @@ export function TableView({
                   listId={listId}
                   statuses={statuses}
                   fields={fields}
+                  columns={columns}
+                  wrap={settings.wrapText}
                   index={i}
                 />
               ))}
@@ -319,12 +352,16 @@ function TableRowContent({
   listId,
   statuses,
   fields,
+  columns,
+  wrap,
   index,
 }: {
   task: Doc<"tasks">;
   listId: Id<"lists">;
   statuses: Doc<"listStatuses">[];
   fields: Doc<"customFields">[];
+  columns: { key: string; label: string }[];
+  wrap: boolean;
   index: number;
 }) {
   const update = useMutation(api.tasks.update);
@@ -352,16 +389,32 @@ function TableRowContent({
   const setValue = useMutation(api.taskFieldValues.set);
   const clearValue = useMutation(api.taskFieldValues.clear);
   const assignable = useQuery(api.agents.listAssignableForList, { listId });
+  const currentUser = useQuery(api.users.current, {});
   const { toast } = useToast();
 
   const values = useQuery(api.taskFieldValues.listForTask, {
     taskId: task._id,
   });
+  // Rollup/formula results and vote counts are derived per read; only
+  // fetched when the list actually defines one of those types.
+  const computed = useQuery(
+    api.taskFieldValues.computedForTask,
+    fields.some(
+      (f) => f.type === "rollup" || f.type === "formula" || f.type === "voting",
+    )
+      ? { taskId: task._id }
+      : "skip",
+  );
   const valuesByField = useMemo(() => {
     const map = new Map<string, Doc<"taskFieldValues">>();
     for (const v of values ?? []) map.set(v.fieldId, v);
     return map;
   }, [values]);
+  const computedByField = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (const c of computed ?? []) map.set(c.fieldId, c.value);
+    return map;
+  }, [computed]);
 
   const status = statuses.find((s) => s._id === task.statusId);
   const isDone =
@@ -371,6 +424,127 @@ function TableRowContent({
     () => new Map((assignable ?? []).map((a) => [a.id, a])),
     [assignable],
   );
+
+  // One cell per visible field key, in the order the Customize panel asked
+  // for. Same key vocabulary ListView renders, same editors Table always had.
+  function renderCell(key: string) {
+    if (key === "status") {
+      return (
+        <select
+          aria-label="Status"
+          value={task.statusId}
+          onChange={async (e) => {
+            const nextStatusId = e.currentTarget.value as Id<"listStatuses">;
+            try {
+              await update({ taskId: task._id, statusId: nextStatusId });
+            } catch (err) {
+              toast(errorMessage(err, "Couldn't update status"), {
+                kind: "error",
+              });
+            }
+          }}
+          className="soft-field px-2 py-1 text-xs"
+          style={{
+            backgroundColor: status ? `${status.color}33` : undefined,
+          }}
+        >
+          {statuses.map((s) => (
+            <option key={s._id} value={s._id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    if (key === "priority") {
+      return (
+        <select
+          aria-label="Priority"
+          value={task.priority ?? ""}
+          onChange={(e) => {
+            const value = e.currentTarget.value;
+            // Explicit null clears the priority — undefined would be
+            // dropped from the wire and the clear silently ignored.
+            update({
+              taskId: task._id,
+              priority: (value || null) as TaskPriority | null,
+            });
+          }}
+          className="soft-field px-2 py-1 text-xs"
+        >
+          <option value="">None</option>
+          {PRIORITY_ORDER.map((p) => (
+            <option key={p} value={p}>
+              {PRIORITY_LABEL[p]}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    if (key === "assignees") {
+      return <AssigneeStack ids={task.assigneeClerkIds} byId={byId} />;
+    }
+    if (key === "start") {
+      return (
+        <input
+          type="date"
+          aria-label="Start date"
+          value={task.startDate ? toDateInputValue(task.startDate) : ""}
+          onChange={(e) =>
+            update({
+              taskId: task._id,
+              startDate: fromDateInputValue(e.currentTarget.value) ?? null,
+            })
+          }
+          className="soft-field px-2 py-1 text-xs"
+        />
+      );
+    }
+    if (key === "due") {
+      return (
+        <input
+          type="date"
+          aria-label="Due date"
+          value={task.dueDate ? toDateInputValue(task.dueDate) : ""}
+          onChange={(e) =>
+            update({
+              taskId: task._id,
+              dueDate: fromDateInputValue(e.currentTarget.value) ?? null,
+            })
+          }
+          className="soft-field px-2 py-1 text-xs"
+        />
+      );
+    }
+    if (key === "points") {
+      return <PointsCell task={task} />;
+    }
+    const field = fields.find((f) => f._id === key);
+    if (!field) return null;
+    return (
+      <CustomFieldInput
+        field={field}
+        value={valuesByField.get(field._id)}
+        taskId={task._id}
+        computed={computedByField.get(field._id)}
+        currentActorId={currentUser?.clerkId}
+        onCommit={(value) => {
+          // Every write is validated server-side; a refusal carries a
+          // message the user can act on, so surface it rather than
+          // dropping the rejection on the floor.
+          const op =
+            value === null
+              ? clearValue({ taskId: task._id, fieldId: field._id })
+              : setValue({ taskId: task._id, fieldId: field._id, ...value });
+          op.catch((e) =>
+            toast(errorMessage(e, "Couldn't update that field"), {
+              kind: "error",
+            }),
+          );
+        }}
+      />
+    );
+  }
 
   return (
     <motion.tr
@@ -426,109 +600,18 @@ function TableRowContent({
           </motion.svg>
         </motion.button>
       </TableCell>
-      <TableCell>
-        <TitleCell task={task} isDone={isDone} />
+      <TableCell className={cn("min-w-0", wrap && "whitespace-normal")}>
+        <TitleCell task={task} isDone={isDone} wrap={wrap} />
       </TableCell>
-      <TableCell>
-        <select
-          aria-label="Status"
-          value={task.statusId}
-          onChange={async (e) => {
-            const nextStatusId = e.currentTarget.value as Id<"listStatuses">;
-            try {
-              await update({ taskId: task._id, statusId: nextStatusId });
-            } catch (err) {
-              const raw = err instanceof Error ? err.message : String(err);
-              const msg = raw
-                .split("Uncaught Error:")
-                .pop()
-                ?.split("\n")[0]
-                ?.trim();
-              toast(msg || "Couldn't update status", { kind: "error" });
-            }
-          }}
-          className="soft-field px-2 py-1 text-xs"
-          style={{
-            backgroundColor: status ? `${status.color}33` : undefined,
-          }}
+      {columns.map((c) => (
+        <TableCell
+          key={c.key}
+          className={cn(
+            wrap && "whitespace-normal",
+            c.key === "points" && "text-right",
+          )}
         >
-          {statuses.map((s) => (
-            <option key={s._id} value={s._id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      </TableCell>
-      <TableCell>
-        <select
-          aria-label="Priority"
-          value={task.priority ?? ""}
-          onChange={(e) => {
-            const value = e.currentTarget.value;
-            // Explicit null clears the priority — undefined would be
-            // dropped from the wire and the clear silently ignored.
-            update({
-              taskId: task._id,
-              priority: (value || null) as TaskPriority | null,
-            });
-          }}
-          className="soft-field px-2 py-1 text-xs"
-        >
-          <option value="">None</option>
-          {PRIORITY_ORDER.map((p) => (
-            <option key={p} value={p}>
-              {PRIORITY_LABEL[p]}
-            </option>
-          ))}
-        </select>
-      </TableCell>
-      <TableCell>
-        <AssigneeStack ids={task.assigneeClerkIds} byId={byId} />
-      </TableCell>
-      <TableCell>
-        <input
-          type="date"
-          aria-label="Start date"
-          value={task.startDate ? toDateInputValue(task.startDate) : ""}
-          onChange={(e) =>
-            update({
-              taskId: task._id,
-              startDate: fromDateInputValue(e.currentTarget.value) ?? null,
-            })
-          }
-          className="soft-field px-2 py-1 text-xs"
-        />
-      </TableCell>
-      <TableCell>
-        <input
-          type="date"
-          aria-label="Due date"
-          value={task.dueDate ? toDateInputValue(task.dueDate) : ""}
-          onChange={(e) =>
-            update({
-              taskId: task._id,
-              dueDate: fromDateInputValue(e.currentTarget.value) ?? null,
-            })
-          }
-          className="soft-field px-2 py-1 text-xs"
-        />
-      </TableCell>
-      <TableCell className="text-right">
-        <PointsCell task={task} />
-      </TableCell>
-      {fields.map((f) => (
-        <TableCell key={f._id}>
-          <CustomFieldInput
-            field={f}
-            value={valuesByField.get(f._id)}
-            onCommit={(value) => {
-              if (value === null) {
-                clearValue({ taskId: task._id, fieldId: f._id });
-              } else {
-                setValue({ taskId: task._id, fieldId: f._id, ...value });
-              }
-            }}
-          />
+          {renderCell(c.key)}
         </TableCell>
       ))}
     </motion.tr>
@@ -540,7 +623,15 @@ function TableRowContent({
 // double-click) can cancel the navigation and enter edit mode instead —
 // otherwise the first click of any double-click would already have
 // navigated away before the dblclick event fires.
-function TitleCell({ task, isDone }: { task: Doc<"tasks">; isDone: boolean }) {
+function TitleCell({
+  task,
+  isDone,
+  wrap,
+}: {
+  task: Doc<"tasks">;
+  isDone: boolean;
+  wrap: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const update = useMutation(api.tasks.update);
@@ -587,7 +678,12 @@ function TitleCell({ task, isDone }: { task: Doc<"tasks">; isDone: boolean }) {
   }
 
   return (
-    <span className="flex items-center">
+    <span
+      className={cn(
+        "flex min-w-0",
+        wrap ? "flex-wrap items-start" : "items-center",
+      )}
+    >
       {task.milestone && (
         <span
           aria-hidden
@@ -616,7 +712,8 @@ function TitleCell({ task, isDone }: { task: Doc<"tasks">; isDone: boolean }) {
           setEditing(true);
         }}
         className={cn(
-          "cursor-pointer truncate hover:underline",
+          "min-w-0 cursor-pointer hover:underline",
+          wrap ? "break-words" : "truncate",
           isDone && "text-muted-foreground line-through",
         )}
       >
@@ -710,8 +807,9 @@ function AssigneeStack({
           <span
             key={id}
             title={person ? `${name}${person.kind === "agent" ? " (agent)" : ""}` : name}
+            style={identityFill(id)}
             className={cn(
-              "inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-[10px] font-medium text-white ring-2 ring-background",
+              "inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-white ring-2 ring-background",
               i > 0 && "-ml-2",
             )}
           >

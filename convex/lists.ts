@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import {
   canAccessSpace,
+  getSpaceForList,
   requireFolderAccess,
   requireListAccess,
   requireSpaceAccess,
@@ -11,6 +12,7 @@ import {
 import type { Actor } from "./_agentAuth";
 import { emitEvent, scopeForList, userActor } from "./events";
 import { seedDefaultStatuses } from "./listStatuses";
+import { deleteMilestonesForList } from "./milestones";
 import { cleanupTaskArtifacts } from "./tasks";
 
 const parentTypeValidator = v.union(
@@ -98,7 +100,10 @@ export const create = mutation({
 
     const listId = await ctx.db.insert("lists", {
       ...args,
-      position: siblings.length,
+      // Append after the highest existing position, not `siblings.length`
+      // — a list moved out of this parent (or deleted from it) leaves a
+      // gap, and the row count would then collide with a live sibling.
+      position: siblings.reduce((max, l) => Math.max(max, l.position + 1), 0),
       createdAt: Date.now(),
     });
 
@@ -213,6 +218,85 @@ export async function updateListMetaCore(
   }
 }
 
+// Move a list between grouping parents inside ONE space: space → folder,
+// folder → space, folder → sibling folder. Crossing a space boundary is
+// refused — a space is an access/visibility boundary (private spaces,
+// per-space members, per-space default statuses), so "moving" a list
+// across one would silently change who can see its tasks.
+export async function moveListCore(
+  ctx: MutationCtx,
+  list: Doc<"lists">,
+  dest: { parentType: "space" | "folder"; parentId: string },
+  actor: Actor,
+): Promise<void> {
+  if (list.parentType === dest.parentType && list.parentId === dest.parentId) {
+    return; // already there — no event, no position churn
+  }
+
+  const currentSpace = await getSpaceForList(ctx, list);
+  if (!currentSpace) throw new ConvexError("Orphan list");
+
+  let destFolder: Doc<"folders"> | null = null;
+  let destSpaceId: Id<"spaces">;
+  if (dest.parentType === "space") {
+    destSpaceId = dest.parentId as Id<"spaces">;
+  } else {
+    destFolder = await ctx.db.get(dest.parentId as Id<"folders">);
+    if (!destFolder) throw new ConvexError("Folder not found");
+    destSpaceId = destFolder.spaceId;
+  }
+  if (destSpaceId !== currentSpace._id) {
+    throw new ConvexError("Pick a folder in this Space");
+  }
+
+  // Land at the end of the destination so the move never displaces
+  // anything already ordered there.
+  const siblings = await ctx.db
+    .query("lists")
+    .withIndex("by_parent", (q) =>
+      q.eq("parentType", dest.parentType).eq("parentId", dest.parentId),
+    )
+    .collect();
+  const position = siblings.reduce(
+    (max, l) => Math.max(max, l.position + 1),
+    0,
+  );
+
+  const fromFolder =
+    list.parentType === "folder"
+      ? await ctx.db.get(list.parentId as Id<"folders">)
+      : null;
+
+  await ctx.db.patch(list._id, {
+    parentType: dest.parentType,
+    parentId: dest.parentId,
+    position,
+  });
+
+  const scope = {
+    scopeType: currentSpace.parentType,
+    scopeId: currentSpace.parentId,
+  };
+  await emitEvent(ctx, {
+    ...scope,
+    type: "list.moved",
+    actor,
+    entityType: "list",
+    entityId: list._id,
+    entityTitle: list.name,
+    listId: list._id,
+    payload: {
+      spaceId: currentSpace._id,
+      fromType: list.parentType,
+      fromId: list.parentId,
+      from: fromFolder ? fromFolder.name : currentSpace.name,
+      toType: dest.parentType,
+      toId: dest.parentId,
+      to: destFolder ? destFolder.name : currentSpace.name,
+    },
+  });
+}
+
 export async function reorderListsCore(
   ctx: MutationCtx,
   parentType: "space" | "folder",
@@ -229,6 +313,33 @@ export async function reorderListsCore(
     }
   }
 }
+
+// Move a list into a folder, or back out to the space. Both ends are
+// access-checked independently: the caller must be able to reach the list
+// AND the destination, and moveListCore additionally refuses any
+// destination outside the list's current space.
+export const move = mutation({
+  args: {
+    listId: v.id("lists"),
+    parentType: parentTypeValidator,
+    parentId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { list, identity } = await requireListAccess(ctx, args.listId);
+    if (args.parentType === "space") {
+      await requireSpaceAccess(ctx, args.parentId as Id<"spaces">);
+    } else {
+      await requireFolderAccess(ctx, args.parentId as Id<"folders">);
+    }
+    const actor = await userActor(ctx, identity.subject);
+    await moveListCore(
+      ctx,
+      list,
+      { parentType: args.parentType, parentId: args.parentId },
+      actor,
+    );
+  },
+});
 
 export const rename = mutation({
   args: { listId: v.id("lists"), name: v.string() },
@@ -407,7 +518,7 @@ export async function removeListCore(
 
     // Cascade everything that hangs off this list: tasks (with their
     // comments/mentions/time entries/clips/field values), statuses,
-    // custom fields, automations, and recurring schedules.
+    // custom fields, automations, recurring schedules, and milestones.
     const tasks = await ctx.db
       .query("tasks")
       .withIndex("by_list", (q) => q.eq("listId", list._id))
@@ -440,6 +551,10 @@ export async function removeListCore(
       .withIndex("by_list", (q) => q.eq("listId", list._id))
       .collect();
     for (const st of schedules) await ctx.db.delete(st._id);
+
+    // Milestones belong to exactly this project — the tasks that pointed at
+    // them are already gone above, so there's nothing left to unlink.
+    await deleteMilestonesForList(ctx, list._id);
 
     const rollup = await ctx.db
       .query("listRollups")

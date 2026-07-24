@@ -26,6 +26,10 @@ import { TaskPeekPortal } from "@/components/dashboard/task-peek";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { Picker } from "@/components/ui/picker";
 import { useToast } from "@/components/toast";
+import { ViewCustomizePanel } from "@/components/dashboard/view-customize-panel";
+import { useViewSettings } from "@/lib/use-view-settings";
+import { useListPath } from "@/lib/use-list-path";
+import { resolveVisibleFields } from "@/lib/view-settings";
 import { useListScope } from "./use-list-scope";
 
 // Quick filters, persisted in the URL (?f=mine,active,blocked&pri=high) so
@@ -85,6 +89,11 @@ export function ListPage({
   const { user } = useUser();
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  // View customization (Customize view panel): display toggles, visible
+  // fields, grouping and subtask handling. Lives in the URL first (so a
+  // copied link reproduces the view) with a per-list localStorage fallback.
+  const { settings, update, reset, customized } = useViewSettings(listId);
+  const listPath = useListPath(id);
 
   // Without an explicit ?view= the list's configured default view wins.
   // Fallback only — the URL is never rewritten on load.
@@ -135,6 +144,35 @@ export function ListPage({
     .filter((t) => !t.parentTaskId)
     .sort((a, b) => a.position - b.position);
 
+  // "Flat" subtasks promote every subtask to a row of its own; the nested
+  // modes keep them under their parent (List view expands them in place).
+  // "Show closed tasks" is the coarser cut — it drops anything sitting in a
+  // closed-category status before the quick filters ever run.
+  const closedStatusIds = new Set(
+    statuses.filter((s) => s.category === "closed").map((s) => s._id),
+  );
+  const candidates = (
+    settings.subtasks === "flat"
+      ? [...tasks].sort((a, b) => a.position - b.position)
+      : allTop
+  ).filter((t) => settings.showClosed || !closedStatusIds.has(t.statusId));
+
+  // Parent titles for the "show subtask parent names" chip. Resolved from
+  // the full task set so a subtask still names its parent when the parent
+  // itself is filtered out of view.
+  const parentTitles = new Map<string, string>(
+    tasks.map((t) => [t._id as string, t.title]),
+  );
+
+  const locationLabel = settings.showLocation
+    ? [...(listPath ?? []), list.name].join(" › ")
+    : undefined;
+
+  const visibleFields = resolveVisibleFields(
+    settings,
+    fields.map((f) => f._id as string),
+  );
+
   const doneStatusIds = new Set(
     statuses
       .filter((s) => s.category === "complete" || s.category === "closed")
@@ -150,7 +188,7 @@ export function ListPage({
     tasks.filter((t) => !doneStatusIds.has(t.statusId)).map((t) => t._id),
   );
   const topLevelTasks = applyFilters(
-    allTop,
+    candidates,
     activeFlags,
     priorityFilter,
     doneStatusIds,
@@ -160,7 +198,8 @@ export function ListPage({
   );
   // Only claim "filtered" (and show the narrower count) on views that
   // actually apply these filters — Overview/Network always render allTop.
-  const filtered = filtersApply && topLevelTasks.length !== allTop.length;
+  const total = filtersApply ? candidates.length : allTop.length;
+  const filtered = filtersApply && topLevelTasks.length !== total;
 
   return (
     <div className="space-y-6">
@@ -182,8 +221,8 @@ export function ListPage({
             )}
             <span className="flex-shrink-0">
               {filtered
-                ? `${topLevelTasks.length} of ${allTop.length} task${allTop.length === 1 ? "" : "s"}`
-                : `${allTop.length} task${allTop.length === 1 ? "" : "s"}`}
+                ? `${topLevelTasks.length} of ${total} task${total === 1 ? "" : "s"}`
+                : `${total} task${total === 1 ? "" : "s"}`}
             </span>
             {list.description && (
               <span className="truncate" title={list.description}>
@@ -239,6 +278,16 @@ export function ListPage({
         <div className="flex flex-col gap-2 pt-1 pb-3">
           <ViewTabs listId={list._id} active={view} defaultView={defaultView} />
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <ViewCustomizePanel
+              listId={list._id}
+              view={view}
+              defaultView={list.defaultView}
+              settings={settings}
+              update={update}
+              reset={reset}
+              customized={customized}
+              customFields={fields}
+            />
             <SavedViewsBar
               listId={list._id}
               view={view}
@@ -268,6 +317,10 @@ export function ListPage({
           statuses={statuses}
           fields={fields}
           filtered={filtered}
+          settings={settings}
+          visibleFields={visibleFields}
+          parentTitles={parentTitles}
+          locationLabel={locationLabel}
         />
       )}
       {view === "board" && (
@@ -275,6 +328,9 @@ export function ListPage({
           listId={list._id}
           tasks={topLevelTasks}
           statuses={statuses}
+          settings={settings}
+          parentTitles={parentTitles}
+          locationLabel={locationLabel}
         />
       )}
       {view === "calendar" && (
@@ -296,6 +352,8 @@ export function ListPage({
           tasks={topLevelTasks}
           statuses={statuses}
           fields={fields}
+          settings={settings}
+          visibleFields={visibleFields}
         />
       )}
       {view === "workload" && (

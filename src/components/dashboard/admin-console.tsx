@@ -40,8 +40,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { Monogram } from "@/components/dashboard/monogram";
+import { Orb } from "@/components/dashboard/orb";
 import { cn } from "@/lib/utils";
+import { identityFill } from "@/lib/identity-color";
 import { timeAgo } from "@/lib/time";
 import { useToast } from "@/components/toast";
 import {
@@ -421,7 +422,7 @@ function AgentsTab({ isSuper }: { isSuper: boolean }) {
             <TableRow key={a._id}>
               <TableCell className="whitespace-normal">
                 <div className="flex items-center gap-3">
-                  <Monogram name={a.name} />
+                  <Orb seed={a._id} label={a.name} size="sm" />
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-1.5 truncate text-sm font-medium">
                       {a.name}
@@ -1112,7 +1113,10 @@ function Avatar({ name, img }: { name: string; img?: string }) {
     );
   }
   return (
-    <span className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-medium text-white">
+    <span
+      style={identityFill(name)}
+      className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-medium text-white"
+    >
       {(Array.from(name.trim())[0] ?? "?").toUpperCase()}
     </span>
   );

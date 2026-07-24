@@ -7,10 +7,13 @@ import { useMutation, useQuery } from "convex/react";
 import {
   Boxes,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   FileText,
+  FolderInput,
   LayoutGrid,
   Lock,
+  MoreHorizontal,
   Plus,
   X,
 } from "lucide-react";
@@ -28,10 +31,17 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { Monogram } from "@/components/dashboard/monogram";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { Picker } from "@/components/ui/picker";
+import { Picker, type PickerOption } from "@/components/ui/picker";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
+import { useFolderExpanded } from "@/lib/folder-collapse";
 
 // The Space page: a ClickUp-style Space now has identity (name/color/
 // description), privacy (creator/owner-governed membership), an archive
@@ -113,6 +123,7 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
 
   const { space, lists, folders, docs, whiteboards, members, canGovern } =
     overview;
+  const spaceName = space.name;
   const showWhiteboards = space.features?.whiteboards !== false;
 
   return (
@@ -173,6 +184,7 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
       {tab === "overview" ? (
         <OverviewTab
           spaceId={id}
+          spaceName={spaceName}
           lists={lists}
           folders={folders}
           docs={docs}
@@ -195,6 +207,7 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
 
 function OverviewTab({
   spaceId,
+  spaceName,
   lists,
   folders,
   docs,
@@ -202,6 +215,7 @@ function OverviewTab({
   showWhiteboards,
 }: {
   spaceId: Id<"spaces">;
+  spaceName: string;
   lists: Overview["lists"];
   folders: Overview["folders"];
   docs: Overview["docs"];
@@ -212,29 +226,44 @@ function OverviewTab({
     () => new Map(lists.map((l) => [l.listId as string, l])),
     [lists],
   );
+  // Destination catalogue for "move a project", shared by every card on
+  // the page: the Space itself plus each of its folders. The row filters
+  // out wherever the project already lives.
+  const dest = useMemo(
+    () => ({ spaceId, spaceName, folders }),
+    [spaceId, spaceName, folders],
+  );
 
   return (
     <div className="space-y-6">
+      {/* Ordering rule (mirrored in the sidebar tree): folders first, then
+          the Space's own projects — each by position, createdAt tiebreak,
+          sorted server-side. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <NewFolderControl spaceId={spaceId} />
+      </div>
+
+      {folders.map((f) => (
+        <FolderSection
+          key={f.folderId}
+          folder={f}
+          spaceName={spaceName}
+          hasLists={lists.some((l) => l.folderId === f.folderId)}
+          rollupsById={rollupsById}
+          fallback={lists.filter((l) => l.folderId === f.folderId)}
+          dest={dest}
+        />
+      ))}
+
       <ProjectSection
         title="Projects"
         parentType="space"
         parentId={spaceId}
         rollupsById={rollupsById}
         fallback={lists.filter((l) => l.folderId === null)}
+        dest={dest}
+        emptyMessage={`Projects created straight in ${spaceName} live here. Group them into a folder whenever it helps.`}
       />
-
-      {folders.map((f) => (
-        <ProjectSection
-          key={f.folderId}
-          title={f.name}
-          kindLabel="Folder"
-          parentType="folder"
-          parentId={f.folderId}
-          rollupsById={rollupsById}
-          fallback={lists.filter((l) => l.folderId === f.folderId)}
-          hideFolderLine
-        />
-      ))}
 
       <section>
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -278,20 +307,23 @@ function OverviewTab({
 // override reverts and the server's reason surfaces as an error toast.
 function ProjectSection({
   title,
-  kindLabel,
   parentType,
   parentId,
   rollupsById,
   fallback,
   hideFolderLine,
+  dest,
+  emptyMessage,
 }: {
-  title: string;
-  kindLabel?: string;
+  /** Omit to let the caller (a folder header) own the heading. */
+  title?: string;
   parentType: "space" | "folder";
   parentId: string;
   rollupsById: Map<string, ListRollup>;
   fallback: ListRollup[];
   hideFolderLine?: boolean;
+  dest: MoveDest;
+  emptyMessage: string;
 }) {
   const raw = useQuery(api.lists.listForParent, { parentType, parentId });
   const reorder = useMutation(api.lists.reorder);
@@ -360,49 +392,258 @@ function ProjectSection({
 
   return (
     <section>
-      <h2 className="flex items-baseline gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        <span className="truncate">{title}</span>
-        {kindLabel && (
-          <span className="flex-shrink-0 text-[10px] font-medium text-muted-foreground/70">
-            {kindLabel}
-          </span>
-        )}
-      </h2>
-      <Stagger className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {rows.map((list, i) => (
-          <StaggerItem key={list.listId}>
-            <motion.div layout transition={SPRING} className="h-full">
-              <ProjectCard
-                list={list}
-                hideFolderLine={hideFolderLine}
-                reorder={
-                  orderedIds !== null
-                    ? {
-                        canUp: i > 0,
-                        canDown: i < rows.length - 1,
-                        onMove: (dir) => move(list.listId, dir),
-                      }
-                    : undefined
-                }
-              />
-            </motion.div>
+      {title && (
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="truncate">{title}</span>
+        </h2>
+      )}
+      {rows.length === 0 ? (
+        <div className="mt-3 rounded-2xl panel">
+          <EmptyState
+            compact
+            title="No projects yet"
+            message={emptyMessage}
+            action={
+              <NewListControl parentType={parentType} parentId={parentId} />
+            }
+          />
+        </div>
+      ) : (
+        <Stagger className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {rows.map((list, i) => (
+            <StaggerItem key={list.listId}>
+              <motion.div layout transition={SPRING} className="h-full">
+                <ProjectCard
+                  list={list}
+                  hideFolderLine={hideFolderLine}
+                  parent={{ type: parentType, id: parentId }}
+                  dest={dest}
+                  reorder={
+                    orderedIds !== null
+                      ? {
+                          canUp: i > 0,
+                          canDown: i < rows.length - 1,
+                          onMove: (dir) => move(list.listId, dir),
+                        }
+                      : undefined
+                  }
+                />
+              </motion.div>
+            </StaggerItem>
+          ))}
+          <StaggerItem>
+            <NewListCard parentType={parentType} parentId={parentId} />
           </StaggerItem>
-        ))}
-        <StaggerItem>
-          <NewListCard parentType={parentType} parentId={parentId} />
-        </StaggerItem>
-      </Stagger>
+        </Stagger>
+      )}
     </section>
+  );
+}
+
+// ── Folders ───────────────────────────────────────────────────────────────
+//
+// A folder is a sibling of the Space's own projects, not a different kind
+// of thing: same card grid inside, collapsible header outside, rename and
+// delete on the header's overflow menu. Deleting one keeps every project —
+// the server moves them up to the Space (convex/folders.ts).
+
+type MoveDest = {
+  spaceId: Id<"spaces">;
+  spaceName: string;
+  folders: Overview["folders"];
+};
+
+function moveOptions(
+  dest: MoveDest,
+  parent: { type: "space" | "folder"; id: string },
+): PickerOption[] {
+  const out: PickerOption[] = [];
+  if (parent.type !== "space") {
+    out.push({
+      id: `space:${dest.spaceId}`,
+      label: dest.spaceName,
+      hint: "space",
+    });
+  }
+  for (const f of dest.folders) {
+    if (parent.type === "folder" && parent.id === f.folderId) continue;
+    out.push({ id: `folder:${f.folderId}`, label: f.name, hint: "folder" });
+  }
+  return out;
+}
+
+function FolderSection({
+  folder,
+  spaceName,
+  hasLists,
+  rollupsById,
+  fallback,
+  dest,
+}: {
+  folder: Overview["folders"][number];
+  spaceName: string;
+  hasLists: boolean;
+  rollupsById: Map<string, ListRollup>;
+  fallback: ListRollup[];
+  dest: MoveDest;
+}) {
+  const [expanded, setExpanded] = useFolderExpanded(folder.folderId);
+  const [renaming, setRenaming] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const renameFolder = useMutation(api.folders.rename);
+  const removeFolder = useMutation(api.folders.remove);
+  const { toast } = useToast();
+
+  // Deferred delete: the section disappears immediately and the mutation
+  // only runs when the undo window closes.
+  if (hidden) return null;
+
+  return (
+    <section>
+      <div className="group/folder flex min-w-0 items-center gap-1.5">
+        <button
+          type="button"
+          aria-label={expanded ? `Collapse ${folder.name}` : `Expand ${folder.name}`}
+          aria-expanded={expanded}
+          onClick={() => setExpanded()}
+          className="tap-target -ml-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <ChevronRight
+            className={cn(
+              "h-3.5 w-3.5 transition-transform duration-200",
+              expanded && "rotate-90",
+            )}
+          />
+        </button>
+        {renaming ? (
+          <InlineCreate
+            placeholder="Folder name…"
+            initialValue={folder.name}
+            className="min-w-0 flex-1"
+            onCancel={() => setRenaming(false)}
+            onSubmit={async (name) => {
+              try {
+                await renameFolder({ folderId: folder.folderId, name });
+                setRenaming(false);
+              } catch (e) {
+                toast(errorMessage(e, "Couldn't rename folder"), {
+                  kind: "error",
+                });
+                setRenaming(false);
+              }
+            }}
+          />
+        ) : (
+          <>
+            <h2 className="min-w-0 truncate text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              {folder.name}
+            </h2>
+            <span className="flex-shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+              Folder
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={`Folder actions for ${folder.name}`}
+                  className="tap-target flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-100 transition-opacity hover:bg-muted hover:text-foreground sm:opacity-0 sm:group-focus-within/folder:opacity-100 sm:group-hover/folder:opacity-100 data-[state=open]:opacity-100"
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48">
+                <DropdownMenuItem onSelect={() => setRenaming(true)}>
+                  Rename folder
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setHidden(true);
+                    toast(
+                      hasLists
+                        ? `"${folder.name}" deleted — its projects moved to ${spaceName}`
+                        : `"${folder.name}" deleted`,
+                      {
+                        action: {
+                          label: "Undo",
+                          onClick: () => setHidden(false),
+                        },
+                        onExpire: () =>
+                          void removeFolder({ folderId: folder.folderId }),
+                      },
+                    );
+                  }}
+                >
+                  Delete folder
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        )}
+      </div>
+
+      {expanded && (
+        <div className="mt-1">
+          <ProjectSection
+            parentType="folder"
+            parentId={folder.folderId}
+            rollupsById={rollupsById}
+            fallback={fallback}
+            dest={dest}
+            hideFolderLine
+            emptyMessage={`Nothing in ${folder.name} yet. Add a project here, or move an existing one in from ${spaceName}.`}
+          />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function NewFolderControl({ spaceId }: { spaceId: Id<"spaces"> }) {
+  const [adding, setAdding] = useState(false);
+  const createFolder = useMutation(api.folders.create);
+  const { toast } = useToast();
+
+  if (adding) {
+    return (
+      <InlineCreate
+        placeholder="Folder name…"
+        className="w-full max-w-xs"
+        onCancel={() => setAdding(false)}
+        onSubmit={async (name) => {
+          try {
+            await createFolder({ spaceId, name });
+            setAdding(false);
+          } catch (e) {
+            toast(errorMessage(e, "Couldn't create folder"), { kind: "error" });
+            setAdding(false);
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setAdding(true)}
+      className="inline-flex min-h-9 items-center gap-1 rounded-full border border-dashed border-border px-3 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+    >
+      <Plus className="h-3.5 w-3.5" /> New folder
+    </button>
   );
 }
 
 function ProjectCard({
   list,
   hideFolderLine,
+  parent,
+  dest,
   reorder,
 }: {
   list: ListRollup;
   hideFolderLine?: boolean;
+  parent: { type: "space" | "folder"; id: string };
+  dest: MoveDest;
   reorder?: {
     canUp: boolean;
     canDown: boolean;
@@ -411,6 +652,19 @@ function ProjectCard({
 }) {
   const pct = list.total > 0 ? (list.done / list.total) * 100 : 0;
   const chip = list.projectStatus ? STATUS_CHIP[list.projectStatus] : null;
+  const [moving, setMoving] = useState(false);
+  const moveList = useMutation(api.lists.move);
+  const { toast } = useToast();
+  const options = moveOptions(dest, parent);
+
+  // The card is one big <Link>; every control inside it swallows the click
+  // (preventDefault + stopPropagation) so pressing a button never also
+  // navigates. The Picker's popover is portaled to <body>, so its own
+  // clicks never reach this subtree at all.
+  function swallow(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
 
   return (
     <Link
@@ -439,6 +693,20 @@ function ProjectCard({
           )}
           {reorder && (
             <span className="-my-1 -mr-2 flex items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
+              {options.length > 0 && (
+                <button
+                  type="button"
+                  aria-label={`Move ${list.name} to another folder`}
+                  title="Move to…"
+                  onClick={(e) => {
+                    swallow(e);
+                    setMoving((v) => !v);
+                  }}
+                  className="tap-target rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <FolderInput className="h-3.5 w-3.5" />
+                </button>
+              )}
               <button
                 type="button"
                 aria-label={`Move ${list.name} earlier`}
@@ -470,6 +738,46 @@ function ProjectCard({
         </div>
       </div>
 
+      {moving && (
+        <div
+          onClick={swallow}
+          className="mt-3 flex min-w-0 flex-wrap items-center gap-2"
+        >
+          <Picker
+            dashed
+            className="min-w-0"
+            label="Move to…"
+            options={options}
+            onSelect={async (value) => {
+              const [type, id] = value.split(":");
+              setMoving(false);
+              try {
+                await moveList({
+                  listId: list.listId,
+                  parentType: type === "folder" ? "folder" : "space",
+                  parentId: id,
+                });
+                toast(`"${list.name}" moved`);
+              } catch (e) {
+                toast(errorMessage(e, "Couldn't move project"), {
+                  kind: "error",
+                });
+              }
+            }}
+          />
+          <button
+            type="button"
+            onClick={(e) => {
+              swallow(e);
+              setMoving(false);
+            }}
+            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {list.description && (
         <p className="mt-2 line-clamp-1 text-sm text-muted-foreground">
           {list.description}
@@ -491,6 +799,50 @@ function ProjectCard({
         <p className="mt-3 text-xs text-danger">{list.overdue} overdue</p>
       )}
     </Link>
+  );
+}
+
+// Pill variant of "new list", for the single action slot an EmptyState
+// allows. Same behaviour as NewListCard, different shell.
+function NewListControl({
+  parentType,
+  parentId,
+}: {
+  parentType: "space" | "folder";
+  parentId: string;
+}) {
+  const [adding, setAdding] = useState(false);
+  const createList = useMutation(api.lists.create);
+  const router = useRouter();
+  const { toast } = useToast();
+
+  if (adding) {
+    return (
+      <InlineCreate
+        placeholder="List name…"
+        className="w-full max-w-xs"
+        onCancel={() => setAdding(false)}
+        onSubmit={async (name) => {
+          try {
+            const listId = await createList({ name, parentType, parentId });
+            router.push(`/dashboard/l/${listId}`);
+          } catch (e) {
+            toast(errorMessage(e, "Couldn't create list"), { kind: "error" });
+            setAdding(false);
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setAdding(true)}
+      className="inline-flex min-h-9 items-center gap-1 rounded-full bg-foreground px-4 text-sm font-medium text-background"
+    >
+      <Plus className="h-3.5 w-3.5" /> New list
+    </button>
   );
 }
 
