@@ -1,6 +1,7 @@
 import { MarketingNav } from "@/components/marketing/nav";
 import { MarketingFooter } from "@/components/marketing/footer";
 import { Dither } from "@/components/marketing/dither";
+import { ChatbaseWidget } from "@/components/marketing/chatbase";
 
 // Logged-out shell (marketing v3): dark charcoal canvas with vibrant
 // gradient accents + gradient text (see .marketing-shell in globals.css),
@@ -47,6 +48,8 @@ export default function MarketingLayout({
       <MarketingNav />
       <main className="flex-1">{children}</main>
       <MarketingFooter />
+      {/* Chatbase support launcher, bottom-right — logged-out pages only. */}
+      <ChatbaseWidget />
     </div>
   );
 }
