@@ -137,11 +137,11 @@ export function CtaPanel() {
               <div data-cta-shot>
                 <ScreenshotFrame
                   label={CTA_PANEL.screenshot}
-                  // Native aspect (2484x1228) so nothing gets cropped.
-                  ratio="2484/1228"
+                  // Native 1600x1200 clip (4/3), looping silently.
+                  ratio="1600/1200"
                   tone="dark"
-                  src="/screenshots/cta-onboarding.png"
-                  alt="Onboarding in operate.to — workspace, agent key, and first task"
+                  video="/screenshots/cta-ascii.mp4"
+                  alt="Looping ASCII-art animation"
                 />
               </div>
             </div>
