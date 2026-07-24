@@ -13,7 +13,6 @@ import {
   Container,
   CtaButton,
   Eyebrow,
-  Placeholder,
   SectionHeading,
 } from "@/components/marketing/ui";
 import { GsapReveal, useGsap, EASE_OUT } from "@/components/marketing/gsap";
@@ -157,24 +156,21 @@ export function UseCaseContent({ uc }: { uc: UseCase }) {
             <SectionHeading eyebrow="The plays" title="What makes it work here." />
           </GsapReveal>
           <GsapReveal stagger className="mt-12 grid gap-5 sm:grid-cols-2">
-            {uc.plays.map((p) => (
+            {/* Numbered editorial text tiles — no illustration slot. */}
+            {uc.plays.map((p, i) => (
               <div
                 key={p.title}
-                className="rounded-[20px] mk-panel p-2 transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+                className="rounded-[20px] mk-panel p-7 transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-lg"
               >
-                <Placeholder
-                  label={`${p.title} illustration`}
-                  ratio="16/10"
-                  className="rounded-[14px]"
-                />
-                <div className="px-5 py-4">
-                  <h3 className="text-base font-semibold tracking-tight text-foreground">
-                    {p.title}
-                  </h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                    {p.body}
-                  </p>
-                </div>
+                <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Play {String(i + 1).padStart(2, "0")}
+                </span>
+                <h3 className="mt-3 text-base font-semibold tracking-tight text-foreground">
+                  {p.title}
+                </h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                  {p.body}
+                </p>
               </div>
             ))}
           </GsapReveal>
