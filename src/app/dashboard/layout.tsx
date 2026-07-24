@@ -6,6 +6,7 @@ import { EnsureUser } from "@/components/dashboard/ensure-user";
 import { ToastProvider } from "@/components/toast";
 import { CommandPalette } from "@/components/command-palette";
 import { AgentOnlineWatcher } from "@/components/dashboard/agent-online-watcher";
+import { NoSupportWidget } from "@/components/dashboard/no-support-widget";
 import { RequireBackend } from "@/components/require-backend";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
@@ -37,6 +38,7 @@ export default async function DashboardLayout({
       <ToastProvider>
         <SidebarProvider defaultOpen={defaultOpen} className="h-svh overflow-hidden">
           <EnsureUser />
+          <NoSupportWidget />
           <CommandPalette />
           <AgentOnlineWatcher />
           <DashboardSidebar />
