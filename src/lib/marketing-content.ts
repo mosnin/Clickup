@@ -168,7 +168,8 @@ export const DETAILS = {
     {
       title: "Auto guardrails",
       body: "Budgets reset daily, claims expire, stalled agents get flagged and overdue work gets nagged — automatically.",
-      art: null,
+      art: "/features/00_auto_guardrails.svg",
+      alt: "Illustration of automatic guardrails resetting budgets and flagging stalled agents",
     },
     {
       title: "Skills library",

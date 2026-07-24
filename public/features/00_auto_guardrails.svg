@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1088" height="680" viewBox="0 0 1088 680" fill="none">
+  <title>Auto guardrails</title>
+  <desc>Minimal charcoal enterprise product illustration with white focal geometry.</desc>
+  <defs>
+    <radialGradient id="background_vignette" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(544 330) rotate(90) scale(420 680)">
+      <stop offset="0" stop-color="#121214"/>
+      <stop offset=".62" stop-color="#0B0B0C"/>
+      <stop offset="1" stop-color="#080809"/>
+    </radialGradient>
+    <radialGradient id="agent_core" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.34 .28) rotate(45) scale(.78)">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset=".16" stop-color="#F4F5F7"/>
+      <stop offset=".38" stop-color="#C8CBD1"/>
+      <stop offset=".62" stop-color="#797C84"/>
+      <stop offset=".82" stop-color="#37393F"/>
+      <stop offset="1" stop-color="#15161A"/>
+    </radialGradient>
+    <radialGradient id="agent_aura" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".46"/>
+      <stop offset=".36" stop-color="#E6E7EA" stop-opacity=".22"/>
+      <stop offset=".7" stop-color="#A4A7AF" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#90939B" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="agent_specular" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".94"/>
+      <stop offset=".36" stop-color="#FFFFFF" stop-opacity=".4"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="scan_glow" cx="0" cy="0" r="1" gradientUnits="objectBoundingBox" gradientTransform="translate(.5 .5) scale(.5)">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="scan_fade" x1="544" y1="210" x2="544" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset=".48" stop-color="#FFFFFF" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="presence_fade" x1="544" y1="160" x2="544" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity=".78"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".04"/>
+    </linearGradient>
+    <filter id="soft_glow" x="-120%" y="-120%" width="340%" height="340%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="11"/>
+    </filter>
+  </defs>
+  <rect width="1088" height="680" fill="url(#background_vignette)"/>
+  
+      <g id="guardrail_depth">
+        
+    <rect x="220" y="150" width="648" height="92" rx="28"
+      fill="#0D0D0F" stroke="#3A3A3F" stroke-width="2.5" opacity="0.34"/>
+  
+        
+    <rect x="168" y="192" width="752" height="108" rx="32"
+      fill="#0D0D0F" stroke="#3A3A3F" stroke-width="2.5" opacity="0.58"/>
+  
+        
+    <rect x="120" y="244" width="848" height="248" rx="38"
+      fill="#0D0D0F" stroke="#3A3A3F" stroke-width="2.5" opacity="1"/>
+  
+      </g>
+      <g id="protected_channel">
+        <path d="M214 330H874" stroke="#232327" stroke-width="18" stroke-linecap="round"/>
+        <path d="M214 406H874" stroke="#232327" stroke-width="18" stroke-linecap="round"/>
+        <path d="M214 330H874" stroke="#55555B" stroke-width="3" stroke-linecap="round"/>
+        <path d="M214 406H874" stroke="#55555B" stroke-width="3" stroke-linecap="round"/>
+        <path d="M454 330H634M454 406H634" stroke="#F0F0F2" stroke-width="4" stroke-linecap="round"/>
+      </g>
+      <g id="active_agent">
+        
+    <g opacity="1">
+      <circle cx="544" cy="368" r="72" fill="url(#agent_aura)" filter="url(#soft_glow)"/>
+      <circle cx="544" cy="368" r="44" fill="url(#agent_core)" stroke="#FFFFFF" stroke-opacity=".28" stroke-width="1.5"/>
+      <circle cx="531.68" cy="354.8" r="14" fill="url(#agent_specular)"/>
+    </g>
+  
+      </g>
+    
+</svg>

@@ -167,6 +167,7 @@ export function CtaButton({
 export function ScreenshotFrame({
   label,
   src,
+  video,
   alt,
   ratio = "16/10",
   tone = "light",
@@ -177,6 +178,9 @@ export function ScreenshotFrame({
   /** Real screenshot; when set, renders the image instead of the red
    * placeholder. */
   src?: string;
+  /** Looping ambient clip (muted, autoplaying) instead of a still —
+   * takes precedence over src. */
+  video?: string;
   alt?: string;
   ratio?: string;
   tone?: "light" | "dark";
@@ -193,7 +197,19 @@ export function ScreenshotFrame({
         className,
       )}
     >
-      {src ? (
+      {video ? (
+        <div
+          className="overflow-hidden rounded-[14px]"
+          style={{ aspectRatio: ratio }}
+          // Inline HTML, not JSX: React drops the `muted` attribute when
+          // server-rendering <video>, and iOS/Android refuse to autoplay an
+          // unmuted video — this guarantees muted+playsinline land in the
+          // served markup so the loop runs on mobile without a tap.
+          dangerouslySetInnerHTML={{
+            __html: `<video src="${video}" autoplay muted loop playsinline preload="auto" aria-label="${(alt ?? label).replace(/"/g, "&quot;")}" class="block h-full w-full object-cover"></video>`,
+          }}
+        />
+      ) : src ? (
         <div
           className="overflow-hidden rounded-[14px]"
           style={{ aspectRatio: ratio }}

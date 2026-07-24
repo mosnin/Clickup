@@ -63,23 +63,19 @@ export function Simpler() {
         </GsapReveal>
         <div
           ref={panelRef}
-          className="gs-reveal mt-10 overflow-hidden rounded-[28px] p-8 sm:p-12"
+          className="gs-reveal mt-10 overflow-hidden rounded-[28px] p-8 ring-1 ring-white/10 sm:p-12"
           data-gs-hidden=""
           style={{
-            background:
-              "linear-gradient(135deg, var(--color-blush) 0%, var(--color-peach) 100%)",
+            // Pure-neutral charcoal (equal-RGB only — no warm/blush fills).
+            background: "linear-gradient(135deg, #1a1a1a 0%, #0e0e0e 100%)",
           }}
         >
           <div className="grid items-center gap-8 md:grid-cols-2">
             <div>
-              {/* This panel keeps its warm light blush/peach fill by design
-                  (see the gradient below), so its ink stays dark literally —
-                  text-foreground now resolves light on the charcoal canvas
-                  and would be unreadable here. */}
-              <h3 className="text-2xl font-semibold tracking-tight text-navy-950">
+              <h3 className="text-2xl font-semibold tracking-tight text-white">
                 {SIMPLER.panel.title}
               </h3>
-              <p className="mt-3 text-sm leading-relaxed text-navy-950/70 sm:text-base">
+              <p className="mt-3 text-sm leading-relaxed text-white/70 sm:text-base">
                 {SIMPLER.panel.body}
               </p>
               <CtaButton
@@ -91,7 +87,14 @@ export function Simpler() {
               </CtaButton>
             </div>
             <div data-simpler-shot>
-              <ScreenshotFrame label={SIMPLER.panel.screenshot} ratio="4/3" tone="light" />
+              <ScreenshotFrame
+                label={SIMPLER.panel.screenshot}
+                // Native 2490x1540 so nothing gets cropped.
+                ratio="2490/1540"
+                tone="dark"
+                src="/screenshots/personal-space.png"
+                alt="A personal space in operate.to running a single agent"
+              />
             </div>
           </div>
         </div>
