@@ -111,7 +111,7 @@ only after automated checks and relevant production behavior both pass.
   with `401 invalid_token` plus OAuth protected-resource metadata.
 - Completed agent work clears its matching current-task and activity text,
   preventing stale “Now” presence after success
-- Local production build, typecheck, lint, plugin validation, and 354 tests
+- Local production build, typecheck, lint, plugin validation, and 356 tests
 - Disposable production MCP mutation certification: List create/rename/metadata,
   two-task parent/dependency batch, task update/checklist, comment
   create/update/delete, schedule create/pause/resume/delete, readback/event
@@ -133,12 +133,12 @@ only after automated checks and relevant production behavior both pass.
    Spaces/List hierarchy, template destinations, and their mobile responsive
    layouts are certified above.
 3. Finish the security review: rotate any remaining credentials exposed during
-   development, complete the human/agent authorization matrix and
-   abuse-oriented rate-limit tests, review remaining secret-handling paths,
-   and disposition the seven upstream/unpatched production dependency
-   advisories. The shared agent API key, OAuth redirects, MCP
-   authentication/CORS, webhook egress, the agent write-rate limit, and the
-   fixable dependency set are certified below.
+   development, complete the remaining human/agent authorization matrix and
+   broader abuse tests, review remaining secret-handling paths, and disposition
+   the seven upstream/unpatched production dependency advisories. The shared
+   agent API key, OAuth redirects, MCP authentication/CORS, webhook egress, the
+   exact agent write-rate boundary, and the fixable dependency set are
+   certified below.
 4. Run load/performance, backup/restore, data-retention, and disaster-recovery
    exercises.
 5. Upload the ChatGPT and Claude bundles for official review and address reviewer
@@ -191,6 +191,19 @@ only after automated checks and relevant production behavior both pass.
   `e39ad6a`; application and Convex health are `ok`, the production error-log
   scan is empty, GitHub CI run `30174947566` passed, and 354 tests, typecheck,
   lint, and the production build pass.
+- Agent abuse-rate boundary (production-validated 2026-07-25): one disposable
+  Jimmy key created one disposable List and task, then performed exactly 58
+  updates after the two creation writes. Write 60 succeeded; write 61 returned
+  `Rate limited (60 actions/minute)` and did not change the task or daily usage.
+  While throttled, `whoami`, `heartbeat`, and `list_tasks` all remained
+  available so the runtime could stay observable. After the UTC-minute window
+  reset, the task and List were deleted, Jimmy's prior status was restored, the
+  temporary key was revoked and returned 401 on reuse, and tree readback showed
+  zero certification artifacts. New integration coverage also proves the exact
+  60/61 boundary, non-consumption on refusal, read/presence availability under
+  throttle, and paused-agent rejection across read, connect, heartbeat, and
+  write modes. All 356 tests, typecheck, and lint pass; production application
+  and Convex health remain `ok`, with no production error logs.
 - Public connector submission compliance (production-validated 2026-07-25):
   deployment `dpl_w3dL5pw14yVUGJiJeTEy8qSngXeq` is Ready and healthy. The
   authenticated base profile exposes all 140 tools; Anthropic's directory

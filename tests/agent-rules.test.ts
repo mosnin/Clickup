@@ -3,7 +3,10 @@ import { convexTest } from "convex-test";
 import schema from "../convex/schema";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
-import { sha256Hex } from "../convex/_agentAuth";
+import {
+  BURST_LIMIT_PER_MINUTE,
+  sha256Hex,
+} from "../convex/_agentAuth";
 
 // Integration tests for the rules that make multi-agent collaboration
 // safe: hierarchy authz, claims, blockers, approval gates, roles, and
@@ -190,6 +193,78 @@ describe("agent governance", () => {
     await expect(
       t.mutation(api.agentApi.createTask, { apiKey, listId, title: "3" }),
     ).rejects.toThrow(/budget exhausted/);
+  });
+
+  it("enforces the exact burst boundary without blocking reads or presence", async () => {
+    const { t, listId, agentId, apiKey } = await setup();
+    const day = new Date().toISOString().slice(0, 10);
+    const minute = new Date().toISOString().slice(0, 16);
+    const usageId = await t.run((ctx) =>
+      ctx.db.insert("agentUsage", {
+        agentId,
+        day,
+        count: BURST_LIMIT_PER_MINUTE - 1,
+        minute,
+        minuteCount: BURST_LIMIT_PER_MINUTE - 1,
+      }),
+    );
+
+    // The 60th write is accepted; the 61st is refused before its handler
+    // can create another task or consume another unit of daily budget.
+    await t.mutation(api.agentApi.createTask, {
+      apiKey,
+      listId,
+      title: "Boundary write",
+    });
+    await expect(
+      t.mutation(api.agentApi.createTask, {
+        apiKey,
+        listId,
+        title: "Refused write",
+      }),
+    ).rejects.toThrow(/rate limited.*60 actions\/minute/i);
+
+    const usage = await t.run((ctx) => ctx.db.get(usageId));
+    expect(usage).toMatchObject({
+      count: BURST_LIMIT_PER_MINUTE,
+      minute,
+      minuteCount: BURST_LIMIT_PER_MINUTE,
+    });
+    expect(await t.query(api.agentApi.listTasks, { apiKey })).toHaveLength(1);
+
+    // A throttled runtime must still be able to observe work and report
+    // liveness so operators can diagnose it instead of seeing a false outage.
+    await t.mutation(api.agentApi.heartbeat, {
+      apiKey,
+      statusText: "throttled but healthy",
+    });
+    expect(await t.query(api.agentApi.whoami, { apiKey })).toMatchObject({
+      actionsUsedToday: BURST_LIMIT_PER_MINUTE,
+      actionsRemainingToday: 2_000 - BURST_LIMIT_PER_MINUTE,
+      burstLimitPerMinute: BURST_LIMIT_PER_MINUTE,
+    });
+  });
+
+  it("invalidates every API mode while an agent is paused", async () => {
+    const { t, alice, listId, agentId, apiKey } = await setup();
+    await alice.mutation(api.agents.update, { agentId, status: "paused" });
+
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey }),
+    ).rejects.toThrow(/agent is paused/i);
+    await expect(
+      t.mutation(api.agentApi.connect, { apiKey }),
+    ).rejects.toThrow(/agent is paused/i);
+    await expect(
+      t.mutation(api.agentApi.heartbeat, { apiKey }),
+    ).rejects.toThrow(/agent is paused/i);
+    await expect(
+      t.mutation(api.agentApi.createTask, {
+        apiKey,
+        listId,
+        title: "Must not be created",
+      }),
+    ).rejects.toThrow(/agent is paused/i);
   });
 
   it("confines list-restricted agents to their allowed lists", async () => {
