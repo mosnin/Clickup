@@ -539,25 +539,36 @@ function ExecutionPlanProvenance({
                 <span
                   className={cn(
                     "rounded-full px-2 py-0.5 text-[11px] font-medium capitalize text-neutral-900",
-                    plan.reviewStatus === "approved" ||
-                      plan.reviewStatus === "legacy_approved"
+                    readiness &&
+                    !readiness.dispatchAuthorized &&
+                    plan.reviewStatus === "approved"
+                      ? "bg-pastel-yellow"
+                      : plan.reviewStatus === "approved" ||
+                          plan.reviewStatus === "legacy_approved"
                       ? "bg-pastel-green"
                       : plan.reviewStatus === "rejected"
                         ? "bg-pastel-red"
                         : "bg-pastel-yellow",
                   )}
                 >
-                  {plan.reviewStatus === "legacy_approved"
-                    ? "Previously authorized"
-                    : plan.reviewStatus}
+                  {readiness &&
+                  !readiness.dispatchAuthorized &&
+                  plan.reviewStatus === "approved"
+                    ? "Needs revalidation"
+                    : plan.authorizationSource === "workspace_policy"
+                      ? "Policy authorized"
+                      : plan.reviewStatus === "legacy_approved"
+                        ? "Previously authorized"
+                        : plan.reviewStatus}
                 </span>
               </div>
               <p className="mt-1 text-xs text-foreground/70">
-                {plan.reviewStatus === "pending"
+                {readiness?.authorization.reason ??
+                (plan.reviewStatus === "pending"
                   ? "An owner or admin must review this plan before agents can dispatch its tasks."
                   : plan.reviewStatus === "rejected"
                     ? "Future dispatch is blocked until an owner or admin approves this plan."
-                    : "This plan is authorized for agent dispatch. Open questions still require an explicit disposition."}
+                    : "This plan is authorized for agent dispatch. Open questions still require an explicit disposition.")}
               </p>
             </div>
           </div>
@@ -847,6 +858,9 @@ function ExecutionPlanProvenance({
                   capability gap
                 </span>
               )}
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                {readiness.policyCapacityRemaining} policy capacity · 24h
+              </span>
               {readiness.skipped.filter(
                 (item) => item.reason === "capacity_exhausted",
               ).length > 0 && (
@@ -876,6 +890,13 @@ function ExecutionPlanProvenance({
                 Dispatch is blocked because this plan was rejected.
               </p>
             )}
+            {!readiness.dispatchAuthorized &&
+              plan.reviewStatus === "approved" && (
+                <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                  Dispatch is gated because the workspace autonomy policy
+                  changed. A fresh human approval restores authorization.
+                </p>
+              )}
             {readiness.recommendations.length > 0 ? (
               <ul className="mt-3 grid gap-2 sm:grid-cols-2">
                 {readiness.recommendations.slice(0, 6).map((item) => (

@@ -1,7 +1,7 @@
 {
   "name": "operate",
-  "version": "1.3.0",
-  "description": "Plan, authorize, dispatch, execute, govern decisions, and independently verify human and AI-agent work in Operate.",
+  "version": "1.4.0",
+  "description": "Plan, govern autonomy, authorize, dispatch, execute, preserve decisions, and independently verify human and AI-agent work in Operate.",
   "author": {
     "name": "Operate",
     "email": "support@operate.to",
@@ -15,7 +15,7 @@
   "interface": {
     "displayName": "Operate",
     "shortDescription": "Run projects with humans and AI agents.",
-    "longDescription": "Compile briefs into auditable roadmaps, route dependency-ready work to capable agents, preserve versioned operating decisions with task revalidation, execute through claims and runs, and independently verify original success criteria against evidence from one control plane.",
+    "longDescription": "Compile briefs into auditable roadmaps, govern supervised or bounded-autonomous execution with versioned limits, route dependency-ready work to capable agents, preserve operating decisions with task revalidation, execute through claims and runs, and independently verify original success criteria against evidence from one control plane.",
     "developerName": "Operate",
     "category": "Productivity",
     "capabilities": ["Read", "Write"],

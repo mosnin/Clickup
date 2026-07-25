@@ -113,6 +113,11 @@ import {
   executionReadinessCore,
 } from "./executionDispatch";
 import {
+  executionPolicyFor,
+  executionPolicyValidator,
+  planAuthorization,
+} from "./executionPolicy";
+import {
   abandonExecutionAssignmentForTask,
   finishExecutionAssignment,
   markExecutionAssignmentClaimed,
@@ -4899,6 +4904,27 @@ export const createExecutionPlan = mutation({
         "Execution plans are capped at 100 tasks; split a larger program into multiple plans",
       );
     }
+    const workspace = await ctx.db.get(workspaceId);
+    if (!workspace) throw new ConvexError("Workspace not found");
+    const executionPolicy = executionPolicyFor(workspace);
+    const hasApprovalGatedTasks = projects.some((project) =>
+      project.tasks.some((task) => task.requiresApproval === true),
+    );
+    const policyAuthorized =
+      executionPolicy.mode === "bounded_autonomous" &&
+      totalTasks <= executionPolicy.maxPlanTasks &&
+      openQuestions.length === 0 &&
+      !hasApprovalGatedTasks;
+    const reviewStatus = policyAuthorized ? "approved" : "pending";
+    const authorizationReason = policyAuthorized
+      ? `Automatically authorized by workspace policy v${executionPolicy.version}: ${totalTasks} tasks, no open questions, and no approval-gated work.`
+      : executionPolicy.mode === "bounded_autonomous"
+        ? totalTasks > executionPolicy.maxPlanTasks
+          ? `Human review required because ${totalTasks} tasks exceeds the autonomous plan limit of ${executionPolicy.maxPlanTasks}.`
+          : openQuestions.length > 0
+            ? "Human review required because the plan contains open questions."
+            : "Human review required because the plan contains approval-gated tasks."
+        : "Workspace policy requires human review.";
 
     const dependencyRefs = new Map<string, string[]>();
     for (const project of projects) {
@@ -5141,7 +5167,14 @@ export const createExecutionPlan = mutation({
       successCriteria,
       assumptions,
       openQuestions,
-      reviewStatus: "pending",
+      reviewStatus,
+      authorizationSource: policyAuthorized
+        ? "workspace_policy"
+        : undefined,
+      authorizationPolicyVersion: policyAuthorized
+        ? executionPolicy.version
+        : undefined,
+      authorizationReason,
       roadmapId,
       projects: createdProjects,
       tasks: createdTasks,
@@ -5160,7 +5193,13 @@ export const createExecutionPlan = mutation({
         projectCount: createdProjects.length,
         taskCount: createdTasks.length,
         openQuestionCount: openQuestions.length,
-        reviewStatus: "pending",
+        reviewStatus,
+        authorizationSource: policyAuthorized
+          ? "workspace_policy"
+          : "none",
+        authorizationPolicyVersion: policyAuthorized
+          ? executionPolicy.version
+          : undefined,
       },
     });
     const plan = (await ctx.db.get(planId))!;
@@ -5181,6 +5220,24 @@ export const getExecutionPlan = query({
       throw new ConvexError("Execution plan not found in your workspace");
     }
     return executionPlanView(plan);
+  },
+});
+
+export const getExecutionPolicy = query({
+  args: { apiKey: v.string() },
+  returns: executionPolicyValidator,
+  handler: async (ctx, { apiKey }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    if (agent.parentType !== "workspace") {
+      throw new ConvexError(
+        "Execution policy requires a workspace-scoped agent",
+      );
+    }
+    const workspace = await ctx.db.get(
+      agent.parentId as Id<"workspaces">,
+    );
+    if (!workspace) throw new ConvexError("Workspace not found");
+    return executionPolicyFor(workspace);
   },
 });
 
@@ -5299,6 +5356,8 @@ function executionWaveView(wave: Doc<"executionWaves">) {
     assignments: wave.assignments,
     skipped: wave.skipped,
     openQuestionDisposition: wave.openQuestionDisposition,
+    authorizationSource: wave.authorizationSource,
+    authorizationPolicyVersion: wave.authorizationPolicyVersion,
     createdByAgentId: wave.createdByAgentId,
     createdAt: wave.createdAt,
   };
@@ -5368,24 +5427,29 @@ export const dispatchExecutionWave = mutation({
     if (!plan || plan.workspaceId !== agent.parentId) {
       throw new ConvexError("Execution plan not found in your workspace");
     }
-    if (
-      plan.reviewStatus !== undefined &&
-      plan.reviewStatus !== "approved"
-    ) {
-      throw new ConvexError(
-        plan.reviewStatus === "rejected"
-          ? "This execution plan was rejected by a workspace reviewer. Revise the plan or obtain a new approval before dispatch."
-          : "This execution plan is awaiting owner or admin approval before dispatch.",
-      );
+    const workspace = await ctx.db.get(plan.workspaceId);
+    if (!workspace) throw new ConvexError("Workspace not found");
+    const executionPolicy = executionPolicyFor(workspace);
+    const authorization = planAuthorization(plan, executionPolicy);
+    if (!authorization.authorized) {
+      throw new ConvexError(authorization.reason);
+    }
+    if (authorization.source === "none") {
+      throw new ConvexError("Execution authorization source is missing");
     }
     const idempotencyKey = executionText(
       args.idempotencyKey,
       "idempotencyKey",
       120,
     );
-    const maxTasks = args.maxTasks ?? 10;
+    const maxTasks = args.maxTasks ?? executionPolicy.maxTasksPerWave;
     if (!Number.isInteger(maxTasks) || maxTasks < 1 || maxTasks > 25) {
       throw new ConvexError("maxTasks must be an integer from 1-25");
+    }
+    if (maxTasks > executionPolicy.maxTasksPerWave) {
+      throw new ConvexError(
+        `Workspace execution policy allows at most ${executionPolicy.maxTasksPerWave} tasks per wave`,
+      );
     }
     const requestedAgentIds = [...new Set(args.agentIds ?? [])];
     for (const agentId of requestedAgentIds) {
@@ -5533,6 +5597,11 @@ export const dispatchExecutionWave = mutation({
       idempotencyKey,
       requestFingerprint: fingerprint,
       openQuestionDisposition,
+      authorizationSource: authorization.source,
+      authorizationPolicyVersion:
+        authorization.source === "workspace_policy"
+          ? executionPolicy.version
+          : undefined,
       assignments,
       skipped,
       createdAt: dispatchedAt,

@@ -36,6 +36,7 @@ import type * as events from "../events.js";
 import type * as executionDispatch from "../executionDispatch.js";
 import type * as executionLifecycle from "../executionLifecycle.js";
 import type * as executionPlans from "../executionPlans.js";
+import type * as executionPolicy from "../executionPolicy.js";
 import type * as favorites from "../favorites.js";
 import type * as fieldLibrary from "../fieldLibrary.js";
 import type * as folders from "../folders.js";
@@ -128,6 +129,7 @@ declare const fullApi: ApiFromModules<{
   executionDispatch: typeof executionDispatch;
   executionLifecycle: typeof executionLifecycle;
   executionPlans: typeof executionPlans;
+  executionPolicy: typeof executionPolicy;
   favorites: typeof favorites;
   fieldLibrary: typeof fieldLibrary;
   folders: typeof folders;

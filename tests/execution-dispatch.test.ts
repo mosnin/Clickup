@@ -182,6 +182,205 @@ async function approvePlan(
 }
 
 describe("capability-aware execution dispatch", () => {
+  it("runs clean plans autonomously inside versioned owner limits", async () => {
+    const { t, owner, workspaceId, spaceId, backendId, qaId } =
+      await setup();
+    const policy = await owner.mutation(api.executionPolicy.update, {
+      workspaceId,
+      mode: "bounded_autonomous",
+      maxPlanTasks: 4,
+      maxTasksPerWave: 1,
+      dailyTaskLimit: 2,
+    });
+    expect(policy).toMatchObject({
+      mode: "bounded_autonomous",
+      version: 1,
+    });
+    const adminIdentity = {
+      subject: "policy_admin",
+      email: "policy-admin@example.com",
+    };
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        clerkId: adminIdentity.subject,
+        email: adminIdentity.email,
+        name: "Policy Admin",
+      });
+      await ctx.db.insert("memberships", {
+        workspaceId,
+        userClerkId: adminIdentity.subject,
+        role: "admin",
+        joinedAt: Date.now(),
+      });
+    });
+    await expect(
+      t.withIdentity(adminIdentity).mutation(api.executionPolicy.update, {
+        workspaceId,
+        mode: "supervised",
+        maxPlanTasks: 4,
+        maxTasksPerWave: 1,
+        dailyTaskLimit: 2,
+      }),
+    ).rejects.toThrow(/Only workspace owners/i);
+    await expect(
+      t.withIdentity({
+        subject: "not_a_member",
+        email: "nobody@example.com",
+      }).mutation(api.executionPolicy.update, {
+        workspaceId,
+        mode: "supervised",
+        maxPlanTasks: 4,
+        maxTasksPerWave: 1,
+        dailyTaskLimit: 2,
+      }),
+    ).rejects.toThrow(/Forbidden/i);
+
+    const cleanArgs = {
+      ...planArgs(spaceId, backendId, qaId),
+      idempotencyKey: "autonomous-plan-v1",
+      openQuestions: [],
+    };
+    const first = await t.mutation(
+      api.agentApi.createExecutionPlan,
+      cleanArgs,
+    );
+    expect(first).toMatchObject({
+      reviewStatus: "approved",
+      authorizationSource: "workspace_policy",
+      authorizationPolicyVersion: 1,
+    });
+    const agentPolicy = await t.query(api.agentApi.getExecutionPolicy, {
+      apiKey: PLANNER_KEY,
+    });
+    expect(agentPolicy).toMatchObject({
+      mode: "bounded_autonomous",
+      maxPlanTasks: 4,
+      maxTasksPerWave: 1,
+      dailyTaskLimit: 2,
+    });
+    let readiness = await t.query(api.agentApi.getExecutionReadiness, {
+      apiKey: PLANNER_KEY,
+      planId: first.planId,
+    });
+    expect(readiness).toMatchObject({
+      dispatchAuthorized: true,
+      policyCapacityRemaining: 2,
+      authorization: { source: "workspace_policy" },
+    });
+    await expect(
+      t.mutation(api.agentApi.dispatchExecutionWave, {
+        apiKey: PLANNER_KEY,
+        idempotencyKey: "autonomous-too-wide",
+        planId: first.planId,
+        maxTasks: 2,
+      }),
+    ).rejects.toThrow(/at most 1 tasks per wave/i);
+    await t.mutation(api.agentApi.dispatchExecutionWave, {
+      apiKey: PLANNER_KEY,
+      idempotencyKey: "autonomous-wave-1",
+      planId: first.planId,
+      maxTasks: 1,
+    });
+
+    const unsafe = await t.mutation(
+      api.agentApi.createExecutionPlan,
+      {
+        ...cleanArgs,
+        idempotencyKey: "autonomous-open-question",
+        openQuestions: ["Which production region is authorized?"],
+      },
+    );
+    expect(unsafe).toMatchObject({
+      reviewStatus: "pending",
+      authorizationSource: "none",
+    });
+    expect(unsafe.authorizationReason).toMatch(/open questions/i);
+    const approvalGated = await t.mutation(
+      api.agentApi.createExecutionPlan,
+      {
+        ...cleanArgs,
+        idempotencyKey: "autonomous-approval-gated",
+        projects: cleanArgs.projects.map((project, projectIndex) => ({
+          ...project,
+          tasks: project.tasks.map((task, taskIndex) => ({
+            ...task,
+            requiresApproval:
+              projectIndex === 0 && taskIndex === 0
+                ? true
+                : undefined,
+          })),
+        })),
+      },
+    );
+    expect(approvalGated.reviewStatus).toBe("pending");
+    expect(approvalGated.authorizationReason).toMatch(
+      /approval-gated tasks/i,
+    );
+
+    const policyV2 = await owner.mutation(api.executionPolicy.update, {
+      workspaceId,
+      mode: "bounded_autonomous",
+      maxPlanTasks: 4,
+      maxTasksPerWave: 1,
+      dailyTaskLimit: 2,
+    });
+    expect(policyV2.version).toBe(2);
+    readiness = await t.query(api.agentApi.getExecutionReadiness, {
+      apiKey: PLANNER_KEY,
+      planId: first.planId,
+    });
+    expect(readiness.dispatchAuthorized).toBe(false);
+    expect(readiness.authorization.reason).toMatch(/limits changed/i);
+    await expect(
+      t.mutation(api.agentApi.dispatchExecutionWave, {
+        apiKey: PLANNER_KEY,
+        idempotencyKey: "stale-policy-wave",
+        planId: first.planId,
+      }),
+    ).rejects.toThrow(/limits changed/i);
+    await approvePlan(t, first.planId);
+    readiness = await t.query(api.agentApi.getExecutionReadiness, {
+      apiKey: PLANNER_KEY,
+      planId: first.planId,
+    });
+    expect(readiness).toMatchObject({
+      dispatchAuthorized: true,
+      authorization: { source: "human_review" },
+      policyCapacityRemaining: 1,
+    });
+
+    const second = await t.mutation(
+      api.agentApi.createExecutionPlan,
+      {
+        ...cleanArgs,
+        idempotencyKey: "autonomous-plan-v2",
+      },
+    );
+    await t.mutation(api.agentApi.dispatchExecutionWave, {
+      apiKey: PLANNER_KEY,
+      idempotencyKey: "autonomous-wave-2",
+      planId: second.planId,
+    });
+    const third = await t.mutation(
+      api.agentApi.createExecutionPlan,
+      {
+        ...cleanArgs,
+        idempotencyKey: "autonomous-plan-v2-capacity",
+      },
+    );
+    const capped = await t.query(api.agentApi.getExecutionReadiness, {
+      apiKey: PLANNER_KEY,
+      planId: third.planId,
+    });
+    expect(capped.policyCapacityRemaining).toBe(0);
+    expect(capped.recommendations).toHaveLength(0);
+    expect(capped.skipped).toEqual(
+      expect.arrayContaining([
+        { taskRef: "platform.schema", reason: "policy_limit" },
+      ]),
+    );
+  });
+
   it("limits immutable plan authorization to owners and admins", async () => {
     const { t, owner, workspaceId, spaceId, backendId, qaId } =
       await setup();

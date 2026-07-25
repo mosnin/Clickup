@@ -6,6 +6,10 @@ import { agentCanTouchList } from "./_agentAuth";
 import { canAccessSpace, requireIdentity } from "./_authz";
 import { hasCapabilities } from "./capabilities";
 import { executionPlanSummary } from "./executionPlans";
+import {
+  executionPolicyFor,
+  planAuthorization,
+} from "./executionPolicy";
 import { CLAIM_TTL_MS } from "./tasks";
 import {
   ACTIVE_EXECUTION_STATUSES,
@@ -56,14 +60,36 @@ export async function executionReadinessCore(
   allowedAgentIds?: Set<string>,
 ) {
   const now = Date.now();
+  const workspace = await ctx.db.get(plan.workspaceId);
+  if (!workspace) throw new ConvexError("Workspace not found");
+  const executionPolicy = executionPolicyFor(workspace);
+  const authorization = planAuthorization(plan, executionPolicy);
   const waves = await ctx.db
     .query("executionWaves")
     .withIndex("by_plan", (q) => q.eq("planId", plan._id))
-    .collect();
+    .order("desc")
+    .take(200);
   const executionAssignments = await ctx.db
     .query("executionAssignments")
     .withIndex("by_plan", (q) => q.eq("planId", plan._id))
-    .collect();
+    .order("desc")
+    .take(1_000);
+  const recentWorkspaceWaves = await ctx.db
+    .query("executionWaves")
+    .withIndex("by_workspace", (q) =>
+      q
+        .eq("workspaceId", plan.workspaceId)
+        .gte("createdAt", now - 24 * 60 * 60 * 1_000),
+    )
+    .take(1_001);
+  const tasksDispatchedLast24Hours = recentWorkspaceWaves.reduce(
+    (total, wave) => total + wave.assignments.length,
+    0,
+  );
+  const policyCapacityRemaining = Math.max(
+    0,
+    executionPolicy.dailyTaskLimit - tasksDispatchedLast24Hours,
+  );
   const latestAssignmentByTask = new Map<
     string,
     Doc<"executionAssignments">
@@ -295,10 +321,25 @@ export async function executionReadinessCore(
     });
   }
 
+  const wavePolicyCapacity = Math.min(
+    executionPolicy.maxTasksPerWave,
+    policyCapacityRemaining,
+  );
+  const policyLimited = recommendations.splice(wavePolicyCapacity);
+  for (const recommendation of policyLimited) {
+    skipped.push({
+      taskRef: recommendation.taskRef,
+      reason: "policy_limit",
+    });
+  }
+
   return {
     plan: executionPlanSummary(plan),
-    dispatchAuthorized:
-      plan.reviewStatus === undefined || plan.reviewStatus === "approved",
+    dispatchAuthorized: authorization.authorized,
+    authorization,
+    executionPolicy,
+    tasksDispatchedLast24Hours,
+    policyCapacityRemaining,
     openQuestions: plan.openQuestions,
     requiresOpenQuestionDisposition: plan.openQuestions.length > 0,
     agents: agentRows.map(

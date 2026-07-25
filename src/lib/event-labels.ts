@@ -34,6 +34,7 @@ export const EVENT_LABEL: Record<string, string> = {
   "roadmap.phase_removed": "removed a phase from",
   "plan.committed": "compiled execution plan",
   "plan.wave_dispatched": "dispatched execution wave",
+  "workspace.execution_policy_updated": "updated execution policy for",
   "milestone.created": "added milestone",
   "milestone.updated": "updated milestone",
   "milestone.completed": "reached milestone",
@@ -88,6 +89,9 @@ export function eventHref(e: {
   }
   if (e.entityType === "roadmap" && e.scopeType === "workspace") {
     return `/dashboard/w/${e.scopeId}?tab=roadmap`;
+  }
+  if (e.entityType === "workspace" && e.scopeType === "workspace") {
+    return `/dashboard/w/${e.scopeId}?tab=settings`;
   }
   // A milestone has no page of its own — it lives on its project's
   // Overview, which is still the right landing spot after a delete.

@@ -127,7 +127,7 @@ Do not bury an assumption inside a task description. If a missing answer changes
 
 ## 2. Design the graph
 
-1. \`get_tree\` for the destination workspace Space.
+1. \`get_execution_policy\`, then \`get_tree\` for the destination workspace Space. Supervised work requires human plan approval. Bounded autonomy only policy-authorizes plans within its task ceiling that have no open questions and no approval-gated tasks.
 2. \`list_members\` for real human and agent ids, advertised capabilities, concurrency ceilings, and live load. Never invent assignee ids or assume a capability that is not listed.
 3. Define ordered roadmap phases with short refs.
 4. Define 1–12 projects. Each project belongs to one phase and has 1–50 tasks.
@@ -155,8 +155,8 @@ The call is transactional: any error creates nothing. Retry the exact same paylo
 1. \`get_execution_plan\` and compare counts, source, assumptions, open questions, review status, and generated ids to your intended graph.
 2. \`get_roadmaps\` to verify phase placement.
 3. Sample the critical-path tasks with \`get_task\`; confirm blockers, assignees, checklists, and attached operating brief.
-4. Every new plan starts pending. A workspace owner or admin must review it in Operate before dispatch; an agent must never claim or fabricate that authorization.
-5. Call \`get_execution_readiness\` before releasing work. Require \`dispatchAuthorized\`, then inspect capability gaps, exhausted capacity, dependency blocks, prior dispatch leases, and runtimes that require polling.
+4. Read the returned authorization source and reason. Never trim tasks, hide uncertainty, or remove approval gates to qualify for autonomous authorization. An agent must never claim, fabricate, or change authorization.
+5. Call \`get_execution_readiness\` before releasing work. Require \`dispatchAuthorized\`; verify the active policy version and rolling capacity, then inspect capability gaps, exhausted capacity, dependency blocks, prior dispatch leases, and runtimes that require polling.
 6. Call \`dispatch_execution_wave\` with a stable wave idempotency key. If open questions remain, record exactly what was resolved, deferred, or bounded in \`openQuestionDisposition\`; never silently wave uncertainty through.
 7. Dispatched agents follow the collaboration protocol: read and acknowledge context, claim, start a run, heartbeat, and finish. Completing blockers makes the next wave eligible.
 8. Never dispatch an unresolved task merely because the graph exists. Open questions remain visible context until their disposition is auditable.`,

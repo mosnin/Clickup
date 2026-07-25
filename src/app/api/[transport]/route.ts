@@ -154,6 +154,7 @@ const READ_TOOLS = new Set([
   "get_roadmaps",
   "list_execution_plans",
   "get_execution_plan",
+  "get_execution_policy",
   "get_execution_readiness",
   "get_execution_control",
   "list_scheduled_tasks",
@@ -1116,9 +1117,17 @@ const TOOLS: ToolDef[] = [
 
   // ── Roadmaps ─────────────────────────────────────────────────────
   {
+    name: "get_execution_policy",
+    description:
+      "Read the owner-controlled workspace execution policy. Returns supervised or bounded_autonomous mode, the active policy version, autonomous plan-size ceiling, per-wave task ceiling, and rolling 24-hour dispatch limit. Call before compiling or dispatching a plan; agents cannot change this policy.",
+    shape: {},
+    run: (c, k) =>
+      c.query(asQuery(api.agentApi.getExecutionPolicy), { apiKey: k }),
+  },
+  {
     name: "create_execution_plan",
     description:
-      "Atomically compile one conversation/brief into an auditable execution system: a phased roadmap, 1-12 projects, up to 100 tasks/subtasks, cross-project dependencies, assignments, and a versioned operating brief attached to every task. The immutable plan manifest preserves source context, success criteria, assumptions, open questions, every generated id, and starts pending owner/admin authorization. Reuse the same idempotencyKey to retry safely; changing the plan requires a new key. All refs are local handles: dependencies within a project use task refs, cross-project dependencies use projectRef.taskRef. The entire call commits or rolls back together.",
+      "Atomically compile one conversation/brief into an auditable execution system: a phased roadmap, 1-12 projects, up to 100 tasks/subtasks, cross-project dependencies, assignments, and a versioned operating brief attached to every task. The immutable plan manifest preserves source context, success criteria, assumptions, open questions, every generated id, and its authorization source. Supervised workspaces start plans pending owner/admin review. Bounded-autonomous workspaces may policy-authorize plans only when they fit the plan-size ceiling, contain no open questions, and contain no approval-gated tasks. Reuse the same idempotencyKey to retry safely; changing the plan requires a new key. All refs are local handles: dependencies within a project use task refs, cross-project dependencies use projectRef.taskRef. The entire call commits or rolls back together.",
     shape: {
       idempotencyKey: z
         .string()
@@ -1307,7 +1316,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_execution_readiness",
     description:
-      "Preview the next safe parallel wave for an execution plan without changing anything. Returns dispatchAuthorized, human review status, ready recommendations, dependency/claim/lease/capability/capacity skips, each agent's advertised capabilities and free slots, open-question gates, and recent waves. Pass agentIds to constrain routing to a deliberate fleet subset.",
+      "Preview the next safe parallel wave for an execution plan without changing anything. Returns dispatchAuthorized, authorization source/reason, active execution policy and version, rolling 24-hour policy capacity, ready recommendations, dependency/claim/lease/capability/capacity/policy skips, each agent's advertised capabilities and free slots, open-question gates, and recent waves. Pass agentIds to constrain routing to a deliberate fleet subset.",
     shape: {
       planId: z.string(),
       agentIds: z.array(z.string()).optional(),
@@ -1334,7 +1343,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "dispatch_execution_wave",
     description:
-      "Atomically release the next dependency-ready, capability-matched work wave to active writable agents without exceeding their concurrency ceilings. New plans must first be approved by a workspace owner or admin in Operate; pending or rejected plans cannot dispatch. Assignments prefer already-compatible owners, then least-loaded matches. Configured notify URLs receive task.ready; otherwise delivery is poll_required. A 30-minute lease prevents duplicate wake storms and expired unclaimed work becomes recoverable. If the plan preserves open questions, openQuestionDisposition is required so uncertainty is never silently ignored. Exact retries are idempotent.",
+      "Atomically release the next dependency-ready, capability-matched work wave to active writable agents without exceeding their concurrency ceilings or the workspace's per-wave and rolling 24-hour limits. A plan must have valid human approval or a current bounded-autonomy policy authorization; policy-authorized plans stop dispatching when that policy version changes. Pending or rejected plans cannot dispatch. Assignments prefer already-compatible owners, then least-loaded matches. Configured notify URLs receive task.ready; otherwise delivery is poll_required. A 30-minute lease prevents duplicate wake storms and expired unclaimed work becomes recoverable. If the plan preserves open questions, openQuestionDisposition is required so uncertainty is never silently ignored. Exact retries are idempotent.",
     shape: {
       idempotencyKey: z.string().max(120),
       planId: z.string(),
@@ -2193,7 +2202,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "operate-agents", version: "1.0.0" },
     instructions:
-      "You are an agent teammate in operate.to. First: call whoami, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-project roadmap? Prefer create_execution_plan: preserve the source, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. Newly compiled plans remain pending until a workspace owner or admin records an approval in Operate; agents must never claim authorization. Before parallel execution, inspect get_execution_readiness and release only an approved, capability-matched, capacity-safe dispatch_execution_wave with an auditable disposition for open questions; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Use create_tasks for smaller additions to an existing list. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
+      "You are an agent teammate in operate.to. First: call whoami, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-project roadmap? Prefer create_execution_plan: preserve the source, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Use create_tasks for smaller additions to an existing list. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
   },
   {
     basePath: "/api",

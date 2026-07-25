@@ -216,6 +216,13 @@ export const exportWorkspace = query({
       exportedAt: Date.now(),
       apiVersion: 1,
       workspace: { name: workspace.name, slug: workspace.slug },
+      executionPolicy: workspace.executionPolicy ?? {
+        mode: "supervised",
+        version: 0,
+        maxPlanTasks: 25,
+        maxTasksPerWave: 10,
+        dailyTaskLimit: 100,
+      },
       spaces: spaceNodes,
       roadmaps: roadmaps.map((r) => ({
         name: r.name,
@@ -235,6 +242,13 @@ export const exportWorkspace = query({
         assumptions: plan.assumptions,
         openQuestions: plan.openQuestions,
         reviewStatus: plan.reviewStatus ?? "legacy_approved",
+        authorizationSource:
+          plan.reviewStatus === undefined
+            ? "legacy"
+            : plan.authorizationSource ??
+              (plan.reviewStatus === "approved" ? "human_review" : "none"),
+        authorizationPolicyVersion: plan.authorizationPolicyVersion,
+        authorizationReason: plan.authorizationReason,
         authorizationHistory: executionPlanReviews
           .filter((review) => review.planId === plan._id)
           .sort((a, b) => a.reviewedAt - b.reviewedAt)
@@ -279,6 +293,8 @@ export const exportWorkspace = query({
         executionPlan:
           executionPlans.find((plan) => plan._id === wave.planId)?.name,
         openQuestionDisposition: wave.openQuestionDisposition,
+        authorizationSource: wave.authorizationSource,
+        authorizationPolicyVersion: wave.authorizationPolicyVersion,
         assignments: wave.assignments.map((assignment) => ({
           taskRef: assignment.taskRef,
           agent: agentName.get(assignment.agentId),

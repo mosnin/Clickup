@@ -41,6 +41,23 @@ export default defineSchema({
     slug: v.string(),
     ownerClerkId: v.string(),
     createdAt: v.number(),
+    // Owner-controlled autonomy boundary. Missing means the conservative
+    // supervised defaults so existing workspaces never gain authority from
+    // a schema migration alone.
+    executionPolicy: v.optional(
+      v.object({
+        mode: v.union(
+          v.literal("supervised"),
+          v.literal("bounded_autonomous"),
+        ),
+        version: v.number(),
+        maxPlanTasks: v.number(),
+        maxTasksPerWave: v.number(),
+        dailyTaskLimit: v.number(),
+        updatedByClerkId: v.string(),
+        updatedAt: v.number(),
+      }),
+    ),
     // Platform-admin control: a suspended workspace's members lose access.
     suspendedAt: v.optional(v.number()),
     suspendedReason: v.optional(v.string()),
@@ -600,6 +617,16 @@ export default defineSchema({
         v.literal("rejected"),
       ),
     ),
+    authorizationSource: v.optional(
+      v.union(
+        v.literal("human_review"),
+        v.literal("workspace_policy"),
+      ),
+    ),
+    // Policy-authorized plans are valid only while this exact workspace
+    // policy version remains active. Human approval does not depend on it.
+    authorizationPolicyVersion: v.optional(v.number()),
+    authorizationReason: v.optional(v.string()),
     roadmapId: v.id("roadmaps"),
     projects: v.array(
       v.object({
@@ -643,6 +670,14 @@ export default defineSchema({
     idempotencyKey: v.string(),
     requestFingerprint: v.string(),
     openQuestionDisposition: v.optional(v.string()),
+    authorizationSource: v.optional(
+      v.union(
+        v.literal("legacy"),
+        v.literal("human_review"),
+        v.literal("workspace_policy"),
+      ),
+    ),
+    authorizationPolicyVersion: v.optional(v.number()),
     assignments: v.array(
       v.object({
         taskId: v.id("tasks"),
@@ -663,6 +698,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_plan", ["planId", "createdAt"])
+    .index("by_workspace", ["workspaceId", "createdAt"])
     .index("by_agent_key", ["createdByAgentId", "idempotencyKey"]),
 
   // Mutable lifecycle receipt for every immutable wave assignment. This is

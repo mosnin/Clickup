@@ -22,6 +22,11 @@ async function requireWorkspaceMember(
 }
 
 export function executionPlanSummary(plan: Doc<"executionPlans">) {
+  const authorizationSource =
+    plan.reviewStatus === undefined
+      ? "legacy"
+      : plan.authorizationSource ??
+        (plan.reviewStatus === "approved" ? "human_review" : "none");
   return {
     planId: plan._id,
     name: plan.name,
@@ -32,6 +37,9 @@ export function executionPlanSummary(plan: Doc<"executionPlans">) {
     assumptionCount: plan.assumptions.length,
     openQuestionCount: plan.openQuestions.length,
     reviewStatus: plan.reviewStatus ?? "legacy_approved",
+    authorizationSource,
+    authorizationPolicyVersion: plan.authorizationPolicyVersion,
+    authorizationReason: plan.authorizationReason,
     createdByAgentId: plan.createdByAgentId,
     createdAt: plan.createdAt,
   };
@@ -149,7 +157,16 @@ export const review = mutation({
       reviewedByClerkId: identity.subject,
       reviewedAt,
     });
-    await ctx.db.patch(args.planId, { reviewStatus: args.decision });
+    await ctx.db.patch(args.planId, {
+      reviewStatus: args.decision,
+      authorizationSource:
+        args.decision === "approved" ? "human_review" : undefined,
+      authorizationPolicyVersion: undefined,
+      authorizationReason:
+        args.decision === "approved"
+          ? "Approved by a workspace owner or admin."
+          : undefined,
+    });
     return {
       reviewId,
       reviewStatus: args.decision,
