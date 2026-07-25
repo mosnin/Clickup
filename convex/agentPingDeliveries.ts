@@ -12,10 +12,15 @@ export const AGENT_PING_RETRY_DELAYS_MS = [5_000, 30_000, 120_000] as const;
 export async function enqueueAgentPingDelivery(
   ctx: MutationCtx,
   args: {
-    workspaceId: Id<"workspaces">;
-    executionAssignmentId: Id<"executionAssignments">;
+    scopeType: "user" | "workspace";
+    scopeId: string;
+    workspaceId?: Id<"workspaces">;
+    sourceKind: "execution_assignment" | "task_assignment" | "mention";
+    sourceId: string;
+    executionAssignmentId?: Id<"executionAssignments">;
     agentId: Id<"agents">;
-    taskId: Id<"tasks">;
+    taskId?: Id<"tasks">;
+    messageId?: Id<"messages">;
     type: string;
     payload: unknown;
   },

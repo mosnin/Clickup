@@ -193,19 +193,16 @@ describe("capability-aware execution dispatch", () => {
     let delivery: Doc<"agentPingDeliveries"> | null = null;
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
-      // Plan compilation may have queued the ordinary task.assigned ping
-      // before this test freezes timers. Only task.ready is the durable
-      // execution delivery under test.
-      if (!headers.get("X-Ping-Delivery")) {
-        return new Response(null, { status: 204 });
-      }
-      expect(headers.get("X-Ping-Delivery")).toBe(delivery!._id);
       expect(headers.get("X-Ping-Signature")).toMatch(/^sha256=[a-f0-9]{64}$/);
-      expect(JSON.parse(String(init?.body))).toMatchObject({
-        deliveryId: delivery!._id,
-        type: "task.ready",
-        attempt: 1,
-      });
+      const body = JSON.parse(String(init?.body));
+      if (body.type === "task.ready") {
+        expect(headers.get("X-Ping-Delivery")).toBe(delivery!._id);
+        expect(body).toMatchObject({
+          deliveryId: delivery!._id,
+          type: "task.ready",
+          attempt: 1,
+        });
+      }
       return new Response(null, { status: 204 });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -223,10 +220,11 @@ describe("capability-aware execution dispatch", () => {
           "Production region remains deferred; this wake covers local schema work only.",
       });
       delivery = await t.run(async (ctx) => {
-        return await ctx.db
+        const rows = await ctx.db
           .query("agentPingDeliveries")
           .withIndex("by_agent", (q) => q.eq("agentId", backendId))
-          .unique();
+          .collect();
+        return rows.find((row) => row.type === "task.ready") ?? null;
       });
       await t.finishAllScheduledFunctions(vi.runAllTimers);
     } finally {
@@ -235,7 +233,7 @@ describe("capability-aware execution dispatch", () => {
     }
     expect(
       fetchMock.mock.calls.filter(([, init]) =>
-        new Headers(init?.headers).has("X-Ping-Delivery"),
+        JSON.parse(String(init?.body)).type === "task.ready",
       ),
     ).toHaveLength(1);
     expect(
@@ -249,7 +247,11 @@ describe("capability-aware execution dispatch", () => {
     });
     const failedDeliveryId = await t.run(async (ctx) => {
       return await ctx.db.insert("agentPingDeliveries", {
+        scopeType: delivery!.scopeType,
+        scopeId: delivery!.scopeId,
         workspaceId: delivery!.workspaceId,
+        sourceKind: delivery!.sourceKind,
+        sourceId: delivery!.sourceId,
         executionAssignmentId: delivery!.executionAssignmentId,
         agentId: delivery!.agentId,
         taskId: delivery!.taskId,

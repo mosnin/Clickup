@@ -209,18 +209,10 @@ export const exportWorkspace = query({
         ),
       )
     ).flat();
-    const agentPingDeliveries = (
-      await Promise.all(
-        executionAssignments.map((assignment) =>
-          ctx.db
-            .query("agentPingDeliveries")
-            .withIndex("by_execution_assignment", (q) =>
-              q.eq("executionAssignmentId", assignment._id),
-            )
-            .unique(),
-        ),
-      )
-    ).filter((delivery) => delivery !== null);
+    const agentPingDeliveries = await ctx.db
+      .query("agentPingDeliveries")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
     const outcomeChecks = (
       await Promise.all(
         executionPlans.map((plan) =>
@@ -379,6 +371,21 @@ export const exportWorkspace = query({
         summary: assignment.summary,
         error: assignment.error,
         links: assignment.links,
+      })),
+      agentWakeDeliveries: agentPingDeliveries.map((delivery) => ({
+        agent: agentName.get(delivery.agentId),
+        sourceKind: delivery.sourceKind,
+        sourceId: delivery.sourceId,
+        taskId: delivery.taskId,
+        messageId: delivery.messageId,
+        type: delivery.type,
+        status: delivery.status,
+        attempts: delivery.attempts,
+        responseStatus: delivery.responseStatus,
+        lastError: delivery.lastError,
+        lastAttemptAt: delivery.lastAttemptAt,
+        completedAt: delivery.completedAt,
+        createdAt: delivery.createdAt,
       })),
       sprints: sprints.map((s) => ({
         name: s.name,

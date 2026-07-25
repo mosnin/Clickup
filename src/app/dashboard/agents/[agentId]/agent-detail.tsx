@@ -93,8 +93,16 @@ export function AgentDetail({ agentId }: { agentId: string }) {
     );
   }
 
-  const { agent, runs, usageToday, usageLimit, events, claimed, assigned } =
-    detail;
+  const {
+    agent,
+    runs,
+    usageToday,
+    usageLimit,
+    events,
+    deliveries,
+    claimed,
+    assigned,
+  } = detail;
   const presence = agentPresence(agent, now);
   const statusLabel =
     presence.state === "recently_seen" || presence.state === "offline"
@@ -150,6 +158,8 @@ export function AgentDetail({ agentId }: { agentId: string }) {
       </header>
 
       <ConnectionDiagnostics agent={agent} presenceDetail={presence.detail} />
+
+      <WakeDeliveryDiagnostics deliveries={deliveries} />
 
       {stats && <StatsRow stats={stats} />}
 
@@ -252,6 +262,92 @@ export function AgentDetail({ agentId }: { agentId: string }) {
         </ul>
       </section>
     </div>
+  );
+}
+
+function WakeDeliveryDiagnostics({
+  deliveries,
+}: {
+  deliveries: Doc<"agentPingDeliveries">[];
+}) {
+  const failed = deliveries.filter((delivery) => delivery.status === "failed");
+  const pending = deliveries.filter(
+    (delivery) => delivery.status === "pending",
+  );
+  const delivered = deliveries.filter(
+    (delivery) => delivery.status === "delivered",
+  );
+  const sourceLabel = {
+    execution_assignment: "Roadmap dispatch",
+    task_assignment: "Task assignment",
+    mention: "Mention",
+  } as const;
+
+  return (
+    <Card className="gap-3 rounded-2xl p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Wake delivery
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Signed runtime notifications with recorded delivery receipts.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Badge
+            variant="secondary"
+            className="bg-pastel-green text-foreground dark:text-neutral-900"
+          >
+            {delivered.length} delivered
+          </Badge>
+          {pending.length > 0 && (
+            <Badge variant="secondary">{pending.length} pending</Badge>
+          )}
+          {failed.length > 0 && (
+            <Badge variant="destructive">{failed.length} failed</Badge>
+          )}
+        </div>
+      </div>
+      {deliveries.length > 0 ? (
+        <ul className="space-y-1">
+          {deliveries.slice(0, 5).map((delivery) => (
+            <li
+              key={delivery._id}
+              className="flex items-center gap-3 rounded-xl bg-muted/40 px-3 py-2 text-sm"
+              title={delivery.lastError}
+            >
+              {delivery.status === "delivered" ? (
+                <CheckCircle2 className="h-4 w-4 flex-none text-emerald-600" />
+              ) : delivery.status === "failed" ? (
+                <XCircle className="h-4 w-4 flex-none text-destructive" />
+              ) : (
+                <CircleDashed className="h-4 w-4 flex-none text-amber-600" />
+              )}
+              <span className="min-w-0 flex-1 truncate">
+                {delivery.sourceKind
+                  ? sourceLabel[delivery.sourceKind]
+                  : delivery.executionAssignmentId
+                    ? "Roadmap dispatch"
+                    : "Agent notification"}
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {delivery.type}
+                </span>
+              </span>
+              <span className="flex-none text-xs text-muted-foreground">
+                {delivery.attempts}{" "}
+                {delivery.attempts === 1 ? "attempt" : "attempts"} ·{" "}
+                {timeAgo(delivery.createdAt)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="rounded-xl bg-muted/40 px-3 py-4 text-center text-sm text-muted-foreground">
+          No direct wake notifications have been requested yet.
+        </div>
+      )}
+    </Card>
   );
 }
 

@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../convex/schema";
 import { api } from "../convex/_generated/api";
+import type { Id } from "../convex/_generated/dataModel";
 
 // In-app notification feed: assigning a task writes the assignee a
 // notification row (skipping the actor), the unread badge counts it, and
@@ -50,6 +51,130 @@ async function makeList(t: ReturnType<typeof convexTest>, workspaceId: any) {
 }
 
 describe("notifications", () => {
+  it("durably delivers a signed wake when an agent is assigned", async () => {
+    const t = convexTest(schema, modules);
+    const workspaceId = await seed(t);
+    const listId = await makeList(t, workspaceId);
+    const agentId = await t.run(async (ctx) => {
+      return await ctx.db.insert("agents", {
+        name: "Builder",
+        parentType: "workspace",
+        parentId: workspaceId,
+        status: "active",
+        notifyUrl: "https://runtime.example.com/wake",
+        notifySecret: "assignment-secret",
+        createdByClerkId: ASSIGNER.subject,
+        createdAt: Date.now(),
+      });
+    });
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get("X-Ping-Signature")).toMatch(
+        /^sha256=[a-f0-9]{64}$/,
+      );
+      expect(JSON.parse(String(init?.body))).toMatchObject({
+        type: "task.assigned",
+        attempt: 1,
+      });
+      return new Response(null, { status: 202 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await t.withIdentity(ASSIGNER).mutation(api.tasks.create, {
+        listId,
+        title: "Ship the agent runtime",
+        assigneeClerkIds: [agentId],
+      });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+
+    const delivery = await t.run(async (ctx) => {
+      return await ctx.db
+        .query("agentPingDeliveries")
+        .withIndex("by_agent", (q) => q.eq("agentId", agentId))
+        .unique();
+    });
+    expect(delivery).toMatchObject({
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      workspaceId,
+      sourceKind: "task_assignment",
+      sourceId: delivery?.taskId,
+      type: "task.assigned",
+      status: "delivered",
+      attempts: 1,
+      responseStatus: 202,
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("durably delivers a signed wake when an agent is mentioned", async () => {
+    const t = convexTest(schema, modules);
+    const workspaceId = await seed(t);
+    const agentId = await t.run(async (ctx) => {
+      return await ctx.db.insert("agents", {
+        name: "Researcher",
+        parentType: "workspace",
+        parentId: workspaceId,
+        status: "active",
+        notifyUrl: "https://runtime.example.com/mentions",
+        notifySecret: "mention-secret",
+        createdByClerkId: ASSIGNER.subject,
+        createdAt: Date.now(),
+      });
+    });
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get("X-Ping-Signature")).toMatch(
+        /^sha256=[a-f0-9]{64}$/,
+      );
+      expect(JSON.parse(String(init?.body))).toMatchObject({
+        type: "mention.created",
+        attempt: 1,
+        payload: {
+          parentType: "workspace",
+          parentId: workspaceId,
+        },
+      });
+      return new Response(null, { status: 204 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    let messageId: Id<"messages"> | undefined;
+    try {
+      messageId = await t
+        .withIdentity(ASSIGNER)
+        .mutation(api.messages.create, {
+          parentType: "workspace",
+          parentId: workspaceId,
+          body: "Please inspect the new delivery path.",
+          mentionClerkIds: [agentId],
+        });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+
+    const delivery = await t.run(async (ctx) => {
+      return await ctx.db
+        .query("agentPingDeliveries")
+        .withIndex("by_agent", (q) => q.eq("agentId", agentId))
+        .unique();
+    });
+    expect(delivery).toMatchObject({
+      sourceKind: "mention",
+      sourceId: messageId,
+      messageId,
+      type: "mention.created",
+      status: "delivered",
+      attempts: 1,
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it("assigning a user to a task writes them a notification and counts unread", async () => {
     const t = convexTest(schema, modules);
     const workspaceId = await seed(t);

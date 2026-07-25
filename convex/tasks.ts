@@ -15,6 +15,7 @@ import {
   normalizeCapabilities,
 } from "./capabilities";
 import { requireDecisionImpactsResolved } from "./decisions";
+import { enqueueAgentPingDelivery } from "./agentPingDeliveries";
 
 // Task CRUD. Since Phase 12 the write paths are factored into *Core
 // functions that take an explicit Actor, so the Clerk-authenticated
@@ -40,6 +41,8 @@ async function scheduleAssignmentNotifications(
 ): Promise<void> {
   if (newAssigneeIds.length === 0) return;
 
+  const list = await ctx.db.get(task.listId);
+  const scope = list ? await scopeForList(ctx, list) : null;
   const recipientNames: string[] = [];
   for (const cid of newAssigneeIds) {
     if (cid === actor.id) continue;
@@ -50,9 +53,18 @@ async function scheduleAssignmentNotifications(
     if (agentId) {
       if (suppressAgentPing) continue;
       const agent = await ctx.db.get(agentId);
-      if (agent?.notifyUrl) {
-        await ctx.scheduler.runAfter(0, internal.notifications.postAgentPing, {
-          url: agent.notifyUrl,
+      if (agent?.notifyUrl && scope) {
+        await enqueueAgentPingDelivery(ctx, {
+          scopeType: scope.scopeType,
+          scopeId: scope.scopeId,
+          workspaceId:
+            scope.scopeType === "workspace"
+              ? (scope.scopeId as Id<"workspaces">)
+              : undefined,
+          sourceKind: "task_assignment",
+          sourceId: task._id,
+          agentId,
+          taskId: task._id,
           type: "task.assigned",
           payload: {
             taskId: task._id,
@@ -60,7 +72,6 @@ async function scheduleAssignmentNotifications(
             title: task.title,
             byName: actor.name,
           },
-          secret: agent.notifySecret,
         });
       }
       continue;
@@ -92,9 +103,7 @@ async function scheduleAssignmentNotifications(
   }
 
   // Slack: resolve workspace from task → list → space → workspaceId.
-  const list = await ctx.db.get(task.listId);
   if (!list) return;
-  const scope = await scopeForList(ctx, list);
   if (!scope || scope.scopeType !== "workspace") return;
   const workspaceId = scope.scopeId as Id<"workspaces">;
   const slack = await ctx.db

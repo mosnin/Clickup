@@ -5913,7 +5913,11 @@ export const dispatchExecutionWave = mutation({
           );
         }
         await enqueueAgentPingDelivery(ctx, {
+          scopeType: "workspace",
+          scopeId: plan.workspaceId,
           workspaceId: plan.workspaceId,
+          sourceKind: "execution_assignment",
+          sourceId: executionAssignmentId,
           executionAssignmentId,
           agentId: assignment.agentId,
           taskId: assignment.taskId,

@@ -236,6 +236,12 @@ export const detail = query({
       .order("desc")
       .take(50);
 
+    const deliveries = await ctx.db
+      .query("agentPingDeliveries")
+      .withIndex("by_agent", (q) => q.eq("agentId", agentId))
+      .order("desc")
+      .take(25);
+
     // Tasks in the agent's scope it claims or is assigned to. Full walk of
     // scope tasks via events would miss quiet assignments, so scan the
     // scope's lists (same tradeoff as reports).
@@ -291,6 +297,7 @@ export const detail = query({
       usageToday: usage?.count ?? 0,
       usageLimit: agent.dailyActionLimit ?? DEFAULT_DAILY_ACTION_LIMIT,
       events,
+      deliveries,
       claimed,
       assigned,
     };

@@ -770,14 +770,29 @@ export default defineSchema({
     .index("by_agent", ["agentId", "dispatchedAt"])
     .index("by_run", ["runId"]),
 
-  // Durable wake delivery for execution assignments. A configured notify URL
-  // is only a requested channel; this row proves whether the signed task.ready
+  // Durable wake delivery for every direct agent notification. A configured
+  // notify URL is only a requested channel; this row proves whether the signed
   // ping actually reached the agent runtime after bounded retries.
   agentPingDeliveries: defineTable({
-    workspaceId: v.id("workspaces"),
-    executionAssignmentId: v.id("executionAssignments"),
+    // Optional for migration compatibility with execution-only receipts
+    // created before delivery was generalized.
+    scopeType: v.optional(
+      v.union(v.literal("user"), v.literal("workspace")),
+    ),
+    scopeId: v.optional(v.string()),
+    workspaceId: v.optional(v.id("workspaces")),
+    sourceKind: v.optional(
+      v.union(
+        v.literal("execution_assignment"),
+        v.literal("task_assignment"),
+        v.literal("mention"),
+      ),
+    ),
+    sourceId: v.optional(v.string()),
+    executionAssignmentId: v.optional(v.id("executionAssignments")),
     agentId: v.id("agents"),
-    taskId: v.id("tasks"),
+    taskId: v.optional(v.id("tasks")),
+    messageId: v.optional(v.id("messages")),
     type: v.string(),
     payload: v.any(),
     status: v.union(
@@ -793,7 +808,9 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_execution_assignment", ["executionAssignmentId"])
+    .index("by_source", ["sourceKind", "sourceId"])
     .index("by_agent", ["agentId", "createdAt"])
+    .index("by_workspace", ["workspaceId", "createdAt"])
     .index("by_status", ["status", "createdAt"]),
 
   // Plan-level outcome assurance. Tasks and runs prove that work happened;
