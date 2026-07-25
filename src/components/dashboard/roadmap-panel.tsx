@@ -1003,7 +1003,7 @@ function ExecutionPlanProvenance({
                 {readiness.waves[0].assignmentCount === 1 ? "" : "s"}
                 {readiness.waves[0].pollRequiredCount > 0
                   ? ` · ${readiness.waves[0].pollRequiredCount} runtime${readiness.waves[0].pollRequiredCount === 1 ? "" : "s"} must poll`
-                  : " · every runtime notified"}
+                  : " · wake delivery requested for every runtime"}
               </p>
             )}
           </div>
@@ -1022,6 +1022,13 @@ function ExecutionPlanProvenance({
                   ["succeeded", control.counts.succeeded, "bg-pastel-green"],
                   ["failed", control.counts.failed, "bg-pastel-red"],
                   ["stale", control.staleCount, "bg-pastel-yellow"],
+                  [
+                    "wake failed",
+                    control.assignments.filter(
+                      (assignment) => assignment.deliveryStatus === "failed",
+                    ).length,
+                    "bg-pastel-red",
+                  ],
                   [
                     "context changed",
                     control.assignments.filter(
@@ -1071,6 +1078,29 @@ function ExecutionPlanProvenance({
                     </span>
                     {assignment.delivery === "poll_required" && (
                       <span className="uppercase tracking-wider">poll</span>
+                    )}
+                    {assignment.delivery === "notify_url" && (
+                      <span
+                        className={cn(
+                          "rounded-full px-1.5 py-0.5 font-medium",
+                          assignment.deliveryStatus === "delivered"
+                            ? "bg-pastel-green text-neutral-900"
+                            : assignment.deliveryStatus === "failed"
+                              ? "bg-pastel-red text-neutral-900"
+                              : assignment.deliveryStatus === "pending"
+                                ? "bg-pastel-yellow text-neutral-900"
+                                : "bg-muted text-muted-foreground",
+                        )}
+                        title={
+                          assignment.deliveryLastError ??
+                          `${assignment.deliveryAttempts} delivery attempt${assignment.deliveryAttempts === 1 ? "" : "s"}`
+                        }
+                      >
+                        wake {assignment.deliveryStatus}
+                        {assignment.deliveryAttempts > 0
+                          ? ` · ${assignment.deliveryAttempts}`
+                          : ""}
+                      </span>
                     )}
                     {assignment.estimatedContextTokens !== undefined && (
                       <span>

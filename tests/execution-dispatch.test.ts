@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../convex/schema";
-import { api } from "../convex/_generated/api";
-import type { Id } from "../convex/_generated/dataModel";
+import { api, internal } from "../convex/_generated/api";
+import type { Doc, Id } from "../convex/_generated/dataModel";
 import { sha256Hex } from "../convex/_agentAuth";
 
 const modules = import.meta.glob("../convex/**/*.*s");
@@ -58,7 +58,6 @@ async function setup() {
       role: "member",
       capabilities: ["typescript", "backend"],
       maxConcurrentTasks: 2,
-      notifyUrl: "https://runtime.example.com/wake",
       createdByClerkId: OWNER.subject,
       createdAt: Date.now(),
     });
@@ -182,6 +181,102 @@ async function approvePlan(
 }
 
 describe("capability-aware execution dispatch", () => {
+  it("delivers a signed durable wake and records the receipt", async () => {
+    const { t, spaceId, backendId, qaId } = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.patch(backendId, {
+        notifyUrl: "https://runtime.example.com/wake",
+        notifySecret: "dispatch-secret",
+      });
+    });
+    vi.useFakeTimers();
+    let delivery: Doc<"agentPingDeliveries"> | null = null;
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      // Plan compilation may have queued the ordinary task.assigned ping
+      // before this test freezes timers. Only task.ready is the durable
+      // execution delivery under test.
+      if (!headers.get("X-Ping-Delivery")) {
+        return new Response(null, { status: 204 });
+      }
+      expect(headers.get("X-Ping-Delivery")).toBe(delivery!._id);
+      expect(headers.get("X-Ping-Signature")).toMatch(/^sha256=[a-f0-9]{64}$/);
+      expect(JSON.parse(String(init?.body))).toMatchObject({
+        deliveryId: delivery!._id,
+        type: "task.ready",
+        attempt: 1,
+      });
+      return new Response(null, { status: 204 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const plan = await t.mutation(
+        api.agentApi.createExecutionPlan,
+        planArgs(spaceId, backendId, qaId),
+      );
+      await approvePlan(t, plan.planId);
+      await t.mutation(api.agentApi.dispatchExecutionWave, {
+        apiKey: PLANNER_KEY,
+        idempotencyKey: "wave-signed-delivery",
+        planId: plan.planId,
+        openQuestionDisposition:
+          "Production region remains deferred; this wake covers local schema work only.",
+      });
+      delivery = await t.run(async (ctx) => {
+        return await ctx.db
+          .query("agentPingDeliveries")
+          .withIndex("by_agent", (q) => q.eq("agentId", backendId))
+          .unique();
+      });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+    expect(
+      fetchMock.mock.calls.filter(([, init]) =>
+        new Headers(init?.headers).has("X-Ping-Delivery"),
+      ),
+    ).toHaveLength(1);
+    expect(
+      await t.run(async (ctx) =>
+        await ctx.db.get(delivery!._id),
+      ),
+    ).toMatchObject({
+      status: "delivered",
+      attempts: 1,
+      responseStatus: 204,
+    });
+    const failedDeliveryId = await t.run(async (ctx) => {
+      return await ctx.db.insert("agentPingDeliveries", {
+        workspaceId: delivery!.workspaceId,
+        executionAssignmentId: delivery!.executionAssignmentId,
+        agentId: delivery!.agentId,
+        taskId: delivery!.taskId,
+        type: "task.ready",
+        payload: {},
+        status: "pending",
+        attempts: 3,
+        createdAt: Date.now(),
+      });
+    });
+    await t.mutation(internal.agentPingDeliveries._recordResult, {
+      deliveryId: failedDeliveryId,
+      ok: false,
+      error: "HTTP 503",
+      responseStatus: 503,
+      final: true,
+    });
+    expect(
+      await t.run(async (ctx) => await ctx.db.get(failedDeliveryId)),
+    ).toMatchObject({
+      status: "failed",
+      attempts: 4,
+      responseStatus: 503,
+      lastError: "HTTP 503",
+    });
+  });
+
   it("runs clean plans autonomously inside versioned owner limits", async () => {
     const { t, owner, workspaceId, spaceId, backendId, qaId } =
       await setup();
@@ -472,7 +567,7 @@ describe("capability-aware execution dispatch", () => {
         taskRef: "platform.schema",
         recommendedAgentId: backendId,
         requiredCapabilities: ["typescript"],
-        notifyConfigured: true,
+        notifyConfigured: false,
         contextPacketCount: 1,
       },
     ]);
@@ -519,7 +614,7 @@ describe("capability-aware execution dispatch", () => {
         {
           taskRef: "platform.schema",
           agentId: backendId,
-          delivery: "notify_url",
+          delivery: "poll_required",
           contextPacketCount: 1,
         },
       ],
@@ -567,10 +662,13 @@ describe("capability-aware execution dispatch", () => {
       contextPacketCount: 1,
       currentContextPacketCount: 1,
       contextDrifted: true,
+      deliveryStatus: "poll_required",
+      deliveryAttempts: 0,
     });
     expect(
       control.assignments[0].currentContextVersionFingerprint,
     ).not.toBe(control.assignments[0].contextVersionFingerprint);
+
   });
 
   it("releases the next dependency wave while respecting concurrency", async () => {

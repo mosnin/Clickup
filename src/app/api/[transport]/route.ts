@@ -1422,7 +1422,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_execution_control",
     description:
-      "Read the execution ledger for a committed plan. Returns every recent dispatch attempt with its task, agent, delivery mode, claimed/running/stale/terminal lifecycle, run linkage, heartbeat freshness, evidence links, errors, retryability, context load at dispatch, current context load, version fingerprints, context drift, and truthful status totals. Active receipts with no execution heartbeat for 30 minutes are surfaced as stale even before reconciliation.",
+      "Read the execution ledger for a committed plan. Returns every recent dispatch attempt with its task, agent, requested delivery mode, durable wake delivery status and attempt evidence, claimed/running/stale/terminal lifecycle, run linkage, heartbeat freshness, evidence links, errors, retryability, context load at dispatch, current context load, version fingerprints, context drift, and truthful status totals. Active receipts with no execution heartbeat for 30 minutes are surfaced as stale even before reconciliation.",
     shape: {
       planId: z.string(),
     },
@@ -1448,7 +1448,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "dispatch_execution_wave",
     description:
-      "Atomically reconcile stale attempts, then release the next dependency-ready, capability-matched work wave to active writable agents without exceeding their concurrency ceilings or the workspace's per-wave and rolling 24-hour limits. A plan must have valid human approval or a current bounded-autonomy policy authorization; policy-authorized plans stop dispatching when that policy version changes. Pending or rejected plans cannot dispatch. Assignments snapshot context-packet count, estimated token load, and a version fingerprint so later drift is visible; agents must still fetch and acknowledge current packets before work. Configured notify URLs receive task.ready with those context requirements; otherwise delivery is poll_required. A 30-minute lease prevents duplicate wake storms; expired work is preserved as abandoned before a retry receipt is created. If the plan preserves open questions, openQuestionDisposition is required so uncertainty is never silently ignored. Exact retries are idempotent.",
+      "Atomically reconcile stale attempts, then release the next dependency-ready, capability-matched work wave to active writable agents without exceeding their concurrency ceilings or the workspace's per-wave and rolling 24-hour limits. A plan must have valid human approval or a current bounded-autonomy policy authorization; policy-authorized plans stop dispatching when that policy version changes. Pending or rejected plans cannot dispatch. Assignments snapshot context-packet count, estimated token load, and a version fingerprint so later drift is visible; agents must still fetch and acknowledge current packets before work. Configured notify URLs receive a signed task.ready through durable bounded retries whose pending/delivered/failed evidence appears in get_execution_control; otherwise delivery is poll_required. A 30-minute lease prevents duplicate wake storms; expired work is preserved as abandoned before a retry receipt is created. If the plan preserves open questions, openQuestionDisposition is required so uncertainty is never silently ignored. Exact retries are idempotent.",
     shape: {
       idempotencyKey: z.string().max(120),
       planId: z.string(),

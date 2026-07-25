@@ -149,6 +149,7 @@ import {
   requireDecisionImpactsResolved,
   supersedeDecisionCore,
 } from "./decisions";
+import { enqueueAgentPingDelivery } from "./agentPingDeliveries";
 
 // The agent-facing API: every function here authenticates with an agent
 // API key instead of Clerk, resolves the agent's scope (personal space or
@@ -5827,37 +5828,12 @@ export const dispatchExecutionWave = mutation({
           ctx,
           { taskId: task._id, assigneeIds },
           agentActor(agent),
+          { suppressAgentPing: true },
         );
       }
       const delivery = target.notifyUrl
         ? ("notify_url" as const)
         : ("poll_required" as const);
-      if (target.notifyUrl) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.notifications.postAgentPing,
-          {
-            url: target.notifyUrl,
-            type: "task.ready",
-            payload: {
-              planId: plan._id,
-              taskId: task._id,
-              listId: task.listId,
-              title: task.title,
-              contextRequired: true,
-              contextPacketCount: recommendation.contextPacketCount,
-              estimatedContextTokens: recommendation.estimatedContextTokens,
-              contextVersionFingerprint:
-                recommendation.contextVersionFingerprint,
-              contextPackets: recommendation.contextPackets.map((packet) => ({
-                packetId: packet.packetId,
-                version: packet.version,
-              })),
-            },
-            secret: target.notifySecret,
-          },
-        );
-      }
       assignments.push({
         taskId: task._id,
         taskRef: recommendation.taskRef,
@@ -5898,12 +5874,20 @@ export const dispatchExecutionWave = mutation({
       skipped,
       createdAt: dispatchedAt,
     });
+    const recommendationByTaskId = new Map(
+      selected.map((recommendation) => [
+        recommendation.taskId as string,
+        recommendation,
+      ]),
+    );
     for (const assignment of assignments) {
       const previousAttempts = await ctx.db
         .query("executionAssignments")
         .withIndex("by_task", (q) => q.eq("taskId", assignment.taskId))
         .collect();
-      await ctx.db.insert("executionAssignments", {
+      const executionAssignmentId = await ctx.db.insert(
+        "executionAssignments",
+        {
         workspaceId: plan.workspaceId,
         planId: plan._id,
         waveId,
@@ -5917,7 +5901,40 @@ export const dispatchExecutionWave = mutation({
         status: "dispatched",
         attempt: previousAttempts.length + 1,
         dispatchedAt,
-      });
+        },
+      );
+      if (assignment.delivery === "notify_url") {
+        const recommendation = recommendationByTaskId.get(
+          assignment.taskId as string,
+        );
+        if (!recommendation) {
+          throw new ConvexError(
+            `Dispatch recommendation disappeared for ${assignment.taskRef}`,
+          );
+        }
+        await enqueueAgentPingDelivery(ctx, {
+          workspaceId: plan.workspaceId,
+          executionAssignmentId,
+          agentId: assignment.agentId,
+          taskId: assignment.taskId,
+          type: "task.ready",
+          payload: {
+            planId: plan._id,
+            taskId: assignment.taskId,
+            listId: recommendation.listId,
+            title: recommendation.title,
+            contextRequired: true,
+            contextPacketCount: recommendation.contextPacketCount,
+            estimatedContextTokens: recommendation.estimatedContextTokens,
+            contextVersionFingerprint:
+              recommendation.contextVersionFingerprint,
+            contextPackets: recommendation.contextPackets.map((packet) => ({
+              packetId: packet.packetId,
+              version: packet.version,
+            })),
+          },
+        });
+      }
     }
     await emitEvent(ctx, {
       scopeType: "workspace",

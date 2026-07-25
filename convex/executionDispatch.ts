@@ -439,10 +439,16 @@ export async function executionControlCore(
   }
   const assignments = [];
   for (const row of rows.slice(0, 25)) {
-    const [task, agent, contextLoad] = await Promise.all([
+    const [task, agent, contextLoad, pingDelivery] = await Promise.all([
       ctx.db.get(row.taskId),
       ctx.db.get(row.agentId),
       contextLoadForTask(ctx, row.taskId),
+      ctx.db
+        .query("agentPingDeliveries")
+        .withIndex("by_execution_assignment", (q) =>
+          q.eq("executionAssignmentId", row._id),
+        )
+        .unique(),
     ]);
     const stale = isExecutionAssignmentStale(row, now);
     const freshnessAt = executionAssignmentFreshnessAt(row);
@@ -455,6 +461,17 @@ export async function executionControlCore(
       agentId: row.agentId,
       agentName: agent?.name ?? "Deleted agent",
       delivery: row.delivery,
+      deliveryStatus:
+        row.delivery === "poll_required"
+          ? ("poll_required" as const)
+          : pingDelivery?.status ?? ("unknown" as const),
+      deliveryAttempts: pingDelivery?.attempts ?? 0,
+      deliveryResponseStatus: pingDelivery?.responseStatus,
+      deliveryLastError: pingDelivery?.lastError,
+      deliveredAt:
+        pingDelivery?.status === "delivered"
+          ? pingDelivery.completedAt
+          : undefined,
       contextPacketCount: row.contextPacketCount,
       estimatedContextTokens: row.estimatedContextTokens,
       contextVersionFingerprint: row.contextVersionFingerprint,

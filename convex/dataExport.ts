@@ -209,6 +209,18 @@ export const exportWorkspace = query({
         ),
       )
     ).flat();
+    const agentPingDeliveries = (
+      await Promise.all(
+        executionAssignments.map((assignment) =>
+          ctx.db
+            .query("agentPingDeliveries")
+            .withIndex("by_execution_assignment", (q) =>
+              q.eq("executionAssignmentId", assignment._id),
+            )
+            .unique(),
+        ),
+      )
+    ).filter((delivery) => delivery !== null);
     const outcomeChecks = (
       await Promise.all(
         executionPlans.map((plan) =>
@@ -221,6 +233,12 @@ export const exportWorkspace = query({
     ).flat();
     const spaceName = new Map(spaces.map((space) => [space._id, space.name]));
     const agentName = new Map(agents.map((agent) => [agent._id, agent.name]));
+    const pingDeliveryByAssignment = new Map(
+      agentPingDeliveries.map((delivery) => [
+        delivery.executionAssignmentId,
+        delivery,
+      ]),
+    );
 
     return {
       exportedAt: Date.now(),
@@ -335,6 +353,19 @@ export const exportWorkspace = query({
         taskRef: assignment.taskRef,
         agent: agentName.get(assignment.agentId),
         delivery: assignment.delivery,
+        wakeDelivery: (() => {
+          const delivery = pingDeliveryByAssignment.get(assignment._id);
+          return delivery
+            ? {
+                status: delivery.status,
+                attempts: delivery.attempts,
+                responseStatus: delivery.responseStatus,
+                lastError: delivery.lastError,
+                lastAttemptAt: delivery.lastAttemptAt,
+                completedAt: delivery.completedAt,
+              }
+            : undefined;
+        })(),
         contextPacketCount: assignment.contextPacketCount,
         estimatedContextTokens: assignment.estimatedContextTokens,
         contextVersionFingerprint: assignment.contextVersionFingerprint,

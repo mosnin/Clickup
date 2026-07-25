@@ -36,6 +36,7 @@ async function scheduleAssignmentNotifications(
   task: Doc<"tasks">,
   newAssigneeIds: string[],
   actor: Actor,
+  suppressAgentPing = false,
 ): Promise<void> {
   if (newAssigneeIds.length === 0) return;
 
@@ -47,6 +48,7 @@ async function scheduleAssignmentNotifications(
     // subscription.
     const agentId = ctx.db.normalizeId("agents", cid);
     if (agentId) {
+      if (suppressAgentPing) continue;
       const agent = await ctx.db.get(agentId);
       if (agent?.notifyUrl) {
         await ctx.scheduler.runAfter(0, internal.notifications.postAgentPing, {
@@ -508,6 +510,7 @@ export async function updateTaskCore(
   ctx: MutationCtx,
   args: UpdateTaskArgs,
   actor: Actor,
+  options?: { suppressAgentPing?: boolean },
 ): Promise<void> {
   const task = await ctx.db.get(args.taskId);
   if (!task) throw new ConvexError("Task not found");
@@ -698,7 +701,13 @@ export async function updateTaskCore(
   if (!updated) return;
 
   if (newlyAssigned.length > 0) {
-    await scheduleAssignmentNotifications(ctx, updated, newlyAssigned, actor);
+    await scheduleAssignmentNotifications(
+      ctx,
+      updated,
+      newlyAssigned,
+      actor,
+      options?.suppressAgentPing,
+    );
     await emitTaskEvent(ctx, updated, "task.assigned", actor, {
       assigneeIds: newlyAssigned,
     });

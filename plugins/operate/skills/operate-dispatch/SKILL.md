@@ -11,7 +11,7 @@ Use this skill when a committed execution plan should begin, continue, or recove
 4. If open questions exist, obtain or write an explicit disposition that says what was resolved, deferred, or intentionally bounded. Never imply uncertainty disappeared.
 5. Call `dispatch_execution_wave` with a unique idempotency key, a deliberate `maxTasks`, and an optional agent subset when the user constrained the fleet.
 6. Dispatch reconciles stale attempts before routing. If you are recovering work manually, call `reconcile_execution_plan` first and preserve its timeout evidence.
-7. Read `get_execution_control` after dispatch. Report each task, assigned agent, delivery mode, attempt number, context load at dispatch, and whether the runtime was notified or must poll.
+7. Read `get_execution_control` after dispatch. Report each task, assigned agent, delivery mode, execution attempt number, context load at dispatch, and the durable wake state (`pending`, `delivered`, `failed`, or `poll_required`). A configured notify URL is not proof of delivery; inspect `deliveryAttempts`, `deliveredAt`, and `deliveryLastError`.
 8. On later checks, distinguish dispatched, claimed, running, succeeded, failed, and abandoned attempts. If `contextDrifted` is true, the assigned agent must re-fetch the task and acknowledge the current packet versions before continuing. Failed or abandoned work is retryable; do not duplicate a fresh active attempt.
 9. When execution appears complete, load `operate-assurance`. Submit evidence against every original success criterion and route it to a different agent or human for review. Never equate a green execution ledger with a verified outcome.
 

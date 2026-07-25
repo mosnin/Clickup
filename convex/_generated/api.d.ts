@@ -17,6 +17,8 @@ import type * as admin from "../admin.js";
 import type * as agentAi from "../agentAi.js";
 import type * as agentApi from "../agentApi.js";
 import type * as agentKeys from "../agentKeys.js";
+import type * as agentPingDeliveries from "../agentPingDeliveries.js";
+import type * as agentPingDeliveryAction from "../agentPingDeliveryAction.js";
 import type * as agentTemplates from "../agentTemplates.js";
 import type * as agents from "../agents.js";
 import type * as ai from "../ai.js";
@@ -110,6 +112,8 @@ declare const fullApi: ApiFromModules<{
   agentAi: typeof agentAi;
   agentApi: typeof agentApi;
   agentKeys: typeof agentKeys;
+  agentPingDeliveries: typeof agentPingDeliveries;
+  agentPingDeliveryAction: typeof agentPingDeliveryAction;
   agentTemplates: typeof agentTemplates;
   agents: typeof agents;
   ai: typeof ai;

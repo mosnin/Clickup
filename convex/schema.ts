@@ -770,6 +770,32 @@ export default defineSchema({
     .index("by_agent", ["agentId", "dispatchedAt"])
     .index("by_run", ["runId"]),
 
+  // Durable wake delivery for execution assignments. A configured notify URL
+  // is only a requested channel; this row proves whether the signed task.ready
+  // ping actually reached the agent runtime after bounded retries.
+  agentPingDeliveries: defineTable({
+    workspaceId: v.id("workspaces"),
+    executionAssignmentId: v.id("executionAssignments"),
+    agentId: v.id("agents"),
+    taskId: v.id("tasks"),
+    type: v.string(),
+    payload: v.any(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("delivered"),
+      v.literal("failed"),
+    ),
+    attempts: v.number(),
+    responseStatus: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    lastAttemptAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_execution_assignment", ["executionAssignmentId"])
+    .index("by_agent", ["agentId", "createdAt"])
+    .index("by_status", ["status", "createdAt"]),
+
   // Plan-level outcome assurance. Tasks and runs prove that work happened;
   // these rows prove that the original success criteria were independently
   // evaluated against evidence. Older plans are supported without a data
