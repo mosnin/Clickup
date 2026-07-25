@@ -102,6 +102,13 @@ import {
 import { seedDefaultStatuses } from "./listStatuses";
 import { emitEvent, scopeForList } from "./events";
 import { getRollup } from "./rollups";
+import {
+  attachContextPacketCore,
+  createContextPacketCore,
+  detachContextPacketCore,
+  listPacketsForTask,
+  updateContextPacketCore,
+} from "./contextPackets";
 
 // The agent-facing API: every function here authenticates with an agent
 // API key instead of Clerk, resolves the agent's scope (personal space or
@@ -804,10 +811,12 @@ export const getTask = query({
           url: await ctx.storage.getUrl(a.storageId),
         })),
     );
+    const contextPackets = await listPacketsForTask(ctx, taskId);
     return {
       ...view,
       listName: taskList?.name ?? null,
       attachments,
+      contextPackets,
       sop,
       customFields,
       // Raw rows kept for backwards compatibility with existing agents.
@@ -836,6 +845,157 @@ export const getTask = query({
           parentMessageId: m.parentMessageId,
           resolvedAt: m.resolvedAt,
         })),
+    };
+  },
+});
+
+// ── Shared project context ─────────────────────────────────────────────
+
+export const listContextPackets = query({
+  args: {
+    apiKey: v.string(),
+    listId: v.id("lists"),
+  },
+  handler: async (ctx, { apiKey, listId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    await requireListAccessForAgent(ctx, listId, agent);
+    const packets = await ctx.db
+      .query("contextPackets")
+      .withIndex("by_list", (q) => q.eq("listId", listId))
+      .collect();
+    return packets
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .map((packet) => ({
+        packetId: packet._id,
+        listId: packet.listId,
+        title: packet.title,
+        summary: packet.summary,
+        version: packet.version,
+        updatedAt: packet.updatedAt,
+      }));
+  },
+});
+
+export const getContextPacket = query({
+  args: { apiKey: v.string(), packetId: v.id("contextPackets") },
+  handler: async (ctx, { apiKey, packetId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const packet = await ctx.db.get(packetId);
+    if (!packet) throw new ConvexError("Context packet not found");
+    await requireListAccessForAgent(ctx, packet.listId, agent);
+    return {
+      packetId: packet._id,
+      listId: packet.listId,
+      title: packet.title,
+      summary: packet.summary,
+      content: packet.content,
+      version: packet.version,
+      createdByActorId: packet.createdByActorId,
+      createdAt: packet.createdAt,
+      updatedByActorId: packet.updatedByActorId,
+      updatedAt: packet.updatedAt,
+    };
+  },
+});
+
+export const createContextPacket = mutation({
+  args: {
+    apiKey: v.string(),
+    listId: v.id("lists"),
+    title: v.string(),
+    summary: v.optional(v.string()),
+    content: v.string(),
+    taskIds: v.optional(v.array(v.id("tasks"))),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const { list } = await requireListAccessForAgent(ctx, args.listId, agent);
+    const actor = agentActor(agent);
+    const packetId = await createContextPacketCore(ctx, list, args, actor);
+    const packet = (await ctx.db.get(packetId))!;
+    for (const taskId of args.taskIds ?? []) {
+      const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
+      await attachContextPacketCore(ctx, packet, task, actor);
+    }
+    return { packetId, version: 1 };
+  },
+});
+
+export const updateContextPacket = mutation({
+  args: {
+    apiKey: v.string(),
+    packetId: v.id("contextPackets"),
+    title: v.optional(v.string()),
+    summary: v.optional(v.union(v.string(), v.null())),
+    content: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const packet = await ctx.db.get(args.packetId);
+    if (!packet) throw new ConvexError("Context packet not found");
+    const { list } = await requireListAccessForAgent(ctx, packet.listId, agent);
+    const version = await updateContextPacketCore(
+      ctx,
+      packet,
+      list,
+      args,
+      agentActor(agent),
+    );
+    return { version };
+  },
+});
+
+export const attachContextPacket = mutation({
+  args: {
+    apiKey: v.string(),
+    packetId: v.id("contextPackets"),
+    taskIds: v.array(v.id("tasks")),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    if (args.taskIds.length > 100) {
+      throw new ConvexError("Attach context to at most 100 tasks per call");
+    }
+    const packet = await ctx.db.get(args.packetId);
+    if (!packet) throw new ConvexError("Context packet not found");
+    await requireListAccessForAgent(ctx, packet.listId, agent);
+    let attached = 0;
+    for (const taskId of args.taskIds) {
+      const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
+      if (
+        await attachContextPacketCore(ctx, packet, task, agentActor(agent))
+      ) {
+        attached += 1;
+      }
+    }
+    return { attached };
+  },
+});
+
+export const detachContextPacket = mutation({
+  args: {
+    apiKey: v.string(),
+    packetId: v.id("contextPackets"),
+    taskId: v.id("tasks"),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const packet = await ctx.db.get(args.packetId);
+    if (!packet) throw new ConvexError("Context packet not found");
+    const { task } = await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    if (task.listId !== packet.listId) {
+      throw new ConvexError("Context packet and task belong to different projects");
+    }
+    return {
+      detached: await detachContextPacketCore(
+        ctx,
+        packet._id,
+        task._id,
+      ),
     };
   },
 });

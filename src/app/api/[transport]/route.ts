@@ -525,10 +525,84 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_task",
     description:
-      "Full detail of one task: status, checklist, dependencies (with open/closed state), claim, subtasks, and the last 50 comments. Also returns listName, attachments (with download urls), and the list's SOP when one is attached.",
+      "Full detail of one task: status, checklist, dependencies (with open/closed state), claim, subtasks, and the last 50 comments. Also returns listName, attachments (with download urls), attached contextPackets, and the list's SOP.",
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.getTask), { apiKey: k, ...a }),
+  },
+  {
+    name: "list_context_packets",
+    description:
+      "List the versioned source-of-truth briefs available in a project. Packets keep objectives, constraints, decisions, and references consistent across parallel tasks.",
+    shape: { listId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.listContextPackets), { apiKey: k, ...a }),
+  },
+  {
+    name: "get_context_packet",
+    description:
+      "Read one context packet in full. Re-read when its version changes before continuing work based on it.",
+    shape: { packetId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getContextPacket), { apiKey: k, ...a }),
+  },
+  {
+    name: "create_context_packet",
+    description:
+      "Create a versioned source-of-truth brief for a project and optionally attach it to many tasks atomically. Use markdown sections such as Objective, Constraints, Decisions, References, and Open Questions.",
+    shape: {
+      listId: z.string(),
+      title: z.string(),
+      summary: z.string().optional(),
+      content: z.string(),
+      taskIds: z.array(z.string()).max(100).optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.createContextPacket), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "update_context_packet",
+    description:
+      "Update a context packet. Every material change increments its version so agents can detect stale context instead of silently diverging.",
+    shape: {
+      packetId: z.string(),
+      title: z.string().optional(),
+      summary: z.string().nullable().optional(),
+      content: z.string().optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.updateContextPacket), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "attach_context_packet",
+    description:
+      "Attach one project context packet to up to 100 tasks. get_task then returns the full packet to every assigned agent.",
+    shape: {
+      packetId: z.string(),
+      taskIds: z.array(z.string()).min(1).max(100),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.attachContextPacket), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "detach_context_packet",
+    description:
+      "Detach context that no longer applies to a task. The packet remains available to its other tasks.",
+    shape: { packetId: z.string(), taskId: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.detachContextPacket), {
+        apiKey: k,
+        ...a,
+      }),
   },
   {
     name: "create_task",

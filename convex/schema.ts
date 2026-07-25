@@ -468,6 +468,33 @@ export default defineSchema({
     // The global set of approval-gated tasks (small) for the inbox queue.
     .index("by_approval", ["requiresApproval"]),
 
+  // Versioned source-of-truth briefs shared by every human and agent
+  // working in a project. A packet is deliberately list-scoped: the list
+  // is both the access boundary and the project whose conventions it
+  // describes. Attachments let one packet travel with many tasks without
+  // copying markdown that would immediately drift.
+  contextPackets: defineTable({
+    listId: v.id("lists"),
+    title: v.string(),
+    summary: v.optional(v.string()),
+    content: v.string(),
+    version: v.number(),
+    createdByActorId: v.string(),
+    createdAt: v.number(),
+    updatedByActorId: v.string(),
+    updatedAt: v.number(),
+  }).index("by_list", ["listId"]),
+
+  taskContextPackets: defineTable({
+    taskId: v.id("tasks"),
+    packetId: v.id("contextPackets"),
+    attachedByActorId: v.string(),
+    attachedAt: v.number(),
+  })
+    .index("by_task", ["taskId"])
+    .index("by_packet", ["packetId"])
+    .index("by_task_and_packet", ["taskId", "packetId"]),
+
   // External integrations attached to a workspace. Each kind stores its
   // own credential shape inside `config` (e.g. { webhookUrl } for Slack).
   // We deliberately keep this simple — one row per (workspace, kind) —
