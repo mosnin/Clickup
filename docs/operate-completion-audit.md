@@ -22,11 +22,20 @@ only after automated checks and relevant production behavior both pass.
 - Supervised and bounded-autonomous execution policies
 - Capability/capacity-aware dispatch and stale-attempt reconciliation
 - Outcome evidence and independent assurance workflow
+- Production multi-agent execution: the supervised `CERT Multi-agent
+  2026-07-25T14-45-14-121Z` plan was human-authorized, dispatched to Scout and
+  Cert Builder in one wave, consumed through durable wakes, executed as two
+  separately claimed and heartbeating tasks, completed with outcome evidence,
+  and independently verified in assurance. The verified roadmap and paused
+  Cert Builder principal remain as audit evidence; all temporary certification
+  credentials were revoked and returned 401 on reuse.
 - Hourly through monthly recurring operations
 - Reusable agent-authored SOP blueprints
 - Isolated schedule failures, threshold auto-pause, and owner/admin escalation
 - Seven curl-installable skills with retries and SHA-256 verification
-- Local production build, typecheck, lint, plugin validation, and 319 tests
+- Completed agent work clears its matching current-task and activity text,
+  preventing stale “Now” presence after success
+- Local production build, typecheck, lint, plugin validation, and 320 tests
 - Disposable production MCP mutation certification: List create/rename/metadata,
   two-task parent/dependency batch, task update/checklist, comment
   create/update/delete, schedule create/pause/resume/delete, readback/event
@@ -41,26 +50,23 @@ only after automated checks and relevant production behavior both pass.
 - Webhook delivery, signature verification, retry, disable, and recovery lifecycle
 - x402 metering and billing lifecycle
 - Recurring schedule materialization through a real production cron tick
-- Multi-agent production run with two or more independent runtimes
 
 ## Still required
 
-1. Prove a real multi-agent plan: compile, authorize, dispatch in parallel,
-   consume wakes, claim, heartbeat, produce evidence, and independently verify.
-2. Prove production cron materialization and schedule failure recovery on the
+1. Prove production cron materialization and schedule failure recovery on the
    clock rather than only through tests.
-3. Complete OAuth, webhook, and billing production certification.
-4. Run a systematic browser pass over onboarding, home, inbox, Spaces, Lists,
+2. Complete OAuth, webhook, and billing production certification.
+3. Run a systematic browser pass over onboarding, home, inbox, Spaces, Lists,
    task detail, views, sprints, roadmaps, operations, agents, templates, search,
    settings, responsive layouts, keyboard navigation, and failure states.
-5. Add external uptime/error alerting; the health endpoint and Vercel log scan
+4. Add external uptime/error alerting; the health endpoint and Vercel log scan
    exist, but no independent monitor currently pages an operator.
-6. Run security review: exposed-key rotation, authorization matrix, rate limits,
+5. Run security review: exposed-key rotation, authorization matrix, rate limits,
    SSRF/webhook boundaries, OAuth redirect validation, secret handling, and
    dependency scan.
-7. Run load/performance, backup/restore, data-retention, and disaster-recovery
+6. Run load/performance, backup/restore, data-retention, and disaster-recovery
    exercises.
-8. Upload the ChatGPT and Claude bundles for official review and address reviewer
+7. Upload the ChatGPT and Claude bundles for official review and address reviewer
    feedback. Platform approval itself is external and cannot be proven locally.
 
 ## Deployment policy

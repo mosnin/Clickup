@@ -207,6 +207,27 @@ describe("transport presence", () => {
     );
     expect(events).toHaveLength(1);
   });
+
+  it("clears the current-work line when an agent completes that task", async () => {
+    const { t, alice, listId, agentId, apiKey } = await setup();
+    const taskId = await alice.mutation(api.tasks.create, {
+      listId,
+      title: "Finish the certification",
+    });
+    await t.mutation(api.agentApi.claimTask, { apiKey, taskId });
+    await t.mutation(api.agentApi.heartbeat, {
+      apiKey,
+      currentTaskId: taskId,
+      statusText: "Producing certification evidence",
+    });
+
+    await t.mutation(api.agentApi.completeTask, { apiKey, taskId });
+
+    const completed = await t.run((ctx) => ctx.db.get(agentId));
+    expect(completed?.currentTaskId).toBeUndefined();
+    expect(completed?.statusText).toBeUndefined();
+    expect(completed?.lastSeenAt).toEqual(expect.any(Number));
+  });
 });
 
 describe("linked goals over the agent API", () => {

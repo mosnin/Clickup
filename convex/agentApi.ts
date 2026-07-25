@@ -1471,6 +1471,13 @@ export const completeTask = mutation({
       { taskId, statusId: complete._id },
       agentActor(agent),
     );
+    if (agent.currentTaskId === taskId) {
+      await ctx.db.patch(agent._id, {
+        currentTaskId: undefined,
+        statusText: undefined,
+        lastSeenAt: Date.now(),
+      });
+    }
   },
 });
 
