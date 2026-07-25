@@ -13,12 +13,17 @@ const SKILLS = [
   ["Worker", "Claim, execute, heartbeat, attach evidence, and finish work."],
   ["Daily ops", "Turn live work into a factual operating brief."],
   ["Recovery", "Recover failed or abandoned work without erasing history."],
+  [
+    "Assurance",
+    "Verify every original success criterion against independent evidence.",
+  ],
 ] as const;
 
 const EXAMPLES = [
   "Turn this confirmed brief into an auditable multi-project execution plan.",
   "Show me the next safe execution wave and explain what is blocked.",
   "Summarize running, failed, retryable, and completed work for this plan.",
+  "Verify this plan's original success criteria with independent evidence.",
 ] as const;
 
 export default function PluginsPage() {
@@ -47,7 +52,7 @@ export default function PluginsPage() {
             Install with one URL
           </h2>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Run this from a project root. It writes five readable
+            Run this from a project root. It writes six readable
             <code className="mx-1 rounded bg-muted px-1.5 py-0.5 text-xs">
               SKILL.md
             </code>

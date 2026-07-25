@@ -652,8 +652,7 @@ export default defineSchema({
     reviewedAt: v.optional(v.number()),
     updatedAt: v.number(),
   })
-    .index("by_plan", ["planId", "criterionIndex"])
-    .index("by_plan_and_criterion", ["planId", "criterionIndex"]),
+    .index("by_plan", ["planId", "criterionIndex"]),
 
   // External integrations attached to a workspace. Each kind stores its
   // own credential shape inside `config` (e.g. { webhookUrl } for Slack).

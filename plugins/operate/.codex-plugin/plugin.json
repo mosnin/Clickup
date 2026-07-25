@@ -1,6 +1,6 @@
 {
   "name": "operate",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Plan, dispatch, execute, and independently verify human and AI-agent work in Operate.",
   "author": {
     "name": "Operate",

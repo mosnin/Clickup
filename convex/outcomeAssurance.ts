@@ -103,7 +103,7 @@ async function checkForCriterion(
 ) {
   return await ctx.db
     .query("outcomeChecks")
-    .withIndex("by_plan_and_criterion", (q) =>
+    .withIndex("by_plan", (q) =>
       q.eq("planId", planId).eq("criterionIndex", criterionIndex),
     )
     .unique();
