@@ -1,18 +1,16 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { ProjectsView } from "./projects-view";
+import { SpacesView } from "./spaces-view";
 
 export const metadata: Metadata = {
-  title: "Projects",
+  title: "Spaces",
   robots: { index: false, follow: false },
 };
 
 export default function ProjectsPage() {
-  // ProjectsView reads ?sort=/?group= via useSearchParams, which requires
-  // a Suspense boundary when the route is statically prerendered.
   return (
     <Suspense>
-      <ProjectsView />
+      <SpacesView />
     </Suspense>
   );
 }

@@ -256,13 +256,13 @@ function OverviewTab({
       ))}
 
       <ProjectSection
-        title="Projects"
+        title="Lists"
         parentType="space"
         parentId={spaceId}
         rollupsById={rollupsById}
         fallback={lists.filter((l) => l.folderId === null)}
         dest={dest}
-        emptyMessage={`Projects created straight in ${spaceName} live here. Group them into a folder whenever it helps.`}
+        emptyMessage={`Lists created straight in ${spaceName} live here. Group them into a folder whenever it helps.`}
       />
 
       <section>
@@ -401,7 +401,7 @@ function ProjectSection({
         <div className="mt-3 rounded-2xl panel">
           <EmptyState
             compact
-            title="No projects yet"
+            title="No lists yet"
             message={emptyMessage}
             action={
               <NewListControl parentType={parentType} parentId={parentId} />
@@ -560,7 +560,7 @@ function FolderSection({
                     setHidden(true);
                     toast(
                       hasLists
-                        ? `"${folder.name}" deleted — its projects moved to ${spaceName}`
+                        ? `"${folder.name}" deleted — its lists moved to ${spaceName}`
                         : `"${folder.name}" deleted`,
                       {
                         action: {
@@ -590,7 +590,7 @@ function FolderSection({
             fallback={fallback}
             dest={dest}
             hideFolderLine
-            emptyMessage={`Nothing in ${folder.name} yet. Add a project here, or move an existing one in from ${spaceName}.`}
+            emptyMessage={`Nothing in ${folder.name} yet. Add a list here, or move an existing one in from ${spaceName}.`}
           />
         </div>
       )}
@@ -759,7 +759,7 @@ function ProjectCard({
                 });
                 toast(`"${list.name}" moved`);
               } catch (e) {
-                toast(errorMessage(e, "Couldn't move project"), {
+                toast(errorMessage(e, "Couldn't move list"), {
                   kind: "error",
                 });
               }

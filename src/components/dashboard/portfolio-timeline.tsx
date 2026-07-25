@@ -115,7 +115,7 @@ export function PortfolioTimeline({
     return (
       <Card className="p-0">
         <EmptyState
-          title="No projects yet in this workspace"
+          title="No scheduled lists yet in this workspace"
           message="Give a list a start date, due date, or target date and it will appear here as a bar on the shared timeline."
         />
       </Card>
@@ -151,7 +151,7 @@ export function PortfolioTimeline({
           {/* Month axis header */}
           <div className="relative flex h-10 border-b border-border">
             <div className="sticky left-0 z-30 w-[220px] flex-shrink-0 bg-card px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Project
+              List
             </div>
             <div className="relative" style={{ width: layout.totalWidth }}>
               {layout.months.map((m) => {
@@ -205,7 +205,7 @@ function SummaryStrip({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-sm font-semibold">
-        <AnimatedNumber value={total} /> project{total === 1 ? "" : "s"}
+        <AnimatedNumber value={total} /> list{total === 1 ? "" : "s"}
       </span>
       {chips.map((c) => (
         <Badge

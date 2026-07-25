@@ -110,7 +110,7 @@ const WIDGETS = [
   { id: "stats", title: "Overview stats", span: "lg:col-span-3" },
   { id: "today", title: "Today's tasks", span: "lg:col-span-2" },
   { id: "activity", title: "Recent activity", span: "" },
-  { id: "projects", title: "Projects", span: "lg:col-span-3" },
+  { id: "projects", title: "Lists", span: "lg:col-span-3" },
   { id: "live", title: "Live feed", span: "lg:col-span-2" },
   { id: "agents", title: "Agents online", span: "" },
 ] as const;
@@ -805,25 +805,25 @@ function ProjectsTable({
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <h3 className="text-base font-medium">Projects</h3>
+        <h3 className="text-base font-medium">Lists</h3>
         <span className="text-xs text-muted-foreground">
           {projects.length === totalProjects
-            ? `${totalProjects} project${totalProjects === 1 ? "" : "s"}`
+            ? `${totalProjects} list${totalProjects === 1 ? "" : "s"}`
             : `Showing ${projects.length} of ${totalProjects}`}
         </span>
       </div>
       {projects.length === 0 ? (
         <EmptyState
           compact
-          title="No projects yet"
-          message="Create a list inside your personal space or a workspace and it'll show up here, live."
+          title="No lists yet"
+          message="Create a list inside a space and it'll show up here, live."
         />
       ) : (
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead>Project</TableHead>
+                <TableHead>List</TableHead>
                 <TableHead>Health</TableHead>
                 <TableHead>Progress</TableHead>
                 <TableHead>Target date</TableHead>
@@ -906,7 +906,7 @@ function ProjectsTable({
             href="/dashboard/projects"
             className="text-sm font-medium hover:underline"
           >
-            View all projects
+            View all spaces
           </Link>
         </div>
       )}
@@ -926,7 +926,7 @@ function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
           <EmptyState
             compact
             title="It's quiet"
-            message="Activity across your projects will land here the moment it happens."
+            message="Activity across your spaces will land here the moment it happens."
           />
         ) : (
           <ul className="space-y-3">

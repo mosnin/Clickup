@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useAction, useMutation, useQuery } from "convex/react";
@@ -70,6 +70,15 @@ const TABS: { key: Tab; label: string; icon: typeof Bot }[] = [
 
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 
+function usePresenceClock() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return now;
+}
+
 export function AgentsView() {
   // Tab is URL-addressable (?tab=) so the sidebar can deep-link to Activity/
   // Billing/Webhooks/Skills; the "agents" tab is the bare /dashboard/agents.
@@ -84,6 +93,7 @@ export function AgentsView() {
   // Agents tab, exactly where it always has.
   const [creating, setCreating] = useState(false);
   const [templating, setTemplating] = useState(false);
+  const now = usePresenceClock();
 
   const agentsData = useQuery(api.agents.listForCurrentUser, {});
   const { onlineCount, totalCount } = useMemo(() => {
@@ -96,10 +106,10 @@ export function AgentsView() {
       (a) =>
         a.status === "active" &&
         a.lastSeenAt !== undefined &&
-        Date.now() - a.lastSeenAt < ONLINE_WINDOW_MS,
+        now - a.lastSeenAt < ONLINE_WINDOW_MS,
     ).length;
     return { onlineCount: online, totalCount: all.length };
-  }, [agentsData]);
+  }, [agentsData, now]);
 
   return (
     <div className="space-y-6">
@@ -786,6 +796,7 @@ function AgentCard({
   agent: Doc<"agents">;
   taskTitles: Record<string, string>;
 }) {
+  const now = usePresenceClock();
   const update = useMutation(api.agents.update);
   const remove = useMutation(api.agents.remove);
   const [showKeys, setShowKeys] = useState(false);
@@ -794,7 +805,7 @@ function AgentCard({
 
   const online =
     agent.lastSeenAt !== undefined &&
-    Date.now() - agent.lastSeenAt < ONLINE_WINDOW_MS;
+    now - agent.lastSeenAt < ONLINE_WINDOW_MS;
   const currentTitle = agent.currentTaskId
     ? taskTitles[agent.currentTaskId]
     : undefined;

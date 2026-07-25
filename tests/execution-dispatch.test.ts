@@ -154,6 +154,22 @@ function planArgs(
   };
 }
 
+async function acknowledgePlanTask(
+  t: ReturnType<typeof convexTest>,
+  apiKey: string,
+  taskId: Id<"tasks">,
+) {
+  const task = await t.query(api.agentApi.getTask, { apiKey, taskId });
+  await t.mutation(api.agentApi.acknowledgeTaskContext, {
+    apiKey,
+    taskId,
+    packets: task.contextPackets.map((packet) => ({
+      packetId: packet.packetId,
+      version: packet.version,
+    })),
+  });
+}
+
 describe("capability-aware execution dispatch", () => {
   it("gates uncertainty, dispatches one safe wave, and replays idempotently", async () => {
     const { t, owner, spaceId, backendId, qaId } = await setup();
@@ -313,6 +329,7 @@ describe("capability-aware execution dispatch", () => {
     const schemaTask = plan.tasks.find(
       (task) => task.ref === "platform.schema",
     )!;
+    await acknowledgePlanTask(t, BACKEND_KEY, schemaTask.taskId);
 
     await expect(
       t.mutation(api.agentApi.claimTask, {
@@ -368,13 +385,22 @@ describe("capability-aware execution dispatch", () => {
     expect(readiness.recommendations).toHaveLength(0);
     expect(readiness.skipped).toContainEqual({
       taskRef: "platform.schema",
-      reason: "dispatch_lease",
+      reason: "assignment_dispatched",
     });
 
     await t.run(async (ctx) => {
       await ctx.db.patch(wave.waveId, {
         createdAt: Date.now() - 31 * 60 * 1000,
       });
+      const assignments = await ctx.db
+        .query("executionAssignments")
+        .withIndex("by_wave", (q) => q.eq("waveId", wave.waveId))
+        .collect();
+      for (const assignment of assignments) {
+        await ctx.db.patch(assignment._id, {
+          dispatchedAt: Date.now() - 31 * 60 * 1000,
+        });
+      }
     });
     readiness = await t.query(api.agentApi.getExecutionReadiness, {
       apiKey: PLANNER_KEY,
@@ -399,5 +425,216 @@ describe("capability-aware execution dispatch", () => {
         { taskRef: "platform.schema", reason: "capability_gap" },
       ]),
     );
+  });
+
+  it("records dispatch through claim, run, evidence, and terminal replay", async () => {
+    const { t, owner, spaceId, backendId, qaId } = await setup();
+    const plan = await t.mutation(
+      api.agentApi.createExecutionPlan,
+      planArgs(spaceId, backendId, qaId),
+    );
+    await t.mutation(api.agentApi.dispatchExecutionWave, {
+      apiKey: PLANNER_KEY,
+      idempotencyKey: "wave-ledger-success",
+      planId: plan.planId,
+      openQuestionDisposition:
+        "This bounded schema implementation does not choose a deployment region.",
+    });
+    const schemaTask = plan.tasks.find(
+      (task) => task.ref === "platform.schema",
+    )!;
+    await acknowledgePlanTask(t, BACKEND_KEY, schemaTask.taskId);
+
+    await expect(
+      t.mutation(api.agentApi.startRun, {
+        apiKey: BACKEND_KEY,
+        taskId: schemaTask.taskId,
+        title: "Implement schema",
+      }),
+    ).rejects.toThrow(/claim this task/i);
+
+    await t.mutation(api.agentApi.claimTask, {
+      apiKey: BACKEND_KEY,
+      taskId: schemaTask.taskId,
+    });
+    let control = await owner.query(api.executionDispatch.control, {
+      planId: plan.planId,
+    });
+    expect(control?.counts.claimed).toBe(1);
+    expect(control?.assignments[0]).toMatchObject({
+      taskRef: "platform.schema",
+      agentId: backendId,
+      status: "claimed",
+      attempt: 1,
+    });
+
+    const runId = await t.mutation(api.agentApi.startRun, {
+      apiKey: BACKEND_KEY,
+      taskId: schemaTask.taskId,
+      title: "Implement schema",
+    });
+    await expect(
+      t.mutation(api.agentApi.startRun, {
+        apiKey: BACKEND_KEY,
+        taskId: schemaTask.taskId,
+        title: "Duplicate session",
+      }),
+    ).rejects.toThrow(/already active/i);
+    await t.mutation(api.agentApi.heartbeat, {
+      apiKey: BACKEND_KEY,
+      currentTaskId: schemaTask.taskId,
+      statusText: "Writing migrations",
+    });
+
+    control = await owner.query(api.executionDispatch.control, {
+      planId: plan.planId,
+    });
+    expect(control?.counts.running).toBe(1);
+    expect(control?.assignments[0]).toMatchObject({
+      status: "running",
+      runId,
+    });
+    expect(control?.assignments[0].lastHeartbeatAt).toEqual(
+      expect.any(Number),
+    );
+
+    const finishArgs = {
+      apiKey: BACKEND_KEY,
+      runId,
+      status: "succeeded" as const,
+      summary: "Schema migration and validation complete.",
+      links: ["https://github.com/example/repo/pull/1"],
+      tokensUsed: 1200,
+      costUsd: 0.42,
+    };
+    await expect(
+      t.mutation(api.agentApi.finishRun, finishArgs),
+    ).resolves.toMatchObject({ status: "succeeded", replayed: false });
+    await expect(
+      t.mutation(api.agentApi.finishRun, finishArgs),
+    ).resolves.toMatchObject({ status: "succeeded", replayed: true });
+    await expect(
+      t.mutation(api.agentApi.finishRun, {
+        ...finishArgs,
+        status: "failed",
+      }),
+    ).rejects.toThrow(/terminal outcomes cannot be changed/i);
+
+    const agentControl = await t.query(
+      api.agentApi.getExecutionControl,
+      { apiKey: BACKEND_KEY, planId: plan.planId },
+    );
+    expect(agentControl.counts.succeeded).toBe(1);
+    expect(agentControl.assignments[0]).toMatchObject({
+      status: "succeeded",
+      summary: "Schema migration and validation complete.",
+      links: ["https://github.com/example/repo/pull/1"],
+      retryable: false,
+    });
+  });
+
+  it("makes failed work immediately retryable and validates run evidence", async () => {
+    const { t, spaceId, backendId, qaId } = await setup();
+    const plan = await t.mutation(
+      api.agentApi.createExecutionPlan,
+      planArgs(spaceId, backendId, qaId),
+    );
+    await t.mutation(api.agentApi.dispatchExecutionWave, {
+      apiKey: PLANNER_KEY,
+      idempotencyKey: "wave-ledger-failure",
+      planId: plan.planId,
+      openQuestionDisposition:
+        "This bounded schema implementation does not choose a deployment region.",
+    });
+    const schemaTask = plan.tasks.find(
+      (task) => task.ref === "platform.schema",
+    )!;
+    await acknowledgePlanTask(t, BACKEND_KEY, schemaTask.taskId);
+    await t.mutation(api.agentApi.claimTask, {
+      apiKey: BACKEND_KEY,
+      taskId: schemaTask.taskId,
+    });
+    const runId = await t.mutation(api.agentApi.startRun, {
+      apiKey: BACKEND_KEY,
+      taskId: schemaTask.taskId,
+      title: "Attempt schema",
+    });
+    await expect(
+      t.mutation(api.agentApi.finishRun, {
+        apiKey: BACKEND_KEY,
+        runId,
+        status: "failed",
+        links: ["file:///tmp/log.txt"],
+      }),
+    ).rejects.toThrow(/http or https/i);
+    await expect(
+      t.mutation(api.agentApi.finishRun, {
+        apiKey: BACKEND_KEY,
+        runId,
+        status: "failed",
+        costUsd: -1,
+      }),
+    ).rejects.toThrow(/non-negative/i);
+    await t.mutation(api.agentApi.finishRun, {
+      apiKey: BACKEND_KEY,
+      runId,
+      status: "failed",
+      error: "Migration lock could not be acquired.",
+      links: ["https://logs.example.com/run/1"],
+    });
+
+    const claim = await t.run(async (ctx) => {
+      const task = await ctx.db.get(schemaTask.taskId);
+      return task?.claimedByActorId;
+    });
+    expect(claim).toBeNull();
+    const readiness = await t.query(api.agentApi.getExecutionReadiness, {
+      apiKey: PLANNER_KEY,
+      planId: plan.planId,
+    });
+    expect(readiness.recommendations[0]).toMatchObject({
+      taskRef: "platform.schema",
+      recommendedAgentId: backendId,
+    });
+    const control = await t.query(api.agentApi.getExecutionControl, {
+      apiKey: PLANNER_KEY,
+      planId: plan.planId,
+    });
+    expect(control.assignments[0]).toMatchObject({
+      status: "failed",
+      retryable: true,
+      error: "Migration lock could not be acquired.",
+    });
+  });
+
+  it("keeps private execution control inaccessible to outsiders", async () => {
+    const { t, spaceId, backendId, qaId, workspaceId } = await setup();
+    const plan = await t.mutation(
+      api.agentApi.createExecutionPlan,
+      planArgs(spaceId, backendId, qaId),
+    );
+    const outsider = { subject: "dispatch_outsider", email: "other@example.com" };
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        clerkId: outsider.subject,
+        email: outsider.email,
+        name: "Outsider",
+      });
+      await ctx.db.insert("memberships", {
+        workspaceId,
+        userClerkId: outsider.subject,
+        role: "member",
+        joinedAt: Date.now(),
+      });
+      await ctx.db.patch(spaceId, {
+        private: true,
+        memberClerkIds: [],
+      });
+    });
+    await expect(
+      t.withIdentity(outsider).query(api.executionDispatch.control, {
+        planId: plan.planId,
+      }),
+    ).rejects.toThrow(/forbidden/i);
   });
 });

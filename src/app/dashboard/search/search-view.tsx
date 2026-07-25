@@ -117,7 +117,7 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
             ))}
           </ResultSection>
 
-          <ResultSection title="Projects">
+          <ResultSection title="Lists">
             {results.lists.map((l) => {
               const chip = l.projectStatus ? STATUS_CHIP[l.projectStatus] : null;
               return (

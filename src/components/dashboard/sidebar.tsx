@@ -273,7 +273,7 @@ function SidebarContentBody() {
             />
             <NavMenuItem
               href="/dashboard/projects"
-              label="Projects"
+              label="Spaces"
               icon={FolderKanban}
               iconColor="text-amber-500"
               exact
@@ -566,7 +566,7 @@ const SPACE_CREATE_ITEMS = [
   { k: "list" as const, icon: ListIcon, label: "List" },
   { k: "doc" as const, icon: FileText, label: "Doc" },
   { k: "board" as const, icon: LayoutGrid, label: "Whiteboard" },
-  { k: "template" as const, icon: Columns3, label: "From template" },
+  { k: "template" as const, icon: Columns3, label: "Use a template" },
   { k: "folder" as const, icon: Folder, label: "Folder" },
 ];
 

@@ -174,6 +174,31 @@ describe("whoami governance mirror", () => {
   });
 });
 
+describe("transport presence", () => {
+  it("marks an authenticated MCP connection online and emits the first connection once", async () => {
+    const { t, agentId, apiKey } = await setup();
+    await t.mutation(api.agentApi.connect, { apiKey });
+    const first = await t.run(async (ctx) => ({
+      agent: await ctx.db.get(agentId),
+      events: await ctx.db
+        .query("events")
+        .filter((q) => q.eq(q.field("type"), "agent.connected"))
+        .collect(),
+    }));
+    expect(first.agent?.lastSeenAt).toEqual(expect.any(Number));
+    expect(first.events).toHaveLength(1);
+
+    await t.mutation(api.agentApi.connect, { apiKey });
+    const events = await t.run((ctx) =>
+      ctx.db
+        .query("events")
+        .filter((q) => q.eq(q.field("type"), "agent.connected"))
+        .collect(),
+    );
+    expect(events).toHaveLength(1);
+  });
+});
+
 describe("linked goals over the agent API", () => {
   it("refuses manual progress on a linked goal and mirrors the human overlay", async () => {
     const { t, alice, listId, doneStatus, apiKey } = await setup();
