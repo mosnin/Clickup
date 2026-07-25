@@ -131,6 +131,9 @@ only after automated checks and relevant production behavior both pass.
   Overview, Board, Calendar, Gantt, Timeline, Table, Workload, Network, List
   settings, Sprints, Operations, Portfolio, Roadmap, Goals, and Workspace
   settings
+- Production blank-sprint UI lifecycle: create, planned → active → complete,
+  Overview/Board/Planning, retrospective save, undo-window deletion, and clean
+  readback
 - Local production build, typecheck, lint, plugin validation, and 365 tests
 - Disposable production MCP mutation certification: List create/rename/metadata,
   two-task parent/dependency batch, task update/checklist, comment
@@ -148,10 +151,11 @@ only after automated checks and relevant production behavior both pass.
 
 1. Complete billing production certification.
 2. Continue the systematic browser pass over interactive List mutations,
-   sprint/roadmap/operations workflows, agents, the remaining settings actions,
-   broader keyboard navigation, and failure states. Home, Global Search and the
-   core ⌘K path, Onboarding, Inbox, task detail, read/render coverage for every
-   List and workspace planning view, the core Spaces/List hierarchy, template
+   sprint templates and task commitment, roadmap/operations workflows, agents,
+   the remaining settings actions, broader keyboard navigation, and failure
+   states. Home, Global Search and the core ⌘K path, Onboarding, Inbox, task
+   detail, the blank-sprint lifecycle, read/render coverage for every List and
+   workspace planning view, the core Spaces/List hierarchy, template
    destinations, and their mobile responsive layouts are certified above.
 3. Finish the security review: rotate any remaining credentials exposed during
    development, continue broader abuse tests and the residual secret inventory,
@@ -289,6 +293,16 @@ only after automated checks and relevant production behavior both pass.
   typecheck, and lint. Application and Convex health are `ok`, and the
   production error-log scan is empty. No code or deployment was needed for this
   certification batch.
+- Blank sprint lifecycle (production-validated 2026-07-25): the signed-in
+  Chippi Sprints UI created one uniquely named disposable sprint with a goal,
+  moved it from planned to active and then complete, rendered the active hero
+  plus Overview, Board, and Planning states, and blur-saved a retrospective.
+  Deletion correctly hid the sprint during its six-second undo window, committed
+  after expiry, and a full reload proved the certification sprint no longer
+  existed. No task was committed or changed. The 16 focused planning,
+  scrum-board, and completion-lock tests pass alongside all 365 tests,
+  typecheck, and lint. Application and Convex health are `ok`, and the
+  production error-log scan is empty. No code or deployment was needed.
 - Public connector submission compliance (production-validated 2026-07-25):
   deployment `dpl_w3dL5pw14yVUGJiJeTEy8qSngXeq` is Ready and healthy. The
   authenticated base profile exposes all 140 tools; Anthropic's directory
