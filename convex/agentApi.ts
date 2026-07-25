@@ -641,6 +641,34 @@ export const acknowledgeWakeDelivery = mutation({
   },
 });
 
+// Pull fallback for runtimes that were offline, restarted between HTTP accept
+// and processing, or intentionally operate without a notify URL. Unconsumed
+// wakes remain available until the target agent acknowledges each receipt.
+export const listWakeInbox = query({
+  args: { apiKey: v.string() },
+  handler: async (ctx, { apiKey }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const deliveries = await ctx.db
+      .query("agentPingDeliveries")
+      .withIndex("by_agent_acknowledged", (q) =>
+        q.eq("agentId", agent._id).eq("acknowledgedAt", undefined),
+      )
+      .order("desc")
+      .take(50);
+    return deliveries.map((delivery) => ({
+      deliveryId: delivery._id,
+      type: delivery.type,
+      payload: delivery.payload,
+      taskId: delivery.taskId,
+      messageId: delivery.messageId,
+      pushStatus: delivery.status,
+      pushAttempts: delivery.attempts,
+      pushError: delivery.lastError,
+      createdAt: delivery.createdAt,
+    }));
+  },
+});
+
 // ── Structure: tree, spaces, folders, lists ────────────────────────────
 
 export const getTree = query({

@@ -20,6 +20,18 @@
         "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
       }
     },
+    "list_wake_inbox": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list wake inbox without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
     "heartbeat": {
       "annotations": {
         "readOnlyHint": false,

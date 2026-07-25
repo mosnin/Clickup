@@ -813,6 +813,11 @@ export default defineSchema({
     .index("by_execution_assignment", ["executionAssignmentId"])
     .index("by_source", ["sourceKind", "sourceId"])
     .index("by_agent", ["agentId", "createdAt"])
+    .index("by_agent_acknowledged", [
+      "agentId",
+      "acknowledgedAt",
+      "createdAt",
+    ])
     .index("by_workspace", ["workspaceId", "createdAt"])
     .index("by_status", ["status", "createdAt"]),
 

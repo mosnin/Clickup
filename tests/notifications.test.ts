@@ -118,6 +118,19 @@ describe("notifications", () => {
     });
     expect(fetchMock).toHaveBeenCalledOnce();
 
+    expect(
+      await t.query(api.agentApi.listWakeInbox, {
+        apiKey: "cua_assignment_test",
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        deliveryId: delivery!._id,
+        type: "task.assigned",
+        pushStatus: "delivered",
+        pushAttempts: 1,
+      }),
+    ]);
+
     const receipt = await t.mutation(
       api.agentApi.acknowledgeWakeDelivery,
       {
@@ -147,6 +160,11 @@ describe("notifications", () => {
         deliveryId: delivery!._id,
       }),
     ).toMatchObject({ acknowledgedAt });
+    expect(
+      await t.query(api.agentApi.listWakeInbox, {
+        apiKey: "cua_assignment_test",
+      }),
+    ).toEqual([]);
 
     await t.run(async (ctx) => {
       const otherAgentId = await ctx.db.insert("agents", {

@@ -141,6 +141,7 @@ const checklistArg = z
 // safely-retryable mutations also get idempotentHint.
 const READ_TOOLS = new Set([
   "whoami",
+  "list_wake_inbox",
   "get_tree",
   "list_statuses",
   "list_tasks",
@@ -338,6 +339,14 @@ const TOOLS: ToolDef[] = [
       "Who am I? Returns this agent's id, name, and scope (personal space or workspace). Call once at session start; use the returned ids when other tools need them. Also returns your role, allowed lists, remaining daily budget, and billing status — check it to know your limits before you hit them.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.whoami), { apiKey: k }),
+  },
+  {
+    name: "list_wake_inbox",
+    description:
+      "My unconsumed assignment, execution-ready, and mention wakes, newest first. Use at session start and after reconnecting so a missed push cannot lose work. Each row includes its authoritative deliveryId, payload, push status, attempts, and error; call acknowledge_wake for each row before fetching current task or collaboration context.",
+    shape: {},
+    run: (c, k) =>
+      c.query(asQuery(api.agentApi.listWakeInbox), { apiKey: k }),
   },
   {
     name: "heartbeat",
