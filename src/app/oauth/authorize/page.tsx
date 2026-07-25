@@ -5,6 +5,8 @@ import { RequireBackend } from "@/components/require-backend";
 import { OAuthAuthorize } from "./oauth-authorize";
 
 export const metadata: Metadata = { title: "Connect Operate" };
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function OAuthAuthorizePage({
   searchParams,
@@ -22,15 +24,7 @@ export default async function OAuthAuthorizePage({
   }
   return (
     <RequireBackend>
-      <OAuthAuthorize
-        clientId={current.get("client_id") ?? ""}
-        redirectUri={current.get("redirect_uri") ?? ""}
-        responseType={current.get("response_type") ?? ""}
-        scope={current.get("scope") ?? "operate:read operate:write"}
-        state={current.get("state") ?? ""}
-        codeChallenge={current.get("code_challenge") ?? ""}
-        codeChallengeMethod={current.get("code_challenge_method") ?? ""}
-      />
+      <OAuthAuthorize />
     </RequireBackend>
   );
 }

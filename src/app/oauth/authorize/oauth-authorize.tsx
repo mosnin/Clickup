@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -16,23 +17,17 @@ function randomCode() {
   ).join("")}`;
 }
 
-export function OAuthAuthorize({
-  clientId,
-  redirectUri,
-  responseType,
-  scope,
-  state,
-  codeChallenge,
-  codeChallengeMethod,
-}: {
-  clientId: string;
-  redirectUri: string;
-  responseType: string;
-  scope: string;
-  state: string;
-  codeChallenge: string;
-  codeChallengeMethod: string;
-}) {
+export function OAuthAuthorize() {
+  const searchParams = useSearchParams();
+  const clientId = searchParams.get("client_id") ?? "";
+  const redirectUri = searchParams.get("redirect_uri") ?? "";
+  const responseType = searchParams.get("response_type") ?? "";
+  const scope =
+    searchParams.get("scope") ?? "operate:read operate:write";
+  const state = searchParams.get("state") ?? "";
+  const codeChallenge = searchParams.get("code_challenge") ?? "";
+  const codeChallengeMethod =
+    searchParams.get("code_challenge_method") ?? "";
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const validShape =
     responseType === "code" &&
