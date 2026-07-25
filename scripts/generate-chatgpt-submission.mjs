@@ -12,7 +12,9 @@ function namesInSet(setName) {
     new RegExp(`const ${setName} = new Set\\(\\[([\\s\\S]*?)\\]\\);`),
   )?.[1];
   if (!body) throw new Error(`Could not find ${setName}`);
-  return new Set([...body.matchAll(/"([a-z0-9_]+)"/g)].map((match) => match[1]));
+  return new Set(
+    [...body.matchAll(/"([a-z0-9_]+)"/g)].map((match) => match[1]),
+  );
 }
 
 const toolsBlock = source.match(
@@ -20,15 +22,19 @@ const toolsBlock = source.match(
 )?.[1];
 if (!toolsBlock) throw new Error("Could not find the MCP tool registry");
 
-const toolNames = [
-  ...toolsBlock.matchAll(/^\s+name: "([a-z0-9_]+)",$/gm),
-].map((match) => match[1]);
+const toolNames = [...toolsBlock.matchAll(/^\s+name: "([a-z0-9_]+)",$/gm)].map(
+  (match) => match[1],
+);
+const directoryExcludedTools = new Set(["buy_credits", "settle_payment"]);
+const directoryToolNames = toolNames.filter(
+  (name) => !directoryExcludedTools.has(name),
+);
 const readTools = namesInSet("READ_TOOLS");
 const destructiveTools = namesInSet("DESTRUCTIVE_TOOLS");
 const openWorldTools = namesInSet("OPEN_WORLD_TOOLS");
 
 const tools = Object.fromEntries(
-  toolNames.map((name) => {
+  directoryToolNames.map((name) => {
     const readOnly = readTools.has(name);
     const destructive = destructiveTools.has(name);
     const openWorld = openWorldTools.has(name);
@@ -155,4 +161,6 @@ writeFileSync(
   resolve(root, "chatgpt-app-submission.json"),
   `${JSON.stringify(submission, null, 2)}\n`,
 );
-console.log(`Generated ChatGPT submission metadata for ${toolNames.length} tools.`);
+console.log(
+  `Generated ChatGPT submission metadata for ${directoryToolNames.length} tools.`,
+);

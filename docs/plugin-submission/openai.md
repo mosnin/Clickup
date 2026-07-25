@@ -11,7 +11,7 @@
 - Support: `https://operate.to/plugins`
 - Privacy: `https://operate.to/legal/privacy`
 - Terms: `https://operate.to/legal/terms`
-- Production MCP URL: `https://operate.to/api/mcp`
+- Production MCP URL: `https://operate.to/api/mcp?profile=chatgpt`
 - Authentication: OAuth 2.1 authorization code with S256 PKCE and dynamic client registration.
 - Bundle: `plugins/operate` packaged as a ZIP.
 

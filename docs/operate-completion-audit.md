@@ -135,16 +135,23 @@ only after automated checks and relevant production behavior both pass.
 
 - Public connector submission compliance (production-validated 2026-07-25):
   deployment `dpl_w3dL5pw14yVUGJiJeTEy8qSngXeq` is Ready and healthy. The
-  authenticated OpenAI profile exposes all 140 tools; Anthropic's directory
-  profile exposes 138, omitting only `buy_credits` and `settle_payment` to
-  comply with its prohibition on software that initiates or executes financial
-  transactions. Claude retains `get_wallet` with read-only, profile-specific
-  wording. Both profiles passed live initialization, discovery, annotation,
-  structured-output, identity, hierarchy, and seven-resource smoke checks.
-  The public Plugins page rendered the production connection and curl install
-  paths cleanly in Chrome with no console errors; Vercel had no runtime errors.
-  Typecheck, lint, plugin validation, and all 331 tests pass. Official portal
-  upload, reviewer-account proof, and platform review remain open.
+  authenticated base profile exposes all 140 tools; Anthropic's directory
+  profile exposes 138. Both passed live initialization, discovery, annotation,
+  structured-output, identity, hierarchy, and seven-resource smoke checks. The
+  public Plugins page rendered the production connection and curl install paths
+  cleanly in Chrome with no console errors; Vercel had no runtime errors.
+- OpenAI official submission intake (active 2026-07-25): the production MCP
+  endpoint was accepted in ChatGPT, OAuth-connected to Scout, and all 140 base
+  actions were discovered. The official Platform review portal created the
+  combined MCP-plus-skills Operate draft and accepted the generated app-info,
+  5 positive tests, and 3 negative tests. The intake also established that
+  OpenAI currently permits commerce tools only for physical goods, so the
+  current batch adds a dedicated `profile=chatgpt` endpoint with 138 tools,
+  omitting `buy_credits` and `settle_payment` while preserving them for custom
+  MCP runtimes. Typecheck, lint, plugin validation, and all 331 tests pass.
+  Production endpoint proof, refreshed submission import, image upload, demo
+  recording, verified developer identity, and final review submission remain
+  open.
 - x402 billing truthfulness audit (validated 2026-07-25): the production MCP
   host exposes `get_wallet`, `buy_credits`, and `settle_payment`; wallet reads,
   positive-integer input validation, unauthenticated rejection, and

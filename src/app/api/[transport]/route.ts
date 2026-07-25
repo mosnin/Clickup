@@ -2427,6 +2427,7 @@ function createOperateMcpHandler(profile: AnnotationProfile) {
 }
 
 const handler = createOperateMcpHandler("openai");
+const chatgptHandler = createOperateMcpHandler("chatgpt");
 const anthropicHandler = createOperateMcpHandler("anthropic");
 
 // Bearer-token auth: the token IS the agent API key. Verified upstream by
@@ -2456,6 +2457,28 @@ const authHandler = withMcpAuth(
 );
 const anthropicAuthHandler = withMcpAuth(
   anthropicHandler,
+  async (_req, bearerToken) => {
+    if (!bearerToken) return undefined;
+    try {
+      const me = await convexClient().mutation(
+        asMutation(api.agentApi.connect),
+        {
+          apiKey: bearerToken,
+        },
+      );
+      return {
+        token: bearerToken,
+        clientId: (me as { agentId: string }).agentId,
+        scopes: [],
+      };
+    } catch {
+      return undefined;
+    }
+  },
+  { required: true },
+);
+const chatgptAuthHandler = withMcpAuth(
+  chatgptHandler,
   async (_req, bearerToken) => {
     if (!bearerToken) return undefined;
     try {
@@ -2534,10 +2557,13 @@ async function guarded(req: Request): Promise<Response> {
       });
     }
   }
+  const profile = searchParams.get("profile");
   const selectedHandler =
-    searchParams.get("profile") === "claude"
+    profile === "claude"
       ? anthropicAuthHandler
-      : authHandler;
+      : profile === "chatgpt"
+        ? chatgptAuthHandler
+        : authHandler;
   const response = await selectedHandler(transportRequest);
   if (response.status !== 401) return withCors(req, response);
   const headers = new Headers(response.headers);

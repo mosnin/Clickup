@@ -1663,30 +1663,6 @@
         "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
         "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
       }
-    },
-    "buy_credits": {
-      "annotations": {
-        "readOnlyHint": true,
-        "openWorldHint": false,
-        "destructiveHint": false
-      },
-      "justifications": {
-        "read_only_justification": "Only retrieves or computes private Operate workspace data for buy credits without changing records.",
-        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
-        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
-      }
-    },
-    "settle_payment": {
-      "annotations": {
-        "readOnlyHint": false,
-        "openWorldHint": true,
-        "destructiveHint": true
-      },
-      "justifications": {
-        "read_only_justification": "Performs settle payment, which creates or changes state in the user's private Operate workspace.",
-        "open_world_justification": "Performs settle payment through a user-configured external endpoint or payment rail.",
-        "destructive_justification": "Performs settle payment, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
-      }
     }
   },
   "test_cases": [

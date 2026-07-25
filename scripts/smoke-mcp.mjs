@@ -6,6 +6,8 @@
 //   MCP_URL=https://<your-app>/api/mcp MCP_KEY=cua_... node scripts/smoke-mcp.mjs
 //   MCP_URL='https://<your-app>/api/mcp?profile=claude' \
 //     MCP_PROFILE=anthropic MCP_KEY=cua_... node scripts/smoke-mcp.mjs
+//   MCP_URL='https://<your-app>/api/mcp?profile=chatgpt' \
+//     MCP_PROFILE=chatgpt MCP_KEY=cua_... node scripts/smoke-mcp.mjs
 //
 // Exercises: initialize → tools/list → whoami → get_tree → resources/list.
 // Exits non-zero on the first failure.
@@ -17,8 +19,8 @@ if (!url || !key) {
   console.error("Set MCP_URL and MCP_KEY.");
   process.exit(1);
 }
-if (!["openai", "anthropic"].includes(profile)) {
-  console.error("MCP_PROFILE must be openai or anthropic.");
+if (!["openai", "chatgpt", "anthropic"].includes(profile)) {
+  console.error("MCP_PROFILE must be openai, chatgpt, or anthropic.");
   process.exit(1);
 }
 
@@ -63,7 +65,7 @@ console.log(`✓ initialize (server: ${init.serverInfo?.name})`);
 
 const tools = await rpc("tools/list", {});
 console.log(`✓ tools/list (${tools.tools.length} tools)`);
-const expectedToolCount = profile === "anthropic" ? 138 : 140;
+const expectedToolCount = profile === "openai" ? 140 : 138;
 if (tools.tools.length !== expectedToolCount) {
   throw new Error(
     `expected ${expectedToolCount} tools, received ${tools.tools.length}`,
@@ -92,19 +94,19 @@ for (const tool of tools.tools) {
   }
 }
 if (
-  profile === "anthropic" &&
+  profile !== "openai" &&
   tools.tools.some((tool) =>
     ["buy_credits", "settle_payment"].includes(tool.name),
   )
 ) {
   throw new Error(
-    "Anthropic directory profile must not expose financial-transaction tools",
+    `${profile} directory profile must not expose financial-transaction tools`,
   );
 }
 const createTask = tools.tools.find((tool) => tool.name === "create_task");
 const updateTask = tools.tools.find((tool) => tool.name === "update_task");
 if (
-  profile === "openai" &&
+  profile !== "anthropic" &&
   (createTask?.annotations.destructiveHint ||
     !updateTask?.annotations.destructiveHint)
 ) {

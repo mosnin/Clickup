@@ -52,12 +52,16 @@ describe("MCP platform annotation profiles", () => {
     });
   });
 
-  it("removes financial-transaction tools only from the Anthropic directory profile", () => {
+  it("removes financial-transaction tools from both public directory profiles", () => {
     expect(toolAvailableForProfile("get_wallet", "anthropic")).toBe(true);
     expect(toolAvailableForProfile("buy_credits", "anthropic")).toBe(false);
     expect(toolAvailableForProfile("settle_payment", "anthropic")).toBe(false);
+    expect(toolAvailableForProfile("get_wallet", "chatgpt")).toBe(true);
+    expect(toolAvailableForProfile("buy_credits", "chatgpt")).toBe(false);
+    expect(toolAvailableForProfile("settle_payment", "chatgpt")).toBe(false);
     expect(toolAvailableForProfile("settle_payment", "openai")).toBe(true);
     expect(toolAvailableForProfile("create_task", "anthropic")).toBe(true);
+    expect(toolAvailableForProfile("create_task", "chatgpt")).toBe(true);
   });
 
   it("describes the Anthropic wallet tool as read-only billing visibility", () => {
@@ -73,5 +77,12 @@ describe("MCP platform annotation profiles", () => {
     expect(
       toolDescriptionForProfile("get_wallet", "Original description", "openai"),
     ).toBe("Original description");
+    expect(
+      toolDescriptionForProfile(
+        "get_wallet",
+        "Top up with buy_credits and settle_payment.",
+        "chatgpt",
+      ),
+    ).toContain("billing visibility only");
   });
 });
