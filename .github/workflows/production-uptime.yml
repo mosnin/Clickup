@@ -1,0 +1,122 @@
+name: Production uptime
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Live check or safe incident-lifecycle certification
+        required: true
+        default: live
+        type: choice
+        options:
+          - live
+          - certify-failure
+          - certify-recovery
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: production-uptime
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      MONITOR_MODE: ${{ inputs.mode || 'live' }}
+    steps:
+      - name: Check application and Convex
+        id: check
+        continue-on-error: true
+        run: |
+          if [ "$MONITOR_MODE" = "certify-failure" ]; then
+            echo "Running the isolated incident failure path."
+            exit 1
+          fi
+          if [ "$MONITOR_MODE" = "certify-recovery" ]; then
+            echo "Running the isolated incident recovery path."
+            exit 0
+          fi
+
+          response="$(
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --location \
+              --retry 2 \
+              --retry-all-errors \
+              --connect-timeout 10 \
+              --max-time 25 \
+              https://www.operate.to/api/health
+          )"
+          jq -e '
+            .status == "ok" and
+            .dependencies.convex == "ok"
+          ' <<<"$response" >/dev/null
+
+      - name: Open an operator incident
+        if: steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="[uptime] operate.to production health check failed"
+          body="The independent production monitor could not verify the application and Convex dependency health."
+          if [ "$MONITOR_MODE" != "live" ]; then
+            title="[uptime-certification] incident lifecycle proof"
+            body="This is an isolated certification incident. Production was not reported unhealthy."
+          fi
+          existing="$(
+            gh issue list \
+              --repo "$GITHUB_REPOSITORY" \
+              --state open \
+              --search "$title in:title" \
+              --json number,title \
+              --jq ".[] | select(.title == \"$title\") | .number" \
+              | head -n 1
+          )"
+          if [ -z "$existing" ]; then
+            gh issue create \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$title" \
+              --body "$body Check the workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          else
+            gh issue comment "$existing" \
+              --repo "$GITHUB_REPOSITORY" \
+              --body "The same check is still failing: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          fi
+
+      - name: Close a recovered incident
+        if: steps.check.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="[uptime] operate.to production health check failed"
+          recovery="Production health recovered."
+          if [ "$MONITOR_MODE" != "live" ]; then
+            title="[uptime-certification] incident lifecycle proof"
+            recovery="Certification recovery path passed. Production was not modified."
+          fi
+          existing="$(
+            gh issue list \
+              --repo "$GITHUB_REPOSITORY" \
+              --state open \
+              --search "$title in:title" \
+              --json number,title \
+              --jq ".[] | select(.title == \"$title\") | .number" \
+              | head -n 1
+          )"
+          if [ -n "$existing" ]; then
+            gh issue close "$existing" \
+              --repo "$GITHUB_REPOSITORY" \
+              --comment "$recovery $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          fi
+
+      - name: Fail the run when production is unhealthy
+        if: steps.check.outcome == 'failure' && env.MONITOR_MODE == 'live'
+        run: exit 1
