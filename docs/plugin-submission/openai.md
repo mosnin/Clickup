@@ -50,3 +50,11 @@ Initial public submission of Operate’s combined MCP and skills plugin. The plu
 ## Reviewer setup
 
 Use the secure reviewer account supplied in the portal. Connect the production MCP URL, complete OAuth, and choose the review-only Operate agent. The account must contain representative Spaces and Lists, a plan with dependencies and a context revision, one capability gap, one approval gate, and one failed execution attempt.
+
+## Live review proof
+
+- Safe ChatGPT developer app: `asdk_app_6a650f4bca2c81919ed6b0f0723594bd`
+- Connected profile: `https://operate.to/api/mcp?profile=chatgpt` (138 tools; payment actions excluded)
+- Read-only test: “Show my Spaces and the Lists inside each one. Do not create or change anything.”
+- Observed result: `HQ` with `Getting started`, `Builder proof`, and `Scout proof`; ChatGPT explicitly reported that no changes were made.
+- Reviewer video: `https://operate.to/review/operate-chatgpt-review-demo.mp4` (28 seconds, 1920×1080, H.264).

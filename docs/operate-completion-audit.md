@@ -146,12 +146,26 @@ only after automated checks and relevant production behavior both pass.
   combined MCP-plus-skills Operate draft and accepted the generated app-info,
   5 positive tests, and 3 negative tests. The intake also established that
   OpenAI currently permits commerce tools only for physical goods, so the
-  current batch adds a dedicated `profile=chatgpt` endpoint with 138 tools,
-  omitting `buy_credits` and `settle_payment` while preserving them for custom
-  MCP runtimes. Typecheck, lint, plugin validation, and all 331 tests pass.
-  Production endpoint proof, refreshed submission import, image upload, demo
-  recording, verified developer identity, and final review submission remain
-  open.
+  dedicated `profile=chatgpt` endpoint now exposes 138 tools, omitting
+  `buy_credits` and `settle_payment` while preserving them for custom MCP
+  runtimes. Production deployment `dpl_8JXQNzUZeCZhDg6Tuz6n7umCCF8x` is Ready;
+  the base 140-tool, ChatGPT 138-tool, and Anthropic 138-tool profiles each
+  passed authenticated initialization, discovery, annotation,
+  structured-output, identity, hierarchy, and seven-resource smoke checks,
+  with no Vercel errors. The review draft has a verified individual developer
+  identity plus public website, support, privacy, and terms URLs. Typecheck,
+  lint, plugin validation, and all 331 tests pass. A separate reviewer-facing
+  ChatGPT developer app (`asdk_app_6a650f4bca2c81919ed6b0f0723594bd`) is
+  OAuth-connected to Scout through the safe 138-tool profile. Its live
+  read-only hierarchy prompt returned the production `HQ` Space with
+  `Getting started`, `Builder proof`, and `Scout proof`, explicitly confirmed
+  that no changes were made, and completed in 34 seconds. A truthful 28-second
+  1920×1080 H.264 reviewer demo was generated as
+  `operate-chatgpt-review-demo.mp4` and included at the stable production path
+  `/review/operate-chatgpt-review-demo.mp4`. Uploading the prepared
+  directory/composer PNGs is blocked until Chrome allows extension access to
+  local file URLs; final production URL verification, the final MCP scan, and
+  submission remain open.
 - x402 billing truthfulness audit (validated 2026-07-25): the production MCP
   host exposes `get_wallet`, `buy_credits`, and `settle_payment`; wallet reads,
   positive-integer input validation, unauthenticated rejection, and
