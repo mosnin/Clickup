@@ -472,6 +472,7 @@ export async function executionControlCore(
         pingDelivery?.status === "delivered"
           ? pingDelivery.completedAt
           : undefined,
+      acknowledgedAt: pingDelivery?.acknowledgedAt,
       contextPacketCount: row.contextPacketCount,
       estimatedContextTokens: row.estimatedContextTokens,
       contextVersionFingerprint: row.contextVersionFingerprint,

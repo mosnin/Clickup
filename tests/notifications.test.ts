@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 import schema from "../convex/schema";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { sha256Hex } from "../convex/_agentAuth";
 
 // In-app notification feed: assigning a task writes the assignee a
 // notification row (skipping the actor), the unread badge counts it, and
@@ -56,7 +57,7 @@ describe("notifications", () => {
     const workspaceId = await seed(t);
     const listId = await makeList(t, workspaceId);
     const agentId = await t.run(async (ctx) => {
-      return await ctx.db.insert("agents", {
+      const id = await ctx.db.insert("agents", {
         name: "Builder",
         parentType: "workspace",
         parentId: workspaceId,
@@ -66,6 +67,13 @@ describe("notifications", () => {
         createdByClerkId: ASSIGNER.subject,
         createdAt: Date.now(),
       });
+      await ctx.db.insert("agentKeys", {
+        agentId: id,
+        keyHash: sha256Hex("cua_assignment_test"),
+        keyPrefix: "cua_assi",
+        createdAt: Date.now(),
+      });
+      return id;
     });
     vi.useFakeTimers();
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
@@ -109,6 +117,59 @@ describe("notifications", () => {
       responseStatus: 202,
     });
     expect(fetchMock).toHaveBeenCalledOnce();
+
+    const receipt = await t.mutation(
+      api.agentApi.acknowledgeWakeDelivery,
+      {
+        apiKey: "cua_assignment_test",
+        deliveryId: delivery!._id,
+      },
+    );
+    expect(receipt).toMatchObject({
+      deliveryId: delivery!._id,
+      type: "task.assigned",
+      deliveryStatus: "delivered",
+    });
+    const acknowledgedAt = receipt.acknowledgedAt;
+    expect(acknowledgedAt).toEqual(expect.any(Number));
+    expect(
+      await t.run(async (ctx) => await ctx.db.get(delivery!._id)),
+    ).toMatchObject({ acknowledgedAt });
+    expect(
+      await t.run(async (ctx) => await ctx.db.get(agentId)),
+    ).toMatchObject({
+      lastSeenAt: acknowledgedAt,
+      lastConnectedAt: acknowledgedAt,
+    });
+    expect(
+      await t.mutation(api.agentApi.acknowledgeWakeDelivery, {
+        apiKey: "cua_assignment_test",
+        deliveryId: delivery!._id,
+      }),
+    ).toMatchObject({ acknowledgedAt });
+
+    await t.run(async (ctx) => {
+      const otherAgentId = await ctx.db.insert("agents", {
+        name: "Other agent",
+        parentType: "workspace",
+        parentId: workspaceId,
+        status: "active",
+        createdByClerkId: ASSIGNER.subject,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("agentKeys", {
+        agentId: otherAgentId,
+        keyHash: sha256Hex("cua_other_agent"),
+        keyPrefix: "cua_othe",
+        createdAt: Date.now(),
+      });
+    });
+    await expect(
+      t.mutation(api.agentApi.acknowledgeWakeDelivery, {
+        apiKey: "cua_other_agent",
+        deliveryId: delivery!._id,
+      }),
+    ).rejects.toThrow(/not found/i);
   });
 
   it("durably delivers a signed wake when an agent is mentioned", async () => {

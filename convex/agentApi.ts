@@ -608,6 +608,39 @@ export const heartbeat = mutation({
   },
 });
 
+// End-to-end wake receipt. The outbound HTTP response proves only that a
+// runtime endpoint accepted a notification; this authenticated callback proves
+// the intended agent consumed it and resumed the collaboration protocol.
+export const acknowledgeWakeDelivery = mutation({
+  args: {
+    apiKey: v.string(),
+    deliveryId: v.id("agentPingDeliveries"),
+  },
+  handler: async (ctx, { apiKey, deliveryId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey, "presence");
+    const delivery = await ctx.db.get(deliveryId);
+    if (!delivery || delivery.agentId !== agent._id) {
+      throw new ConvexError("Wake delivery not found");
+    }
+    const acknowledgedAt = delivery.acknowledgedAt ?? Date.now();
+    if (delivery.acknowledgedAt === undefined) {
+      await ctx.db.patch(deliveryId, { acknowledgedAt });
+    }
+    await ctx.db.patch(agent._id, {
+      lastSeenAt: acknowledgedAt,
+      lastConnectedAt: acknowledgedAt,
+    });
+    return {
+      deliveryId,
+      type: delivery.type,
+      taskId: delivery.taskId,
+      messageId: delivery.messageId,
+      deliveryStatus: delivery.status,
+      acknowledgedAt,
+    };
+  },
+});
+
 // ── Structure: tree, spaces, folders, lists ────────────────────────────
 
 export const getTree = query({

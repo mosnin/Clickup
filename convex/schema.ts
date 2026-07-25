@@ -805,6 +805,9 @@ export default defineSchema({
     lastError: v.optional(v.string()),
     lastAttemptAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
+    // HTTP delivery proves the runtime accepted the wake. This second receipt
+    // proves the authenticated target agent consumed it over MCP.
+    acknowledgedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_execution_assignment", ["executionAssignmentId"])

@@ -1030,6 +1030,13 @@ function ExecutionPlanProvenance({
                     "bg-pastel-red",
                   ],
                   [
+                    "wake consumed",
+                    control.assignments.filter(
+                      (assignment) => assignment.acknowledgedAt !== undefined,
+                    ).length,
+                    "bg-pastel-green",
+                  ],
+                  [
                     "context changed",
                     control.assignments.filter(
                       (assignment) => assignment.contextDrifted,
@@ -1083,20 +1090,25 @@ function ExecutionPlanProvenance({
                       <span
                         className={cn(
                           "rounded-full px-1.5 py-0.5 font-medium",
-                          assignment.deliveryStatus === "delivered"
+                          assignment.acknowledgedAt !== undefined
                             ? "bg-pastel-green text-neutral-900"
-                            : assignment.deliveryStatus === "failed"
-                              ? "bg-pastel-red text-neutral-900"
-                              : assignment.deliveryStatus === "pending"
-                                ? "bg-pastel-yellow text-neutral-900"
-                                : "bg-muted text-muted-foreground",
+                            : assignment.deliveryStatus === "delivered"
+                              ? "bg-pastel-blue text-neutral-900"
+                              : assignment.deliveryStatus === "failed"
+                                ? "bg-pastel-red text-neutral-900"
+                                : assignment.deliveryStatus === "pending"
+                                  ? "bg-pastel-yellow text-neutral-900"
+                                  : "bg-muted text-muted-foreground",
                         )}
                         title={
                           assignment.deliveryLastError ??
                           `${assignment.deliveryAttempts} delivery attempt${assignment.deliveryAttempts === 1 ? "" : "s"}`
                         }
                       >
-                        wake {assignment.deliveryStatus}
+                        wake{" "}
+                        {assignment.acknowledgedAt !== undefined
+                          ? "consumed"
+                          : assignment.deliveryStatus}
                         {assignment.deliveryAttempts > 0
                           ? ` · ${assignment.deliveryAttempts}`
                           : ""}

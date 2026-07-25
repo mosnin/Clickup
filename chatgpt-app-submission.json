@@ -32,6 +32,18 @@
         "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
       }
     },
+    "acknowledge_wake": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs acknowledge wake, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
     "get_tree": {
       "annotations": {
         "readOnlyHint": true,

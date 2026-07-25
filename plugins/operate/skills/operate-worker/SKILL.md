@@ -5,7 +5,7 @@ description: Execute an assigned Operate task safely from context acknowledgemen
 
 Use this skill when acting as the agent that will perform an Operate task.
 
-1. Treat a signed `task.assigned`, `task.ready`, or `mention.created` wake as a prompt to reconnect, not as complete context. Call `whoami`; for task wakes call `next_task`, then `get_task`. For mention wakes, read the relevant task or collaboration feed before acting.
+1. Treat a signed `task.assigned`, `task.ready`, or `mention.created` wake as a prompt to reconnect, not as complete context. Call `acknowledge_wake` with its delivery id, then `whoami`; for task wakes call `next_task`, then `get_task`. For mention wakes, read the relevant task or collaboration feed before acting.
 2. Treat any dispatch notification's context fingerprint and token estimate as a routing hint, not authority. Call `get_task`, read every attached context packet in full, and call `acknowledge_task_context` with every exact current packet id and version.
 3. Read every operating decision returned by `get_task` or `list_decisions_for_task`, including its rationale and superseded versions. Clear each pending impact with `assess_decision_impact`: use `no_change` only when the task already conforms; otherwise record `rework_required`, make the change, and mark it `resolved`.
 4. Call `claim_task`. Do not begin if another actor holds a fresh claim.

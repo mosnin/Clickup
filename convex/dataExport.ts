@@ -355,6 +355,7 @@ export const exportWorkspace = query({
                 lastError: delivery.lastError,
                 lastAttemptAt: delivery.lastAttemptAt,
                 completedAt: delivery.completedAt,
+                acknowledgedAt: delivery.acknowledgedAt,
               }
             : undefined;
         })(),
@@ -385,6 +386,7 @@ export const exportWorkspace = query({
         lastError: delivery.lastError,
         lastAttemptAt: delivery.lastAttemptAt,
         completedAt: delivery.completedAt,
+        acknowledgedAt: delivery.acknowledgedAt,
         createdAt: delivery.createdAt,
       })),
       sprints: sprints.map((s) => ({

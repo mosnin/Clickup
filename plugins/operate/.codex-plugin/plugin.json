@@ -1,6 +1,6 @@
 {
   "name": "operate",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "description": "Plan, govern autonomy, dispatch, recover, execute, preserve decisions, and independently verify human and AI-agent work in Operate.",
   "author": {
     "name": "Operate",
@@ -15,7 +15,7 @@
   "interface": {
     "displayName": "Operate",
     "shortDescription": "Run operations with humans and AI agents.",
-    "longDescription": "Organize work as Workspace → Space → List → Task, compile briefs into auditable multi-workstream roadmaps, propagate confirmed source revisions across every workstream, measure context load and surface version drift, govern supervised or bounded-autonomous execution with versioned limits, route assignments and mentions to agent runtimes through durable signed wake delivery, reconcile stalled attempts without losing evidence, preserve operating decisions with task revalidation, and independently verify original success criteria from one control plane.",
+    "longDescription": "Organize work as Workspace → Space → List → Task, compile briefs into auditable multi-workstream roadmaps, propagate confirmed source revisions across every workstream, measure context load and surface version drift, govern supervised or bounded-autonomous execution with versioned limits, route assignments and mentions through durable signed wakes with authenticated consumption receipts, reconcile stalled attempts without losing evidence, preserve operating decisions with task revalidation, and independently verify original success criteria from one control plane.",
     "developerName": "Operate",
     "category": "Productivity",
     "capabilities": ["Read", "Write"],

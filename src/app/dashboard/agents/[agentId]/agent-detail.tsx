@@ -277,6 +277,12 @@ function WakeDeliveryDiagnostics({
   const delivered = deliveries.filter(
     (delivery) => delivery.status === "delivered",
   );
+  const consumed = deliveries.filter(
+    (delivery) => delivery.acknowledgedAt !== undefined,
+  );
+  const awaitingConsumption = delivered.filter(
+    (delivery) => delivery.acknowledgedAt === undefined,
+  );
   const sourceLabel = {
     execution_assignment: "Roadmap dispatch",
     task_assignment: "Task assignment",
@@ -299,8 +305,13 @@ function WakeDeliveryDiagnostics({
             variant="secondary"
             className="bg-pastel-green text-foreground dark:text-neutral-900"
           >
-            {delivered.length} delivered
+            {consumed.length} consumed
           </Badge>
+          {awaitingConsumption.length > 0 && (
+            <Badge variant="outline">
+              {awaitingConsumption.length} delivered
+            </Badge>
+          )}
           {pending.length > 0 && (
             <Badge variant="secondary">{pending.length} pending</Badge>
           )}
@@ -317,8 +328,10 @@ function WakeDeliveryDiagnostics({
               className="flex items-center gap-3 rounded-xl bg-muted/40 px-3 py-2 text-sm"
               title={delivery.lastError}
             >
-              {delivery.status === "delivered" ? (
+              {delivery.acknowledgedAt !== undefined ? (
                 <CheckCircle2 className="h-4 w-4 flex-none text-emerald-600" />
+              ) : delivery.status === "delivered" ? (
+                <CheckCircle2 className="h-4 w-4 flex-none text-sky-600" />
               ) : delivery.status === "failed" ? (
                 <XCircle className="h-4 w-4 flex-none text-destructive" />
               ) : (
@@ -335,6 +348,11 @@ function WakeDeliveryDiagnostics({
                 </span>
               </span>
               <span className="flex-none text-xs text-muted-foreground">
+                {delivery.acknowledgedAt !== undefined
+                  ? "consumed · "
+                  : delivery.status === "delivered"
+                    ? "delivered · "
+                    : ""}
                 {delivery.attempts}{" "}
                 {delivery.attempts === 1 ? "attempt" : "attempts"} ·{" "}
                 {timeAgo(delivery.createdAt)}

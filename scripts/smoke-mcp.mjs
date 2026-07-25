@@ -63,8 +63,8 @@ console.log(`✓ initialize (server: ${init.serverInfo?.name})`);
 
 const tools = await rpc("tools/list", {});
 console.log(`✓ tools/list (${tools.tools.length} tools)`);
-if (tools.tools.length !== 137) {
-  throw new Error(`expected 137 tools, received ${tools.tools.length}`);
+if (tools.tools.length !== 138) {
+  throw new Error(`expected 138 tools, received ${tools.tools.length}`);
 }
 for (const required of ["whoami", "next_task", "claim_task", "get_skill"]) {
   if (!tools.tools.some((t) => t.name === required)) {

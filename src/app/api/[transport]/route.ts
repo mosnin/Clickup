@@ -259,6 +259,7 @@ const IDEMPOTENT_TOOLS = new Set([
   "dispatch_execution_wave",
   "reconcile_execution_plan",
   "heartbeat",
+  "acknowledge_wake",
   "acknowledge_task_context",
   "update_task",
   "set_estimate",
@@ -348,6 +349,19 @@ const TOOLS: ToolDef[] = [
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.heartbeat), { apiKey: k, ...a }),
+  },
+  {
+    name: "acknowledge_wake",
+    description:
+      "Confirm that I consumed a signed runtime wake. Call immediately with the deliveryId from a task.assigned, task.ready, or mention.created payload, before fetching the authoritative task or collaboration context. Idempotent and presence-budget exempt.",
+    shape: {
+      deliveryId: z.string().describe("deliveryId from the signed wake body"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.acknowledgeWakeDelivery), {
+        apiKey: k,
+        ...a,
+      }),
   },
 
   // ── Structure ────────────────────────────────────────────────────
@@ -1422,7 +1436,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_execution_control",
     description:
-      "Read the execution ledger for a committed plan. Returns every recent dispatch attempt with its task, agent, requested delivery mode, durable wake delivery status and attempt evidence, claimed/running/stale/terminal lifecycle, run linkage, heartbeat freshness, evidence links, errors, retryability, context load at dispatch, current context load, version fingerprints, context drift, and truthful status totals. Active receipts with no execution heartbeat for 30 minutes are surfaced as stale even before reconciliation.",
+      "Read the execution ledger for a committed plan. Returns every recent dispatch attempt with its task, agent, requested delivery mode, durable wake delivery and authenticated consumption receipts, attempt evidence, claimed/running/stale/terminal lifecycle, run linkage, heartbeat freshness, evidence links, errors, retryability, context load at dispatch, current context load, version fingerprints, context drift, and truthful status totals. Active receipts with no execution heartbeat for 30 minutes are surfaced as stale even before reconciliation.",
     shape: {
       planId: z.string(),
     },
