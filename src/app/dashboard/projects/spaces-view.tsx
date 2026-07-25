@@ -54,8 +54,11 @@ export function SpacesView() {
       >
         <div className="space-y-2 pb-2">
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Spaces are the top-level containers for your work. Each space holds
-            lists, optional folders, docs, whiteboards, and templates.
+            Spaces organize work inside a workspace. Each space holds lists,
+            optional folders, docs, and whiteboards.
+          </p>
+          <p className="text-xs font-medium text-foreground/80">
+            Workspace → Space → Folder (optional) → List → Task
           </p>
           <Input
             value={raw}

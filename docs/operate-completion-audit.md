@@ -12,7 +12,13 @@ only after automated checks and relevant production behavior both pass.
 - Hosted MCP authentication and discovery (140 tools)
 - OpenAI and Claude MCP annotation profiles
 - Workspace → Space → optional Folder → List → Task hierarchy
-- User-facing Projects → Spaces/Lists terminology correction
+- One user-facing hierarchy: Workspace → Space → optional Folder → List →
+  Task. There is no separate Project entity; legacy project-capable metadata
+  remains attached to Lists without introducing a competing navigation layer.
+- Workspace selector, Spaces tree, and personal-space labels identify their
+  levels explicitly; the legacy `/dashboard/projects` URL redirects to Spaces
+- Templates identify whether they create a List, Task, Doc, Whiteboard, or
+  saved View and choose the matching destination level (Space/Folder or List)
 - Template Center and per-Space template entry point
 - Truthful agent connection, heartbeat, recent, offline, and paused presence
 - Durable signed assignment, mention, and execution wake delivery
@@ -32,6 +38,10 @@ only after automated checks and relevant production behavior both pass.
 - Hourly through monthly recurring operations
 - Reusable agent-authored SOP blueprints
 - Isolated schedule failures, threshold auto-pause, and owner/admin escalation
+- Real production clock materialization: an hourly definition created at
+  14:59:50 UTC became due at 15:00 and the live 15-minute Convex cron created
+  its scheduler-authored task at 15:14:53. The schedule, task, and one-use
+  verification credentials were removed after readback (zero artifacts).
 - Seven curl-installable skills with retries and SHA-256 verification
 - Completed agent work clears its matching current-task and activity text,
   preventing stale “Now” presence after success
@@ -49,11 +59,10 @@ only after automated checks and relevant production behavior both pass.
 - OAuth registration, authorization, refresh, revoke, and reconnect lifecycle
 - Webhook delivery, signature verification, retry, disable, and recovery lifecycle
 - x402 metering and billing lifecycle
-- Recurring schedule materialization through a real production cron tick
 
 ## Still required
 
-1. Prove production cron materialization and schedule failure recovery on the
+1. Prove production schedule failure recovery and owner escalation on the
    clock rather than only through tests.
 2. Complete OAuth, webhook, and billing production certification.
 3. Run a systematic browser pass over onboarding, home, inbox, Spaces, Lists,
