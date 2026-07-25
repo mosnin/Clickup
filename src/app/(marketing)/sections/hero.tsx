@@ -128,7 +128,7 @@ export function Hero() {
     <section
       ref={ref}
       data-gs-hidden=""
-      className="gs-reveal relative overflow-x-clip bg-[#0a0a0a] pt-28 pb-10 sm:pt-36"
+      className="gs-reveal relative overflow-x-clip bg-black pt-28 pb-10 sm:pt-36"
     >
       {/* Background film — decorative, so aria-hidden and controls-free. See
           components/marketing/hero-film.tsx for why autoplay is driven from
@@ -141,19 +141,18 @@ export function Hero() {
           The film covers the headline band and fades out before the product
           shot — NOT the whole section. Height matters for sharpness: filling
           a tall narrow box with a landscape clip made object-cover crop hard
-          and magnify what was left (measured 2.6x on desktop). A wider, less
-          tall box keeps the frame near its native scale. */}
+          and magnify what was left (measured 2.6x on desktop). A short, wide box
+          keeps the frame at roughly native scale. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[clamp(34rem,86vh,54rem)] overflow-hidden"
+        className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[clamp(24rem,62vh,38rem)] overflow-hidden"
       >
         <HeroFilm />
         {/* Vignette keeps the headline legible over a busy frame; the bottom
-            fade lands on the page's own near-black (#0a0a0a, the same fill
-            the fixed backdrop uses) so the film dissolves into the rest of
-            the page with no seam at the section edge. */}
-        <div className="absolute inset-0 bg-[radial-gradient(120%_95%_at_50%_18%,transparent_30%,rgba(10,10,10,0.8)_100%)]" />
-        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-b from-transparent via-[#0a0a0a]/75 to-[#0a0a0a]" />
+            fade lands on pure black, the same fill the page canvas uses, so the
+            film dissolves into the rest of the page with no seam. */}
+        <div className="absolute inset-0 bg-[radial-gradient(120%_95%_at_50%_18%,transparent_30%,rgba(0,0,0,0.8)_100%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-b from-transparent via-black/75 to-black" />
       </div>
 
       {/* Quiet circuit-line texture — thin traces + tiny dots, barely

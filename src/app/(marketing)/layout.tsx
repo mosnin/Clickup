@@ -1,6 +1,5 @@
 import { MarketingNav } from "@/components/marketing/nav";
 import { MarketingFooter } from "@/components/marketing/footer";
-import { Dither } from "@/components/marketing/dither";
 import { ChatbaseWidget } from "@/components/marketing/chatbase";
 
 // Logged-out shell (marketing v3): dark charcoal canvas with vibrant
@@ -17,28 +16,16 @@ export default function MarketingLayout({
 }) {
   return (
     <div className="marketing-shell relative flex min-h-dvh flex-col overflow-x-clip text-foreground antialiased">
-      {/* Dithered charcoal field behind every logged-out page — the shared
-          hero backdrop. Fixed so it never scrolls, opaque charcoal fallback
-          so there's no flash before the shader mounts (or if WebGL is off).
-
-          Sized to the LARGEST viewport (h-lvh), not inset-0: on mobile the
-          URL bar collapsing/expanding changes the visual viewport every
-          scroll, and an inset-0 fixed element resizes with it — which
-          reallocates the WebGL drawing buffer mid-scroll and flashes (the
-          root cause of the mobile flicker). At lvh the element's size never
-          changes during scroll, so the canvas never resizes.
-
-          transform-gpu + backface-hidden keep it on its own compositor
-          layer so scrolling content never forces canvas repaints.
-
-          overflow-x-clip on the shell (above) guarantees no GSAP transform
-          or float can create sideways scroll on mobile. */}
+      {/* Flat black canvas behind every logged-out page. This used to be a
+          WebGL dithered wave field tinted charcoal grey — that grey is what
+          read as a washed-out band under the hero, so the shader is gone and
+          the page sits on pure black. Fixed and sized to the LARGEST viewport
+          (h-lvh, not inset-0) so a collapsing mobile URL bar can never resize
+          it mid-scroll. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed left-0 top-0 -z-10 h-lvh w-screen transform-gpu bg-[#0a0a0a] [backface-visibility:hidden] [will-change:transform]"
-      >
-        <Dither />
-      </div>
+        className="pointer-events-none fixed left-0 top-0 -z-10 h-lvh w-screen bg-black"
+      />
       {/* Progressive enhancement: GSAP reveals start content hidden via
           [data-gs-hidden] (see globals.css). Without JavaScript that
           attribute is never removed — so force everything visible. */}

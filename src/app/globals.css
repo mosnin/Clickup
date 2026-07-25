@@ -245,25 +245,29 @@ body {
   }
 }
 
-/* ── Marketing v3 — dark charcoal recolor ─────────────────────────────────
-   The logged-out site flips from white-canvas / azure-over-navy to a deep
-   charcoal canvas with vibrant gradient accents and gradient text. Scoped
+/* ── Marketing v3 — black canvas ──────────────────────────────────────────
+   The logged-out site is pure black with vibrant gradient accents and
+   gradient text. It used to sit on #0a0a0a charcoal, which read as a
+   washed-out grey band beneath the hero film; the canvas and the former
+   navy bands are now #000 so the page is one continuous black. Scoped
    to `.marketing-shell` (set on the marketing layout root) so the dashboard
    keeps its own theming untouched. This is a COLOR change only — same
    layout, same structure. Redefining the shared tokens here flips every
    token-based surface (bg-background/text-foreground/border-border) and the
    navy band tokens become deep-charcoal, so the layout's rhythm survives. */
 .marketing-shell {
-  --color-background: #0a0a0a;
+  --color-background: #000000;
   --color-foreground: #f5f5f5;
   --color-border: #262626;
   --color-muted: #141414;
   --color-muted-foreground: #a6a6a6;
 
-  /* Former navy bands → deep charcoal (kept as tokens so bg-navy-* flips). */
-  --color-navy-800: #171717;
-  --color-navy-900: #101010;
-  --color-navy-950: #090909;
+  /* Former navy bands → black (kept as tokens so bg-navy-* flips). Cards
+     and panels keep their own slightly-lifted fills below, so surfaces are
+     still legible against the black canvas. */
+  --color-navy-800: #000000;
+  --color-navy-900: #000000;
+  --color-navy-950: #000000;
 
   
   --color-azure-100: #3a2418;

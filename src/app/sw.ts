@@ -16,7 +16,7 @@
 
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist } from "serwist";
+import { NetworkOnly, Serwist } from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -31,7 +31,22 @@ const serwist = new Serwist({
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
-  runtimeCaching: defaultCache,
+  runtimeCaching: [
+    // Video must bypass the service worker entirely. A cached video is
+    // served back as a complete 200 response, but Safari (and iOS in
+    // particular) plays media by issuing byte-range requests and refuses
+    // anything that answers a Range request with a full body — which shows
+    // up as a video that silently never starts. NetworkOnly lets the
+    // browser talk to the network directly and negotiate 206s itself.
+    // This entry is FIRST because Serwist takes the first matching route.
+    {
+      matcher: ({ request, url }) =>
+        request.destination === "video" ||
+        /\.(?:mp4|webm|mov)$/i.test(url.pathname),
+      handler: new NetworkOnly(),
+    },
+    ...defaultCache,
+  ],
 });
 
 serwist.addEventListeners();
