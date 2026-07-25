@@ -214,6 +214,7 @@ const IDEMPOTENT_TOOLS = new Set([
   "set_sprint_capacity",
   "set_sprint_retrospective",
   "assign_project_to_phase",
+  "assign_list_to_phase",
   "rename_list",
   "update_list_meta",
   "reorder_lists",
@@ -295,7 +296,8 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "create_space",
-    description: "Create a new space (top-level project container) in my scope.",
+    description:
+      "Create a new top-level Space in my scope. Spaces own lists, optional folders, docs, whiteboards, and templates.",
     shape: { name: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.createSpace), { apiKey: k, ...a }),
@@ -345,7 +347,7 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "rename_list",
-    description: "Rename a list (project). Fix your own typos — no human needed.",
+    description: "Rename a list. Fix your own typos — no human needed.",
     shape: { listId: z.string(), name: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.renameList), { apiKey: k, ...a }),
@@ -353,7 +355,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "update_list_meta",
     description:
-      "Set a project's intent: description, health (on_track/at_risk/off_track/paused), target date, notes, or attached SOP slug. null clears a field. Shows on the project Overview and in get_tree.",
+      "Set a list's intent: description, health (on_track/at_risk/off_track/paused), target date, notes, or attached SOP slug. null clears a field. Shows on the list Overview and in get_tree.",
     shape: {
       listId: z.string(),
       description: z.string().nullable().optional(),
@@ -367,7 +369,7 @@ const TOOLS: ToolDef[] = [
         .string()
         .nullable()
         .optional()
-        .describe("skill slug attached as this project's SOP"),
+        .describe("skill slug attached as this list's SOP"),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.updateListMeta), { apiKey: k, ...a }),
@@ -375,7 +377,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "delete_list",
     description:
-      "Delete a list (project) and everything in it: tasks, comments, statuses, fields, automations, schedules. Irreversible — prefer rename_list for fixing mistakes. Goals tracking the list freeze at their current value.",
+      "Delete a list and everything in it: tasks, comments, statuses, fields, automations, schedules. Irreversible — prefer rename_list for fixing mistakes. Goals tracking the list freeze at their current value.",
     shape: { listId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.deleteList), { apiKey: k, ...a }),
@@ -459,7 +461,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_milestones",
     description:
-      "The dated checkpoints inside one project: name, targetDate, status, and derived progress (done/total of the tasks linked to each). Read this before planning dates — it's the project's internal timeline.",
+      "The dated checkpoints inside one list: name, targetDate, status, and derived progress (done/total of the tasks linked to each). Read this before planning dates — it is the list's internal timeline.",
     shape: { listId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listMilestones), { apiKey: k, ...a }),
@@ -467,7 +469,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "create_milestone",
     description:
-      "Add a dated checkpoint to a project (e.g. 'Beta cut', 'Design freeze'). Link tasks to it with set_task_milestone; its progress then derives from those tasks.",
+      "Add a dated checkpoint to a list (e.g. 'Beta cut', 'Design freeze'). Link tasks to it with set_task_milestone; its progress then derives from those tasks.",
     shape: {
       listId: z.string(),
       name: z.string(),
@@ -510,7 +512,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "set_task_milestone",
     description:
-      "Put a task under one of its project's milestones, or pass milestoneId null to detach it. The milestone must belong to the task's own project.",
+      "Put a task under one of its list's milestones, or pass milestoneId null to detach it. The milestone must belong to the task's own list.",
     shape: { taskId: z.string(), milestoneId: z.string().nullable() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.setTaskMilestone), {
@@ -545,7 +547,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_context_packets",
     description:
-      "List the versioned source-of-truth briefs available in a project. Packets keep objectives, constraints, decisions, and references consistent across parallel tasks.",
+      "List the versioned source-of-truth briefs available in a list. Packets keep objectives, constraints, decisions, and references consistent across parallel tasks.",
     shape: { listId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listContextPackets), { apiKey: k, ...a }),
@@ -561,7 +563,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "create_context_packet",
     description:
-      "Create a versioned source-of-truth brief for a project and optionally attach it to many tasks atomically. Use markdown sections such as Objective, Constraints, Decisions, References, and Open Questions.",
+      "Create a versioned source-of-truth brief for a list and optionally attach it to many tasks atomically. Use markdown sections such as Objective, Constraints, Decisions, References, and Open Questions.",
     shape: {
       listId: z.string(),
       title: z.string(),
@@ -613,7 +615,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "attach_context_packet",
     description:
-      "Attach one project context packet to up to 100 tasks. get_task then returns the full packet to every assigned agent.",
+      "Attach one list context packet to up to 100 tasks. get_task then returns the full packet to every assigned agent.",
     shape: {
       packetId: z.string(),
       taskIds: z.array(z.string()).min(1).max(100),
@@ -638,7 +640,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "delete_context_packet",
     description:
-      "Permanently retire a project context packet and detach it from every task. Use only when the source itself is obsolete, not when it merely stops applying to one task.",
+      "Permanently retire a list context packet and detach it from every task. Use only when the source itself is obsolete, not when it merely stops applying to one task.",
     shape: { packetId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.deleteContextPacket), {
@@ -1128,7 +1130,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "create_execution_plan",
     description:
-      "Atomically compile one conversation/brief into an auditable execution system: a phased roadmap, 1-12 projects, up to 100 tasks/subtasks, cross-project dependencies, assignments, and a versioned operating brief attached to every task. The immutable plan manifest preserves source context, success criteria, assumptions, open questions, every generated id, and its authorization source. Supervised workspaces start plans pending owner/admin review. Bounded-autonomous workspaces may policy-authorize plans only when they fit the plan-size ceiling, contain no open questions, and contain no approval-gated tasks. Reuse the same idempotencyKey to retry safely; changing the plan requires a new key. All refs are local handles: dependencies within a project use task refs, cross-project dependencies use projectRef.taskRef. The entire call commits or rolls back together.",
+      "Atomically compile one conversation/brief into an auditable execution system inside one Space: a phased roadmap, 1-12 workstreams materialized as Lists, up to 100 tasks/subtasks, cross-workstream dependencies, assignments, and a versioned operating brief attached to every task. The input field remains projects for backward compatibility, but each entry is a workstream that creates one List—not another container. The immutable manifest preserves source context, success criteria, assumptions, open questions, every generated id, and its authorization source. Supervised workspaces start plans pending owner/admin review. Bounded-autonomous workspaces may policy-authorize plans only when they fit the plan-size ceiling, contain no open questions, and contain no approval-gated tasks. Reuse the same idempotencyKey to retry safely; changing the plan requires a new key. All refs are local handles: dependencies within a workstream use task refs; cross-workstream dependencies use workstreamRef.taskRef. The entire call commits or rolls back together.",
     shape: {
       idempotencyKey: z
         .string()
@@ -1136,7 +1138,7 @@ const TOOLS: ToolDef[] = [
         .describe(
           "stable caller-generated key for this exact plan, e.g. conversation id + revision",
         ),
-      spaceId: z.string().describe("workspace Space that will own the projects"),
+      spaceId: z.string().describe("workspace Space that will own the generated Lists"),
       name: z.string().max(120),
       objective: z.string().max(1000),
       sourceContext: z
@@ -1155,7 +1157,7 @@ const TOOLS: ToolDef[] = [
         .array(z.string().max(500))
         .max(25)
         .optional()
-        .describe("unresolved decisions preserved in every project's context"),
+        .describe("unresolved decisions preserved in every workstream's context"),
       phases: z
         .array(
           z.object({
@@ -1205,13 +1207,13 @@ const TOOLS: ToolDef[] = [
                     .string()
                     .optional()
                     .describe(
-                      "earlier task ref in this project; creates a subtask",
+                      "earlier task ref in this workstream; creates a subtask",
                     ),
                   dependsOn: z
                     .array(z.string())
                     .optional()
                     .describe(
-                      "same-project task refs or projectRef.taskRef for cross-project blockers",
+                      "same-workstream task refs or workstreamRef.taskRef for cross-workstream blockers",
                     ),
                   checklist: checklistArg.optional(),
                   requiresApproval: z.boolean().optional(),
@@ -1258,7 +1260,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_execution_plans",
     description:
-      "List the 20 most recent immutable execution-plan manifests in this workspace, with roadmap, project/task counts, unresolved-question counts, and human review status.",
+      "List the 20 most recent immutable execution-plan manifests in this workspace, with roadmap, workstream/task counts, unresolved-question counts, and review status.",
     shape: {},
     run: (c, k) =>
       c.query(asQuery(api.agentApi.listExecutionPlans), { apiKey: k }),
@@ -1266,7 +1268,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_execution_plan",
     description:
-      "Read the full provenance manifest for a committed execution plan: original source context, success criteria, explicit assumptions/open questions, human review status, and every generated roadmap/project/task id.",
+      "Read the full provenance manifest for a committed execution plan: original source context, success criteria, explicit assumptions/open questions, review status, and every generated roadmap/workstream List/task id.",
     shape: { planId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.getExecutionPlan), { apiKey: k, ...a }),
@@ -1383,7 +1385,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_roadmaps",
     description:
-      "The workspace's roadmaps: ordered phases (Now/Next/Later style) with the projects in each and their done/total. Workspace-scoped agents only.",
+      "The workspace's roadmaps: ordered phases (Now/Next/Later style) with the Lists in each and their done/total. Workspace-scoped agents only.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.getRoadmaps), { apiKey: k }),
   },
@@ -1440,7 +1442,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "remove_roadmap_phase",
     description:
-      "Remove a phase from a roadmap. Projects in that phase fall back to Unassigned — nothing is deleted.",
+      "Remove a phase from a roadmap. Lists in that phase fall back to Not on roadmap — nothing is deleted.",
     shape: { roadmapId: z.string(), phaseId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.removeRoadmapPhase), {
@@ -1451,13 +1453,34 @@ const TOOLS: ToolDef[] = [
   {
     name: "assign_project_to_phase",
     description:
-      "Put a project (list) into a roadmap phase, or pull it out with roadmapId null.",
+      "Legacy-compatible alias for assign_list_to_phase. Put a List into a roadmap phase, or pull it out with roadmapId null.",
     shape: {
       listId: z.string(),
       roadmapId: z
         .string()
         .nullable()
-        .describe("null removes the project from its roadmap"),
+        .describe("null removes the list from its roadmap"),
+      phaseId: z
+        .string()
+        .optional()
+        .describe("phase id from get_roadmaps; defaults to the first phase"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.assignProjectToPhase), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "assign_list_to_phase",
+    description:
+      "Put a List into a roadmap phase, or pull it out with roadmapId null. Roadmaps sequence existing Lists; they do not create or own another hierarchy container.",
+    shape: {
+      listId: z.string(),
+      roadmapId: z
+        .string()
+        .nullable()
+        .describe("null removes the list from its roadmap"),
       phaseId: z
         .string()
         .optional()
@@ -1774,7 +1797,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "create_goal",
     description:
-      "Create a goal (number / money / boolean target). Pass sourceListId to link a number goal to a project for auto-rollup: progress then derives live from that list's completed tasks (no manual set_goal_progress).",
+      "Create a goal (number / money / boolean target). Pass sourceListId to link a number goal to a List for auto-rollup: progress then derives live from that list's completed tasks (no manual set_goal_progress).",
     shape: {
       title: z.string(),
       description: z.string().optional(),
@@ -2040,7 +2063,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_portfolio",
     description:
-      "Every list (project) in my scope, skipping archived spaces: name, space, projectStatus, targetDate, and task totals (total/done/inProgress). Use for a cross-project status rollup.",
+      "Every List in my scope, skipping archived Spaces: name, Space, health, targetDate, and task totals (total/done/inProgress). Use for a cross-list status rollup.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.getPortfolio), { apiKey: k }),
   },
@@ -2216,7 +2239,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "operate-agents", version: "1.0.0" },
     instructions:
-      "You are an agent teammate in operate.to. First: call whoami, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-project roadmap? Prefer create_execution_plan: preserve the source, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. A stale receipt is not active work: call reconcile_execution_plan before manually retrying it; dispatch also reconciles transactionally and preserves the timed-out attempt. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Use create_tasks for smaller additions to an existing list. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
+      "You are an agent teammate in operate.to. The hierarchy is Workspace → Space → optional Folder → List → Task → Subtask. A roadmap sequences existing Lists into phases; it is not another container. First: call whoami, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-workstream roadmap? Prefer create_execution_plan: choose one Space, preserve the source, treat each projects input entry as a workstream that materializes as a List, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. A stale receipt is not active work: call reconcile_execution_plan before manually retrying it; dispatch also reconciles transactionally and preserves the timed-out attempt. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Use create_tasks for smaller additions to an existing List. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
   },
   {
     basePath: "/api",

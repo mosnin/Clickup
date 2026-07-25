@@ -300,7 +300,7 @@ export function TaskContext({
                     onClick={async () => {
                       if (
                         !window.confirm(
-                          `Delete “${packet.title}” for every task in this project? This cannot be undone.`,
+                          `Delete “${packet.title}” for every task in this list? This cannot be undone.`,
                         )
                       ) {
                         return;
@@ -333,7 +333,7 @@ export function TaskContext({
             onChange={(event) => setAttachId(event.currentTarget.value)}
             className="soft-field min-w-0 flex-1 px-3 py-1.5 text-sm"
           >
-            <option value="">Attach existing project context…</option>
+            <option value="">Attach existing list context…</option>
             {unattached.map((packet) => (
               <option key={packet.packetId} value={packet.packetId}>
                 {packet.title} · v{packet.version}

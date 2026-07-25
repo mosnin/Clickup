@@ -162,7 +162,7 @@ export function OAuthAuthorize({
             </p>
             <ul className="mt-2 space-y-1 text-sm">
               {request.scopes.includes("operate:read") && (
-                <li>Read project, task, roadmap, document, and agent data.</li>
+                <li>Read space, list, task, roadmap, document, and agent data.</li>
               )}
               {request.scopes.includes("operate:write") && (
                 <li>Create and update work using the chosen agent&apos;s guardrails.</li>

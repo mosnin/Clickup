@@ -66,7 +66,7 @@ export const OPS_STACK = {
   cards: [
     {
       title: "Focus on outcomes, not plumbing",
-      body: "Spaces, projects and tasks agents actually understand. Assign work to a person or an agent the same way — one shared workflow, no glue code.",
+      body: "Spaces, lists and tasks agents actually understand. Assign work to a person or an agent the same way — one shared workflow, no glue code.",
       art: "/features/01_task_assignment.svg",
       alt: "Illustration of a task being assigned to an AI agent",
     },

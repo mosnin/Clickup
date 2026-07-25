@@ -41,9 +41,9 @@ import {
 } from "@/components/motion";
 import { errorMessage } from "@/lib/errors";
 
-// Roadmap tab on the workspace page: workspace projects (lists) slotted
+// Roadmap tab on the workspace page: workspace lists slotted
 // into the ordered phases of one or more roadmaps ("Now / Next / Later",
-// quarters, launch trains…). Phases render as horizontal columns; projects
+// quarters, launch trains…). Phases render as horizontal columns; lists
 // move between phases, reorder within one, and fall back to the
 // "Not on roadmap" rail at the bottom when unassigned. All data lives in
 // convex/roadmaps.ts — this file is pure surface.
@@ -55,7 +55,7 @@ type Roadmap = RoadmapList[number];
 type Phase = Roadmap["phases"][number];
 type RoadmapProject = Roadmap["projects"][number];
 
-// Same pastel language as the projects directory: dark ink stays pinned on
+// Same pastel language as the list cards: dark ink stays pinned on
 // pastel fills in both themes; "paused" rides the theme-adaptive muted pair.
 const STATUS_CHIP: Record<
   NonNullable<RoadmapProject["projectStatus"]>,
@@ -108,7 +108,7 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
   );
   const [hiddenPhaseIds, setHiddenPhaseIds] = useState<Set<string>>(new Set());
 
-  // Workspace projects not assigned to any roadmap, for the bottom rail.
+  // Workspace lists not assigned to any roadmap, for the bottom rail.
   const unassigned = useMemo(() => {
     const ws = tree?.workspaces.find((w) => w._id === workspaceId);
     if (!ws) return [];
@@ -175,7 +175,7 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
       <div className="rounded-2xl panel px-6 py-14 text-center">
         <p className="text-sm font-semibold">Plan the arc of the work</p>
         <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
-          A roadmap lines this workspace&apos;s projects up into phases — Now,
+          A roadmap sequences this workspace&apos;s lists into phases — Now,
           Next, Later — so everyone can see what ships when.
         </p>
         <div className="mt-4 flex justify-center">
@@ -208,7 +208,7 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
         return next;
       });
     setHiddenRoadmapIds((prev) => new Set(prev).add(rm._id));
-    toast(`${rm.name} deleted — projects stay put`, {
+    toast(`${rm.name} deleted — lists stay put`, {
       action: { label: "Undo", onClick: unhide },
       onExpire: () =>
         void removeRoadmap({ roadmapId: rm._id }).catch((e) => {
@@ -230,7 +230,7 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
     const count = rm.projects.filter((p) => p.phaseId === phase.id).length;
     toast(
       count > 0
-        ? `${phase.name} deleted — ${count} project${count === 1 ? "" : "s"} return to Not on roadmap`
+        ? `${phase.name} deleted — ${count} list${count === 1 ? "" : "s"} return to Not on roadmap`
         : `${phase.name} deleted`,
       {
         action: { label: "Undo", onClick: unhide },
@@ -326,12 +326,12 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
         {totalTasks > 0 && (
           <span className="text-xs text-muted-foreground">
             {totalDone}/{totalTasks} tasks done · {active.projects.length}{" "}
-            project{active.projects.length === 1 ? "" : "s"}
+            list{active.projects.length === 1 ? "" : "s"}
           </span>
         )}
         <button
           type="button"
-          title="Delete roadmap (projects are kept)"
+          title="Delete roadmap (lists are kept)"
           onClick={() => deleteRoadmap(active)}
           className="tap-target ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-600"
         >
@@ -510,7 +510,7 @@ function ExecutionPlanProvenance({
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-sm font-semibold">Compiled from source</span>
             <span className="text-xs text-muted-foreground">
-              {plan.projectCount} projects · {plan.taskCount} tasks
+              {plan.projectCount} workstreams · {plan.taskCount} tasks
             </span>
             {plan.openQuestionCount > 0 && (
               <span className="rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] font-medium text-neutral-900">
@@ -1099,7 +1099,7 @@ function PhaseColumn({
       orderedIds: ids,
     }).catch((e) => {
       setOverride(null);
-      toast(errorMessage(e, "Couldn't reorder projects"), { kind: "error" });
+      toast(errorMessage(e, "Couldn't reorder lists"), { kind: "error" });
     });
   }
 
@@ -1113,7 +1113,7 @@ function PhaseColumn({
             phaseId: targetId,
           });
     void action.catch((e) =>
-      toast(errorMessage(e, "Couldn't move project"), { kind: "error" }),
+      toast(errorMessage(e, "Couldn't move list"), { kind: "error" }),
     );
   }
 
@@ -1195,7 +1195,7 @@ function PhaseColumn({
       <div className="mt-3 space-y-2">
         {ordered.length === 0 && (
           <p className="px-1 py-2 text-xs text-muted-foreground">
-            Nothing in this phase yet — move a project here.
+            Nothing in this phase yet — move a list here.
           </p>
         )}
         <AnimatePresence initial={false}>
@@ -1518,7 +1518,7 @@ function UnassignedRail({
       </p>
       {projects.length === 0 ? (
         <p className="mt-2 text-xs text-muted-foreground">
-          Every project in this workspace is on a roadmap.
+          Every list in this workspace is on a roadmap.
         </p>
       ) : (
         <ul className="mt-3 space-y-1">

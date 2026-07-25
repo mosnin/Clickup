@@ -142,13 +142,13 @@ function SpaceCard({ space }: { space: SpaceRow }) {
           )}
 
           <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
-            <Stat icon={List} value={space.listCount} label="lists" />
-            <Stat icon={Folder} value={space.folderCount} label="folders" />
-            <Stat icon={FileText} value={space.docCount} label="docs" />
+            <Stat icon={List} value={space.listCount} label="list" />
+            <Stat icon={Folder} value={space.folderCount} label="folder" />
+            <Stat icon={FileText} value={space.docCount} label="doc" />
             <Stat
               icon={LayoutGrid}
               value={space.whiteboardCount}
-              label="boards"
+              label="board"
             />
           </div>
 
@@ -183,6 +183,7 @@ function Stat({
     <span className="inline-flex items-center gap-1">
       <Icon className="h-3.5 w-3.5" aria-hidden />
       {value} {label}
+      {value === 1 ? "" : "s"}
     </span>
   );
 }

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 const SKILLS = [
-  ["Plan", "Compile a confirmed brief into an auditable project graph."],
+  ["Plan", "Compile a confirmed brief into an auditable workstream graph."],
   ["Dispatch", "Release capability- and capacity-safe execution waves."],
   ["Worker", "Claim, execute, heartbeat, attach evidence, and finish work."],
   ["Daily ops", "Turn live work into a factual operating brief."],
@@ -24,7 +24,7 @@ const SKILLS = [
 ] as const;
 
 const EXAMPLES = [
-  "Turn this confirmed brief into an auditable multi-project execution plan.",
+  "Turn this confirmed brief into an auditable multi-workstream execution plan.",
   "Show me the next safe execution wave and explain what is blocked.",
   "Summarize running, failed, retryable, and completed work for this plan.",
   "Verify this plan's original success criteria with independent evidence.",

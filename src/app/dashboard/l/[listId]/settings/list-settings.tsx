@@ -231,8 +231,8 @@ const DEFAULT_VIEW_OPTIONS: { key: "default" | DefaultView; label: string }[] =
     { key: "workload", label: "Workload" },
   ];
 
-// Per-project operations config (Phase L): assignment routing, an attached
-// SOP playbook, and the view this project opens in by default.
+// Per-list operations config: assignment routing, an attached SOP
+// playbook, and the view this list opens in by default.
 function OperationsSection({
   listId,
   list,
@@ -329,7 +329,7 @@ function OperationsSection({
         <CardTitle>Operations</CardTitle>
         <CardDescription>
           Route new tasks to the right people, attach a playbook, and pick the
-          view this project opens in.
+          view this list opens in.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -444,7 +444,7 @@ function OperationsSection({
           )}
           <p className="mt-1.5 text-xs text-muted-foreground">
             Agents receive this playbook with every task they read from this
-            project.
+            list.
           </p>
         </div>
 
@@ -484,7 +484,7 @@ function OperationsSection({
             })}
           </div>
           <p className="mt-1.5 text-xs text-muted-foreground">
-            The view this project opens in when a link doesn&apos;t specify
+            The view this list opens in when a link doesn&apos;t specify
             one.
           </p>
         </div>
