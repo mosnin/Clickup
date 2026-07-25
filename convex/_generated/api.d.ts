@@ -57,6 +57,7 @@ import type * as notificationCenter from "../notificationCenter.js";
 import type * as notifications from "../notifications.js";
 import type * as onboarding from "../onboarding.js";
 import type * as opsOverview from "../opsOverview.js";
+import type * as outcomeAssurance from "../outcomeAssurance.js";
 import type * as oauth from "../oauth.js";
 import type * as portfolio from "../portfolio.js";
 import type * as projectsDirectory from "../projectsDirectory.js";
@@ -146,6 +147,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   onboarding: typeof onboarding;
   opsOverview: typeof opsOverview;
+  outcomeAssurance: typeof outcomeAssurance;
   oauth: typeof oauth;
   portfolio: typeof portfolio;
   projectsDirectory: typeof projectsDirectory;

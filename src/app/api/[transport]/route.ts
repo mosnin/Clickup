@@ -1199,6 +1199,49 @@ const TOOLS: ToolDef[] = [
       c.query(asQuery(api.agentApi.getExecutionPlan), { apiKey: k, ...a }),
   },
   {
+    name: "get_outcome_assurance",
+    description:
+      "Read plan-level outcome assurance. Every original success criterion is tracked separately as pending, evidence submitted, independently passed, or failed. A plan is verified only when every criterion passes.",
+    shape: { planId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getOutcomeAssurance), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "submit_outcome_evidence",
+    description:
+      "Submit concrete evidence against one original plan success criterion. Requires at least one http(s) artifact URL and moves the criterion into independent review; submitting work does not verify it.",
+    shape: {
+      planId: z.string(),
+      criterionIndex: z.number().int().min(0),
+      evidenceSummary: z.string().min(1).max(2000),
+      evidenceLinks: z.array(z.string().url()).min(1).max(20),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.submitOutcomeEvidence), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "review_outcome_criterion",
+    description:
+      "Independently pass or fail submitted evidence for one plan success criterion. An agent cannot review its own submission. Record a concrete review note; failed criteria can receive corrected evidence and be reviewed again.",
+    shape: {
+      planId: z.string(),
+      criterionIndex: z.number().int().min(0),
+      verdict: z.enum(["passed", "failed"]),
+      reviewNote: z.string().min(1).max(2000),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.reviewOutcomeCriterion), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
     name: "get_execution_readiness",
     description:
       "Preview the next safe parallel wave for an execution plan without changing anything. Returns ready recommendations, dependency/claim/lease/capability/capacity skips, each agent's advertised capabilities and free slots, open-question gates, and recent waves. Pass agentIds to constrain routing to a deliberate fleet subset.",
@@ -2087,7 +2130,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "operate-agents", version: "1.0.0" },
     instructions:
-      "You are an agent teammate in operate.to. First: call whoami, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, then claim_task. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-project roadmap? Prefer create_execution_plan: preserve the source, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. Before parallel execution, inspect get_execution_readiness and release only a capability-matched, capacity-safe dispatch_execution_wave with an auditable disposition for open questions; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. Use create_tasks for smaller additions to an existing project. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
+      "You are an agent teammate in operate.to. First: call whoami, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, then claim_task. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-project roadmap? Prefer create_execution_plan: preserve the source, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. Before parallel execution, inspect get_execution_readiness and release only a capability-matched, capacity-safe dispatch_execution_wave with an auditable disposition for open questions; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Use create_tasks for smaller additions to an existing project. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
   },
   {
     basePath: "/api",

@@ -9,6 +9,7 @@ const modules = import.meta.glob("../convex/**/*.*s");
 const ALICE = { subject: "user_alice", email: "alice@example.com" };
 const BOB = { subject: "user_bob", email: "bob@example.com" };
 const API_KEY = "cua_test_execution_planner";
+const REVIEWER_KEY = "cua_test_execution_reviewer";
 
 async function setup() {
   const t = convexTest(schema, modules);
@@ -64,13 +65,27 @@ async function setup() {
       createdByClerkId: ALICE.subject,
       createdAt: Date.now(),
     });
+    const reviewerId = await ctx.db.insert("agents", {
+      name: "Verifier",
+      parentType: "workspace",
+      parentId: workspaceId,
+      status: "active",
+      createdByClerkId: ALICE.subject,
+      createdAt: Date.now(),
+    });
     await ctx.db.insert("agentKeys", {
       agentId: plannerId,
       keyHash: sha256Hex(API_KEY),
       keyPrefix: API_KEY.slice(0, 12),
       createdAt: Date.now(),
     });
-    return { workspaceId, spaceId, plannerId, workerId };
+    await ctx.db.insert("agentKeys", {
+      agentId: reviewerId,
+      keyHash: sha256Hex(REVIEWER_KEY),
+      keyPrefix: REVIEWER_KEY.slice(0, 12),
+      createdAt: Date.now(),
+    });
+    return { workspaceId, spaceId, plannerId, workerId, reviewerId };
   });
   return {
     t,
@@ -260,6 +275,143 @@ describe("execution plan compiler", () => {
         objective: "A changed objective needs a new revision.",
       }),
     ).rejects.toThrow(/different plan/i);
+  });
+
+  it("requires independent evidence review before an outcome is verified", async () => {
+    const { t, spaceId, workerId } = await setup();
+    const plan = await t.mutation(
+      api.agentApi.createExecutionPlan,
+      planArgs(spaceId, workerId),
+    );
+
+    const initial = await t.query(api.agentApi.getOutcomeAssurance, {
+      apiKey: API_KEY,
+      planId: plan.planId,
+    });
+    expect(initial).toMatchObject({
+      status: "unverified",
+      total: 2,
+      pending: 2,
+      passed: 0,
+    });
+
+    const submitted = await t.mutation(
+      api.agentApi.submitOutcomeEvidence,
+      {
+        apiKey: API_KEY,
+        planId: plan.planId,
+        criterionIndex: 0,
+        evidenceSummary:
+          "The ownership audit shows every critical path has an owner and checklist.",
+        evidenceLinks: ["https://example.com/audits/ownership"],
+      },
+    );
+    expect(submitted).toMatchObject({
+      status: "in_review",
+      submitted: 1,
+      passed: 0,
+    });
+
+    await expect(
+      t.mutation(api.agentApi.reviewOutcomeCriterion, {
+        apiKey: API_KEY,
+        planId: plan.planId,
+        criterionIndex: 0,
+        verdict: "passed",
+        reviewNote: "I checked my own evidence.",
+      }),
+    ).rejects.toThrow(/cannot approve its own evidence/i);
+
+    const reviewed = await t.mutation(
+      api.agentApi.reviewOutcomeCriterion,
+      {
+        apiKey: REVIEWER_KEY,
+        planId: plan.planId,
+        criterionIndex: 0,
+        verdict: "passed",
+        reviewNote:
+          "Independently sampled every critical path and confirmed owners and criteria.",
+      },
+    );
+    expect(reviewed).toMatchObject({
+      status: "in_review",
+      passed: 1,
+      pending: 1,
+    });
+    expect(reviewed.checks[0]).toMatchObject({
+      status: "passed",
+      submitterName: "Planner",
+      reviewerName: "Verifier",
+    });
+
+    await t.mutation(api.agentApi.submitOutcomeEvidence, {
+      apiKey: API_KEY,
+      planId: plan.planId,
+      criterionIndex: 1,
+      evidenceSummary: "The dependency graph blocks beta until the API task.",
+      evidenceLinks: ["https://example.com/audits/dependency-graph"],
+    });
+    const verified = await t.mutation(
+      api.agentApi.reviewOutcomeCriterion,
+      {
+        apiKey: REVIEWER_KEY,
+        planId: plan.planId,
+        criterionIndex: 1,
+        verdict: "passed",
+        reviewNote:
+          "The graph contains the required hard dependency and rejects early beta work.",
+      },
+    );
+    expect(verified).toMatchObject({
+      status: "verified",
+      passed: 2,
+      pending: 0,
+      failed: 0,
+    });
+  });
+
+  it("lets a human fail submitted evidence and preserves the audit trail", async () => {
+    const { t, alice, workspaceId, spaceId, workerId } = await setup();
+    const plan = await t.mutation(
+      api.agentApi.createExecutionPlan,
+      planArgs(spaceId, workerId),
+    );
+    await t.mutation(api.agentApi.submitOutcomeEvidence, {
+      apiKey: API_KEY,
+      planId: plan.planId,
+      criterionIndex: 0,
+      evidenceSummary: "A screenshot claims every path has an owner.",
+      evidenceLinks: ["https://example.com/screenshots/owners"],
+    });
+    await alice.mutation(api.outcomeAssurance.review, {
+      planId: plan.planId,
+      criterionIndex: 0,
+      verdict: "failed",
+      reviewNote: "The screenshot omits two critical paths.",
+    });
+    const assurance = await alice.query(api.outcomeAssurance.get, {
+      planId: plan.planId,
+    });
+    expect(assurance).toMatchObject({
+      status: "failed",
+      failed: 1,
+    });
+    expect(assurance?.checks[0]).toMatchObject({
+      status: "failed",
+      reviewerName: "Alice",
+      reviewNote: "The screenshot omits two critical paths.",
+    });
+    const events = await t.run((ctx) =>
+      ctx.db
+        .query("events")
+        .withIndex("by_scope", (q) =>
+          q
+            .eq("scopeType", "workspace")
+            .eq("scopeId", workspaceId),
+        )
+        .collect(),
+    );
+    expect(events.some((event) => event.type === "outcome.failed")).toBe(true);
   });
 
   it("rejects cycles and invented assignees without partial creation", async () => {

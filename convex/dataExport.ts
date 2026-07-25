@@ -150,6 +150,16 @@ export const exportWorkspace = query({
         ),
       )
     ).flat();
+    const outcomeChecks = (
+      await Promise.all(
+        executionPlans.map((plan) =>
+          ctx.db
+            .query("outcomeChecks")
+            .withIndex("by_plan", (q) => q.eq("planId", plan._id))
+            .collect(),
+        ),
+      )
+    ).flat();
     const spaceName = new Map(spaces.map((space) => [space._id, space.name]));
     const agentName = new Map(agents.map((agent) => [agent._id, agent.name]));
 
@@ -183,6 +193,27 @@ export const exportWorkspace = query({
           ref: task.ref,
           title: task.title,
         })),
+        outcomeAssurance: plan.successCriteria.map((criterion, criterionIndex) => {
+          const check = outcomeChecks.find(
+            (row) =>
+              row.planId === plan._id &&
+              row.criterionIndex === criterionIndex,
+          );
+          return {
+            criterion,
+            status: check?.status ?? "pending",
+            evidenceSummary: check?.evidenceSummary,
+            evidenceLinks: check?.evidenceLinks,
+            submittedByAgent: check?.submittedByAgentId
+              ? agentName.get(check.submittedByAgentId)
+              : undefined,
+            submittedAt: check?.submittedAt,
+            reviewedByActorType: check?.reviewedByActorType,
+            reviewedByActorId: check?.reviewedByActorId,
+            reviewNote: check?.reviewNote,
+            reviewedAt: check?.reviewedAt,
+          };
+        }),
         createdAt: plan.createdAt,
       })),
       executionWaves: executionWaves.map((wave) => ({

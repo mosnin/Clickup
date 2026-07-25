@@ -625,6 +625,36 @@ export default defineSchema({
     .index("by_agent", ["agentId", "dispatchedAt"])
     .index("by_run", ["runId"]),
 
+  // Plan-level outcome assurance. Tasks and runs prove that work happened;
+  // these rows prove that the original success criteria were independently
+  // evaluated against evidence. Older plans are supported without a data
+  // migration: missing rows are synthesized as pending and created on the
+  // first submission or review.
+  outcomeChecks: defineTable({
+    planId: v.id("executionPlans"),
+    criterionIndex: v.number(),
+    criterion: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("submitted"),
+      v.literal("passed"),
+      v.literal("failed"),
+    ),
+    submittedByAgentId: v.optional(v.id("agents")),
+    evidenceSummary: v.optional(v.string()),
+    evidenceLinks: v.optional(v.array(v.string())),
+    submittedAt: v.optional(v.number()),
+    reviewedByActorType: v.optional(
+      v.union(v.literal("user"), v.literal("agent")),
+    ),
+    reviewedByActorId: v.optional(v.string()),
+    reviewNote: v.optional(v.string()),
+    reviewedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_plan", ["planId", "criterionIndex"])
+    .index("by_plan_and_criterion", ["planId", "criterionIndex"]),
+
   // External integrations attached to a workspace. Each kind stores its
   // own credential shape inside `config` (e.g. { webhookUrl } for Slack).
   // We deliberately keep this simple — one row per (workspace, kind) —

@@ -120,6 +120,11 @@ import {
   touchExecutionAssignment,
 } from "./executionLifecycle";
 import {
+  outcomeAssuranceView,
+  reviewOutcomeCriterionCore,
+  submitOutcomeEvidenceCore,
+} from "./outcomeAssurance";
+import {
   acknowledgeTaskContextCore,
   attachContextPacketCore,
   contextReadinessForAgent,
@@ -5083,6 +5088,94 @@ export const listExecutionPlans = query({
       .order("desc")
       .take(20);
     return plans.map(executionPlanSummary);
+  },
+});
+
+export const getOutcomeAssurance = query({
+  args: { apiKey: v.string(), planId: v.id("executionPlans") },
+  handler: async (ctx, { apiKey, planId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const plan = await ctx.db.get(planId);
+    if (
+      !plan ||
+      agent.parentType !== "workspace" ||
+      plan.workspaceId !== agent.parentId
+    ) {
+      throw new ConvexError("Execution plan not found in your workspace");
+    }
+    return await outcomeAssuranceView(ctx, plan);
+  },
+});
+
+export const submitOutcomeEvidence = mutation({
+  args: {
+    apiKey: v.string(),
+    planId: v.id("executionPlans"),
+    criterionIndex: v.number(),
+    evidenceSummary: v.string(),
+    evidenceLinks: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const plan = await ctx.db.get(args.planId);
+    if (
+      !plan ||
+      agent.parentType !== "workspace" ||
+      plan.workspaceId !== agent.parentId
+    ) {
+      throw new ConvexError("Execution plan not found in your workspace");
+    }
+    const checkId = await submitOutcomeEvidenceCore(
+      ctx,
+      plan,
+      args.criterionIndex,
+      agent._id,
+      args.evidenceSummary,
+      args.evidenceLinks,
+    );
+    await emitEvent(ctx, {
+      scopeType: "workspace",
+      scopeId: plan.workspaceId,
+      type: "outcome.evidence_submitted",
+      actor: agentActor(agent),
+      entityType: "executionPlan",
+      entityId: plan._id,
+      entityTitle: plan.name,
+      payload: { criterionIndex: args.criterionIndex, checkId },
+    });
+    return await outcomeAssuranceView(ctx, plan);
+  },
+});
+
+export const reviewOutcomeCriterion = mutation({
+  args: {
+    apiKey: v.string(),
+    planId: v.id("executionPlans"),
+    criterionIndex: v.number(),
+    verdict: v.union(v.literal("passed"), v.literal("failed")),
+    reviewNote: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const plan = await ctx.db.get(args.planId);
+    if (
+      !plan ||
+      agent.parentType !== "workspace" ||
+      plan.workspaceId !== agent.parentId
+    ) {
+      throw new ConvexError("Execution plan not found in your workspace");
+    }
+    await reviewOutcomeCriterionCore(
+      ctx,
+      plan,
+      args.criterionIndex,
+      args.verdict,
+      args.reviewNote,
+      agentActor(agent),
+    );
+    return await outcomeAssuranceView(ctx, plan);
   },
 });
 

@@ -13,11 +13,15 @@ import { createPortal } from "react-dom";
 import { useMutation, useQuery } from "convex/react";
 import {
   BookOpen,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
+  ExternalLink,
   MoreHorizontal,
   Plus,
+  ShieldCheck,
   Trash2,
+  XCircle,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -420,7 +424,47 @@ function ExecutionPlanProvenance({
   const plan = useQuery(api.executionPlans.get, { planId });
   const readiness = useQuery(api.executionDispatch.readiness, { planId });
   const control = useQuery(api.executionDispatch.control, { planId });
+  const assurance = useQuery(api.outcomeAssurance.get, { planId });
+  const reviewOutcome = useMutation(api.outcomeAssurance.review);
+  const { toast } = useToast();
+  const [reviewingIndex, setReviewingIndex] = useState<number | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
+  const [reviewing, setReviewing] = useState(false);
   if (!plan) return null;
+
+  async function commitReview(
+    criterionIndex: number,
+    verdict: "passed" | "failed",
+  ) {
+    if (!reviewNote.trim()) {
+      toast("Add a review note explaining the decision.", { kind: "error" });
+      return;
+    }
+    setReviewing(true);
+    try {
+      await reviewOutcome({
+        planId,
+        criterionIndex,
+        verdict,
+        reviewNote,
+      });
+      toast(
+        verdict === "passed"
+          ? "Outcome criterion independently verified."
+          : "Outcome criterion failed review.",
+        { kind: verdict === "passed" ? "success" : "error" },
+      );
+      setReviewingIndex(null);
+      setReviewNote("");
+    } catch (error) {
+      toast(errorMessage(error, "Couldn't record the review"), {
+        kind: "error",
+      });
+    } finally {
+      setReviewing(false);
+    }
+  }
+
   return (
     <details className="group rounded-2xl border border-brand-500/20 bg-brand-500/[0.04]">
       <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-3">
@@ -457,6 +501,165 @@ function ExecutionPlanProvenance({
             ))}
           </ul>
         </div>
+        {assurance && (
+          <div className="md:col-span-2 rounded-xl border border-border bg-background/60 p-3">
+            <div className="flex flex-wrap items-start gap-2">
+              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400">
+                <ShieldCheck className="h-3.5 w-3.5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Outcome assurance
+                  </p>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[11px] font-medium capitalize text-neutral-900",
+                      assurance.status === "verified"
+                        ? "bg-pastel-green"
+                        : assurance.status === "failed"
+                          ? "bg-pastel-red"
+                          : assurance.status === "in_review"
+                            ? "bg-pastel-yellow"
+                            : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {assurance.status.replace("_", " ")}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {assurance.passed}/{assurance.total} independently verified
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-foreground/70">
+                  Finished tasks prove activity. This gate proves the original
+                  objective against concrete evidence.
+                </p>
+              </div>
+            </div>
+            <ul className="mt-3 space-y-2">
+              {assurance.checks.map((check) => (
+                <li
+                  key={check.criterionIndex}
+                  className="rounded-xl border border-border/70 px-3 py-2.5"
+                >
+                  <div className="flex min-w-0 items-start gap-2">
+                    {check.status === "passed" ? (
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" />
+                    ) : check.status === "failed" ? (
+                      <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-600" />
+                    ) : (
+                      <span className="mt-1 h-3 w-3 flex-shrink-0 rounded-full border border-muted-foreground/40" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+                        <p className="min-w-0 flex-1 text-xs font-medium">
+                          {check.criterion}
+                        </p>
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">
+                          {check.status}
+                        </span>
+                      </div>
+                      {check.evidenceSummary && (
+                        <p className="mt-1.5 text-[11px] leading-4 text-foreground/70">
+                          {check.evidenceSummary}
+                        </p>
+                      )}
+                      {check.evidenceLinks.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-2">
+                          {check.evidenceLinks.map((link, index) => (
+                            <a
+                              key={`${index}-${link}`}
+                              href={link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-600 hover:underline dark:text-brand-400"
+                            >
+                              Evidence {index + 1}
+                              <ExternalLink className="h-2.5 w-2.5" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                      {check.reviewNote && (
+                        <p className="mt-1.5 text-[11px] text-muted-foreground">
+                          Review by {check.reviewerName ?? "reviewer"}:{" "}
+                          {check.reviewNote}
+                        </p>
+                      )}
+                      {check.status === "submitted" &&
+                        reviewingIndex !== check.criterionIndex && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReviewingIndex(check.criterionIndex);
+                              setReviewNote("");
+                            }}
+                            className="mt-2 text-[11px] font-semibold text-brand-600 hover:underline dark:text-brand-400"
+                          >
+                            Review evidence
+                          </button>
+                        )}
+                      {reviewingIndex === check.criterionIndex && (
+                        <div className="mt-2 space-y-2">
+                          <textarea
+                            value={reviewNote}
+                            onChange={(event) =>
+                              setReviewNote(event.target.value)
+                            }
+                            placeholder="What did you verify, and why does the evidence pass or fail?"
+                            rows={2}
+                            className="w-full resize-y rounded-lg border border-border bg-background px-2.5 py-2 text-xs outline-none transition focus:border-brand-500"
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={reviewing}
+                              onClick={() =>
+                                void commitReview(
+                                  check.criterionIndex,
+                                  "passed",
+                                )
+                              }
+                            >
+                              Pass criterion
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={reviewing}
+                              onClick={() =>
+                                void commitReview(
+                                  check.criterionIndex,
+                                  "failed",
+                                )
+                              }
+                            >
+                              Fail review
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              disabled={reviewing}
+                              onClick={() => {
+                                setReviewingIndex(null);
+                                setReviewNote("");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="space-y-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">

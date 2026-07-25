@@ -1,7 +1,7 @@
 {
   "name": "operate",
   "version": "1.0.0",
-  "description": "Plan, dispatch, execute, and audit human and AI-agent work in Operate.",
+  "description": "Plan, dispatch, execute, and independently verify human and AI-agent work in Operate.",
   "author": {
     "name": "Operate",
     "email": "support@operate.to",
@@ -15,7 +15,7 @@
   "interface": {
     "displayName": "Operate",
     "shortDescription": "Run projects with humans and AI agents.",
-    "longDescription": "Compile briefs into auditable roadmaps, route dependency-ready work to capable agents, execute through claims and runs, and monitor evidence, approvals, budgets, and recovery from one control plane.",
+    "longDescription": "Compile briefs into auditable roadmaps, route dependency-ready work to capable agents, execute through claims and runs, and independently verify original success criteria against evidence from one control plane.",
     "developerName": "Operate",
     "category": "Productivity",
     "capabilities": ["Read", "Write"],
@@ -25,7 +25,8 @@
     "defaultPrompt": [
       "Turn this confirmed brief into an auditable multi-project execution plan in Operate.",
       "Show me the next safe execution wave and explain any capability or capacity gaps.",
-      "Monitor this execution plan and summarize running, failed, retryable, and completed work."
+      "Monitor this execution plan and summarize running, failed, retryable, and completed work.",
+      "Verify this plan's original success criteria with independent evidence review."
     ],
     "brandColor": "#7C6FF7",
     "composerIcon": "./assets/icon.svg",

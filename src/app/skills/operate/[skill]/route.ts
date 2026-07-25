@@ -7,6 +7,7 @@ const SKILLS = new Set([
   "operate-worker",
   "operate-daily-ops",
   "operate-recovery",
+  "operate-assurance",
 ]);
 
 export async function GET(
