@@ -852,7 +852,9 @@ function AgentCard({
           </p>
           {(agent.statusText || currentTitle) && (
             <p className="mt-2 rounded-2xl bg-muted/50 px-3 py-1.5 text-xs">
-              <span className="font-medium">Now:</span>{" "}
+              <span className="font-medium">
+                {presence.online ? "Now:" : "Last status:"}
+              </span>{" "}
               {currentTitle && agent.currentTaskId ? (
                 <span className="font-medium">{currentTitle}, </span>
               ) : null}

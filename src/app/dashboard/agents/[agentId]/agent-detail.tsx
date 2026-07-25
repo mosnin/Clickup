@@ -151,7 +151,10 @@ export function AgentDetail({ agentId }: { agentId: string }) {
           )}
           {agent.statusText && (
             <p className="mt-2 inline-block rounded-2xl bg-muted/50 px-3 py-1.5 text-sm">
-              <span className="font-medium">Now:</span> {agent.statusText}
+              <span className="font-medium">
+                {presence.online ? "Now:" : "Last status:"}
+              </span>{" "}
+              {agent.statusText}
             </p>
           )}
         </div>
