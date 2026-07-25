@@ -2209,7 +2209,14 @@ async function guarded(req: Request): Promise<Response> {
     ) {
       const headers = new Headers(req.headers);
       headers.set("Accept", "application/json, text/event-stream");
-      transportRequest = new Request(req, { headers });
+      // NextRequest carries framework-private state and cannot safely be used
+      // as the Request constructor's input in the production edge wrapper.
+      // Rebuild a plain standards Request from the public URL/body instead.
+      transportRequest = new Request(req.url, {
+        method: req.method,
+        headers,
+        body: await req.arrayBuffer(),
+      });
     }
   }
   const response = await authHandler(transportRequest);
