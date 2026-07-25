@@ -121,7 +121,10 @@ only after automated checks and relevant production behavior both pass.
   with `401 invalid_token` plus OAuth protected-resource metadata.
 - Completed agent work clears its matching current-task and activity text,
   preventing stale “Now” presence after success
-- Local production build, typecheck, lint, plugin validation, and 361 tests
+- Home's live preview contains only agents within the five-minute connection
+  window; offline agents with retained activity cannot appear in the
+  “Agents online” card or receive its live border
+- Local production build, typecheck, lint, plugin validation, and 362 tests
 - Disposable production MCP mutation certification: List create/rename/metadata,
   two-task parent/dependency batch, task update/checklist, comment
   create/update/delete, schedule create/pause/resume/delete, readback/event
@@ -137,9 +140,9 @@ only after automated checks and relevant production behavior both pass.
 ## Still required
 
 1. Complete billing production certification.
-2. Continue the systematic browser pass over home, the remaining List views,
-   sprints, roadmaps, operations, agents, search, settings, broader keyboard
-   navigation, and failure states. Onboarding, Inbox, task detail, the core
+2. Continue the systematic browser pass over the remaining List views, sprints,
+   roadmaps, operations, agents, search, settings, broader keyboard navigation,
+   and failure states. Home, Onboarding, Inbox, task detail, the core
    Spaces/List hierarchy, template destinations, and their mobile responsive
    layouts are certified above.
 3. Finish the security review: rotate any remaining credentials exposed during
@@ -241,6 +244,17 @@ only after automated checks and relevant production behavior both pass.
   GitHub CI run `30176427574`, 361 tests, typecheck, lint, and the production
   build pass. Application and Convex health are `ok`, with no production error
   logs.
+- Home agent presence (production-validated 2026-07-25): the signed-in Home
+  page reported `0 Agents online` but its identically named live card still
+  listed stale Jimmy and Scout activity and rendered the animated live border.
+  The Home overview now excludes every agent outside the five-minute presence
+  window from that preview while retaining the full-fleet online count. Live
+  production now renders the truthful empty state, “Bring an agent online to
+  see live presence here,” with neither stale agent visible. Deployment
+  `dpl_7SZiZQMerkLigUYzycPJGGt9Kvud` is Ready at commit `f00185f`; health
+  reports application and Convex `ok`, GitHub CI run `30176917749` passed,
+  362 tests, typecheck, lint, and the production build pass, and the production
+  error-log scan is empty.
 - Public connector submission compliance (production-validated 2026-07-25):
   deployment `dpl_w3dL5pw14yVUGJiJeTEy8qSngXeq` is Ready and healthy. The
   authenticated base profile exposes all 140 tools; Anthropic's directory
