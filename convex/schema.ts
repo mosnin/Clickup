@@ -590,6 +590,16 @@ export default defineSchema({
     successCriteria: v.array(v.string()),
     assumptions: v.array(v.string()),
     openQuestions: v.array(v.string()),
+    // New plans require a human owner/admin decision before agents may
+    // dispatch them. Undefined is reserved for plans created before this
+    // control existed and is treated as legacy-approved.
+    reviewStatus: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("approved"),
+        v.literal("rejected"),
+      ),
+    ),
     roadmapId: v.id("roadmaps"),
     projects: v.array(
       v.object({
@@ -612,6 +622,16 @@ export default defineSchema({
   })
     .index("by_workspace", ["workspaceId", "createdAt"])
     .index("by_agent_key", ["createdByAgentId", "idempotencyKey"]),
+
+  // Append-only authorization history. Re-reviewing a plan creates another
+  // row instead of overwriting the evidence behind an earlier decision.
+  executionPlanReviews: defineTable({
+    planId: v.id("executionPlans"),
+    decision: v.union(v.literal("approved"), v.literal("rejected")),
+    note: v.string(),
+    reviewedByClerkId: v.string(),
+    reviewedAt: v.number(),
+  }).index("by_plan", ["planId", "reviewedAt"]),
 
   // Auditable releases of ready work from an execution plan to real agent
   // runtimes. A short lease prevents repeated dispatch storms; expired,

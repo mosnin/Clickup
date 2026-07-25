@@ -425,12 +425,47 @@ function ExecutionPlanProvenance({
   const readiness = useQuery(api.executionDispatch.readiness, { planId });
   const control = useQuery(api.executionDispatch.control, { planId });
   const assurance = useQuery(api.outcomeAssurance.get, { planId });
+  const reviewPlan = useMutation(api.executionPlans.review);
   const reviewOutcome = useMutation(api.outcomeAssurance.review);
   const { toast } = useToast();
+  const [authorizationNote, setAuthorizationNote] = useState("");
+  const [authorizing, setAuthorizing] = useState(false);
   const [reviewingIndex, setReviewingIndex] = useState<number | null>(null);
   const [reviewNote, setReviewNote] = useState("");
   const [reviewing, setReviewing] = useState(false);
   if (!plan) return null;
+
+  async function commitAuthorization(
+    decision: "approved" | "rejected",
+  ) {
+    if (authorizationNote.trim().length < 10) {
+      toast("Add a short note explaining the authorization decision.", {
+        kind: "error",
+      });
+      return;
+    }
+    setAuthorizing(true);
+    try {
+      await reviewPlan({
+        planId,
+        decision,
+        note: authorizationNote,
+      });
+      toast(
+        decision === "approved"
+          ? "Execution plan approved for dispatch."
+          : "Execution plan rejected. Future dispatch is blocked.",
+        { kind: decision === "approved" ? "success" : "error" },
+      );
+      setAuthorizationNote("");
+    } catch (error) {
+      toast(errorMessage(error, "Couldn't review the execution plan"), {
+        kind: "error",
+      });
+    } finally {
+      setAuthorizing(false);
+    }
+  }
 
   async function commitReview(
     criterionIndex: number,
@@ -491,6 +526,91 @@ function ExecutionPlanProvenance({
         <ChevronDown className="mt-1 h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
       </summary>
       <div className="grid gap-4 border-t border-brand-500/15 px-4 py-4 text-sm md:grid-cols-2">
+        <div className="md:col-span-2 rounded-xl border border-border bg-background/60 p-3">
+          <div className="flex flex-wrap items-start gap-3">
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400">
+              <ShieldCheck className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Dispatch authorization
+                </p>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[11px] font-medium capitalize text-neutral-900",
+                    plan.reviewStatus === "approved" ||
+                      plan.reviewStatus === "legacy_approved"
+                      ? "bg-pastel-green"
+                      : plan.reviewStatus === "rejected"
+                        ? "bg-pastel-red"
+                        : "bg-pastel-yellow",
+                  )}
+                >
+                  {plan.reviewStatus === "legacy_approved"
+                    ? "Previously authorized"
+                    : plan.reviewStatus}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-foreground/70">
+                {plan.reviewStatus === "pending"
+                  ? "An owner or admin must review this plan before agents can dispatch its tasks."
+                  : plan.reviewStatus === "rejected"
+                    ? "Future dispatch is blocked until an owner or admin approves this plan."
+                    : "This plan is authorized for agent dispatch. Open questions still require an explicit disposition."}
+              </p>
+            </div>
+          </div>
+          {plan.canReview && (
+            <div className="mt-3 space-y-2">
+              <textarea
+                value={authorizationNote}
+                onChange={(event) =>
+                  setAuthorizationNote(event.target.value)
+                }
+                placeholder="Record what you reviewed and why this plan should proceed or be revised."
+                rows={2}
+                className="w-full resize-y rounded-lg border border-border bg-background px-2.5 py-2 text-xs outline-none transition focus:border-brand-500"
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={authorizing}
+                  onClick={() => void commitAuthorization("approved")}
+                >
+                  Approve dispatch
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={authorizing}
+                  onClick={() => void commitAuthorization("rejected")}
+                >
+                  Reject plan
+                </Button>
+              </div>
+            </div>
+          )}
+          {plan.reviews.length > 0 && (
+            <ul className="mt-3 space-y-1.5 border-t border-border/70 pt-3">
+              {plan.reviews.slice(0, 3).map((review) => (
+                <li
+                  key={review.reviewId}
+                  className="text-[11px] leading-4 text-muted-foreground"
+                >
+                  <span className="font-medium text-foreground/80">
+                    {review.reviewerName}
+                  </span>{" "}
+                  {review.decision} this plan ·{" "}
+                  {fmtExecutionTime(review.reviewedAt)}
+                  <span className="block pl-2">“{review.note}”</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Success criteria
@@ -702,8 +822,18 @@ function ExecutionPlanProvenance({
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Next dispatch wave
               </p>
-              <span className="rounded-full bg-pastel-green px-2 py-0.5 text-[11px] font-medium text-neutral-900">
-                {readiness.recommendations.length} ready
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[11px] font-medium text-neutral-900",
+                  readiness.dispatchAuthorized
+                    ? "bg-pastel-green"
+                    : "bg-pastel-yellow",
+                )}
+              >
+                {readiness.recommendations.length}{" "}
+                {readiness.dispatchAuthorized
+                  ? "ready"
+                  : "ready after approval"}
               </span>
               {readiness.skipped.filter(
                 (item) => item.reason === "capability_gap",
@@ -734,6 +864,16 @@ function ExecutionPlanProvenance({
               <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
                 Dispatch is gated until the open questions have an explicit
                 resolved, deferred, or bounded disposition.
+              </p>
+            )}
+            {plan.reviewStatus === "pending" && (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                Dispatch is gated until an owner or admin approves this plan.
+              </p>
+            )}
+            {plan.reviewStatus === "rejected" && (
+              <p className="mt-2 text-xs text-red-700 dark:text-red-300">
+                Dispatch is blocked because this plan was rejected.
               </p>
             )}
             {readiness.recommendations.length > 0 ? (

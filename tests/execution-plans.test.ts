@@ -497,6 +497,8 @@ describe("execution plan compiler", () => {
         createdByAgent: "Planner",
         sourceContext:
           "The company needs an API foundation and a controlled beta launch.",
+        reviewStatus: "pending",
+        authorizationHistory: [],
         projects: [
           { ref: "platform", name: "Platform" },
           { ref: "beta", name: "Controlled beta" },

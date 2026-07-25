@@ -5141,6 +5141,7 @@ export const createExecutionPlan = mutation({
       successCriteria,
       assumptions,
       openQuestions,
+      reviewStatus: "pending",
       roadmapId,
       projects: createdProjects,
       tasks: createdTasks,
@@ -5159,6 +5160,7 @@ export const createExecutionPlan = mutation({
         projectCount: createdProjects.length,
         taskCount: createdTasks.length,
         openQuestionCount: openQuestions.length,
+        reviewStatus: "pending",
       },
     });
     const plan = (await ctx.db.get(planId))!;
@@ -5365,6 +5367,16 @@ export const dispatchExecutionWave = mutation({
     const plan = await ctx.db.get(args.planId);
     if (!plan || plan.workspaceId !== agent.parentId) {
       throw new ConvexError("Execution plan not found in your workspace");
+    }
+    if (
+      plan.reviewStatus !== undefined &&
+      plan.reviewStatus !== "approved"
+    ) {
+      throw new ConvexError(
+        plan.reviewStatus === "rejected"
+          ? "This execution plan was rejected by a workspace reviewer. Revise the plan or obtain a new approval before dispatch."
+          : "This execution plan is awaiting owner or admin approval before dispatch.",
+      );
     }
     const idempotencyKey = executionText(
       args.idempotencyKey,

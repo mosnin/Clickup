@@ -179,6 +179,16 @@ export const exportWorkspace = query({
         ),
       )
     ).flat();
+    const executionPlanReviews = (
+      await Promise.all(
+        executionPlans.map((plan) =>
+          ctx.db
+            .query("executionPlanReviews")
+            .withIndex("by_plan", (q) => q.eq("planId", plan._id))
+            .collect(),
+        ),
+      )
+    ).flat();
     const executionAssignments = (
       await Promise.all(
         executionPlans.map((plan) =>
@@ -224,6 +234,16 @@ export const exportWorkspace = query({
         successCriteria: plan.successCriteria,
         assumptions: plan.assumptions,
         openQuestions: plan.openQuestions,
+        reviewStatus: plan.reviewStatus ?? "legacy_approved",
+        authorizationHistory: executionPlanReviews
+          .filter((review) => review.planId === plan._id)
+          .sort((a, b) => a.reviewedAt - b.reviewedAt)
+          .map((review) => ({
+            decision: review.decision,
+            note: review.note,
+            reviewedByClerkId: review.reviewedByClerkId,
+            reviewedAt: review.reviewedAt,
+          })),
         projects: plan.projects.map((project) => ({
           ref: project.ref,
           name: project.name,

@@ -152,13 +152,14 @@ The call is transactional: any error creates nothing. Retry the exact same paylo
 
 ## 4. Verify and launch
 
-1. \`get_execution_plan\` and compare counts, source, assumptions, open questions, and generated ids to your intended graph.
+1. \`get_execution_plan\` and compare counts, source, assumptions, open questions, review status, and generated ids to your intended graph.
 2. \`get_roadmaps\` to verify phase placement.
 3. Sample the critical-path tasks with \`get_task\`; confirm blockers, assignees, checklists, and attached operating brief.
-4. Call \`get_execution_readiness\` before releasing work. Inspect capability gaps, exhausted capacity, dependency blocks, prior dispatch leases, and runtimes that require polling.
-5. Call \`dispatch_execution_wave\` with a stable wave idempotency key. If open questions remain, record exactly what was resolved, deferred, or bounded in \`openQuestionDisposition\`; never silently wave uncertainty through.
-6. Dispatched agents follow the collaboration protocol: read and acknowledge context, claim, start a run, heartbeat, and finish. Completing blockers makes the next wave eligible.
-7. Never dispatch an unresolved task merely because the graph exists. Open questions remain visible context until their disposition is auditable.`,
+4. Every new plan starts pending. A workspace owner or admin must review it in Operate before dispatch; an agent must never claim or fabricate that authorization.
+5. Call \`get_execution_readiness\` before releasing work. Require \`dispatchAuthorized\`, then inspect capability gaps, exhausted capacity, dependency blocks, prior dispatch leases, and runtimes that require polling.
+6. Call \`dispatch_execution_wave\` with a stable wave idempotency key. If open questions remain, record exactly what was resolved, deferred, or bounded in \`openQuestionDisposition\`; never silently wave uncertainty through.
+7. Dispatched agents follow the collaboration protocol: read and acknowledge context, claim, start a run, heartbeat, and finish. Completing blockers makes the next wave eligible.
+8. Never dispatch an unresolved task merely because the graph exists. Open questions remain visible context until their disposition is auditable.`,
   },
   {
     slug: "project-kickoff",

@@ -170,13 +170,99 @@ async function acknowledgePlanTask(
   });
 }
 
+async function approvePlan(
+  t: ReturnType<typeof convexTest>,
+  planId: Id<"executionPlans">,
+) {
+  await t.withIdentity(OWNER).mutation(api.executionPlans.review, {
+    planId,
+    decision: "approved",
+    note: "Reviewed dependencies, assignments, risks, and dispatch scope.",
+  });
+}
+
 describe("capability-aware execution dispatch", () => {
+  it("limits immutable plan authorization to owners and admins", async () => {
+    const { t, owner, workspaceId, spaceId, backendId, qaId } =
+      await setup();
+    const plan = await t.mutation(
+      api.agentApi.createExecutionPlan,
+      planArgs(spaceId, backendId, qaId),
+    );
+    const memberIdentity = {
+      subject: "dispatch_member",
+      email: "member@example.com",
+    };
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        clerkId: memberIdentity.subject,
+        email: memberIdentity.email,
+        name: "Member",
+      });
+      await ctx.db.insert("memberships", {
+        workspaceId,
+        userClerkId: memberIdentity.subject,
+        role: "member",
+        joinedAt: Date.now(),
+      });
+    });
+    await expect(
+      t.withIdentity(memberIdentity).mutation(api.executionPlans.review, {
+        planId: plan.planId,
+        decision: "approved",
+        note: "I checked the proposed task graph and want to dispatch it.",
+      }),
+    ).rejects.toThrow(/owners and admins/i);
+
+    await owner.mutation(api.executionPlans.review, {
+      planId: plan.planId,
+      decision: "approved",
+      note: "Dependencies and agent assignments are safe to dispatch.",
+    });
+    await owner.mutation(api.executionPlans.review, {
+      planId: plan.planId,
+      decision: "rejected",
+      note: "The production-region question must be resolved before continuing.",
+    });
+    const reviewed = await owner.query(api.executionPlans.get, {
+      planId: plan.planId,
+    });
+    expect(reviewed).toMatchObject({
+      reviewStatus: "rejected",
+      canReview: true,
+      reviews: [
+        { decision: "rejected", reviewerName: "Owner" },
+        { decision: "approved", reviewerName: "Owner" },
+      ],
+    });
+    await expect(
+      t.mutation(api.agentApi.dispatchExecutionWave, {
+        apiKey: PLANNER_KEY,
+        idempotencyKey: "wave-rejected",
+        planId: plan.planId,
+        openQuestionDisposition:
+          "The current decision explicitly bounds this to local work only.",
+      }),
+    ).rejects.toThrow(/rejected by a workspace reviewer/i);
+  });
+
   it("gates uncertainty, dispatches one safe wave, and replays idempotently", async () => {
     const { t, owner, spaceId, backendId, qaId } = await setup();
     const plan = await t.mutation(
       api.agentApi.createExecutionPlan,
       planArgs(spaceId, backendId, qaId),
     );
+    expect(plan.reviewStatus).toBe("pending");
+    await expect(
+      t.mutation(api.agentApi.dispatchExecutionWave, {
+        apiKey: PLANNER_KEY,
+        idempotencyKey: "wave-pending",
+        planId: plan.planId,
+        openQuestionDisposition:
+          "Region remains deferred; this wave is bounded to schema work.",
+      }),
+    ).rejects.toThrow(/awaiting owner or admin approval/i);
+    await approvePlan(t, plan.planId);
 
     const readiness = await t.query(api.agentApi.getExecutionReadiness, {
       apiKey: PLANNER_KEY,
@@ -257,6 +343,7 @@ describe("capability-aware execution dispatch", () => {
       api.agentApi.createExecutionPlan,
       planArgs(spaceId, backendId, qaId),
     );
+    await approvePlan(t, plan.planId);
     await t.mutation(api.agentApi.dispatchExecutionWave, {
       apiKey: PLANNER_KEY,
       idempotencyKey: "wave-build",
@@ -370,6 +457,7 @@ describe("capability-aware execution dispatch", () => {
       api.agentApi.createExecutionPlan,
       planArgs(spaceId, backendId, qaId),
     );
+    await approvePlan(t, plan.planId);
     const wave = await t.mutation(api.agentApi.dispatchExecutionWave, {
       apiKey: PLANNER_KEY,
       idempotencyKey: "wave-expiry",
@@ -433,6 +521,7 @@ describe("capability-aware execution dispatch", () => {
       api.agentApi.createExecutionPlan,
       planArgs(spaceId, backendId, qaId),
     );
+    await approvePlan(t, plan.planId);
     await t.mutation(api.agentApi.dispatchExecutionWave, {
       apiKey: PLANNER_KEY,
       idempotencyKey: "wave-ledger-success",
@@ -539,6 +628,7 @@ describe("capability-aware execution dispatch", () => {
       api.agentApi.createExecutionPlan,
       planArgs(spaceId, backendId, qaId),
     );
+    await approvePlan(t, plan.planId);
     await t.mutation(api.agentApi.dispatchExecutionWave, {
       apiKey: PLANNER_KEY,
       idempotencyKey: "wave-ledger-failure",

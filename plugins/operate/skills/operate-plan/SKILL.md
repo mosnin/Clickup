@@ -10,6 +10,7 @@ Use this skill when the user wants a whole initiative planned in Operate, not wh
 3. Design projects around durable workstreams. Give every task a unique ref, concrete acceptance checklist, required capabilities, and only genuine dependency edges.
 4. Preserve the source verbatim in `sourceContext`. Do not silently turn guesses into requirements.
 5. Call `create_execution_plan` once with a stable idempotency key. Prefer the atomic compiler over a sequence of partially successful create calls.
-6. Read the returned manifest and report the roadmap, projects, tasks, assumptions, and open questions to the user. Do not dispatch work unless the user also asked to begin execution.
+6. Read the returned manifest and report the roadmap, projects, tasks, assumptions, open questions, and `reviewStatus` to the user.
+7. Every new plan starts pending. Tell the user an Operate workspace owner or admin must review it in the roadmap before any dispatch. Never claim, infer, or fabricate that authorization yourself.
 
 Stop and ask when the missing answer would materially change scope, permissions, legal commitments, production impact, or project structure. Otherwise preserve the uncertainty as an open question.

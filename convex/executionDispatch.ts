@@ -297,6 +297,8 @@ export async function executionReadinessCore(
 
   return {
     plan: executionPlanSummary(plan),
+    dispatchAuthorized:
+      plan.reviewStatus === undefined || plan.reviewStatus === "approved",
     openQuestions: plan.openQuestions,
     requiresOpenQuestionDisposition: plan.openQuestions.length > 0,
     agents: agentRows.map(
