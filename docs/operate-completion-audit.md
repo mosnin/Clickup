@@ -89,6 +89,14 @@ only after automated checks and relevant production behavior both pass.
   schedule auto-pause, `schedule.auto_paused` event, and owner notification.
   Then delete the schedule and confirm that no task with title prefix
   `CERT Failure Recovery` was created.
+- Dependency security remediation (validated locally 2026-07-25): upgraded
+  Next within v15 to 15.5.21, Convex within v1 to 1.42.3, and Clerk within v6
+  to 6.39.6. The production-only audit dropped from 17 findings
+  (11 high, 1 critical) to 15 (8 high, 1 critical), eliminating the vulnerable
+  Convex/WebSocket and Clerk/js-cookie chains. Typecheck, lint, 320 tests, and
+  the production build pass. Remaining findings require individual
+  runtime/exposure review or major-version changes; do not mark the security
+  gate proven from dependency counts alone.
 
 ## Deployment policy
 
