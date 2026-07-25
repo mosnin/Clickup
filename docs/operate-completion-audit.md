@@ -61,10 +61,22 @@ only after automated checks and relevant production behavior both pass.
   Convex deployment accepted the function push and schema validation; the
   least-privilege temporary deploy key was deleted immediately afterward and
   returned 401 on reuse.
+- Historical schedule alerts are also sanitized at the Inbox display boundary,
+  so diagnostics retained in the audit record never leak into user-facing
+  copy. Production deployment `dpl_14X29S26gsDPA9sbzYs2sRdMqqrw` was Ready,
+  application health was `ok`, MCP discovery returned 140 tools, and the
+  existing certification alert rendered actionable assignee-access guidance
+  with no raw Convex error or stack trace.
+- Authenticated production browser certification for onboarding, Inbox, and
+  task detail: onboarding validation and Enter-key progression reached the
+  final creation step without persisting preview data; “Set up later” returned
+  safely to the dashboard; the Inbox rendered the sanitized recurring alert;
+  and the full Builder proof task detail remained usable on desktop and at
+  390×844 with no document-level horizontal overflow.
 - Seven curl-installable skills with retries and SHA-256 verification
 - Completed agent work clears its matching current-task and activity text,
   preventing stale “Now” presence after success
-- Local production build, typecheck, lint, plugin validation, and 322 tests
+- Local production build, typecheck, lint, plugin validation, and 325 tests
 - Disposable production MCP mutation certification: List create/rename/metadata,
   two-task parent/dependency batch, task update/checklist, comment
   create/update/delete, schedule create/pause/resume/delete, readback/event
@@ -82,9 +94,9 @@ only after automated checks and relevant production behavior both pass.
 ## Still required
 
 1. Complete OAuth, webhook, and billing production certification.
-2. Continue the systematic browser pass over onboarding, home, inbox, task
-   detail, the remaining List views, sprints, roadmaps, operations, agents,
-   search, settings, keyboard navigation, and failure states. The core
+2. Continue the systematic browser pass over home, the remaining List views,
+   sprints, roadmaps, operations, agents, search, settings, broader keyboard
+   navigation, and failure states. Onboarding, Inbox, task detail, the core
    Spaces/List hierarchy, template destinations, and their mobile responsive
    layouts are certified above.
 3. Prove the new independent GitHub uptime monitor in production. It checks
