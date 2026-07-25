@@ -58,6 +58,8 @@ only after automated checks and relevant production behavior both pass.
   parent Space shown. All four audited mobile surfaces matched the 390px
   viewport with no document-level horizontal overflow.
 - Truthful agent connection, heartbeat, recent, offline, and paused presence
+- Offline and paused agents label retained activity as `Last status`, never
+  `Now`, on both Agents HQ and the agent detail page.
 - Durable signed assignment, mention, and execution wake delivery
 - Polling wake inbox and authenticated consumption receipts
 - Atomic execution-plan compilation with context provenance
@@ -180,6 +182,15 @@ only after automated checks and relevant production behavior both pass.
   correct OAuth protected-resource challenge. Production application and
   Convex health remained `ok`, and the one-hour production error-log scan was
   empty.
+- Agent status recency (production-validated 2026-07-25): after Jimmy's
+  revoked connection passed the five-minute online window, the live fleet
+  count moved to `0 online`, Jimmy moved to `Seen 19m ago`, and both Agents HQ
+  and Jimmy's detail page rendered the retained QA activity as `Last status`
+  instead of the misleading `Now`. Paused and offline peers followed the same
+  wording. Deployment `dpl_H1BSRhFJrNMZnpTCahCmjZiToRs1` is Ready at commit
+  `e39ad6a`; application and Convex health are `ok`, the production error-log
+  scan is empty, GitHub CI run `30174947566` passed, and 354 tests, typecheck,
+  lint, and the production build pass.
 - Public connector submission compliance (production-validated 2026-07-25):
   deployment `dpl_w3dL5pw14yVUGJiJeTEy8qSngXeq` is Ready and healthy. The
   authenticated base profile exposes all 140 tools; Anthropic's directory
