@@ -52,6 +52,55 @@ async function makeList(t: ReturnType<typeof convexTest>, workspaceId: any) {
 }
 
 describe("notifications", () => {
+  it("places polling-only agent assignments in the durable wake inbox", async () => {
+    const t = convexTest(schema, modules);
+    const workspaceId = await seed(t);
+    const listId = await makeList(t, workspaceId);
+    const agentId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("agents", {
+        name: "Polling worker",
+        parentType: "workspace",
+        parentId: workspaceId,
+        status: "active",
+        createdByClerkId: ASSIGNER.subject,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("agentKeys", {
+        agentId: id,
+        keyHash: sha256Hex("cua_polling_test"),
+        keyPrefix: "cua_poll",
+        createdAt: Date.now(),
+      });
+      return id;
+    });
+
+    await t.withIdentity(ASSIGNER).mutation(api.tasks.create, {
+      listId,
+      title: "Recover this through polling",
+      assigneeClerkIds: [agentId],
+    });
+
+    const inbox = await t.query(api.agentApi.listWakeInbox, {
+      apiKey: "cua_polling_test",
+    });
+    expect(inbox).toEqual([
+      expect.objectContaining({
+        type: "task.assigned",
+        pushStatus: "poll_required",
+        pushAttempts: 0,
+      }),
+    ]);
+    await t.mutation(api.agentApi.acknowledgeWakeDelivery, {
+      apiKey: "cua_polling_test",
+      deliveryId: inbox[0].deliveryId,
+    });
+    expect(
+      await t.query(api.agentApi.listWakeInbox, {
+        apiKey: "cua_polling_test",
+      }),
+    ).toEqual([]);
+  });
+
   it("durably delivers a signed wake when an agent is assigned", async () => {
     const t = convexTest(schema, modules);
     const workspaceId = await seed(t);

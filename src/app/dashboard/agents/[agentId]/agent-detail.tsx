@@ -274,6 +274,9 @@ function WakeDeliveryDiagnostics({
   const pending = deliveries.filter(
     (delivery) => delivery.status === "pending",
   );
+  const pollRequired = deliveries.filter(
+    (delivery) => delivery.status === "poll_required",
+  );
   const delivered = deliveries.filter(
     (delivery) => delivery.status === "delivered",
   );
@@ -315,6 +318,9 @@ function WakeDeliveryDiagnostics({
           {pending.length > 0 && (
             <Badge variant="secondary">{pending.length} pending</Badge>
           )}
+          {pollRequired.length > 0 && (
+            <Badge variant="outline">{pollRequired.length} inbox-only</Badge>
+          )}
           {failed.length > 0 && (
             <Badge variant="destructive">{failed.length} failed</Badge>
           )}
@@ -352,6 +358,8 @@ function WakeDeliveryDiagnostics({
                   ? "consumed · "
                   : delivery.status === "delivered"
                     ? "delivered · "
+                    : delivery.status === "poll_required"
+                      ? "inbox · "
                     : ""}
                 {delivery.attempts}{" "}
                 {delivery.attempts === 1 ? "attempt" : "attempts"} ·{" "}

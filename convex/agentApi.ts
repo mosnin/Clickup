@@ -5964,42 +5964,41 @@ export const dispatchExecutionWave = mutation({
         dispatchedAt,
         },
       );
-      if (assignment.delivery === "notify_url") {
-        const recommendation = recommendationByTaskId.get(
-          assignment.taskId as string,
+      const recommendation = recommendationByTaskId.get(
+        assignment.taskId as string,
+      );
+      if (!recommendation) {
+        throw new ConvexError(
+          `Dispatch recommendation disappeared for ${assignment.taskRef}`,
         );
-        if (!recommendation) {
-          throw new ConvexError(
-            `Dispatch recommendation disappeared for ${assignment.taskRef}`,
-          );
-        }
-        await enqueueAgentPingDelivery(ctx, {
-          scopeType: "workspace",
-          scopeId: plan.workspaceId,
-          workspaceId: plan.workspaceId,
-          sourceKind: "execution_assignment",
-          sourceId: executionAssignmentId,
-          executionAssignmentId,
-          agentId: assignment.agentId,
-          taskId: assignment.taskId,
-          type: "task.ready",
-          payload: {
-            planId: plan._id,
-            taskId: assignment.taskId,
-            listId: recommendation.listId,
-            title: recommendation.title,
-            contextRequired: true,
-            contextPacketCount: recommendation.contextPacketCount,
-            estimatedContextTokens: recommendation.estimatedContextTokens,
-            contextVersionFingerprint:
-              recommendation.contextVersionFingerprint,
-            contextPackets: recommendation.contextPackets.map((packet) => ({
-              packetId: packet.packetId,
-              version: packet.version,
-            })),
-          },
-        });
       }
+      await enqueueAgentPingDelivery(ctx, {
+        scopeType: "workspace",
+        scopeId: plan.workspaceId,
+        workspaceId: plan.workspaceId,
+        sourceKind: "execution_assignment",
+        sourceId: executionAssignmentId,
+        executionAssignmentId,
+        agentId: assignment.agentId,
+        taskId: assignment.taskId,
+        push: assignment.delivery === "notify_url",
+        type: "task.ready",
+        payload: {
+          planId: plan._id,
+          taskId: assignment.taskId,
+          listId: recommendation.listId,
+          title: recommendation.title,
+          contextRequired: true,
+          contextPacketCount: recommendation.contextPacketCount,
+          estimatedContextTokens: recommendation.estimatedContextTokens,
+          contextVersionFingerprint:
+            recommendation.contextVersionFingerprint,
+          contextPackets: recommendation.contextPackets.map((packet) => ({
+            packetId: packet.packetId,
+            version: packet.version,
+          })),
+        },
+      });
     }
     await emitEvent(ctx, {
       scopeType: "workspace",

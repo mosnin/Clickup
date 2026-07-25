@@ -21,21 +21,25 @@ export async function enqueueAgentPingDelivery(
     agentId: Id<"agents">;
     taskId?: Id<"tasks">;
     messageId?: Id<"messages">;
+    push: boolean;
     type: string;
     payload: unknown;
   },
 ) {
+  const { push, ...delivery } = args;
   const deliveryId = await ctx.db.insert("agentPingDeliveries", {
-    ...args,
-    status: "pending",
+    ...delivery,
+    status: push ? "pending" : "poll_required",
     attempts: 0,
     createdAt: Date.now(),
   });
-  await ctx.scheduler.runAfter(
-    0,
-    internal.agentPingDeliveryAction.deliver,
-    { deliveryId },
-  );
+  if (push) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.agentPingDeliveryAction.deliver,
+      { deliveryId },
+    );
+  }
   return deliveryId;
 }
 

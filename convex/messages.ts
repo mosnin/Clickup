@@ -318,7 +318,7 @@ export async function createMessageCore(
     const mentionedAgentId = ctx.db.normalizeId("agents", id);
     if (mentionedAgentId) {
       const mentionedAgent = await ctx.db.get(mentionedAgentId);
-      if (mentionedAgent?.notifyUrl && scope) {
+      if (mentionedAgent && scope) {
         await enqueueAgentPingDelivery(ctx, {
           scopeType: scope.scopeType,
           scopeId: scope.scopeId,
@@ -334,6 +334,7 @@ export async function createMessageCore(
             args.parentType === "task"
               ? (args.parentId as Id<"tasks">)
               : undefined,
+          push: mentionedAgent.notifyUrl !== undefined,
           type: "mention.created",
           payload: {
             parentType: args.parentType,

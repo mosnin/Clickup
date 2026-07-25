@@ -796,6 +796,7 @@ export default defineSchema({
     type: v.string(),
     payload: v.any(),
     status: v.union(
+      v.literal("poll_required"),
       v.literal("pending"),
       v.literal("delivered"),
       v.literal("failed"),

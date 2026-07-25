@@ -53,7 +53,7 @@ async function scheduleAssignmentNotifications(
     if (agentId) {
       if (suppressAgentPing) continue;
       const agent = await ctx.db.get(agentId);
-      if (agent?.notifyUrl && scope) {
+      if (agent && scope) {
         await enqueueAgentPingDelivery(ctx, {
           scopeType: scope.scopeType,
           scopeId: scope.scopeId,
@@ -65,6 +65,7 @@ async function scheduleAssignmentNotifications(
           sourceId: task._id,
           agentId,
           taskId: task._id,
+          push: agent.notifyUrl !== undefined,
           type: "task.assigned",
           payload: {
             taskId: task._id,
