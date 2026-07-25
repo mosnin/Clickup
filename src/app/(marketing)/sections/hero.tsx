@@ -127,8 +127,37 @@ export function Hero() {
     <section
       ref={ref}
       data-gs-hidden=""
-      className="gs-reveal relative overflow-x-clip pt-28 pb-10 sm:pt-36"
+      className="gs-reveal relative overflow-x-clip bg-[#0a0a0a] pt-28 pb-10 sm:pt-36"
     >
+      {/* Background film. Decorative only, so it is aria-hidden and carries
+          no controls. Emitted as raw HTML because React drops `muted` when
+          server-rendering <video>, and iOS/Android refuse to autoplay an
+          unmuted clip — this guarantees muted + playsinline reach the
+          markup, which is what makes it play on mobile as well as desktop.
+          The section sits on black and the clip fades into black at its
+          bottom edge, so the hero dissolves into the rest of the page
+          instead of ending on a hard seam. */}
+      {/* z-0, not a negative layer: the marketing layout parks a fixed
+          dithered field at -z-10, so anything below that never shows. The
+          hero's own content is lifted to z-10 to sit over the film. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+      >
+        <div
+          className="absolute inset-0"
+          dangerouslySetInnerHTML={{
+            __html: `<video src="/screenshots/hero-ascii.mp4" poster="/screenshots/hero-ascii-poster.jpg" autoplay muted loop playsinline disablepictureinpicture preload="auto" tabindex="-1" class="h-full w-full object-cover opacity-[0.55]"></video>`,
+          }}
+        />
+        {/* Vignette keeps the headline legible over a busy frame; the bottom
+            fade lands on the page's own near-black (#0a0a0a, the same fill
+            the fixed backdrop uses) so the film dissolves into the rest of
+            the page with no seam at the section edge. */}
+        <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_15%,transparent_22%,rgba(10,10,10,0.82)_100%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-64 bg-gradient-to-b from-transparent via-[#0a0a0a]/70 to-[#0a0a0a]" />
+      </div>
+
       {/* Quiet circuit-line texture — thin traces + tiny dots, barely
           there. Pure inline SVG, no external asset. */}
       <svg
@@ -178,7 +207,7 @@ export function Hero() {
         <circle cx="1110" cy="380" r="1.5" className="fill-white/[0.04]" />
       </svg>
 
-      <Container className="text-center">
+      <Container className="relative z-10 text-center">
         <Link
           href="/features"
           data-hero-chip
