@@ -15,5 +15,7 @@ Operate's hierarchy is Workspace → Space → optional Folder → List → Task
 6. Read the returned manifest and report the Space, roadmap, workstream Lists, tasks, assumptions, open questions, and `reviewStatus` to the user.
 7. In supervised mode, every new plan starts pending. In bounded-autonomous mode, Operate may policy-authorize it only when the task count is within `maxPlanTasks`, no open questions remain, and no task has `requiresApproval`. Report the returned authorization source and reason exactly.
 8. Never trim tasks, hide uncertainty, or remove approval gates merely to qualify for autonomous authorization. An agent cannot change the workspace policy or fabricate approval.
+9. When confirmed facts or decisions change but the workstream graph and success criteria remain valid, call `revise_execution_plan_context` with a stable idempotency key. This advances every workstream context packet atomically, invalidates stale acknowledgements, and returns dispatch to human review.
+10. When the update changes workstreams, task structure, dependencies, or success criteria, do not force it into a context addendum. Compile a new plan revision and explain the structural difference.
 
 Stop and ask when the missing answer would materially change scope, permissions, legal commitments, production impact, or workstream structure. Otherwise preserve the uncertainty as an open question.

@@ -198,6 +198,7 @@ const DESTRUCTIVE_TOOLS = new Set([
 ]);
 const IDEMPOTENT_TOOLS = new Set([
   "create_execution_plan",
+  "revise_execution_plan_context",
   "dispatch_execution_wave",
   "reconcile_execution_plan",
   "heartbeat",
@@ -1258,6 +1259,31 @@ const TOOLS: ToolDef[] = [
       }),
   },
   {
+    name: "revise_execution_plan_context",
+    description:
+      "Append confirmed new source context to an existing execution plan without rewriting its original manifest. Atomically versions every workstream context packet, making prior agent acknowledgements stale, records an append-only revision receipt, and returns dispatch to owner/admin review. Use for factual or decision updates that do not change the plan's structure; create a new plan when workstreams, dependencies, or success criteria materially change. Reuse the same idempotencyKey to retry safely.",
+    shape: {
+      planId: z.string(),
+      idempotencyKey: z
+        .string()
+        .max(120)
+        .describe("stable key for this exact context revision"),
+      changeSummary: z
+        .string()
+        .max(1000)
+        .describe("concise explanation of what changed and why"),
+      sourceAddendum: z
+        .string()
+        .max(15000)
+        .describe("confirmed source facts or decisions to append verbatim"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.reviseExecutionPlanContext), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
     name: "list_execution_plans",
     description:
       "List the 20 most recent immutable execution-plan manifests in this workspace, with roadmap, workstream/task counts, unresolved-question counts, and review status.",
@@ -1268,7 +1294,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_execution_plan",
     description:
-      "Read the full provenance manifest for a committed execution plan: original source context, success criteria, explicit assumptions/open questions, review status, and every generated roadmap/workstream List/task id.",
+      "Read the full provenance manifest for a committed execution plan: original source context, append-only context revisions, success criteria, explicit assumptions/open questions, review status, and every generated roadmap/workstream List/task id.",
     shape: { planId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.getExecutionPlan), { apiKey: k, ...a }),
@@ -2239,7 +2265,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "operate-agents", version: "1.0.0" },
     instructions:
-      "You are an agent teammate in operate.to. The hierarchy is Workspace → Space → optional Folder → List → Task → Subtask. A roadmap sequences existing Lists into phases; it is not another container. First: call whoami, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-workstream roadmap? Prefer create_execution_plan: choose one Space, preserve the source, treat each projects input entry as a workstream that materializes as a List, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. A stale receipt is not active work: call reconcile_execution_plan before manually retrying it; dispatch also reconciles transactionally and preserves the timed-out attempt. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Use create_tasks for smaller additions to an existing List. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
+      "You are an agent teammate in operate.to. The hierarchy is Workspace → Space → optional Folder → List → Task → Subtask. A roadmap sequences existing Lists into phases; it is not another container. First: call whoami, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-workstream roadmap? Prefer create_execution_plan: choose one Space, preserve the source, treat each projects input entry as a workstream that materializes as a List, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. If confirmed source facts change without changing structure, use revise_execution_plan_context so every workstream advances together and stale acknowledgements are invalidated; use a new plan for structural changes. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. A stale receipt is not active work: call reconcile_execution_plan before manually retrying it; dispatch also reconciles transactionally and preserves the timed-out attempt. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Use create_tasks for smaller additions to an existing List. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
   },
   {
     basePath: "/api",

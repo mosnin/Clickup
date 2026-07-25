@@ -645,10 +645,33 @@ export default defineSchema({
         listId: v.id("lists"),
       }),
     ),
+    // Incremented whenever new source context is appended across every
+    // workstream packet. The original manifest stays immutable; revisions
+    // live in executionPlanRevisions and force re-review.
+    contextRevision: v.optional(v.number()),
+    lastContextRevisionAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_workspace", ["workspaceId", "createdAt"])
     .index("by_agent_key", ["createdByAgentId", "idempotencyKey"]),
+
+  // Append-only amendments to the source conversation behind an execution
+  // plan. One revision updates every generated context packet in the same
+  // transaction, making prior agent acknowledgements stale automatically.
+  executionPlanRevisions: defineTable({
+    planId: v.id("executionPlans"),
+    revision: v.number(),
+    idempotencyKey: v.string(),
+    requestFingerprint: v.string(),
+    changeSummary: v.string(),
+    sourceAddendum: v.string(),
+    createdByAgentId: v.id("agents"),
+    affectedPacketCount: v.number(),
+    affectedTaskCount: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_plan", ["planId", "revision"])
+    .index("by_plan_key", ["planId", "idempotencyKey"]),
 
   // Append-only authorization history. Re-reviewing a plan creates another
   // row instead of overwriting the evidence behind an earlier decision.
@@ -748,6 +771,10 @@ export default defineSchema({
   // first submission or review.
   outcomeChecks: defineTable({
     planId: v.id("executionPlans"),
+    // Evidence is valid only for the source context revision it evaluated.
+    // Older rows stay stored for provenance but read as stale after context
+    // advances.
+    contextRevision: v.optional(v.number()),
     criterionIndex: v.number(),
     criterion: v.string(),
     status: v.union(

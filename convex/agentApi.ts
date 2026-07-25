@@ -5227,6 +5227,163 @@ export const createExecutionPlan = mutation({
   },
 });
 
+// Append new source truth to an existing plan without rewriting its
+// immutable original manifest. Every workstream packet advances together,
+// prior acknowledgements become stale by version, and dispatch returns to
+// human review until the revised context is explicitly authorized.
+export const reviseExecutionPlanContext = mutation({
+  args: {
+    apiKey: v.string(),
+    planId: v.id("executionPlans"),
+    idempotencyKey: v.string(),
+    changeSummary: v.string(),
+    sourceAddendum: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const plan = await ctx.db.get(args.planId);
+    if (
+      !plan ||
+      agent.parentType !== "workspace" ||
+      plan.workspaceId !== agent.parentId
+    ) {
+      throw new ConvexError("Execution plan not found in your workspace");
+    }
+    await requireSpaceAccessForAgent(ctx, plan.spaceId, agent);
+
+    const idempotencyKey = executionText(
+      args.idempotencyKey,
+      "idempotencyKey",
+      120,
+    );
+    const changeSummary = executionText(
+      args.changeSummary,
+      "changeSummary",
+      1_000,
+    );
+    const sourceAddendum = executionText(
+      args.sourceAddendum,
+      "sourceAddendum",
+      15_000,
+    );
+    const requestFingerprint = sha256Hex(
+      canonicalJson({ changeSummary, sourceAddendum }),
+    );
+    const previous = await ctx.db
+      .query("executionPlanRevisions")
+      .withIndex("by_plan_key", (q) =>
+        q.eq("planId", args.planId).eq("idempotencyKey", idempotencyKey),
+      )
+      .unique();
+    if (previous) {
+      if (previous.requestFingerprint !== requestFingerprint) {
+        throw new ConvexError(
+          "This idempotencyKey was already committed with a different context revision.",
+        );
+      }
+      return {
+        revisionId: previous._id,
+        revision: previous.revision,
+        affectedPacketCount: previous.affectedPacketCount,
+        affectedTaskCount: previous.affectedTaskCount,
+        reviewStatus: "pending" as const,
+        replayed: true,
+      };
+    }
+
+    const revisions = await ctx.db
+      .query("executionPlanRevisions")
+      .withIndex("by_plan", (q) => q.eq("planId", args.planId))
+      .order("desc")
+      .take(1);
+    const revision = (revisions[0]?.revision ?? plan.contextRevision ?? 0) + 1;
+    const actor = agentActor(agent);
+    const createdAt = Date.now();
+    let affectedTaskCount = 0;
+    const revisionBlock = [
+      "",
+      "",
+      `# Plan context revision ${revision}`,
+      "",
+      `## Change summary`,
+      changeSummary,
+      "",
+      `## Confirmed source addendum`,
+      sourceAddendum,
+    ].join("\n");
+
+    for (const workstream of plan.projects) {
+      const packet = await ctx.db.get(workstream.contextPacketId);
+      const list = await ctx.db.get(workstream.listId);
+      if (!packet || !list || packet.listId !== list._id) {
+        throw new ConvexError(
+          `Workstream "${workstream.name}" is missing its context packet`,
+        );
+      }
+      await updateContextPacketCore(
+        ctx,
+        packet,
+        list,
+        { content: `${packet.content}${revisionBlock}` },
+        actor,
+      );
+      const links = await ctx.db
+        .query("taskContextPackets")
+        .withIndex("by_packet", (q) =>
+          q.eq("packetId", workstream.contextPacketId),
+        )
+        .collect();
+      affectedTaskCount += links.length;
+    }
+
+    const revisionId = await ctx.db.insert("executionPlanRevisions", {
+      planId: args.planId,
+      revision,
+      idempotencyKey,
+      requestFingerprint,
+      changeSummary,
+      sourceAddendum,
+      createdByAgentId: agent._id,
+      affectedPacketCount: plan.projects.length,
+      affectedTaskCount,
+      createdAt,
+    });
+    await ctx.db.patch(args.planId, {
+      contextRevision: revision,
+      lastContextRevisionAt: createdAt,
+      reviewStatus: "pending",
+      authorizationSource: undefined,
+      authorizationPolicyVersion: undefined,
+      authorizationReason:
+        `Context revision ${revision} requires owner or admin review before further dispatch.`,
+    });
+    await emitEvent(ctx, {
+      scopeType: "workspace",
+      scopeId: plan.workspaceId,
+      type: "plan.context_revised",
+      actor,
+      entityType: "roadmap",
+      entityId: plan.roadmapId,
+      entityTitle: plan.name,
+      payload: {
+        planId: args.planId,
+        revision,
+        affectedPacketCount: plan.projects.length,
+        affectedTaskCount,
+      },
+    });
+    return {
+      revisionId,
+      revision,
+      affectedPacketCount: plan.projects.length,
+      affectedTaskCount,
+      reviewStatus: "pending" as const,
+      replayed: false,
+    };
+  },
+});
+
 export const getExecutionPlan = query({
   args: { apiKey: v.string(), planId: v.id("executionPlans") },
   handler: async (ctx, { apiKey, planId }) => {
@@ -5239,7 +5396,24 @@ export const getExecutionPlan = query({
     ) {
       throw new ConvexError("Execution plan not found in your workspace");
     }
-    return executionPlanView(plan);
+    const revisions = await ctx.db
+      .query("executionPlanRevisions")
+      .withIndex("by_plan", (q) => q.eq("planId", planId))
+      .order("desc")
+      .collect();
+    return {
+      ...executionPlanView(plan),
+      revisions: revisions.map((revision) => ({
+        revisionId: revision._id,
+        revision: revision.revision,
+        changeSummary: revision.changeSummary,
+        sourceAddendum: revision.sourceAddendum,
+        createdByAgentId: revision.createdByAgentId,
+        affectedPacketCount: revision.affectedPacketCount,
+        affectedTaskCount: revision.affectedTaskCount,
+        createdAt: revision.createdAt,
+      })),
+    };
   },
 });
 

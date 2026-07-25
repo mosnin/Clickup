@@ -40,6 +40,8 @@ export function executionPlanSummary(plan: Doc<"executionPlans">) {
     authorizationSource,
     authorizationPolicyVersion: plan.authorizationPolicyVersion,
     authorizationReason: plan.authorizationReason,
+    contextRevision: plan.contextRevision ?? 0,
+    lastContextRevisionAt: plan.lastContextRevisionAt,
     createdByAgentId: plan.createdByAgentId,
     createdAt: plan.createdAt,
   };
@@ -94,6 +96,11 @@ export const get = query({
       .withIndex("by_plan", (q) => q.eq("planId", planId))
       .order("desc")
       .collect();
+    const revisions = await ctx.db
+      .query("executionPlanRevisions")
+      .withIndex("by_plan", (q) => q.eq("planId", planId))
+      .order("desc")
+      .collect();
     const reviewerNames = new Map<string, string>();
     for (const review of reviews) {
       if (reviewerNames.has(review.reviewedByClerkId)) continue;
@@ -118,6 +125,16 @@ export const get = query({
         note: review.note,
         reviewerName: reviewerNames.get(review.reviewedByClerkId)!,
         reviewedAt: review.reviewedAt,
+      })),
+      revisions: revisions.map((revision) => ({
+        revisionId: revision._id,
+        revision: revision.revision,
+        changeSummary: revision.changeSummary,
+        sourceAddendum: revision.sourceAddendum,
+        createdByAgentId: revision.createdByAgentId,
+        affectedPacketCount: revision.affectedPacketCount,
+        affectedTaskCount: revision.affectedTaskCount,
+        createdAt: revision.createdAt,
       })),
     };
   },

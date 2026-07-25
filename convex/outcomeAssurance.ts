@@ -32,6 +32,7 @@ const assuranceCheckValidator = v.object({
   reviewerName: v.optional(v.string()),
   reviewNote: v.optional(v.string()),
   reviewedAt: v.optional(v.number()),
+  staleDueToContextRevision: v.boolean(),
 });
 
 const assuranceValidator = v.object({
@@ -150,11 +151,17 @@ export async function outcomeAssuranceView(
   );
   const checks = plan.successCriteria.map((criterion, criterionIndex) => {
     const row = byIndex.get(criterionIndex);
+    const currentContextRevision = plan.contextRevision ?? 0;
+    const staleDueToContextRevision =
+      row !== undefined &&
+      (row.contextRevision ?? 0) !== currentContextRevision;
     return {
       checkId: row?._id ?? null,
       criterionIndex,
       criterion,
-      status: row?.status ?? ("pending" as const),
+      status: staleDueToContextRevision
+        ? ("pending" as const)
+        : row?.status ?? ("pending" as const),
       submittedByAgentId: row?.submittedByAgentId,
       submitterName: row?.submittedByAgentId
         ? agentNames.get(row.submittedByAgentId)
@@ -170,6 +177,7 @@ export async function outcomeAssuranceView(
           : userNames.get(row?.reviewedByActorId ?? ""),
       reviewNote: row?.reviewNote,
       reviewedAt: row?.reviewedAt,
+      staleDueToContextRevision,
     };
   });
   const counts = { pending: 0, submitted: 0, passed: 0, failed: 0 };
@@ -214,6 +222,7 @@ export async function submitOutcomeEvidenceCore(
   const existing = await checkForCriterion(ctx, plan._id, criterionIndex);
   const now = Date.now();
   const patch = {
+    contextRevision: plan.contextRevision ?? 0,
     criterion,
     status: "submitted" as const,
     submittedByAgentId: agentId,
@@ -255,6 +264,11 @@ export async function reviewOutcomeCriterionCore(
   const existing = await checkForCriterion(ctx, plan._id, criterionIndex);
   if (!existing || existing.status === "pending") {
     throw new ConvexError("Evidence must be submitted before review");
+  }
+  if ((existing.contextRevision ?? 0) !== (plan.contextRevision ?? 0)) {
+    throw new ConvexError(
+      "Plan context changed after this evidence was submitted. Submit current evidence before review.",
+    );
   }
   if (
     actor.type === "agent" &&

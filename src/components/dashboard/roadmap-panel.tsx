@@ -518,6 +518,11 @@ function ExecutionPlanProvenance({
                 {plan.openQuestionCount === 1 ? "" : "s"}
               </span>
             )}
+            {plan.contextRevision > 0 && (
+              <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-[11px] font-medium text-brand-700 dark:text-brand-300">
+                context v{plan.contextRevision + 1}
+              </span>
+            )}
           </span>
           <span className="mt-1 block text-sm text-foreground/80">
             {plan.objective}
@@ -717,6 +722,12 @@ function ExecutionPlanProvenance({
                           {check.reviewNote}
                         </p>
                       )}
+                      {check.staleDueToContextRevision && (
+                        <p className="mt-1.5 rounded-lg bg-pastel-yellow px-2 py-1.5 text-[11px] text-neutral-900">
+                          Plan context changed after this evidence was
+                          submitted. Submit current evidence before review.
+                        </p>
+                      )}
                       {check.status === "submitted" &&
                         reviewingIndex !== check.criterionIndex && (
                           <button
@@ -827,6 +838,42 @@ function ExecutionPlanProvenance({
             {plan.sourceContext}
           </pre>
         </div>
+        {plan.revisions.length > 0 && (
+          <div className="md:col-span-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Context revisions
+            </p>
+            <p className="mt-1 text-xs text-foreground/70">
+              Every revision advanced all workstream packets together and
+              required agents to acknowledge the new versions.
+            </p>
+            <ol className="mt-2 space-y-2">
+              {plan.revisions.map((revision) => (
+                <li
+                  key={revision.revisionId}
+                  className="rounded-xl border border-border/70 bg-background/50 px-3 py-2.5"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-semibold">
+                      Revision {revision.revision}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {fmtExecutionTime(revision.createdAt)} ·{" "}
+                      {revision.affectedPacketCount} workstreams ·{" "}
+                      {revision.affectedTaskCount} tasks revalidated
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-foreground/80">
+                    {revision.changeSummary}
+                  </p>
+                  <pre className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap rounded-lg bg-muted/40 p-2.5 font-sans text-[11px] leading-4 text-foreground/70">
+                    {revision.sourceAddendum}
+                  </pre>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
         {readiness && (
           <div className="md:col-span-2 rounded-xl border border-border bg-background/50 p-3">
             <div className="flex flex-wrap items-center gap-2">

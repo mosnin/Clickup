@@ -277,6 +277,128 @@ describe("execution plan compiler", () => {
     ).rejects.toThrow(/different plan/i);
   });
 
+  it("propagates an idempotent context revision and invalidates stale acknowledgements", async () => {
+    const { t, alice, spaceId, workerId } = await setup();
+    const plan = await t.mutation(
+      api.agentApi.createExecutionPlan,
+      planArgs(spaceId, workerId),
+    );
+    await alice.mutation(api.executionPlans.review, {
+      planId: plan.planId,
+      decision: "approved",
+      note: "The original source and execution graph are approved.",
+    });
+    await t.mutation(api.agentApi.submitOutcomeEvidence, {
+      apiKey: API_KEY,
+      planId: plan.planId,
+      criterionIndex: 0,
+      evidenceSummary: "Evidence collected against the original context.",
+      evidenceLinks: ["https://example.com/evidence/original-context"],
+    });
+
+    const taskId = plan.tasks[0].taskId;
+    const before = await t.query(api.agentApi.getTask, {
+      apiKey: API_KEY,
+      taskId,
+    });
+    expect(before.contextPackets).toHaveLength(1);
+    expect(before.contextPackets[0].version).toBe(1);
+    await t.mutation(api.agentApi.acknowledgeTaskContext, {
+      apiKey: API_KEY,
+      taskId,
+      packets: [
+        {
+          packetId: before.contextPackets[0].packetId,
+          version: 1,
+        },
+      ],
+    });
+
+    const revisionArgs = {
+      apiKey: API_KEY,
+      planId: plan.planId,
+      idempotencyKey: "conversation-42-context-2",
+      changeSummary: "Launch approval now belongs to the operating lead.",
+      sourceAddendum:
+        "Alice confirmed that the operating lead has final launch approval.",
+    };
+    const revised = await t.mutation(
+      api.agentApi.reviseExecutionPlanContext,
+      revisionArgs,
+    );
+    expect(revised).toMatchObject({
+      revision: 1,
+      affectedPacketCount: 2,
+      affectedTaskCount: 4,
+      reviewStatus: "pending",
+      replayed: false,
+    });
+
+    const after = await t.query(api.agentApi.getTask, {
+      apiKey: API_KEY,
+      taskId,
+    });
+    expect(after.contextPackets[0]).toMatchObject({
+      version: 2,
+    });
+    expect(after.contextPackets[0].content).toContain(
+      "Alice confirmed that the operating lead has final launch approval.",
+    );
+    expect(after.contextReadiness).toMatchObject({
+      ready: false,
+      packets: [{ currentVersion: 2, acknowledgedVersion: 1, state: "stale" }],
+    });
+
+    const manifest = await t.query(api.agentApi.getExecutionPlan, {
+      apiKey: API_KEY,
+      planId: plan.planId,
+    });
+    expect(manifest).toMatchObject({
+      contextRevision: 1,
+      reviewStatus: "pending",
+      revisions: [
+        {
+          revision: 1,
+          changeSummary: revisionArgs.changeSummary,
+          affectedPacketCount: 2,
+          affectedTaskCount: 4,
+        },
+      ],
+    });
+    const assurance = await t.query(api.agentApi.getOutcomeAssurance, {
+      apiKey: API_KEY,
+      planId: plan.planId,
+    });
+    expect(assurance.checks[0]).toMatchObject({
+      status: "pending",
+      staleDueToContextRevision: true,
+    });
+
+    const replay = await t.mutation(
+      api.agentApi.reviseExecutionPlanContext,
+      revisionArgs,
+    );
+    expect(replay).toMatchObject({ revision: 1, replayed: true });
+    expect(
+      await t.run((ctx) => ctx.db.query("executionPlanRevisions").collect()),
+    ).toHaveLength(1);
+    expect(
+      await t.run((ctx) => ctx.db.query("contextPackets").collect()),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ version: 2 }),
+        expect.objectContaining({ version: 2 }),
+      ]),
+    );
+
+    await expect(
+      t.mutation(api.agentApi.reviseExecutionPlanContext, {
+        ...revisionArgs,
+        sourceAddendum: "A different update cannot reuse the same key.",
+      }),
+    ).rejects.toThrow(/different context revision/i);
+  });
+
   it("requires independent evidence review before an outcome is verified", async () => {
     const { t, spaceId, workerId } = await setup();
     const plan = await t.mutation(

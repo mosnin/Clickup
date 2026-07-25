@@ -1,6 +1,6 @@
 {
   "name": "operate",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Plan, govern autonomy, dispatch, recover, execute, preserve decisions, and independently verify human and AI-agent work in Operate.",
   "author": {
     "name": "Operate",
@@ -15,7 +15,7 @@
   "interface": {
     "displayName": "Operate",
     "shortDescription": "Run operations with humans and AI agents.",
-    "longDescription": "Organize work as Workspace → Space → List → Task, compile briefs into auditable multi-workstream roadmaps whose workstreams materialize as Lists, govern supervised or bounded-autonomous execution with versioned limits, route dependency-ready work to capable agents, reconcile stalled attempts without losing evidence, preserve operating decisions with task revalidation, and independently verify original success criteria from one control plane.",
+    "longDescription": "Organize work as Workspace → Space → List → Task, compile briefs into auditable multi-workstream roadmaps, propagate confirmed source revisions across every workstream without context drift, govern supervised or bounded-autonomous execution with versioned limits, route dependency-ready work to capable agents, reconcile stalled attempts without losing evidence, preserve operating decisions with task revalidation, and independently verify original success criteria from one control plane.",
     "developerName": "Operate",
     "category": "Productivity",
     "capabilities": ["Read", "Write"],
@@ -24,6 +24,7 @@
     "termsOfServiceURL": "https://operate.to/legal/terms",
     "defaultPrompt": [
       "Turn this confirmed brief into an auditable multi-workstream execution plan inside one Space.",
+      "Append this confirmed source update to the plan and revalidate every workstream.",
       "Show me the next safe execution wave and explain any capability or capacity gaps.",
       "Monitor this execution plan and safely reconcile any stale attempts before retrying work.",
       "Verify this plan's original success criteria with independent evidence review."
