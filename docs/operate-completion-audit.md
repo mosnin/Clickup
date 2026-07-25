@@ -140,6 +140,22 @@ only after automated checks and relevant production behavior both pass.
   structured-output, identity, hierarchy, and seven-resource smoke checks. The
   public Plugins page rendered the production connection and curl install paths
   cleanly in Chrome with no console errors; Vercel had no runtime errors.
+- Anthropic directory intake (production-validated 2026-07-25): the official
+  submission portal now requires a Team or Enterprise Claude organization plus
+  Directory management access; the authenticated Max individual account is
+  correctly blocked from organization settings. Product readiness was proven
+  independently in Claude.ai: `Operate Review` was added as a custom
+  Streamable HTTP connector through the `profile=claude` endpoint,
+  OAuth-connected to `Scout · Admetos`, and classified exactly 138 tools as 49
+  read-only plus 89 write/delete. `buy_credits` and `settle_payment` were
+  absent. Claude invoked `Get tree` and returned the live `HQ` Space with
+  `Getting started`, `Builder proof`, and `Scout proof` without requesting a
+  write approval or changing state. The current 11-step Anthropic portal
+  dossier is complete in `docs/plugin-submission/claude.md`; official directory
+  submission remains externally blocked on organization-level access and the
+  owner's final policy attestations. Production health still reports the
+  application and Convex healthy, the current deployment has no error logs,
+  and typecheck, lint, and all 331 tests pass after the certification.
 - OpenAI official submission intake (active 2026-07-25): the production MCP
   endpoint was accepted in ChatGPT, OAuth-connected to Scout, and all 140 base
   actions were discovered. The official Platform review portal created the
@@ -161,11 +177,24 @@ only after automated checks and relevant production behavior both pass.
   `Getting started`, `Builder proof`, and `Scout proof`, explicitly confirmed
   that no changes were made, and completed in 34 seconds. A truthful 28-second
   1920×1080 H.264 reviewer demo was generated as
-  `operate-chatgpt-review-demo.mp4` and included at the stable production path
-  `/review/operate-chatgpt-review-demo.mp4`. Uploading the prepared
+  `operate-chatgpt-review-demo.mp4`. Production deployment
+  `dpl_HvCCMK6mk3RW9ZgWVMAKjSXEaHhE` is Ready at commit `ee055aa`; the stable
+  reviewer URL returns `200 video/mp4`, supports byte ranges, has the expected
+  222,839-byte length and SHA-256
+  `747f5f0484ecce5c037a7676ca361ef40e15002c91e4771a0fc01257313dc9c7`,
+  and production health reports both the application and Convex healthy at
+  that commit. The official OpenAI portal is now configured with the safe
+  production URL and OAuth reviewer identity, scanned exactly 138 tools
+  (`whoami` present; `buy_credits` and `settle_payment` absent), and accepted
+  all 414 required safety-annotation explanations. Production redeployment
+  `dpl_GQHRjBWA2EZ5tgoazxgFw6di6tLR` is Ready with the OpenAI challenge token;
+  the well-known endpoint returns the exact token as `200 text/plain`, and the
+  portal reports `Domain verified`. The public demo URL, three starter prompts,
+  five positive tests, three negative tests, global availability, and release
+  notes are saved. Uploading the seven skill bundles and prepared
   directory/composer PNGs is blocked until Chrome allows extension access to
-  local file URLs; final production URL verification, the final MCP scan, and
-  submission remain open.
+  local file URLs. The owner must then review and accept OpenAI's legal/policy
+  attestations before `Submit for Review`.
 - x402 billing truthfulness audit (validated 2026-07-25): the production MCP
   host exposes `get_wallet`, `buy_credits`, and `settle_payment`; wallet reads,
   positive-integer input validation, unauthenticated rejection, and
