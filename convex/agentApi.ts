@@ -2091,6 +2091,9 @@ export const listScheduledTasks = query({
       dueInDays: st.dueInDays,
       nextRunAt: st.nextRunAt,
       lastRunAt: st.lastRunAt,
+      lastError: st.lastError,
+      lastErrorAt: st.lastErrorAt,
+      consecutiveFailures: st.consecutiveFailures ?? 0,
       enabled: st.enabled,
       blueprintId: st.blueprintId,
       createdByActorId: st.createdByActorId,
@@ -2115,6 +2118,9 @@ export const updateScheduledTask = mutation({
         enabled,
         ...(enabled
           ? {
+              lastError: undefined,
+              lastErrorAt: undefined,
+              consecutiveFailures: 0,
               nextRunAt: computeNextRunAt(
                 Date.now(),
                 st.cadence,

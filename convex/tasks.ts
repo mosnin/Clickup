@@ -260,34 +260,52 @@ async function validateBlockers(
   }
 }
 
-async function validateAgentCapabilityAssignments(
+export async function validateTaskAssignees(
   ctx: MutationCtx,
   list: Doc<"lists">,
   assigneeIds: string[],
-  requiredCapabilities: string[],
+  requiredCapabilities: string[] = [],
 ): Promise<void> {
-  if (requiredCapabilities.length === 0) return;
   const scope = await scopeForList(ctx, list);
+  if (!scope) throw new ConvexError("Couldn't resolve the task's scope");
   for (const assigneeId of assigneeIds) {
     const agentId = ctx.db.normalizeId("agents", assigneeId);
-    if (!agentId) continue;
-    const agent = await ctx.db.get(agentId);
-    if (
-      !agent ||
-      !scope ||
-      agent.parentType !== scope.scopeType ||
-      agent.parentId !== scope.scopeId
-    ) {
-      throw new ConvexError("Agent assignee is outside this task's scope");
-    }
-    const missing = missingCapabilities(
-      agent.capabilities,
-      requiredCapabilities,
-    );
-    if (missing.length > 0) {
-      throw new ConvexError(
-        `${agent.name} is missing required capabilities: ${missing.join(", ")}`,
+    if (agentId) {
+      const agent = await ctx.db.get(agentId);
+      if (
+        !agent ||
+        agent.parentType !== scope.scopeType ||
+        agent.parentId !== scope.scopeId
+      ) {
+        throw new ConvexError("Agent assignee is outside this task's scope");
+      }
+      const missing = missingCapabilities(
+        agent.capabilities,
+        requiredCapabilities,
       );
+      if (missing.length > 0) {
+        throw new ConvexError(
+          `${agent.name} is missing required capabilities: ${missing.join(", ")}`,
+        );
+      }
+      continue;
+    }
+    if (scope.scopeType === "user") {
+      if (assigneeId !== scope.scopeId) {
+        throw new ConvexError("Human assignee is outside this task's scope");
+      }
+      continue;
+    }
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_user_and_workspace", (q) =>
+        q
+          .eq("userClerkId", assigneeId)
+          .eq("workspaceId", scope.scopeId as Id<"workspaces">),
+      )
+      .unique();
+    if (!membership) {
+      throw new ConvexError("Human assignee is outside this task's scope");
     }
   }
 }
@@ -428,7 +446,7 @@ export async function createTaskCore(
       assigneeIds = [best];
     }
   }
-  await validateAgentCapabilityAssignments(
+  await validateTaskAssignees(
     ctx,
     list,
     assigneeIds,
@@ -620,7 +638,7 @@ export async function updateTaskCore(
     args.assigneeIds !== undefined ||
     args.requiredCapabilities !== undefined
   ) {
-    await validateAgentCapabilityAssignments(
+    await validateTaskAssignees(
       ctx,
       list,
       nextAssigneeIds,

@@ -313,6 +313,14 @@ function SchedulesSection({ schedules }: { schedules: Schedule[] }) {
                         Paused
                       </span>
                     )}
+                    {s.lastError && (
+                      <span
+                        className="max-w-56 truncate rounded-full bg-pastel-red px-2 py-0.5 text-[10px] font-medium text-neutral-900"
+                        title={s.lastError}
+                      >
+                        Failed {s.consecutiveFailures}×
+                      </span>
+                    )}
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
                     <Link

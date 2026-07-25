@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { convexTest } from "convex-test";
 import { computeNextRunAt } from "../convex/scheduledTasks";
 import schema from "../convex/schema";
@@ -131,6 +131,15 @@ describe("computeNextRunAt", () => {
         blueprintId: foreignBlueprintId,
       }),
     ).rejects.toThrow(/blueprint not found/i);
+    await expect(
+      t.mutation(api.agentApi.createScheduledTask, {
+        apiKey: "cua_hourly_operator",
+        listId,
+        title: "invalid assignee",
+        assigneeIds: ["outside_the_workspace"],
+        cadence: "hourly",
+      }),
+    ).rejects.toThrow(/outside this task's scope/i);
     const blueprintId = await t.mutation(api.agentApi.createBlueprint, {
       apiKey: "cua_hourly_operator",
       name: "  Agent health SOP  ",
@@ -176,7 +185,9 @@ describe("computeNextRunAt", () => {
       await ctx.db.patch(scheduledTaskId, { nextRunAt: Date.now() - 1 });
     });
 
-    await t.mutation(internal.scheduledTasks.materializeDue, {});
+    await t.action(internal.scheduledTasks.materializeOne, {
+      scheduledTaskId,
+    });
 
     const tasks = await t.withIdentity(OWNER).query(api.tasks.listForList, {
       listId,
@@ -211,5 +222,55 @@ describe("computeNextRunAt", () => {
     );
     expect(schedule?.lastRunAt).toEqual(expect.any(Number));
     expect(schedule!.nextRunAt).toBeGreaterThan(schedule!.lastRunAt!);
+
+    const badScheduleId = await t.mutation(
+      api.agentApi.createScheduledTask,
+      {
+        apiKey: "cua_hourly_operator",
+        listId,
+        title: "Corrupted definition",
+        assigneeIds: [agentId],
+        cadence: "hourly",
+      },
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.patch(scheduledTaskId, { nextRunAt: Date.now() - 1 });
+      // Simulate legacy/corrupt persisted data that bypassed current creation
+      // validation. The healthy definition must still commit independently.
+      await ctx.db.patch(badScheduleId, {
+        assigneeIds: ["outside_the_workspace"],
+        nextRunAt: Date.now() - 1,
+      });
+    });
+    vi.useFakeTimers();
+    try {
+      await t.mutation(internal.scheduledTasks.materializeDue, {});
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(
+      await t.withIdentity(OWNER).query(api.tasks.listForList, { listId }),
+    ).toHaveLength(2);
+    expect(
+      await t.run(async (ctx) => ctx.db.get(badScheduleId)),
+    ).toMatchObject({
+      enabled: true,
+      consecutiveFailures: 1,
+      lastError: expect.stringMatching(/outside this task's scope/i),
+    });
+
+    // Three isolated failures pause only the corrupt definition.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await t.action(internal.scheduledTasks.materializeOne, {
+        scheduledTaskId: badScheduleId,
+      });
+    }
+    expect(
+      await t.run(async (ctx) => ctx.db.get(badScheduleId)),
+    ).toMatchObject({
+      enabled: false,
+      consecutiveFailures: 3,
+    });
   });
 });

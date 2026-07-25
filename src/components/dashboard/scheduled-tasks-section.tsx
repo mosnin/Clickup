@@ -79,6 +79,15 @@ export function ScheduledTasksSection({ listId }: { listId: Id<"lists"> }) {
               {describeSchedule(st)}
               {st.dueInDays !== undefined && ` · due in ${st.dueInDays}d`}
             </span>
+            {st.lastError && (
+              <span
+                className="max-w-64 truncate rounded-full bg-pastel-red px-2.5 py-0.5 text-xs text-neutral-900"
+                title={st.lastError}
+              >
+                Failed {st.consecutiveFailures ?? 1}× ·{" "}
+                {st.enabled ? "retrying" : "resume to retry"}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => update({ scheduledTaskId: st._id, enabled: !st.enabled })}

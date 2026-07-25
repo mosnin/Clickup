@@ -1637,14 +1637,15 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_scheduled_tasks",
     description:
-      "Recurring task definitions on a list (each row's id field is scheduledTaskId).",
+      "Recurring task definitions on a list (each row's id field is scheduledTaskId), including last run, next run, consecutive failures, and the last isolated materialization error. Three consecutive failures pause only that definition; healthy schedules continue.",
     shape: { listId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listScheduledTasks), { apiKey: k, ...a }),
   },
   {
     name: "set_scheduled_task_enabled",
-    description: "Pause or resume a recurring task definition.",
+    description:
+      "Pause or resume a recurring task definition. Resuming clears its recorded failure state and schedules a fresh future attempt.",
     shape: { scheduledTaskId: z.string(), enabled: z.boolean() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.updateScheduledTask), {

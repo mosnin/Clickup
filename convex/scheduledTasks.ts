@@ -1,9 +1,15 @@
 import { ConvexError, v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import {
+  internalAction,
+  internalMutation,
+  mutation,
+  query,
+} from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import { requireListAccess } from "./_authz";
-import { createTaskCore } from "./tasks";
+import { createTaskCore, validateTaskAssignees } from "./tasks";
 import { blueprintTaskFields } from "./taskBlueprints";
 import { scopeForList, userActor } from "./events";
 import type { Actor } from "./_agentAuth";
@@ -86,6 +92,9 @@ export async function createScheduledTaskCore(
   actor: Actor,
 ): Promise<Id<"scheduledTasks">> {
   if (!args.title.trim()) throw new ConvexError("Title is required");
+  const list = await ctx.db.get(args.listId);
+  if (!list) throw new ConvexError("List not found");
+  await validateTaskAssignees(ctx, list, args.assigneeIds ?? []);
   const hourUtc = Math.min(Math.max(args.hourUtc ?? 9, 0), 23);
   return await ctx.db.insert("scheduledTasks", {
     listId: args.listId,
@@ -177,6 +186,9 @@ export const update = mutation({
     if (args.enabled !== undefined) {
       patch.enabled = args.enabled;
       if (args.enabled) {
+        patch.lastError = undefined;
+        patch.lastErrorAt = undefined;
+        patch.consecutiveFailures = 0;
         patch.nextRunAt = computeNextRunAt(
           Date.now(),
           st.cadence,
@@ -206,8 +218,8 @@ export const remove = mutation({
 
 // ── Cron worker ────────────────────────────────────────────────────────
 
-// Materialize every due definition into a real task. Runs hourly; the
-// scheduler actor shows up in the activity feed as "Scheduler".
+// Fan due definitions into isolated transactions. One malformed recurring
+// operation must not roll back every healthy autonomous loop in the batch.
 export const materializeDue = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -218,49 +230,111 @@ export const materializeDue = internalMutation({
         q.eq("enabled", true).lte("nextRunAt", now),
       )
       .collect();
-    const actor: Actor = { type: "system", id: "scheduler", name: "Scheduler" };
     for (const st of due) {
-      const list = await ctx.db.get(st.listId);
-      if (!list) {
-        await ctx.db.patch(st._id, { enabled: false });
-        continue;
-      }
-      // A linked blueprint supplies the full task shape (checklist, SOP'd
-      // list, estimate, approval gate); the schedule's own fields cover
-      // the bare-title case and act as the fallback if the blueprint was
-      // deleted out from under the link.
-      const bp = st.blueprintId ? await ctx.db.get(st.blueprintId) : null;
-      await createTaskCore(
-        ctx,
-        bp
-          ? {
-              listId: st.listId,
-              assigneeIds: st.assigneeIds,
-              ...blueprintTaskFields(bp),
-            }
-          : {
-              listId: st.listId,
-              title: st.title,
-              description: st.description,
-              priority: st.priority,
-              assigneeIds: st.assigneeIds,
-              dueDate:
-                st.dueInDays !== undefined
-                  ? now + st.dueInDays * 86_400_000
-                  : undefined,
-            },
-        actor,
-      );
-      await ctx.db.patch(st._id, {
-        lastRunAt: now,
-        nextRunAt: computeNextRunAt(
-          now,
-          st.cadence,
-          st.hourUtc,
-          st.dayOfWeek,
-          st.dayOfMonth,
-        ),
+      await ctx.scheduler.runAfter(0, internal.scheduledTasks.materializeOne, {
+        scheduledTaskId: st._id,
       });
     }
+  },
+});
+
+export const materializeOne = internalAction({
+  args: { scheduledTaskId: v.id("scheduledTasks") },
+  handler: async (ctx, args) => {
+    try {
+      await ctx.runMutation(internal.scheduledTasks._materializeOne, args);
+    } catch (cause) {
+      const message =
+        cause instanceof Error ? cause.message : String(cause);
+      await ctx.runMutation(
+        internal.scheduledTasks._recordMaterializationFailure,
+        {
+          ...args,
+          error: message.slice(0, 500),
+        },
+      );
+    }
+  },
+});
+
+export const _materializeOne = internalMutation({
+  args: { scheduledTaskId: v.id("scheduledTasks") },
+  handler: async (ctx, { scheduledTaskId }) => {
+    const st = await ctx.db.get(scheduledTaskId);
+    const now = Date.now();
+    if (!st || !st.enabled || st.nextRunAt > now) return;
+    const list = await ctx.db.get(st.listId);
+    if (!list) {
+      await ctx.db.patch(st._id, {
+        enabled: false,
+        lastError: "List no longer exists",
+        lastErrorAt: now,
+        consecutiveFailures: (st.consecutiveFailures ?? 0) + 1,
+      });
+      return;
+    }
+    const actor: Actor = {
+      type: "system",
+      id: "scheduler",
+      name: "Scheduler",
+    };
+    // A linked blueprint supplies the full task shape (checklist, SOP'd
+    // list, estimate, approval gate); the schedule's own fields cover the
+    // bare-title case and act as the fallback if the blueprint was deleted.
+    const bp = st.blueprintId ? await ctx.db.get(st.blueprintId) : null;
+    await createTaskCore(
+      ctx,
+      bp
+        ? {
+            listId: st.listId,
+            assigneeIds: st.assigneeIds,
+            ...blueprintTaskFields(bp),
+          }
+        : {
+            listId: st.listId,
+            title: st.title,
+            description: st.description,
+            priority: st.priority,
+            assigneeIds: st.assigneeIds,
+            dueDate:
+              st.dueInDays !== undefined
+                ? now + st.dueInDays * 86_400_000
+                : undefined,
+          },
+      actor,
+    );
+    await ctx.db.patch(st._id, {
+      lastRunAt: now,
+      lastError: undefined,
+      lastErrorAt: undefined,
+      consecutiveFailures: 0,
+      nextRunAt: computeNextRunAt(
+        now,
+        st.cadence,
+        st.hourUtc,
+        st.dayOfWeek,
+        st.dayOfMonth,
+      ),
+    });
+  },
+});
+
+export const _recordMaterializationFailure = internalMutation({
+  args: {
+    scheduledTaskId: v.id("scheduledTasks"),
+    error: v.string(),
+  },
+  handler: async (ctx, { scheduledTaskId, error }) => {
+    const st = await ctx.db.get(scheduledTaskId);
+    if (!st || !st.enabled) return;
+    const failures = (st.consecutiveFailures ?? 0) + 1;
+    await ctx.db.patch(st._id, {
+      consecutiveFailures: failures,
+      lastError: error,
+      lastErrorAt: Date.now(),
+      // Three isolated retries are enough to prove this definition needs
+      // intervention; pause it instead of producing an infinite error loop.
+      enabled: failures < 3,
+    });
   },
 });

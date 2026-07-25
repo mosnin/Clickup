@@ -10,7 +10,8 @@ Use this skill for a standup, operating review, morning brief, or executive work
 3. Summarize outcomes first: completed tasks and produced evidence.
 4. Separate currently running work from merely dispatched or claimed work.
 5. Call out overdue tasks, dependency blocks, approval waits, failed or abandoned attempts, capacity exhaustion, and capability gaps.
-6. End with a short action register: owner or agent, next action, and due date only when the source provides one.
+6. Inspect recurring definitions for `lastError` or `consecutiveFailures`. One failed definition is isolated from the others and pauses after three failures; fix its assignee, list, or SOP before deliberately resuming it.
+7. End with a short action register: owner or agent, next action, and due date only when the source provides one.
 
 Keep the brief factual and compact. Do not treat activity volume as progress or infer completion from a heartbeat.
 
