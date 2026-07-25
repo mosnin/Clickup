@@ -37,6 +37,14 @@ const priorityValidator = v.union(
 
 type Cadence = "hourly" | "daily" | "weekly" | "monthly";
 
+function scheduleFailureSummary(error: string): string {
+  const normalized = error.toLowerCase();
+  if (normalized.includes("assignee") && normalized.includes("scope")) {
+    return "The assigned agent no longer has access to this list. Choose another assignee or update its access.";
+  }
+  return "The task could not be created. Check the schedule settings, then retry.";
+}
+
 // Next occurrence of the schedule strictly after `after`.
 export function computeNextRunAt(
   after: number,
@@ -375,7 +383,9 @@ export const _recordMaterializationFailure = internalMutation({
         userClerkId,
         type: "schedule_failed",
         title: `Recurring operation paused: ${st.title}`,
-        body: error,
+        // Keep raw diagnostic details in the schedule and event audit record;
+        // notification surfaces receive safe, actionable product language.
+        body: scheduleFailureSummary(error),
         href:
           scope.scopeType === "workspace"
             ? `/dashboard/w/${scope.scopeId}?tab=operations`

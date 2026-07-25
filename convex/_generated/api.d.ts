@@ -44,6 +44,7 @@ import type * as fieldLibrary from "../fieldLibrary.js";
 import type * as folders from "../folders.js";
 import type * as forms from "../forms.js";
 import type * as goals from "../goals.js";
+import type * as health from "../health.js";
 import type * as homeOverview from "../homeOverview.js";
 import type * as http from "../http.js";
 import type * as importer from "../importer.js";
@@ -139,6 +140,7 @@ declare const fullApi: ApiFromModules<{
   folders: typeof folders;
   forms: typeof forms;
   goals: typeof goals;
+  health: typeof health;
   homeOverview: typeof homeOverview;
   http: typeof http;
   importer: typeof importer;

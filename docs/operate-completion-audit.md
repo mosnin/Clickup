@@ -20,6 +20,14 @@ only after automated checks and relevant production behavior both pass.
 - Templates identify whether they create a List, Task, Doc, Whiteboard, or
   saved View and choose the matching destination level (Space/Folder or List)
 - Template Center and per-Space template entry point
+- Authenticated production hierarchy certification on desktop and a 390×844
+  mobile viewport: the Spaces directory explains
+  `Workspace → Space → Folder (optional) → List → Task`; the HQ Space exposes
+  Lists, optional Folders, Docs, and Whiteboards; the Builder proof List
+  remains usable without document-level horizontal overflow; List templates
+  offer Space/Folder destinations; and Task templates offer Lists with their
+  parent Space shown. All four audited mobile surfaces matched the 390px
+  viewport with no document-level horizontal overflow.
 - Truthful agent connection, heartbeat, recent, offline, and paused presence
 - Durable signed assignment, mention, and execution wake delivery
 - Polling wake inbox and authenticated consumption receipts
@@ -42,10 +50,21 @@ only after automated checks and relevant production behavior both pass.
   14:59:50 UTC became due at 15:00 and the live 15-minute Convex cron created
   its scheduler-authored task at 15:14:53. The schedule, task, and one-use
   verification credentials were removed after readback (zero artifacts).
+- Production schedule failure recovery and escalation: a deliberately invalid
+  hourly definition failed on three separate 15-minute production ticks at
+  16:15, 16:30, and 16:45 UTC. It stayed active through failures 1 and 2,
+  auto-paused at failure 3, emitted `schedule.auto_paused`, and created one
+  unread owner Inbox escalation. No task was created. The disposable schedule
+  was deleted after readback and the List returned to zero schedules.
+- Schedule escalation notifications now replace backend diagnostics with
+  actionable product language before entering the Inbox. The production
+  Convex deployment accepted the function push and schema validation; the
+  least-privilege temporary deploy key was deleted immediately afterward and
+  returned 401 on reuse.
 - Seven curl-installable skills with retries and SHA-256 verification
 - Completed agent work clears its matching current-task and activity text,
   preventing stale “Now” presence after success
-- Local production build, typecheck, lint, plugin validation, and 320 tests
+- Local production build, typecheck, lint, plugin validation, and 322 tests
 - Disposable production MCP mutation certification: List create/rename/metadata,
   two-task parent/dependency batch, task update/checklist, comment
   create/update/delete, schedule create/pause/resume/delete, readback/event
@@ -62,36 +81,26 @@ only after automated checks and relevant production behavior both pass.
 
 ## Still required
 
-1. Prove production schedule failure recovery and owner escalation on the
-   clock rather than only through tests.
-2. Complete OAuth, webhook, and billing production certification.
-3. Run a systematic browser pass over onboarding, home, inbox, Spaces, Lists,
-   task detail, views, sprints, roadmaps, operations, agents, templates, search,
-   settings, responsive layouts, keyboard navigation, and failure states.
-4. Add external uptime/error alerting; the health endpoint and Vercel log scan
-   exist, but no independent monitor currently pages an operator.
-5. Run security review: exposed-key rotation, authorization matrix, rate limits,
+1. Complete OAuth, webhook, and billing production certification.
+2. Continue the systematic browser pass over onboarding, home, inbox, task
+   detail, the remaining List views, sprints, roadmaps, operations, agents,
+   search, settings, keyboard navigation, and failure states. The core
+   Spaces/List hierarchy, template destinations, and their mobile responsive
+   layouts are certified above.
+3. Prove the new independent GitHub uptime monitor in production. It checks
+   application and Convex health every 15 minutes, opens one deduplicated
+   operator incident while unhealthy, comments on continued failures, and
+   closes the incident after recovery.
+4. Run security review: exposed-key rotation, authorization matrix, rate limits,
    SSRF/webhook boundaries, OAuth redirect validation, secret handling, and
    dependency scan.
-6. Run load/performance, backup/restore, data-retention, and disaster-recovery
+5. Run load/performance, backup/restore, data-retention, and disaster-recovery
    exercises.
-7. Upload the ChatGPT and Claude bundles for official review and address reviewer
+6. Upload the ChatGPT and Claude bundles for official review and address reviewer
    feedback. Platform approval itself is external and cannot be proven locally.
 
 ## Active production certifications
 
-- Schedule failure recovery (armed 2026-07-25 15:45:53 UTC): schedule
-  `n57bcpyrzzmj29myx84vy0jwh98b6jjx` in List
-  `m97an4de6e85m01yghqbpvtwxs8b77em` became due at 16:00 UTC after its
-  deliberately disposable assignee `CERT Failure Target` was deleted. The
-  agent and both of its keys are gone (one-use key returns 401). On subsequent
-  15-minute production ticks, verify failure counts 1 → 2 → 3, isolated
-  schedule auto-pause, `schedule.auto_paused` event, and owner notification.
-  Then delete the schedule and confirm that no task with title prefix
-  `CERT Failure Recovery` was created.
-  - First production tick observed at 16:15 UTC: the schedule remained active,
-    recorded `consecutiveFailures: 1`, and displayed `Failed 1× · retrying`.
-    No task was created. The second tick should advance this to 2.
 - Dependency security remediation (validated locally 2026-07-25): upgraded
   Next within v15 to 15.5.21, Convex within v1 to 1.42.3, and Clerk within v6
   to 6.39.6. The production-only audit dropped from 17 findings

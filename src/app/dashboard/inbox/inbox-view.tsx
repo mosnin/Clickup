@@ -22,6 +22,7 @@ import {
   StaggerItem,
 } from "@/components/motion";
 import { errorMessage } from "@/lib/errors";
+import { safeNotificationBody } from "@/lib/notification-copy";
 
 // The one inbox. Everything that needs the user's attention lives here, in
 // order of urgency: approvals to grant, mentions to answer, updates to skim.
@@ -306,6 +307,7 @@ function UpdateItem({ n }: { n: Doc<"notifications"> }) {
   const markRead = useMutation(api.notificationCenter.markRead);
   const router = useRouter();
   const unread = n.readAt === undefined;
+  const body = safeNotificationBody(n.type, n.body ?? "");
 
   return (
     <button
@@ -329,9 +331,9 @@ function UpdateItem({ n }: { n: Doc<"notifications"> }) {
                   {timeAgo(n.createdAt)}
                 </span>
               </div>
-              {n.body && (
+              {body && (
                 <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                  {n.body}
+                  {body}
                 </p>
               )}
             </div>

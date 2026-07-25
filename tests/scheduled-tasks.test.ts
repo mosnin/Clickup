@@ -280,6 +280,8 @@ describe("computeNextRunAt", () => {
       expect.objectContaining({
         type: "schedule_failed",
         title: "Recurring operation paused: Corrupted definition",
+        body:
+          "The assigned agent no longer has access to this list. Choose another assignee or update its access.",
         href: `/dashboard/w/${workspaceId}?tab=operations`,
       }),
     ]);
