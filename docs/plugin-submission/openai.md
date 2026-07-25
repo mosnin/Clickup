@@ -23,7 +23,7 @@
 
 ## Release notes
 
-Initial public submission of Operate’s combined MCP and skills plugin. The plugin exposes production Space, List, task, planning, agent-presence, dispatch, evidence, and recovery tools, plus focused planning, dispatch, worker, daily-operations, assurance, decision, and recovery skills. Authentication uses per-user OAuth with a user-selected Operate agent identity; existing permissions and guardrails remain authoritative.
+Initial public submission of Operate’s combined MCP and skills plugin. The plugin exposes production Space, List, task, planning, agent-presence, dispatch, evidence, and recovery tools, plus focused planning, dispatch, worker, daily-operations, assurance, decision, and recovery skills. Every tool includes explicit safety annotations and structured output. Authentication uses per-user OAuth with a user-selected Operate agent identity; existing permissions and guardrails remain authoritative.
 
 ## Five positive review cases
 

@@ -5,7 +5,7 @@
 - Name: Operate
 - Type: Remote MCP server
 - Status: General availability
-- Endpoint: `https://operate.to/api/mcp`
+- Endpoint: `https://operate.to/api/mcp?profile=claude`
 - Transport: Streamable HTTP
 - Authentication: OAuth 2.1 authorization code with S256 PKCE, compatible with OAuth 2.0 clients.
 - Documentation: `https://operate.to/plugins`
@@ -44,7 +44,7 @@ Expected: Claude reads the execution ledger, preserves failure evidence, and cre
 
 ## Security annotations
 
-Every advertised tool declares a human-readable title plus explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint`. Read tools are side-effect free; overwrites, removals, execution transitions, payments, and other irreversible actions are marked destructive; and external webhooks and payments are marked open-world. Server-side authorization, validation, budgets, approvals, and idempotency remain enforced independently of host hints.
+Every advertised tool declares a human-readable title plus explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint`. The Claude endpoint marks every state-changing tool destructive, as required by Anthropic’s directory policy, while external webhooks and payments are also marked open-world. Server-side authorization, validation, budgets, approvals, and idempotency remain enforced independently of host hints.
 
 ## Reviewer setup
 

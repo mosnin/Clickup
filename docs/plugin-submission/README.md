@@ -7,7 +7,8 @@ This folder is the reviewer-ready dossier for the same production integration on
 
 Production endpoints:
 
-- MCP: `https://operate.to/api/mcp`
+- ChatGPT MCP: `https://operate.to/api/mcp`
+- Claude MCP: `https://operate.to/api/mcp?profile=claude`
 - OAuth protected-resource metadata: `https://operate.to/.well-known/oauth-protected-resource`
 - OAuth authorization-server metadata: `https://operate.to/.well-known/oauth-authorization-server`
 - Documentation and support: `https://operate.to/plugins`
@@ -15,6 +16,8 @@ Production endpoints:
 - Terms: `https://operate.to/legal/terms`
 
 The server supports Streamable HTTP, OAuth 2.1 authorization code + PKCE, dynamic client registration, rotating refresh tokens, revocation, and legacy agent API-key authentication for custom runtimes. OAuth access is bound to a user-selected Operate agent, so existing workspace boundaries, list restrictions, read-only roles, budgets, approvals, and agent pause controls continue to apply.
+
+Both profiles advertise explicit safety annotations and a stable structured-output envelope for every tool. The ChatGPT endpoint uses OpenAI’s narrower destructive-action definition. The Claude profile marks every mutation destructive to satisfy Anthropic’s directory policy while sharing the same authenticated implementation and OAuth resource.
 
 The uploadable OpenAI bundle is generated from `plugins/operate`; `chatgpt-app-submission.json` is generated from the live MCP registry and imported separately in OpenAI’s review form. Anthropic reviews the production remote MCP endpoint and the information in `claude.md`; it does not use a local demo bundle. Do not put reviewer credentials in the repository or ZIP. Enter them only in each platform’s secure submission form.
 

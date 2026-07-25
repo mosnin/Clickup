@@ -7,6 +7,10 @@ import { ConvexHttpClient } from "convex/browser";
 import type { FunctionReference } from "convex/server";
 import { api } from "@convex/_generated/api";
 import { ConvexError } from "convex/values";
+import {
+  toolAnnotationsForProfile,
+  type AnnotationProfile,
+} from "@/lib/mcp-annotation-profile";
 
 // Hosted MCP server (Streamable HTTP) at POST /api/mcp.
 //
@@ -295,15 +299,21 @@ function titleFor(name: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-function annotationsFor(name: string): ToolAnnotations {
+function annotationsFor(
+  name: string,
+  profile: AnnotationProfile,
+): ToolAnnotations {
   const readOnly = READ_TOOLS.has(name);
-  return {
-    title: titleFor(name),
-    readOnlyHint: readOnly,
-    openWorldHint: OPEN_WORLD_TOOLS.has(name),
-    destructiveHint: DESTRUCTIVE_TOOLS.has(name),
-    ...(IDEMPOTENT_TOOLS.has(name) ? { idempotentHint: true } : {}),
-  };
+  return toolAnnotationsForProfile(
+    {
+      title: titleFor(name),
+      readOnly,
+      openWorld: OPEN_WORLD_TOOLS.has(name),
+      destructive: DESTRUCTIVE_TOOLS.has(name),
+      idempotent: IDEMPOTENT_TOOLS.has(name),
+    },
+    profile,
+  );
 }
 
 type ToolDef = {
@@ -2215,8 +2225,9 @@ const TOOLS: ToolDef[] = [
   },
 ];
 
-const handler = createMcpHandler(
-  (server) => {
+function createOperateMcpHandler(profile: AnnotationProfile) {
+  return createMcpHandler(
+    (server) => {
     // Skills double as MCP resources (skill://<slug>) so clients that
     // prefer resource imports over tool calls can pull playbooks directly.
     server.resource(
@@ -2269,7 +2280,13 @@ const handler = createMcpHandler(
         {
           description: tool.description,
           inputSchema: tool.shape,
-          annotations: annotationsFor(tool.name),
+          // A stable envelope lets modern clients consume structured results
+          // without pretending every heterogeneous Operate response has the
+          // same domain shape. Compact text remains for older MCP clients.
+          outputSchema: {
+            result: z.unknown().describe("The tool's JSON-compatible result"),
+          },
+          annotations: annotationsFor(tool.name, profile),
         },
         async (args, extra) => {
           const apiKey = extra.authInfo?.token;
@@ -2283,15 +2300,17 @@ const handler = createMcpHandler(
           }
           try {
             const result = await tool.run(convexClient(), apiKey, args);
+            const normalizedResult = result ?? { ok: true };
             return {
               content: [
                 {
                   type: "text" as const,
                   // Compact on purpose: pretty-printing roughly doubles the
                   // token cost of every list-shaped response.
-                  text: JSON.stringify(result ?? { ok: true }),
+                  text: JSON.stringify(normalizedResult),
                 },
               ],
+              structuredContent: { result: normalizedResult },
             };
           } catch (err) {
             // ConvexError.data survives production redaction (plain Error
@@ -2314,24 +2333,47 @@ const handler = createMcpHandler(
         },
       );
     }
-  },
-  {
-    serverInfo: { name: "operate-agents", version: "1.0.0" },
-    instructions:
-      "You are an agent teammate in operate.to. The hierarchy is Workspace → Space → optional Folder → List → Task → Subtask. A roadmap sequences existing Lists into phases; it is not another container. First: call whoami, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-workstream roadmap? Prefer create_execution_plan: choose one Space, preserve the source, treat each projects input entry as a workstream that materializes as a List, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. If confirmed source facts change without changing structure, use revise_execution_plan_context so every workstream advances together and stale acknowledgements are invalidated; use a new plan for structural changes. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. A stale receipt is not active work: call reconcile_execution_plan before manually retrying it; dispatch also reconciles transactionally and preserves the timed-out attempt. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Use create_tasks for smaller additions to an existing List. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
-  },
-  {
-    basePath: "/api",
-    disableSse: true,
-    maxDuration: 60,
-  },
-);
+    },
+    {
+      serverInfo: { name: "operate-agents", version: "1.0.0" },
+      instructions:
+        "You are an agent teammate in operate.to. The hierarchy is Workspace → Space → optional Folder → List → Task → Subtask. A roadmap sequences existing Lists into phases; it is not another container. First: call whoami, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-workstream roadmap? Prefer create_execution_plan: choose one Space, preserve the source, treat each projects input entry as a workstream that materializes as a List, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. If confirmed source facts change without changing structure, use revise_execution_plan_context so every workstream advances together and stale acknowledgements are invalidated; use a new plan for structural changes. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. A stale receipt is not active work: call reconcile_execution_plan before manually retrying it; dispatch also reconciles transactionally and preserves the timed-out attempt. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Use create_tasks for smaller additions to an existing List. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
+    },
+    {
+      basePath: "/api",
+      disableSse: true,
+      maxDuration: 60,
+    },
+  );
+}
+
+const handler = createOperateMcpHandler("openai");
+const anthropicHandler = createOperateMcpHandler("anthropic");
 
 // Bearer-token auth: the token IS the agent API key. Verified upstream by
 // asking Convex who it belongs to; tools then pass it through on each call
 // (Convex re-validates every function).
 const authHandler = withMcpAuth(
   handler,
+  async (_req, bearerToken) => {
+    if (!bearerToken) return undefined;
+    try {
+      const me = await convexClient().mutation(asMutation(api.agentApi.connect), {
+        apiKey: bearerToken,
+      });
+      return {
+        token: bearerToken,
+        clientId: (me as { agentId: string }).agentId,
+        scopes: [],
+      };
+    } catch {
+      return undefined;
+    }
+  },
+  { required: true },
+);
+const anthropicAuthHandler = withMcpAuth(
+  anthropicHandler,
   async (_req, bearerToken) => {
     if (!bearerToken) return undefined;
     try {
@@ -2379,7 +2421,7 @@ function withCors(req: Request, response: Response) {
 }
 
 async function guarded(req: Request): Promise<Response> {
-  const { pathname } = new URL(req.url);
+  const { pathname, searchParams } = new URL(req.url);
   if (pathname !== "/api/mcp") {
     return new Response("Not found", { status: 404 });
   }
@@ -2407,7 +2449,11 @@ async function guarded(req: Request): Promise<Response> {
       });
     }
   }
-  const response = await authHandler(transportRequest);
+  const selectedHandler =
+    searchParams.get("profile") === "claude"
+      ? anthropicAuthHandler
+      : authHandler;
+  const response = await selectedHandler(transportRequest);
   if (response.status !== 401) return withCors(req, response);
   const headers = new Headers(response.headers);
   const origin =

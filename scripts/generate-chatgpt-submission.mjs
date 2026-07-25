@@ -16,7 +16,7 @@ function namesInSet(setName) {
 }
 
 const toolsBlock = source.match(
-  /const TOOLS: ToolDef\[\] = \[([\s\S]*?)\n\];\n\nconst handler/,
+  /const TOOLS: ToolDef\[\] = \[([\s\S]*?)\n\];\n\nfunction createOperateMcpHandler/,
 )?.[1];
 if (!toolsBlock) throw new Error("Could not find the MCP tool registry");
 
