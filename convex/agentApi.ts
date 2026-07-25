@@ -5845,6 +5845,14 @@ export const dispatchExecutionWave = mutation({
               listId: task.listId,
               title: task.title,
               contextRequired: true,
+              contextPacketCount: recommendation.contextPacketCount,
+              estimatedContextTokens: recommendation.estimatedContextTokens,
+              contextVersionFingerprint:
+                recommendation.contextVersionFingerprint,
+              contextPackets: recommendation.contextPackets.map((packet) => ({
+                packetId: packet.packetId,
+                version: packet.version,
+              })),
             },
             secret: target.notifySecret,
           },
@@ -5855,6 +5863,10 @@ export const dispatchExecutionWave = mutation({
         taskRef: recommendation.taskRef,
         agentId: target._id,
         delivery,
+        contextPacketCount: recommendation.contextPacketCount,
+        estimatedContextTokens: recommendation.estimatedContextTokens,
+        contextVersionFingerprint:
+          recommendation.contextVersionFingerprint,
       });
     }
     const selectedRefs = new Set(
@@ -5899,6 +5911,9 @@ export const dispatchExecutionWave = mutation({
         taskRef: assignment.taskRef,
         agentId: assignment.agentId,
         delivery: assignment.delivery,
+        contextPacketCount: assignment.contextPacketCount,
+        estimatedContextTokens: assignment.estimatedContextTokens,
+        contextVersionFingerprint: assignment.contextVersionFingerprint,
         status: "dispatched",
         attempt: previousAttempts.length + 1,
         dispatchedAt,

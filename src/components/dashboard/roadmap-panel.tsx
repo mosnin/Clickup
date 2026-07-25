@@ -83,6 +83,12 @@ function fmtExecutionTime(ts: number): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function fmtContextTokens(tokens: number): string {
+  if (tokens < 1_000) return `~${tokens} tokens`;
+  const thousands = tokens / 1_000;
+  return `~${thousands >= 10 ? Math.round(thousands) : thousands.toFixed(1)}k tokens`;
+}
+
 export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const roadmaps = useQuery(api.roadmaps.listForWorkspace, { workspaceId });
   const executionPlans = useQuery(api.executionPlans.listForWorkspace, {
@@ -908,6 +914,17 @@ function ExecutionPlanProvenance({
               <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                 {readiness.policyCapacityRemaining} policy capacity · 24h
               </span>
+              {readiness.recommendations.length > 0 && (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  {fmtContextTokens(
+                    readiness.recommendations.reduce(
+                      (total, item) => total + item.estimatedContextTokens,
+                      0,
+                    ),
+                  )}{" "}
+                  next-wave context
+                </span>
+              )}
               {readiness.skipped.filter(
                 (item) => item.reason === "capacity_exhausted",
               ).length > 0 && (
@@ -957,6 +974,12 @@ function ExecutionPlanProvenance({
                     <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px]">
                       {item.recommendedAgentName}
                     </span>
+                    <span
+                      title={`${item.contextPacketCount} current context packet${item.contextPacketCount === 1 ? "" : "s"} must be acknowledged before work starts.`}
+                      className="flex-shrink-0 text-[10px] text-muted-foreground"
+                    >
+                      {fmtContextTokens(item.estimatedContextTokens)}
+                    </span>
                     {!item.notifyConfigured && (
                       <span
                         title="This runtime must poll next_task because it has no notify URL."
@@ -999,6 +1022,13 @@ function ExecutionPlanProvenance({
                   ["succeeded", control.counts.succeeded, "bg-pastel-green"],
                   ["failed", control.counts.failed, "bg-pastel-red"],
                   ["stale", control.staleCount, "bg-pastel-yellow"],
+                  [
+                    "context changed",
+                    control.assignments.filter(
+                      (assignment) => assignment.contextDrifted,
+                    ).length,
+                    "bg-pastel-yellow",
+                  ],
                   ["retryable", control.counts.abandoned, "bg-pastel-yellow"],
                 ] as const
               ).map(([label, count, className]) =>
@@ -1041,6 +1071,19 @@ function ExecutionPlanProvenance({
                     </span>
                     {assignment.delivery === "poll_required" && (
                       <span className="uppercase tracking-wider">poll</span>
+                    )}
+                    {assignment.estimatedContextTokens !== undefined && (
+                      <span>
+                        {fmtContextTokens(
+                          assignment.currentEstimatedContextTokens,
+                        )}{" "}
+                        context
+                      </span>
+                    )}
+                    {assignment.contextDrifted && (
+                      <span className="rounded-full bg-pastel-yellow px-1.5 py-0.5 font-medium text-neutral-900">
+                        context changed · re-read required
+                      </span>
                     )}
                   </div>
                   {(assignment.error || assignment.summary) && (

@@ -473,7 +473,17 @@ describe("capability-aware execution dispatch", () => {
         recommendedAgentId: backendId,
         requiredCapabilities: ["typescript"],
         notifyConfigured: true,
+        contextPacketCount: 1,
       },
+    ]);
+    expect(readiness.recommendations[0].estimatedContextTokens).toBeGreaterThan(
+      0,
+    );
+    expect(
+      readiness.recommendations[0].contextVersionFingerprint,
+    ).toMatch(/^[a-f0-9]{64}$/);
+    expect(readiness.recommendations[0].contextPackets).toMatchObject([
+      { version: 1 },
     ]);
     expect(readiness.skipped).toEqual(
       expect.arrayContaining([
@@ -510,9 +520,14 @@ describe("capability-aware execution dispatch", () => {
           taskRef: "platform.schema",
           agentId: backendId,
           delivery: "notify_url",
+          contextPacketCount: 1,
         },
       ],
     });
+    expect(wave.assignments[0].estimatedContextTokens).toBeGreaterThan(0);
+    expect(wave.assignments[0].contextVersionFingerprint).toMatch(
+      /^[a-f0-9]{64}$/,
+    );
     const replay = await t.mutation(
       api.agentApi.dispatchExecutionWave,
       args,
@@ -534,6 +549,28 @@ describe("capability-aware execution dispatch", () => {
       waveId: wave.waveId,
       assignmentCount: 1,
     });
+
+    await t.mutation(api.agentApi.reviseExecutionPlanContext, {
+      apiKey: PLANNER_KEY,
+      planId: plan.planId,
+      idempotencyKey: "wave-build-context-v2",
+      changeSummary: "Schema validation now requires deterministic fixtures.",
+      sourceAddendum:
+        "The owner confirmed that every schema validation run must use deterministic fixtures.",
+    });
+    const control = await t.query(api.agentApi.getExecutionControl, {
+      apiKey: PLANNER_KEY,
+      planId: plan.planId,
+    });
+    expect(control.assignments[0]).toMatchObject({
+      assignmentId: expect.any(String),
+      contextPacketCount: 1,
+      currentContextPacketCount: 1,
+      contextDrifted: true,
+    });
+    expect(
+      control.assignments[0].currentContextVersionFingerprint,
+    ).not.toBe(control.assignments[0].contextVersionFingerprint);
   });
 
   it("releases the next dependency wave while respecting concurrency", async () => {

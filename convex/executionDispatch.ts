@@ -2,9 +2,10 @@ import { ConvexError, v } from "convex/values";
 import { query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { agentCanTouchList } from "./_agentAuth";
+import { agentCanTouchList, sha256Hex } from "./_agentAuth";
 import { canAccessSpace, requireIdentity } from "./_authz";
 import { hasCapabilities } from "./capabilities";
+import { listPacketsForTask } from "./contextPackets";
 import { executionPlanSummary } from "./executionPlans";
 import {
   executionPolicyFor,
@@ -55,6 +56,42 @@ async function isTaskComplete(
     status?.category === "complete" || status?.category === "closed";
   statusCache.set(task.statusId, complete);
   return complete;
+}
+
+async function contextLoadForTask(
+  ctx: ReadCtx,
+  taskId: Id<"tasks">,
+) {
+  const packets = await listPacketsForTask(ctx, taskId);
+  const contextCharacterCount = packets.reduce(
+    (total, packet) =>
+      total +
+      packet.title.length +
+      (packet.summary?.length ?? 0) +
+      packet.content.length,
+    0,
+  );
+  return {
+    contextPacketCount: packets.length,
+    contextCharacterCount,
+    estimatedContextTokens: Math.ceil(contextCharacterCount / 4),
+    contextVersionFingerprint: sha256Hex(
+      packets
+        .map((packet) => `${packet.packetId}:${packet.version}`)
+        .sort()
+        .join("|"),
+    ),
+    contextPackets: packets.map((packet) => ({
+      packetId: packet.packetId,
+      title: packet.title,
+      version: packet.version,
+      updatedAt: packet.updatedAt,
+      characterCount:
+        packet.title.length +
+        (packet.summary?.length ?? 0) +
+        packet.content.length,
+    })),
+  };
 }
 
 export async function executionReadinessCore(
@@ -197,6 +234,17 @@ export async function executionReadinessCore(
     recommendedAgentId: Id<"agents">;
     recommendedAgentName: string;
     notifyConfigured: boolean;
+    contextPacketCount: number;
+    contextCharacterCount: number;
+    estimatedContextTokens: number;
+    contextVersionFingerprint: string;
+    contextPackets: Array<{
+      packetId: Id<"contextPackets">;
+      title: string;
+      version: number;
+      updatedAt: number;
+      characterCount: number;
+    }>;
   }[] = [];
   const skipped: { taskRef: string; reason: string }[] = [];
 
@@ -306,6 +354,7 @@ export async function executionReadinessCore(
       chosen.agentId,
       (plannedLoad.get(chosen.agentId) ?? 0) + 1,
     );
+    const contextLoad = await contextLoadForTask(ctx, task._id);
     recommendations.push({
       taskId: task._id,
       taskRef: manifestTask.ref,
@@ -315,6 +364,7 @@ export async function executionReadinessCore(
       recommendedAgentId: chosen.agentId,
       recommendedAgentName: chosen.name,
       notifyConfigured: chosen.notifyConfigured,
+      ...contextLoad,
     });
   }
 
@@ -389,9 +439,10 @@ export async function executionControlCore(
   }
   const assignments = [];
   for (const row of rows.slice(0, 25)) {
-    const [task, agent] = await Promise.all([
+    const [task, agent, contextLoad] = await Promise.all([
       ctx.db.get(row.taskId),
       ctx.db.get(row.agentId),
+      contextLoadForTask(ctx, row.taskId),
     ]);
     const stale = isExecutionAssignmentStale(row, now);
     const freshnessAt = executionAssignmentFreshnessAt(row);
@@ -404,6 +455,17 @@ export async function executionControlCore(
       agentId: row.agentId,
       agentName: agent?.name ?? "Deleted agent",
       delivery: row.delivery,
+      contextPacketCount: row.contextPacketCount,
+      estimatedContextTokens: row.estimatedContextTokens,
+      contextVersionFingerprint: row.contextVersionFingerprint,
+      currentContextPacketCount: contextLoad.contextPacketCount,
+      currentEstimatedContextTokens: contextLoad.estimatedContextTokens,
+      currentContextVersionFingerprint:
+        contextLoad.contextVersionFingerprint,
+      contextDrifted:
+        row.contextVersionFingerprint !== undefined &&
+        row.contextVersionFingerprint !==
+          contextLoad.contextVersionFingerprint,
       status: stale ? ("stale" as const) : row.status,
       recordedStatus: row.status,
       stale,

@@ -710,6 +710,9 @@ export default defineSchema({
           v.literal("notify_url"),
           v.literal("poll_required"),
         ),
+        contextPacketCount: v.optional(v.number()),
+        estimatedContextTokens: v.optional(v.number()),
+        contextVersionFingerprint: v.optional(v.string()),
       }),
     ),
     skipped: v.array(
@@ -739,6 +742,9 @@ export default defineSchema({
       v.literal("notify_url"),
       v.literal("poll_required"),
     ),
+    contextPacketCount: v.optional(v.number()),
+    estimatedContextTokens: v.optional(v.number()),
+    contextVersionFingerprint: v.optional(v.string()),
     status: v.union(
       v.literal("dispatched"),
       v.literal("claimed"),
