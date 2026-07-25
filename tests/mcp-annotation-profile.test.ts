@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { toolAnnotationsForProfile } from "../src/lib/mcp-annotation-profile";
+import {
+  toolAnnotationsForProfile,
+  toolAvailableForProfile,
+  toolDescriptionForProfile,
+} from "../src/lib/mcp-annotation-profile";
 
 const createFacts = {
   title: "Create task",
@@ -46,5 +50,28 @@ describe("MCP platform annotation profiles", () => {
       destructiveHint: false,
       idempotentHint: true,
     });
+  });
+
+  it("removes financial-transaction tools only from the Anthropic directory profile", () => {
+    expect(toolAvailableForProfile("get_wallet", "anthropic")).toBe(true);
+    expect(toolAvailableForProfile("buy_credits", "anthropic")).toBe(false);
+    expect(toolAvailableForProfile("settle_payment", "anthropic")).toBe(false);
+    expect(toolAvailableForProfile("settle_payment", "openai")).toBe(true);
+    expect(toolAvailableForProfile("create_task", "anthropic")).toBe(true);
+  });
+
+  it("describes the Anthropic wallet tool as read-only billing visibility", () => {
+    const description = toolDescriptionForProfile(
+      "get_wallet",
+      "Top up with buy_credits and settle_payment.",
+      "anthropic",
+    );
+
+    expect(description).toContain("billing visibility only");
+    expect(description).not.toContain("buy_credits");
+    expect(description).not.toContain("settle_payment");
+    expect(
+      toolDescriptionForProfile("get_wallet", "Original description", "openai"),
+    ).toBe("Original description");
   });
 });

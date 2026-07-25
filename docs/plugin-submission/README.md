@@ -17,7 +17,7 @@ Production endpoints:
 
 The server supports Streamable HTTP, OAuth 2.1 authorization code + PKCE, dynamic client registration, rotating refresh tokens, revocation, and legacy agent API-key authentication for custom runtimes. OAuth access is bound to a user-selected Operate agent, so existing workspace boundaries, list restrictions, read-only roles, budgets, approvals, and agent pause controls continue to apply.
 
-Both profiles advertise explicit safety annotations and a stable structured-output envelope for every tool. The ChatGPT endpoint uses OpenAI’s narrower destructive-action definition. The Claude profile marks every mutation destructive to satisfy Anthropic’s directory policy while sharing the same authenticated implementation and OAuth resource.
+Both profiles advertise explicit safety annotations and a stable structured-output envelope for every tool. The ChatGPT endpoint uses OpenAI’s narrower destructive-action definition. The Claude profile marks every mutation destructive and omits `buy_credits` and `settle_payment`, because Anthropic’s Software Directory Policy does not accept software that initiates or executes cryptocurrency or financial transactions. Claude retains read-only wallet visibility through `get_wallet`; OpenAI and custom MCP clients retain the complete payment lifecycle.
 
 The uploadable OpenAI bundle is generated from `plugins/operate`; `chatgpt-app-submission.json` is generated from the live MCP registry and imported separately in OpenAI’s review form. Anthropic reviews the production remote MCP endpoint and the information in `claude.md`; it does not use a local demo bundle. Do not put reviewer credentials in the repository or ZIP. Enter them only in each platform’s secure submission form.
 

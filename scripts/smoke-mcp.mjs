@@ -63,8 +63,11 @@ console.log(`✓ initialize (server: ${init.serverInfo?.name})`);
 
 const tools = await rpc("tools/list", {});
 console.log(`✓ tools/list (${tools.tools.length} tools)`);
-if (tools.tools.length !== 140) {
-  throw new Error(`expected 140 tools, received ${tools.tools.length}`);
+const expectedToolCount = profile === "anthropic" ? 138 : 140;
+if (tools.tools.length !== expectedToolCount) {
+  throw new Error(
+    `expected ${expectedToolCount} tools, received ${tools.tools.length}`,
+  );
 }
 for (const required of ["whoami", "next_task", "claim_task", "get_skill"]) {
   if (!tools.tools.some((t) => t.name === required)) {
@@ -88,6 +91,16 @@ for (const tool of tools.tools) {
     throw new Error(`${tool.name}: Anthropic mutations must be destructive`);
   }
 }
+if (
+  profile === "anthropic" &&
+  tools.tools.some((tool) =>
+    ["buy_credits", "settle_payment"].includes(tool.name),
+  )
+) {
+  throw new Error(
+    "Anthropic directory profile must not expose financial-transaction tools",
+  );
+}
 const createTask = tools.tools.find((tool) => tool.name === "create_task");
 const updateTask = tools.tools.find((tool) => tool.name === "update_task");
 if (
@@ -95,12 +108,15 @@ if (
   (createTask?.annotations.destructiveHint ||
     !updateTask?.annotations.destructiveHint)
 ) {
-  throw new Error("OpenAI destructive hints do not match create/update semantics");
+  throw new Error(
+    "OpenAI destructive hints do not match create/update semantics",
+  );
 }
 console.log(`✓ ${profile} annotations and output schemas`);
 
 const whoami = await rpc("tools/call", { name: "whoami", arguments: {} });
-if (whoami.isError) throw new Error(`whoami errored: ${JSON.stringify(whoami)}`);
+if (whoami.isError)
+  throw new Error(`whoami errored: ${JSON.stringify(whoami)}`);
 const me = JSON.parse(whoami.content[0].text);
 if (JSON.stringify(whoami.structuredContent?.result) !== JSON.stringify(me)) {
   throw new Error("whoami structuredContent does not match compact text");

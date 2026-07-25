@@ -8,7 +8,9 @@ import type { FunctionReference } from "convex/server";
 import { api } from "@convex/_generated/api";
 import { ConvexError } from "convex/values";
 import {
+  toolAvailableForProfile,
   toolAnnotationsForProfile,
+  toolDescriptionForProfile,
   type AnnotationProfile,
 } from "@/lib/mcp-annotation-profile";
 
@@ -45,7 +47,9 @@ function asAction(ref: unknown): FunctionReference<"action"> {
 }
 
 // ISO date string (or epoch ms) → epoch ms.
-function ms(value: string | number | null | undefined): number | null | undefined {
+function ms(
+  value: string | number | null | undefined,
+): number | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;
   if (typeof value === "number") return value;
@@ -345,8 +349,7 @@ const TOOLS: ToolDef[] = [
     description:
       "My unconsumed assignment, execution-ready, and mention wakes, newest first. Use at session start and after reconnecting so a missed push cannot lose work. Each row includes its authoritative deliveryId, payload, push status, attempts, and error; call acknowledge_wake for each row before fetching current task or collaboration context.",
     shape: {},
-    run: (c, k) =>
-      c.query(asQuery(api.agentApi.listWakeInbox), { apiKey: k }),
+    run: (c, k) => c.query(asQuery(api.agentApi.listWakeInbox), { apiKey: k }),
   },
   {
     name: "heartbeat",
@@ -618,7 +621,10 @@ const TOOLS: ToolDef[] = [
       sprintId: z.string().optional(),
       assignedToMe: z.boolean().optional(),
       includeCompleted: z.boolean().optional(),
-      limit: z.number().optional().describe("max results, default 100, max 500"),
+      limit: z
+        .number()
+        .optional()
+        .describe("max results, default 100, max 500"),
     },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listTasks), { apiKey: k, ...a }),
@@ -810,10 +816,7 @@ const TOOLS: ToolDef[] = [
       startDate: dateArg.optional(),
       dueDate: dateArg.optional(),
       assigneeIds: z.array(z.string()).optional(),
-      requiredCapabilities: z
-        .array(z.string().max(40))
-        .max(10)
-        .optional(),
+      requiredCapabilities: z.array(z.string().max(40)).max(10).optional(),
       parentTaskId: z.string().optional().describe("makes this a subtask"),
       recurrence: z.enum(["daily", "weekly", "monthly"]).optional(),
       sprintId: z.string().optional(),
@@ -917,10 +920,7 @@ const TOOLS: ToolDef[] = [
       startDate: nullableDateArg.optional(),
       dueDate: nullableDateArg.optional(),
       assigneeIds: z.array(z.string()).optional(),
-      requiredCapabilities: z
-        .array(z.string().max(40))
-        .max(10)
-        .optional(),
+      requiredCapabilities: z.array(z.string().max(40)).max(10).optional(),
       recurrence: z.enum(["daily", "weekly", "monthly"]).nullable().optional(),
       sprintId: z.string().nullable().optional(),
       blockedByTaskIds: z.array(z.string()).optional(),
@@ -928,7 +928,9 @@ const TOOLS: ToolDef[] = [
       requiresApproval: z
         .boolean()
         .optional()
-        .describe("true = gate completion behind human approval (only a human can set false)"),
+        .describe(
+          "true = gate completion behind human approval (only a human can set false)",
+        ),
       estimatePoints: z
         .number()
         .nullable()
@@ -973,7 +975,8 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "delete_task",
-    description: "Delete a task (and its subtasks). Prefer completing over deleting.",
+    description:
+      "Delete a task (and its subtasks). Prefer completing over deleting.",
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.deleteTask), { apiKey: k, ...a }),
@@ -988,7 +991,8 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "release_task",
-    description: "Release my claim on a task (e.g. when handing off or pausing).",
+    description:
+      "Release my claim on a task (e.g. when handing off or pausing).",
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.releaseTask), { apiKey: k, ...a }),
@@ -1225,7 +1229,9 @@ const TOOLS: ToolDef[] = [
         .describe(
           "stable caller-generated key for this exact plan, e.g. conversation id + revision",
         ),
-      spaceId: z.string().describe("workspace Space that will own the generated Lists"),
+      spaceId: z
+        .string()
+        .describe("workspace Space that will own the generated Lists"),
       name: z.string().max(120),
       objective: z.string().max(1000),
       sourceContext: z
@@ -1239,12 +1245,16 @@ const TOOLS: ToolDef[] = [
         .array(z.string().max(500))
         .max(25)
         .optional()
-        .describe("explicitly labeled assumptions; never hide guesses in tasks"),
+        .describe(
+          "explicitly labeled assumptions; never hide guesses in tasks",
+        ),
       openQuestions: z
         .array(z.string().max(500))
         .max(25)
         .optional()
-        .describe("unresolved decisions preserved in every workstream's context"),
+        .describe(
+          "unresolved decisions preserved in every workstream's context",
+        ),
       phases: z
         .array(
           z.object({
@@ -1320,7 +1330,11 @@ const TOOLS: ToolDef[] = [
         apiKey: k,
         ...a,
         phases: a.phases.map(
-          (phase: { ref: string; name: string; targetDate?: number | string }) => ({
+          (phase: {
+            ref: string;
+            name: string;
+            targetDate?: number | string;
+          }) => ({
             ...phase,
             targetDate: ms(phase.targetDate) ?? undefined,
           }),
@@ -1684,7 +1698,10 @@ const TOOLS: ToolDef[] = [
       url: z.string().describe("https:// endpoint on my runtime"),
       eventTypes: z.array(z.string()).optional(),
       listId: z.string().optional(),
-      secret: z.string().optional().describe("supply your own or one is generated"),
+      secret: z
+        .string()
+        .optional()
+        .describe("supply your own or one is generated"),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.registerWebhook), {
@@ -1744,8 +1761,7 @@ const TOOLS: ToolDef[] = [
     description:
       "Reusable task blueprints in my scope (standardized ops work: title, checklist, priority, SOP, approval gate). Instantiate one with instantiate_blueprint.",
     shape: {},
-    run: (c, k) =>
-      c.query(asQuery(api.agentApi.listBlueprints), { apiKey: k }),
+    run: (c, k) => c.query(asQuery(api.agentApi.listBlueprints), { apiKey: k }),
   },
   {
     name: "create_blueprint",
@@ -1795,7 +1811,8 @@ const TOOLS: ToolDef[] = [
     name: "get_doc",
     description: "Read a document as plain text.",
     shape: { docId: z.string() },
-    run: (c, k, a) => c.query(asQuery(api.agentApi.getDoc), { apiKey: k, ...a }),
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getDoc), { apiKey: k, ...a }),
   },
   {
     name: "create_doc",
@@ -1904,7 +1921,8 @@ const TOOLS: ToolDef[] = [
   // ── Time tracking ────────────────────────────────────────────────
   {
     name: "log_time",
-    description: "Log time spent on a task (shows up in reports and the task's Time section).",
+    description:
+      "Log time spent on a task (shows up in reports and the task's Time section).",
     shape: {
       taskId: z.string(),
       durationMs: z.number(),
@@ -1973,7 +1991,10 @@ const TOOLS: ToolDef[] = [
       "Automation rules on a list (trigger → action; each row's id field is automationId).",
     shape: { listId: z.string() },
     run: (c, k, a) =>
-      c.query(asQuery(api.agentApi.listAutomationsForList), { apiKey: k, ...a }),
+      c.query(asQuery(api.agentApi.listAutomationsForList), {
+        apiKey: k,
+        ...a,
+      }),
   },
   {
     name: "create_automation",
@@ -2020,7 +2041,10 @@ const TOOLS: ToolDef[] = [
     description: "Delete a list automation rule.",
     shape: { automationId: z.string() },
     run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.deleteAutomation), { apiKey: k, ...a }),
+      c.mutation(asMutation(api.agentApi.deleteAutomation), {
+        apiKey: k,
+        ...a,
+      }),
   },
 
   // ── Templates ────────────────────────────────────────────────────
@@ -2262,9 +2286,7 @@ const TOOLS: ToolDef[] = [
     description:
       "Settle a top-up: submit the base64 X-PAYMENT you built from a buy_credits challenge. Verifies and settles it through the payment facilitator, then credits my wallet. Returns the new balance and the settlement reference. Payments are single-use (replay-protected).",
     shape: {
-      xPayment: z
-        .string()
-        .describe("base64-encoded X-PAYMENT header value"),
+      xPayment: z.string().describe("base64-encoded X-PAYMENT header value"),
       credits: z
         .number()
         .int()
@@ -2279,111 +2301,117 @@ const TOOLS: ToolDef[] = [
 function createOperateMcpHandler(profile: AnnotationProfile) {
   return createMcpHandler(
     (server) => {
-    // Skills double as MCP resources (skill://<slug>) so clients that
-    // prefer resource imports over tool calls can pull playbooks directly.
-    server.resource(
-      "skills",
-      new ResourceTemplate("skill://{slug}", {
-        list: async (extra) => {
-          const apiKey = extra.authInfo?.token;
-          if (!apiKey) return { resources: [] };
-          try {
-            const skills = (await convexClient().query(
-              asQuery(api.agentApi.listSkills),
-              { apiKey },
-            )) as { slug: string; name: string; description: string }[];
-            return {
-              resources: skills.map((sk) => ({
-                uri: `skill://${sk.slug}`,
-                name: sk.name,
-                description: sk.description,
-                mimeType: "text/markdown",
-              })),
-            };
-          } catch {
-            return { resources: [] };
-          }
-        },
-      }),
-      async (uri, variables, extra) => {
-        const apiKey = extra.authInfo?.token;
-        if (!apiKey) throw new Error("Missing API key");
-        const skill = (await convexClient().query(
-          asQuery(api.agentApi.getSkill),
-          { apiKey, slug: String(variables.slug) },
-        )) as { content: string } | null;
-        if (!skill) throw new Error(`Unknown skill: ${variables.slug}`);
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              mimeType: "text/markdown",
-              text: skill.content,
-            },
-          ],
-        };
-      },
-    );
-
-    for (const tool of TOOLS) {
-      server.registerTool(
-        tool.name,
-        {
-          description: tool.description,
-          inputSchema: tool.shape,
-          // A stable envelope lets modern clients consume structured results
-          // without pretending every heterogeneous Operate response has the
-          // same domain shape. Compact text remains for older MCP clients.
-          outputSchema: {
-            result: z.unknown().describe("The tool's JSON-compatible result"),
-          },
-          annotations: annotationsFor(tool.name, profile),
-        },
-        async (args, extra) => {
-          const apiKey = extra.authInfo?.token;
-          if (!apiKey) {
-            return {
-              content: [
-                { type: "text" as const, text: "Error: missing API key" },
-              ],
-              isError: true,
-            };
-          }
-          try {
-            const result = await tool.run(convexClient(), apiKey, args);
-            const normalizedResult = result ?? { ok: true };
-            return {
-              content: [
-                {
-                  type: "text" as const,
-                  // Compact on purpose: pretty-printing roughly doubles the
-                  // token cost of every list-shaped response.
-                  text: JSON.stringify(normalizedResult),
-                },
-              ],
-              structuredContent: { result: normalizedResult },
-            };
-          } catch (err) {
-            // ConvexError.data survives production redaction (plain Error
-            // messages become "Server Error" on the wire) — surface it so
-            // refusal messages and the x402 challenge reach the agent intact.
-            let message: string;
-            if (err instanceof ConvexError) {
-              message =
-                typeof err.data === "string"
-                  ? err.data
-                  : JSON.stringify(err.data);
-            } else {
-              message = err instanceof Error ? err.message : String(err);
+      // Skills double as MCP resources (skill://<slug>) so clients that
+      // prefer resource imports over tool calls can pull playbooks directly.
+      server.resource(
+        "skills",
+        new ResourceTemplate("skill://{slug}", {
+          list: async (extra) => {
+            const apiKey = extra.authInfo?.token;
+            if (!apiKey) return { resources: [] };
+            try {
+              const skills = (await convexClient().query(
+                asQuery(api.agentApi.listSkills),
+                { apiKey },
+              )) as { slug: string; name: string; description: string }[];
+              return {
+                resources: skills.map((sk) => ({
+                  uri: `skill://${sk.slug}`,
+                  name: sk.name,
+                  description: sk.description,
+                  mimeType: "text/markdown",
+                })),
+              };
+            } catch {
+              return { resources: [] };
             }
-            return {
-              content: [{ type: "text" as const, text: `Error: ${message}` }],
-              isError: true,
-            };
-          }
+          },
+        }),
+        async (uri, variables, extra) => {
+          const apiKey = extra.authInfo?.token;
+          if (!apiKey) throw new Error("Missing API key");
+          const skill = (await convexClient().query(
+            asQuery(api.agentApi.getSkill),
+            { apiKey, slug: String(variables.slug) },
+          )) as { content: string } | null;
+          if (!skill) throw new Error(`Unknown skill: ${variables.slug}`);
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                mimeType: "text/markdown",
+                text: skill.content,
+              },
+            ],
+          };
         },
       );
-    }
+
+      for (const tool of TOOLS.filter((candidate) =>
+        toolAvailableForProfile(candidate.name, profile),
+      )) {
+        server.registerTool(
+          tool.name,
+          {
+            description: toolDescriptionForProfile(
+              tool.name,
+              tool.description,
+              profile,
+            ),
+            inputSchema: tool.shape,
+            // A stable envelope lets modern clients consume structured results
+            // without pretending every heterogeneous Operate response has the
+            // same domain shape. Compact text remains for older MCP clients.
+            outputSchema: {
+              result: z.unknown().describe("The tool's JSON-compatible result"),
+            },
+            annotations: annotationsFor(tool.name, profile),
+          },
+          async (args, extra) => {
+            const apiKey = extra.authInfo?.token;
+            if (!apiKey) {
+              return {
+                content: [
+                  { type: "text" as const, text: "Error: missing API key" },
+                ],
+                isError: true,
+              };
+            }
+            try {
+              const result = await tool.run(convexClient(), apiKey, args);
+              const normalizedResult = result ?? { ok: true };
+              return {
+                content: [
+                  {
+                    type: "text" as const,
+                    // Compact on purpose: pretty-printing roughly doubles the
+                    // token cost of every list-shaped response.
+                    text: JSON.stringify(normalizedResult),
+                  },
+                ],
+                structuredContent: { result: normalizedResult },
+              };
+            } catch (err) {
+              // ConvexError.data survives production redaction (plain Error
+              // messages become "Server Error" on the wire) — surface it so
+              // refusal messages and the x402 challenge reach the agent intact.
+              let message: string;
+              if (err instanceof ConvexError) {
+                message =
+                  typeof err.data === "string"
+                    ? err.data
+                    : JSON.stringify(err.data);
+              } else {
+                message = err instanceof Error ? err.message : String(err);
+              }
+              return {
+                content: [{ type: "text" as const, text: `Error: ${message}` }],
+                isError: true,
+              };
+            }
+          },
+        );
+      }
     },
     {
       serverInfo: { name: "operate-agents", version: "1.0.0" },
@@ -2409,9 +2437,12 @@ const authHandler = withMcpAuth(
   async (_req, bearerToken) => {
     if (!bearerToken) return undefined;
     try {
-      const me = await convexClient().mutation(asMutation(api.agentApi.connect), {
-        apiKey: bearerToken,
-      });
+      const me = await convexClient().mutation(
+        asMutation(api.agentApi.connect),
+        {
+          apiKey: bearerToken,
+        },
+      );
       return {
         token: bearerToken,
         clientId: (me as { agentId: string }).agentId,
@@ -2428,9 +2459,12 @@ const anthropicAuthHandler = withMcpAuth(
   async (_req, bearerToken) => {
     if (!bearerToken) return undefined;
     try {
-      const me = await convexClient().mutation(asMutation(api.agentApi.connect), {
-        apiKey: bearerToken,
-      });
+      const me = await convexClient().mutation(
+        asMutation(api.agentApi.connect),
+        {
+          apiKey: bearerToken,
+        },
+      );
       return {
         token: bearerToken,
         clientId: (me as { agentId: string }).agentId,
@@ -2528,4 +2562,9 @@ function options(req: Request) {
   return withCors(req, new Response(null, { status: 204 }));
 }
 
-export { guarded as GET, guarded as POST, guarded as DELETE, options as OPTIONS };
+export {
+  guarded as GET,
+  guarded as POST,
+  guarded as DELETE,
+  options as OPTIONS,
+};

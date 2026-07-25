@@ -98,7 +98,7 @@ only after automated checks and relevant production behavior both pass.
 - Seven curl-installable skills with retries and SHA-256 verification
 - Completed agent work clears its matching current-task and activity text,
   preventing stale “Now” presence after success
-- Local production build, typecheck, lint, plugin validation, and 329 tests
+- Local production build, typecheck, lint, plugin validation, and 331 tests
 - Disposable production MCP mutation certification: List create/rename/metadata,
   two-task parent/dependency batch, task update/checklist, comment
   create/update/delete, schedule create/pause/resume/delete, readback/event
@@ -133,6 +133,15 @@ only after automated checks and relevant production behavior both pass.
 
 ## Active production certifications
 
+- Public connector submission compliance (validated locally 2026-07-25):
+  OpenAI's profile retains all 140 tools, while Anthropic's directory profile
+  advertises 138. The Claude profile omits only `buy_credits` and
+  `settle_payment` to comply with Anthropic's prohibition on software that
+  initiates or executes financial transactions; `get_wallet` remains available
+  with read-only, profile-specific wording. Every advertised tool retains
+  explicit safety annotations and structured output. Typecheck, lint, plugin
+  validation, and all 331 tests pass. Production endpoint and browser proof
+  remain required before either submission bundle is promoted to proven.
 - x402 billing truthfulness audit (validated 2026-07-25): the production MCP
   host exposes `get_wallet`, `buy_credits`, and `settle_payment`; wallet reads,
   positive-integer input validation, unauthenticated rejection, and

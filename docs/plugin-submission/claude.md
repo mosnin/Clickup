@@ -44,7 +44,7 @@ Expected: Claude reads the execution ledger, preserves failure evidence, and cre
 
 ## Security annotations
 
-Every advertised tool declares a human-readable title plus explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint`. The Claude endpoint marks every state-changing tool destructive, as required by Anthropic’s directory policy, while external webhooks and payments are also marked open-world. Server-side authorization, validation, budgets, approvals, and idempotency remain enforced independently of host hints.
+Every advertised tool declares a human-readable title plus explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint`. The Claude endpoint marks every state-changing tool destructive, as required by Anthropic’s directory policy. It deliberately omits `buy_credits` and `settle_payment` because the Software Directory Policy excludes connectors that initiate or execute cryptocurrency or financial transactions; `get_wallet` remains available for read-only billing visibility. External webhook registration is marked open-world. Server-side authorization, validation, budgets, approvals, and idempotency remain enforced independently of host hints.
 
 ## Reviewer setup
 
