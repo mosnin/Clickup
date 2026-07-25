@@ -27,6 +27,11 @@ only after automated checks and relevant production behavior both pass.
 - Isolated schedule failures, threshold auto-pause, and owner/admin escalation
 - Seven curl-installable skills with retries and SHA-256 verification
 - Local production build, typecheck, lint, plugin validation, and 319 tests
+- Disposable production MCP mutation certification: List create/rename/metadata,
+  two-task parent/dependency batch, task update/checklist, comment
+  create/update/delete, schedule create/pause/resume/delete, readback/event
+  verification, task deletion, and List deletion (21 operations; zero
+  certification artifacts remained)
 
 ## Built but not yet proven end to end
 
@@ -37,28 +42,25 @@ only after automated checks and relevant production behavior both pass.
 - x402 metering and billing lifecycle
 - Recurring schedule materialization through a real production cron tick
 - Multi-agent production run with two or more independent runtimes
-- Full create/update/delete MCP mutation matrix in a disposable production Space
 
 ## Still required
 
-1. Run a disposable production certification workspace through all high-risk MCP
-   mutations, verify UI state, then remove only the test data.
-2. Prove a real multi-agent plan: compile, authorize, dispatch in parallel,
+1. Prove a real multi-agent plan: compile, authorize, dispatch in parallel,
    consume wakes, claim, heartbeat, produce evidence, and independently verify.
-3. Prove production cron materialization and schedule failure recovery on the
+2. Prove production cron materialization and schedule failure recovery on the
    clock rather than only through tests.
-4. Complete OAuth, webhook, and billing production certification.
-5. Run a systematic browser pass over onboarding, home, inbox, Spaces, Lists,
+3. Complete OAuth, webhook, and billing production certification.
+4. Run a systematic browser pass over onboarding, home, inbox, Spaces, Lists,
    task detail, views, sprints, roadmaps, operations, agents, templates, search,
    settings, responsive layouts, keyboard navigation, and failure states.
-6. Add external uptime/error alerting; the health endpoint and Vercel log scan
+5. Add external uptime/error alerting; the health endpoint and Vercel log scan
    exist, but no independent monitor currently pages an operator.
-7. Run security review: exposed-key rotation, authorization matrix, rate limits,
+6. Run security review: exposed-key rotation, authorization matrix, rate limits,
    SSRF/webhook boundaries, OAuth redirect validation, secret handling, and
    dependency scan.
-8. Run load/performance, backup/restore, data-retention, and disaster-recovery
+7. Run load/performance, backup/restore, data-retention, and disaster-recovery
    exercises.
-9. Upload the ChatGPT and Claude bundles for official review and address reviewer
+8. Upload the ChatGPT and Claude bundles for official review and address reviewer
    feedback. Platform approval itself is external and cannot be proven locally.
 
 ## Deployment policy
