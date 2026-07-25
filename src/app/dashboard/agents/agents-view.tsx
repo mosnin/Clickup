@@ -1273,11 +1273,13 @@ function WebhooksTab() {
             className="rounded-full border border-border bg-background px-3 py-1.5 text-sm"
           >
             <option value="personal">Personal space</option>
-            {(agents?.workspaces ?? []).map((w) => (
-              <option key={w.workspaceId} value={w.workspaceId}>
-                {w.workspaceName}
-              </option>
-            ))}
+            {(agents?.workspaces ?? [])
+              .filter((w) => w.canManageAgents)
+              .map((w) => (
+                <option key={w.workspaceId} value={w.workspaceId}>
+                  {w.workspaceName}
+                </option>
+              ))}
           </select>
         </label>
         <label className="block min-w-44">

@@ -6,6 +6,8 @@ import type { Id } from "../convex/_generated/dataModel";
 
 const modules = import.meta.glob("../convex/**/*.*s");
 const OWNER = { subject: "user_webhook_owner", email: "hooks@example.com" };
+const ADMIN = { subject: "user_webhook_admin" };
+const MEMBER = { subject: "user_webhook_member" };
 
 async function seedSubscription(t: ReturnType<typeof convexTest>) {
   const owner = t.withIdentity(OWNER);
@@ -137,5 +139,81 @@ describe("webhooks", () => {
       failureCount: 0,
     });
     expect(subscription?.disabledAt).toBeUndefined();
+  });
+
+  it("limits workspace event forwarding to owners and admins", async () => {
+    const t = convexTest(schema, modules);
+    const { workspaceId, subscriptionId } = await t.run(async (ctx) => {
+      const workspaceId = await ctx.db.insert("workspaces", {
+        name: "Webhook Security",
+        slug: "webhook-security",
+        ownerClerkId: OWNER.subject,
+        createdAt: Date.now(),
+      });
+      for (const [userClerkId, role] of [
+        [OWNER.subject, "owner"],
+        [ADMIN.subject, "admin"],
+        [MEMBER.subject, "member"],
+      ] as const) {
+        await ctx.db.insert("memberships", {
+          workspaceId,
+          userClerkId,
+          role,
+          joinedAt: Date.now(),
+        });
+      }
+      const subscriptionId = await ctx.db.insert("webhookSubscriptions", {
+        scopeType: "workspace",
+        scopeId: workspaceId,
+        url: "https://hooks.example.com/workspace",
+        secret: "whsec_workspace",
+        eventTypes: [],
+        ownerType: "user",
+        ownerId: OWNER.subject,
+        enabled: true,
+        failureCount: 0,
+        createdAt: Date.now(),
+      });
+      return { workspaceId, subscriptionId };
+    });
+    const owner = t.withIdentity(OWNER);
+    const admin = t.withIdentity(ADMIN);
+    const member = t.withIdentity(MEMBER);
+
+    const ownerVisible = await owner.query(api.webhooks.listForCurrentUser, {});
+    expect(ownerVisible).toHaveLength(1);
+    expect(ownerVisible[0]).not.toHaveProperty("secret");
+    expect(await admin.query(api.webhooks.listForCurrentUser, {})).toHaveLength(
+      1,
+    );
+    expect(await member.query(api.webhooks.listForCurrentUser, {})).toEqual([]);
+
+    await expect(
+      member.mutation(api.webhooks.create, {
+        scopeType: "workspace",
+        scopeId: workspaceId,
+        url: "https://attacker.example.com/exfiltrate",
+        eventTypes: [],
+      }),
+    ).rejects.toThrow(/only workspace owners and admins/i);
+    await expect(
+      member.mutation(api.webhooks.update, {
+        subscriptionId,
+        enabled: false,
+      }),
+    ).rejects.toThrow(/only workspace owners and admins/i);
+    await expect(
+      member.mutation(api.webhooks.remove, { subscriptionId }),
+    ).rejects.toThrow(/only workspace owners and admins/i);
+    expect(
+      await member.query(api.webhooks.recentDeliveries, { subscriptionId }),
+    ).toEqual([]);
+
+    await admin.mutation(api.webhooks.update, {
+      subscriptionId,
+      enabled: false,
+    });
+    const updated = await t.run((ctx) => ctx.db.get(subscriptionId));
+    expect(updated?.enabled).toBe(false);
   });
 });

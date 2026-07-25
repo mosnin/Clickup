@@ -51,15 +51,20 @@ export function WorkspaceSettings({
 }: {
   workspaceId: Id<"workspaces">;
 }) {
-  const integrations = useQuery(api.integrations.listForWorkspace, {
-    workspaceId,
-  });
+  const { user } = useUser();
+  const members = useQuery(api.workspaces.listMembers, { workspaceId });
+  const myRole = members?.find((member) => member.clerkId === user?.id)?.role;
+  const canManageIntegrations = myRole === "owner" || myRole === "admin";
+  const integrations = useQuery(
+    api.integrations.listForWorkspace,
+    canManageIntegrations ? { workspaceId } : "skip",
+  );
 
-  if (integrations === undefined) {
+  if (members === undefined || (canManageIntegrations && integrations === undefined)) {
     return <Card className="h-32 animate-pulse bg-muted/40" />;
   }
 
-  const slack = integrations.find((i) => i.kind === "slack") ?? null;
+  const slack = integrations?.find((i) => i.kind === "slack") ?? null;
 
   return (
     <div className="space-y-8">
@@ -77,10 +82,13 @@ export function WorkspaceSettings({
           Workspace owners and admins can connect external services here.
         </p>
         <div className="mt-4">
-          <SlackIntegration
-            workspaceId={workspaceId}
-            integration={slack}
-          />
+          {canManageIntegrations ? (
+            <SlackIntegration workspaceId={workspaceId} integration={slack} />
+          ) : (
+            <Card className="p-5 text-sm text-muted-foreground">
+              An owner or admin manages workspace integrations.
+            </Card>
+          )}
         </div>
       </section>
 
@@ -821,7 +829,9 @@ function SlackIntegration({
   integration,
 }: {
   workspaceId: Id<"workspaces">;
-  integration: Doc<"integrations"> | null;
+  integration:
+    | Omit<Doc<"integrations">, "config">
+    | null;
 }) {
   const upsert = useMutation(api.integrations.upsertSlack);
   const setEnabled = useMutation(api.integrations.setEnabled);
