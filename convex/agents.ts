@@ -21,17 +21,24 @@ const scopeValidator = {
   parentId: v.string(),
 };
 
-// The caller can manage agents in a scope when the scope is their own
-// personal space or a workspace they belong to.
+function publicAgent(agent: Doc<"agents">): Omit<Doc<"agents">, "notifySecret"> {
+  const { notifySecret: _secret, ...safeAgent } = agent;
+  return safeAgent;
+}
+
+// Every workspace member may see the fleet and its operational state.
+// Persistent credential and governance changes are stricter: only owners and
+// admins may manage workspace agents. Personal agents remain self-managed.
 async function requireScopeAccess(
   ctx: QueryCtx | MutationCtx,
   parentType: "user" | "workspace",
   parentId: string,
-): Promise<{ subject: string }> {
+  mode: "read" | "manage",
+): Promise<{ subject: string; canManage: boolean }> {
   const identity = await requireIdentity(ctx);
   if (parentType === "user") {
     if (parentId !== identity.subject) throw new ConvexError("Forbidden");
-    return identity;
+    return { ...identity, canManage: true };
   }
   const membership = await ctx.db
     .query("memberships")
@@ -42,7 +49,33 @@ async function requireScopeAccess(
     )
     .unique();
   if (!membership) throw new ConvexError("Forbidden");
-  return identity;
+  const canManage =
+    membership.role === "owner" || membership.role === "admin";
+  if (mode === "manage" && !canManage) {
+    throw new ConvexError(
+      "Only workspace owners and admins can manage agents",
+    );
+  }
+  return { ...identity, canManage };
+}
+
+async function requireAgentReadAccess(
+  ctx: QueryCtx | MutationCtx,
+  agentId: Id<"agents">,
+): Promise<{
+  agent: Doc<"agents">;
+  subject: string;
+  canManage: boolean;
+}> {
+  const agent = await ctx.db.get(agentId);
+  if (!agent) throw new ConvexError("Agent not found");
+  const identity = await requireScopeAccess(
+    ctx,
+    agent.parentType,
+    agent.parentId,
+    "read",
+  );
+  return { agent, ...identity };
 }
 
 async function requireAgentManageAccess(
@@ -55,6 +88,7 @@ async function requireAgentManageAccess(
     ctx,
     agent.parentType,
     agent.parentId,
+    "manage",
   );
   return { agent, subject: identity.subject };
 }
@@ -152,12 +186,14 @@ export const listForCurrentUser = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
 
-    const personal = await ctx.db
+    const personal = (
+      await ctx.db
       .query("agents")
       .withIndex("by_parent", (q) =>
         q.eq("parentType", "user").eq("parentId", identity.subject),
       )
-      .collect();
+      .collect()
+    ).map(publicAgent);
 
     const memberships = await ctx.db
       .query("memberships")
@@ -167,15 +203,18 @@ export const listForCurrentUser = query({
     for (const m of memberships) {
       const ws = await ctx.db.get(m.workspaceId);
       if (!ws) continue;
-      const agents = await ctx.db
+      const agents = (
+        await ctx.db
         .query("agents")
         .withIndex("by_parent", (q) =>
           q.eq("parentType", "workspace").eq("parentId", m.workspaceId),
         )
-        .collect();
+        .collect()
+      ).map(publicAgent);
       workspaces.push({
         workspaceId: m.workspaceId,
         workspaceName: ws.name,
+        canManageAgents: m.role === "owner" || m.role === "admin",
         agents,
       });
     }
@@ -210,8 +249,9 @@ export const detail = query({
   args: { agentId: v.id("agents") },
   handler: async (ctx, { agentId }) => {
     let agent;
+    let canManage;
     try {
-      ({ agent } = await requireAgentManageAccess(ctx, agentId));
+      ({ agent, canManage } = await requireAgentReadAccess(ctx, agentId));
     } catch {
       return null;
     }
@@ -292,7 +332,9 @@ export const detail = query({
     }
 
     return {
-      agent,
+      agent: publicAgent(agent),
+      canManage,
+      hasNotifySecret: Boolean(agent.notifySecret),
       runs,
       usageToday: usage?.count ?? 0,
       usageLimit: agent.dailyActionLimit ?? DEFAULT_DAILY_ACTION_LIMIT,
@@ -407,7 +449,7 @@ export const stats = query({
   args: { agentId: v.id("agents") },
   handler: async (ctx, { agentId }) => {
     try {
-      await requireAgentManageAccess(ctx, agentId);
+      await requireAgentReadAccess(ctx, agentId);
     } catch {
       return null;
     }
@@ -515,6 +557,7 @@ export const create = mutation({
       ctx,
       args.parentType,
       args.parentId,
+      "manage",
     );
     if (!args.name.trim()) throw new ConvexError("Agent name is required");
     const capabilities = normalizeCapabilities(

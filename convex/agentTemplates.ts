@@ -109,8 +109,9 @@ export const listTemplates = query({
   handler: async () => AGENT_TEMPLATES,
 });
 
-// Create an agent from a template with its preset governance. Access is
-// the same as agents.create (own personal space or a member workspace).
+// Create an agent from a template with its preset governance. Personal agents
+// are self-managed; workspace agents require owner/admin access, matching
+// direct creation and key management in agents.ts.
 export const createFromTemplate = mutation({
   args: {
     slug: v.string(),
@@ -120,8 +121,8 @@ export const createFromTemplate = mutation({
   },
   handler: async (ctx, { slug, parentType, parentId, nameOverride }) => {
     const identity = await requireIdentity(ctx);
-    // Scope check: personal space must be the caller's; workspace requires
-    // membership.
+    // Scope check: personal space must be the caller's; workspace agent
+    // credentials and governance are limited to owners/admins.
     if (parentType === "user") {
       if (parentId !== identity.subject) throw new ConvexError("Forbidden");
     } else {
@@ -133,7 +134,14 @@ export const createFromTemplate = mutation({
             .eq("workspaceId", parentId as Id<"workspaces">),
         )
         .unique();
-      if (!membership) throw new ConvexError("Forbidden");
+      if (
+        !membership ||
+        (membership.role !== "owner" && membership.role !== "admin")
+      ) {
+        throw new ConvexError(
+          "Only workspace owners and admins can manage agents",
+        );
+      }
     }
 
     const tpl = AGENT_TEMPLATES.find((t) => t.slug === slug);

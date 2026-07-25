@@ -102,6 +102,8 @@ export function AgentDetail({ agentId }: { agentId: string }) {
     deliveries,
     claimed,
     assigned,
+    canManage,
+    hasNotifySecret,
   } = detail;
   const presence = agentPresence(agent, now);
   const statusLabel =
@@ -166,11 +168,24 @@ export function AgentDetail({ agentId }: { agentId: string }) {
 
       {stats && <StatsRow stats={stats} />}
 
-      <GovernancePanel
-        agent={agent}
-        usageToday={usageToday}
-        usageLimit={usageLimit}
-      />
+      {canManage ? (
+        <GovernancePanel
+          agent={agent}
+          usageToday={usageToday}
+          usageLimit={usageLimit}
+          hasNotifySecret={hasNotifySecret}
+        />
+      ) : (
+        <section className="rounded-2xl panel p-4">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Governance
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Workspace owners and admins manage this agent&apos;s role, limits,
+            credentials, and runtime connection.
+          </p>
+        </section>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section>
@@ -506,10 +521,12 @@ function GovernancePanel({
   agent,
   usageToday,
   usageLimit,
+  hasNotifySecret,
 }: {
   agent: Doc<"agents">;
   usageToday: number;
   usageLimit: number;
+  hasNotifySecret: boolean;
 }) {
   const update = useMutation(api.agents.update);
   const { toast } = useToast();
@@ -662,13 +679,13 @@ function GovernancePanel({
                 }
               }}
               placeholder={
-                agent.notifySecret
+                hasNotifySecret
                   ? "Secret set. Type to replace it."
                   : "Add a secret to sign pings"
               }
               className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
             />
-            {agent.notifySecret && (
+            {hasNotifySecret && (
               <button
                 type="button"
                 onClick={() =>

@@ -260,10 +260,12 @@ function AgentsTab({
             className="overflow-hidden"
           >
             <TemplateGallery
-              workspaces={data.workspaces.map((w) => ({
-                id: w.workspaceId,
-                name: w.workspaceName,
-              }))}
+              workspaces={data.workspaces
+                .filter((w) => w.canManageAgents)
+                .map((w) => ({
+                  id: w.workspaceId,
+                  name: w.workspaceName,
+                }))}
               onDone={() => setTemplating(false)}
             />
           </motion.div>
@@ -272,10 +274,12 @@ function AgentsTab({
 
       {creating && (
         <CreateAgentForm
-          workspaces={data.workspaces.map((w) => ({
-            id: w.workspaceId,
-            name: w.workspaceName,
-          }))}
+          workspaces={data.workspaces
+            .filter((w) => w.canManageAgents)
+            .map((w) => ({
+              id: w.workspaceId,
+              name: w.workspaceName,
+            }))}
           onDone={() => setCreating(false)}
         />
       )}
@@ -284,6 +288,7 @@ function AgentsTab({
         label="Personal space"
         agents={data.personal}
         taskTitles={taskTitles ?? {}}
+        canManage
       />
       {data.workspaces.map((w) => (
         <AgentGroup
@@ -291,6 +296,7 @@ function AgentsTab({
           label={w.workspaceName}
           agents={w.agents}
           taskTitles={taskTitles ?? {}}
+          canManage={w.canManageAgents}
         />
       ))}
     </div>
@@ -761,21 +767,34 @@ function AgentGroup({
   label,
   agents,
   taskTitles,
+  canManage,
 }: {
   label: string;
   agents: Doc<"agents">[];
   taskTitles: Record<string, string>;
+  canManage: boolean;
 }) {
   if (agents.length === 0) return null;
   return (
     <section>
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </h3>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </h3>
+        {!canManage && (
+          <span className="text-xs text-muted-foreground">
+            Owners and admins manage access
+          </span>
+        )}
+      </div>
       <Stagger className="grid gap-3 lg:grid-cols-2">
         {agents.map((agent) => (
           <StaggerItem key={agent._id}>
-            <AgentCard agent={agent} taskTitles={taskTitles} />
+            <AgentCard
+              agent={agent}
+              taskTitles={taskTitles}
+              canManage={canManage}
+            />
           </StaggerItem>
         ))}
       </Stagger>
@@ -786,9 +805,11 @@ function AgentGroup({
 function AgentCard({
   agent,
   taskTitles,
+  canManage,
 }: {
   agent: Doc<"agents">;
   taskTitles: Record<string, string>;
+  canManage: boolean;
 }) {
   const now = usePresenceClock();
   const update = useMutation(api.agents.update);
@@ -862,47 +883,49 @@ function AgentCard({
             </p>
           )}
         </div>
-        <div className="flex flex-shrink-0 items-center gap-1">
-          <button
-            type="button"
-            title={agent.status === "active" ? "Pause agent" : "Resume agent"}
-            onClick={() =>
-              update({
-                agentId: agent._id,
-                status: agent.status === "active" ? "paused" : "active",
-              })
-            }
-            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            {agent.status === "active" ? (
-              <Pause className="h-3.5 w-3.5" />
-            ) : (
-              <Play className="h-3.5 w-3.5" />
-            )}
-          </button>
-          <button
-            type="button"
-            title="API keys"
-            onClick={() => setShowKeys((v) => !v)}
-            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <KeyRound className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            title="Delete agent"
-            onClick={() => {
-              setDeleting(true);
-              toast(`${agent.name} deleted, keys stop working`, {
-                action: { label: "Undo", onClick: () => setDeleting(false) },
-                onExpire: () => remove({ agentId: agent._id }),
-              });
-            }}
-            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        {canManage && (
+          <div className="flex flex-shrink-0 items-center gap-1">
+            <button
+              type="button"
+              title={agent.status === "active" ? "Pause agent" : "Resume agent"}
+              onClick={() =>
+                update({
+                  agentId: agent._id,
+                  status: agent.status === "active" ? "paused" : "active",
+                })
+              }
+              className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              {agent.status === "active" ? (
+                <Pause className="h-3.5 w-3.5" />
+              ) : (
+                <Play className="h-3.5 w-3.5" />
+              )}
+            </button>
+            <button
+              type="button"
+              title="API keys"
+              onClick={() => setShowKeys((v) => !v)}
+              className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              title="Delete agent"
+              onClick={() => {
+                setDeleting(true);
+                toast(`${agent.name} deleted, keys stop working`, {
+                  action: { label: "Undo", onClick: () => setDeleting(false) },
+                  onExpire: () => remove({ agentId: agent._id }),
+                });
+              }}
+              className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
       </div>
       <AnimatePresence initial={false}>
         {showKeys && (
