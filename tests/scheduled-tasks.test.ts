@@ -65,7 +65,7 @@ describe("computeNextRunAt", () => {
 
   it("materializes hourly agent work into the durable wake inbox", async () => {
     const t = convexTest(schema, modules);
-    const { workspaceId, agentId } = await t.run(async (ctx) => {
+    const { workspaceId, agentId, blueprintId } = await t.run(async (ctx) => {
       await ctx.db.insert("users", {
         clerkId: OWNER.subject,
         email: OWNER.email,
@@ -96,7 +96,28 @@ describe("computeNextRunAt", () => {
         keyPrefix: "cua_hour",
         createdAt: Date.now(),
       });
-      return { workspaceId: wsId, agentId: workerId };
+      const bpId = await ctx.db.insert("taskBlueprints", {
+        scopeType: "workspace",
+        scopeId: wsId,
+        name: "Agent health SOP",
+        title: "Inspect agent health",
+        description: "Verify presence, wake consumption, and stalled work.",
+        priority: "high",
+        checklist: [
+          "Review presence",
+          "Review unconsumed wakes",
+          "Escalate stale work",
+        ],
+        estimatePoints: 1,
+        requiresApproval: true,
+        createdByActorId: OWNER.subject,
+        createdAt: Date.now(),
+      });
+      return {
+        workspaceId: wsId,
+        agentId: workerId,
+        blueprintId: bpId,
+      };
     });
     const spaceId = await t.withIdentity(OWNER).mutation(api.spaces.create, {
       name: "Operations",
@@ -108,14 +129,37 @@ describe("computeNextRunAt", () => {
       parentType: "space",
       parentId: spaceId,
     });
-    const scheduledTaskId = await t
-      .withIdentity(OWNER)
-      .mutation(api.scheduledTasks.create, {
+    const foreignBlueprintId = await t.run(async (ctx) => {
+      return await ctx.db.insert("taskBlueprints", {
+        scopeType: "user",
+        scopeId: "someone_else",
+        name: "Foreign SOP",
+        title: "Should not run",
+        checklist: [],
+        createdByActorId: "someone_else",
+        createdAt: Date.now(),
+      });
+    });
+    await expect(
+      t.mutation(api.agentApi.createScheduledTask, {
+        apiKey: "cua_hourly_operator",
         listId,
-        title: "Inspect agent health",
+        title: "invalid",
+        cadence: "hourly",
+        blueprintId: foreignBlueprintId,
+      }),
+    ).rejects.toThrow(/blueprint not found/i);
+    const scheduledTaskId = await t.mutation(
+      api.agentApi.createScheduledTask,
+      {
+        apiKey: "cua_hourly_operator",
+        listId,
+        title: "fallback title",
         assigneeIds: [agentId],
         cadence: "hourly",
-      });
+        blueprintId,
+      },
+    );
     await t.run(async (ctx) => {
       await ctx.db.patch(scheduledTaskId, { nextRunAt: Date.now() - 1 });
     });
@@ -129,7 +173,16 @@ describe("computeNextRunAt", () => {
     expect(tasks[0]).toMatchObject({
       title: "Inspect agent health",
       assigneeClerkIds: [agentId],
+      description: "Verify presence, wake consumption, and stalled work.",
+      priority: "high",
+      estimatePoints: 1,
+      requiresApproval: true,
     });
+    expect(tasks[0].checklist?.map((item) => item.text)).toEqual([
+      "Review presence",
+      "Review unconsumed wakes",
+      "Escalate stale work",
+    ]);
     expect(
       await t.query(api.agentApi.listWakeInbox, {
         apiKey: "cua_hourly_operator",

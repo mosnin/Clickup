@@ -1621,6 +1621,12 @@ const TOOLS: ToolDef[] = [
       dayOfMonth: z.number().min(1).max(28).optional(),
       hourUtc: z.number().min(0).max(23).optional(),
       dueInDays: z.number().optional(),
+      blueprintId: z
+        .string()
+        .optional()
+        .describe(
+          "optional reusable SOP from list_blueprints; supplies the materialized task's full controlled shape",
+        ),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.createScheduledTask), {

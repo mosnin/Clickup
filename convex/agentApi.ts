@@ -2045,10 +2045,21 @@ export const createScheduledTask = mutation({
     dayOfMonth: v.optional(v.number()),
     hourUtc: v.optional(v.number()),
     dueInDays: v.optional(v.number()),
+    blueprintId: v.optional(v.id("taskBlueprints")),
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     await requireListAccessForAgent(ctx, args.listId, agent);
+    if (args.blueprintId) {
+      const blueprint = await ctx.db.get(args.blueprintId);
+      if (
+        !blueprint ||
+        blueprint.scopeType !== agent.parentType ||
+        blueprint.scopeId !== agent.parentId
+      ) {
+        throw new ConvexError("Blueprint not found in your scope");
+      }
+    }
     const { apiKey: _apiKey, ...rest } = args;
     return await createScheduledTaskCore(ctx, rest, agentActor(agent));
   },
