@@ -152,6 +152,8 @@ const READ_TOOLS = new Set([
   "get_sprint_board",
   "get_sprint_planning",
   "get_roadmaps",
+  "list_execution_plans",
+  "get_execution_plan",
   "list_scheduled_tasks",
   "list_events",
   "list_webhooks",
@@ -191,6 +193,7 @@ const DESTRUCTIVE_TOOLS = new Set([
   "delete_milestone",
 ]);
 const IDEMPOTENT_TOOLS = new Set([
+  "create_execution_plan",
   "heartbeat",
   "acknowledge_task_context",
   "update_task",
@@ -1034,6 +1037,145 @@ const TOOLS: ToolDef[] = [
 
   // ── Roadmaps ─────────────────────────────────────────────────────
   {
+    name: "create_execution_plan",
+    description:
+      "Atomically compile one conversation/brief into an auditable execution system: a phased roadmap, 1-12 projects, up to 100 tasks/subtasks, cross-project dependencies, assignments, and a versioned operating brief attached to every task. The immutable plan manifest preserves source context, success criteria, assumptions, open questions, and every generated id. Reuse the same idempotencyKey to retry safely; changing the plan requires a new key. All refs are local handles: dependencies within a project use task refs, cross-project dependencies use projectRef.taskRef. The entire call commits or rolls back together.",
+    shape: {
+      idempotencyKey: z
+        .string()
+        .max(120)
+        .describe(
+          "stable caller-generated key for this exact plan, e.g. conversation id + revision",
+        ),
+      spaceId: z.string().describe("workspace Space that will own the projects"),
+      name: z.string().max(120),
+      objective: z.string().max(1000),
+      sourceContext: z
+        .string()
+        .max(35000)
+        .describe(
+          "confirmed conversation/brief source; preserve facts and decisions, do not invent missing details",
+        ),
+      successCriteria: z.array(z.string().max(500)).min(1).max(25),
+      assumptions: z
+        .array(z.string().max(500))
+        .max(25)
+        .optional()
+        .describe("explicitly labeled assumptions; never hide guesses in tasks"),
+      openQuestions: z
+        .array(z.string().max(500))
+        .max(25)
+        .optional()
+        .describe("unresolved decisions preserved in every project's context"),
+      phases: z
+        .array(
+          z.object({
+            ref: z.string().max(64),
+            name: z.string().max(120),
+            targetDate: dateArg.optional(),
+          }),
+        )
+        .min(1)
+        .max(12),
+      projects: z
+        .array(
+          z.object({
+            ref: z.string().max(64),
+            name: z.string().max(120),
+            description: z.string().max(1000).optional(),
+            phaseRef: z.string().max(64),
+            projectStatus: z
+              .enum(["on_track", "at_risk", "off_track", "paused"])
+              .optional(),
+            ownerActorId: z
+              .string()
+              .optional()
+              .describe("human or agent id from list_members"),
+            targetDate: dateArg.optional(),
+            tasks: z
+              .array(
+                z.object({
+                  ref: z.string().max(64),
+                  title: z.string().max(500),
+                  description: z.string().optional(),
+                  priority: priorityArg.optional(),
+                  startDate: dateArg.optional(),
+                  dueDate: dateArg.optional(),
+                  assigneeIds: z
+                    .array(z.string())
+                    .optional()
+                    .describe("human/agent ids from list_members"),
+                  parentRef: z
+                    .string()
+                    .optional()
+                    .describe(
+                      "earlier task ref in this project; creates a subtask",
+                    ),
+                  dependsOn: z
+                    .array(z.string())
+                    .optional()
+                    .describe(
+                      "same-project task refs or projectRef.taskRef for cross-project blockers",
+                    ),
+                  checklist: checklistArg.optional(),
+                  requiresApproval: z.boolean().optional(),
+                  estimatePoints: z.number().optional(),
+                  milestone: z.boolean().optional(),
+                }),
+              )
+              .min(1)
+              .max(50),
+          }),
+        )
+        .min(1)
+        .max(12),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.createExecutionPlan), {
+        apiKey: k,
+        ...a,
+        phases: a.phases.map(
+          (phase: { ref: string; name: string; targetDate?: number | string }) => ({
+            ...phase,
+            targetDate: ms(phase.targetDate) ?? undefined,
+          }),
+        ),
+        projects: a.projects.map(
+          (project: {
+            targetDate?: number | string;
+            tasks: Array<{
+              startDate?: number | string;
+              dueDate?: number | string;
+            }>;
+          }) => ({
+            ...project,
+            targetDate: ms(project.targetDate) ?? undefined,
+            tasks: project.tasks.map((task) => ({
+              ...task,
+              startDate: ms(task.startDate) ?? undefined,
+              dueDate: ms(task.dueDate) ?? undefined,
+            })),
+          }),
+        ),
+      }),
+  },
+  {
+    name: "list_execution_plans",
+    description:
+      "List the 20 most recent immutable execution-plan manifests in this workspace, with roadmap, project/task counts, and unresolved-question counts.",
+    shape: {},
+    run: (c, k) =>
+      c.query(asQuery(api.agentApi.listExecutionPlans), { apiKey: k }),
+  },
+  {
+    name: "get_execution_plan",
+    description:
+      "Read the full provenance manifest for a committed execution plan: original source context, success criteria, explicit assumptions/open questions, and every generated roadmap/project/task id.",
+    shape: { planId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getExecutionPlan), { apiKey: k, ...a }),
+  },
+  {
     name: "get_roadmaps",
     description:
       "The workspace's roadmaps: ordered phases (Now/Next/Later style) with the projects in each and their done/total. Workspace-scoped agents only.",
@@ -1869,7 +2011,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "operate-agents", version: "1.0.0" },
     instructions:
-      "You are an agent teammate in operate.to. First: call whoami, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, then claim_task. Heartbeat while working and complete_task when done. Planning from a brief? Use create_roadmap, create_tasks for bulk task/subtask/dependency creation, shared context packets, and create_goal with sourceListId. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
+      "You are an agent teammate in operate.to. First: call whoami, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, then claim_task. Heartbeat while working and complete_task when done. Turning a whole confirmed conversation or brief into a multi-project roadmap? Prefer create_execution_plan: preserve the source, label assumptions and open questions, use ids from list_members, and commit the complete dependency graph atomically. Use create_tasks for smaller additions to an existing project. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
   },
   {
     basePath: "/api",

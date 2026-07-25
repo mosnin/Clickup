@@ -125,6 +125,13 @@ export const exportWorkspace = query({
       )
       .collect();
 
+    const executionPlans = await ctx.db
+      .query("executionPlans")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+    const spaceName = new Map(spaces.map((space) => [space._id, space.name]));
+    const agentName = new Map(agents.map((agent) => [agent._id, agent.name]));
+
     return {
       exportedAt: Date.now(),
       apiVersion: 1,
@@ -137,6 +144,25 @@ export const exportWorkspace = query({
           name: p.name,
           targetDate: p.targetDate,
         })),
+      })),
+      executionPlans: executionPlans.map((plan) => ({
+        name: plan.name,
+        objective: plan.objective,
+        destinationSpace: spaceName.get(plan.spaceId),
+        createdByAgent: agentName.get(plan.createdByAgentId),
+        sourceContext: plan.sourceContext,
+        successCriteria: plan.successCriteria,
+        assumptions: plan.assumptions,
+        openQuestions: plan.openQuestions,
+        projects: plan.projects.map((project) => ({
+          ref: project.ref,
+          name: project.name,
+        })),
+        tasks: plan.tasks.map((task) => ({
+          ref: task.ref,
+          title: task.title,
+        })),
+        createdAt: plan.createdAt,
       })),
       sprints: sprints.map((s) => ({
         name: s.name,
