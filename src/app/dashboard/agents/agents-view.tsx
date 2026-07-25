@@ -589,6 +589,7 @@ function CreateAgentForm({
   const { toast } = useToast();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [capabilities, setCapabilities] = useState("");
   const [scope, setScope] = useState("personal");
   const [pending, setPending] = useState(false);
   // After create: the guided connect step, so nobody has to hunt for the
@@ -654,6 +655,10 @@ function CreateAgentForm({
           const agentId = await create({
             name: name.trim(),
             description: description.trim() || undefined,
+            capabilities: capabilities
+              .split(",")
+              .map((value) => value.trim())
+              .filter(Boolean),
             parentType: scope === "personal" ? "user" : "workspace",
             parentId: scope === "personal" ? user.id : scope,
           });
@@ -721,6 +726,20 @@ function CreateAgentForm({
           placeholder="Triage bot that keeps the backlog clean"
           className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
         />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Capabilities (optional)
+        </span>
+        <input
+          value={capabilities}
+          onChange={(e) => setCapabilities(e.currentTarget.value)}
+          placeholder="typescript, backend, quality-assurance"
+          className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+        />
+        <span className="mt-1 block text-xs text-muted-foreground">
+          Comma-separated contracts used to route only compatible work.
+        </span>
       </label>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={onDone}>

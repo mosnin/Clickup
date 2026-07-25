@@ -396,6 +396,9 @@ export default defineSchema({
     startDate: v.optional(v.number()),
     dueDate: v.optional(v.number()),
     assigneeClerkIds: v.array(v.string()),
+    // Explicit execution contract used by capability-aware routing. Agents
+    // may only claim tasks whose complete requirement set they advertise.
+    requiredCapabilities: v.optional(v.array(v.string())),
     parentTaskId: v.optional(v.id("tasks")),
     // When set, completing this task spawns a fresh task on the same list
     // with its dates advanced by the chosen interval. The new task copies
@@ -548,6 +551,38 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_workspace", ["workspaceId", "createdAt"])
+    .index("by_agent_key", ["createdByAgentId", "idempotencyKey"]),
+
+  // Auditable releases of ready work from an execution plan to real agent
+  // runtimes. A short lease prevents repeated dispatch storms; expired,
+  // unclaimed work becomes eligible for a later recovery wave.
+  executionWaves: defineTable({
+    workspaceId: v.id("workspaces"),
+    planId: v.id("executionPlans"),
+    createdByAgentId: v.id("agents"),
+    idempotencyKey: v.string(),
+    requestFingerprint: v.string(),
+    openQuestionDisposition: v.optional(v.string()),
+    assignments: v.array(
+      v.object({
+        taskId: v.id("tasks"),
+        taskRef: v.string(),
+        agentId: v.id("agents"),
+        delivery: v.union(
+          v.literal("notify_url"),
+          v.literal("poll_required"),
+        ),
+      }),
+    ),
+    skipped: v.array(
+      v.object({
+        taskRef: v.string(),
+        reason: v.string(),
+      }),
+    ),
+    createdAt: v.number(),
+  })
+    .index("by_plan", ["planId", "createdAt"])
     .index("by_agent_key", ["createdByAgentId", "idempotencyKey"]),
 
   // External integrations attached to a workspace. Each kind stores its
@@ -800,6 +835,13 @@ export default defineSchema({
     // set, list/task access (read AND write) is further restricted to
     // those lists.
     role: v.optional(v.union(v.literal("member"), v.literal("readonly"))),
+    // Normalized capability slugs (for example typescript, research,
+    // quality-assurance). Routing matches these against task requirements;
+    // an empty set is intentionally not treated as "can do anything."
+    capabilities: v.optional(v.array(v.string())),
+    // Hard ceiling for simultaneous dispatched/claimed tasks. The execution
+    // controller defaults to one when unset.
+    maxConcurrentTasks: v.optional(v.number()),
     allowedListIds: v.optional(v.array(v.id("lists"))),
     // Mutations per UTC day before the agent is throttled. Undefined =
     // DEFAULT_DAILY_ACTION_LIMIT (see _agentAuth.ts).

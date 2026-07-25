@@ -127,14 +127,14 @@ Do not bury an assumption inside a task description. If a missing answer changes
 ## 2. Design the graph
 
 1. \`get_tree\` for the destination workspace Space.
-2. \`list_members\` for real human and agent ids. Never invent assignee ids.
+2. \`list_members\` for real human and agent ids, advertised capabilities, concurrency ceilings, and live load. Never invent assignee ids or assume a capability that is not listed.
 3. Define ordered roadmap phases with short refs.
 4. Define 1–12 projects. Each project belongs to one phase and has 1–50 tasks.
 5. Give every task a short ref unique inside its project.
 6. Use \`parentRef\` only for an earlier task in the same project.
 7. Use \`dependsOn: ["taskRef"]\` inside one project and \`dependsOn: ["otherProject.taskRef"]\` across projects.
-8. Put verifiable acceptance criteria in each task's checklist. Use \`requiresApproval\` for decisions or high-impact changes.
-9. Assign independent tasks to different agents so they can run in parallel; express real ordering with dependencies instead of prose.
+8. Put verifiable acceptance criteria in each task's checklist and explicit \`requiredCapabilities\` on specialized work. Use \`requiresApproval\` for decisions or high-impact changes.
+9. Assign only when an agent advertises every required capability. Independent tasks can run in parallel; express real ordering with dependencies instead of prose.
 
 ## 3. Commit atomically
 
@@ -154,8 +154,10 @@ The call is transactional: any error creates nothing. Retry the exact same paylo
 1. \`get_execution_plan\` and compare counts, source, assumptions, open questions, and generated ids to your intended graph.
 2. \`get_roadmaps\` to verify phase placement.
 3. Sample the critical-path tasks with \`get_task\`; confirm blockers, assignees, checklists, and attached operating brief.
-4. Agents then follow the collaboration protocol: read and acknowledge context, claim, start a run, heartbeat, and finish.
-5. Never dispatch an unresolved task merely because the graph exists. Open questions remain visible context until a human or responsible agent resolves them.`,
+4. Call \`get_execution_readiness\` before releasing work. Inspect capability gaps, exhausted capacity, dependency blocks, prior dispatch leases, and runtimes that require polling.
+5. Call \`dispatch_execution_wave\` with a stable wave idempotency key. If open questions remain, record exactly what was resolved, deferred, or bounded in \`openQuestionDisposition\`; never silently wave uncertainty through.
+6. Dispatched agents follow the collaboration protocol: read and acknowledge context, claim, start a run, heartbeat, and finish. Completing blockers makes the next wave eligible.
+7. Never dispatch an unresolved task merely because the graph exists. Open questions remain visible context until their disposition is auditable.`,
   },
   {
     slug: "project-kickoff",

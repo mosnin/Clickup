@@ -154,6 +154,7 @@ const READ_TOOLS = new Set([
   "get_roadmaps",
   "list_execution_plans",
   "get_execution_plan",
+  "get_execution_readiness",
   "list_scheduled_tasks",
   "list_events",
   "list_webhooks",
@@ -194,6 +195,7 @@ const DESTRUCTIVE_TOOLS = new Set([
 ]);
 const IDEMPOTENT_TOOLS = new Set([
   "create_execution_plan",
+  "dispatch_execution_wave",
   "heartbeat",
   "acknowledge_task_context",
   "update_task",
@@ -642,7 +644,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "create_task",
     description:
-      "Create a task. assigneeIds may mix human ids and agent ids (from list_members). checklist seeds acceptance criteria.",
+      "Create a task. assigneeIds may mix human ids and agent ids (from list_members). requiredCapabilities is an explicit execution contract; an agent missing any requirement cannot be assigned or claim it. checklist seeds acceptance criteria.",
     shape: {
       listId: z.string(),
       title: z.string(),
@@ -652,6 +654,10 @@ const TOOLS: ToolDef[] = [
       startDate: dateArg.optional(),
       dueDate: dateArg.optional(),
       assigneeIds: z.array(z.string()).optional(),
+      requiredCapabilities: z
+        .array(z.string().max(40))
+        .max(10)
+        .optional(),
       parentTaskId: z.string().optional().describe("makes this a subtask"),
       recurrence: z.enum(["daily", "weekly", "monthly"]).optional(),
       sprintId: z.string().optional(),
@@ -697,6 +703,10 @@ const TOOLS: ToolDef[] = [
             startDate: dateArg.optional(),
             dueDate: dateArg.optional(),
             assigneeIds: z.array(z.string()).optional(),
+            requiredCapabilities: z
+              .array(z.string().max(40))
+              .max(10)
+              .optional(),
             parentRef: z
               .string()
               .optional()
@@ -751,6 +761,10 @@ const TOOLS: ToolDef[] = [
       startDate: nullableDateArg.optional(),
       dueDate: nullableDateArg.optional(),
       assigneeIds: z.array(z.string()).optional(),
+      requiredCapabilities: z
+        .array(z.string().max(40))
+        .max(10)
+        .optional(),
       recurrence: z.enum(["daily", "weekly", "monthly"]).nullable().optional(),
       sprintId: z.string().nullable().optional(),
       blockedByTaskIds: z.array(z.string()).optional(),
@@ -912,7 +926,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_members",
     description:
-      "Everyone in my scope, humans and agents, with ids usable in assigneeIds/mentionIds. Agents include live status.",
+      "Everyone in my scope, humans and agents, with ids usable in assigneeIds/mentionIds. Agents include live status, role, capabilities, concurrency ceiling, and current task for safe routing.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.listMembers), { apiKey: k }),
   },
@@ -1105,6 +1119,13 @@ const TOOLS: ToolDef[] = [
                     .array(z.string())
                     .optional()
                     .describe("human/agent ids from list_members"),
+                  requiredCapabilities: z
+                    .array(z.string().max(40))
+                    .max(10)
+                    .optional()
+                    .describe(
+                      "capability slugs every assigned agent must advertise",
+                    ),
                   parentRef: z
                     .string()
                     .optional()
@@ -1174,6 +1195,46 @@ const TOOLS: ToolDef[] = [
     shape: { planId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.getExecutionPlan), { apiKey: k, ...a }),
+  },
+  {
+    name: "get_execution_readiness",
+    description:
+      "Preview the next safe parallel wave for an execution plan without changing anything. Returns ready recommendations, dependency/claim/lease/capability/capacity skips, each agent's advertised capabilities and free slots, open-question gates, and recent waves. Pass agentIds to constrain routing to a deliberate fleet subset.",
+    shape: {
+      planId: z.string(),
+      agentIds: z.array(z.string()).optional(),
+    },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getExecutionReadiness), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "dispatch_execution_wave",
+    description:
+      "Atomically release the next dependency-ready, capability-matched work wave to active writable agents without exceeding their concurrency ceilings. Assignments prefer already-compatible owners, then least-loaded matches. Configured notify URLs receive task.ready; otherwise delivery is poll_required. A 30-minute lease prevents duplicate wake storms and expired unclaimed work becomes recoverable. If the plan preserves open questions, openQuestionDisposition is required so uncertainty is never silently ignored. Exact retries are idempotent.",
+    shape: {
+      idempotencyKey: z.string().max(120),
+      planId: z.string(),
+      maxTasks: z.number().int().min(1).max(25).optional(),
+      agentIds: z
+        .array(z.string())
+        .optional()
+        .describe("optional deliberate subset of workspace agent ids"),
+      openQuestionDisposition: z
+        .string()
+        .max(2000)
+        .optional()
+        .describe(
+          "required when the plan has open questions; explain what was resolved, deferred, or bounded",
+        ),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.dispatchExecutionWave), {
+        apiKey: k,
+        ...a,
+      }),
   },
   {
     name: "get_roadmaps",
@@ -2011,7 +2072,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "operate-agents", version: "1.0.0" },
     instructions:
-      "You are an agent teammate in operate.to. First: call whoami, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, then claim_task. Heartbeat while working and complete_task when done. Turning a whole confirmed conversation or brief into a multi-project roadmap? Prefer create_execution_plan: preserve the source, label assumptions and open questions, use ids from list_members, and commit the complete dependency graph atomically. Use create_tasks for smaller additions to an existing project. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
+      "You are an agent teammate in operate.to. First: call whoami, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, then claim_task. Heartbeat while working and complete_task when done. Turning a whole confirmed conversation or brief into a multi-project roadmap? Prefer create_execution_plan: preserve the source, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. Before parallel execution, inspect get_execution_readiness and release only a capability-matched, capacity-safe dispatch_execution_wave with an auditable disposition for open questions. Use create_tasks for smaller additions to an existing project. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
   },
   {
     basePath: "/api",
