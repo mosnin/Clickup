@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -33,12 +33,13 @@ export function OAuthAuthorize({
   codeChallenge: string;
   codeChallengeMethod: string;
 }) {
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const validShape =
     responseType === "code" &&
     Boolean(clientId && redirectUri && codeChallenge);
   const requestArgs = useMemo(
     () =>
-      validShape
+      validShape && isAuthenticated
         ? {
             clientId,
             redirectUri,
@@ -54,6 +55,7 @@ export function OAuthAuthorize({
       redirectUri,
       scope,
       validShape,
+      isAuthenticated,
     ],
   );
   const request = useQuery(api.oauth.authorizationRequest, requestArgs);
@@ -112,7 +114,7 @@ export function OAuthAuthorize({
       </OAuthShell>
     );
   }
-  if (request === undefined) {
+  if (authLoading || !isAuthenticated || request === undefined) {
     return (
       <OAuthShell>
         <p className="text-sm text-muted-foreground">
