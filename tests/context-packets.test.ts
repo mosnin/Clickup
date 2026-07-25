@@ -56,6 +56,14 @@ async function setup() {
       position: 0,
       createdAt: Date.now(),
     });
+    await ctx.db.insert("listStatuses", {
+      listId,
+      name: "Done",
+      color: "#22c55e",
+      category: "complete",
+      position: 1,
+      createdAt: Date.now(),
+    });
     const taskId = await ctx.db.insert("tasks", {
       listId,
       title: "Build orchestration",
@@ -82,13 +90,14 @@ async function setup() {
       createdByClerkId: ALICE.subject,
       createdAt: Date.now(),
     });
+    await ctx.db.patch(taskId, { assigneeClerkIds: [agentId] });
     await ctx.db.insert("agentKeys", {
       agentId,
       keyHash: sha256Hex(API_KEY),
       keyPrefix: API_KEY.slice(0, 12),
       createdAt: Date.now(),
     });
-    return { listId, otherListId, taskId, otherTaskId };
+    return { listId, otherListId, taskId, otherTaskId, agentId };
   });
   return {
     t,
@@ -153,6 +162,166 @@ describe("context packets", () => {
     expect(packet.content).toContain("versioned");
   });
 
+  it("requires exact current context before claim, run, heartbeat, or completion", async () => {
+    const { t, listId, taskId } = await setup();
+    const created = await t.mutation(api.agentApi.createContextPacket, {
+      apiKey: API_KEY,
+      listId,
+      title: "Execution contract",
+      content: "Ship only after the contract tests pass.",
+      taskIds: [taskId],
+    });
+
+    const initial = await t.query(api.agentApi.getTask, {
+      apiKey: API_KEY,
+      taskId,
+    });
+    expect(initial.contextReadiness).toMatchObject({
+      ready: false,
+      packets: [{ packetId: created.packetId, state: "unread" }],
+    });
+    await expect(
+      t.mutation(api.agentApi.claimTask, { apiKey: API_KEY, taskId }),
+    ).rejects.toThrow(/acknowledgement required/i);
+    await expect(
+      t.mutation(api.agentApi.startRun, {
+        apiKey: API_KEY,
+        taskId,
+        title: "Premature run",
+      }),
+    ).rejects.toThrow(/acknowledgement required/i);
+    await expect(
+      t.mutation(api.agentApi.heartbeat, {
+        apiKey: API_KEY,
+        currentTaskId: taskId,
+      }),
+    ).rejects.toThrow(/acknowledgement required/i);
+
+    const acknowledged = await t.mutation(
+      api.agentApi.acknowledgeTaskContext,
+      {
+        apiKey: API_KEY,
+        taskId,
+        packets: [{ packetId: created.packetId, version: 1 }],
+      },
+    );
+    expect(acknowledged.ready).toBe(true);
+    await t.mutation(api.agentApi.claimTask, { apiKey: API_KEY, taskId });
+    const runId = await t.mutation(api.agentApi.startRun, {
+      apiKey: API_KEY,
+      taskId,
+      title: "Implement with current context",
+    });
+
+    await t.mutation(api.agentApi.updateContextPacket, {
+      apiKey: API_KEY,
+      packetId: created.packetId,
+      content: "Ship only after contract and browser tests pass.",
+    });
+    const stale = await t.query(api.agentApi.getTask, {
+      apiKey: API_KEY,
+      taskId,
+    });
+    expect(stale.contextReadiness).toMatchObject({
+      ready: false,
+      packets: [
+        {
+          packetId: created.packetId,
+          currentVersion: 2,
+          acknowledgedVersion: 1,
+          state: "stale",
+        },
+      ],
+    });
+    await expect(
+      t.mutation(api.agentApi.completeTask, { apiKey: API_KEY, taskId }),
+    ).rejects.toThrow(/acknowledgement required/i);
+    await expect(
+      t.mutation(api.agentApi.requestApproval, {
+        apiKey: API_KEY,
+        taskId,
+        note: "Review the implementation.",
+      }),
+    ).rejects.toThrow(/acknowledgement required/i);
+    await expect(
+      t.mutation(api.agentApi.finishRun, {
+        apiKey: API_KEY,
+        runId,
+        status: "succeeded",
+      }),
+    ).rejects.toThrow(/acknowledgement required/i);
+    await expect(
+      t.mutation(api.agentApi.acknowledgeTaskContext, {
+        apiKey: API_KEY,
+        taskId,
+        packets: [{ packetId: created.packetId, version: 1 }],
+      }),
+    ).rejects.toThrow(/now v2/i);
+
+    await t.mutation(api.agentApi.acknowledgeTaskContext, {
+      apiKey: API_KEY,
+      taskId,
+      packets: [{ packetId: created.packetId, version: 2 }],
+    });
+    await t.mutation(api.agentApi.finishRun, {
+      apiKey: API_KEY,
+      runId,
+      status: "succeeded",
+    });
+    await t.mutation(api.agentApi.completeTask, { apiKey: API_KEY, taskId });
+  });
+
+  it("shows humans which assigned agents are current or stale", async () => {
+    const { t, alice, listId, taskId, agentId } = await setup();
+    const created = await t.mutation(api.agentApi.createContextPacket, {
+      apiKey: API_KEY,
+      listId,
+      title: "Shared decision log",
+      content: "Decision: stage the rollout.",
+      taskIds: [taskId],
+    });
+
+    const unread = await alice.query(api.contextPackets.readinessForTask, {
+      taskId,
+    });
+    expect(unread[0]).toMatchObject({
+      packetId: created.packetId,
+      agents: [{ agentId, agentName: "Planner", state: "unread" }],
+    });
+
+    await t.mutation(api.agentApi.acknowledgeTaskContext, {
+      apiKey: API_KEY,
+      taskId,
+      packets: [{ packetId: created.packetId, version: 1 }],
+    });
+    expect(
+      await alice.query(api.contextPackets.readinessForTask, { taskId }),
+    ).toMatchObject([
+      {
+        agents: [
+          {
+            agentId,
+            acknowledgedVersion: 1,
+            state: "current",
+          },
+        ],
+      },
+    ]);
+
+    await alice.mutation(api.contextPackets.update, {
+      packetId: created.packetId,
+      content: "Decision: use a canary rollout.",
+    });
+    expect(
+      await alice.query(api.contextPackets.readinessForTask, { taskId }),
+    ).toMatchObject([
+      {
+        currentVersion: 2,
+        agents: [{ agentId, acknowledgedVersion: 1, state: "stale" }],
+      },
+    ]);
+  });
+
   it("lets agents retire obsolete context and removes every attachment", async () => {
     const { t, listId, taskId } = await setup();
     const created = await t.mutation(api.agentApi.createContextPacket, {
@@ -206,12 +375,20 @@ describe("context packets", () => {
       content: "Deleted with its project.",
       taskIds: [taskId],
     });
+    await t.mutation(api.agentApi.acknowledgeTaskContext, {
+      apiKey: API_KEY,
+      taskId,
+      packets: [{ packetId, version: 1 }],
+    });
 
     await alice.mutation(api.tasks.remove, { taskId });
     const linksAfterTaskDelete = await t.run((ctx) =>
       ctx.db.query("taskContextPackets").collect(),
     );
     expect(linksAfterTaskDelete).toEqual([]);
+    expect(
+      await t.run((ctx) => ctx.db.query("agentContextReceipts").collect()),
+    ).toEqual([]);
 
     await alice.mutation(api.lists.remove, { listId });
     const packetAfterProjectDelete = await t.run((ctx) =>

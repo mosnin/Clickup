@@ -103,11 +103,14 @@ import { seedDefaultStatuses } from "./listStatuses";
 import { emitEvent, scopeForList } from "./events";
 import { getRollup } from "./rollups";
 import {
+  acknowledgeTaskContextCore,
   attachContextPacketCore,
+  contextReadinessForAgent,
   createContextPacketCore,
   deleteContextPacketCore,
   detachContextPacketCore,
   listPacketsForTask,
+  requireCurrentContext,
   updateContextPacketCore,
 } from "./contextPackets";
 
@@ -439,7 +442,7 @@ export const whoami = query({
         creditsPerAction,
       },
       firstSteps:
-        "New here? Fetch the 'collaboration-protocol' skill (get_skill) and follow it: find work with next_task, claim before working, heartbeat while working.",
+        "New here? Fetch the collaboration-protocol skill, find work with next_task, read get_task, acknowledge its context versions, then claim and heartbeat while working.",
     };
   },
 });
@@ -464,6 +467,7 @@ export const heartbeat = mutation({
         patch.currentTaskId = undefined;
       } else {
         await requireTaskAccessForAgent(ctx, args.currentTaskId, agent);
+        await requireCurrentContext(ctx, args.currentTaskId, agent._id);
         patch.currentTaskId = args.currentTaskId;
       }
     }
@@ -813,11 +817,17 @@ export const getTask = query({
         })),
     );
     const contextPackets = await listPacketsForTask(ctx, taskId);
+    const contextReadiness = await contextReadinessForAgent(
+      ctx,
+      taskId,
+      agent._id,
+    );
     return {
       ...view,
       listName: taskList?.name ?? null,
       attachments,
       contextPackets,
+      contextReadiness,
       sop,
       customFields,
       // Raw rows kept for backwards compatibility with existing agents.
@@ -945,6 +955,49 @@ export const updateContextPacket = mutation({
       agentActor(agent),
     );
     return { version };
+  },
+});
+
+export const acknowledgeTaskContext = mutation({
+  args: {
+    apiKey: v.string(),
+    taskId: v.id("tasks"),
+    packets: v.array(
+      v.object({
+        packetId: v.id("contextPackets"),
+        version: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
+    const { task } = await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    const readiness = await acknowledgeTaskContextCore(
+      ctx,
+      task._id,
+      agent._id,
+      args.packets,
+    );
+    const list = await ctx.db.get(task.listId);
+    const scope = list ? await scopeForList(ctx, list) : null;
+    if (scope) {
+      await emitEvent(ctx, {
+        ...scope,
+        type: "context.acknowledged",
+        actor: agentActor(agent),
+        entityType: "task",
+        entityId: task._id,
+        entityTitle: task.title,
+        listId: task.listId,
+        payload: {
+          packetVersions: args.packets.map((packet) => ({
+            packetId: packet.packetId,
+            version: packet.version,
+          })),
+        },
+      });
+    }
+    return readiness;
   },
 });
 
@@ -1080,6 +1133,15 @@ export const updateTask = mutation({
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    if (args.statusId) {
+      const status = await ctx.db.get(args.statusId);
+      if (
+        status?.category === "complete" ||
+        status?.category === "closed"
+      ) {
+        await requireCurrentContext(ctx, args.taskId, agent._id);
+      }
+    }
     const { apiKey: _apiKey, ...rest } = args;
     await updateTaskCore(ctx, rest, agentActor(agent));
   },
@@ -1110,6 +1172,7 @@ export const completeTask = mutation({
   handler: async (ctx, { apiKey, taskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
+    await requireCurrentContext(ctx, taskId, agent._id);
     const statuses = await ctx.db
       .query("listStatuses")
       .withIndex("by_list", (q) => q.eq("listId", task.listId))
@@ -1144,6 +1207,7 @@ export const claimTask = mutation({
   handler: async (ctx, { apiKey, taskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     await requireTaskAccessForAgent(ctx, taskId, agent);
+    await requireCurrentContext(ctx, taskId, agent._id);
     await claimTaskCore(ctx, taskId, agentActor(agent));
   },
 });
@@ -2337,6 +2401,7 @@ export const requestApproval = mutation({
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     const { task } = await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    await requireCurrentContext(ctx, args.taskId, agent._id);
     if (!task.requiresApproval) {
       await updateTaskCore(
         ctx,
@@ -2414,7 +2479,10 @@ export const startRun = mutation({
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
-    if (args.taskId) await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    if (args.taskId) {
+      await requireTaskAccessForAgent(ctx, args.taskId, agent);
+      await requireCurrentContext(ctx, args.taskId, agent._id);
+    }
     return await ctx.db.insert("agentRuns", {
       agentId: agent._id,
       taskId: args.taskId,
@@ -2445,6 +2513,9 @@ export const finishRun = mutation({
     const run = await ctx.db.get(args.runId);
     if (!run || run.agentId !== agent._id) {
       throw new ConvexError("Run not found or it doesn't belong to you");
+    }
+    if (args.status === "succeeded" && run.taskId) {
+      await requireCurrentContext(ctx, run.taskId, agent._id);
     }
     await ctx.db.patch(args.runId, {
       status: args.status,

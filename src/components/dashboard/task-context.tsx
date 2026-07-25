@@ -28,6 +28,7 @@ export function TaskContext({
   listId: Id<"lists">;
 }) {
   const attached = useQuery(api.contextPackets.listForTask, { taskId });
+  const readiness = useQuery(api.contextPackets.readinessForTask, { taskId });
   const available = useQuery(api.contextPackets.listForList, { listId });
   const create = useMutation(api.contextPackets.create);
   const update = useMutation(api.contextPackets.update);
@@ -195,6 +196,28 @@ export function TaskContext({
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-semibold">{packet.title}</span>
                     <Badge variant="secondary">v{packet.version}</Badge>
+                    {(() => {
+                      const state = readiness?.find(
+                        (row) => row.packetId === packet.packetId,
+                      );
+                      if (!state || state.agents.length === 0) return null;
+                      const current = state.agents.filter(
+                        (agent) => agent.state === "current",
+                      ).length;
+                      const attention = state.agents.length - current;
+                      return attention > 0 ? (
+                        <Badge variant="destructive">
+                          {attention} need context
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                        >
+                          All agents current
+                        </Badge>
+                      );
+                    })()}
                   </span>
                   {packet.summary && (
                     <span className="mt-1 block text-xs text-muted-foreground">
@@ -207,6 +230,43 @@ export function TaskContext({
                 <pre className="whitespace-pre-wrap font-sans text-sm leading-6 text-foreground/85">
                   {packet.content}
                 </pre>
+                {(() => {
+                  const state = readiness?.find(
+                    (row) => row.packetId === packet.packetId,
+                  );
+                  if (!state || state.agents.length === 0) return null;
+                  return (
+                    <div className="mt-3 rounded-lg border border-border/70 bg-muted/30 px-3 py-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Agent context
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {state.agents.map((agent) => (
+                          <Badge
+                            key={agent.agentId}
+                            variant={
+                              agent.state === "stale"
+                                ? "destructive"
+                                : "outline"
+                            }
+                            className={
+                              agent.state === "current"
+                                ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                                : undefined
+                            }
+                          >
+                            {agent.agentName} ·{" "}
+                            {agent.state === "current"
+                              ? `read v${agent.acknowledgedVersion}`
+                              : agent.state === "stale"
+                                ? `stale on v${agent.acknowledgedVersion}`
+                                : "not read"}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="mt-3 flex justify-end gap-2">
                   <Button
                     size="sm"
