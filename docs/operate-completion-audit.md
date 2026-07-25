@@ -10,6 +10,16 @@ only after automated checks and relevant production behavior both pass.
 
 - Production application and Convex dependency health (`/api/health`)
 - Hosted MCP authentication and discovery (140 tools)
+- Production OAuth authorization-code lifecycle: dynamic client registration
+  rejected an unsafe external HTTP redirect and accepted an exact loopback
+  redirect; authenticated consent bound the connection to Scout; invalid PKCE
+  and authorization-code replay returned `invalid_grant`; valid exchange and
+  refresh each exposed all 140 MCP tools; refresh rotation invalidated the old
+  access and refresh tokens; revocation returned 401 on reuse; and a new
+  authorization completed the reconnect path before final revocation.
+  Deployment `dpl_2GnQEaxqjKdhma4vEVwvPEGqMnLo` fixed stale server-rendered
+  redirect parameters by validating the live consent URL. The temporary client,
+  codes, revoked token rows, and least-privilege deploy key were removed.
 - OpenAI and Claude MCP annotation profiles
 - Workspace → Space → optional Folder → List → Task hierarchy
 - One user-facing hierarchy: Workspace → Space → optional Folder → List →
@@ -87,13 +97,12 @@ only after automated checks and relevant production behavior both pass.
 
 - Production ChatGPT app submission bundle
 - Production Claude connector/plugin bundle
-- OAuth registration, authorization, refresh, revoke, and reconnect lifecycle
 - Webhook delivery, signature verification, retry, disable, and recovery lifecycle
 - x402 metering and billing lifecycle
 
 ## Still required
 
-1. Complete OAuth, webhook, and billing production certification.
+1. Complete webhook and billing production certification.
 2. Continue the systematic browser pass over home, the remaining List views,
    sprints, roadmaps, operations, agents, search, settings, broader keyboard
    navigation, and failure states. Onboarding, Inbox, task detail, the core
