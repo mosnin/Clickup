@@ -79,6 +79,27 @@ async function handle(req: Request): Promise<Response> {
   // No payment yet → return the 402 challenge.
   if (!xPayment) {
     try {
+      // Convex intentionally redacts thrown server errors at this boundary.
+      // Read readiness first so an incomplete payment deployment maps to a
+      // truthful 503 instead of a generic 400 "Server Error".
+      const wallet = (await client.query(asQuery(api.x402.walletByKey), {
+        apiKey,
+      })) as {
+        pricing?: {
+          available?: boolean;
+          configurationIssue?: string | null;
+        };
+      };
+      if (wallet.pricing?.available === false) {
+        return Response.json(
+          {
+            error: `Billing unavailable: ${
+              wallet.pricing.configurationIssue ?? "payment setup is incomplete"
+            }`,
+          },
+          { status: 503 },
+        );
+      }
       const challenge = await client.query(
         asQuery(api.x402.topupRequirements),
         { apiKey, credits },
