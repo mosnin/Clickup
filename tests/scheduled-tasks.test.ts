@@ -65,7 +65,7 @@ describe("computeNextRunAt", () => {
 
   it("materializes hourly agent work into the durable wake inbox", async () => {
     const t = convexTest(schema, modules);
-    const { workspaceId, agentId, blueprintId } = await t.run(async (ctx) => {
+    const { workspaceId, agentId } = await t.run(async (ctx) => {
       await ctx.db.insert("users", {
         clerkId: OWNER.subject,
         email: OWNER.email,
@@ -96,27 +96,9 @@ describe("computeNextRunAt", () => {
         keyPrefix: "cua_hour",
         createdAt: Date.now(),
       });
-      const bpId = await ctx.db.insert("taskBlueprints", {
-        scopeType: "workspace",
-        scopeId: wsId,
-        name: "Agent health SOP",
-        title: "Inspect agent health",
-        description: "Verify presence, wake consumption, and stalled work.",
-        priority: "high",
-        checklist: [
-          "Review presence",
-          "Review unconsumed wakes",
-          "Escalate stale work",
-        ],
-        estimatePoints: 1,
-        requiresApproval: true,
-        createdByActorId: OWNER.subject,
-        createdAt: Date.now(),
-      });
       return {
         workspaceId: wsId,
         agentId: workerId,
-        blueprintId: bpId,
       };
     });
     const spaceId = await t.withIdentity(OWNER).mutation(api.spaces.create, {
@@ -149,6 +131,36 @@ describe("computeNextRunAt", () => {
         blueprintId: foreignBlueprintId,
       }),
     ).rejects.toThrow(/blueprint not found/i);
+    const blueprintId = await t.mutation(api.agentApi.createBlueprint, {
+      apiKey: "cua_hourly_operator",
+      name: "  Agent health SOP  ",
+      title: "Inspect agent health",
+      description: "Verify presence, wake consumption, and stalled work.",
+      priority: "high",
+      checklist: [
+        " Review presence ",
+        "",
+        "Review unconsumed wakes",
+        "Escalate stale work",
+      ],
+      estimatePoints: 1,
+      requiresApproval: true,
+    });
+    expect(
+      await t.query(api.agentApi.listBlueprints, {
+        apiKey: "cua_hourly_operator",
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        blueprintId,
+        name: "Agent health SOP",
+        checklist: [
+          "Review presence",
+          "Review unconsumed wakes",
+          "Escalate stale work",
+        ],
+      }),
+    ]);
     const scheduledTaskId = await t.mutation(
       api.agentApi.createScheduledTask,
       {

@@ -84,7 +84,10 @@ import { createScheduledTaskCore, computeNextRunAt } from "./scheduledTasks";
 import { createSubscription } from "./webhooks";
 import { skillsForScope } from "./skills";
 import { withDerivedProgress } from "./goals";
-import { blueprintTaskFields } from "./taskBlueprints";
+import {
+  blueprintTaskFields,
+  createTaskBlueprintCore,
+} from "./taskBlueprints";
 import { createChannelCore } from "./channels";
 import {
   applyCatalogDocTemplateCore,
@@ -6222,6 +6225,34 @@ export const listBlueprints = query({
         dueInDays: bp.dueInDays,
         requiresApproval: bp.requiresApproval ?? false,
       }));
+  },
+});
+
+export const createBlueprint = mutation({
+  args: {
+    apiKey: v.string(),
+    name: v.string(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    priority: v.optional(priorityValidator),
+    checklist: v.optional(v.array(v.string())),
+    estimatePoints: v.optional(v.number()),
+    sopSlug: v.optional(v.string()),
+    dueInDays: v.optional(v.number()),
+    requiresApproval: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const { apiKey: _apiKey, ...blueprint } = args;
+    return await createTaskBlueprintCore(
+      ctx,
+      {
+        scopeType: agent.parentType,
+        scopeId: agent.parentId,
+        ...blueprint,
+      },
+      agentActor(agent),
+    );
   },
 });
 

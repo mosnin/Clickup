@@ -1747,6 +1747,27 @@ const TOOLS: ToolDef[] = [
       c.query(asQuery(api.agentApi.listBlueprints), { apiKey: k }),
   },
   {
+    name: "create_blueprint",
+    description:
+      "Standardize a proven operation as a reusable task blueprint in my scope. Captures its task title, SOP description, checklist, priority, estimate, optional skill slug, due offset, and approval gate. Use the returned blueprintId with instantiate_blueprint or create_scheduled_task.",
+    shape: {
+      name: z.string().describe("human-readable blueprint name"),
+      title: z.string().describe("title of each materialized task"),
+      description: z.string().optional(),
+      priority: priorityArg.optional(),
+      checklist: z.array(z.string()).optional(),
+      estimatePoints: z.number().nonnegative().optional(),
+      sopSlug: z.string().optional(),
+      dueInDays: z.number().nonnegative().optional(),
+      requiresApproval: z.boolean().optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.createBlueprint), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
     name: "instantiate_blueprint",
     description:
       "Create a real task from a blueprint in a list. The full shape applies (checklist, priority, estimate, due-in-days, approval gate) and the list's assignment routing fills in an assignee if none is given.",

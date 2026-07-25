@@ -14,4 +14,4 @@ Use this skill for a standup, operating review, morning brief, or executive work
 
 Keep the brief factual and compact. Do not treat activity volume as progress or infer completion from a heartbeat.
 
-For a recurring autonomous operating loop, choose a controlled SOP from `list_blueprints`, then use `create_scheduled_task` with its `blueprintId`, an hourly, daily, weekly, or monthly cadence, and the responsible agent. Each materialized task inherits the blueprint's checklist, estimate, and approval gate and enters that agent's durable wake inbox; do not use a schedule as evidence that the work itself ran.
+For a recurring autonomous operating loop, choose a controlled SOP from `list_blueprints`. If no suitable SOP exists, use `create_blueprint` only after the operation and its acceptance checklist are confirmed. Then use `create_scheduled_task` with its `blueprintId`, an hourly, daily, weekly, or monthly cadence, and the responsible agent. Each materialized task inherits the blueprint's checklist, estimate, and approval gate and enters that agent's durable wake inbox; do not use a schedule as evidence that the work itself ran.

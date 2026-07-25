@@ -1196,6 +1196,18 @@
         "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
       }
     },
+    "create_blueprint": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create blueprint, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
     "instantiate_blueprint": {
       "annotations": {
         "readOnlyHint": false,
