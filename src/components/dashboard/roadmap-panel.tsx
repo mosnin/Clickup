@@ -409,6 +409,7 @@ function ExecutionPlanProvenance({
   planId: Id<"executionPlans">;
 }) {
   const plan = useQuery(api.executionPlans.get, { planId });
+  const readiness = useQuery(api.executionDispatch.readiness, { planId });
   if (!plan) return null;
   return (
     <details className="group rounded-2xl border border-brand-500/20 bg-brand-500/[0.04]">
@@ -482,6 +483,87 @@ function ExecutionPlanProvenance({
             {plan.sourceContext}
           </pre>
         </div>
+        {readiness && (
+          <div className="md:col-span-2 rounded-xl border border-border bg-background/50 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Next dispatch wave
+              </p>
+              <span className="rounded-full bg-pastel-green px-2 py-0.5 text-[11px] font-medium text-neutral-900">
+                {readiness.recommendations.length} ready
+              </span>
+              {readiness.skipped.filter(
+                (item) => item.reason === "capability_gap",
+              ).length > 0 && (
+                <span className="rounded-full bg-pastel-red px-2 py-0.5 text-[11px] font-medium text-neutral-900">
+                  {
+                    readiness.skipped.filter(
+                      (item) => item.reason === "capability_gap",
+                    ).length
+                  }{" "}
+                  capability gap
+                </span>
+              )}
+              {readiness.skipped.filter(
+                (item) => item.reason === "capacity_exhausted",
+              ).length > 0 && (
+                <span className="rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] font-medium text-neutral-900">
+                  {
+                    readiness.skipped.filter(
+                      (item) => item.reason === "capacity_exhausted",
+                    ).length
+                  }{" "}
+                  waiting for capacity
+                </span>
+              )}
+            </div>
+            {readiness.requiresOpenQuestionDisposition && (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                Dispatch is gated until the open questions have an explicit
+                resolved, deferred, or bounded disposition.
+              </p>
+            )}
+            {readiness.recommendations.length > 0 ? (
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                {readiness.recommendations.slice(0, 6).map((item) => (
+                  <li
+                    key={item.taskId}
+                    className="flex min-w-0 items-center gap-2 rounded-xl border border-border/70 px-3 py-2"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                      {item.title}
+                    </span>
+                    <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px]">
+                      {item.recommendedAgentName}
+                    </span>
+                    {!item.notifyConfigured && (
+                      <span
+                        title="This runtime must poll next_task because it has no notify URL."
+                        className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground"
+                      >
+                        poll
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-xs text-muted-foreground">
+                No undispatched work is ready within current dependencies,
+                capabilities, leases, and concurrency limits.
+              </p>
+            )}
+            {readiness.waves.length > 0 && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Last wave sent {readiness.waves[0].assignmentCount} task
+                {readiness.waves[0].assignmentCount === 1 ? "" : "s"}
+                {readiness.waves[0].pollRequiredCount > 0
+                  ? ` · ${readiness.waves[0].pollRequiredCount} runtime${readiness.waves[0].pollRequiredCount === 1 ? "" : "s"} must poll`
+                  : " · every runtime notified"}
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </details>
   );

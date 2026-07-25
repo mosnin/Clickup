@@ -321,6 +321,11 @@ describe("execution plan compiler", () => {
     expect(
       await bob.query(api.executionPlans.get, { planId: result.planId }),
     ).toBeNull();
+    await expect(
+      bob.query(api.executionDispatch.readiness, {
+        planId: result.planId,
+      }),
+    ).rejects.toThrow(/Forbidden/i);
   });
 
   it("includes source provenance in owner workspace exports", async () => {

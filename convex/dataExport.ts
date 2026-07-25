@@ -50,6 +50,7 @@ export const exportWorkspace = query({
         startDate: t.startDate,
         dueDate: t.dueDate,
         assignees: t.assigneeClerkIds,
+        requiredCapabilities: t.requiredCapabilities,
         checklist: t.checklist,
         completedAt: t.completedAt,
         createdAt: t.createdAt,
@@ -129,6 +130,16 @@ export const exportWorkspace = query({
       .query("executionPlans")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
       .collect();
+    const executionWaves = (
+      await Promise.all(
+        executionPlans.map((plan) =>
+          ctx.db
+            .query("executionWaves")
+            .withIndex("by_plan", (q) => q.eq("planId", plan._id))
+            .collect(),
+        ),
+      )
+    ).flat();
     const spaceName = new Map(spaces.map((space) => [space._id, space.name]));
     const agentName = new Map(agents.map((agent) => [agent._id, agent.name]));
 
@@ -164,6 +175,18 @@ export const exportWorkspace = query({
         })),
         createdAt: plan.createdAt,
       })),
+      executionWaves: executionWaves.map((wave) => ({
+        executionPlan:
+          executionPlans.find((plan) => plan._id === wave.planId)?.name,
+        openQuestionDisposition: wave.openQuestionDisposition,
+        assignments: wave.assignments.map((assignment) => ({
+          taskRef: assignment.taskRef,
+          agent: agentName.get(assignment.agentId),
+          delivery: assignment.delivery,
+        })),
+        skipped: wave.skipped,
+        createdAt: wave.createdAt,
+      })),
       sprints: sprints.map((s) => ({
         name: s.name,
         goal: s.goal,
@@ -176,6 +199,8 @@ export const exportWorkspace = query({
         role: a.role ?? "member",
         status: a.status,
         dailyActionLimit: a.dailyActionLimit,
+        capabilities: a.capabilities,
+        maxConcurrentTasks: a.maxConcurrentTasks,
       })),
     };
   },

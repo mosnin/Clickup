@@ -337,6 +337,12 @@ function GovernancePanel({
   const { toast } = useToast();
   const [limitDraft, setLimitDraft] = useState(String(usageLimit));
   const [notifyDraft, setNotifyDraft] = useState(agent.notifyUrl ?? "");
+  const [capabilitiesDraft, setCapabilitiesDraft] = useState(
+    (agent.capabilities ?? []).join(", "),
+  );
+  const [concurrencyDraft, setConcurrencyDraft] = useState(
+    String(agent.maxConcurrentTasks ?? 1),
+  );
   // The stored secret is never rendered back — like API keys, it's write-only
   // from the UI. An empty field means "unchanged"; typing replaces it.
   const [secretDraft, setSecretDraft] = useState("");
@@ -504,6 +510,69 @@ function GovernancePanel({
 
       {isMember && (
         <div className="mt-4 border-t border-border pt-4">
+          <div className="mb-4 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Capabilities
+              </span>
+              <input
+                value={capabilitiesDraft}
+                onChange={(e) =>
+                  setCapabilitiesDraft(e.currentTarget.value)
+                }
+                onBlur={() => {
+                  const next = capabilitiesDraft
+                    .split(",")
+                    .map((value) => value.trim())
+                    .filter(Boolean);
+                  if (next.join(",") !== (agent.capabilities ?? []).join(",")) {
+                    save(
+                      { agentId: agent._id, capabilities: next },
+                      "Capabilities",
+                    );
+                  }
+                }}
+                placeholder="typescript, backend, quality-assurance"
+                className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              />
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Only tasks whose complete requirement set matches can be
+                claimed.
+              </span>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Concurrent work limit
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={concurrencyDraft}
+                onChange={(e) =>
+                  setConcurrencyDraft(e.currentTarget.value)
+                }
+                onBlur={() => {
+                  const value = Number.parseInt(concurrencyDraft, 10);
+                  if (
+                    Number.isInteger(value) &&
+                    value >= 1 &&
+                    value <= 20 &&
+                    value !== (agent.maxConcurrentTasks ?? 1)
+                  ) {
+                    save(
+                      { agentId: agent._id, maxConcurrentTasks: value },
+                      "Concurrent work limit",
+                    );
+                  }
+                }}
+                className="w-28 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              />
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Hard ceiling used by dispatch planning.
+              </span>
+            </label>
+          </div>
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Restricted to lists (optional)
           </span>

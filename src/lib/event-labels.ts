@@ -33,6 +33,7 @@ export const EVENT_LABEL: Record<string, string> = {
   "roadmap.phase_updated": "updated a phase of",
   "roadmap.phase_removed": "removed a phase from",
   "plan.committed": "compiled execution plan",
+  "plan.wave_dispatched": "dispatched execution wave",
   "milestone.created": "added milestone",
   "milestone.updated": "updated milestone",
   "milestone.completed": "reached milestone",

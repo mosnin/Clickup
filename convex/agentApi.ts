@@ -105,6 +105,11 @@ import { emitEvent, scopeForList } from "./events";
 import { getRollup } from "./rollups";
 import { executionPlanSummary, executionPlanView } from "./executionPlans";
 import {
+  hasCapabilities,
+  missingCapabilities,
+} from "./capabilities";
+import { executionReadinessCore } from "./executionDispatch";
+import {
   acknowledgeTaskContextCore,
   attachContextPacketCore,
   contextReadinessForAgent,
@@ -293,6 +298,7 @@ async function taskView(ctx: QueryCtx | MutationCtx, task: Doc<"tasks">) {
     startDate: task.startDate,
     dueDate: task.dueDate,
     assigneeIds: task.assigneeClerkIds,
+    requiredCapabilities: task.requiredCapabilities ?? [],
     parentTaskId: task.parentTaskId,
     sprintId: task.sprintId,
     recurrence: task.recurrence,
@@ -447,6 +453,8 @@ export const whoami = query({
       statusText: agent.statusText,
       currentTaskId: agent.currentTaskId,
       role,
+      capabilities: agent.capabilities ?? [],
+      maxConcurrentTasks: agent.maxConcurrentTasks ?? 1,
       allowedLists,
       dailyActionLimit,
       actionsUsedToday,
@@ -1102,6 +1110,7 @@ export const createTask = mutation({
     startDate: v.optional(v.number()),
     dueDate: v.optional(v.number()),
     assigneeIds: v.optional(v.array(v.string())),
+    requiredCapabilities: v.optional(v.array(v.string())),
     parentTaskId: v.optional(v.id("tasks")),
     recurrence: v.optional(
       v.union(v.literal("daily"), v.literal("weekly"), v.literal("monthly")),
@@ -1131,6 +1140,7 @@ export const updateTask = mutation({
     startDate: v.optional(v.union(v.number(), v.null())),
     dueDate: v.optional(v.union(v.number(), v.null())),
     assigneeIds: v.optional(v.array(v.string())),
+    requiredCapabilities: v.optional(v.array(v.string())),
     recurrence: v.optional(
       v.union(
         v.literal("daily"),
@@ -1222,7 +1232,16 @@ export const claimTask = mutation({
   args: { apiKey: v.string(), taskId: v.id("tasks") },
   handler: async (ctx, { apiKey, taskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
-    await requireTaskAccessForAgent(ctx, taskId, agent);
+    const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
+    const missing = missingCapabilities(
+      agent.capabilities,
+      task.requiredCapabilities,
+    );
+    if (missing.length > 0) {
+      throw new ConvexError(
+        `This task requires capabilities this agent does not advertise: ${missing.join(", ")}`,
+      );
+    }
     await requireCurrentContext(ctx, taskId, agent._id);
     await claimTaskCore(ctx, taskId, agentActor(agent));
   },
@@ -1422,6 +1441,11 @@ export const listMembers = query({
       kind: "user" | "agent";
       statusText?: string;
       lastSeenAt?: number;
+      capabilities?: string[];
+      maxConcurrentTasks?: number;
+      role?: "member" | "readonly";
+      status?: "active" | "paused";
+      currentTaskId?: Id<"tasks">;
     }[] = [];
     if (agent.parentType === "user") {
       const user = await ctx.db
@@ -1469,6 +1493,11 @@ export const listMembers = query({
         kind: "agent",
         statusText: a.statusText,
         lastSeenAt: a.lastSeenAt,
+        capabilities: a.capabilities ?? [],
+        maxConcurrentTasks: a.maxConcurrentTasks ?? 1,
+        role: a.role ?? "member",
+        status: a.status,
+        currentTaskId: a.currentTaskId,
       });
     }
     return members;
@@ -2323,6 +2352,9 @@ export const nextTask = query({
               }
             }
             if (blocked) continue;
+            if (!hasCapabilities(agent.capabilities, t.requiredCapabilities)) {
+              continue;
+            }
             candidates.push({
               task: t,
               mine,
@@ -4102,6 +4134,7 @@ const bulkTaskSpecValidator = v.object({
   startDate: v.optional(v.number()),
   dueDate: v.optional(v.number()),
   assigneeIds: v.optional(v.array(v.string())),
+  requiredCapabilities: v.optional(v.array(v.string())),
   // Parent by ref (earlier spec in this batch) or by existing task id.
   parentRef: v.optional(v.string()),
   parentTaskId: v.optional(v.id("tasks")),
@@ -4169,6 +4202,7 @@ export const createTasks = mutation({
           startDate: spec.startDate,
           dueDate: spec.dueDate,
           assigneeIds: spec.assigneeIds,
+          requiredCapabilities: spec.requiredCapabilities,
           parentTaskId,
           sprintId: spec.sprintId,
           checklist: spec.checklist,
@@ -4226,6 +4260,7 @@ const executionPlanTaskValidator = v.object({
   startDate: v.optional(v.number()),
   dueDate: v.optional(v.number()),
   assigneeIds: v.optional(v.array(v.string())),
+  requiredCapabilities: v.optional(v.array(v.string())),
   parentRef: v.optional(v.string()),
   dependsOn: v.optional(v.array(v.string())),
   checklist: v.optional(checklistValidator),
@@ -4696,6 +4731,7 @@ export const createExecutionPlan = mutation({
             startDate: task.startDate,
             dueDate: task.dueDate,
             assigneeIds: task.assigneeIds,
+            requiredCapabilities: task.requiredCapabilities,
             parentTaskId:
               parentRef === undefined ? undefined : taskIdsByRef.get(parentRef),
             checklist: task.checklist,
@@ -4845,6 +4881,243 @@ export const listExecutionPlans = query({
       .order("desc")
       .take(20);
     return plans.map(executionPlanSummary);
+  },
+});
+
+function executionWaveView(wave: Doc<"executionWaves">) {
+  return {
+    waveId: wave._id,
+    planId: wave.planId,
+    assignments: wave.assignments,
+    skipped: wave.skipped,
+    openQuestionDisposition: wave.openQuestionDisposition,
+    createdByAgentId: wave.createdByAgentId,
+    createdAt: wave.createdAt,
+  };
+}
+
+export const getExecutionReadiness = query({
+  args: {
+    apiKey: v.string(),
+    planId: v.id("executionPlans"),
+    agentIds: v.optional(v.array(v.id("agents"))),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    const plan = await ctx.db.get(args.planId);
+    if (
+      !plan ||
+      agent.parentType !== "workspace" ||
+      plan.workspaceId !== agent.parentId
+    ) {
+      throw new ConvexError("Execution plan not found in your workspace");
+    }
+    return await executionReadinessCore(
+      ctx,
+      plan,
+      args.agentIds ? new Set(args.agentIds) : undefined,
+    );
+  },
+});
+
+export const dispatchExecutionWave = mutation({
+  args: {
+    apiKey: v.string(),
+    idempotencyKey: v.string(),
+    planId: v.id("executionPlans"),
+    maxTasks: v.optional(v.number()),
+    agentIds: v.optional(v.array(v.id("agents"))),
+    openQuestionDisposition: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    if (agent.parentType !== "workspace") {
+      throw new ConvexError(
+        "Execution waves require a workspace-scoped agent",
+      );
+    }
+    const plan = await ctx.db.get(args.planId);
+    if (!plan || plan.workspaceId !== agent.parentId) {
+      throw new ConvexError("Execution plan not found in your workspace");
+    }
+    const idempotencyKey = executionText(
+      args.idempotencyKey,
+      "idempotencyKey",
+      120,
+    );
+    const maxTasks = args.maxTasks ?? 10;
+    if (!Number.isInteger(maxTasks) || maxTasks < 1 || maxTasks > 25) {
+      throw new ConvexError("maxTasks must be an integer from 1-25");
+    }
+    const requestedAgentIds = [...new Set(args.agentIds ?? [])];
+    for (const agentId of requestedAgentIds) {
+      const candidate = await ctx.db.get(agentId);
+      if (
+        !candidate ||
+        candidate.parentType !== "workspace" ||
+        candidate.parentId !== plan.workspaceId
+      ) {
+        throw new ConvexError(
+          `agentIds includes an agent outside this workspace: ${agentId}`,
+        );
+      }
+    }
+    let openQuestionDisposition = args.openQuestionDisposition?.trim();
+    if (openQuestionDisposition && openQuestionDisposition.length > 2_000) {
+      throw new ConvexError(
+        "openQuestionDisposition must be 2,000 characters or fewer",
+      );
+    }
+    if (plan.openQuestions.length > 0) {
+      if (!openQuestionDisposition || openQuestionDisposition.length < 10) {
+        throw new ConvexError(
+          "This plan has open questions. Provide openQuestionDisposition explaining what was resolved, deferred, or intentionally bounded before dispatch.",
+        );
+      }
+    } else {
+      openQuestionDisposition = undefined;
+    }
+    const fingerprint = sha256Hex(
+      canonicalJson({
+        planId: args.planId,
+        maxTasks,
+        agentIds: requestedAgentIds,
+        openQuestionDisposition,
+      }),
+    );
+    const previous = await ctx.db
+      .query("executionWaves")
+      .withIndex("by_agent_key", (q) =>
+        q
+          .eq("createdByAgentId", agent._id)
+          .eq("idempotencyKey", idempotencyKey),
+      )
+      .unique();
+    if (previous) {
+      if (previous.requestFingerprint !== fingerprint) {
+        throw new ConvexError(
+          "This idempotencyKey already dispatched a different wave. Use a new key for changed routing.",
+        );
+      }
+      return { ...executionWaveView(previous), replayed: true };
+    }
+
+    const readiness = await executionReadinessCore(
+      ctx,
+      plan,
+      requestedAgentIds.length > 0
+        ? new Set(requestedAgentIds)
+        : undefined,
+    );
+    const selected = readiness.recommendations.slice(0, maxTasks);
+    if (selected.length === 0) {
+      const reasons = [
+        ...new Set(readiness.skipped.map((row) => row.reason)),
+      ].join(", ");
+      throw new ConvexError(
+        `No tasks are dispatchable in this wave${reasons ? ` (${reasons})` : ""}`,
+      );
+    }
+    const assignments: Doc<"executionWaves">["assignments"] = [];
+    for (const recommendation of selected) {
+      const task = await ctx.db.get(recommendation.taskId);
+      const target = await ctx.db.get(recommendation.recommendedAgentId);
+      if (!task || !target) {
+        throw new ConvexError(
+          `Dispatch artifact disappeared for ${recommendation.taskRef}; retry with a new wave key`,
+        );
+      }
+      const humanAssignees = task.assigneeClerkIds.filter(
+        (assigneeId) => !ctx.db.normalizeId("agents", assigneeId),
+      );
+      const assigneeIds = [
+        ...humanAssignees,
+        recommendation.recommendedAgentId,
+      ];
+      if (
+        assigneeIds.length !== task.assigneeClerkIds.length ||
+        assigneeIds.some(
+          (assigneeId, index) =>
+            assigneeId !== task.assigneeClerkIds[index],
+        )
+      ) {
+        await updateTaskCore(
+          ctx,
+          { taskId: task._id, assigneeIds },
+          agentActor(agent),
+        );
+      }
+      const delivery = target.notifyUrl
+        ? ("notify_url" as const)
+        : ("poll_required" as const);
+      if (target.notifyUrl) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.notifications.postAgentPing,
+          {
+            url: target.notifyUrl,
+            type: "task.ready",
+            payload: {
+              planId: plan._id,
+              taskId: task._id,
+              listId: task.listId,
+              title: task.title,
+              contextRequired: true,
+            },
+            secret: target.notifySecret,
+          },
+        );
+      }
+      assignments.push({
+        taskId: task._id,
+        taskRef: recommendation.taskRef,
+        agentId: target._id,
+        delivery,
+      });
+    }
+    const selectedRefs = new Set(
+      selected.map((recommendation) => recommendation.taskRef),
+    );
+    const skipped = readiness.skipped.filter(
+      (row) => !selectedRefs.has(row.taskRef),
+    );
+    for (const recommendation of readiness.recommendations.slice(maxTasks)) {
+      skipped.push({
+        taskRef: recommendation.taskRef,
+        reason: "wave_limit",
+      });
+    }
+    const waveId = await ctx.db.insert("executionWaves", {
+      workspaceId: plan.workspaceId,
+      planId: plan._id,
+      createdByAgentId: agent._id,
+      idempotencyKey,
+      requestFingerprint: fingerprint,
+      openQuestionDisposition,
+      assignments,
+      skipped,
+      createdAt: Date.now(),
+    });
+    await emitEvent(ctx, {
+      scopeType: "workspace",
+      scopeId: plan.workspaceId,
+      type: "plan.wave_dispatched",
+      actor: agentActor(agent),
+      entityType: "roadmap",
+      entityId: plan.roadmapId,
+      entityTitle: plan.name,
+      payload: {
+        planId: plan._id,
+        waveId,
+        assignmentCount: assignments.length,
+        pollRequiredCount: assignments.filter(
+          (assignment) => assignment.delivery === "poll_required",
+        ).length,
+      },
+    });
+    const wave = (await ctx.db.get(waveId))!;
+    return { ...executionWaveView(wave), replayed: false };
   },
 });
 

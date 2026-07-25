@@ -27,6 +27,7 @@ import type * as checklistTemplates from "../checklistTemplates.js";
 import type * as clips from "../clips.js";
 import type * as contextPackets from "../contextPackets.js";
 import type * as executionPlans from "../executionPlans.js";
+import type * as executionDispatch from "../executionDispatch.js";
 import type * as crons from "../crons.js";
 import type * as customFields from "../customFields.js";
 import type * as dataExport from "../dataExport.js";
@@ -112,6 +113,7 @@ declare const fullApi: ApiFromModules<{
   clips: typeof clips;
   contextPackets: typeof contextPackets;
   executionPlans: typeof executionPlans;
+  executionDispatch: typeof executionDispatch;
   crons: typeof crons;
   customFields: typeof customFields;
   dataExport: typeof dataExport;

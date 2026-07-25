@@ -10,6 +10,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity, requireListAccess, requireTaskAccess } from "./_authz";
 import { DEFAULT_DAILY_ACTION_LIMIT } from "./_agentAuth";
 import { validateWebhookUrl } from "./webhooks";
+import { normalizeCapabilities } from "./capabilities";
 
 // Human-facing management of AI agent principals: create/pause/delete
 // agents, inspect their keys, and feed the assignee pickers. The agent-
@@ -499,6 +500,7 @@ export const create = mutation({
     name: v.string(),
     description: v.optional(v.string()),
     emoji: v.optional(v.string()),
+    capabilities: v.optional(v.array(v.string())),
     ...scopeValidator,
   },
   handler: async (ctx, args) => {
@@ -508,10 +510,15 @@ export const create = mutation({
       args.parentId,
     );
     if (!args.name.trim()) throw new ConvexError("Agent name is required");
+    const capabilities = normalizeCapabilities(
+      args.capabilities,
+      "capabilities",
+    );
     return await ctx.db.insert("agents", {
       name: args.name.trim(),
       description: args.description,
       emoji: args.emoji,
+      capabilities: capabilities.length > 0 ? capabilities : undefined,
       parentType: args.parentType,
       parentId: args.parentId,
       status: "active",
@@ -529,6 +536,8 @@ export const update = mutation({
     emoji: v.optional(v.string()),
     status: v.optional(v.union(v.literal("active"), v.literal("paused"))),
     role: v.optional(v.union(v.literal("member"), v.literal("readonly"))),
+    capabilities: v.optional(v.union(v.array(v.string()), v.null())),
+    maxConcurrentTasks: v.optional(v.union(v.number(), v.null())),
     allowedListIds: v.optional(v.union(v.array(v.id("lists")), v.null())),
     dailyActionLimit: v.optional(v.union(v.number(), v.null())),
     notifyUrl: v.optional(v.union(v.string(), v.null())),
@@ -544,6 +553,24 @@ export const update = mutation({
     if (args.emoji !== undefined) patch.emoji = args.emoji;
     if (args.status !== undefined) patch.status = args.status;
     if (args.role !== undefined) patch.role = args.role;
+    if (args.capabilities !== undefined) {
+      const capabilities = normalizeCapabilities(
+        args.capabilities ?? [],
+        "capabilities",
+      );
+      patch.capabilities = capabilities.length > 0 ? capabilities : undefined;
+    }
+    if (args.maxConcurrentTasks !== undefined) {
+      if (
+        args.maxConcurrentTasks !== null &&
+        (!Number.isInteger(args.maxConcurrentTasks) ||
+          args.maxConcurrentTasks < 1 ||
+          args.maxConcurrentTasks > 20)
+      ) {
+        throw new ConvexError("maxConcurrentTasks must be an integer from 1-20");
+      }
+      patch.maxConcurrentTasks = args.maxConcurrentTasks ?? undefined;
+    }
     if (args.allowedListIds !== undefined) {
       // An empty array is semantically identical to "unrestricted" in the
       // UI, but _agentAuth's checks key off `=== undefined` specifically —

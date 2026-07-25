@@ -21,6 +21,7 @@ export type AgentTemplate = {
   dailyActionLimit: number;
   // Built-in skill slugs worth importing for this persona (informational).
   recommendedSkills: string[];
+  capabilities: string[];
   // True when the template's persona is meaningless (or unsupported) outside
   // a team workspace — e.g. sprints are workspace-only. Enforced server-side
   // in createFromTemplate, not just hidden/disabled in the picker UI.
@@ -38,6 +39,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     role: "member",
     dailyActionLimit: 1500,
     recommendedSkills: ["collaboration-protocol"],
+    capabilities: ["project-management", "triage"],
   },
   {
     slug: "sprint-planner",
@@ -49,6 +51,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     role: "member",
     dailyActionLimit: 1000,
     recommendedSkills: ["collaboration-protocol", "sprint-planner"],
+    capabilities: ["project-management", "sprint-planning"],
     requiresWorkspace: true,
   },
   {
@@ -61,6 +64,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     role: "member",
     dailyActionLimit: 1500,
     recommendedSkills: ["collaboration-protocol"],
+    capabilities: ["quality-assurance"],
   },
   {
     slug: "docs-writer",
@@ -72,6 +76,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     role: "member",
     dailyActionLimit: 800,
     recommendedSkills: ["collaboration-protocol"],
+    capabilities: ["documentation"],
   },
   {
     slug: "research-analyst",
@@ -83,6 +88,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     role: "member",
     dailyActionLimit: 600,
     recommendedSkills: ["collaboration-protocol"],
+    capabilities: ["research", "analysis"],
   },
   {
     slug: "watchtower",
@@ -94,6 +100,7 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     role: "readonly",
     dailyActionLimit: 2000,
     recommendedSkills: ["collaboration-protocol"],
+    capabilities: ["operations-monitoring"],
   },
 ];
 
@@ -144,6 +151,8 @@ export const createFromTemplate = mutation({
       parentId,
       status: "active",
       role: tpl.role,
+      capabilities: tpl.capabilities,
+      maxConcurrentTasks: 1,
       dailyActionLimit: tpl.dailyActionLimit,
       createdByClerkId: identity.subject,
       createdAt: Date.now(),

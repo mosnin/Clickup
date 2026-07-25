@@ -10,6 +10,10 @@ import { emitEvent, scopeForList, userActor } from "./events";
 import { createMessageCore } from "./messages";
 import { notify } from "./notificationCenter";
 import { adjustRollup } from "./rollups";
+import {
+  missingCapabilities,
+  normalizeCapabilities,
+} from "./capabilities";
 
 // Task CRUD. Since Phase 12 the write paths are factored into *Core
 // functions that take an explicit Actor, so the Clerk-authenticated
@@ -158,6 +162,7 @@ async function spawnRecurringInstance(
       startDate: newStart,
       dueDate: newDue,
       assigneeIds: completedTask.assigneeClerkIds,
+      requiredCapabilities: completedTask.requiredCapabilities,
       parentTaskId: completedTask.parentTaskId,
       recurrence: completedTask.recurrence,
     },
@@ -242,6 +247,38 @@ async function validateBlockers(
   }
 }
 
+async function validateAgentCapabilityAssignments(
+  ctx: MutationCtx,
+  list: Doc<"lists">,
+  assigneeIds: string[],
+  requiredCapabilities: string[],
+): Promise<void> {
+  if (requiredCapabilities.length === 0) return;
+  const scope = await scopeForList(ctx, list);
+  for (const assigneeId of assigneeIds) {
+    const agentId = ctx.db.normalizeId("agents", assigneeId);
+    if (!agentId) continue;
+    const agent = await ctx.db.get(agentId);
+    if (
+      !agent ||
+      !scope ||
+      agent.parentType !== scope.scopeType ||
+      agent.parentId !== scope.scopeId
+    ) {
+      throw new ConvexError("Agent assignee is outside this task's scope");
+    }
+    const missing = missingCapabilities(
+      agent.capabilities,
+      requiredCapabilities,
+    );
+    if (missing.length > 0) {
+      throw new ConvexError(
+        `${agent.name} is missing required capabilities: ${missing.join(", ")}`,
+      );
+    }
+  }
+}
+
 async function openBlockers(
   ctx: MutationCtx,
   task: Doc<"tasks">,
@@ -282,6 +319,7 @@ export type CreateTaskArgs = {
   startDate?: number;
   dueDate?: number;
   assigneeIds?: string[];
+  requiredCapabilities?: string[];
   parentTaskId?: Id<"tasks">;
   recurrence?: "daily" | "weekly" | "monthly";
   sprintId?: Id<"sprints">;
@@ -337,6 +375,11 @@ export async function createTaskCore(
   // the caller stays silent and the list has a routing rule, fill it in so
   // work never sits unassigned in a routed list.
   let assigneeIds = args.assigneeIds ?? [];
+  const requiredCapabilities = normalizeCapabilities(
+    args.requiredCapabilities,
+    "requiredCapabilities",
+    10,
+  );
   const routing = list.routing;
   if (
     !bornComplete &&
@@ -372,6 +415,12 @@ export async function createTaskCore(
       assigneeIds = [best];
     }
   }
+  await validateAgentCapabilityAssignments(
+    ctx,
+    list,
+    assigneeIds,
+    requiredCapabilities,
+  );
 
   const taskId = await ctx.db.insert("tasks", {
     listId: args.listId,
@@ -382,6 +431,8 @@ export async function createTaskCore(
     startDate: args.startDate,
     dueDate: args.dueDate,
     assigneeClerkIds: assigneeIds,
+    requiredCapabilities:
+      requiredCapabilities.length > 0 ? requiredCapabilities : undefined,
     parentTaskId: args.parentTaskId,
     recurrence: args.recurrence,
     sprintId: args.sprintId,
@@ -440,6 +491,7 @@ export type UpdateTaskArgs = {
   startDate?: number | null;
   dueDate?: number | null;
   assigneeIds?: string[];
+  requiredCapabilities?: string[];
   recurrence?: "daily" | "weekly" | "monthly" | null;
   sprintId?: Id<"sprints"> | null;
   blockedByTaskIds?: Id<"tasks">[];
@@ -540,11 +592,38 @@ export async function updateTaskCore(
     changedFields.push("dueDate");
   }
   let newlyAssigned: string[] = [];
+  const nextRequiredCapabilities =
+    args.requiredCapabilities === undefined
+      ? task.requiredCapabilities ?? []
+      : normalizeCapabilities(
+          args.requiredCapabilities,
+          "requiredCapabilities",
+          10,
+        );
+  const nextAssigneeIds = args.assigneeIds ?? task.assigneeClerkIds;
+  if (
+    args.assigneeIds !== undefined ||
+    args.requiredCapabilities !== undefined
+  ) {
+    await validateAgentCapabilityAssignments(
+      ctx,
+      list,
+      nextAssigneeIds,
+      nextRequiredCapabilities,
+    );
+  }
   if (args.assigneeIds !== undefined) {
     patch.assigneeClerkIds = args.assigneeIds;
     newlyAssigned = args.assigneeIds.filter(
       (cid) => !task.assigneeClerkIds.includes(cid),
     );
+  }
+  if (args.requiredCapabilities !== undefined) {
+    patch.requiredCapabilities =
+      nextRequiredCapabilities.length > 0
+        ? nextRequiredCapabilities
+        : undefined;
+    changedFields.push("requiredCapabilities");
   }
   if (args.recurrence !== undefined) {
     patch.recurrence = args.recurrence ?? undefined;
@@ -1101,6 +1180,7 @@ export const create = mutation({
     startDate: v.optional(v.number()),
     dueDate: v.optional(v.number()),
     assigneeClerkIds: v.optional(v.array(v.string())),
+    requiredCapabilities: v.optional(v.array(v.string())),
     parentTaskId: v.optional(v.id("tasks")),
     recurrence: v.optional(recurrenceValidator),
     sprintId: v.optional(v.id("sprints")),
@@ -1122,6 +1202,7 @@ export const create = mutation({
         startDate: args.startDate,
         dueDate: args.dueDate,
         assigneeIds: args.assigneeClerkIds,
+        requiredCapabilities: args.requiredCapabilities,
         parentTaskId: args.parentTaskId,
         recurrence: args.recurrence,
         sprintId: args.sprintId,
@@ -1144,6 +1225,7 @@ export const update = mutation({
     startDate: v.optional(v.union(v.number(), v.null())),
     dueDate: v.optional(v.union(v.number(), v.null())),
     assigneeClerkIds: v.optional(v.array(v.string())),
+    requiredCapabilities: v.optional(v.array(v.string())),
     recurrence: v.optional(v.union(recurrenceValidator, v.null())),
     sprintId: v.optional(v.union(v.id("sprints"), v.null())),
     blockedByTaskIds: v.optional(v.array(v.id("tasks"))),
@@ -1167,6 +1249,7 @@ export const update = mutation({
         startDate: args.startDate,
         dueDate: args.dueDate,
         assigneeIds: args.assigneeClerkIds,
+        requiredCapabilities: args.requiredCapabilities,
         recurrence: args.recurrence,
         sprintId: args.sprintId,
         blockedByTaskIds: args.blockedByTaskIds,
