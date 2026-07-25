@@ -133,15 +133,18 @@ only after automated checks and relevant production behavior both pass.
 
 ## Active production certifications
 
-- Public connector submission compliance (validated locally 2026-07-25):
-  OpenAI's profile retains all 140 tools, while Anthropic's directory profile
-  advertises 138. The Claude profile omits only `buy_credits` and
-  `settle_payment` to comply with Anthropic's prohibition on software that
-  initiates or executes financial transactions; `get_wallet` remains available
-  with read-only, profile-specific wording. Every advertised tool retains
-  explicit safety annotations and structured output. Typecheck, lint, plugin
-  validation, and all 331 tests pass. Production endpoint and browser proof
-  remain required before either submission bundle is promoted to proven.
+- Public connector submission compliance (production-validated 2026-07-25):
+  deployment `dpl_w3dL5pw14yVUGJiJeTEy8qSngXeq` is Ready and healthy. The
+  authenticated OpenAI profile exposes all 140 tools; Anthropic's directory
+  profile exposes 138, omitting only `buy_credits` and `settle_payment` to
+  comply with its prohibition on software that initiates or executes financial
+  transactions. Claude retains `get_wallet` with read-only, profile-specific
+  wording. Both profiles passed live initialization, discovery, annotation,
+  structured-output, identity, hierarchy, and seven-resource smoke checks.
+  The public Plugins page rendered the production connection and curl install
+  paths cleanly in Chrome with no console errors; Vercel had no runtime errors.
+  Typecheck, lint, plugin validation, and all 331 tests pass. Official portal
+  upload, reviewer-account proof, and platform review remain open.
 - x402 billing truthfulness audit (validated 2026-07-25): the production MCP
   host exposes `get_wallet`, `buy_credits`, and `settle_payment`; wallet reads,
   positive-integer input validation, unauthenticated rejection, and
