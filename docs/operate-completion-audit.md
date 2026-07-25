@@ -103,6 +103,10 @@ only after automated checks and relevant production behavior both pass.
   and the full Builder proof task detail remained usable on desktop and at
   390×844 with no document-level horizontal overflow.
 - Seven curl-installable skills with retries and SHA-256 verification
+- The API key exposed during development was matched to Jimmy by its stored
+  prefix in the authenticated Agents HQ, revoked without deleting the agent or
+  its separate unused key, and rejected on the next live MCP discovery request
+  with `401 invalid_token` plus OAuth protected-resource metadata.
 - Completed agent work clears its matching current-task and activity text,
   preventing stale “Now” presence after success
 - Local production build, typecheck, lint, plugin validation, and 354 tests
@@ -126,12 +130,13 @@ only after automated checks and relevant production behavior both pass.
    navigation, and failure states. Onboarding, Inbox, task detail, the core
    Spaces/List hierarchy, template destinations, and their mobile responsive
    layouts are certified above.
-3. Finish the security review: rotate credentials exposed during development,
-   complete the human/agent authorization matrix and abuse-oriented rate-limit
-   tests, review remaining secret-handling paths, and disposition the seven
-   upstream/unpatched production dependency advisories. OAuth redirects,
-   MCP authentication/CORS, webhook egress, the agent write-rate limit, and
-   the fixable dependency set are certified below.
+3. Finish the security review: rotate any remaining credentials exposed during
+   development, complete the human/agent authorization matrix and
+   abuse-oriented rate-limit tests, review remaining secret-handling paths,
+   and disposition the seven upstream/unpatched production dependency
+   advisories. The shared agent API key, OAuth redirects, MCP
+   authentication/CORS, webhook egress, the agent write-rate limit, and the
+   fixable dependency set are certified below.
 4. Run load/performance, backup/restore, data-retention, and disaster-recovery
    exercises.
 5. Upload the ChatGPT and Claude bundles for official review and address reviewer
@@ -166,6 +171,15 @@ only after automated checks and relevant production behavior both pass.
   advisories are upstream/unpatched Next image/CSS chains and an MCP SDK
   Windows-only static-file adapter path not used by the Linux Vercel handler;
   they remain tracked rather than force-upgraded across incompatible majors.
+- Credential rotation (production-validated 2026-07-25): the agent API key
+  shared during development was still active and resolved to Jimmy. The
+  authenticated Agents HQ exposed two distinct keys for that principal, so the
+  matching key alone was revoked after its undo window while the agent and its
+  separate unused key were preserved. The row changed to `revoked`, and an
+  immediate live `tools/list` replay returned `401 invalid_token` with the
+  correct OAuth protected-resource challenge. Production application and
+  Convex health remained `ok`, and the one-hour production error-log scan was
+  empty.
 - Public connector submission compliance (production-validated 2026-07-25):
   deployment `dpl_w3dL5pw14yVUGJiJeTEy8qSngXeq` is Ready and healthy. The
   authenticated base profile exposes all 140 tools; Anthropic's directory
