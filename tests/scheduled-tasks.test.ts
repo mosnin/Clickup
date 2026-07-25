@@ -1,10 +1,26 @@
 import { describe, expect, it } from "vitest";
+import { convexTest } from "convex-test";
 import { computeNextRunAt } from "../convex/scheduledTasks";
+import schema from "../convex/schema";
+import { api, internal } from "../convex/_generated/api";
+import { sha256Hex } from "../convex/_agentAuth";
+
+const modules = import.meta.glob("../convex/**/*.*s");
+const OWNER = { subject: "schedule_owner", email: "owner@schedule.test" };
 
 // Monday 2026-07-13 10:30 UTC.
 const MON_1030 = Date.UTC(2026, 6, 13, 10, 30);
 
 describe("computeNextRunAt", () => {
+  it("hourly: advances to the next top of hour", () => {
+    expect(computeNextRunAt(MON_1030, "hourly", 9)).toBe(
+      Date.UTC(2026, 6, 13, 11),
+    );
+    expect(
+      computeNextRunAt(Date.UTC(2026, 6, 13, 10), "hourly", 23),
+    ).toBe(Date.UTC(2026, 6, 13, 11));
+  });
+
   it("daily: next occurrence strictly after `after`", () => {
     // 09:00 already passed today → tomorrow 09:00.
     expect(computeNextRunAt(MON_1030, "daily", 9)).toBe(
@@ -41,9 +57,94 @@ describe("computeNextRunAt", () => {
   });
 
   it("always returns a strictly future time", () => {
-    for (const cadence of ["daily", "weekly", "monthly"] as const) {
+    for (const cadence of ["hourly", "daily", "weekly", "monthly"] as const) {
       const next = computeNextRunAt(MON_1030, cadence, 10, 1, 13);
       expect(next).toBeGreaterThan(MON_1030);
     }
+  });
+
+  it("materializes hourly agent work into the durable wake inbox", async () => {
+    const t = convexTest(schema, modules);
+    const { workspaceId, agentId } = await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        clerkId: OWNER.subject,
+        email: OWNER.email,
+      });
+      const wsId = await ctx.db.insert("workspaces", {
+        name: "Autonomous Ops",
+        slug: "autonomous-ops",
+        ownerClerkId: OWNER.subject,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("memberships", {
+        workspaceId: wsId,
+        userClerkId: OWNER.subject,
+        role: "owner",
+        joinedAt: Date.now(),
+      });
+      const workerId = await ctx.db.insert("agents", {
+        name: "Hourly operator",
+        parentType: "workspace",
+        parentId: wsId,
+        status: "active",
+        createdByClerkId: OWNER.subject,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("agentKeys", {
+        agentId: workerId,
+        keyHash: sha256Hex("cua_hourly_operator"),
+        keyPrefix: "cua_hour",
+        createdAt: Date.now(),
+      });
+      return { workspaceId: wsId, agentId: workerId };
+    });
+    const spaceId = await t.withIdentity(OWNER).mutation(api.spaces.create, {
+      name: "Operations",
+      parentType: "workspace",
+      parentId: workspaceId,
+    });
+    const listId = await t.withIdentity(OWNER).mutation(api.lists.create, {
+      name: "Health checks",
+      parentType: "space",
+      parentId: spaceId,
+    });
+    const scheduledTaskId = await t
+      .withIdentity(OWNER)
+      .mutation(api.scheduledTasks.create, {
+        listId,
+        title: "Inspect agent health",
+        assigneeIds: [agentId],
+        cadence: "hourly",
+      });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(scheduledTaskId, { nextRunAt: Date.now() - 1 });
+    });
+
+    await t.mutation(internal.scheduledTasks.materializeDue, {});
+
+    const tasks = await t.withIdentity(OWNER).query(api.tasks.listForList, {
+      listId,
+    });
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]).toMatchObject({
+      title: "Inspect agent health",
+      assigneeClerkIds: [agentId],
+    });
+    expect(
+      await t.query(api.agentApi.listWakeInbox, {
+        apiKey: "cua_hourly_operator",
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        type: "task.assigned",
+        taskId: tasks[0]._id,
+        pushStatus: "poll_required",
+      }),
+    ]);
+    const schedule = await t.run(async (ctx) =>
+      ctx.db.get(scheduledTaskId),
+    );
+    expect(schedule?.lastRunAt).toEqual(expect.any(Number));
+    expect(schedule!.nextRunAt).toBeGreaterThan(schedule!.lastRunAt!);
   });
 });

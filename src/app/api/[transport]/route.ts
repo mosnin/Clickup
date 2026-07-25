@@ -1609,14 +1609,14 @@ const TOOLS: ToolDef[] = [
   {
     name: "create_scheduled_task",
     description:
-      "Time-based recurring task: 'every Monday 09:00 UTC create X in list Y'. cadence daily/weekly/monthly; dayOfWeek 0-6 (weekly), dayOfMonth 1-28 (monthly); dueInDays sets the created task's due date.",
+      "Time-based recurring task: 'hourly create a health check' or 'every Monday 09:00 UTC create X in list Y'. cadence hourly/daily/weekly/monthly; hourUtc is ignored for hourly; dayOfWeek 0-6 (weekly), dayOfMonth 1-28 (monthly); dueInDays sets the created task's due date. Assigned agents receive the materialized task through signed push or their durable wake inbox.",
     shape: {
       listId: z.string(),
       title: z.string(),
       description: z.string().optional(),
       priority: priorityArg.optional(),
       assigneeIds: z.array(z.string()).optional(),
-      cadence: z.enum(["daily", "weekly", "monthly"]),
+      cadence: z.enum(["hourly", "daily", "weekly", "monthly"]),
       dayOfWeek: z.number().min(0).max(6).optional(),
       dayOfMonth: z.number().min(1).max(28).optional(),
       hourUtc: z.number().min(0).max(23).optional(),

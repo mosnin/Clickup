@@ -55,6 +55,7 @@ const ROUTING_MODE_LABEL: Record<RoutedList["mode"], string> = {
 
 /** "Weekly · Mon · 09:00 UTC" — one voice for a schedule's cadence. */
 function cadenceLabel(s: Schedule): string {
+  if (s.cadence === "hourly") return "Hourly";
   const hour = `${String(s.hourUtc).padStart(2, "0")}:00 UTC`;
   if (s.cadence === "daily") return `Daily · ${hour}`;
   if (s.cadence === "weekly") {

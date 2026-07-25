@@ -2036,6 +2036,7 @@ export const createScheduledTask = mutation({
     priority: v.optional(priorityValidator),
     assigneeIds: v.optional(v.array(v.string())),
     cadence: v.union(
+      v.literal("hourly"),
       v.literal("daily"),
       v.literal("weekly"),
       v.literal("monthly"),

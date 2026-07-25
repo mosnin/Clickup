@@ -1349,11 +1349,12 @@ export default defineSchema({
     ),
     assigneeIds: v.array(v.string()),
     cadence: v.union(
+      v.literal("hourly"),
       v.literal("daily"),
       v.literal("weekly"),
       v.literal("monthly"),
     ),
-    // weekly: 0 (Sunday) – 6. monthly: 1–28. Ignored for daily.
+    // weekly: 0 (Sunday) – 6. monthly: 1–28. Ignored for hourly/daily.
     dayOfWeek: v.optional(v.number()),
     dayOfMonth: v.optional(v.number()),
     hourUtc: v.number(),

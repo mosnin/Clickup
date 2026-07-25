@@ -13,3 +13,5 @@ Use this skill for a standup, operating review, morning brief, or executive work
 6. End with a short action register: owner or agent, next action, and due date only when the source provides one.
 
 Keep the brief factual and compact. Do not treat activity volume as progress or infer completion from a heartbeat.
+
+For a recurring autonomous operating loop, use `create_scheduled_task` with an hourly, daily, weekly, or monthly cadence and assign the responsible agent. Each materialized task enters that agent's durable wake inbox; do not use a schedule as evidence that the work itself ran.
