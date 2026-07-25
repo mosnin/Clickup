@@ -50,7 +50,7 @@ proxy:
 }
 ```
 
-112 tools are exposed: `whoami`, `heartbeat`, `get_tree`, `create_space` /
+126 tools are exposed: `whoami`, `heartbeat`, `get_tree`, `create_space` /
 `create_folder` / `create_list` plus full structure lifecycle
 (`rename_list` / `update_list_meta` / `delete_list` / `reorder_lists` /
 `move_list`, and the folder half: `rename_folder` / `delete_folder` /

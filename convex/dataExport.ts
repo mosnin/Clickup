@@ -140,6 +140,16 @@ export const exportWorkspace = query({
         ),
       )
     ).flat();
+    const executionAssignments = (
+      await Promise.all(
+        executionPlans.map((plan) =>
+          ctx.db
+            .query("executionAssignments")
+            .withIndex("by_plan", (q) => q.eq("planId", plan._id))
+            .collect(),
+        ),
+      )
+    ).flat();
     const spaceName = new Map(spaces.map((space) => [space._id, space.name]));
     const agentName = new Map(agents.map((agent) => [agent._id, agent.name]));
 
@@ -186,6 +196,23 @@ export const exportWorkspace = query({
         })),
         skipped: wave.skipped,
         createdAt: wave.createdAt,
+      })),
+      executionAssignments: executionAssignments.map((assignment) => ({
+        executionPlan:
+          executionPlans.find((plan) => plan._id === assignment.planId)?.name,
+        taskRef: assignment.taskRef,
+        agent: agentName.get(assignment.agentId),
+        delivery: assignment.delivery,
+        status: assignment.status,
+        attempt: assignment.attempt,
+        dispatchedAt: assignment.dispatchedAt,
+        claimedAt: assignment.claimedAt,
+        startedAt: assignment.startedAt,
+        lastHeartbeatAt: assignment.lastHeartbeatAt,
+        finishedAt: assignment.finishedAt,
+        summary: assignment.summary,
+        error: assignment.error,
+        links: assignment.links,
       })),
       sprints: sprints.map((s) => ({
         name: s.name,

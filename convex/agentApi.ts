@@ -108,7 +108,17 @@ import {
   hasCapabilities,
   missingCapabilities,
 } from "./capabilities";
-import { executionReadinessCore } from "./executionDispatch";
+import {
+  executionControlCore,
+  executionReadinessCore,
+} from "./executionDispatch";
+import {
+  abandonExecutionAssignmentForTask,
+  finishExecutionAssignment,
+  markExecutionAssignmentClaimed,
+  markExecutionAssignmentRunning,
+  touchExecutionAssignment,
+} from "./executionLifecycle";
 import {
   acknowledgeTaskContextCore,
   attachContextPacketCore,
@@ -490,9 +500,23 @@ export const heartbeat = mutation({
       if (args.currentTaskId === null) {
         patch.currentTaskId = undefined;
       } else {
-        await requireTaskAccessForAgent(ctx, args.currentTaskId, agent);
+        const { task } = await requireTaskAccessForAgent(
+          ctx,
+          args.currentTaskId,
+          agent,
+        );
         await requireCurrentContext(ctx, args.currentTaskId, agent._id);
+        if (
+          task.claimedByActorId !== agent._id ||
+          task.claimedAt === undefined ||
+          Date.now() - task.claimedAt > CLAIM_TTL_MS
+        ) {
+          throw new ConvexError(
+            "Claim this task before setting it as your current work",
+          );
+        }
         patch.currentTaskId = args.currentTaskId;
+        await touchExecutionAssignment(ctx, args.currentTaskId, agent._id);
       }
     }
     await ctx.db.patch(agent._id, patch);
@@ -1244,6 +1268,7 @@ export const claimTask = mutation({
     }
     await requireCurrentContext(ctx, taskId, agent._id);
     await claimTaskCore(ctx, taskId, agentActor(agent));
+    await markExecutionAssignmentClaimed(ctx, taskId, agent._id);
   },
 });
 
@@ -1252,6 +1277,12 @@ export const releaseTask = mutation({
   handler: async (ctx, { apiKey, taskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     await requireTaskAccessForAgent(ctx, taskId, agent);
+    await abandonExecutionAssignmentForTask(
+      ctx,
+      taskId,
+      agent._id,
+      "Released by assigned agent",
+    );
     await releaseTaskCore(ctx, taskId, agentActor(agent));
   },
 });
@@ -2426,6 +2457,12 @@ export const handoffTask = mutation({
     } else if (args.toId !== agent.parentId) {
       throw new ConvexError("Recipient is not in this scope");
     }
+    await abandonExecutionAssignmentForTask(
+      ctx,
+      args.taskId,
+      agent._id,
+      `Handed off to ${args.toId}`,
+    );
     await handoffTaskCore(
       ctx,
       args.taskId,
@@ -2527,17 +2564,61 @@ export const startRun = mutation({
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
-    if (args.taskId) {
-      await requireTaskAccessForAgent(ctx, args.taskId, agent);
-      await requireCurrentContext(ctx, args.taskId, agent._id);
+    const title = args.title.trim();
+    if (!title) throw new ConvexError("Run title is required");
+    if (title.length > 200) {
+      throw new ConvexError("Run title must be 200 characters or fewer");
     }
-    return await ctx.db.insert("agentRuns", {
+    if (args.taskId) {
+      const { task } = await requireTaskAccessForAgent(
+        ctx,
+        args.taskId,
+        agent,
+      );
+      await requireCurrentContext(ctx, args.taskId, agent._id);
+      if (
+        task.claimedByActorId !== agent._id ||
+        task.claimedAt === undefined ||
+        Date.now() - task.claimedAt > CLAIM_TTL_MS
+      ) {
+        throw new ConvexError("Claim this task before starting a run");
+      }
+      const recentRuns = await ctx.db
+        .query("agentRuns")
+        .withIndex("by_agent", (q) => q.eq("agentId", agent._id))
+        .order("desc")
+        .take(20);
+      if (
+        recentRuns.some(
+          (run) => run.taskId === args.taskId && run.status === "running",
+        )
+      ) {
+        throw new ConvexError(
+          "A run is already active for this agent and task",
+        );
+      }
+    }
+    const runId = await ctx.db.insert("agentRuns", {
       agentId: agent._id,
       taskId: args.taskId,
-      title: args.title.slice(0, 200),
+      title,
       status: "running",
       startedAt: Date.now(),
     });
+    if (args.taskId) {
+      const assignment = await markExecutionAssignmentRunning(
+        ctx,
+        args.taskId,
+        agent._id,
+        runId,
+      );
+      if (assignment) {
+        await ctx.db.patch(runId, {
+          executionAssignmentId: assignment._id,
+        });
+      }
+    }
+    return runId;
   },
 });
 
@@ -2562,6 +2643,40 @@ export const finishRun = mutation({
     if (!run || run.agentId !== agent._id) {
       throw new ConvexError("Run not found or it doesn't belong to you");
     }
+    if (run.status !== "running") {
+      if (run.status === args.status) {
+        return { runId: run._id, status: run.status, replayed: true };
+      }
+      throw new ConvexError(
+        `Run is already ${run.status}; terminal outcomes cannot be changed`,
+      );
+    }
+    if (
+      args.tokensUsed !== undefined &&
+      (!Number.isFinite(args.tokensUsed) || args.tokensUsed < 0)
+    ) {
+      throw new ConvexError("tokensUsed must be a non-negative number");
+    }
+    if (
+      args.costUsd !== undefined &&
+      (!Number.isFinite(args.costUsd) || args.costUsd < 0)
+    ) {
+      throw new ConvexError("costUsd must be a non-negative number");
+    }
+    if ((args.links?.length ?? 0) > 20) {
+      throw new ConvexError("links may contain at most 20 URLs");
+    }
+    for (const link of args.links ?? []) {
+      let parsed: URL;
+      try {
+        parsed = new URL(link);
+      } catch {
+        throw new ConvexError(`Invalid evidence URL: ${link}`);
+      }
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+        throw new ConvexError(`Evidence URL must use http or https: ${link}`);
+      }
+    }
     if (args.status === "succeeded" && run.taskId) {
       await requireCurrentContext(ctx, run.taskId, agent._id);
     }
@@ -2574,6 +2689,34 @@ export const finishRun = mutation({
       costUsd: args.costUsd,
       finishedAt: Date.now(),
     });
+    if (run.executionAssignmentId) {
+      await finishExecutionAssignment(
+        ctx,
+        run.executionAssignmentId,
+        agent._id,
+        {
+          status: args.status,
+          summary: args.summary,
+          error: args.error,
+          links: args.links,
+        },
+      );
+    }
+    if (
+      args.status !== "succeeded" &&
+      run.taskId
+    ) {
+      const task = await ctx.db.get(run.taskId);
+      if (task?.claimedByActorId === agent._id) {
+        await releaseTaskCore(ctx, run.taskId, agentActor(agent));
+      }
+      if (agent.currentTaskId === run.taskId) {
+        await ctx.db.patch(agent._id, {
+          currentTaskId: undefined,
+          statusText: undefined,
+        });
+      }
+    }
     if (args.status === "failed") {
       await emitEvent(ctx, {
         ...scopeOf(agent),
@@ -2589,6 +2732,7 @@ export const finishRun = mutation({
         },
       });
     }
+    return { runId: run._id, status: args.status, replayed: false };
   },
 });
 
@@ -2604,7 +2748,7 @@ export const reportError = mutation({
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
     if (args.taskId) await requireTaskAccessForAgent(ctx, args.taskId, agent);
     const now = Date.now();
-    await ctx.db.insert("agentRuns", {
+    const runId = await ctx.db.insert("agentRuns", {
       agentId: agent._id,
       taskId: args.taskId,
       title: "Error report",
@@ -2613,6 +2757,35 @@ export const reportError = mutation({
       startedAt: now,
       finishedAt: now,
     });
+    if (args.taskId) {
+      const assignment = await markExecutionAssignmentRunning(
+        ctx,
+        args.taskId,
+        agent._id,
+        runId,
+      );
+      if (assignment) {
+        await ctx.db.patch(runId, {
+          executionAssignmentId: assignment._id,
+        });
+        await finishExecutionAssignment(
+          ctx,
+          assignment._id,
+          agent._id,
+          { status: "failed", error: args.message },
+        );
+      }
+      const task = await ctx.db.get(args.taskId);
+      if (task?.claimedByActorId === agent._id) {
+        await releaseTaskCore(ctx, args.taskId, agentActor(agent));
+      }
+      if (agent.currentTaskId === args.taskId) {
+        await ctx.db.patch(agent._id, {
+          currentTaskId: undefined,
+          statusText: undefined,
+        });
+      }
+    }
     await emitEvent(ctx, {
       ...scopeOf(agent),
       type: "agent.error",
@@ -4920,6 +5093,25 @@ export const getExecutionReadiness = query({
   },
 });
 
+export const getExecutionControl = query({
+  args: {
+    apiKey: v.string(),
+    planId: v.id("executionPlans"),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    const plan = await ctx.db.get(args.planId);
+    if (
+      !plan ||
+      agent.parentType !== "workspace" ||
+      plan.workspaceId !== agent.parentId
+    ) {
+      throw new ConvexError("Execution plan not found in your workspace");
+    }
+    return await executionControlCore(ctx, plan);
+  },
+});
+
 export const dispatchExecutionWave = mutation({
   args: {
     apiKey: v.string(),
@@ -5088,6 +5280,7 @@ export const dispatchExecutionWave = mutation({
         reason: "wave_limit",
       });
     }
+    const dispatchedAt = Date.now();
     const waveId = await ctx.db.insert("executionWaves", {
       workspaceId: plan.workspaceId,
       planId: plan._id,
@@ -5097,8 +5290,26 @@ export const dispatchExecutionWave = mutation({
       openQuestionDisposition,
       assignments,
       skipped,
-      createdAt: Date.now(),
+      createdAt: dispatchedAt,
     });
+    for (const assignment of assignments) {
+      const previousAttempts = await ctx.db
+        .query("executionAssignments")
+        .withIndex("by_task", (q) => q.eq("taskId", assignment.taskId))
+        .collect();
+      await ctx.db.insert("executionAssignments", {
+        workspaceId: plan.workspaceId,
+        planId: plan._id,
+        waveId,
+        taskId: assignment.taskId,
+        taskRef: assignment.taskRef,
+        agentId: assignment.agentId,
+        delivery: assignment.delivery,
+        status: "dispatched",
+        attempt: previousAttempts.length + 1,
+        dispatchedAt,
+      });
+    }
     await emitEvent(ctx, {
       scopeType: "workspace",
       scopeId: plan.workspaceId,

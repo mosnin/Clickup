@@ -70,6 +70,15 @@ function fmtTarget(ts: number): string {
   return d.toLocaleDateString(undefined, opts);
 }
 
+function fmtExecutionTime(ts: number): string {
+  const minutes = Math.max(0, Math.floor((Date.now() - ts) / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const roadmaps = useQuery(api.roadmaps.listForWorkspace, { workspaceId });
   const executionPlans = useQuery(api.executionPlans.listForWorkspace, {
@@ -410,6 +419,7 @@ function ExecutionPlanProvenance({
 }) {
   const plan = useQuery(api.executionPlans.get, { planId });
   const readiness = useQuery(api.executionDispatch.readiness, { planId });
+  const control = useQuery(api.executionDispatch.control, { planId });
   if (!plan) return null;
   return (
     <details className="group rounded-2xl border border-brand-500/20 bg-brand-500/[0.04]">
@@ -562,6 +572,95 @@ function ExecutionPlanProvenance({
                   : " · every runtime notified"}
               </p>
             )}
+          </div>
+        )}
+        {control && control.assignmentCount > 0 && (
+          <div className="md:col-span-2 rounded-xl border border-border bg-background/50 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Execution ledger
+              </p>
+              {(
+                [
+                  ["running", control.counts.running, "bg-pastel-blue"],
+                  ["claimed", control.counts.claimed, "bg-pastel-purple"],
+                  ["sent", control.counts.dispatched, "bg-muted"],
+                  ["succeeded", control.counts.succeeded, "bg-pastel-green"],
+                  ["failed", control.counts.failed, "bg-pastel-red"],
+                  ["retryable", control.counts.abandoned, "bg-pastel-yellow"],
+                ] as const
+              ).map(([label, count, className]) =>
+                count > 0 ? (
+                  <span
+                    key={label}
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[11px] font-medium text-neutral-900",
+                      className,
+                    )}
+                  >
+                    {count} {label}
+                  </span>
+                ) : null,
+              )}
+            </div>
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+              {control.assignments.slice(0, 6).map((assignment) => (
+                <li
+                  key={assignment.assignmentId}
+                  className="min-w-0 rounded-xl border border-border/70 px-3 py-2"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                      {assignment.taskTitle}
+                    </span>
+                    <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] capitalize">
+                      {assignment.status}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+                    <span>{assignment.agentName}</span>
+                    <span>attempt {assignment.attempt}</span>
+                    <span>
+                      {fmtExecutionTime(
+                        assignment.finishedAt ??
+                          assignment.lastHeartbeatAt ??
+                          assignment.dispatchedAt,
+                      )}
+                    </span>
+                    {assignment.delivery === "poll_required" && (
+                      <span className="uppercase tracking-wider">poll</span>
+                    )}
+                  </div>
+                  {(assignment.error || assignment.summary) && (
+                    <p
+                      className={cn(
+                        "mt-1.5 line-clamp-2 text-[11px]",
+                        assignment.error
+                          ? "text-red-700 dark:text-red-300"
+                          : "text-foreground/70",
+                      )}
+                    >
+                      {assignment.error ?? assignment.summary}
+                    </p>
+                  )}
+                  {assignment.links.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-2">
+                      {assignment.links.slice(0, 3).map((link, index) => (
+                        <a
+                          key={`${index}-${link}`}
+                          href={link}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] font-medium text-brand-600 hover:underline dark:text-brand-400"
+                        >
+                          Evidence {index + 1}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </div>

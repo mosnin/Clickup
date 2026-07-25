@@ -7,6 +7,10 @@ import { canAccessSpace, requireIdentity } from "./_authz";
 import { hasCapabilities } from "./capabilities";
 import { executionPlanSummary } from "./executionPlans";
 import { CLAIM_TTL_MS } from "./tasks";
+import {
+  ACTIVE_EXECUTION_STATUSES,
+  type ExecutionAssignmentStatus,
+} from "./executionLifecycle";
 
 export const DISPATCH_LEASE_MS = 30 * 60 * 1000;
 
@@ -56,6 +60,20 @@ export async function executionReadinessCore(
     .query("executionWaves")
     .withIndex("by_plan", (q) => q.eq("planId", plan._id))
     .collect();
+  const executionAssignments = await ctx.db
+    .query("executionAssignments")
+    .withIndex("by_plan", (q) => q.eq("planId", plan._id))
+    .collect();
+  const latestAssignmentByTask = new Map<
+    string,
+    Doc<"executionAssignments">
+  >();
+  for (const assignment of executionAssignments) {
+    const current = latestAssignmentByTask.get(assignment.taskId);
+    if (!current || current.dispatchedAt < assignment.dispatchedAt) {
+      latestAssignmentByTask.set(assignment.taskId, assignment);
+    }
+  }
   const latestWaveByTask = new Map<
     string,
     { createdAt: number; agentId: Id<"agents"> }
@@ -106,7 +124,19 @@ export async function executionReadinessCore(
   }
 
   const statusCache = new Map<string, boolean>();
+  for (const [taskId, assignment] of latestAssignmentByTask) {
+    if (!ACTIVE_EXECUTION_STATUSES.has(assignment.status)) continue;
+    const freshness =
+      assignment.lastHeartbeatAt ??
+      assignment.claimedAt ??
+      assignment.dispatchedAt;
+    if (now - freshness >= DISPATCH_LEASE_MS) continue;
+    const task = await ctx.db.get(taskId as Id<"tasks">);
+    if (!task || (await isTaskComplete(ctx, task, statusCache))) continue;
+    activeTaskIdsByAgent.get(assignment.agentId)?.add(taskId);
+  }
   for (const [taskId, lease] of latestWaveByTask) {
+    if (latestAssignmentByTask.has(taskId)) continue;
     if (now - lease.createdAt >= DISPATCH_LEASE_MS) continue;
     const task = await ctx.db.get(taskId as Id<"tasks">);
     if (!task || (await isTaskComplete(ctx, task, statusCache))) continue;
@@ -180,8 +210,32 @@ export async function executionReadinessCore(
       skipped.push({ taskRef: manifestTask.ref, reason: "already_claimed" });
       continue;
     }
+    const latestAssignment = latestAssignmentByTask.get(task._id);
+    if (
+      latestAssignment &&
+      ACTIVE_EXECUTION_STATUSES.has(latestAssignment.status)
+    ) {
+      const freshness =
+        latestAssignment.lastHeartbeatAt ??
+        latestAssignment.claimedAt ??
+        latestAssignment.dispatchedAt;
+      if (now - freshness < DISPATCH_LEASE_MS) {
+        skipped.push({
+          taskRef: manifestTask.ref,
+          reason:
+            latestAssignment.status === "dispatched"
+              ? "assignment_dispatched"
+              : `assignment_${latestAssignment.status}`,
+        });
+        continue;
+      }
+    }
     const previous = latestWaveByTask.get(task._id);
-    if (previous && now - previous.createdAt < DISPATCH_LEASE_MS) {
+    if (
+      !latestAssignment &&
+      previous &&
+      now - previous.createdAt < DISPATCH_LEASE_MS
+    ) {
       skipped.push({ taskRef: manifestTask.ref, reason: "dispatch_lease" });
       continue;
     }
@@ -267,6 +321,61 @@ export async function executionReadinessCore(
   };
 }
 
+export async function executionControlCore(
+  ctx: ReadCtx,
+  plan: Doc<"executionPlans">,
+) {
+  const rows = await ctx.db
+    .query("executionAssignments")
+    .withIndex("by_plan", (q) => q.eq("planId", plan._id))
+    .order("desc")
+    .take(100);
+  const counts: Record<ExecutionAssignmentStatus, number> = {
+    dispatched: 0,
+    claimed: 0,
+    running: 0,
+    succeeded: 0,
+    failed: 0,
+    abandoned: 0,
+  };
+  for (const row of rows) counts[row.status] += 1;
+  const assignments = [];
+  for (const row of rows.slice(0, 25)) {
+    const [task, agent] = await Promise.all([
+      ctx.db.get(row.taskId),
+      ctx.db.get(row.agentId),
+    ]);
+    assignments.push({
+      assignmentId: row._id,
+      waveId: row.waveId,
+      taskId: row.taskId,
+      taskRef: row.taskRef,
+      taskTitle: task?.title ?? "Deleted task",
+      agentId: row.agentId,
+      agentName: agent?.name ?? "Deleted agent",
+      delivery: row.delivery,
+      status: row.status,
+      attempt: row.attempt,
+      runId: row.runId,
+      dispatchedAt: row.dispatchedAt,
+      claimedAt: row.claimedAt,
+      startedAt: row.startedAt,
+      lastHeartbeatAt: row.lastHeartbeatAt,
+      finishedAt: row.finishedAt,
+      summary: row.summary,
+      error: row.error,
+      links: row.links ?? [],
+      retryable: row.status === "failed" || row.status === "abandoned",
+    });
+  }
+  return {
+    plan: executionPlanSummary(plan),
+    counts,
+    assignmentCount: rows.length,
+    assignments,
+  };
+}
+
 export const readiness = query({
   args: { planId: v.id("executionPlans") },
   handler: async (ctx, { planId }) => {
@@ -274,5 +383,15 @@ export const readiness = query({
     if (!plan) return null;
     await requireHumanPlanAccess(ctx, plan);
     return await executionReadinessCore(ctx, plan);
+  },
+});
+
+export const control = query({
+  args: { planId: v.id("executionPlans") },
+  handler: async (ctx, { planId }) => {
+    const plan = await ctx.db.get(planId);
+    if (!plan) return null;
+    await requireHumanPlanAccess(ctx, plan);
+    return await executionControlCore(ctx, plan);
   },
 });

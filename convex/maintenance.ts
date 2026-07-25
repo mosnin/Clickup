@@ -4,6 +4,10 @@ import { internal } from "./_generated/api";
 import { emitEvent, scopeForList } from "./events";
 import { notify } from "./notificationCenter";
 import { CLAIM_TTL_MS } from "./tasks";
+import {
+  abandonExecutionAssignmentForTask,
+  finishExecutionAssignment,
+} from "./executionLifecycle";
 
 // Unattended-operation safety nets, driven from convex/crons.ts.
 
@@ -53,6 +57,18 @@ export const watchdog = internalMutation({
         now - task.claimedAt <= CLAIM_TTL_MS
       ) {
         continue;
+      }
+      const claimantAgentId = ctx.db.normalizeId(
+        "agents",
+        task.claimedByActorId!,
+      );
+      if (claimantAgentId) {
+        await abandonExecutionAssignmentForTask(
+          ctx,
+          task._id,
+          claimantAgentId,
+          "Task claim expired",
+        );
       }
       await ctx.db.patch(task._id, {
         claimedByActorId: undefined,
@@ -184,6 +200,12 @@ export const watchdog = internalMutation({
         agent.lastSeenAt !== undefined &&
         now - agent.lastSeenAt > AGENT_STALL_MS
       ) {
+        await abandonExecutionAssignmentForTask(
+          ctx,
+          agent.currentTaskId,
+          agent._id,
+          "Agent stopped heartbeating for 30 minutes",
+        );
         await ctx.db.patch(agent._id, {
           currentTaskId: undefined,
           statusText: undefined,
@@ -213,6 +235,17 @@ export const watchdog = internalMutation({
               status: "abandoned",
               finishedAt: now,
             });
+            if (run.executionAssignmentId) {
+              await finishExecutionAssignment(
+                ctx,
+                run.executionAssignmentId,
+                agent._id,
+                {
+                  status: "abandoned",
+                  error: "Agent stopped heartbeating for 30 minutes",
+                },
+              );
+            }
           }
         }
       }
@@ -258,6 +291,22 @@ export const prune = internalMutation({
       .take(PRUNE_BATCH);
     for (const u of oldUsage) {
       if (u.day < cutoffDay) await ctx.db.delete(u._id);
+    }
+
+    const oldCodes = await ctx.db
+      .query("oauthAuthorizationCodes")
+      .order("asc")
+      .take(PRUNE_BATCH);
+    for (const code of oldCodes) {
+      if (code.expiresAt < now) await ctx.db.delete(code._id);
+    }
+
+    const oldOAuthTokens = await ctx.db
+      .query("oauthAccessTokens")
+      .order("asc")
+      .take(PRUNE_BATCH);
+    for (const token of oldOAuthTokens) {
+      if (token.refreshExpiresAt < now) await ctx.db.delete(token._id);
     }
   },
 });

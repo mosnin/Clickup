@@ -133,9 +133,9 @@ const checklistArg = z
   .describe("Full checklist (replaces the existing one)");
 
 // Annotation hints surfaced to MCP clients on tools/list. Reads are marked
-// readOnlyHint; delete_* tools destructiveHint; safely-retryable mutations
-// idempotentHint. Everything operates on the closed operate.to workspace,
-// so openWorldHint is false across the board.
+// readOnlyHint; all state-changing tools conservatively request destructive
+// confirmation; safely-retryable mutations get idempotentHint. Everything
+// operates on the closed operate.to workspace, so openWorldHint is false.
 const READ_TOOLS = new Set([
   "whoami",
   "get_tree",
@@ -155,6 +155,7 @@ const READ_TOOLS = new Set([
   "list_execution_plans",
   "get_execution_plan",
   "get_execution_readiness",
+  "get_execution_control",
   "list_scheduled_tasks",
   "list_events",
   "list_webhooks",
@@ -237,11 +238,12 @@ function titleFor(name: string): string {
 }
 
 function annotationsFor(name: string): ToolAnnotations {
+  const readOnly = READ_TOOLS.has(name);
   return {
     title: titleFor(name),
+    readOnlyHint: readOnly,
     openWorldHint: false,
-    ...(READ_TOOLS.has(name) ? { readOnlyHint: true } : {}),
-    ...(DESTRUCTIVE_TOOLS.has(name) ? { destructiveHint: true } : {}),
+    destructiveHint: !readOnly || DESTRUCTIVE_TOOLS.has(name),
     ...(IDEMPOTENT_TOOLS.has(name) ? { idempotentHint: true } : {}),
   };
 }
@@ -1211,6 +1213,19 @@ const TOOLS: ToolDef[] = [
       }),
   },
   {
+    name: "get_execution_control",
+    description:
+      "Read the execution ledger for a committed plan. Returns every recent dispatch attempt with its task, agent, delivery mode, claimed/running/terminal lifecycle, run linkage, heartbeat freshness, evidence links, errors, retryability, and status totals.",
+    shape: {
+      planId: z.string(),
+    },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getExecutionControl), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
     name: "dispatch_execution_wave",
     description:
       "Atomically release the next dependency-ready, capability-matched work wave to active writable agents without exceeding their concurrency ceilings. Assignments prefer already-compatible owners, then least-loaded matches. Configured notify URLs receive task.ready; otherwise delivery is poll_required. A 30-minute lease prevents duplicate wake storms and expired unclaimed work becomes recoverable. If the plan preserves open questions, openQuestionDisposition is required so uncertainty is never silently ignored. Exact retries are idempotent.",
@@ -1538,7 +1553,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "start_run",
     description:
-      "Start a structured work session ('run') humans can see on my detail page. Pair with finish_run. When taskId has context, acknowledge its current packet versions first.",
+      "Start a structured work session ('run') humans can see on my detail page. Task runs require a fresh claim and current context acknowledgement, and automatically move a dispatched assignment into running. Pair with finish_run; only one active run per agent/task is allowed.",
     shape: {
       title: z.string().describe("what this session is doing"),
       taskId: z.string().optional(),
@@ -1549,7 +1564,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "finish_run",
     description:
-      "Finish a run with its outcome. A succeeded task run requires the task's current context to be acknowledged; failed runs remain available for recovery and emit an agent.error event that alerts humans.",
+      "Finish a run exactly once with its outcome and optional evidence. Exact terminal retries are safe; conflicting rewrites are rejected. A succeeded task run requires current context acknowledgement. The linked dispatch receipt becomes succeeded, failed, or abandoned; failures become recoverable and emit agent.error.",
     shape: {
       runId: z.string(),
       status: z.enum(["succeeded", "failed", "abandoned"]),
@@ -1559,8 +1574,8 @@ const TOOLS: ToolDef[] = [
         .array(z.string())
         .optional()
         .describe("artifacts produced: PR/doc/deploy URLs (max 20)"),
-      tokensUsed: z.number().optional(),
-      costUsd: z.number().optional(),
+      tokensUsed: z.number().nonnegative().optional(),
+      costUsd: z.number().nonnegative().optional(),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.finishRun), { apiKey: k, ...a }),
@@ -2072,7 +2087,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "operate-agents", version: "1.0.0" },
     instructions:
-      "You are an agent teammate in operate.to. First: call whoami, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, then claim_task. Heartbeat while working and complete_task when done. Turning a whole confirmed conversation or brief into a multi-project roadmap? Prefer create_execution_plan: preserve the source, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. Before parallel execution, inspect get_execution_readiness and release only a capability-matched, capacity-safe dispatch_execution_wave with an auditable disposition for open questions. Use create_tasks for smaller additions to an existing project. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
+      "You are an agent teammate in operate.to. First: call whoami, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, then claim_task. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-project roadmap? Prefer create_execution_plan: preserve the source, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. Before parallel execution, inspect get_execution_readiness and release only a capability-matched, capacity-safe dispatch_execution_wave with an auditable disposition for open questions; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. Use create_tasks for smaller additions to an existing project. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
   },
   {
     basePath: "/api",
@@ -2108,12 +2123,57 @@ const authHandler = withMcpAuth(
 // under /api — explicitly 404 anything that isn't the MCP endpoint so
 // unknown /api/* paths never reach the MCP handler. (Static routes always
 // win over this dynamic segment, so real API routes are unaffected.)
-function guarded(req: Request): Promise<Response> | Response {
+const MCP_BROWSER_ORIGINS = new Set([
+  "https://chatgpt.com",
+  "https://claude.ai",
+  "https://claude.com",
+]);
+
+function withCors(req: Request, response: Response) {
+  const origin = req.headers.get("origin");
+  if (!origin || !MCP_BROWSER_ORIGINS.has(origin)) return response;
+  const headers = new Headers(response.headers);
+  headers.set("Access-Control-Allow-Origin", origin);
+  headers.set(
+    "Access-Control-Allow-Headers",
+    "Authorization, Content-Type, Mcp-Protocol-Version, Mcp-Session-Id",
+  );
+  headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  headers.append("Vary", "Origin");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+async function guarded(req: Request): Promise<Response> {
   const { pathname } = new URL(req.url);
   if (pathname !== "/api/mcp") {
     return new Response("Not found", { status: 404 });
   }
-  return authHandler(req);
+  const response = await authHandler(req);
+  if (response.status !== 401) return withCors(req, response);
+  const headers = new Headers(response.headers);
+  const origin =
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ??
+    new URL(req.url).origin;
+  headers.set(
+    "WWW-Authenticate",
+    `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"`,
+  );
+  return withCors(
+    req,
+    new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    }),
+  );
 }
 
-export { guarded as GET, guarded as POST, guarded as DELETE };
+function options(req: Request) {
+  return withCors(req, new Response(null, { status: 204 }));
+}
+
+export { guarded as GET, guarded as POST, guarded as DELETE, options as OPTIONS };

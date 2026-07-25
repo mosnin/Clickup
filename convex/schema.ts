@@ -585,6 +585,46 @@ export default defineSchema({
     .index("by_plan", ["planId", "createdAt"])
     .index("by_agent_key", ["createdByAgentId", "idempotencyKey"]),
 
+  // Mutable lifecycle receipt for every immutable wave assignment. This is
+  // the execution control plane: it proves whether dispatched work was
+  // claimed, actually started, finished with evidence, failed, or was
+  // abandoned and made safe to retry.
+  executionAssignments: defineTable({
+    workspaceId: v.id("workspaces"),
+    planId: v.id("executionPlans"),
+    waveId: v.id("executionWaves"),
+    taskId: v.id("tasks"),
+    taskRef: v.string(),
+    agentId: v.id("agents"),
+    delivery: v.union(
+      v.literal("notify_url"),
+      v.literal("poll_required"),
+    ),
+    status: v.union(
+      v.literal("dispatched"),
+      v.literal("claimed"),
+      v.literal("running"),
+      v.literal("succeeded"),
+      v.literal("failed"),
+      v.literal("abandoned"),
+    ),
+    attempt: v.number(),
+    runId: v.optional(v.id("agentRuns")),
+    dispatchedAt: v.number(),
+    claimedAt: v.optional(v.number()),
+    startedAt: v.optional(v.number()),
+    lastHeartbeatAt: v.optional(v.number()),
+    finishedAt: v.optional(v.number()),
+    summary: v.optional(v.string()),
+    error: v.optional(v.string()),
+    links: v.optional(v.array(v.string())),
+  })
+    .index("by_plan", ["planId", "dispatchedAt"])
+    .index("by_wave", ["waveId"])
+    .index("by_task", ["taskId", "dispatchedAt"])
+    .index("by_agent", ["agentId", "dispatchedAt"])
+    .index("by_run", ["runId"]),
+
   // External integrations attached to a workspace. Each kind stores its
   // own credential shape inside `config` (e.g. { webhookUrl } for Slack).
   // We deliberately keep this simple — one row per (workspace, kind) —
@@ -880,6 +920,7 @@ export default defineSchema({
   agentRuns: defineTable({
     agentId: v.id("agents"),
     taskId: v.optional(v.id("tasks")),
+    executionAssignmentId: v.optional(v.id("executionAssignments")),
     title: v.string(),
     status: v.union(
       v.literal("running"),
@@ -912,6 +953,49 @@ export default defineSchema({
   })
     .index("by_agent", ["agentId"])
     .index("by_hash", ["keyHash"]),
+
+  // OAuth 2.1 authorization for public MCP hosts (ChatGPT, Claude, and
+  // standards-compliant clients). Clients are dynamically registered,
+  // authorization codes require PKCE, and access/refresh credentials are
+  // stored only as hashes.
+  oauthClients: defineTable({
+    clientId: v.string(),
+    clientName: v.string(),
+    redirectUris: v.array(v.string()),
+    tokenEndpointAuthMethod: v.literal("none"),
+    grantTypes: v.array(v.string()),
+    createdAt: v.number(),
+  }).index("by_client_id", ["clientId"]),
+
+  oauthAuthorizationCodes: defineTable({
+    codeHash: v.string(),
+    clientId: v.string(),
+    redirectUri: v.string(),
+    codeChallenge: v.string(),
+    scopes: v.array(v.string()),
+    agentId: v.id("agents"),
+    userClerkId: v.string(),
+    expiresAt: v.number(),
+    usedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  }).index("by_code_hash", ["codeHash"]),
+
+  oauthAccessTokens: defineTable({
+    tokenHash: v.string(),
+    refreshTokenHash: v.string(),
+    clientId: v.string(),
+    scopes: v.array(v.string()),
+    agentId: v.id("agents"),
+    userClerkId: v.string(),
+    expiresAt: v.number(),
+    refreshExpiresAt: v.number(),
+    createdAt: v.number(),
+    lastUsedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_token_hash", ["tokenHash"])
+    .index("by_refresh_hash", ["refreshTokenHash"])
+    .index("by_agent", ["agentId"]),
 
   // Append-only activity log. Every meaningful mutation (task created,
   // status changed, comment posted, sprint started, …) writes one row.
