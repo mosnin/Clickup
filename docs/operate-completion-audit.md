@@ -20,6 +20,18 @@ only after automated checks and relevant production behavior both pass.
   Deployment `dpl_2GnQEaxqjKdhma4vEVwvPEGqMnLo` fixed stale server-rendered
   redirect parameters by validating the live consent URL. The temporary client,
   codes, revoked token rows, and least-privilege deploy key were removed.
+- Production webhook lifecycle: an agent registered an exact event-filtered
+  HTTPS endpoint, unsafe HTTP/private/internal destinations were rejected, and
+  the first `task.created` event arrived with a verified HMAC-SHA256 signature.
+  Ten deliberately failing events each followed the 30-second, 2-minute, and
+  10-minute retry schedule (four correctly signed attempts on the same delivery
+  ID), then disabled the subscription at exactly ten failed delivery chains.
+  After the receiver recovered, the signed-in Webhooks UI reset the integration,
+  its failure count returned to zero, and a new event succeeded on attempt one.
+  Duplicate completion callbacks are now idempotent, and the UI exposes queued,
+  retrying, delivered, failed, and auto-disabled states. All 12 disposable
+  tasks, 24 certification events, the subscription/deliveries, receiver, and
+  temporary deploy key were removed.
 - OpenAI and Claude MCP annotation profiles
 - Workspace → Space → optional Folder → List → Task hierarchy
 - One user-facing hierarchy: Workspace → Space → optional Folder → List →
@@ -86,7 +98,7 @@ only after automated checks and relevant production behavior both pass.
 - Seven curl-installable skills with retries and SHA-256 verification
 - Completed agent work clears its matching current-task and activity text,
   preventing stale “Now” presence after success
-- Local production build, typecheck, lint, plugin validation, and 325 tests
+- Local production build, typecheck, lint, plugin validation, and 328 tests
 - Disposable production MCP mutation certification: List create/rename/metadata,
   two-task parent/dependency batch, task update/checklist, comment
   create/update/delete, schedule create/pause/resume/delete, readback/event
@@ -97,12 +109,11 @@ only after automated checks and relevant production behavior both pass.
 
 - Production ChatGPT app submission bundle
 - Production Claude connector/plugin bundle
-- Webhook delivery, signature verification, retry, disable, and recovery lifecycle
 - x402 metering and billing lifecycle
 
 ## Still required
 
-1. Complete webhook and billing production certification.
+1. Complete billing production certification.
 2. Continue the systematic browser pass over home, the remaining List views,
    sprints, roadmaps, operations, agents, search, settings, broader keyboard
    navigation, and failure states. Onboarding, Inbox, task detail, the core

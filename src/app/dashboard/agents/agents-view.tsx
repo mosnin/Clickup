@@ -1112,6 +1112,58 @@ export function ActivityFeed({
 
 // ── Webhooks tab ───────────────────────────────────────────────────────
 
+function WebhookDeliveryState({
+  subscriptionId,
+}: {
+  subscriptionId: Id<"webhookSubscriptions">;
+}) {
+  const deliveries = useQuery(api.webhooks.recentDeliveries, {
+    subscriptionId,
+    limit: 1,
+  });
+  const delivery = deliveries?.[0];
+  if (deliveries === undefined) {
+    return <span className="text-xs text-muted-foreground">Checking…</span>;
+  }
+  if (!delivery) {
+    return <span className="text-xs text-muted-foreground">No deliveries</span>;
+  }
+  const detail =
+    delivery.responseStatus !== undefined
+      ? `HTTP ${delivery.responseStatus}`
+      : delivery.lastError
+        ? "Network error"
+        : null;
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <Badge
+        variant="secondary"
+        className={cn(
+          "uppercase tracking-wider",
+          delivery.status === "success"
+            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+            : delivery.status === "failed"
+              ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
+              : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+        )}
+      >
+        {delivery.status === "success"
+          ? "Delivered"
+          : delivery.status === "failed"
+            ? "Failed"
+            : delivery.attempts === 0
+              ? "Queued"
+              : `Retrying · ${delivery.attempts}/4`}
+      </Badge>
+      <span className="text-xs text-muted-foreground">
+        {[detail, timeAgo(delivery.completedAt ?? delivery.createdAt)]
+          .filter(Boolean)
+          .join(" · ")}
+      </span>
+    </div>
+  );
+}
+
 function WebhooksTab() {
   const { user } = useUser();
   const subs = useQuery(api.webhooks.listForCurrentUser, {});
@@ -1239,6 +1291,7 @@ function WebhooksTab() {
                 <TableHead>Endpoint</TableHead>
                 <TableHead>Events</TableHead>
                 <TableHead>Owner</TableHead>
+                <TableHead>Last delivery</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Delete</TableHead>
               </TableRow>
@@ -1274,19 +1327,35 @@ function WebhooksTab() {
                     )}
                   </TableCell>
                   <TableCell>
+                    <WebhookDeliveryState subscriptionId={s._id} />
+                  </TableCell>
+                  <TableCell>
                     <button
                       type="button"
                       onClick={() =>
                         update({ subscriptionId: s._id, enabled: !s.enabled })
                       }
+                      title={
+                        s.disabledAt
+                          ? "Auto-disabled after repeated delivery failures. Fix the endpoint, then click to reset and retry."
+                          : s.enabled
+                            ? "Pause webhook delivery"
+                            : "Resume webhook delivery"
+                      }
                       className={cn(
                         "rounded-full px-2.5 py-0.5 text-xs",
                         s.enabled
                           ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                          : s.disabledAt
+                            ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
                           : "bg-muted text-muted-foreground",
                       )}
                     >
-                      {s.enabled ? "Enabled" : "Disabled"}
+                      {s.enabled
+                        ? "Enabled"
+                        : s.disabledAt
+                          ? "Auto-disabled"
+                          : "Paused"}
                     </button>
                   </TableCell>
                   <TableCell className="text-right">
