@@ -124,7 +124,10 @@ only after automated checks and relevant production behavior both pass.
 - Home's live preview contains only agents within the five-minute connection
   window; offline agents with retained activity cannot appear in the
   “Agents online” card or receive its live border
-- Local production build, typecheck, lint, plugin validation, and 362 tests
+- Global Search query/results/no-match/minimum-length states and shareable URL;
+  the ⌘K palette keeps Search everything and New task visible even when
+  workspace inventory exceeds its display cap
+- Local production build, typecheck, lint, plugin validation, and 365 tests
 - Disposable production MCP mutation certification: List create/rename/metadata,
   two-task parent/dependency batch, task update/checklist, comment
   create/update/delete, schedule create/pause/resume/delete, readback/event
@@ -141,10 +144,10 @@ only after automated checks and relevant production behavior both pass.
 
 1. Complete billing production certification.
 2. Continue the systematic browser pass over the remaining List views, sprints,
-   roadmaps, operations, agents, search, settings, broader keyboard navigation,
-   and failure states. Home, Onboarding, Inbox, task detail, the core
-   Spaces/List hierarchy, template destinations, and their mobile responsive
-   layouts are certified above.
+   roadmaps, operations, agents, settings, broader keyboard navigation, and
+   failure states. Home, Global Search and the core ⌘K path, Onboarding, Inbox,
+   task detail, the core Spaces/List hierarchy, template destinations, and
+   their mobile responsive layouts are certified above.
 3. Finish the security review: rotate any remaining credentials exposed during
    development, continue broader abuse tests and the residual secret inventory,
    and disposition the seven upstream/unpatched production dependency
@@ -255,6 +258,18 @@ only after automated checks and relevant production behavior both pass.
   reports application and Convex `ok`, GitHub CI run `30176917749` passed,
   362 tests, typecheck, lint, and the production build pass, and the production
   error-log scan is empty.
+- Global search and command palette (production-validated 2026-07-25): the
+  signed-in Search surface passed its initial guidance, two-character
+  threshold, real two-result task/List query, shareable `?q=` URL, and no-match
+  state. The ⌘K keyboard path opened correctly, but the current workspace's
+  navigation inventory consumed the 24 visible slots and hid the core “New
+  task” action. The cap now preserves both “Search everything” and “New task”
+  without disturbing high-ranked query matches. Live production shows both
+  actions in the same populated workspace. Deployment
+  `dpl_FJoX57NeGDptbYZsSJxW5ir11zdB` is Ready at commit `fe38255`; application
+  and Convex health are `ok`, GitHub CI run `30177378952`, 365 tests,
+  typecheck, lint, and the production build pass, and the production error-log
+  scan is empty.
 - Public connector submission compliance (production-validated 2026-07-25):
   deployment `dpl_w3dL5pw14yVUGJiJeTEy8qSngXeq` is Ready and healthy. The
   authenticated base profile exposes all 140 tools; Anthropic's directory
