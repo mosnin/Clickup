@@ -37,6 +37,7 @@ export const EVENT_LABEL: Record<string, string> = {
   "plan.wave_dispatched": "dispatched execution wave",
   "plan.execution_reconciled": "recovered stalled execution in",
   "workspace.execution_policy_updated": "updated execution policy for",
+  "schedule.auto_paused": "paused recurring operation",
   "milestone.created": "added milestone",
   "milestone.updated": "updated milestone",
   "milestone.completed": "reached milestone",
@@ -91,6 +92,13 @@ export function eventHref(e: {
   }
   if (e.entityType === "roadmap" && e.scopeType === "workspace") {
     return `/dashboard/w/${e.scopeId}?tab=roadmap`;
+  }
+  if (e.entityType === "scheduled_task") {
+    return e.scopeType === "workspace"
+      ? `/dashboard/w/${e.scopeId}?tab=operations`
+      : e.listId
+        ? `/dashboard/l/${e.listId}/settings`
+        : null;
   }
   if (e.entityType === "workspace" && e.scopeType === "workspace") {
     return `/dashboard/w/${e.scopeId}?tab=settings`;

@@ -272,5 +272,30 @@ describe("computeNextRunAt", () => {
       enabled: false,
       consecutiveFailures: 3,
     });
+    expect(
+      await t
+        .withIdentity(OWNER)
+        .query(api.notificationCenter.listForCurrent, {}),
+    ).toEqual([
+      expect.objectContaining({
+        type: "schedule_failed",
+        title: "Recurring operation paused: Corrupted definition",
+        href: `/dashboard/w/${workspaceId}?tab=operations`,
+      }),
+    ]);
+    expect(
+      await t.withIdentity(OWNER).query(api.events.feed, {
+        scopeType: "workspace",
+        scopeId: workspaceId,
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "schedule.auto_paused",
+          entityId: badScheduleId,
+          payload: expect.objectContaining({ consecutiveFailures: 3 }),
+        }),
+      ]),
+    );
   });
 });

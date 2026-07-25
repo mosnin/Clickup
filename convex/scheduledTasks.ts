@@ -11,8 +11,9 @@ import { internal } from "./_generated/api";
 import { requireListAccess } from "./_authz";
 import { createTaskCore, validateTaskAssignees } from "./tasks";
 import { blueprintTaskFields } from "./taskBlueprints";
-import { scopeForList, userActor } from "./events";
+import { emitEvent, scopeForList, userActor } from "./events";
 import type { Actor } from "./_agentAuth";
+import { notify } from "./notificationCenter";
 
 // Time-based recurring tasks: "every Monday at 09:00 UTC create 'Weekly
 // standup notes' in list X, due the same day". Complements the existing
@@ -336,5 +337,50 @@ export const _recordMaterializationFailure = internalMutation({
       // intervention; pause it instead of producing an infinite error loop.
       enabled: failures < 3,
     });
+    if (failures !== 3) return;
+    const list = await ctx.db.get(st.listId);
+    const scope = list ? await scopeForList(ctx, list) : null;
+    if (!list || !scope) return;
+    await emitEvent(ctx, {
+      ...scope,
+      type: "schedule.auto_paused",
+      actor: { type: "system", id: "scheduler", name: "Scheduler" },
+      entityType: "scheduled_task",
+      entityId: st._id,
+      entityTitle: st.title,
+      listId: list._id,
+      payload: { error, consecutiveFailures: failures },
+    });
+    const recipients: string[] = [];
+    if (scope.scopeType === "user") {
+      recipients.push(scope.scopeId);
+    } else {
+      const memberships = await ctx.db
+        .query("memberships")
+        .withIndex("by_workspace", (q) =>
+          q.eq("workspaceId", scope.scopeId as Id<"workspaces">),
+        )
+        .collect();
+      recipients.push(
+        ...memberships
+          .filter(
+            (membership) =>
+              membership.role === "owner" || membership.role === "admin",
+          )
+          .map((membership) => membership.userClerkId),
+      );
+    }
+    for (const userClerkId of recipients) {
+      await notify(ctx, {
+        userClerkId,
+        type: "schedule_failed",
+        title: `Recurring operation paused: ${st.title}`,
+        body: error,
+        href:
+          scope.scopeType === "workspace"
+            ? `/dashboard/w/${scope.scopeId}?tab=operations`
+            : `/dashboard/l/${st.listId}/settings`,
+      });
+    }
   },
 });
