@@ -67,6 +67,9 @@ only after automated checks and relevant production behavior both pass.
   Agent member/read-only roles, List restrictions, paused/revoked/invalid
   credentials, OAuth scopes and membership revocation, daily budgets, and the
   exact burst boundary are enforced independently.
+- Workspace integration secrets are write-only after creation. Slack incoming
+  webhook URLs never return in client query payloads, and only owners/admins
+  can view or manage workspace integrations and outbound event webhooks.
 - Durable signed assignment, mention, and execution wake delivery
 - Polling wake inbox and authenticated consumption receipts
 - Atomic execution-plan compilation with context provenance
@@ -118,7 +121,7 @@ only after automated checks and relevant production behavior both pass.
   with `401 invalid_token` plus OAuth protected-resource metadata.
 - Completed agent work clears its matching current-task and activity text,
   preventing stale “Now” presence after success
-- Local production build, typecheck, lint, plugin validation, and 359 tests
+- Local production build, typecheck, lint, plugin validation, and 361 tests
 - Disposable production MCP mutation certification: List create/rename/metadata,
   two-task parent/dependency batch, task update/checklist, comment
   create/update/delete, schedule create/pause/resume/delete, readback/event
@@ -140,11 +143,12 @@ only after automated checks and relevant production behavior both pass.
    Spaces/List hierarchy, template destinations, and their mobile responsive
    layouts are certified above.
 3. Finish the security review: rotate any remaining credentials exposed during
-   development, continue broader abuse tests, review remaining secret-handling
-   paths, and disposition the seven upstream/unpatched production dependency
+   development, continue broader abuse tests and the residual secret inventory,
+   and disposition the seven upstream/unpatched production dependency
    advisories. The shared agent API key, human/agent authorization matrix,
-   OAuth redirects, MCP authentication/CORS, webhook egress, the exact agent
-   write-rate boundary, and the fixable dependency set are certified below.
+   agent and integration secret-output boundaries, OAuth redirects, MCP
+   authentication/CORS, webhook egress, the exact agent write-rate boundary,
+   and the fixable dependency set are certified below.
 4. Run load/performance, backup/restore, data-retention, and disaster-recovery
    exercises.
 5. Upload the ChatGPT and Claude bundles for official review and address reviewer
@@ -222,6 +226,19 @@ only after automated checks and relevant production behavior both pass.
   unchanged. Owner production UI retained agent/template/key controls.
   Deployment `dpl_GFCJx6z2JHL9MzeAzseXmKFdPVJx` is Ready at commit `e6b7619`;
   GitHub CI run `30175999920`, 359 tests, typecheck, lint, and the production
+  build pass. Application and Convex health are `ok`, with no production error
+  logs.
+- Workspace integration credentials (production-validated 2026-07-25): the
+  secret inventory found that Slack incoming-webhook URLs were returned in full
+  to every workspace member and that ordinary members could register a
+  workspace event webhook capable of forwarding workspace events externally.
+  Integration reads now require owner/admin membership and return only
+  configured/enabled metadata with no `config`; workspace webhook
+  list/create/update/delete/delivery reads also require owner/admin membership.
+  Personal webhooks and agent-owned webhook behavior are unchanged. The live
+  owner Webhooks UI retained Personal, Admetos, and Chippi management scopes.
+  Deployment `dpl_9zfiZqqxAAQziYr5Mu16nHCKNWvH` is Ready at commit `5b2904c`;
+  GitHub CI run `30176427574`, 361 tests, typecheck, lint, and the production
   build pass. Application and Convex health are `ok`, with no production error
   logs.
 - Public connector submission compliance (production-validated 2026-07-25):
