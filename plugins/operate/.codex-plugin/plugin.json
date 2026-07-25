@@ -1,7 +1,7 @@
 {
   "name": "operate",
-  "version": "1.4.0",
-  "description": "Plan, govern autonomy, authorize, dispatch, execute, preserve decisions, and independently verify human and AI-agent work in Operate.",
+  "version": "1.5.0",
+  "description": "Plan, govern autonomy, dispatch, recover, execute, preserve decisions, and independently verify human and AI-agent work in Operate.",
   "author": {
     "name": "Operate",
     "email": "support@operate.to",
@@ -15,7 +15,7 @@
   "interface": {
     "displayName": "Operate",
     "shortDescription": "Run projects with humans and AI agents.",
-    "longDescription": "Compile briefs into auditable roadmaps, govern supervised or bounded-autonomous execution with versioned limits, route dependency-ready work to capable agents, preserve operating decisions with task revalidation, execute through claims and runs, and independently verify original success criteria against evidence from one control plane.",
+    "longDescription": "Compile briefs into auditable roadmaps, govern supervised or bounded-autonomous execution with versioned limits, route dependency-ready work to capable agents, reconcile stalled attempts without losing evidence, preserve operating decisions with task revalidation, execute through claims and runs, and independently verify original success criteria against evidence from one control plane.",
     "developerName": "Operate",
     "category": "Productivity",
     "capabilities": ["Read", "Write"],
@@ -25,7 +25,7 @@
     "defaultPrompt": [
       "Turn this confirmed brief into an auditable multi-project execution plan in Operate.",
       "Show me the next safe execution wave and explain any capability or capacity gaps.",
-      "Monitor this execution plan and summarize running, failed, retryable, and completed work.",
+      "Monitor this execution plan and safely reconcile any stale attempts before retrying work.",
       "Verify this plan's original success criteria with independent evidence review."
     ],
     "brandColor": "#7C6FF7",

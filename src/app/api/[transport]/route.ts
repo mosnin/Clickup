@@ -199,6 +199,7 @@ const DESTRUCTIVE_TOOLS = new Set([
 const IDEMPOTENT_TOOLS = new Set([
   "create_execution_plan",
   "dispatch_execution_wave",
+  "reconcile_execution_plan",
   "heartbeat",
   "acknowledge_task_context",
   "update_task",
@@ -1330,7 +1331,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_execution_control",
     description:
-      "Read the execution ledger for a committed plan. Returns every recent dispatch attempt with its task, agent, delivery mode, claimed/running/terminal lifecycle, run linkage, heartbeat freshness, evidence links, errors, retryability, and status totals.",
+      "Read the execution ledger for a committed plan. Returns every recent dispatch attempt with its task, agent, delivery mode, claimed/running/stale/terminal lifecycle, run linkage, heartbeat freshness, evidence links, errors, retryability, and truthful status totals. Active receipts with no execution heartbeat for 30 minutes are surfaced as stale even before reconciliation.",
     shape: {
       planId: z.string(),
     },
@@ -1341,9 +1342,22 @@ const TOOLS: ToolDef[] = [
       }),
   },
   {
+    name: "reconcile_execution_plan",
+    description:
+      "Recover a stalled execution plan without erasing history. Atomically marks active attempts abandoned after 30 minutes without an execution heartbeat, preserves the original recorded state and timeout reason, and releases only claims still held by those stale attempts. Safe to retry; returns recovered attempts, released claim count, and scan bounds. Call before retrying stale work; dispatch_execution_wave also performs this reconciliation automatically.",
+    shape: {
+      planId: z.string(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.reconcileExecutionPlan), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
     name: "dispatch_execution_wave",
     description:
-      "Atomically release the next dependency-ready, capability-matched work wave to active writable agents without exceeding their concurrency ceilings or the workspace's per-wave and rolling 24-hour limits. A plan must have valid human approval or a current bounded-autonomy policy authorization; policy-authorized plans stop dispatching when that policy version changes. Pending or rejected plans cannot dispatch. Assignments prefer already-compatible owners, then least-loaded matches. Configured notify URLs receive task.ready; otherwise delivery is poll_required. A 30-minute lease prevents duplicate wake storms and expired unclaimed work becomes recoverable. If the plan preserves open questions, openQuestionDisposition is required so uncertainty is never silently ignored. Exact retries are idempotent.",
+      "Atomically reconcile stale attempts, then release the next dependency-ready, capability-matched work wave to active writable agents without exceeding their concurrency ceilings or the workspace's per-wave and rolling 24-hour limits. A plan must have valid human approval or a current bounded-autonomy policy authorization; policy-authorized plans stop dispatching when that policy version changes. Pending or rejected plans cannot dispatch. Assignments prefer already-compatible owners, then least-loaded matches. Configured notify URLs receive task.ready; otherwise delivery is poll_required. A 30-minute lease prevents duplicate wake storms; expired work is preserved as abandoned before a retry receipt is created. If the plan preserves open questions, openQuestionDisposition is required so uncertainty is never silently ignored. Exact retries are idempotent.",
     shape: {
       idempotencyKey: z.string().max(120),
       planId: z.string(),
@@ -2202,7 +2216,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "operate-agents", version: "1.0.0" },
     instructions:
-      "You are an agent teammate in operate.to. First: call whoami, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-project roadmap? Prefer create_execution_plan: preserve the source, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Use create_tasks for smaller additions to an existing list. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
+      "You are an agent teammate in operate.to. First: call whoami, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-project roadmap? Prefer create_execution_plan: preserve the source, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. A stale receipt is not active work: call reconcile_execution_plan before manually retrying it; dispatch also reconciles transactionally and preserves the timed-out attempt. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Use create_tasks for smaller additions to an existing list. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
   },
   {
     basePath: "/api",

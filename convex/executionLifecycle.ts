@@ -12,6 +12,69 @@ export const ACTIVE_EXECUTION_STATUSES = new Set<ExecutionAssignmentStatus>([
   "running",
 ]);
 
+export const EXECUTION_ASSIGNMENT_LEASE_MS = 30 * 60 * 1000;
+
+export function executionAssignmentFreshnessAt(
+  assignment: Doc<"executionAssignments">,
+) {
+  return (
+    assignment.lastHeartbeatAt ??
+    assignment.claimedAt ??
+    assignment.dispatchedAt
+  );
+}
+
+export function isExecutionAssignmentStale(
+  assignment: Doc<"executionAssignments">,
+  now = Date.now(),
+) {
+  return (
+    ACTIVE_EXECUTION_STATUSES.has(assignment.status) &&
+    now - executionAssignmentFreshnessAt(assignment) >=
+      EXECUTION_ASSIGNMENT_LEASE_MS
+  );
+}
+
+export async function reconcileStaleExecutionAssignments(
+  ctx: MutationCtx,
+  planId: Id<"executionPlans">,
+  now = Date.now(),
+) {
+  const rows = await ctx.db
+    .query("executionAssignments")
+    .withIndex("by_plan", (q) => q.eq("planId", planId))
+    .order("desc")
+    .take(1_000);
+  const recovered = [];
+  for (const assignment of rows) {
+    if (!isExecutionAssignmentStale(assignment, now)) continue;
+    const freshnessAt = executionAssignmentFreshnessAt(assignment);
+    const previousStatus = assignment.status;
+    const error =
+      `Attempt automatically abandoned after ${Math.floor(
+        (now - freshnessAt) / 60_000,
+      )} minutes without an execution heartbeat.`;
+    await ctx.db.patch(assignment._id, {
+      status: "abandoned",
+      error,
+      finishedAt: now,
+    });
+    recovered.push({
+      assignmentId: assignment._id,
+      taskId: assignment.taskId,
+      agentId: assignment.agentId,
+      previousStatus,
+      freshnessAt,
+      error,
+    });
+  }
+  return {
+    recovered,
+    scannedCount: rows.length,
+    truncated: rows.length === 1_000,
+  };
+}
+
 export async function latestExecutionAssignmentForTask(
   ctx: ReadCtx,
   taskId: Id<"tasks">,

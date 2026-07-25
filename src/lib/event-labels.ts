@@ -34,6 +34,7 @@ export const EVENT_LABEL: Record<string, string> = {
   "roadmap.phase_removed": "removed a phase from",
   "plan.committed": "compiled execution plan",
   "plan.wave_dispatched": "dispatched execution wave",
+  "plan.execution_reconciled": "recovered stalled execution in",
   "workspace.execution_policy_updated": "updated execution policy for",
   "milestone.created": "added milestone",
   "milestone.updated": "updated milestone",

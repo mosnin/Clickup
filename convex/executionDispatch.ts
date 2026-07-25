@@ -13,10 +13,13 @@ import {
 import { CLAIM_TTL_MS } from "./tasks";
 import {
   ACTIVE_EXECUTION_STATUSES,
+  EXECUTION_ASSIGNMENT_LEASE_MS,
+  executionAssignmentFreshnessAt,
+  isExecutionAssignmentStale,
   type ExecutionAssignmentStatus,
 } from "./executionLifecycle";
 
-export const DISPATCH_LEASE_MS = 30 * 60 * 1000;
+export const DISPATCH_LEASE_MS = EXECUTION_ASSIGNMENT_LEASE_MS;
 
 type ReadCtx = QueryCtx | MutationCtx;
 
@@ -152,10 +155,7 @@ export async function executionReadinessCore(
   const statusCache = new Map<string, boolean>();
   for (const [taskId, assignment] of latestAssignmentByTask) {
     if (!ACTIVE_EXECUTION_STATUSES.has(assignment.status)) continue;
-    const freshness =
-      assignment.lastHeartbeatAt ??
-      assignment.claimedAt ??
-      assignment.dispatchedAt;
+    const freshness = executionAssignmentFreshnessAt(assignment);
     if (now - freshness >= DISPATCH_LEASE_MS) continue;
     const task = await ctx.db.get(taskId as Id<"tasks">);
     if (!task || (await isTaskComplete(ctx, task, statusCache))) continue;
@@ -241,10 +241,7 @@ export async function executionReadinessCore(
       latestAssignment &&
       ACTIVE_EXECUTION_STATUSES.has(latestAssignment.status)
     ) {
-      const freshness =
-        latestAssignment.lastHeartbeatAt ??
-        latestAssignment.claimedAt ??
-        latestAssignment.dispatchedAt;
+      const freshness = executionAssignmentFreshnessAt(latestAssignment);
       if (now - freshness < DISPATCH_LEASE_MS) {
         skipped.push({
           taskRef: manifestTask.ref,
@@ -381,13 +378,23 @@ export async function executionControlCore(
     failed: 0,
     abandoned: 0,
   };
-  for (const row of rows) counts[row.status] += 1;
+  let staleCount = 0;
+  const now = Date.now();
+  for (const row of rows) {
+    if (isExecutionAssignmentStale(row, now)) {
+      staleCount += 1;
+    } else {
+      counts[row.status] += 1;
+    }
+  }
   const assignments = [];
   for (const row of rows.slice(0, 25)) {
     const [task, agent] = await Promise.all([
       ctx.db.get(row.taskId),
       ctx.db.get(row.agentId),
     ]);
+    const stale = isExecutionAssignmentStale(row, now);
+    const freshnessAt = executionAssignmentFreshnessAt(row);
     assignments.push({
       assignmentId: row._id,
       waveId: row.waveId,
@@ -397,7 +404,12 @@ export async function executionControlCore(
       agentId: row.agentId,
       agentName: agent?.name ?? "Deleted agent",
       delivery: row.delivery,
-      status: row.status,
+      status: stale ? ("stale" as const) : row.status,
+      recordedStatus: row.status,
+      stale,
+      staleSinceAt: stale
+        ? freshnessAt + EXECUTION_ASSIGNMENT_LEASE_MS
+        : undefined,
       attempt: row.attempt,
       runId: row.runId,
       dispatchedAt: row.dispatchedAt,
@@ -408,12 +420,14 @@ export async function executionControlCore(
       summary: row.summary,
       error: row.error,
       links: row.links ?? [],
-      retryable: row.status === "failed" || row.status === "abandoned",
+      retryable:
+        stale || row.status === "failed" || row.status === "abandoned",
     });
   }
   return {
     plan: executionPlanSummary(plan),
     counts,
+    staleCount,
     assignmentCount: rows.length,
     assignments,
   };

@@ -120,8 +120,10 @@ import {
 import {
   abandonExecutionAssignmentForTask,
   finishExecutionAssignment,
+  latestExecutionAssignmentForTask,
   markExecutionAssignmentClaimed,
   markExecutionAssignmentRunning,
+  reconcileStaleExecutionAssignments,
   touchExecutionAssignment,
 } from "./executionLifecycle";
 import {
@@ -5406,6 +5408,91 @@ export const getExecutionControl = query({
   },
 });
 
+async function reconcileExecutionPlanCore(
+  ctx: MutationCtx,
+  plan: Doc<"executionPlans">,
+  actorAgent: Doc<"agents">,
+) {
+  const result = await reconcileStaleExecutionAssignments(ctx, plan._id);
+  const recoveredAgentIdsByTask = new Map<string, Set<string>>();
+  for (const assignment of result.recovered) {
+    const agentIds =
+      recoveredAgentIdsByTask.get(assignment.taskId) ?? new Set<string>();
+    agentIds.add(assignment.agentId);
+    recoveredAgentIdsByTask.set(assignment.taskId, agentIds);
+  }
+  let releasedClaimCount = 0;
+  for (const [taskId, recoveredAgentIds] of recoveredAgentIdsByTask) {
+    const normalizedTaskId = ctx.db.normalizeId("tasks", taskId);
+    if (!normalizedTaskId) continue;
+    const [task, latestAssignment] = await Promise.all([
+      ctx.db.get(normalizedTaskId),
+      latestExecutionAssignmentForTask(ctx, normalizedTaskId),
+    ]);
+    if (
+      !task?.claimedByActorId ||
+      !recoveredAgentIds.has(task.claimedByActorId) ||
+      (latestAssignment &&
+        (latestAssignment.status === "dispatched" ||
+          latestAssignment.status === "claimed" ||
+          latestAssignment.status === "running"))
+    ) {
+      continue;
+    }
+    await releaseTaskCore(
+      ctx,
+      normalizedTaskId,
+      agentActor(actorAgent),
+      true,
+    );
+    releasedClaimCount += 1;
+  }
+  if (result.recovered.length > 0) {
+    await emitEvent(ctx, {
+      scopeType: "workspace",
+      scopeId: plan.workspaceId,
+      type: "plan.execution_reconciled",
+      actor: agentActor(actorAgent),
+      entityType: "roadmap",
+      entityId: plan.roadmapId,
+      entityTitle: plan.name,
+      payload: {
+        planId: plan._id,
+        recoveredAssignmentCount: result.recovered.length,
+        releasedClaimCount,
+        truncated: result.truncated,
+      },
+    });
+  }
+  return {
+    recoveredAssignmentCount: result.recovered.length,
+    releasedClaimCount,
+    scannedCount: result.scannedCount,
+    truncated: result.truncated,
+    assignments: result.recovered,
+  };
+}
+
+export const reconcileExecutionPlan = mutation({
+  args: {
+    apiKey: v.string(),
+    planId: v.id("executionPlans"),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const plan = await ctx.db.get(args.planId);
+    if (
+      !plan ||
+      agent.parentType !== "workspace" ||
+      plan.workspaceId !== agent.parentId
+    ) {
+      throw new ConvexError("Execution plan not found in your workspace");
+    }
+    return await reconcileExecutionPlanCore(ctx, plan, agent);
+  },
+});
+
 export const dispatchExecutionWave = mutation({
   args: {
     apiKey: v.string(),
@@ -5504,6 +5591,7 @@ export const dispatchExecutionWave = mutation({
       return { ...executionWaveView(previous), replayed: true };
     }
 
+    await reconcileExecutionPlanCore(ctx, plan, agent);
     const readiness = await executionReadinessCore(
       ctx,
       plan,

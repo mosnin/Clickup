@@ -685,10 +685,81 @@ describe("capability-aware execution dispatch", () => {
         .collect();
       for (const assignment of assignments) {
         await ctx.db.patch(assignment._id, {
+          status: "claimed",
           dispatchedAt: Date.now() - 31 * 60 * 1000,
+          claimedAt: Date.now() - 31 * 60 * 1000,
+        });
+        await ctx.db.patch(assignment.taskId, {
+          claimedByActorId: assignment.agentId,
+          claimedAt: Date.now() - 31 * 60 * 1000,
         });
       }
     });
+    let control = await t.query(api.agentApi.getExecutionControl, {
+      apiKey: PLANNER_KEY,
+      planId: plan.planId,
+    });
+    expect(control).toMatchObject({
+      staleCount: 1,
+      counts: { claimed: 0, abandoned: 0 },
+    });
+    expect(control.assignments[0]).toMatchObject({
+      status: "stale",
+      recordedStatus: "claimed",
+      stale: true,
+      retryable: true,
+    });
+
+    readiness = await t.query(api.agentApi.getExecutionReadiness, {
+      apiKey: PLANNER_KEY,
+      planId: plan.planId,
+    });
+    expect(readiness.recommendations).toHaveLength(0);
+    expect(readiness.skipped).toContainEqual({
+      taskRef: "platform.schema",
+      reason: "already_claimed",
+    });
+
+    const recovery = await t.mutation(
+      api.agentApi.reconcileExecutionPlan,
+      {
+        apiKey: PLANNER_KEY,
+        planId: plan.planId,
+      },
+    );
+    expect(recovery).toMatchObject({
+      recoveredAssignmentCount: 1,
+      releasedClaimCount: 1,
+      truncated: false,
+    });
+    await expect(
+      t.mutation(api.agentApi.reconcileExecutionPlan, {
+        apiKey: PLANNER_KEY,
+        planId: plan.planId,
+      }),
+    ).resolves.toMatchObject({
+      recoveredAssignmentCount: 0,
+      releasedClaimCount: 0,
+    });
+    const releasedClaim = await t.run(async (ctx) => {
+      const assignment = await ctx.db
+        .query("executionAssignments")
+        .withIndex("by_wave", (q) => q.eq("waveId", wave.waveId))
+        .unique();
+      const task = assignment
+        ? await ctx.db.get(assignment.taskId)
+        : null;
+      return {
+        assignmentStatus: assignment?.status,
+        error: assignment?.error,
+        claimedByActorId: task?.claimedByActorId,
+      };
+    });
+    expect(releasedClaim).toMatchObject({
+      assignmentStatus: "abandoned",
+      error: expect.stringMatching(/without an execution heartbeat/i),
+    });
+    expect(releasedClaim.claimedByActorId).toBeUndefined();
     readiness = await t.query(api.agentApi.getExecutionReadiness, {
       apiKey: PLANNER_KEY,
       planId: plan.planId,
@@ -712,6 +783,31 @@ describe("capability-aware execution dispatch", () => {
         { taskRef: "platform.schema", reason: "capability_gap" },
       ]),
     );
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(backendId, { status: "active" });
+    });
+    await t.mutation(api.agentApi.dispatchExecutionWave, {
+      apiKey: PLANNER_KEY,
+      idempotencyKey: "wave-expiry-retry",
+      planId: plan.planId,
+      openQuestionDisposition:
+        "This implementation-only retry still cannot affect the rollout region.",
+    });
+    control = await t.query(api.agentApi.getExecutionControl, {
+      apiKey: PLANNER_KEY,
+      planId: plan.planId,
+    });
+    expect(control).toMatchObject({
+      staleCount: 0,
+      counts: { dispatched: 1, abandoned: 1 },
+    });
+    expect(control.assignments[0]).toMatchObject({
+      status: "dispatched",
+      recordedStatus: "dispatched",
+      attempt: 2,
+      stale: false,
+    });
   });
 
   it("records dispatch through claim, run, evidence, and terminal replay", async () => {

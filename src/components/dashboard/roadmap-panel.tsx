@@ -951,6 +951,7 @@ function ExecutionPlanProvenance({
                   ["sent", control.counts.dispatched, "bg-muted"],
                   ["succeeded", control.counts.succeeded, "bg-pastel-green"],
                   ["failed", control.counts.failed, "bg-pastel-red"],
+                  ["stale", control.staleCount, "bg-pastel-yellow"],
                   ["retryable", control.counts.abandoned, "bg-pastel-yellow"],
                 ] as const
               ).map(([label, count, className]) =>

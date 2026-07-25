@@ -10,7 +10,8 @@ Use this skill when a committed execution plan should begin, continue, or recove
 3. Explain blockers before mutating anything: authorization, stale policy version, rolling daily limit, per-wave limit, open-question gates, dependency blocks, capability gaps, capacity exhaustion, active claims, or live assignments.
 4. If open questions exist, obtain or write an explicit disposition that says what was resolved, deferred, or intentionally bounded. Never imply uncertainty disappeared.
 5. Call `dispatch_execution_wave` with a unique idempotency key, a deliberate `maxTasks`, and an optional agent subset when the user constrained the fleet.
-6. Read `get_execution_control` after dispatch. Report each task, assigned agent, delivery mode, attempt number, and whether the runtime was notified or must poll.
+6. Dispatch reconciles stale attempts before routing. If you are recovering work manually, call `reconcile_execution_plan` first and preserve its timeout evidence.
+7. Read `get_execution_control` after dispatch. Report each task, assigned agent, delivery mode, attempt number, and whether the runtime was notified or must poll.
 7. On later checks, distinguish dispatched, claimed, running, succeeded, failed, and abandoned attempts. Failed or abandoned work is retryable; do not duplicate a fresh active attempt.
 8. When execution appears complete, load `operate-assurance`. Submit evidence against every original success criterion and route it to a different agent or human for review. Never equate a green execution ledger with a verified outcome.
 
