@@ -809,6 +809,12 @@ export async function cleanupTaskArtifacts(
   ctx: MutationCtx,
   taskId: Id<"tasks">,
 ): Promise<void> {
+  const contextLinks = await ctx.db
+    .query("taskContextPackets")
+    .withIndex("by_task", (q) => q.eq("taskId", taskId))
+    .collect();
+  for (const link of contextLinks) await ctx.db.delete(link._id);
+
   const values = await ctx.db
     .query("taskFieldValues")
     .withIndex("by_task", (q) => q.eq("taskId", taskId))
