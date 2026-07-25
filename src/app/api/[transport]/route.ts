@@ -186,11 +186,13 @@ const DESTRUCTIVE_TOOLS = new Set([
   "delete_comment",
   "delete_list",
   "delete_folder",
+  "delete_context_packet",
   "remove_roadmap_phase",
   "delete_milestone",
 ]);
 const IDEMPOTENT_TOOLS = new Set([
   "heartbeat",
+  "acknowledge_task_context",
   "update_task",
   "set_estimate",
   "complete_task",
@@ -525,7 +527,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_task",
     description:
-      "Full detail of one task: status, checklist, dependencies (with open/closed state), claim, subtasks, and the last 50 comments. Also returns listName, attachments (with download urls), attached contextPackets, and the list's SOP.",
+      "Full detail of one task: status, checklist, dependencies, claim, subtasks, comments, attachments, SOP, and full attached contextPackets. contextReadiness says which exact packet versions this agent has acknowledged; acknowledge stale/unread context before claiming, starting a run, reporting currentTaskId, or completing.",
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.getTask), { apiKey: k, ...a }),
@@ -575,6 +577,25 @@ const TOOLS: ToolDef[] = [
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.updateContextPacket), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "acknowledge_task_context",
+    description:
+      "Prove that I loaded the complete current context bundle for a task. First call get_task, read every contextPacket, then send every packetId + exact version here. Required before claim_task, start_run, heartbeat(currentTaskId), or completion whenever context is attached; any later packet update makes the receipt stale automatically.",
+    shape: {
+      taskId: z.string(),
+      packets: z.array(
+        z.object({
+          packetId: z.string(),
+          version: z.number(),
+        }),
+      ),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.acknowledgeTaskContext), {
         apiKey: k,
         ...a,
       }),
@@ -761,7 +782,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "complete_task",
     description:
-      "Mark a task complete (moves it to the list's Complete status, releases my claim, triggers recurrence/automations). Fails if blockers are open.",
+      "Mark a task complete (moves it to the list's Complete status, releases my claim, triggers recurrence/automations). Fails if blockers are open or attached context changed since I acknowledged it.",
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.completeTask), { apiKey: k, ...a }),
@@ -769,7 +790,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "request_approval",
     description:
-      "My work on a gated task is done, ask a human to sign off. Raises the approval gate if needed, emits task.approval_requested, and emails a responsible human. Wait for the task.approved event (or poll get_task) before complete_task.",
+      "My work on a gated task is done, ask a human to sign off. Requires the task's current context to be acknowledged, raises the approval gate if needed, emits task.approval_requested, and emails a responsible human. Wait for the task.approved event (or poll get_task) before complete_task.",
     shape: {
       taskId: z.string(),
       note: z.string().optional().describe("what to review / where to look"),
@@ -787,7 +808,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "claim_task",
     description:
-      "Claim a task before working on it so other agents don't duplicate the work. Fails if another actor holds a fresh claim (claims expire after 60 min).",
+      "Claim a task before working on it so other agents don't duplicate the work. Fails if another actor holds a fresh claim or attached context is unread/stale; call get_task then acknowledge_task_context first. Claims expire after 60 min.",
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.claimTask), { apiKey: k, ...a }),
@@ -1314,7 +1335,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "start_run",
     description:
-      "Start a structured work session ('run') humans can see on my detail page. Pair with finish_run. Use for any multi-step piece of work.",
+      "Start a structured work session ('run') humans can see on my detail page. Pair with finish_run. When taskId has context, acknowledge its current packet versions first.",
     shape: {
       title: z.string().describe("what this session is doing"),
       taskId: z.string().optional(),
@@ -1325,7 +1346,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "finish_run",
     description:
-      "Finish a run with its outcome. failed runs emit an agent.error event that alerts humans.",
+      "Finish a run with its outcome. A succeeded task run requires the task's current context to be acknowledged; failed runs remain available for recovery and emit an agent.error event that alerts humans.",
     shape: {
       runId: z.string(),
       status: z.enum(["succeeded", "failed", "abandoned"]),
@@ -1848,7 +1869,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "operate-agents", version: "1.0.0" },
     instructions:
-      "You are an agent teammate in operate.to. First: call whoami, then fetch the 'collaboration-protocol' skill with get_skill and follow it. Find work with next_task, claim_task before working, heartbeat while working, complete_task when done. Planning a project from a brief? Use create_roadmap (explicit phases with target dates), create_tasks for bulk task+subtask+dependency creation, and create_goal with sourceListId for auto-tracking progress. All ids are opaque strings returned by other tools; dates accept ISO 8601 or epoch ms.",
+      "You are an agent teammate in operate.to. First: call whoami, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, then claim_task. Heartbeat while working and complete_task when done. Planning from a brief? Use create_roadmap, create_tasks for bulk task/subtask/dependency creation, shared context packets, and create_goal with sourceListId. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
   },
   {
     basePath: "/api",

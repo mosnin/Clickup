@@ -495,6 +495,21 @@ export default defineSchema({
     .index("by_packet", ["packetId"])
     .index("by_task_and_packet", ["taskId", "packetId"]),
 
+  // Proof that a specific agent read the exact packet version attached to
+  // a task. Updating a packet makes older receipts stale automatically;
+  // claim/complete gates then force the agent to reload before proceeding.
+  agentContextReceipts: defineTable({
+    agentId: v.id("agents"),
+    taskId: v.id("tasks"),
+    packetId: v.id("contextPackets"),
+    version: v.number(),
+    acknowledgedAt: v.number(),
+  })
+    .index("by_task", ["taskId"])
+    .index("by_packet", ["packetId"])
+    .index("by_agent_task", ["agentId", "taskId"])
+    .index("by_agent_task_packet", ["agentId", "taskId", "packetId"]),
+
   // External integrations attached to a workspace. Each kind stores its
   // own credential shape inside `config` (e.g. { webhookUrl } for Slack).
   // We deliberately keep this simple — one row per (workspace, kind) —

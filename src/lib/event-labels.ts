@@ -46,6 +46,7 @@ export const EVENT_LABEL: Record<string, string> = {
   "context.created": "created shared context",
   "context.updated": "updated shared context",
   "context.deleted": "deleted shared context",
+  "context.acknowledged": "acknowledged context for",
 };
 
 export function eventLabel(type: string): string {

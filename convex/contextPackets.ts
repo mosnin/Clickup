@@ -37,6 +37,18 @@ export type ContextPacketView = {
   updatedAt: number;
 };
 
+export type AgentContextReadiness = {
+  ready: boolean;
+  packets: Array<{
+    packetId: Id<"contextPackets">;
+    title: string;
+    currentVersion: number;
+    acknowledgedVersion?: number;
+    acknowledgedAt?: number;
+    state: "current" | "stale" | "unread";
+  }>;
+};
+
 function view(packet: Doc<"contextPackets">): ContextPacketView {
   return {
     packetId: packet._id,
@@ -87,6 +99,120 @@ export async function listPacketsForTask(
     .filter((packet): packet is Doc<"contextPackets"> => packet !== null)
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .map(view);
+}
+
+export async function contextReadinessForAgent(
+  ctx: QueryCtx | MutationCtx,
+  taskId: Id<"tasks">,
+  agentId: Id<"agents">,
+): Promise<AgentContextReadiness> {
+  const packets = await listPacketsForTask(ctx, taskId);
+  const receipts = await ctx.db
+    .query("agentContextReceipts")
+    .withIndex("by_agent_task", (q) =>
+      q.eq("agentId", agentId).eq("taskId", taskId),
+    )
+    .collect();
+  const byPacket = new Map(receipts.map((receipt) => [receipt.packetId, receipt]));
+  const rows = packets.map((packet) => {
+    const receipt = byPacket.get(packet.packetId);
+    const state =
+      receipt === undefined
+        ? ("unread" as const)
+        : receipt.version === packet.version
+          ? ("current" as const)
+          : ("stale" as const);
+    return {
+      packetId: packet.packetId,
+      title: packet.title,
+      currentVersion: packet.version,
+      acknowledgedVersion: receipt?.version,
+      acknowledgedAt: receipt?.acknowledgedAt,
+      state,
+    };
+  });
+  return {
+    ready: rows.every((row) => row.state === "current"),
+    packets: rows,
+  };
+}
+
+export async function requireCurrentContext(
+  ctx: QueryCtx | MutationCtx,
+  taskId: Id<"tasks">,
+  agentId: Id<"agents">,
+): Promise<void> {
+  const readiness = await contextReadinessForAgent(ctx, taskId, agentId);
+  if (readiness.ready) return;
+  const required = readiness.packets
+    .filter((packet) => packet.state !== "current")
+    .map(
+      (packet) =>
+        `${packet.title} v${packet.currentVersion} (${packet.packetId})`,
+    )
+    .join(", ");
+  throw new ConvexError(
+    `Context acknowledgement required before working on this task. Read get_task, then call acknowledge_task_context with the current versions: ${required}`,
+  );
+}
+
+export async function acknowledgeTaskContextCore(
+  ctx: MutationCtx,
+  taskId: Id<"tasks">,
+  agentId: Id<"agents">,
+  packetVersions: Array<{
+    packetId: Id<"contextPackets">;
+    version: number;
+  }>,
+): Promise<AgentContextReadiness> {
+  const packets = await listPacketsForTask(ctx, taskId);
+  const supplied = new Map(
+    packetVersions.map((packet) => [packet.packetId, packet.version]),
+  );
+  if (
+    packetVersions.length !== supplied.size ||
+    supplied.size !== packets.length
+  ) {
+    throw new ConvexError(
+      "Acknowledge every context packet attached to the task exactly once",
+    );
+  }
+  for (const packet of packets) {
+    const version = supplied.get(packet.packetId);
+    if (version !== packet.version) {
+      throw new ConvexError(
+        `Context changed while you were reading it: ${packet.title} is now v${packet.version}. Call get_task again.`,
+      );
+    }
+  }
+
+  const now = Date.now();
+  for (const packet of packets) {
+    const existing = await ctx.db
+      .query("agentContextReceipts")
+      .withIndex("by_agent_task_packet", (q) =>
+        q
+          .eq("agentId", agentId)
+          .eq("taskId", taskId)
+          .eq("packetId", packet.packetId),
+      )
+      .unique();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        version: packet.version,
+        acknowledgedAt: now,
+      });
+    } else {
+      await ctx.db.insert("agentContextReceipts", {
+        agentId,
+        taskId,
+        packetId: packet.packetId,
+        version: packet.version,
+        acknowledgedAt: now,
+      });
+    }
+  }
+  return await contextReadinessForAgent(ctx, taskId, agentId);
 }
 
 export async function createContextPacketCore(
@@ -188,6 +314,13 @@ export async function detachContextPacketCore(
     .unique();
   if (!existing) return false;
   await ctx.db.delete(existing._id);
+  const receipts = await ctx.db
+    .query("agentContextReceipts")
+    .withIndex("by_packet", (q) => q.eq("packetId", packetId))
+    .collect();
+  for (const receipt of receipts) {
+    if (receipt.taskId === taskId) await ctx.db.delete(receipt._id);
+  }
   return true;
 }
 
@@ -202,6 +335,11 @@ export async function deleteContextPacketCore(
     .withIndex("by_packet", (q) => q.eq("packetId", packet._id))
     .collect();
   for (const link of links) await ctx.db.delete(link._id);
+  const receipts = await ctx.db
+    .query("agentContextReceipts")
+    .withIndex("by_packet", (q) => q.eq("packetId", packet._id))
+    .collect();
+  for (const receipt of receipts) await ctx.db.delete(receipt._id);
   await ctx.db.delete(packet._id);
   await emitPacketEvent(ctx, list, packet, "context.deleted", actor, {
     detachedTaskCount: links.length,
@@ -224,6 +362,11 @@ export async function deleteContextPacketsForList(
       .withIndex("by_packet", (q) => q.eq("packetId", packet._id))
       .collect();
     for (const link of links) await ctx.db.delete(link._id);
+    const receipts = await ctx.db
+      .query("agentContextReceipts")
+      .withIndex("by_packet", (q) => q.eq("packetId", packet._id))
+      .collect();
+    for (const receipt of receipts) await ctx.db.delete(receipt._id);
     await ctx.db.delete(packet._id);
   }
 }
@@ -255,6 +398,57 @@ export const listForTask = query({
       return [];
     }
     return await listPacketsForTask(ctx, taskId);
+  },
+});
+
+export const readinessForTask = query({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const task = await ctx.db.get(taskId);
+    if (!task) return [];
+    try {
+      await requireListAccess(ctx, task.listId);
+    } catch {
+      return [];
+    }
+
+    const packets = await listPacketsForTask(ctx, taskId);
+    const receipts = await ctx.db
+      .query("agentContextReceipts")
+      .withIndex("by_task", (q) => q.eq("taskId", taskId))
+      .collect();
+    const relevantIds = new Set(task.assigneeClerkIds);
+    if (task.claimedByActorId) relevantIds.add(task.claimedByActorId);
+    const agents: Doc<"agents">[] = [];
+    for (const id of relevantIds) {
+      const agentId = ctx.db.normalizeId("agents", id);
+      if (!agentId) continue;
+      const agent = await ctx.db.get(agentId);
+      if (agent) agents.push(agent);
+    }
+
+    return packets.map((packet) => ({
+      packetId: packet.packetId,
+      currentVersion: packet.version,
+      agents: agents.map((agent) => {
+        const receipt = receipts.find(
+          (row) =>
+            row.agentId === agent._id && row.packetId === packet.packetId,
+        );
+        return {
+          agentId: agent._id,
+          agentName: agent.name,
+          acknowledgedVersion: receipt?.version,
+          acknowledgedAt: receipt?.acknowledgedAt,
+          state:
+            receipt === undefined
+              ? ("unread" as const)
+              : receipt.version === packet.version
+                ? ("current" as const)
+                : ("stale" as const),
+        };
+      }),
+    }));
   },
 });
 
