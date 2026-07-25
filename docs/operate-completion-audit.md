@@ -127,6 +127,10 @@ only after automated checks and relevant production behavior both pass.
 - Global Search query/results/no-match/minimum-length states and shareable URL;
   the ⌘K palette keeps Search everything and New task visible even when
   workspace inventory exceeds its display cap
+- Production hierarchy terminology and read/render coverage across List,
+  Overview, Board, Calendar, Gantt, Timeline, Table, Workload, Network, List
+  settings, Sprints, Operations, Portfolio, Roadmap, Goals, and Workspace
+  settings
 - Local production build, typecheck, lint, plugin validation, and 365 tests
 - Disposable production MCP mutation certification: List create/rename/metadata,
   two-task parent/dependency batch, task update/checklist, comment
@@ -143,11 +147,12 @@ only after automated checks and relevant production behavior both pass.
 ## Still required
 
 1. Complete billing production certification.
-2. Continue the systematic browser pass over the remaining List views, sprints,
-   roadmaps, operations, agents, settings, broader keyboard navigation, and
-   failure states. Home, Global Search and the core ⌘K path, Onboarding, Inbox,
-   task detail, the core Spaces/List hierarchy, template destinations, and
-   their mobile responsive layouts are certified above.
+2. Continue the systematic browser pass over interactive List mutations,
+   sprint/roadmap/operations workflows, agents, the remaining settings actions,
+   broader keyboard navigation, and failure states. Home, Global Search and the
+   core ⌘K path, Onboarding, Inbox, task detail, read/render coverage for every
+   List and workspace planning view, the core Spaces/List hierarchy, template
+   destinations, and their mobile responsive layouts are certified above.
 3. Finish the security review: rotate any remaining credentials exposed during
    development, continue broader abuse tests and the residual secret inventory,
    and disposition the seven upstream/unpatched production dependency
@@ -270,6 +275,20 @@ only after automated checks and relevant production behavior both pass.
   and Convex health are `ok`, GitHub CI run `30177378952`, 365 tests,
   typecheck, lint, and the production build pass, and the production error-log
   scan is empty.
+- Hierarchy terminology and planning surfaces (production-validated
+  2026-07-25): the signed-in legacy `/dashboard/projects` route redirects to
+  Spaces; Workspace Overview renders Spaces containing Lists; Roadmap explains
+  that it sequences the workspace's Lists into phases; Operations reports
+  routed Lists; and List settings consistently names its entity and
+  destinations as Lists. The same production List rendered all nine views:
+  List, Overview, Board, Calendar, Gantt, Timeline, Table, Workload, and
+  Network, including legitimate data and empty states. Sprints, Operations,
+  Portfolio, Roadmap, Goals, and Workspace settings also rendered their current
+  production states without competing Project language. The 54 focused view,
+  operations, roadmap, and sprint tests pass alongside all 365 tests,
+  typecheck, and lint. Application and Convex health are `ok`, and the
+  production error-log scan is empty. No code or deployment was needed for this
+  certification batch.
 - Public connector submission compliance (production-validated 2026-07-25):
   deployment `dpl_w3dL5pw14yVUGJiJeTEy8qSngXeq` is Ready and healthy. The
   authenticated base profile exposes all 140 tools; Anthropic's directory
