@@ -160,6 +160,52 @@ describe("reports.workspaceSummary / team.hub privacy + archive filtering", () =
 });
 
 describe("homeOverview / myWork archive filtering", () => {
+  it("only includes currently connected agents in the Home live preview", async () => {
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        clerkId: OWNER.subject,
+        email: OWNER.email,
+      });
+      await ctx.db.insert("spaces", {
+        name: "Personal",
+        parentType: "user",
+        parentId: OWNER.subject,
+        position: 0,
+        createdByClerkId: OWNER.subject,
+        createdAt: now,
+      });
+      await ctx.db.insert("agents", {
+        name: "Connected",
+        parentType: "user",
+        parentId: OWNER.subject,
+        status: "active",
+        createdByClerkId: OWNER.subject,
+        lastHeartbeatAt: now,
+        statusText: "Working now",
+        createdAt: now,
+      });
+      await ctx.db.insert("agents", {
+        name: "Stale",
+        parentType: "user",
+        parentId: OWNER.subject,
+        status: "active",
+        createdByClerkId: OWNER.subject,
+        lastHeartbeatAt: now - 10 * 60 * 1000,
+        statusText: "Old work",
+        createdAt: now,
+      });
+    });
+
+    const overview = await t
+      .withIdentity(OWNER)
+      .query(api.homeOverview.get, {});
+
+    expect(overview?.totalAgentsOnline).toBe(1);
+    expect(overview?.agents.map((agent) => agent.name)).toEqual(["Connected"]);
+  });
+
   it("does not count archived-space tasks toward Home or My Work", async () => {
     const t = convexTest(schema, modules);
     await t.run(async (ctx) => {
