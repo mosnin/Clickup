@@ -86,7 +86,11 @@ async function handle(req: Request): Promise<Response> {
       return Response.json(challenge, { status: 402 });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const status = /invalid api key/i.test(message) ? 401 : 400;
+      const status = /invalid api key/i.test(message)
+        ? 401
+        : /billing unavailable|not configured/i.test(message)
+          ? 503
+          : 400;
       return Response.json({ error: message }, { status });
     }
   }
@@ -109,7 +113,9 @@ async function handle(req: Request): Promise<Response> {
       ? 401
       : /already been settled/i.test(message)
         ? 409
-        : 402;
+        : /billing unavailable|not configured/i.test(message)
+          ? 503
+          : 402;
     return Response.json({ error: message }, { status });
   }
 }

@@ -5,6 +5,8 @@ import { api, internal } from "../convex/_generated/api";
 import { sha256Hex } from "../convex/_agentAuth";
 import {
   atomicToCredits,
+  billingConfigurationIssue,
+  billingConfigured,
   buildPaymentRequired,
   creditsToAtomic,
   creditsToDisplayAmount,
@@ -37,6 +39,29 @@ describe("x402 pricing + protocol helpers", () => {
     expect(req.payTo).toBe(cfg.payTo);
     expect(req.extra.creditsGranted).toBe(500);
     expect(challenge.error).toMatch(/X-PAYMENT/);
+  });
+
+  it("requires both a facilitator and a non-zero receiving wallet", () => {
+    const ready = {
+      ...cfg,
+      facilitatorUrl: "https://x402.org/facilitator",
+      payTo: "0x1111111111111111111111111111111111111111",
+    };
+    expect(billingConfigured(ready)).toBe(true);
+    expect(billingConfigurationIssue(ready)).toBeNull();
+    expect(
+      billingConfigurationIssue({
+        ...ready,
+        facilitatorUrl: null,
+        allowMock: false,
+      }),
+    ).toMatch(/facilitator/i);
+    expect(
+      billingConfigurationIssue({
+        ...ready,
+        payTo: "0x0000000000000000000000000000000000000000",
+      }),
+    ).toMatch(/receiving wallet/i);
   });
 
   it("validates payment shape and rejects shortfalls / mismatches", () => {
@@ -215,6 +240,7 @@ describe("x402 metering config (fail-closed)", () => {
     const prevAdmins = process.env.PLATFORM_ADMIN_EMAILS;
     const prevFac = process.env.X402_FACILITATOR_URL;
     const prevMock = process.env.X402_ALLOW_MOCK;
+    const prevPayTo = process.env.X402_PAY_TO;
     try {
       process.env.PLATFORM_ADMIN_EMAILS = "root@x.com";
       delete process.env.X402_FACILITATOR_URL;
@@ -236,6 +262,7 @@ describe("x402 metering config (fail-closed)", () => {
 
       // Explicit mock opt-in → allowed.
       process.env.X402_ALLOW_MOCK = "1";
+      process.env.X402_PAY_TO = "0x1111111111111111111111111111111111111111";
       const cfg = await t
         .withIdentity(ROOT)
         .mutation(api.x402.setMeteringConfig, { enabled: true });
@@ -243,9 +270,7 @@ describe("x402 metering config (fail-closed)", () => {
 
       // Every admin mutation must leave an audit trail.
       const log = await t.run((ctx) => ctx.db.query("adminAuditLog").collect());
-      expect(
-        log.some((r) => r.action === "x402.metering_updated"),
-      ).toBe(true);
+      expect(log.some((r) => r.action === "x402.metering_updated")).toBe(true);
     } finally {
       if (prevAdmins === undefined) delete process.env.PLATFORM_ADMIN_EMAILS;
       else process.env.PLATFORM_ADMIN_EMAILS = prevAdmins;
@@ -253,6 +278,8 @@ describe("x402 metering config (fail-closed)", () => {
       else process.env.X402_FACILITATOR_URL = prevFac;
       if (prevMock === undefined) delete process.env.X402_ALLOW_MOCK;
       else process.env.X402_ALLOW_MOCK = prevMock;
+      if (prevPayTo === undefined) delete process.env.X402_PAY_TO;
+      else process.env.X402_PAY_TO = prevPayTo;
     }
   });
 });

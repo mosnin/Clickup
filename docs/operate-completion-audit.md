@@ -59,7 +59,7 @@ only after automated checks and relevant production behavior both pass.
 - Capability/capacity-aware dispatch and stale-attempt reconciliation
 - Outcome evidence and independent assurance workflow
 - Production multi-agent execution: the supervised `CERT Multi-agent
-  2026-07-25T14-45-14-121Z` plan was human-authorized, dispatched to Scout and
+2026-07-25T14-45-14-121Z` plan was human-authorized, dispatched to Scout and
   Cert Builder in one wave, consumed through durable wakes, executed as two
   separately claimed and heartbeating tasks, completed with outcome evidence,
   and independently verified in assurance. The verified roadmap and paused
@@ -98,7 +98,7 @@ only after automated checks and relevant production behavior both pass.
 - Seven curl-installable skills with retries and SHA-256 verification
 - Completed agent work clears its matching current-task and activity text,
   preventing stale “Now” presence after success
-- Local production build, typecheck, lint, plugin validation, and 328 tests
+- Local production build, typecheck, lint, plugin validation, and 329 tests
 - Disposable production MCP mutation certification: List create/rename/metadata,
   two-task parent/dependency batch, task update/checklist, comment
   create/update/delete, schedule create/pause/resume/delete, readback/event
@@ -133,6 +133,17 @@ only after automated checks and relevant production behavior both pass.
 
 ## Active production certifications
 
+- x402 billing truthfulness audit (validated 2026-07-25): the production MCP
+  host exposes `get_wallet`, `buy_credits`, and `settle_payment`; wallet reads,
+  positive-integer input validation, unauthenticated rejection, and
+  fail-closed settlement were exercised live. The audit found that production
+  has neither a real facilitator nor a receiving wallet configured, even
+  though the old challenge/UI labeled the fallback as `mock` and exposed the
+  zero address. The current batch makes readiness explicit, suppresses
+  impossible challenges with HTTP 503, prevents metering activation, and
+  labels the Billing/admin surfaces as setup-incomplete. Full
+  pay→settle→credit→meter→deplete→top-up→resume certification remains open
+  until a real receiving wallet and facilitator credentials are configured.
 - Dependency security remediation (validated locally 2026-07-25): upgraded
   Next within v15 to 15.5.21, Convex within v1 to 1.42.3, and Clerk within v6
   to 6.39.6. The production-only audit dropped from 17 findings
