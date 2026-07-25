@@ -11,7 +11,14 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery } from "convex/react";
-import { ChevronDown, ChevronUp, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
+  MoreHorizontal,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -65,6 +72,9 @@ function fmtTarget(ts: number): string {
 
 export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const roadmaps = useQuery(api.roadmaps.listForWorkspace, { workspaceId });
+  const executionPlans = useQuery(api.executionPlans.listForWorkspace, {
+    workspaceId,
+  });
   // The sidebar tree is already subscribed by the workspace page, so this
   // costs nothing extra — it's the source for the "Not on roadmap" rail.
   const tree = useQuery(api.sidebar.tree, {});
@@ -110,7 +120,11 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
     return rows;
   }, [tree, workspaceId]);
 
-  if (roadmaps === undefined || tree === undefined) {
+  if (
+    roadmaps === undefined ||
+    tree === undefined ||
+    executionPlans === undefined
+  ) {
     return (
       <div className="space-y-3">
         <div className="h-8 w-48 animate-pulse rounded-full bg-muted/40" />
@@ -129,6 +143,9 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
 
   const visible = roadmaps.filter((r) => !hiddenRoadmapIds.has(r._id));
   const active = visible.find((r) => r._id === activeId) ?? visible[0];
+  const provenance = active
+    ? executionPlans.find((plan) => plan.roadmapId === active._id)
+    : undefined;
 
   async function submitCreate(name: string) {
     try {
@@ -313,6 +330,9 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
           {active.description}
         </p>
       )}
+      {provenance && (
+        <ExecutionPlanProvenance planId={provenance.planId} />
+      )}
 
       {/* Phase columns — horizontal scroll, like the other pill rows. */}
       <div className="-mx-4 overflow-x-auto overscroll-x-contain px-4 pb-2 sm:-mx-6 sm:px-6">
@@ -380,6 +400,90 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
         phases={phases}
       />
     </div>
+  );
+}
+
+function ExecutionPlanProvenance({
+  planId,
+}: {
+  planId: Id<"executionPlans">;
+}) {
+  const plan = useQuery(api.executionPlans.get, { planId });
+  if (!plan) return null;
+  return (
+    <details className="group rounded-2xl border border-brand-500/20 bg-brand-500/[0.04]">
+      <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-3">
+        <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400">
+          <BookOpen className="h-3.5 w-3.5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-sm font-semibold">Compiled from source</span>
+            <span className="text-xs text-muted-foreground">
+              {plan.projectCount} projects · {plan.taskCount} tasks
+            </span>
+            {plan.openQuestionCount > 0 && (
+              <span className="rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] font-medium text-neutral-900">
+                {plan.openQuestionCount} open question
+                {plan.openQuestionCount === 1 ? "" : "s"}
+              </span>
+            )}
+          </span>
+          <span className="mt-1 block text-sm text-foreground/80">
+            {plan.objective}
+          </span>
+        </span>
+        <ChevronDown className="mt-1 h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="grid gap-4 border-t border-brand-500/15 px-4 py-4 text-sm md:grid-cols-2">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Success criteria
+          </p>
+          <ul className="mt-2 space-y-1.5 text-foreground/80">
+            {plan.successCriteria.map((criterion, index) => (
+              <li key={`${index}-${criterion}`}>• {criterion}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="space-y-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Explicit assumptions
+            </p>
+            <ul className="mt-2 space-y-1.5 text-foreground/80">
+              {plan.assumptions.length > 0 ? (
+                plan.assumptions.map((assumption, index) => (
+                  <li key={`${index}-${assumption}`}>• {assumption}</li>
+                ))
+              ) : (
+                <li>None recorded.</li>
+              )}
+            </ul>
+          </div>
+          {plan.openQuestions.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Open questions
+              </p>
+              <ul className="mt-2 space-y-1.5 text-foreground/80">
+                {plan.openQuestions.map((question, index) => (
+                  <li key={`${index}-${question}`}>• {question}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+        <div className="md:col-span-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Confirmed source
+          </p>
+          <pre className="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap rounded-xl bg-background/70 p-3 font-sans text-xs leading-5 text-foreground/75">
+            {plan.sourceContext}
+          </pre>
+        </div>
+      </div>
+    </details>
   );
 }
 

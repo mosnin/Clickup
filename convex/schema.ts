@@ -510,6 +510,46 @@ export default defineSchema({
     .index("by_agent_task", ["agentId", "taskId"])
     .index("by_agent_task_packet", ["agentId", "taskId", "packetId"]),
 
+  // Immutable provenance for a plan compiled from one conversation/brief
+  // into a roadmap, projects, tasks, dependencies, assignments, and
+  // versioned context. The original source and explicit assumptions stay
+  // beside the generated artifact ids so humans and agents can audit why
+  // the execution graph exists. `idempotencyKey` makes retries safe.
+  executionPlans: defineTable({
+    workspaceId: v.id("workspaces"),
+    spaceId: v.id("spaces"),
+    createdByAgentId: v.id("agents"),
+    idempotencyKey: v.string(),
+    requestFingerprint: v.string(),
+    name: v.string(),
+    objective: v.string(),
+    sourceContext: v.string(),
+    successCriteria: v.array(v.string()),
+    assumptions: v.array(v.string()),
+    openQuestions: v.array(v.string()),
+    roadmapId: v.id("roadmaps"),
+    projects: v.array(
+      v.object({
+        ref: v.string(),
+        name: v.string(),
+        listId: v.id("lists"),
+        phaseId: v.string(),
+        contextPacketId: v.id("contextPackets"),
+      }),
+    ),
+    tasks: v.array(
+      v.object({
+        ref: v.string(),
+        title: v.string(),
+        taskId: v.id("tasks"),
+        listId: v.id("lists"),
+      }),
+    ),
+    createdAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId", "createdAt"])
+    .index("by_agent_key", ["createdByAgentId", "idempotencyKey"]),
+
   // External integrations attached to a workspace. Each kind stores its
   // own credential shape inside `config` (e.g. { webhookUrl } for Slack).
   // We deliberately keep this simple — one row per (workspace, kind) —

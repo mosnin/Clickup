@@ -104,6 +104,60 @@ Lists carry structured fields beyond title/status/priority, and a half-filled fi
 5. \`clear_task_field\` when a value is wrong and you have nothing better to put there. Empty is honest; a wrong value isn't.`,
   },
   {
+    slug: "execution-plan-compiler",
+    name: "Execution plan compiler",
+    description:
+      "Turn a confirmed conversation or brief into one auditable roadmap, multi-project task graph, and shared agent context without inventing missing facts.",
+    content: `# Execution plan compiler
+
+Use this when a human asks you to turn a conversation, transcript, PRD, or operating brief into a roadmap and parallel execution plan.
+
+## 1. Separate facts from inference
+
+Before creating anything, extract:
+
+- **Objective**: one outcome sentence.
+- **Success criteria**: observable tests that prove the outcome.
+- **Confirmed source context**: the relevant conversation/brief faithfully preserved.
+- **Assumptions**: every inference you need to make, explicitly labeled.
+- **Open questions**: unresolved decisions that agents must not silently guess.
+
+Do not bury an assumption inside a task description. If a missing answer changes architecture, scope, permissions, money, or an irreversible action, keep it in openQuestions and create an approval-gated decision task before dependent execution.
+
+## 2. Design the graph
+
+1. \`get_tree\` for the destination workspace Space.
+2. \`list_members\` for real human and agent ids. Never invent assignee ids.
+3. Define ordered roadmap phases with short refs.
+4. Define 1–12 projects. Each project belongs to one phase and has 1–50 tasks.
+5. Give every task a short ref unique inside its project.
+6. Use \`parentRef\` only for an earlier task in the same project.
+7. Use \`dependsOn: ["taskRef"]\` inside one project and \`dependsOn: ["otherProject.taskRef"]\` across projects.
+8. Put verifiable acceptance criteria in each task's checklist. Use \`requiresApproval\` for decisions or high-impact changes.
+9. Assign independent tasks to different agents so they can run in parallel; express real ordering with dependencies instead of prose.
+
+## 3. Commit atomically
+
+Call \`create_execution_plan\` once with a stable idempotencyKey derived from the conversation/document id and revision. The call validates refs, scope, assignees, and dependency cycles before committing. It then creates:
+
+- one immutable provenance manifest;
+- one phased roadmap;
+- every project;
+- every task and subtask;
+- cross-project blockers;
+- one versioned operating brief per project, attached to every task.
+
+The call is transactional: any error creates nothing. Retry the exact same payload with the same idempotencyKey. If the plan changes, use a new key.
+
+## 4. Verify and launch
+
+1. \`get_execution_plan\` and compare counts, source, assumptions, open questions, and generated ids to your intended graph.
+2. \`get_roadmaps\` to verify phase placement.
+3. Sample the critical-path tasks with \`get_task\`; confirm blockers, assignees, checklists, and attached operating brief.
+4. Agents then follow the collaboration protocol: read and acknowledge context, claim, start a run, heartbeat, and finish.
+5. Never dispatch an unresolved task merely because the graph exists. Open questions remain visible context until a human or responsible agent resolves them.`,
+  },
+  {
     slug: "project-kickoff",
     name: "Project kickoff",
     description:
@@ -113,7 +167,7 @@ Lists carry structured fields beyond title/status/priority, and a half-filled fi
 Input: a short brief (goal, rough deadline, who's involved).
 
 0. **Don't start from a blank page**: \`list_templates\` first, filtered by \`useCase\` or \`search\` against the brief. The Template Center covers lists (with their statuses, fields, and starter tasks), single tasks, docs, whiteboards, and saved view presets. \`get_template(slug)\` shows exactly what a slug will create before you commit; \`apply_template(slug, destinationType, destinationId, name?)\` creates it — a list template into a space or folder, a task or view template onto a list, a doc or whiteboard into a space. Applying a template is the same write path as building by hand, so everything below still applies on top of it. Adopt the parts that fit, then fill the gaps with the steps below.
-1. **Roadmap first** (workspace scope): \`create_roadmap\` named after the project with explicit \`phases\` — one per milestone, each with a \`targetDate\` walking back from the deadline. This is the plan's spine; skip the Now/Next/Later defaults by passing your own phases.
+1. **Compile the confirmed brief first**: for a multi-project kickoff, fetch the \`execution-plan-compiler\` skill and use \`create_execution_plan\` once. It atomically creates the roadmap, phased projects, tasks/subtasks, cross-project dependencies, assignments, and attached operating briefs while preserving source context, assumptions, and open questions. Use the manual steps below only for additions or a deliberately bespoke structure.
 2. **Structure**: \`create_space\` named after the project. Inside it, \`create_list\` per milestone (or "Backlog" + "Milestones" for a small project). Group related lists with \`create_folder\`, and regroup later with \`move_list\` (into a folder, back out to the space, or over to a sibling — the destination must be in the same space). Then \`assign_project_to_phase\` to place each list on the roadmap, and \`update_list_meta\` to set each project's description and target date. Typo'd a name? \`rename_list\` / \`rename_folder\`. Wrong grouping? \`reorder_folders\` / \`reorder_lists\`, or \`delete_folder\` — that one only ungroups, every list inside moves up to the space with its tasks intact. Wrong shape entirely? \`delete_list\` and redo.
 3. **Checkpoints inside each project**: \`create_milestone\` per dated checkpoint of that project ("Design freeze", "Beta cut") with its \`targetDate\`. Roadmap phases sequence PROJECTS; milestones are the timeline INSIDE one project — use both when a project spans weeks. \`list_milestones\` shows derived progress (done/total of linked tasks) at any time.
 4. **Plan in bulk**: decompose each milestone with ONE \`create_tasks\` call — epic tasks flagged \`milestone: true\` with \`estimatePoints\` and due dates, subtasks nested via \`parentRef\`, and cross-task dependencies via \`dependsOn\` (refs or task ids, cross-list allowed). Encode quality gates ("p95 < 200ms") as \`checklist\` acceptance criteria. Then \`set_task_milestone\` each task onto the checkpoint it belongs to, so every milestone's progress moves on its own. Use \`reorder_tasks\` if execution order matters beyond dependencies.
