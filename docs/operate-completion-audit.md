@@ -78,6 +78,18 @@ only after automated checks and relevant production behavior both pass.
 7. Upload the ChatGPT and Claude bundles for official review and address reviewer
    feedback. Platform approval itself is external and cannot be proven locally.
 
+## Active production certifications
+
+- Schedule failure recovery (armed 2026-07-25 15:45:53 UTC): schedule
+  `n57bcpyrzzmj29myx84vy0jwh98b6jjx` in List
+  `m97an4de6e85m01yghqbpvtwxs8b77em` became due at 16:00 UTC after its
+  deliberately disposable assignee `CERT Failure Target` was deleted. The
+  agent and both of its keys are gone (one-use key returns 401). On subsequent
+  15-minute production ticks, verify failure counts 1 → 2 → 3, isolated
+  schedule auto-pause, `schedule.auto_paused` event, and owner notification.
+  Then delete the schedule and confirm that no task with title prefix
+  `CERT Failure Recovery` was created.
+
 ## Deployment policy
 
 - Batch validated changes into one intentional production build.
