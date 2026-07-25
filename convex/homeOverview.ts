@@ -294,8 +294,16 @@ export const get = query({
         .collect();
       for (const a of agents) {
         if (a.status !== "active") continue;
+        const latestPresenceAt = Math.max(
+          a.lastConnectedAt ?? 0,
+          a.lastHeartbeatAt ?? 0,
+          a.lastConnectedAt === undefined &&
+          a.lastHeartbeatAt === undefined
+            ? (a.lastSeenAt ?? 0)
+            : 0,
+        );
         const online =
-          a.lastSeenAt !== undefined && now - a.lastSeenAt < 5 * 60 * 1000;
+          latestPresenceAt > 0 && now - latestPresenceAt < 5 * 60 * 1000;
         agentsWorking.push({
           agentId: a._id,
           name: a.name,
