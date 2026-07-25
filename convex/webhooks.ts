@@ -263,9 +263,10 @@ export const _recordResult = internalMutation({
     error: v.optional(v.string()),
     final: v.boolean(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const delivery = await ctx.db.get(args.deliveryId);
-    if (!delivery) return;
+    if (!delivery || delivery.status !== "pending") return null;
     const attempts = delivery.attempts + 1;
     await ctx.db.patch(args.deliveryId, {
       attempts,
@@ -276,7 +277,7 @@ export const _recordResult = internalMutation({
     });
 
     const sub = await ctx.db.get(delivery.subscriptionId);
-    if (!sub) return;
+    if (!sub) return null;
     if (args.ok) {
       if (sub.failureCount > 0) {
         await ctx.db.patch(sub._id, { failureCount: 0 });
@@ -290,5 +291,6 @@ export const _recordResult = internalMutation({
           : {}),
       });
     }
+    return null;
   },
 });
