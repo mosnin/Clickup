@@ -9,6 +9,13 @@ only after automated checks and relevant production behavior both pass.
 ## Proven
 
 - Production application and Convex dependency health (`/api/health`)
+- Independent production uptime monitoring is active on GitHub's restored
+  `main` default branch. A live run passed application and Convex health;
+  isolated certification run `30173632944` opened exactly one incident
+  (issue #46), repeat run `30173647295` commented on the same issue, and
+  recovery run `30173659698` closed it. No production outage was induced and
+  no production uptime incident remains open. Automation/documentation-only
+  commits now skip the Vercel build rather than consuming a production build.
 - Hosted MCP authentication and discovery (140 tools)
 - Production OAuth authorization-code lifecycle: dynamic client registration
   rejected an unsafe external HTTP redirect and accepted an exact loopback
@@ -119,20 +126,25 @@ only after automated checks and relevant production behavior both pass.
    navigation, and failure states. Onboarding, Inbox, task detail, the core
    Spaces/List hierarchy, template destinations, and their mobile responsive
    layouts are certified above.
-3. Prove the new independent GitHub uptime monitor in production. It checks
-   application and Convex health every 15 minutes, opens one deduplicated
-   operator incident while unhealthy, comments on continued failures, and
-   closes the incident after recovery.
-4. Run security review: exposed-key rotation, authorization matrix, rate limits,
+3. Run security review: exposed-key rotation, authorization matrix, rate limits,
    SSRF/webhook boundaries, OAuth redirect validation, secret handling, and
    dependency scan.
-5. Run load/performance, backup/restore, data-retention, and disaster-recovery
+4. Run load/performance, backup/restore, data-retention, and disaster-recovery
    exercises.
-6. Upload the ChatGPT and Claude bundles for official review and address reviewer
+5. Upload the ChatGPT and Claude bundles for official review and address reviewer
    feedback. Platform approval itself is external and cannot be proven locally.
 
 ## Active production certifications
 
+- Independent uptime monitor (production-proven 2026-07-25): repository default
+  branch was restored from a stale Claude documentation branch to production
+  `main`, allowing the scheduled workflow to register. Live run `30173623901`
+  passed against `https://www.operate.to/api/health`. Safe failure certification
+  opened one deduplicated issue, a repeat added one continued-failure comment,
+  and recovery added its proof comment and closed the same issue. The production
+  incident query returned zero open issues. Commit `c9ef672` passed 331 tests,
+  typecheck, application lint, Actionlint, and the production CI build; Vercel
+  correctly canceled the non-runtime deployment after the ignore-build check.
 - Public connector submission compliance (production-validated 2026-07-25):
   deployment `dpl_w3dL5pw14yVUGJiJeTEy8qSngXeq` is Ready and healthy. The
   authenticated base profile exposes all 140 tools; Anthropic's directory
