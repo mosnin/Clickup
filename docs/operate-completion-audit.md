@@ -60,6 +60,13 @@ only after automated checks and relevant production behavior both pass.
 - Truthful agent connection, heartbeat, recent, offline, and paused presence
 - Offline and paused agents label retained activity as `Last status`, never
   `Now`, on both Agents HQ and the agent detail page.
+- Human/agent authorization matrix: personal agents are self-managed;
+  workspace owners/admins can create, template, configure, key, pause, and
+  remove workspace agents; ordinary members retain fleet visibility without
+  persistent credential or governance controls; outsiders have no access.
+  Agent member/read-only roles, List restrictions, paused/revoked/invalid
+  credentials, OAuth scopes and membership revocation, daily budgets, and the
+  exact burst boundary are enforced independently.
 - Durable signed assignment, mention, and execution wake delivery
 - Polling wake inbox and authenticated consumption receipts
 - Atomic execution-plan compilation with context provenance
@@ -111,7 +118,7 @@ only after automated checks and relevant production behavior both pass.
   with `401 invalid_token` plus OAuth protected-resource metadata.
 - Completed agent work clears its matching current-task and activity text,
   preventing stale “Now” presence after success
-- Local production build, typecheck, lint, plugin validation, and 356 tests
+- Local production build, typecheck, lint, plugin validation, and 359 tests
 - Disposable production MCP mutation certification: List create/rename/metadata,
   two-task parent/dependency batch, task update/checklist, comment
   create/update/delete, schedule create/pause/resume/delete, readback/event
@@ -133,12 +140,11 @@ only after automated checks and relevant production behavior both pass.
    Spaces/List hierarchy, template destinations, and their mobile responsive
    layouts are certified above.
 3. Finish the security review: rotate any remaining credentials exposed during
-   development, complete the remaining human/agent authorization matrix and
-   broader abuse tests, review remaining secret-handling paths, and disposition
-   the seven upstream/unpatched production dependency advisories. The shared
-   agent API key, OAuth redirects, MCP authentication/CORS, webhook egress, the
-   exact agent write-rate boundary, and the fixable dependency set are
-   certified below.
+   development, continue broader abuse tests, review remaining secret-handling
+   paths, and disposition the seven upstream/unpatched production dependency
+   advisories. The shared agent API key, human/agent authorization matrix,
+   OAuth redirects, MCP authentication/CORS, webhook egress, the exact agent
+   write-rate boundary, and the fixable dependency set are certified below.
 4. Run load/performance, backup/restore, data-retention, and disaster-recovery
    exercises.
 5. Upload the ChatGPT and Claude bundles for official review and address reviewer
@@ -204,6 +210,20 @@ only after automated checks and relevant production behavior both pass.
   throttle, and paused-agent rejection across read, connect, heartbeat, and
   write modes. All 356 tests, typecheck, and lint pass; production application
   and Convex health remain `ok`, with no production error logs.
+- Workspace agent administration (production-validated 2026-07-25): a security
+  audit found that ordinary workspace members could mint persistent agent
+  credentials and that the agent query payload contained the supposedly
+  write-only ping-signing secret. Workspace creation, templates, governance,
+  pause/resume, key listing/minting/revocation, and deletion now require owner
+  or admin membership; members retain fleet status, detail, and analytics
+  visibility with the controls removed; outsiders receive no detail. Every
+  client-facing agent payload strips `notifySecret` and exposes only the
+  boolean needed to render “Secret set.” Personal-agent self-management is
+  unchanged. Owner production UI retained agent/template/key controls.
+  Deployment `dpl_GFCJx6z2JHL9MzeAzseXmKFdPVJx` is Ready at commit `e6b7619`;
+  GitHub CI run `30175999920`, 359 tests, typecheck, lint, and the production
+  build pass. Application and Convex health are `ok`, with no production error
+  logs.
 - Public connector submission compliance (production-validated 2026-07-25):
   deployment `dpl_w3dL5pw14yVUGJiJeTEy8qSngXeq` is Ready and healthy. The
   authenticated base profile exposes all 140 tools; Anthropic's directory
