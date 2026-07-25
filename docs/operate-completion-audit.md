@@ -105,7 +105,7 @@ only after automated checks and relevant production behavior both pass.
 - Seven curl-installable skills with retries and SHA-256 verification
 - Completed agent work clears its matching current-task and activity text,
   preventing stale “Now” presence after success
-- Local production build, typecheck, lint, plugin validation, and 331 tests
+- Local production build, typecheck, lint, plugin validation, and 354 tests
 - Disposable production MCP mutation certification: List create/rename/metadata,
   two-task parent/dependency batch, task update/checklist, comment
   create/update/delete, schedule create/pause/resume/delete, readback/event
@@ -126,9 +126,12 @@ only after automated checks and relevant production behavior both pass.
    navigation, and failure states. Onboarding, Inbox, task detail, the core
    Spaces/List hierarchy, template destinations, and their mobile responsive
    layouts are certified above.
-3. Run security review: exposed-key rotation, authorization matrix, rate limits,
-   SSRF/webhook boundaries, OAuth redirect validation, secret handling, and
-   dependency scan.
+3. Finish the security review: rotate credentials exposed during development,
+   complete the human/agent authorization matrix and abuse-oriented rate-limit
+   tests, review remaining secret-handling paths, and disposition the seven
+   upstream/unpatched production dependency advisories. OAuth redirects,
+   MCP authentication/CORS, webhook egress, the agent write-rate limit, and
+   the fixable dependency set are certified below.
 4. Run load/performance, backup/restore, data-retention, and disaster-recovery
    exercises.
 5. Upload the ChatGPT and Claude bundles for official review and address reviewer
@@ -145,6 +148,24 @@ only after automated checks and relevant production behavior both pass.
   incident query returned zero open issues. Commit `c9ef672` passed 331 tests,
   typecheck, application lint, Actionlint, and the production CI build; Vercel
   correctly canceled the non-runtime deployment after the ignore-build check.
+- Security boundary batch (production-validated 2026-07-25): outbound webhook
+  delivery now re-resolves every destination immediately before each attempt,
+  rejects any private/reserved DNS answer, rejects credentials and non-HTTPS
+  URLs, and refuses redirects so registration-time validation cannot be
+  bypassed through DNS rebinding or a public redirector. Twenty-three focused
+  network-boundary cases pass alongside the existing webhook lifecycle tests.
+  Production deployment `dpl_DuY7p6YuJKmX59MfQiii3uSTp9oY` is Ready at commit
+  `80fd5e9`; application and Convex health are `ok`, GitHub CI passed the full
+  build, and Vercel has no runtime error logs. Live boundary probes returned
+  401 plus OAuth resource metadata for unauthenticated MCP access, rejected a
+  metadata-service OAuth redirect as `invalid_redirect_uri`, allowed CORS for
+  ChatGPT, and emitted no CORS grant for an arbitrary origin. Safe dependency
+  overrides and correct build-tool classification reduced the production audit
+  from 15 findings (8 high, 1 critical) to 7 (3 high, 0 critical), with 354
+  tests, typecheck, lint, and the production build passing. The remaining
+  advisories are upstream/unpatched Next image/CSS chains and an MCP SDK
+  Windows-only static-file adapter path not used by the Linux Vercel handler;
+  they remain tracked rather than force-upgraded across incompatible majors.
 - Public connector submission compliance (production-validated 2026-07-25):
   deployment `dpl_w3dL5pw14yVUGJiJeTEy8qSngXeq` is Ready and healthy. The
   authenticated base profile exposes all 140 tools; Anthropic's directory
@@ -218,14 +239,18 @@ only after automated checks and relevant production behavior both pass.
   labels the Billing/admin surfaces as setup-incomplete. Full
   pay→settle→credit→meter→deplete→top-up→resume certification remains open
   until a real receiving wallet and facilitator credentials are configured.
-- Dependency security remediation (validated locally 2026-07-25): upgraded
+- Dependency security remediation (validated in production 2026-07-25): upgraded
   Next within v15 to 15.5.21, Convex within v1 to 1.42.3, and Clerk within v6
-  to 6.39.6. The production-only audit dropped from 17 findings
-  (11 high, 1 critical) to 15 (8 high, 1 critical), eliminating the vulnerable
-  Convex/WebSocket and Clerk/js-cookie chains. Typecheck, lint, 320 tests, and
-  the production build pass. Remaining findings require individual
-  runtime/exposure review or major-version changes; do not mark the security
-  gate proven from dependency counts alone.
+  to 6.39.6, then patched safe transitive dependencies and moved the Capacitor
+  CLI and Serwist build integration out of the production runtime set. The
+  production-only audit dropped from 17 findings (11 high, 1 critical) to 7
+  (3 high, 0 critical), eliminating the vulnerable Convex/WebSocket,
+  Clerk/js-cookie, archive, URI parser, multipart, Markdown/link parser, and
+  brace-expansion runtime chains. Typecheck, lint, 354 tests, GitHub CI, the
+  local production build, and deployment `dpl_DuY7p6YuJKmX59MfQiii3uSTp9oY`
+  pass. Remaining findings require upstream releases or incompatible-major
+  review; do not mark the full security gate proven from dependency counts
+  alone.
 
 ## Deployment policy
 
