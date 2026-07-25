@@ -191,6 +191,25 @@ export async function detachContextPacketCore(
   return true;
 }
 
+export async function deleteContextPacketCore(
+  ctx: MutationCtx,
+  packet: Doc<"contextPackets">,
+  list: Doc<"lists">,
+  actor: Actor,
+): Promise<number> {
+  const links = await ctx.db
+    .query("taskContextPackets")
+    .withIndex("by_packet", (q) => q.eq("packetId", packet._id))
+    .collect();
+  for (const link of links) await ctx.db.delete(link._id);
+  await ctx.db.delete(packet._id);
+  await emitPacketEvent(ctx, list, packet, "context.deleted", actor, {
+    detachedTaskCount: links.length,
+    version: packet.version,
+  });
+  return links.length;
+}
+
 export async function deleteContextPacketsForList(
   ctx: MutationCtx,
   listId: Id<"lists">,
@@ -280,6 +299,22 @@ export const update = mutation({
       await userActor(ctx, identity.subject),
     );
     return { version };
+  },
+});
+
+export const remove = mutation({
+  args: { packetId: v.id("contextPackets") },
+  handler: async (ctx, { packetId }) => {
+    const packet = await ctx.db.get(packetId);
+    if (!packet) throw new ConvexError("Context packet not found");
+    const { list, identity } = await requireListAccess(ctx, packet.listId);
+    const detachedTaskCount = await deleteContextPacketCore(
+      ctx,
+      packet,
+      list,
+      await userActor(ctx, identity.subject),
+    );
+    return { deleted: true, detachedTaskCount };
   },
 });
 

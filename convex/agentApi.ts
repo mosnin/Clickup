@@ -105,6 +105,7 @@ import { getRollup } from "./rollups";
 import {
   attachContextPacketCore,
   createContextPacketCore,
+  deleteContextPacketCore,
   detachContextPacketCore,
   listPacketsForTask,
   updateContextPacketCore,
@@ -944,6 +945,27 @@ export const updateContextPacket = mutation({
       agentActor(agent),
     );
     return { version };
+  },
+});
+
+export const deleteContextPacket = mutation({
+  args: {
+    apiKey: v.string(),
+    packetId: v.id("contextPackets"),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const packet = await ctx.db.get(args.packetId);
+    if (!packet) throw new ConvexError("Context packet not found");
+    const { list } = await requireListAccessForAgent(ctx, packet.listId, agent);
+    const detachedTaskCount = await deleteContextPacketCore(
+      ctx,
+      packet,
+      list,
+      agentActor(agent),
+    );
+    return { deleted: true, detachedTaskCount };
   },
 });
 

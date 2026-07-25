@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { BookOpen, Link2, Pencil, Plus, X } from "lucide-react";
+import { BookOpen, Link2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,7 @@ export function TaskContext({
   const available = useQuery(api.contextPackets.listForList, { listId });
   const create = useMutation(api.contextPackets.create);
   const update = useMutation(api.contextPackets.update);
+  const remove = useMutation(api.contextPackets.remove);
   const attach = useMutation(api.contextPackets.attach);
   const detach = useMutation(api.contextPackets.detach);
   const { toast } = useToast();
@@ -231,6 +232,31 @@ export function TaskContext({
                   >
                     <X className="h-3.5 w-3.5" />
                     Detach
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive"
+                    onClick={async () => {
+                      if (
+                        !window.confirm(
+                          `Delete “${packet.title}” for every task in this project? This cannot be undone.`,
+                        )
+                      ) {
+                        return;
+                      }
+                      try {
+                        await remove({ packetId: packet.packetId });
+                        toast("Context packet deleted");
+                      } catch (err) {
+                        toast(errorMessage(err, "Couldn't delete context"), {
+                          kind: "error",
+                        });
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete source
                   </Button>
                 </div>
               </div>

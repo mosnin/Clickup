@@ -605,6 +605,17 @@ const TOOLS: ToolDef[] = [
       }),
   },
   {
+    name: "delete_context_packet",
+    description:
+      "Permanently retire a project context packet and detach it from every task. Use only when the source itself is obsolete, not when it merely stops applying to one task.",
+    shape: { packetId: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.deleteContextPacket), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
     name: "create_task",
     description:
       "Create a task. assigneeIds may mix human ids and agent ids (from list_members). checklist seeds acceptance criteria.",

@@ -18,10 +18,8 @@ const CHAT_MODEL = "gpt-4o-mini";
 
 function makeClient(): OpenAI | null {
   const key = process.env.OPENAI_API_KEY;
-  if (!key) {
-    console.warn("[ai] OPENAI_API_KEY not set");
-    return null;
-  }
+  // AI enrichment is optional in local/test deployments.
+  if (!key) return null;
   return new OpenAI({ apiKey: key });
 }
 
@@ -272,4 +270,3 @@ export const taskAutofill = action({
     };
   },
 });
-

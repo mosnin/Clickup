@@ -153,6 +153,29 @@ describe("context packets", () => {
     expect(packet.content).toContain("versioned");
   });
 
+  it("lets agents retire obsolete context and removes every attachment", async () => {
+    const { t, listId, taskId } = await setup();
+    const created = await t.mutation(api.agentApi.createContextPacket, {
+      apiKey: API_KEY,
+      listId,
+      title: "Temporary launch decision",
+      content: "Retire after launch.",
+      taskIds: [taskId],
+    });
+
+    const result = await t.mutation(api.agentApi.deleteContextPacket, {
+      apiKey: API_KEY,
+      packetId: created.packetId,
+    });
+    expect(result).toEqual({ deleted: true, detachedTaskCount: 1 });
+    expect(
+      await t.query(api.contextPackets.listForTask, { taskId }),
+    ).toEqual([]);
+    expect(
+      await t.run((ctx) => ctx.db.get(created.packetId)),
+    ).toBeNull();
+  });
+
   it("refuses cross-project attachments and foreign human reads", async () => {
     const { t, alice, mallory, listId, taskId, otherTaskId } = await setup();
     const { packetId } = await alice.mutation(api.contextPackets.create, {

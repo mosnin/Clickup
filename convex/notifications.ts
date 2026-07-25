@@ -22,12 +22,9 @@ function makeResend(): {
 } | null {
   const key = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
-  if (!key || !from) {
-    console.warn(
-      "[notifications] RESEND_API_KEY or RESEND_FROM_EMAIL not set; skipping email send",
-    );
-    return null;
-  }
+  // Email is optional in local/test deployments. A quiet no-op keeps
+  // scheduled actions from flooding logs or outliving a test environment.
+  if (!key || !from) return null;
   return { client: new Resend(key), from };
 }
 

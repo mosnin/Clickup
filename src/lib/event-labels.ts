@@ -43,6 +43,9 @@ export const EVENT_LABEL: Record<string, string> = {
   "folder.created": "created folder",
   "folder.renamed": "renamed folder",
   "folder.deleted": "deleted folder",
+  "context.created": "created shared context",
+  "context.updated": "updated shared context",
+  "context.deleted": "deleted shared context",
 };
 
 export function eventLabel(type: string): string {
