@@ -571,8 +571,10 @@ const SPACE_CREATE_ITEMS = [
 ];
 
 function SpaceCreateMenu({
+  spaceName,
   onPick,
 }: {
+  spaceName: string;
   onPick: (kind: "list" | "doc" | "board" | "template" | "folder") => void;
 }) {
   return (
@@ -580,8 +582,8 @@ function SpaceCreateMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label="Add to space"
-          title="Add"
+          aria-label={`Add to ${spaceName}`}
+          title={`Add to ${spaceName}`}
           // Always visible on touch (no hover to reveal it), hover-revealed
           // from `sm:` up — this is the only path to "new folder"/"new
           // list" for a space, so it must never be hover-gated on mobile.
@@ -688,6 +690,7 @@ function SpaceTree({ space, linkHref }: { space: SpaceNode; linkHref: string }) 
           </Link>
         </SidebarMenuButton>
         <SpaceCreateMenu
+          spaceName={space.name}
           onPick={(kind) => {
             setExpanded(true);
             if (kind === "template") setTemplateOpen(true);
@@ -700,6 +703,9 @@ function SpaceTree({ space, linkHref }: { space: SpaceNode; linkHref: string }) 
         <SidebarMenuSub>
           {adding && (
             <SidebarMenuSubItem className="py-1">
+              <p className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                New {ADD_LABEL[adding]} in {space.name}
+              </p>
               <InlineCreate
                 placeholder={ADD_PLACEHOLDER[adding]}
                 onCancel={() => setAdding(null)}
