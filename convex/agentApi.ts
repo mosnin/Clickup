@@ -481,6 +481,35 @@ export const whoami = query({
   },
 });
 
+// MCP clients call this during transport authentication. A successful
+// connection is presence even before the client starts a task or schedules
+// explicit heartbeats, so Mission Control should reflect it immediately.
+export const connect = mutation({
+  args: { apiKey: v.string() },
+  handler: async (ctx, { apiKey }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const firstConnection = agent.lastSeenAt === undefined;
+    const now = Date.now();
+    // Authentication runs for every MCP request. Keep presence responsive
+    // without turning a busy tool session into a write per tool call.
+    if (firstConnection || now - agent.lastSeenAt! >= 30_000) {
+      await ctx.db.patch(agent._id, { lastSeenAt: now });
+    }
+    if (firstConnection) {
+      await emitEvent(ctx, {
+        scopeType: agent.parentType,
+        scopeId: agent.parentId,
+        type: "agent.connected",
+        actor: agentActor(agent),
+        entityType: "agent",
+        entityId: agent._id,
+        entityTitle: agent.name,
+      });
+    }
+    return { agentId: agent._id, name: agent.name };
+  },
+});
+
 // Presence ping. Call every few minutes while working: bumps lastSeenAt,
 // optionally sets the "now working on" line shown in Mission Control.
 export const heartbeat = mutation({

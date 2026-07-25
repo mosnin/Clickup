@@ -39,7 +39,7 @@ export default function PluginsPage() {
       </div>
 
       <section className="mt-12 grid gap-5 lg:grid-cols-2">
-        <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
+        <div className="min-w-0 rounded-3xl border border-border bg-card p-6 sm:p-8">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Project skill pack
           </p>
@@ -57,20 +57,20 @@ export default function PluginsPage() {
             </code>
             .
           </p>
-          <pre className="mt-5 overflow-x-auto rounded-2xl bg-neutral-950 p-4 text-sm text-white">
+          <pre className="mt-5 max-w-full overflow-x-auto rounded-2xl bg-neutral-950 p-4 text-sm text-white">
             <code>
               curl -fsSL https://operate.to/install/skills | sh
             </code>
           </pre>
-          <p className="mt-3 text-xs text-muted-foreground">
+          <p className="mt-3 break-words text-xs text-muted-foreground">
             Claude-specific path:{" "}
-            <code>
+            <code className="break-all">
               curl -fsSL https://operate.to/install/skills | OPERATE_SKILLS_DIR=.claude/skills sh
             </code>
           </p>
         </div>
 
-        <div className="rounded-3xl border border-border bg-card p-6 sm:p-8">
+        <div className="min-w-0 rounded-3xl border border-border bg-card p-6 sm:p-8">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Remote MCP
           </p>
@@ -82,7 +82,7 @@ export default function PluginsPage() {
             OAuth flow asks you to choose an Operate agent and inherits that
             agent&apos;s workspace, permissions, budgets, and approval gates.
           </p>
-          <pre className="mt-5 overflow-x-auto rounded-2xl bg-neutral-950 p-4 text-sm text-white">
+          <pre className="mt-5 max-w-full overflow-x-auto rounded-2xl bg-neutral-950 p-4 text-sm text-white">
             <code>https://operate.to/api/mcp</code>
           </pre>
           <p className="mt-3 text-xs text-muted-foreground">

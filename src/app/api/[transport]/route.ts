@@ -2104,7 +2104,7 @@ const authHandler = withMcpAuth(
   async (_req, bearerToken) => {
     if (!bearerToken) return undefined;
     try {
-      const me = await convexClient().query(asQuery(api.agentApi.whoami), {
+      const me = await convexClient().mutation(asMutation(api.agentApi.connect), {
         apiKey: bearerToken,
       });
       return {

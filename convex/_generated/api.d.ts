@@ -70,6 +70,7 @@ import type * as search from "../search.js";
 import type * as sidebar from "../sidebar.js";
 import type * as skills from "../skills.js";
 import type * as spaces from "../spaces.js";
+import type * as spacesDirectory from "../spacesDirectory.js";
 import type * as sprintPlanning from "../sprintPlanning.js";
 import type * as sprintTemplates from "../sprintTemplates.js";
 import type * as sprints from "../sprints.js";
@@ -158,6 +159,7 @@ declare const fullApi: ApiFromModules<{
   sidebar: typeof sidebar;
   skills: typeof skills;
   spaces: typeof spaces;
+  spacesDirectory: typeof spacesDirectory;
   sprintPlanning: typeof sprintPlanning;
   sprintTemplates: typeof sprintTemplates;
   sprints: typeof sprints;
