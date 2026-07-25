@@ -903,7 +903,7 @@ function ProjectsTable({
       {projects.length < totalProjects && (
         <div className="border-t border-border px-4 py-3">
           <Link
-            href="/dashboard/projects"
+            href="/dashboard/spaces"
             className="text-sm font-medium hover:underline"
           >
             View all spaces

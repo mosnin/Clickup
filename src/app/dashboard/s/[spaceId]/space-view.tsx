@@ -12,6 +12,7 @@ import {
   FileText,
   FolderInput,
   LayoutGrid,
+  LayoutTemplate,
   Lock,
   MoreHorizontal,
   Plus,
@@ -31,6 +32,8 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { Monogram } from "@/components/dashboard/monogram";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { TemplatePicker } from "@/components/dashboard/template-picker";
+import { Button } from "@/components/ui/button";
 import { Picker, type PickerOption } from "@/components/ui/picker";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -100,7 +103,9 @@ const CATEGORY_LABEL: Record<StatusCategory, string> = {
 export function SpaceView({ spaceId }: { spaceId: string }) {
   const id = spaceId as Id<"spaces">;
   const overview = useQuery(api.spaces.overview, { spaceId: id });
+  const router = useRouter();
   const [tab, setTab] = useState<"overview" | "settings">("overview");
+  const [templateOpen, setTemplateOpen] = useState(false);
 
   if (overview === undefined) {
     return <PageSkeleton />;
@@ -146,6 +151,18 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
               )}
             </>
           )
+        }
+        actions={
+          tab === "overview" && !space.archivedAt ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setTemplateOpen(true)}
+            >
+              <LayoutTemplate className="h-4 w-4" />
+              Use template
+            </Button>
+          ) : undefined
         }
       >
         <nav
@@ -199,6 +216,15 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
           canGovern={canGovern}
         />
       )}
+      <TemplatePicker
+        open={templateOpen}
+        parent={{ kind: "space", spaceId: id }}
+        onClose={() => setTemplateOpen(false)}
+        onCreated={(listId) => {
+          setTemplateOpen(false);
+          router.push(`/dashboard/l/${listId}`);
+        }}
+      />
     </div>
   );
 }

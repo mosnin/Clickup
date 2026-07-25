@@ -2195,7 +2195,24 @@ async function guarded(req: Request): Promise<Response> {
   if (pathname !== "/api/mcp") {
     return new Response("Not found", { status: 404 });
   }
-  const response = await authHandler(req);
+  // Streamable HTTP formally asks clients to advertise both response types.
+  // A large share of first connections are hand-written curl commands,
+  // though, and older examples only sent Content-Type. Normalize that narrow
+  // case at our boundary so a valid JSON-RPC request does not authenticate,
+  // turn the agent green, and then confusingly fail with HTTP 406.
+  let transportRequest = req;
+  if (req.method === "POST") {
+    const accept = req.headers.get("accept") ?? "";
+    if (
+      !accept.includes("application/json") ||
+      !accept.includes("text/event-stream")
+    ) {
+      const headers = new Headers(req.headers);
+      headers.set("Accept", "application/json, text/event-stream");
+      transportRequest = new Request(req, { headers });
+    }
+  }
+  const response = await authHandler(transportRequest);
   if (response.status !== 401) return withCors(req, response);
   const headers = new Headers(response.headers);
   const origin =

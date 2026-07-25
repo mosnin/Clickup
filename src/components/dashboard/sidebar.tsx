@@ -272,7 +272,7 @@ function SidebarContentBody() {
               exact
             />
             <NavMenuItem
-              href="/dashboard/projects"
+              href="/dashboard/spaces"
               label="Spaces"
               icon={FolderKanban}
               iconColor="text-amber-500"
