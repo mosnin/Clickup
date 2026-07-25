@@ -42,6 +42,7 @@ import TextType from "@/components/text-type";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { eventHref, eventLabel } from "@/lib/event-labels";
+import { agentPresence } from "@/lib/agent-presence";
 import { useToast } from "@/components/toast";
 import {
   AnimatedNumber,
@@ -67,8 +68,6 @@ const TABS: { key: Tab; label: string; icon: typeof Bot }[] = [
   { key: "webhooks", label: "Webhooks", icon: Webhook },
   { key: "skills", label: "Skills", icon: BookOpen },
 ];
-
-const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 
 function usePresenceClock() {
   const [now, setNow] = useState(() => Date.now());
@@ -102,12 +101,7 @@ export function AgentsView() {
       ...agentsData.personal,
       ...agentsData.workspaces.flatMap((w) => w.agents),
     ];
-    const online = all.filter(
-      (a) =>
-        a.status === "active" &&
-        a.lastSeenAt !== undefined &&
-        now - a.lastSeenAt < ONLINE_WINDOW_MS,
-    ).length;
+    const online = all.filter((a) => agentPresence(a, now).online).length;
     return { onlineCount: online, totalCount: all.length };
   }, [agentsData, now]);
 
@@ -803,9 +797,7 @@ function AgentCard({
   const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
 
-  const online =
-    agent.lastSeenAt !== undefined &&
-    now - agent.lastSeenAt < ONLINE_WINDOW_MS;
+  const presence = agentPresence(agent, now);
   const currentTitle = agent.currentTaskId
     ? taskTitles[agent.currentTaskId]
     : undefined;
@@ -814,13 +806,16 @@ function AgentCard({
   // only commits once the undo window closes.
   if (deleting) return null;
 
-  const statusLabel = agent.status === "paused"
-    ? "Paused"
-    : online
-      ? "Online"
-      : agent.lastSeenAt
-        ? `Seen ${timeAgo(agent.lastSeenAt)}`
-        : "Never connected";
+  const statusLabel =
+    presence.state === "recently_seen" || presence.state === "offline"
+      ? `Seen ${timeAgo(agent.lastSeenAt!)}`
+      : presence.label;
+  const signalLabel =
+    presence.state === "online_heartbeating"
+      ? "Heartbeat live"
+      : presence.state === "online_connected"
+        ? "MCP connected · heartbeat pending"
+        : presence.detail;
 
   return (
     <Card className="lift gap-3 rounded-2xl p-4">
@@ -838,12 +833,12 @@ function AgentCard({
               variant="secondary"
               className={cn(
                 "gap-1.5 uppercase tracking-wider",
-                agent.status === "active" &&
-                  online &&
+                presence.online &&
                   "bg-pastel-green text-foreground dark:text-neutral-900",
               )}
+              title={presence.detail}
             >
-              <PresenceDot online={agent.status === "active" && online} />
+              <PresenceDot online={presence.online} />
               {statusLabel}
             </Badge>
           </div>
@@ -852,6 +847,9 @@ function AgentCard({
               {agent.description}
             </p>
           )}
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Signal: {signalLabel}
+          </p>
           {(agent.statusText || currentTitle) && (
             <p className="mt-2 rounded-2xl bg-muted/50 px-3 py-1.5 text-xs">
               <span className="font-medium">Now:</span>{" "}

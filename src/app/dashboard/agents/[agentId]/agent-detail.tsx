@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   ArrowLeft,
@@ -16,6 +16,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { eventLabel } from "@/lib/event-labels";
+import { agentPresence } from "@/lib/agent-presence";
 import { useToast } from "@/components/toast";
 import { Orb } from "@/components/dashboard/orb";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -43,6 +44,11 @@ import {
 // own event trail.
 
 export function AgentDetail({ agentId }: { agentId: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const detail = useQuery(api.agents.detail, {
     agentId: agentId as Id<"agents">,
   });
@@ -89,16 +95,11 @@ export function AgentDetail({ agentId }: { agentId: string }) {
 
   const { agent, runs, usageToday, usageLimit, events, claimed, assigned } =
     detail;
-  const online =
-    agent.lastSeenAt !== undefined &&
-    Date.now() - agent.lastSeenAt < 5 * 60 * 1000;
-  const statusLabel = agent.status === "paused"
-    ? "Paused"
-    : online
-      ? "Online"
-      : agent.lastSeenAt
-        ? `Seen ${timeAgo(agent.lastSeenAt)}`
-        : "Never connected";
+  const presence = agentPresence(agent, now);
+  const statusLabel =
+    presence.state === "recently_seen" || presence.state === "offline"
+      ? `Seen ${timeAgo(agent.lastSeenAt!)}`
+      : presence.label;
 
   return (
     <div className="space-y-6">
@@ -117,12 +118,12 @@ export function AgentDetail({ agentId }: { agentId: string }) {
               variant="secondary"
               className={cn(
                 "gap-1.5 uppercase tracking-wider",
-                agent.status !== "paused" &&
-                  online &&
+                presence.online &&
                   "bg-pastel-green text-foreground dark:text-neutral-900",
               )}
+              title={presence.detail}
             >
-              <PresenceDot online={agent.status === "active" && online} />
+              <PresenceDot online={presence.online} />
               {statusLabel}
             </Badge>
             <Badge variant="outline" className="uppercase tracking-wider">
@@ -147,6 +148,8 @@ export function AgentDetail({ agentId }: { agentId: string }) {
           )}
         </div>
       </header>
+
+      <ConnectionDiagnostics agent={agent} presenceDetail={presence.detail} />
 
       {stats && <StatsRow stats={stats} />}
 
@@ -249,6 +252,56 @@ export function AgentDetail({ agentId }: { agentId: string }) {
         </ul>
       </section>
     </div>
+  );
+}
+
+function ConnectionDiagnostics({
+  agent,
+  presenceDetail,
+}: {
+  agent: Doc<"agents">;
+  presenceDetail: string;
+}) {
+  const signals = [
+    {
+      label: "MCP authentication",
+      value: agent.lastConnectedAt
+        ? timeAgo(agent.lastConnectedAt)
+        : agent.lastSeenAt
+          ? "No source data yet"
+          : "Never",
+    },
+    {
+      label: "Explicit heartbeat",
+      value: agent.lastHeartbeatAt
+        ? timeAgo(agent.lastHeartbeatAt)
+        : "Never",
+    },
+    {
+      label: "Any agent activity",
+      value: agent.lastSeenAt ? timeAgo(agent.lastSeenAt) : "Never",
+    },
+  ];
+
+  return (
+    <Card className="gap-3 rounded-2xl p-4">
+      <div>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Connection diagnostics
+        </h2>
+        <p className="mt-1 text-sm">{presenceDetail}</p>
+      </div>
+      <dl className="grid gap-2 sm:grid-cols-3">
+        {signals.map((signal) => (
+          <div key={signal.label} className="rounded-xl bg-muted/40 px-3 py-2">
+            <dt className="text-[11px] text-muted-foreground">
+              {signal.label}
+            </dt>
+            <dd className="mt-0.5 text-sm font-medium">{signal.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </Card>
   );
 }
 

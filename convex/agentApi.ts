@@ -490,6 +490,9 @@ export const whoami = query({
       scopeName,
       statusText: agent.statusText,
       currentTaskId: agent.currentTaskId,
+      lastSeenAt: agent.lastSeenAt,
+      lastConnectedAt: agent.lastConnectedAt,
+      lastHeartbeatAt: agent.lastHeartbeatAt,
       role,
       capabilities: agent.capabilities ?? [],
       maxConcurrentTasks: agent.maxConcurrentTasks ?? 1,
@@ -520,8 +523,15 @@ export const connect = mutation({
     const now = Date.now();
     // Authentication runs for every MCP request. Keep presence responsive
     // without turning a busy tool session into a write per tool call.
-    if (firstConnection || now - agent.lastSeenAt! >= 30_000) {
-      await ctx.db.patch(agent._id, { lastSeenAt: now });
+    if (
+      firstConnection ||
+      agent.lastConnectedAt === undefined ||
+      now - agent.lastConnectedAt >= 30_000
+    ) {
+      await ctx.db.patch(agent._id, {
+        lastSeenAt: now,
+        lastConnectedAt: now,
+      });
     }
     if (firstConnection) {
       await emitEvent(ctx, {
@@ -549,7 +559,11 @@ export const heartbeat = mutation({
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
     const firstConnection = agent.lastSeenAt === undefined;
-    const patch: Record<string, unknown> = { lastSeenAt: Date.now() };
+    const now = Date.now();
+    const patch: Record<string, unknown> = {
+      lastSeenAt: now,
+      lastHeartbeatAt: now,
+    };
     if (args.statusText !== undefined) {
       patch.statusText = args.statusText.slice(0, 200) || undefined;
     }
@@ -1624,6 +1638,8 @@ export const listMembers = query({
       kind: "user" | "agent";
       statusText?: string;
       lastSeenAt?: number;
+      lastConnectedAt?: number;
+      lastHeartbeatAt?: number;
       capabilities?: string[];
       maxConcurrentTasks?: number;
       role?: "member" | "readonly";
@@ -1676,6 +1692,8 @@ export const listMembers = query({
         kind: "agent",
         statusText: a.statusText,
         lastSeenAt: a.lastSeenAt,
+        lastConnectedAt: a.lastConnectedAt,
+        lastHeartbeatAt: a.lastHeartbeatAt,
         capabilities: a.capabilities ?? [],
         maxConcurrentTasks: a.maxConcurrentTasks ?? 1,
         role: a.role ?? "member",

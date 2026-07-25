@@ -6,7 +6,7 @@ import { api } from "@convex/_generated/api";
 import { useToast } from "@/components/toast";
 
 // Watches agent presence app-wide (mounted once in the dashboard layout)
-// and celebrates the moment an agent heartbeats for the very first time —
+// and celebrates the moment an agent authenticates for the very first time —
 // the payoff for wiring a runtime to its key. Subsequent reconnects stay
 // quiet; this is only about first contact.
 export function AgentOnlineWatcher() {

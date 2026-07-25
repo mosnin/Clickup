@@ -1038,10 +1038,14 @@ export default defineSchema({
     notifyUrl: v.optional(v.string()),
     notifySecret: v.optional(v.string()),
     createdByClerkId: v.string(),
-    // Live presence, reported over MCP: heartbeat bumps lastSeenAt, and
-    // agents self-report what they're doing right now so Mission Control
-    // can show "Scout — working on 'Fix login flow': refactoring auth…".
+    // Live presence over MCP. lastSeenAt remains the compatibility rollup
+    // used for the green dot; the two source timestamps make diagnostics
+    // truthful: transport authentication proves connectivity, while an
+    // explicit heartbeat proves the runtime is actively following the
+    // collaboration protocol.
     lastSeenAt: v.optional(v.number()),
+    lastConnectedAt: v.optional(v.number()),
+    lastHeartbeatAt: v.optional(v.number()),
     currentTaskId: v.optional(v.id("tasks")),
     statusText: v.optional(v.string()),
     createdAt: v.number(),

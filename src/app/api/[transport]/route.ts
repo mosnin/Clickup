@@ -995,7 +995,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_members",
     description:
-      "Everyone in my scope, humans and agents, with ids usable in assigneeIds/mentionIds. Agents include live status, role, capabilities, concurrency ceiling, and current task for safe routing.",
+      "Everyone in my scope, humans and agents, with ids usable in assigneeIds/mentionIds. Agents include lastSeenAt, lastConnectedAt, and lastHeartbeatAt as separate live signals, plus role, capabilities, concurrency ceiling, and current task for safe routing.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.listMembers), { apiKey: k }),
   },

@@ -186,7 +186,17 @@ describe("transport presence", () => {
         .collect(),
     }));
     expect(first.agent?.lastSeenAt).toEqual(expect.any(Number));
+    expect(first.agent?.lastConnectedAt).toEqual(expect.any(Number));
+    expect(first.agent?.lastHeartbeatAt).toBeUndefined();
     expect(first.events).toHaveLength(1);
+
+    await t.mutation(api.agentApi.heartbeat, {
+      apiKey,
+      statusText: "Ready for work",
+    });
+    const heartbeating = await t.run((ctx) => ctx.db.get(agentId));
+    expect(heartbeating?.lastHeartbeatAt).toEqual(expect.any(Number));
+    expect(heartbeating?.lastSeenAt).toBe(heartbeating?.lastHeartbeatAt);
 
     await t.mutation(api.agentApi.connect, { apiKey });
     const events = await t.run((ctx) =>

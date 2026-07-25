@@ -274,7 +274,7 @@ export default function DashboardHome() {
       <InviteCards />
 
       {/* AnimatePresence so the card resolves with a satisfying collapse
-          the moment the agent's first heartbeat lands (live via Convex). */}
+          the moment the agent's first authenticated request lands. */}
       <AnimatePresence initial={false}>
         {waiting.length > 0 && (
           <motion.div
@@ -293,7 +293,7 @@ export default function DashboardHome() {
               <span className="relative inline-flex h-12 w-12 flex-shrink-0" aria-hidden>
                 <Orb seed={waiting[0]._id} size="lg" />
                 {/* Small pending dot — the "dot" the copy references, which
-                    turns green on first heartbeat. A gentle pulse signals
+                    turns green on first connection. A gentle pulse signals
                     waiting without the whole avatar strobing. */}
                 <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-card">
                   <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-pastel-yellow" />
