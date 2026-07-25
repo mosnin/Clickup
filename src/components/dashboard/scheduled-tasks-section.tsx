@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
+import { scheduleFailureMessage } from "@/lib/schedule-errors";
 
 // List-settings section for time-based recurring tasks ("every Monday
 // 09:00 UTC create X"). The cron in convex/crons.ts materializes them.
@@ -82,7 +83,7 @@ export function ScheduledTasksSection({ listId }: { listId: Id<"lists"> }) {
             {st.lastError && (
               <span
                 className="max-w-64 truncate rounded-full bg-pastel-red px-2.5 py-0.5 text-xs text-neutral-900"
-                title={st.lastError}
+                title={scheduleFailureMessage(st.lastError)}
               >
                 Failed {st.consecutiveFailures ?? 1}× ·{" "}
                 {st.enabled ? "retrying" : "resume to retry"}

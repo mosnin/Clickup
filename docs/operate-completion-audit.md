@@ -89,6 +89,9 @@ only after automated checks and relevant production behavior both pass.
   schedule auto-pause, `schedule.auto_paused` event, and owner notification.
   Then delete the schedule and confirm that no task with title prefix
   `CERT Failure Recovery` was created.
+  - First production tick observed at 16:15 UTC: the schedule remained active,
+    recorded `consecutiveFailures: 1`, and displayed `Failed 1× · retrying`.
+    No task was created. The second tick should advance this to 2.
 - Dependency security remediation (validated locally 2026-07-25): upgraded
   Next within v15 to 15.5.21, Convex within v1 to 1.42.3, and Clerk within v6
   to 6.39.6. The production-only audit dropped from 17 findings
