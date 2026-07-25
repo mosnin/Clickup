@@ -72,12 +72,51 @@ export const exportWorkspace = query({
       roadmapId?: Id<"roadmaps">;
       roadmapPhaseId?: string;
     }) {
+      const decisions = await ctx.db
+        .query("decisions")
+        .withIndex("by_list", (q) => q.eq("listId", list._id))
+        .collect();
+      const decisionHistory = await Promise.all(
+        decisions.map(async (decision) => {
+          const impacts = await ctx.db
+            .query("decisionImpacts")
+            .withIndex("by_decision", (q) =>
+              q.eq("decisionId", decision._id),
+            )
+            .collect();
+          return {
+            key: decision.key,
+            version: decision.version,
+            title: decision.title,
+            statement: decision.statement,
+            rationale: decision.rationale,
+            status: decision.status,
+            createdByActorType: decision.createdByActorType,
+            createdByActorId: decision.createdByActorId,
+            createdAt: decision.createdAt,
+            impacts: await Promise.all(
+              impacts.map(async (impact) => ({
+                taskTitle:
+                  (await ctx.db.get(impact.taskId))?.title ?? "Deleted task",
+                status: impact.status,
+                note: impact.note,
+                assessedByActorType: impact.assessedByActorType,
+                assessedByActorId: impact.assessedByActorId,
+                assessedAt: impact.assessedAt,
+              })),
+            ),
+          };
+        }),
+      );
       return {
         name: list.name,
         roadmap: list.roadmapId ? roadmapName.get(list.roadmapId) : undefined,
         roadmapPhase: list.roadmapPhaseId
           ? phaseName.get(list.roadmapPhaseId)
           : undefined,
+        decisions: decisionHistory.sort(
+          (a, b) => b.createdAt - a.createdAt,
+        ),
         tasks: await tasksForList(list._id),
       };
     }

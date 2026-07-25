@@ -17,6 +17,10 @@ const SKILLS = [
     "Assurance",
     "Verify every original success criterion against independent evidence.",
   ],
+  [
+    "Decisions",
+    "Version policy changes and revalidate every affected task.",
+  ],
 ] as const;
 
 const EXAMPLES = [
@@ -52,7 +56,7 @@ export default function PluginsPage() {
             Install with one URL
           </h2>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Run this from a project root. It writes six readable
+            Run this from a project root. It writes seven readable
             <code className="mx-1 rounded bg-muted px-1.5 py-0.5 text-xs">
               SKILL.md
             </code>

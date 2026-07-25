@@ -178,6 +178,7 @@ const READ_TOOLS = new Set([
   "list_checklist_templates",
   "get_portfolio",
   "get_task_network",
+  "list_decisions_for_task",
   "list_milestones",
   "get_wallet",
   "buy_credits", // returns a payment challenge; charges nothing by itself
@@ -534,7 +535,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_task",
     description:
-      "Full detail of one task: status, checklist, dependencies, claim, subtasks, comments, attachments, SOP, and full attached contextPackets. contextReadiness says which exact packet versions this agent has acknowledged; acknowledge stale/unread context before claiming, starting a run, reporting currentTaskId, or completing.",
+      "Full detail of one task: status, checklist, dependencies, claim, subtasks, comments, attachments, SOP, full attached contextPackets, and versioned operating decisions. contextReadiness says which packet versions this agent acknowledged; decisions show pending/no-change/rework-required impact reviews. Clear both gates before claiming, starting a run, reporting currentTaskId, or completing.",
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.getTask), { apiKey: k, ...a }),
@@ -639,6 +640,68 @@ const TOOLS: ToolDef[] = [
     shape: { packetId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.deleteContextPacket), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "list_decisions_for_task",
+    description:
+      "Read every operating decision that affected a task, including superseded versions, rationale, linked context, and the task's pending/no-change/rework-required/resolved assessment. Pending or rework-required impacts block execution.",
+    shape: { taskId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.listDecisionsForTask), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "create_decision",
+    description:
+      "Record a new immutable operating decision for a list and mark the named tasks as needing impact review. key is a stable machine-readable name such as launch.region. Optionally link a context packet: it is attached to impacted tasks and version-bumped so prior agent acknowledgements become stale.",
+    shape: {
+      listId: z.string(),
+      key: z.string().max(80),
+      title: z.string().max(160),
+      statement: z.string().max(5000),
+      rationale: z.string().max(5000),
+      contextPacketId: z.string().optional(),
+      taskIds: z.array(z.string()).max(100),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.createDecision), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "supersede_decision",
+    description:
+      "Replace the current active decision with an immutable next version. The previous wording remains auditable; every previously impacted task plus optional new taskIds returns to pending review, and linked context becomes stale.",
+    shape: {
+      decisionId: z.string(),
+      title: z.string().max(160).optional(),
+      statement: z.string().max(5000),
+      rationale: z.string().max(5000),
+      taskIds: z.array(z.string()).max(100).optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.supersedeDecision), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "assess_decision_impact",
+    description:
+      "Assess how one decision version affects one task. no_change clears the gate; rework_required keeps execution blocked and requires a note; resolved clears a prior rework requirement after the task has been updated.",
+    shape: {
+      impactId: z.string(),
+      status: z.enum(["no_change", "rework_required", "resolved"]),
+      note: z.string().max(2000).optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.assessDecisionImpact), {
         apiKey: k,
         ...a,
       }),
@@ -2130,7 +2193,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "operate-agents", version: "1.0.0" },
     instructions:
-      "You are an agent teammate in operate.to. First: call whoami, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, then claim_task. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-project roadmap? Prefer create_execution_plan: preserve the source, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. Before parallel execution, inspect get_execution_readiness and release only a capability-matched, capacity-safe dispatch_execution_wave with an auditable disposition for open questions; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Use create_tasks for smaller additions to an existing project. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
+      "You are an agent teammate in operate.to. First: call whoami, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-project roadmap? Prefer create_execution_plan: preserve the source, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. Before parallel execution, inspect get_execution_readiness and release only a capability-matched, capacity-safe dispatch_execution_wave with an auditable disposition for open questions; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Use create_tasks for smaller additions to an existing list. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
   },
   {
     basePath: "/api",

@@ -14,6 +14,7 @@ import {
   missingCapabilities,
   normalizeCapabilities,
 } from "./capabilities";
+import { requireDecisionImpactsResolved } from "./decisions";
 
 // Task CRUD. Since Phase 12 the write paths are factored into *Core
 // functions that take an explicit Actor, so the Clerk-authenticated
@@ -530,6 +531,7 @@ export async function updateTaskCore(
     willBeComplete =
       newStatus.category === "complete" || newStatus.category === "closed";
     if (!wasComplete && willBeComplete) {
+      await requireDecisionImpactsResolved(ctx, task._id);
       const blockers = await openBlockers(ctx, task);
       if (blockers.length > 0) {
         throw new ConvexError(
@@ -888,6 +890,12 @@ export async function cleanupTaskArtifacts(
   ctx: MutationCtx,
   taskId: Id<"tasks">,
 ): Promise<void> {
+  const decisionImpacts = await ctx.db
+    .query("decisionImpacts")
+    .withIndex("by_task", (q) => q.eq("taskId", taskId))
+    .collect();
+  for (const impact of decisionImpacts) await ctx.db.delete(impact._id);
+
   const contextReceipts = await ctx.db
     .query("agentContextReceipts")
     .withIndex("by_task", (q) => q.eq("taskId", taskId))

@@ -135,6 +135,13 @@ import {
   requireCurrentContext,
   updateContextPacketCore,
 } from "./contextPackets";
+import {
+  assessDecisionImpactCore,
+  createDecisionCore,
+  decisionRowsForTask,
+  requireDecisionImpactsResolved,
+  supersedeDecisionCore,
+} from "./decisions";
 
 // The agent-facing API: every function here authenticates with an agent
 // API key instead of Clerk, resolves the agent's scope (personal space or
@@ -152,6 +159,15 @@ const priorityValidator = v.union(
 const checklistValidator = v.array(
   v.object({ id: v.string(), text: v.string(), done: v.boolean() }),
 );
+
+async function requireTaskExecutionReady(
+  ctx: MutationCtx,
+  taskId: Id<"tasks">,
+  agentId: Id<"agents">,
+) {
+  await requireCurrentContext(ctx, taskId, agentId);
+  await requireDecisionImpactsResolved(ctx, taskId);
+}
 
 // ── Shared helpers ─────────────────────────────────────────────────────
 
@@ -539,7 +555,7 @@ export const heartbeat = mutation({
           args.currentTaskId,
           agent,
         );
-        await requireCurrentContext(ctx, args.currentTaskId, agent._id);
+        await requireTaskExecutionReady(ctx, args.currentTaskId, agent._id);
         if (
           task.claimedByActorId !== agent._id ||
           task.claimedAt === undefined ||
@@ -904,12 +920,14 @@ export const getTask = query({
       taskId,
       agent._id,
     );
+    const decisions = await decisionRowsForTask(ctx, taskId);
     return {
       ...view,
       listName: taskList?.name ?? null,
       attachments,
       contextPackets,
       contextReadiness,
+      decisions,
       sop,
       customFields,
       // Raw rows kept for backwards compatibility with existing agents.
@@ -1157,6 +1175,99 @@ export const detachContextPacket = mutation({
   },
 });
 
+// ── Versioned operating decisions ─────────────────────────────────────
+
+export const listDecisionsForTask = query({
+  args: { apiKey: v.string(), taskId: v.id("tasks") },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    return await decisionRowsForTask(ctx, args.taskId);
+  },
+});
+
+export const createDecision = mutation({
+  args: {
+    apiKey: v.string(),
+    listId: v.id("lists"),
+    key: v.string(),
+    title: v.string(),
+    statement: v.string(),
+    rationale: v.string(),
+    contextPacketId: v.optional(v.id("contextPackets")),
+    taskIds: v.array(v.id("tasks")),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const { list } = await requireListAccessForAgent(ctx, args.listId, agent);
+    const decision = await createDecisionCore(
+      ctx,
+      list,
+      args,
+      agentActor(agent),
+    );
+    return { decisionId: decision._id, version: decision.version };
+  },
+});
+
+export const supersedeDecision = mutation({
+  args: {
+    apiKey: v.string(),
+    decisionId: v.id("decisions"),
+    title: v.optional(v.string()),
+    statement: v.string(),
+    rationale: v.string(),
+    taskIds: v.optional(v.array(v.id("tasks"))),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const current = await ctx.db.get(args.decisionId);
+    if (!current) throw new ConvexError("Decision not found");
+    const { list } = await requireListAccessForAgent(
+      ctx,
+      current.listId,
+      agent,
+    );
+    const decision = await supersedeDecisionCore(
+      ctx,
+      current,
+      list,
+      args,
+      agentActor(agent),
+    );
+    return { decisionId: decision._id, version: decision.version };
+  },
+});
+
+export const assessDecisionImpact = mutation({
+  args: {
+    apiKey: v.string(),
+    impactId: v.id("decisionImpacts"),
+    status: v.union(
+      v.literal("no_change"),
+      v.literal("rework_required"),
+      v.literal("resolved"),
+    ),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const impact = await ctx.db.get(args.impactId);
+    if (!impact) throw new ConvexError("Decision impact not found");
+    await requireTaskAccessForAgent(ctx, impact.taskId, agent);
+    await assessDecisionImpactCore(
+      ctx,
+      impact,
+      args.status,
+      args.note,
+      agentActor(agent),
+    );
+    return { status: args.status };
+  },
+});
+
 export const createTask = mutation({
   args: {
     apiKey: v.string(),
@@ -1223,7 +1334,7 @@ export const updateTask = mutation({
         status?.category === "complete" ||
         status?.category === "closed"
       ) {
-        await requireCurrentContext(ctx, args.taskId, agent._id);
+        await requireTaskExecutionReady(ctx, args.taskId, agent._id);
       }
     }
     const { apiKey: _apiKey, ...rest } = args;
@@ -1256,7 +1367,7 @@ export const completeTask = mutation({
   handler: async (ctx, { apiKey, taskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
-    await requireCurrentContext(ctx, taskId, agent._id);
+    await requireTaskExecutionReady(ctx, taskId, agent._id);
     const statuses = await ctx.db
       .query("listStatuses")
       .withIndex("by_list", (q) => q.eq("listId", task.listId))
@@ -1300,7 +1411,7 @@ export const claimTask = mutation({
         `This task requires capabilities this agent does not advertise: ${missing.join(", ")}`,
       );
     }
-    await requireCurrentContext(ctx, taskId, agent._id);
+    await requireTaskExecutionReady(ctx, taskId, agent._id);
     await claimTaskCore(ctx, taskId, agentActor(agent));
     await markExecutionAssignmentClaimed(ctx, taskId, agent._id);
   },
@@ -2520,7 +2631,7 @@ export const requestApproval = mutation({
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     const { task } = await requireTaskAccessForAgent(ctx, args.taskId, agent);
-    await requireCurrentContext(ctx, args.taskId, agent._id);
+    await requireTaskExecutionReady(ctx, args.taskId, agent._id);
     if (!task.requiresApproval) {
       await updateTaskCore(
         ctx,
@@ -2609,7 +2720,7 @@ export const startRun = mutation({
         args.taskId,
         agent,
       );
-      await requireCurrentContext(ctx, args.taskId, agent._id);
+      await requireTaskExecutionReady(ctx, args.taskId, agent._id);
       if (
         task.claimedByActorId !== agent._id ||
         task.claimedAt === undefined ||
@@ -2712,7 +2823,7 @@ export const finishRun = mutation({
       }
     }
     if (args.status === "succeeded" && run.taskId) {
-      await requireCurrentContext(ctx, run.taskId, agent._id);
+      await requireTaskExecutionReady(ctx, run.taskId, agent._id);
     }
     await ctx.db.patch(args.runId, {
       status: args.status,

@@ -30,6 +30,7 @@ import type * as contextPackets from "../contextPackets.js";
 import type * as crons from "../crons.js";
 import type * as customFields from "../customFields.js";
 import type * as dataExport from "../dataExport.js";
+import type * as decisions from "../decisions.js";
 import type * as docs from "../docs.js";
 import type * as events from "../events.js";
 import type * as executionDispatch from "../executionDispatch.js";
@@ -121,6 +122,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   customFields: typeof customFields;
   dataExport: typeof dataExport;
+  decisions: typeof decisions;
   docs: typeof docs;
   events: typeof events;
   executionDispatch: typeof executionDispatch;

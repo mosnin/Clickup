@@ -5,6 +5,7 @@ const SKILLS = [
   "operate-daily-ops",
   "operate-recovery",
   "operate-assurance",
+  "operate-decisions",
 ];
 
 export function GET(request: Request) {

@@ -30,6 +30,7 @@ import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { useToast } from "@/components/toast";
 import { motion } from "@/components/motion";
 import { TaskContext } from "@/components/dashboard/task-context";
+import { TaskDecisions } from "@/components/dashboard/task-decisions";
 
 type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
 type TaskRecurrence = NonNullable<Doc<"tasks">["recurrence"]>;
@@ -369,6 +370,7 @@ function TaskEditor({
           <TaskChecklist task={task} />
 
           <TaskContext taskId={task._id} listId={listId} />
+          <TaskDecisions taskId={task._id} listId={listId} />
 
           <Subtasks taskId={task._id} listId={listId} />
 

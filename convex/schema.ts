@@ -513,6 +513,66 @@ export default defineSchema({
     .index("by_agent_task", ["agentId", "taskId"])
     .index("by_agent_task_packet", ["agentId", "taskId", "packetId"]),
 
+  // Immutable operating-policy versions. A stable key (for example
+  // "launch.region") identifies one decision chain; superseding creates a
+  // new row and only links the old row forward, preserving the exact words
+  // and rationale every task originally relied on.
+  decisions: defineTable({
+    listId: v.id("lists"),
+    key: v.string(),
+    version: v.number(),
+    title: v.string(),
+    statement: v.string(),
+    rationale: v.string(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("superseded"),
+      v.literal("revoked"),
+    ),
+    supersedesDecisionId: v.optional(v.id("decisions")),
+    supersededByDecisionId: v.optional(v.id("decisions")),
+    contextPacketId: v.optional(v.id("contextPackets")),
+    createdByActorType: v.union(
+      v.literal("user"),
+      v.literal("agent"),
+      v.literal("system"),
+    ),
+    createdByActorId: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_list", ["listId", "createdAt"])
+    .index("by_list_and_key", ["listId", "key", "version"]),
+
+  // A decision change is not considered absorbed merely because it exists.
+  // Each affected task gets an explicit impact assessment. Pending and
+  // rework-required rows gate agent execution; completed tasks remain in
+  // this table so post-completion revalidation cannot disappear.
+  decisionImpacts: defineTable({
+    decisionId: v.id("decisions"),
+    taskId: v.id("tasks"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("no_change"),
+      v.literal("rework_required"),
+      v.literal("resolved"),
+    ),
+    assessedByActorType: v.optional(
+      v.union(
+        v.literal("user"),
+        v.literal("agent"),
+        v.literal("system"),
+      ),
+    ),
+    assessedByActorId: v.optional(v.string()),
+    note: v.optional(v.string()),
+    assessedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_decision", ["decisionId"])
+    .index("by_task", ["taskId", "createdAt"])
+    .index("by_decision_and_task", ["decisionId", "taskId"]),
+
   // Immutable provenance for a plan compiled from one conversation/brief
   // into a roadmap, projects, tasks, dependencies, assignments, and
   // versioned context. The original source and explicit assumptions stay
