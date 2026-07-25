@@ -16,7 +16,7 @@ Production endpoints:
 
 The server supports Streamable HTTP, OAuth 2.1 authorization code + PKCE, dynamic client registration, rotating refresh tokens, revocation, and legacy agent API-key authentication for custom runtimes. OAuth access is bound to a user-selected Operate agent, so existing workspace boundaries, list restrictions, read-only roles, budgets, approvals, and agent pause controls continue to apply.
 
-The uploadable OpenAI bundle is generated from `plugins/operate`. Do not put reviewer credentials in the repository or ZIP. Enter them only in each platform’s secure submission form.
+The uploadable OpenAI bundle is generated from `plugins/operate`; `chatgpt-app-submission.json` is generated from the live MCP registry and imported separately in OpenAI’s review form. Anthropic reviews the production remote MCP endpoint and the information in `claude.md`; it does not use a local demo bundle. Do not put reviewer credentials in the repository or ZIP. Enter them only in each platform’s secure submission form.
 
 Human-only portal prerequisites:
 

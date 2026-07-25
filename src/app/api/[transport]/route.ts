@@ -132,16 +132,17 @@ const checklistArg = z
   )
   .describe("Full checklist (replaces the existing one)");
 
-// Annotation hints surfaced to MCP clients on tools/list. Reads are marked
-// readOnlyHint; all state-changing tools conservatively request destructive
-// confirmation; safely-retryable mutations get idempotentHint. Everything
-// operates on the closed operate.to workspace, so openWorldHint is false.
+// Annotation hints surfaced to MCP clients on tools/list. Reads, overwrites,
+// irreversible actions, and external side effects are classified independently;
+// safely-retryable mutations also get idempotentHint.
 const READ_TOOLS = new Set([
   "whoami",
   "get_tree",
   "list_statuses",
   "list_tasks",
   "get_task",
+  "list_context_packets",
+  "get_context_packet",
   "search_tasks",
   "semantic_search",
   "list_comments",
@@ -154,6 +155,7 @@ const READ_TOOLS = new Set([
   "get_roadmaps",
   "list_execution_plans",
   "get_execution_plan",
+  "get_outcome_assurance",
   "get_execution_policy",
   "get_execution_readiness",
   "get_execution_control",
@@ -185,6 +187,7 @@ const READ_TOOLS = new Set([
   "buy_credits", // returns a payment challenge; charges nothing by itself
 ]);
 const DESTRUCTIVE_TOOLS = new Set([
+  "rename_folder",
   "delete_task",
   "delete_scheduled_task",
   "delete_webhook",
@@ -193,8 +196,58 @@ const DESTRUCTIVE_TOOLS = new Set([
   "delete_list",
   "delete_folder",
   "delete_context_packet",
+  "detach_context_packet",
+  "supersede_decision",
+  "reorder_tasks",
+  "update_task",
+  "set_estimate",
+  "complete_task",
+  "claim_task",
+  "release_task",
+  "set_checklist",
+  "remove_dependency",
+  "mark_mention_read",
+  "apply_sprint_template",
+  "update_sprint",
+  "set_sprint_capacity",
+  "set_sprint_retrospective",
+  "revise_execution_plan_context",
+  "review_outcome_criterion",
+  "reconcile_execution_plan",
+  "dispatch_execution_wave",
   "remove_roadmap_phase",
+  "update_roadmap_phase",
+  "assign_project_to_phase",
+  "assign_list_to_phase",
+  "set_scheduled_task_enabled",
+  "update_doc",
+  "handoff_task",
+  "start_run",
+  "finish_run",
+  "report_error",
+  "set_goal_progress",
+  "apply_template",
+  "apply_starter_template",
+  "set_task_field",
+  "clear_task_field",
+  "apply_checklist_template",
+  "update_comment",
+  "resolve_comment",
+  "settle_payment",
+  "rename_list",
+  "update_list_meta",
+  "reorder_lists",
+  "move_list",
+  "reorder_folders",
   "delete_milestone",
+  "update_milestone",
+  "set_task_milestone",
+]);
+const OPEN_WORLD_TOOLS = new Set([
+  // Delivers future workspace events to a user-supplied external endpoint.
+  "register_webhook",
+  // Completes a payment through the configured external payment rail.
+  "settle_payment",
 ]);
 const IDEMPOTENT_TOOLS = new Set([
   "create_execution_plan",
@@ -247,8 +300,8 @@ function annotationsFor(name: string): ToolAnnotations {
   return {
     title: titleFor(name),
     readOnlyHint: readOnly,
-    openWorldHint: false,
-    destructiveHint: !readOnly || DESTRUCTIVE_TOOLS.has(name),
+    openWorldHint: OPEN_WORLD_TOOLS.has(name),
+    destructiveHint: DESTRUCTIVE_TOOLS.has(name),
     ...(IDEMPOTENT_TOOLS.has(name) ? { idempotentHint: true } : {}),
   };
 }

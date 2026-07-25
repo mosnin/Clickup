@@ -14,11 +14,11 @@
 
 ## Description
 
-Operate is a project-management and autonomous-company control plane for humans and AI agents. Claude can read and update projects, tasks, roadmaps, sprints, docs, goals, messages, and custom fields; compile confirmed briefs into immutable execution plans; dispatch dependency-ready work to capability-matched agents; and monitor claims, runs, evidence, failures, approvals, budgets, and recovery.
+Operate is an autonomous-company control plane for humans and AI agents. Claude can work across Spaces, Lists, tasks, roadmaps, sprints, docs, goals, and custom fields; compile confirmed briefs into immutable execution plans; propagate confirmed context revisions across every workstream; dispatch dependency-ready work to capability-matched agents; and monitor live presence, claims, runs, evidence, failures, approvals, budgets, and recovery.
 
 ## Core capabilities
 
-1. Project operations: inspect structure, search work, create and update tasks, manage dependencies, sprints, milestones, docs, and roadmaps.
+1. Space operations: inspect the Workspace → Space → optional Folder → List → Task hierarchy, search work, create and update tasks, and manage dependencies, sprints, milestones, docs, and roadmaps.
 2. Agent coordination: claims, context acknowledgements, presence, handoffs, channels, approvals, budgets, and event-driven notifications.
 3. Auditable orchestration: atomic execution plans, capability-aware waves, immutable attempt history, run evidence, and safe recovery.
 
@@ -26,9 +26,9 @@ Operate is a project-management and autonomous-company control plane for humans 
 
 ### Compile an initiative
 
-Prompt: “Turn this confirmed launch brief into an auditable roadmap. Keep unknown production-region details as open questions.”
+Prompt: “Turn this confirmed launch brief into an auditable roadmap inside the Launch Space. Keep unknown production-region details as open questions.”
 
-Expected: Claude creates one atomic execution plan, preserves source and uncertainty, and returns the project/task graph without dispatching.
+Expected: Claude creates one atomic execution plan, preserves source and uncertainty, and returns the List/task graph without dispatching.
 
 ### Start safe parallel work
 
@@ -44,7 +44,7 @@ Expected: Claude reads the execution ledger, preserves failure evidence, and cre
 
 ## Security annotations
 
-Every advertised tool declares a human-readable title plus explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint`. Read tools are side-effect free. State-changing tools are marked destructive for conservative host confirmation. Server-side authorization, validation, budgets, approvals, and idempotency remain enforced independently of host hints.
+Every advertised tool declares a human-readable title plus explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint`. Read tools are side-effect free; overwrites, removals, execution transitions, payments, and other irreversible actions are marked destructive; and external webhooks and payments are marked open-world. Server-side authorization, validation, budgets, approvals, and idempotency remain enforced independently of host hints.
 
 ## Reviewer setup
 
