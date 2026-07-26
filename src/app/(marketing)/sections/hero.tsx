@@ -9,10 +9,10 @@ import { HeroUnicorn } from "@/components/marketing/hero-unicorn";
 import { useGsap, GsapParallax, EASE_OUT } from "@/components/marketing/gsap";
 import GradientText from "@/components/gradient-text";
 
-// Headline, one line per array entry. Two lines, never more: a third line
-// pushed the product shot off a phone screen entirely, which is the one thing
-// the hero cannot afford. The second line carries the gradient.
-const HEADLINE = ["Agents that finish", "what they start."];
+// The headline lives in the copy module with everything else; it arrives as
+// one array entry per line. Two lines, never more — a third line pushed the
+// product shot off a phone screen entirely, which is the one thing the hero
+// cannot afford. The last line carries the gradient.
 const LINE_STAGGER = 0.09;
 
 // Home hero — the signature entrance moment. A single mount timeline (not
@@ -184,9 +184,9 @@ export function Hero() {
           data-hero-title
           className="mx-auto mt-6 max-w-[20ch] text-balance text-[2.6rem] font-semibold leading-[1.02] tracking-[-0.03em] text-white sm:text-6xl lg:text-[4.25rem]"
         >
-          {HEADLINE.map((line, i) => (
+          {HERO.headline.map((line, i) => (
             <span data-hero-word key={line} className="block">
-              {i === HEADLINE.length - 1 ? (
+              {i === HERO.headline.length - 1 ? (
                 <GradientText>{line}</GradientText>
               ) : (
                 line

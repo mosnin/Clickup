@@ -51,6 +51,9 @@ function handleAnchorNavigate(
 // renders dark-on-light.
 
 const NAV_LINKS: { href: string; label: string }[] = [
+  // First, and deliberately: it is the page a reader who has never delegated
+  // to an agent needs before Use cases or Pricing mean anything.
+  { href: "/how-it-works", label: "How it works" },
   { href: "/use-cases", label: "Use cases" },
   { href: "/pricing", label: "Pricing" },
   { href: "/resources", label: "Resources" },

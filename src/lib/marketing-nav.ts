@@ -11,6 +11,11 @@ export type NavLeaf = {
 
 export const FEATURE_LINKS: NavLeaf[] = [
   {
+    href: "/how-it-works",
+    label: "How it works",
+    description: "The four steps, from empty project to approved work",
+  },
+  {
     href: "/features#agents",
     label: "Agents HQ",
     description: "Live presence, keys, and a feed of everything agents do",
@@ -115,6 +120,9 @@ export const MEGA_MENUS = [
 ] as const;
 
 export const PLAIN_LINKS: { href: string; label: string }[] = [
+  // "How it works" sits first because it answers the question a reader who
+  // has never delegated to an agent asks before any of the others.
+  { href: "/how-it-works", label: "How it works" },
   { href: "/pricing", label: "Pricing" },
   { href: "/company", label: "Company" },
 ];

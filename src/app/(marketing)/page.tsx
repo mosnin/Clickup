@@ -3,6 +3,7 @@ import { SITE_NAME, SITE_URL } from "@/lib/marketing-nav";
 import { Hero } from "./sections/hero";
 import { SocialProof } from "./sections/social-proof";
 import { LogoCloud } from "./sections/logo-cloud";
+import { Problem } from "./sections/problem";
 import { Showcase } from "./sections/showcase";
 import { FeatureCards } from "./sections/feature-cards";
 import { CalendarShowcase } from "./sections/calendar-showcase";
@@ -53,10 +54,15 @@ const JSON_LD = {
 // then the feature card grid, dark CTA panel, pricing, FAQ, and the "simpler"
 // closing panel. Sections own their backgrounds.
 //
-// Each feature block deliberately wears a different surface language so the
-// page never reads as one long grid: <FeatureCards /> is the bento of live
-// app chrome, <CalendarShowcase /> is a full application window, <Stories />
-// is three light gradient columns. <Showcase /> carries the real screenshots.
+// Order is the argument (see the story note at the top of marketing-content):
+// hook, then the villain (<Problem />, the one section that never mentions the
+// product), then the shift (<SocialProof />: agents on the same board as your
+// team), then evidence, then who it is for, then the close.
+//
+// Each block also wears a different surface language so the page never reads
+// as one long grid: <FeatureCards /> is the bento of live app chrome,
+// <CalendarShowcase /> is a full application window, <Stories /> is three
+// light gradient columns. <Showcase /> carries the real screenshots.
 
 export default function HomePage() {
   return (
@@ -65,13 +71,17 @@ export default function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
       />
-      {/* Continuous band behind hero + social proof: the shared deep-charcoal
-          `.mk-band` gradient (charcoal fill + a soft azure glow crested near
-          the top), carrying the hero + social-proof screenshots through to
-          the announce strip. */}
+      {/* Continuous band behind the hero and the logo marquee — the shared
+          `.mk-band` fill, so the Unicorn scene, the headline and the logos
+          read as one opening surface. */}
       <div className="mk-band">
         <Hero />
         <LogoCloud />
+      </div>
+      {/* Villain, then the shift. <Problem /> has to land before
+          <SocialProof /> or the answer arrives before the question. */}
+      <Problem />
+      <div className="mk-band">
         <SocialProof />
       </div>
       <Showcase />
