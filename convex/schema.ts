@@ -1041,6 +1041,31 @@ export default defineSchema({
     ),
   }).index("by_clerk", ["clerkId"]),
 
+  // ── Agent operation receipts ──
+  // Makes a timed-out write safe to retry.
+  //
+  // The failure this removes: an agent POSTs create_tasks, the response is lost
+  // to a timeout, and the agent cannot tell whether nothing happened, the write
+  // committed, or it half-committed. Retrying might duplicate a whole plan;
+  // not retrying might drop it. Neither choice is safe, so the agent stalls.
+  //
+  // With a caller-supplied idempotencyKey the second attempt is not a second
+  // write: the stored receipt is replayed verbatim, including the ids the first
+  // attempt created. `result` is the exact value the tool returned, so a replay
+  // is indistinguishable from the original success.
+  //
+  // Scoped per agent so two agents cannot collide on the same key, and pruned
+  // by the retention cron like every other operational table.
+  agentOperations: defineTable({
+    agentId: v.id("agents"),
+    idempotencyKey: v.string(),
+    tool: v.string(),
+    result: v.any(),
+    createdAt: v.number(),
+  })
+    .index("by_agent_and_key", ["agentId", "idempotencyKey"])
+    .index("by_created", ["createdAt"]),
+
   // ── Phase L: workspace field library ──
   // Define a custom field once, apply it to any list (applying copies the
   // definition into that list's customFields, so per-list behavior is

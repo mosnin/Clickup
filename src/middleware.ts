@@ -1,3 +1,5 @@
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 const isProtectedRoute = createRouteMatcher([
@@ -6,11 +8,27 @@ const isProtectedRoute = createRouteMatcher([
   "/invite(.*)",
 ]);
 
-export default clerkMiddleware(async (auth, req) => {
+// Routes that authenticate themselves and must never be touched by Clerk.
+//
+// /api/mcp carries an agent API key as its bearer token (`cua_…`), verified
+// against Convex by the route itself. Running clerkMiddleware over it made two
+// systems interpret one token: Clerk found a non-JWT where a session token
+// should be and emitted "invalid JWT" diagnostics on requests that were
+// authenticating perfectly well. That noise is what made a transport outage
+// look like a credential problem. Same reasoning for the x402 endpoint, which
+// authenticates with a signed payment authorization.
+const isSelfAuthenticated = createRouteMatcher(["/api/mcp", "/api/x402"]);
+
+const clerk = clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
     await auth.protect();
   }
 });
+
+export default function middleware(req: NextRequest, event: never) {
+  if (isSelfAuthenticated(req)) return NextResponse.next();
+  return clerk(req, event);
+}
 
 export const config = {
   matcher: [

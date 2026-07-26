@@ -21,16 +21,24 @@ function snippetFor(runtime: Runtime, url: string, key: string): string {
   const shownKey = key || "<paste your agent's API key>";
   switch (runtime) {
     case "claude":
+      // mcp-remote, not our own proxy package. `npx -y operate-mcp` was in
+      // here and is a straight 404 on npm — the package in mcp/ has never been
+      // published, so every person who followed this block failed before
+      // reaching us. mcp-remote is a published, maintained stdio<->HTTP bridge
+      // that does the same job, so the instructions work today rather than
+      // after a release.
       return JSON.stringify(
         {
           mcpServers: {
             operate: {
               command: "npx",
-              args: ["-y", "operate-mcp"],
-              env: {
-                OPERATE_MCP_URL: url,
-                OPERATE_API_KEY: shownKey,
-              },
+              args: [
+                "-y",
+                "mcp-remote",
+                url,
+                "--header",
+                `Authorization: Bearer ${shownKey}`,
+              ],
             },
           },
         },

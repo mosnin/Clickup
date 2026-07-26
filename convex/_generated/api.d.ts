@@ -13,6 +13,7 @@ import type * as _agentAuth from "../_agentAuth.js";
 import type * as _authz from "../_authz.js";
 import type * as _customFields from "../_customFields.js";
 import type * as _docText from "../_docText.js";
+import type * as _idempotency from "../_idempotency.js";
 import type * as _x402 from "../_x402.js";
 import type * as admin from "../admin.js";
 import type * as agentAi from "../agentAi.js";
@@ -101,6 +102,7 @@ declare const fullApi: ApiFromModules<{
   _authz: typeof _authz;
   _customFields: typeof _customFields;
   _docText: typeof _docText;
+  _idempotency: typeof _idempotency;
   _x402: typeof _x402;
   admin: typeof admin;
   agentAi: typeof agentAi;
