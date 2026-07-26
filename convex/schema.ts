@@ -578,18 +578,64 @@ export default defineSchema({
   docs: defineTable({
     // Wiki nesting: a doc may live under another doc as a subpage.
     parentDocId: v.optional(v.id("docs")),
+    // "list" is a project. A doc attached to a project is where the detailed
+    // context lives — the brief, the decisions, the constraints an agent needs
+    // and a task description has no room for. Same table as space/workspace
+    // docs on purpose: one editor, one search index, one authz path.
     parentType: v.union(
       v.literal("user"),
       v.literal("workspace"),
       v.literal("space"),
+      v.literal("list"),
     ),
     parentId: v.string(),
     title: v.string(),
     content: v.any(),
+    // Marks a project doc as canonical context. Agents are handed pinned docs
+    // automatically with the task bundle instead of having to go looking, so
+    // "read the brief first" stops being something you hope they do.
+    pinnedContext: v.optional(v.boolean()),
     createdByClerkId: v.string(),
     updatedAt: v.number(),
     createdAt: v.number(),
   }).index("by_parent", ["parentType", "parentId"]),
+
+  // ── Revision requests ──
+  // "This isn't right yet, here's what to change." A comment can say the same
+  // thing, but a comment has no state: nothing tells you which asks are still
+  // outstanding, and an agent reading a thread cannot tell a passing remark
+  // from a blocking correction. A revision is explicit, addressable, and shows
+  // up in the agent's own queue.
+  //
+  // Lifecycle: open -> addressed (the agent says it's done, with a note) ->
+  // accepted or reopened (a human decides). Agents may move open -> addressed
+  // and nothing else; only people accept or reopen, the same asymmetry the
+  // approval gates use.
+  revisions: defineTable({
+    parentType: v.union(v.literal("task"), v.literal("list")),
+    parentId: v.string(),
+    body: v.string(),
+    status: v.union(
+      v.literal("open"),
+      v.literal("addressed"),
+      v.literal("accepted"),
+    ),
+    requestedByActorId: v.string(),
+    requestedByName: v.string(),
+    createdAt: v.number(),
+    // Set when whoever is doing the work reports back.
+    addressedAt: v.optional(v.number()),
+    addressedByActorId: v.optional(v.string()),
+    addressedByName: v.optional(v.string()),
+    responseNote: v.optional(v.string()),
+    // Set when a human accepts the revision as done.
+    acceptedAt: v.optional(v.number()),
+    acceptedByClerkId: v.optional(v.string()),
+  })
+    .index("by_parent", ["parentType", "parentId"])
+    // Ranged by the agent-facing "what is waiting on me" queries, so open
+    // revisions never need a table scan.
+    .index("by_status", ["status"]),
 
   // Whiteboards backed by tldraw. `snapshot` is the tldraw store snapshot.
   whiteboards: defineTable({
@@ -973,6 +1019,25 @@ export default defineSchema({
     // Capped and most-recent-first — see userSettings.setListViewSettings.
     listViewSettings: v.optional(
       v.array(v.object({ listId: v.id("lists"), settings: v.string() })),
+    ),
+    // Real-time notification preferences. Absent means "the defaults" —
+    // see NOTIFICATION_DEFAULTS in convex/notificationPrefs.ts — so an
+    // existing user needs no migration and a new one needs no setup.
+    //
+    // `realtime` is the master switch for the live stream (Ably). Turning it
+    // off does not stop anything being recorded: the inbox and the event log
+    // are unaffected, only the push is silenced.
+    notificationPrefs: v.optional(
+      v.object({
+        realtime: v.optional(v.boolean()),
+        mentions: v.optional(v.boolean()),
+        assignments: v.optional(v.boolean()),
+        approvals: v.optional(v.boolean()),
+        revisions: v.optional(v.boolean()),
+        agentPresence: v.optional(v.boolean()),
+        agentErrors: v.optional(v.boolean()),
+        taskUpdates: v.optional(v.boolean()),
+      }),
     ),
   }).index("by_clerk", ["clerkId"]),
 

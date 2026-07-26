@@ -137,6 +137,8 @@ const checklistArg = z
 // idempotentHint. Everything operates on the closed operate.to workspace,
 // so openWorldHint is false across the board.
 const READ_TOOLS = new Set([
+  "list_open_revisions",
+  "list_project_docs",
   "whoami",
   "get_tree",
   "list_statuses",
@@ -190,6 +192,11 @@ const DESTRUCTIVE_TOOLS = new Set([
   "delete_milestone",
 ]);
 const IDEMPOTENT_TOOLS = new Set([
+  // Re-reporting a revision as addressed just overwrites the note; writing a
+  // project doc with the same docId overwrites its content. Both are safe to
+  // retry after a timeout.
+  "address_revision",
+  "write_project_doc",
   "heartbeat",
   "update_task",
   "set_estimate",
@@ -1658,6 +1665,78 @@ const TOOLS: ToolDef[] = [
     run: (c, k, a) =>
       c.action(asAction(api.x402Actions.settleTopup), { apiKey: k, ...a }),
   },
+  // ── Revisions and project context ──────────────────────────────────────
+  // Open revisions and pinned context already ride get_task's reply; these
+  // cover what that read has no room for — project-level asks, the full text
+  // of a long brief, and writing back.
+  {
+    name: "list_open_revisions",
+    description:
+      "Corrections still outstanding on my work: someone asked for a change and it has not been addressed yet. Covers whole-project asks as well as per-task ones. Read these before picking up new work — an open revision on a task you already 'finished' means it is not finished. Optional listId narrows to one project.",
+    shape: {
+      listId: z.string().optional(),
+      limit: z.number().int().min(1).max(200).optional(),
+    },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.listOpenRevisions), { apiKey: k, ...a }),
+  },
+  {
+    name: "address_revision",
+    description:
+      "Report a revision as addressed, with a note saying what actually changed. This does NOT close it — a human accepts or reopens it, the same way approval gates work. Do the work first, then call this.",
+    shape: {
+      revisionId: z.string(),
+      note: z
+        .string()
+        .optional()
+        .describe("What you changed. Be specific; a person reads this."),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.addressRevision), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "request_revision",
+    description:
+      "Ask for a change on a task or a project — the same object a human uses, pointed the other way. Use it when work handed to you is wrong or underspecified and you need a person (or another agent) to fix it, instead of guessing.",
+    shape: {
+      parentType: z.enum(["task", "list"]),
+      parentId: z.string(),
+      body: z.string().describe("What needs to change, and why"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.requestRevision), {
+        apiKey: k,
+        ...a,
+      }),
+  },
+  {
+    name: "list_project_docs",
+    description:
+      "The context documents attached to a project: the brief, decisions, constraints, references — everything a task description has no room for. Pinned docs are the canonical ones. Read these before planning work in an unfamiliar project.",
+    shape: { listId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.listProjectDocs), { apiKey: k, ...a }),
+  },
+  {
+    name: "write_project_doc",
+    description:
+      "Create or update a project context document. Plain text in, one paragraph per line; it opens and edits like any doc a person wrote. Pass docId to update an existing one. Set pinnedContext to mark it as canonical, so it travels automatically with every get_task on that project.",
+    shape: {
+      listId: z.string(),
+      title: z.string(),
+      text: z.string(),
+      docId: z.string().optional(),
+      pinnedContext: z.boolean().optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.writeProjectDoc), {
+        apiKey: k,
+        ...a,
+      }),
+  },
 ];
 
 const handler = createMcpHandler(
@@ -1788,7 +1867,16 @@ const authHandler = withMcpAuth(
         clientId: (me as { agentId: string }).agentId,
         scopes: [],
       };
-    } catch {
+    } catch (err) {
+      // A revoked key and an unreachable backend are different problems, and
+      // returning undefined for both made every outage look like a bad
+      // credential. Convex answers a bad key with a refusal it authored; any
+      // other failure (deployment asleep, function not deployed, network) is
+      // ours, so log it — the agent still gets 401, but the deployment logs
+      // now say which of the two happened.
+      if (!(err instanceof ConvexError)) {
+        console.error("[mcp] whoami failed upstream", err);
+      }
       return undefined;
     }
   },
@@ -1808,3 +1896,19 @@ function guarded(req: Request): Promise<Response> | Response {
 }
 
 export { guarded as GET, guarded as POST, guarded as DELETE };
+
+// Vercel function config, and the reason first reads were returning 502.
+//
+// The `maxDuration: 60` passed to createMcpHandler above only governs
+// mcp-handler's own SSE keepalive — it does NOT raise the platform's function
+// timeout. Without this export the route ran on the account default (10-15s),
+// so a cold start plus a broad first read (get_tree over a whole workspace,
+// whoami against a sleeping Convex deployment) was killed mid-flight and the
+// caller saw an upstream 502 rather than a tool error. Tool-level failures are
+// already caught and returned as isError; only the timeout escaped.
+export const maxDuration = 60;
+// Explicit: the Convex HTTP client and the MCP transport both want Node, and
+// an accidental edge-runtime inference would break them in non-obvious ways.
+export const runtime = "nodejs";
+// Never cached — every call is authenticated per-agent and mutates state.
+export const dynamic = "force-dynamic";

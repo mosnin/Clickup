@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "vercel-build": "convex deploy --cmd 'next build'"
   },
   "dependencies": {
     "@capacitor/cli": "^6.2.0",
@@ -33,6 +34,7 @@
     "@tiptap/pm": "^2.10.3",
     "@tiptap/react": "^2.10.3",
     "@tiptap/starter-kit": "^2.10.3",
+    "ably": "^2.26.0",
     "border-beam": "^1.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

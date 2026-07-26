@@ -74,4 +74,40 @@ console.log(`✓ get_tree`);
 const resources = await rpc("resources/list", {});
 console.log(`✓ resources/list (${resources.resources.length} skills)`);
 
+// Catalog parity. The failure this exists to catch: the deployed frontend
+// advertises a tool whose Convex function was never deployed, so the tool is
+// listed and then fails when an agent calls it — which looks like a platform
+// outage rather than a stale backend.
+//
+// Probe method: call each tool with deliberately empty arguments. A deployed
+// function answers with a validation or authorization complaint, which is a
+// pass — the function resolved. A missing one answers "Could not find public
+// function", which is the failure. Nothing is created either way.
+const PROBE = [
+  "create_tasks",
+  "create_roadmap",
+  "get_sprint_planning",
+  "list_events",
+  "get_wallet",
+];
+const stale = [];
+for (const name of PROBE) {
+  if (!tools.tools.some((t) => t.name === name)) {
+    stale.push(`${name} (not advertised)`);
+    continue;
+  }
+  const out = await rpc("tools/call", { name, arguments: {} });
+  const text = out.content?.[0]?.text ?? "";
+  if (/could not find public function|function not found/i.test(text)) {
+    stale.push(`${name} (advertised, missing upstream)`);
+  }
+}
+if (stale.length) {
+  throw new Error(
+    `tool catalog is ahead of the deployed backend:\n  - ${stale.join("\n  - ")}\n` +
+      "Deploy Convex and the frontend together (npm run vercel-build).",
+  );
+}
+console.log(`✓ catalog parity (${PROBE.length} probed)`);
+
 console.log("\nAll smoke checks passed.");

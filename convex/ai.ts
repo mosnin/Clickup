@@ -5,6 +5,7 @@ import OpenAI from "openai";
 import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
+import { clipText as clip, tiptapToText } from "./_docText";
 
 // All OpenAI calls live here so the rest of the codebase doesn't depend
 // on the SDK. Set OPENAI_API_KEY on the Convex deployment via
@@ -27,23 +28,8 @@ function makeClient(): OpenAI | null {
 
 // --- Embedding helpers ----------------------------------------------------
 
-function tiptapToText(content: unknown): string {
-  // Walk a ProseMirror doc and extract plain text. Tolerant of the
-  // unknown shape — we just look for `text` on every leaf.
-  const parts: string[] = [];
-  function walk(node: unknown): void {
-    if (!node || typeof node !== "object") return;
-    const n = node as Record<string, unknown>;
-    if (typeof n.text === "string") parts.push(n.text);
-    if (Array.isArray(n.content)) for (const c of n.content) walk(c);
-  }
-  walk(content);
-  return parts.join(" ").trim();
-}
-
-function clip(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max) + "…" : s;
-}
+// Both helpers live in _docText.ts so the default-runtime queries in
+// agentApi.ts can use the same extraction this Node action does.
 
 // --- Index actions: called from mutations via ctx.scheduler --------------
 

@@ -50,12 +50,28 @@ export const _getTaskForIndex = internalQuery({
 
 async function scopeForDocLikeParent(
   ctx: QueryCtx,
-  parentType: "user" | "workspace" | "space",
+  parentType: "user" | "workspace" | "space" | "list",
   parentId: string,
 ): Promise<{ scopeType: "user" | "workspace"; scopeId: string } | null> {
   if (parentType === "user") return { scopeType: "user", scopeId: parentId };
   if (parentType === "workspace") {
     return { scopeType: "workspace", scopeId: parentId };
+  }
+  // A project doc resolves through the project to its space, so it is indexed
+  // in the same vector scope as everything else in that space. Getting this
+  // wrong would be a leak, not a bug: the scope is the filter Brain search
+  // uses to keep one account's vectors away from another's.
+  if (parentType === "list") {
+    const list = await ctx.db.get(parentId as Id<"lists">);
+    if (!list) return null;
+    const spaceId =
+      list.parentType === "space"
+        ? (list.parentId as Id<"spaces">)
+        : (await ctx.db.get(list.parentId as Id<"folders">))?.spaceId;
+    if (!spaceId) return null;
+    const listSpace = await ctx.db.get(spaceId);
+    if (!listSpace) return null;
+    return { scopeType: listSpace.parentType, scopeId: listSpace.parentId };
   }
   const space = await ctx.db.get(parentId as Id<"spaces">);
   if (!space) return null;

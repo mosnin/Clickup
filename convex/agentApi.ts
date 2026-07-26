@@ -101,6 +101,13 @@ import {
 } from "./templateCatalog";
 import { seedDefaultStatuses } from "./listStatuses";
 import { emitEvent, scopeForList } from "./events";
+import {
+  addressRevisionCore,
+  createRevisionCore,
+  openOnly,
+  revisionsForParent,
+} from "./revisions";
+import { clipText, tiptapToText } from "./_docText";
 import { getRollup } from "./rollups";
 
 // The agent-facing API: every function here authenticates with an agent
@@ -327,19 +334,6 @@ function sprintView(s: Doc<"sprints">) {
   };
 }
 
-// Extract plain text from Tiptap JSON (mirror of the helper in ai.ts,
-// which lives in the Node runtime and can't be imported here).
-function tiptapToText(content: unknown): string {
-  const parts: string[] = [];
-  function walk(node: unknown): void {
-    if (!node || typeof node !== "object") return;
-    const n = node as Record<string, unknown>;
-    if (typeof n.text === "string") parts.push(n.text);
-    if (Array.isArray(n.content)) for (const c of n.content) walk(c);
-  }
-  walk(content);
-  return parts.join(" ").trim();
-}
 
 function textToTiptap(text: string): unknown {
   return {
@@ -835,6 +829,34 @@ export const getTask = query({
           createdAt: m.createdAt,
           parentMessageId: m.parentMessageId,
           resolvedAt: m.resolvedAt,
+        })),
+      // Corrections still outstanding on this task. They ride the read an
+      // agent already makes, so there is no version of "I didn't know a change
+      // was requested" that involves the agent forgetting to check.
+      openRevisions: openOnly(
+        await revisionsForParent(ctx, "task", taskId),
+      ).map((r) => ({
+        revisionId: r._id,
+        body: r.body,
+        requestedBy: r.requestedByName,
+        requestedAt: r.createdAt,
+      })),
+      // The project's pinned context docs, flattened to text. Same reasoning:
+      // "read the brief first" should not depend on the agent choosing to.
+      context: (
+        await ctx.db
+          .query("docs")
+          .withIndex("by_parent", (q) =>
+            q.eq("parentType", "list").eq("parentId", task.listId),
+          )
+          .collect()
+      )
+        .filter((d) => d.pinnedContext === true)
+        .sort((a, b) => a.createdAt - b.createdAt)
+        .map((d) => ({
+          docId: d._id,
+          title: d.title,
+          text: clipText(tiptapToText(d.content), 8000),
         })),
     };
   },
@@ -4169,5 +4191,234 @@ export const instantiateBlueprint = mutation({
       },
       agentActor(agent),
     );
+  },
+});
+
+// ── Revisions and project context ────────────────────────────────────────
+//
+// The point of both: an agent should not have to be told to go looking. Open
+// revisions and pinned context already ride get_task's reply (see getTask
+// above); these functions exist for the cases that read has no room for —
+// project-level revisions, the full text of a long brief, and writing back.
+
+/**
+ * Every revision still needing work in the agent's scope, task-level and
+ * project-level, newest first. `listId` narrows to one project.
+ */
+export const listOpenRevisions = query({
+  args: {
+    apiKey: v.string(),
+    listId: v.optional(v.id("lists")),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { apiKey, listId, limit }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    // Normalize to plain list docs: requireListAccessForAgent returns a
+    // { list, spaceName } envelope, listsInScope returns the docs themselves.
+    const lists = listId
+      ? [(await requireListAccessForAgent(ctx, listId, agent)).list]
+      : (await listsInScope(ctx, agent)).map((entry) =>
+          "list" in entry ? entry.list : entry,
+        );
+
+    const out: {
+      revisionId: Id<"revisions">;
+      parentType: "task" | "list";
+      parentId: string;
+      listId: Id<"lists">;
+      listName: string;
+      taskTitle: string | null;
+      body: string;
+      requestedBy: string;
+      requestedAt: number;
+    }[] = [];
+
+    for (const list of lists) {
+      // Project-level asks: "the whole list needs reordering", not one task.
+      for (const revision of openOnly(
+        await revisionsForParent(ctx, "list", list._id),
+      )) {
+        out.push({
+          revisionId: revision._id,
+          parentType: "list",
+          parentId: list._id,
+          listId: list._id,
+          listName: list.name,
+          taskTitle: null,
+          body: revision.body,
+          requestedBy: revision.requestedByName,
+          requestedAt: revision.createdAt,
+        });
+      }
+      // Task-level asks. Walked per task rather than off the status index so
+      // the result can never include a task outside the agent's scope.
+      const tasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_list", (q) => q.eq("listId", list._id))
+        .collect();
+      for (const task of tasks) {
+        for (const revision of openOnly(
+          await revisionsForParent(ctx, "task", task._id),
+        )) {
+          out.push({
+            revisionId: revision._id,
+            parentType: "task",
+            parentId: task._id,
+            listId: list._id,
+            listName: list.name,
+            taskTitle: task.title,
+            body: revision.body,
+            requestedBy: revision.requestedByName,
+            requestedAt: revision.createdAt,
+          });
+        }
+      }
+    }
+    return out
+      .sort((a, b) => b.requestedAt - a.requestedAt)
+      .slice(0, Math.min(limit ?? 50, 200));
+  },
+});
+
+/**
+ * Report a revision as addressed, with a note saying what changed. An agent
+ * cannot accept its own revision — a person decides that, the same asymmetry
+ * the approval gates use.
+ */
+export const addressRevision = mutation({
+  args: {
+    apiKey: v.string(),
+    revisionId: v.id("revisions"),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, { apiKey, revisionId, note }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
+    const revision = await ctx.db.get(revisionId);
+    if (!revision) throw new ConvexError("Revision not found");
+    // Scope check through the parent, so an agent can only touch revisions on
+    // work it can already reach.
+    if (revision.parentType === "task") {
+      await requireTaskAccessForAgent(
+        ctx,
+        revision.parentId as Id<"tasks">,
+        agent,
+      );
+    } else {
+      await requireListAccessForAgent(
+        ctx,
+        revision.parentId as Id<"lists">,
+        agent,
+      );
+    }
+    await addressRevisionCore(ctx, { revisionId, note }, agentActor(agent));
+    return { ok: true as const };
+  },
+});
+
+/** Ask a human (or another agent) for a change. Same object, other direction. */
+export const requestRevision = mutation({
+  args: {
+    apiKey: v.string(),
+    parentType: v.union(v.literal("task"), v.literal("list")),
+    parentId: v.string(),
+    body: v.string(),
+  },
+  handler: async (ctx, { apiKey, parentType, parentId, body }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
+    if (parentType === "task") {
+      await requireTaskAccessForAgent(ctx, parentId as Id<"tasks">, agent);
+    } else {
+      await requireListAccessForAgent(ctx, parentId as Id<"lists">, agent);
+    }
+    const revisionId = await createRevisionCore(
+      ctx,
+      { parentType, parentId, body },
+      agentActor(agent),
+    );
+    return { revisionId };
+  },
+});
+
+/** Every context doc on a project, with full text. */
+export const listProjectDocs = query({
+  args: { apiKey: v.string(), listId: v.id("lists") },
+  handler: async (ctx, { apiKey, listId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    await requireListAccessForAgent(ctx, listId, agent);
+    const docs = await ctx.db
+      .query("docs")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", "list").eq("parentId", listId),
+      )
+      .collect();
+    return docs
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .map((d) => ({
+        docId: d._id,
+        title: d.title,
+        pinnedContext: d.pinnedContext === true,
+        updatedAt: d.updatedAt,
+        text: clipText(tiptapToText(d.content), 20000),
+      }));
+  },
+});
+
+/**
+ * Write a project context doc. Markdown-ish plain text in, stored as the same
+ * Tiptap document shape the human editor reads — one paragraph per line, so a
+ * doc an agent wrote opens and edits like any other.
+ */
+export const writeProjectDoc = mutation({
+  args: {
+    apiKey: v.string(),
+    listId: v.id("lists"),
+    title: v.string(),
+    text: v.string(),
+    docId: v.optional(v.id("docs")),
+    pinnedContext: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    await requireListAccessForAgent(ctx, args.listId, agent);
+    const content = {
+      type: "doc",
+      content: args.text.split("\n").map((line) => ({
+        type: "paragraph",
+        content: line ? [{ type: "text", text: line }] : [],
+      })),
+    };
+    const now = Date.now();
+
+    if (args.docId) {
+      const existing = await ctx.db.get(args.docId);
+      if (!existing) throw new ConvexError("Doc not found");
+      if (
+        existing.parentType !== "list" ||
+        existing.parentId !== args.listId
+      ) {
+        throw new ConvexError("That doc belongs to a different project");
+      }
+      await ctx.db.patch(args.docId, {
+        title: args.title,
+        content,
+        updatedAt: now,
+        ...(args.pinnedContext === undefined
+          ? {}
+          : { pinnedContext: args.pinnedContext }),
+      });
+      return { docId: args.docId };
+    }
+
+    const docId = await ctx.db.insert("docs", {
+      parentType: "list",
+      parentId: args.listId,
+      title: args.title,
+      content,
+      pinnedContext: args.pinnedContext ?? false,
+      createdByClerkId: agent._id,
+      updatedAt: now,
+      createdAt: now,
+    });
+    return { docId };
   },
 });

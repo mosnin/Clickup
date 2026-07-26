@@ -67,6 +67,31 @@ export async function emitEvent(
       deliveryId,
     });
   }
+
+  // Live nudge alongside the webhook fan-out. Deliberately tiny: the id, the
+  // type, who did it, and where. Anything that wants detail reads Convex,
+  // which is already subscribed and authoritative — so a dropped message costs
+  // a notification, never data.
+  //
+  // Scheduled rather than awaited: a slow or failing Ably must not extend or
+  // roll back the transaction that just committed the change.
+  await ctx.scheduler.runAfter(0, internal.realtime.publish, {
+    channel: `operate:${e.scopeType}:${e.scopeId}`,
+    name: e.type,
+    data: {
+      eventId,
+      type: e.type,
+      actorType: e.actor.type,
+      actorId: e.actor.id,
+      actorName: e.actor.name,
+      entityType: e.entityType,
+      entityId: e.entityId,
+      entityTitle: e.entityTitle,
+      listId: e.listId,
+      at: Date.now(),
+    },
+  });
+
   return eventId;
 }
 

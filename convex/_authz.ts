@@ -163,12 +163,19 @@ export async function requireTaskAccess(
 // docs.ts and whiteboards.ts.
 export async function requireDocLikeParentAccess(
   ctx: QueryCtx | MutationCtx,
-  parentType: "user" | "workspace" | "space",
+  parentType: "user" | "workspace" | "space" | "list",
   parentId: string,
 ): Promise<{ identity: Identity }> {
   const identity = await requireIdentity(ctx);
   if (parentType === "user") {
     if (parentId !== identity.subject) throw new ConvexError("Forbidden");
+    return { identity };
+  }
+  // A doc attached to a project inherits the project's access exactly — there
+  // is no separate doc-level permission, so a doc can never be reachable by
+  // someone who cannot already open the project it explains.
+  if (parentType === "list") {
+    await requireListAccess(ctx, parentId as Id<"lists">);
     return { identity };
   }
   if (parentType === "workspace") {

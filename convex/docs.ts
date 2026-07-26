@@ -5,10 +5,15 @@ import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { requireDocLikeParentAccess, requireIdentity } from "./_authz";
 
+// "list" is a project. A project doc is where the detailed context lives —
+// the brief, the decisions, the constraints that a task description has no room
+// for — and it is the same doc type as everywhere else on purpose: one editor,
+// one search index, one authorization path (see requireDocLikeParentAccess).
 const parentTypeValidator = v.union(
   v.literal("user"),
   v.literal("workspace"),
   v.literal("space"),
+  v.literal("list"),
 );
 
 // Wiki nesting: a subpage's depth is its number of ancestors (a root doc
@@ -294,5 +299,50 @@ export const remove = mutation({
       parentType: "doc",
       parentId: docId,
     });
+  },
+});
+
+/**
+ * Pin or unpin a project doc as canonical context.
+ *
+ * Pinned docs are handed to an agent with the task bundle instead of the agent
+ * having to know to go looking, so "read the brief first" stops being something
+ * you hope happens. Only project docs can be pinned — pinning a personal or
+ * workspace doc would have nothing to attach it to.
+ */
+export const setPinnedContext = mutation({
+  args: { docId: v.id("docs"), pinned: v.boolean() },
+  handler: async (ctx, { docId, pinned }) => {
+    const doc = await ctx.db.get(docId);
+    if (!doc) throw new ConvexError("Doc not found");
+    await requireDocLikeParentAccess(ctx, doc.parentType, doc.parentId);
+    if (doc.parentType !== "list") {
+      throw new ConvexError("Only project docs can be pinned as context");
+    }
+    await ctx.db.patch(docId, { pinnedContext: pinned });
+  },
+});
+
+/**
+ * The context an agent (or a person opening a task) should read first: the
+ * pinned docs on a project, oldest first so a numbered brief reads in order.
+ */
+export const pinnedContextForList = query({
+  args: { listId: v.id("lists") },
+  handler: async (ctx, { listId }) => {
+    try {
+      await requireDocLikeParentAccess(ctx, "list", listId);
+    } catch {
+      return [];
+    }
+    const docs = await ctx.db
+      .query("docs")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", "list").eq("parentId", listId),
+      )
+      .collect();
+    return docs
+      .filter((d) => d.pinnedContext === true)
+      .sort((a, b) => a.createdAt - b.createdAt);
   },
 });
