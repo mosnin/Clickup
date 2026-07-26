@@ -144,6 +144,7 @@ export function CtaPanel() {
                   tone="dark"
                   video="/screenshots/cta-ascii.mp4"
                   alt="Looping ASCII-art animation"
+                  caption="Ambient loop — no product data in this one."
                 />
               </div>
             </div>

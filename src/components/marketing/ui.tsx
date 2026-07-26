@@ -167,6 +167,7 @@ export function CtaButton({
 /** Rounded frame around a screenshot placeholder, reference-style. */
 export function ScreenshotFrame({
   label,
+  caption,
   src,
   video,
   alt,
@@ -176,6 +177,13 @@ export function ScreenshotFrame({
   className,
 }: {
   label: string;
+  /**
+   * One line under the frame naming what the shot is and what to look at. A
+   * product screenshot with no caption is a decoration — the reader has no
+   * way to know which surface they're looking at or why it matters. Pass it
+   * everywhere a real `src`/`video` is set.
+   */
+  caption?: string;
   /** Real screenshot; when set, renders the image instead of the red
    * placeholder. */
   src?: string;
@@ -228,12 +236,21 @@ export function ScreenshotFrame({
       )}
     </div>
   );
-  return beam ? (
+  const framed = beam ? (
     <BorderBeam size="md" colorVariant="colorful">
       {frame}
     </BorderBeam>
   ) : (
     frame
+  );
+  if (!caption) return framed;
+  return (
+    <figure className="m-0">
+      {framed}
+      <figcaption className="mt-3 text-center text-xs leading-relaxed text-white/45">
+        {caption}
+      </figcaption>
+    </figure>
   );
 }
 

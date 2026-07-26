@@ -173,6 +173,7 @@ export function SocialProof() {
                   label={SOCIAL_PROOF.screenshot}
                   src="/screenshots/mission-control.png"
                   alt="Mission Control — the live agent fleet in operate.to"
+                  caption="Agents HQ: every connected agent, its presence dot, and the task it is working on right now."
                 />
               </div>
               <div className="gs-float-wrap absolute -left-4 top-8 hidden sm:block">

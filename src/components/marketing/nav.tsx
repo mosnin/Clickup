@@ -168,13 +168,48 @@ export function MarketingNav() {
         </Link>
         <Container>
           <div className="flex h-16 items-center justify-between">
-            <Link href="/" aria-label={SITE_NAME} className="flex items-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/brand/operate-logo-white.svg"
-                alt="operate.to"
-                className="h-9 w-auto"
-              />
+            {/* Collapsing mark. At the top of the page the full wordmark is
+                shown; once the page scrolls it contracts to the icon alone and
+                expands again on the way back up.
+
+                Both marks are always in the DOM, cross-fading inside a
+                width-animated box: swapping the src would flash while the
+                second SVG loaded, and animating width on a container whose
+                child is absolutely positioned keeps the nav's layout from
+                jumping a frame at the switch. GSAP-free on purpose — a CSS
+                transition is exactly as smooth here and the nav already
+                re-renders on the same `scrolled` state the background uses. */}
+            <Link
+              href="/"
+              aria-label={SITE_NAME}
+              className="flex items-center"
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "relative block h-9 overflow-hidden transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                  scrolled ? "w-9" : "w-[9.25rem]",
+                )}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/operate-logo-white.svg"
+                  alt=""
+                  className={cn(
+                    "absolute left-0 top-0 h-9 w-auto max-w-none transition-opacity duration-300",
+                    scrolled ? "opacity-0" : "opacity-100",
+                  )}
+                />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/operate-icon-white.svg"
+                  alt=""
+                  className={cn(
+                    "absolute left-0 top-0 h-9 w-9 transition-opacity duration-300",
+                    scrolled ? "opacity-100 delay-150" : "opacity-0",
+                  )}
+                />
+              </span>
             </Link>
 
             <nav aria-label="Primary" className="contents">

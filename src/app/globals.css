@@ -226,7 +226,6 @@ body {
   }
 }
 
-
 @media (prefers-reduced-motion: reduce) {
   .t-resize {
     transition: none !important;
@@ -275,7 +274,6 @@ body {
   --color-navy-900: #000000;
   --color-navy-950: #000000;
 
-  
   --color-azure-100: #0d2732;
   --color-azure-200: #123c4d;
   --color-azure-300: #a5e8ff;
@@ -982,9 +980,101 @@ h3,
   /* font-size-adjust rather than a font-size multiplier: Tailwind's
      text-* utilities are classes and would win a specificity fight over
      this element selector, so scaling here has to happen on a property
-     the utilities never set. 0.52 is Instrument Sans' x-height ratio, so
-     headings keep the optical size they had before the swap. */
-  font-size-adjust: 0.52;
-  line-height: 0.95;
+     the utilities never set. 0.5 is roughly Instrument Sans' x-height
+     ratio, so headings keep the optical size they had before the swap.
+
+     Deliberately no line-height: an unlayered rule here would beat every
+     Tailwind leading-* / text-* utility on every h1-h3 in the app, and a
+     line box tighter than the adjusted glyphs clips them inside anything
+     with line-clamp or truncate. Leading stays the utilities' business. */
+  font-size-adjust: 0.5;
   letter-spacing: 0;
+}
+
+/* ── Mobile sidebar drawer ────────────────────────────────────────────────
+   The vendored Sheet slides in linearly, which reads cheap on a drawer this
+   large. `.sidebar-sheet` (applied to the one mobile sidebar Sheet in
+   components/ui/sidebar.tsx) replaces that with the app's long-tail curve
+   plus a hair of scale and blur, and cascades the tree's groups in just
+   behind the panel so the drawer arrives with its contents rather than as a
+   finished block. Overrides the primitive's tw-animate-css slide utilities,
+   hence the !important on animation-name. */
+.sidebar-sheet[data-state="open"],
+.sidebar-sheet[data-state="closed"] {
+  animation-name: sidebar-sheet-in !important;
+  animation-duration: 0.42s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: both;
+}
+.sidebar-sheet[data-state="closed"] {
+  animation-name: sidebar-sheet-out !important;
+  animation-duration: 0.26s;
+  animation-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+@keyframes sidebar-sheet-in {
+  from {
+    transform: translate3d(-8%, 0, 0) scale(0.98);
+    opacity: 0;
+    filter: blur(6px);
+  }
+  to {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+@keyframes sidebar-sheet-out {
+  from {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(-6%, 0, 0);
+    opacity: 0;
+  }
+}
+
+/* The cascade. Direct groups of the drawer's scroll area rise in on a 45ms
+   step; :nth-child caps at 8 so a long tree doesn't end up with a visible
+   delay at the bottom. */
+.sidebar-sheet[data-state="open"] [data-slot="sidebar-content"] > * {
+  animation: sidebar-sheet-item 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.sidebar-sheet[data-state="open"]
+  [data-slot="sidebar-content"]
+  > *:nth-child(1) {
+  animation-delay: 0.1s;
+}
+.sidebar-sheet[data-state="open"]
+  [data-slot="sidebar-content"]
+  > *:nth-child(2) {
+  animation-delay: 0.145s;
+}
+.sidebar-sheet[data-state="open"]
+  [data-slot="sidebar-content"]
+  > *:nth-child(3) {
+  animation-delay: 0.19s;
+}
+.sidebar-sheet[data-state="open"]
+  [data-slot="sidebar-content"]
+  > *:nth-child(n + 4) {
+  animation-delay: 0.235s;
+}
+@keyframes sidebar-sheet-item {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-sheet[data-state="open"],
+  .sidebar-sheet[data-state="closed"],
+  .sidebar-sheet[data-state="open"] [data-slot="sidebar-content"] > * {
+    animation: none !important;
+  }
 }

@@ -54,7 +54,34 @@ export function MarketingFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="bg-navy-950 text-white">
+    <footer className="relative isolate overflow-hidden bg-navy-950 text-white">
+      {/* Spline scene behind the footer.
+
+          pointer-events-none on the wrapper: the iframe would otherwise
+          swallow every click meant for the link columns above it. lazy so it
+          never competes with the page's own load, and aria-hidden + a title
+          because it carries no information a screen reader needs.
+
+          Legibility is the scrims' job, not the scene's: a flat wash plus a
+          top-down gradient that starts at the footer's own fill, so the band
+          reads as one surface and white text keeps its contrast wherever the
+          scene happens to be bright. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      >
+        <iframe
+          src="https://my.spline.design/aidatamodelinteraction-mdTL3FktFVHgDvFr5TKtnYDV"
+          title=""
+          aria-hidden
+          tabIndex={-1}
+          loading="lazy"
+          className="absolute left-0 top-0 h-full w-full border-0"
+        />
+        <div className="absolute inset-0 bg-navy-950/70" />
+        <div className="absolute inset-0 bg-gradient-to-b from-navy-950 via-navy-950/55 to-navy-950/85" />
+      </div>
+
       <Container className="py-16">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_2fr]">
           <div>

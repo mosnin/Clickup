@@ -67,6 +67,7 @@ function ShowcaseScaleFrame() {
         tone="dark"
         src="/screenshots/home-showcase.png"
         alt="operate.to dashboard — projects, sprints and agent activity"
+        caption="A workspace mid-sprint — tasks grouped by status, with the agents holding them named on each row."
         className="gs-showcase-frame"
       />
     </div>

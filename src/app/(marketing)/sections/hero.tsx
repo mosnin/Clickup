@@ -1,32 +1,25 @@
 "use client";
 
-import { Fragment } from "react";
-import { ArrowRight, ListChecks, Plug, ShieldCheck } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import gsap from "gsap";
 import { HERO } from "@/lib/marketing-content";
 import { Container, CtaButton, ScreenshotFrame } from "@/components/marketing/ui";
-import { HeroRotator } from "@/components/marketing/hero-rotator";
 import { HeroUnicorn } from "@/components/marketing/hero-unicorn";
 import { useGsap, GsapParallax, EASE_OUT } from "@/components/marketing/gsap";
-import { cn } from "@/lib/utils";
 import GradientText from "@/components/gradient-text";
 
-// Step icons, in order — semantic markers for each onboarding step, not
-// decoration (Plug = connect, ListChecks = assign, ShieldCheck = guardrails).
-const STEP_ICONS = [Plug, ListChecks, ShieldCheck];
-
-// Headline lead words. The old inline glyph is gone: between "AI" and
-// "workforce" sits the living <HeroRotator/> (a flipping use-case icon plus
-// a rewriting domain word), so the line reads "…your AI [icon] engineering
-// workforce." and cycles through use cases.
-const LEAD_WORDS = ["Recruit,", "direct", "and", "scale", "your", "AI"];
-const WORD_STAGGER = 0.045;
+// Headline, one line per array entry. Two lines, never more: a third line
+// pushed the product shot off a phone screen entirely, which is the one thing
+// the hero cannot afford. The second line carries the gradient.
+const HEADLINE = ["Agents that finish", "what they start."];
+const LINE_STAGGER = 0.09;
 
 // Home hero — the signature entrance moment. A single mount timeline (not
-// scroll-triggered) reveals chip -> title -> sub -> CTAs -> steps ->
-// screenshot. Lives on the shared azure->navy band from page.tsx; no
-// background of its own.
+// scroll-triggered) reveals chip -> title -> sub -> CTAs -> screenshot. The
+// three-step icon row that used to sit above the shot is gone: it delayed the
+// product by a full screen on mobile and said what the sub-headline already
+// says. Lives on the black canvas; the Unicorn scene is the only backdrop.
 
 export function Hero() {
   const ref = useGsap(({ root }) => {
@@ -45,33 +38,10 @@ export function Hero() {
           y: 0,
           filter: "blur(0px)",
           duration: 0.5,
-          stagger: WORD_STAGGER,
+          stagger: LINE_STAGGER,
           clearProps: "filter",
         },
         "-=0.35",
-      )
-      .fromTo(
-        root.querySelector("[data-hero-glyph]"),
-        { autoAlpha: 0, scale: 0.4 },
-        {
-          autoAlpha: 1,
-          scale: 1,
-          duration: 0.4,
-          ease: "back.out(1.6)",
-        },
-        `<+=${(LEAD_WORDS.length - 1) * WORD_STAGGER}`,
-      )
-      .fromTo(
-        root.querySelector("[data-hero-last-word]"),
-        { autoAlpha: 0, y: 28, filter: "blur(8px)" },
-        {
-          autoAlpha: 1,
-          y: 0,
-          filter: "blur(0px)",
-          duration: 0.5,
-          clearProps: "filter",
-        },
-        "<+=0.08",
       )
       .fromTo(
         root.querySelector("[data-hero-sub]"),
@@ -86,38 +56,51 @@ export function Hero() {
         "-=0.35",
       )
       .fromTo(
-        root.querySelectorAll("[data-hero-step]"),
-        { autoAlpha: 0, y: 16 },
-        { autoAlpha: 1, y: 0, duration: 0.5, stagger: 0.08 },
-        "-=0.3",
-      )
-      .fromTo(
-        root.querySelectorAll("[data-hero-connector]"),
-        { scaleX: 0 },
-        { scaleX: 1, duration: 0.4, stagger: 0.15 },
-        "-=0.3",
-      )
-      .fromTo(
         root.querySelector("[data-hero-shot]"),
         { autoAlpha: 0, y: 48, scale: 0.96 },
         { autoAlpha: 1, y: 0, scale: 1, duration: 0.9 },
         "-=0.5",
       );
 
-    // Subtle scroll-linked tilt on the screenshot wrapper, independent of
-    // the mount timeline above — settles from a barely-there perspective
-    // lean to flat as the frame moves through the viewport.
+    // Two scrubbed tweens on the shot, and they do different jobs.
+    //
+    // Arriving: the frame comes up out of focus, slightly over-scaled and
+    // leaning back, and resolves as it reaches the middle of the viewport —
+    // a zoom-blur settle, so scrolling *into* the product feels like
+    // focusing on it rather than passing it.
+    const tilt = root.querySelector("[data-hero-shot-tilt]");
     gsap.fromTo(
-      root.querySelector("[data-hero-shot-tilt]"),
-      { rotateX: 4, scale: 0.97 },
+      tilt,
+      { rotateX: 5, scale: 1.06, filter: "blur(14px)" },
       {
         rotateX: 0,
         scale: 1,
+        filter: "blur(0px)",
         ease: "none",
         scrollTrigger: {
-          trigger: root.querySelector("[data-hero-shot-tilt]"),
+          trigger: tilt,
           start: "top bottom",
-          end: "top 55%",
+          end: "top 45%",
+          scrub: true,
+        },
+      },
+    );
+
+    // Leaving: it defocuses and lifts away as the next section takes over,
+    // so the seam between the hero and what follows is a dissolve instead of
+    // a hard cut.
+    gsap.fromTo(
+      tilt,
+      { filter: "blur(0px)", scale: 1, autoAlpha: 1 },
+      {
+        filter: "blur(10px)",
+        scale: 0.97,
+        autoAlpha: 0.35,
+        ease: "none",
+        scrollTrigger: {
+          trigger: tilt,
+          start: "bottom 55%",
+          end: "bottom top",
           scrub: true,
         },
       },
@@ -140,14 +123,17 @@ export function Hero() {
           shot rather than filling the whole section. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[clamp(24rem,62vh,38rem)] overflow-hidden"
+        className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[clamp(36rem,92vh,58rem)] overflow-hidden"
       >
         <HeroUnicorn />
-        {/* Light vignette keeps the headline legible without muddying the
-            scene; the bottom fade lands on pure black, the same fill the page
-            canvas uses, so it dissolves into the page with no seam. */}
-        <div className="absolute inset-0 bg-[radial-gradient(120%_95%_at_50%_18%,transparent_30%,rgba(0,0,0,0.72)_100%)]" />
-        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-b from-transparent via-black/75 to-black" />
+        {/* Three stacked scrims, in order of what each one fixes:
+            a flat wash that pulls the whole scene down to a level the white
+            headline can sit on, a vignette that keeps the edges darker than
+            the middle, and a bottom fade landing on pure black — the same
+            fill as the page canvas — so the band dissolves with no seam. */}
+        <div className="absolute inset-0 bg-black/55" />
+        <div className="absolute inset-0 bg-[radial-gradient(120%_95%_at_50%_18%,rgba(0,0,0,0.25)_25%,rgba(0,0,0,0.86)_100%)]" />
+        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-b from-transparent via-black/80 to-black" />
       </div>
 
       {/* Quiet circuit-line texture — thin traces + tiny dots, barely
@@ -214,30 +200,17 @@ export function Hero() {
 
         <h1
           data-hero-title
-          aria-label="Recruit, direct and scale your AI workforce."
-          className="mx-auto mt-6 max-w-3xl text-balance text-4xl font-semibold tracking-[-0.02em] text-white sm:text-6xl lg:text-7xl"
+          className="mx-auto mt-6 max-w-[20ch] text-balance text-[2.6rem] font-semibold leading-[1.02] tracking-[-0.03em] text-white sm:text-6xl lg:text-[4.25rem]"
         >
-          {LEAD_WORDS.map((word, i) => {
-            const bare = word.replace(/[.,]/g, "").toLowerCase();
-            const emphasize = bare === "ai";
-            return (
-              <Fragment key={word + i}>
-                <span data-hero-word className="inline-block">
-                  {emphasize ? <GradientText>{word}</GradientText> : word}
-                </span>{" "}
-              </Fragment>
-            );
-          })}
-          {/* The rotating segment and "workforce." each own a full line, so
-              a longer use-case word can never re-wrap the headline — the
-              line count is identical for every word and the only motion is
-              the word slot's width gliding. */}
-          <span data-hero-glyph className="block">
-            <HeroRotator />
-          </span>
-          <span data-hero-last-word className="block">
-            <GradientText>workforce.</GradientText>
-          </span>
+          {HEADLINE.map((line, i) => (
+            <span data-hero-word key={line} className="block">
+              {i === HEADLINE.length - 1 ? (
+                <GradientText>{line}</GradientText>
+              ) : (
+                line
+              )}
+            </span>
+          ))}
         </h1>
 
         <p
@@ -265,50 +238,6 @@ export function Hero() {
           </CtaButton>
         </div>
 
-        <div className="mx-auto mt-14 grid max-w-3xl grid-cols-1 gap-y-8 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:items-start">
-          {HERO.steps.map((step, i) => {
-            const Icon = STEP_ICONS[i];
-            const isFirst = i === 0;
-            return (
-              <Fragment key={step.title}>
-                {i > 0 && (
-                  <div
-                    aria-hidden
-                    className="relative hidden h-6 w-10 items-center justify-self-center sm:flex"
-                  >
-                    <div
-                      data-hero-connector
-                      className="h-px w-full origin-left bg-white/20"
-                    />
-                    <span className="absolute top-1/2 left-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/40" />
-                  </div>
-                )}
-                <div data-hero-step className="text-center">
-                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 ring-1 ring-white/15">
-                    <Icon className="size-4 text-white/80" aria-hidden />
-                  </div>
-                  <p
-                    className={cn(
-                      "mt-3 text-sm font-semibold",
-                      isFirst ? "text-white" : "text-white/65",
-                    )}
-                  >
-                    {step.title}
-                  </p>
-                  <p
-                    className={cn(
-                      "mt-1 text-xs leading-relaxed",
-                      isFirst ? "text-white/70" : "text-white/55",
-                    )}
-                  >
-                    {step.body}
-                  </p>
-                </div>
-              </Fragment>
-            );
-          })}
-        </div>
-
         <GsapParallax
           speed={40}
           className="relative mx-auto mt-16 max-w-4xl [perspective:1200px]"
@@ -328,6 +257,7 @@ export function Hero() {
                 label={HERO.screenshot}
                 src="/screenshots/hero-dashboard.png"
                 alt="The operate.to dashboard — mission control for humans and AI agents"
+                caption="The dashboard: your projects down the left, the fleet's live activity down the right."
                 beam
               />
             </div>

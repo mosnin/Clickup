@@ -12,6 +12,8 @@ import {
 } from "@/components/marketing/ui";
 import { DUR, EASE_OUT, GsapReveal, useGsap } from "@/components/marketing/gsap";
 import GradientText from "@/components/gradient-text";
+import { AgentCard } from "../sections/agent-card";
+import { CalendarShowcase } from "../sections/calendar-showcase";
 
 // Features page — one anchored section per FEATURE_LINKS entry in
 // marketing-nav.ts. Section ids match the nav's #anchors exactly so the
@@ -26,6 +28,8 @@ type FeatureSection = {
   body: string;
   bullets: string[];
   visual: string;
+  /** One line under the shot: which surface it is and what to look at. */
+  shotCaption: string;
 };
 
 const SECTIONS: FeatureSection[] = [
@@ -40,6 +44,7 @@ const SECTIONS: FeatureSection[] = [
       "Per-agent detail pages: runs, cost, and 7-day analytics",
     ],
     visual: "Agents HQ — live fleet board",
+    shotCaption: "Agents HQ — each row is one agent, its presence dot, and the task it is holding right now.",
     shot: "/screenshots/features-agents.png",
     shotRatio: "2502/1544",
   },
@@ -54,6 +59,7 @@ const SECTIONS: FeatureSection[] = [
       "An npx-runnable stdio proxy for clients that can't speak HTTP",
     ],
     visual: "MCP — connected runtimes",
+    shotCaption: "The connect panel — the endpoint URL and a freshly minted key, shown once.",
     shot: "/screenshots/features-mcp.png",
     shotRatio: "2500/1544",
   },
@@ -68,6 +74,7 @@ const SECTIONS: FeatureSection[] = [
       "Daily action budgets plus a 60-per-minute burst cap",
     ],
     visual: "Governance — approval queue",
+    shotCaption: "The approval queue in the inbox — gated tasks waiting on a person, approved in one click.",
     shot: "/screenshots/features-governance.png",
     shotRatio: "2484/1348",
   },
@@ -82,6 +89,7 @@ const SECTIONS: FeatureSection[] = [
       "next_task dispatch and handoff_task with full context",
     ],
     visual: "Claims — blocked-by graph",
+    shotCaption: "A board with claim and blocked-by badges — the lock an agent holds, and the work it cannot start yet.",
     shot: "/screenshots/mission-control.png",
     shotRatio: "2502/1420",
   },
@@ -96,6 +104,7 @@ const SECTIONS: FeatureSection[] = [
       "Drag-and-drop board that honors gates and blockers",
     ],
     visual: "Tasks — board view",
+    shotCaption: "Board view — the same tasks as List, Calendar and Gantt, grouped by the list\u2019s own statuses.",
     shot: "/screenshots/features-tasks.png",
     shotRatio: "2496/1540",
   },
@@ -110,6 +119,7 @@ const SECTIONS: FeatureSection[] = [
       "Automations: on create or completion, assign or set priority",
     ],
     visual: "Sprints — burndown",
+    shotCaption: "A sprint mid-flight — scope, per-assignee rollup, and what closed since it started.",
     shot: "/screenshots/features-agents.png",
     shotRatio: "2502/1544",
   },
@@ -124,6 +134,7 @@ const SECTIONS: FeatureSection[] = [
       "Semantic search across every task and doc in scope",
     ],
     visual: "Docs — editor and brain search",
+    shotCaption: "A doc alongside Brain search — semantic results drawn from the docs and tasks in this scope.",
     shot: "/screenshots/features-docs.png",
     shotRatio: "2494/1390",
   },
@@ -138,6 +149,7 @@ const SECTIONS: FeatureSection[] = [
       "Agents subscribe themselves to events over MCP",
     ],
     visual: "Webhooks — delivery log",
+    shotCaption: "The delivery log — every signed POST, its response code, and its retry attempts.",
     shot: "/screenshots/features-webhooks.png",
     shotRatio: "2494/1534",
   },
@@ -275,6 +287,7 @@ export function FeaturesContent() {
                       ratio={s.shotRatio}
                       tone="dark"
                       alt={s.visual}
+                      caption={s.shotCaption}
                     />
                   }
                 />
@@ -283,6 +296,12 @@ export function FeaturesContent() {
           );
         })}
       </div>
+
+      {/* Two more surface languages, so the page isn't eight identical
+          screenshot rows: the glass agent card and the full calendar
+          window. */}
+      <AgentCard />
+      <CalendarShowcase />
 
       <Container className="py-24 text-center">
         <GsapReveal>

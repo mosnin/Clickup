@@ -4,6 +4,8 @@ import { Hero } from "./sections/hero";
 import { SocialProof } from "./sections/social-proof";
 import { Showcase } from "./sections/showcase";
 import { FeatureCards } from "./sections/feature-cards";
+import { CalendarShowcase } from "./sections/calendar-showcase";
+import { Stories } from "./sections/stories";
 import { CtaPanel } from "./sections/cta-panel";
 import { PricingSection } from "./sections/pricing-section";
 import { Faq } from "./sections/faq";
@@ -50,9 +52,10 @@ const JSON_LD = {
 // then the feature card grid, dark CTA panel, pricing, FAQ, and the "simpler"
 // closing panel. Sections own their backgrounds.
 //
-// <Showcase /> carries the real product screenshots; <FeatureCards /> is the
-// one feature block, five live surfaces rendered as the chrome they wear in
-// the app rather than a grid of copy tiles.
+// Each feature block deliberately wears a different surface language so the
+// page never reads as one long grid: <FeatureCards /> is the bento of live
+// app chrome, <CalendarShowcase /> is a full application window, <Stories />
+// is three light gradient columns. <Showcase /> carries the real screenshots.
 
 export default function HomePage() {
   return (
@@ -71,6 +74,8 @@ export default function HomePage() {
       </div>
       <Showcase />
       <FeatureCards />
+      <CalendarShowcase />
+      <Stories />
       <CtaPanel />
       <PricingSection />
       <Faq />

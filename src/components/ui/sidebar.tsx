@@ -187,7 +187,11 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
+          // sidebar-sheet upgrades the primitive's linear slide into the
+          // app's own motion curve and cascades the tree in behind it (see
+          // globals.css). Kept as a class on this one Sheet rather than a
+          // change to the shared primitive, so dialogs elsewhere are untouched.
+          className="sidebar-sheet bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,

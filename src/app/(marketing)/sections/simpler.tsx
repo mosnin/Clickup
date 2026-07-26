@@ -96,6 +96,7 @@ export function Simpler() {
                 tone="dark"
                 src="/screenshots/personal-space.png"
                 alt="A personal space in operate.to running a single agent"
+                caption="A personal space with one agent attached — no workspace, no team, same tools."
               />
             </div>
           </div>

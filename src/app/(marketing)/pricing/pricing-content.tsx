@@ -5,6 +5,7 @@ import { Container, Eyebrow } from "@/components/marketing/ui";
 import { useGsap, EASE_OUT } from "@/components/marketing/gsap";
 import GradientText from "@/components/gradient-text";
 import { PricingSection } from "../sections/pricing-section";
+import { PricingGrid } from "../sections/pricing-grid";
 import { Faq } from "../sections/faq";
 
 // Pricing (marketing v2). A compact navy hero band sets up the page, then
@@ -67,6 +68,11 @@ export function PricingContent() {
   return (
     <>
       <PricingHero />
+      {/* The tier grid is the page's main event: columns of one table rather
+          than three floating cards, so the tiers read as a single comparison.
+          <PricingSection /> stays below it for the annual toggle and the
+          enterprise panel. */}
+      <PricingGrid />
       <PricingSection />
       <Faq />
     </>

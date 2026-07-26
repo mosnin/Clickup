@@ -1,6 +1,11 @@
 "use client";
 
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ScrollToPlugin } from "gsap/ScrollToPlugin";
@@ -128,6 +133,7 @@ export function useGsap(
 export function GsapReveal({
   children,
   className,
+  style,
   stagger = false,
   y = 28,
   delay = 0,
@@ -135,6 +141,8 @@ export function GsapReveal({
 }: {
   children: ReactNode;
   className?: string;
+  /** Passed through to the wrapper — for clip-path frames and the like. */
+  style?: CSSProperties;
   /** Animate direct children as a 0.08s cascade instead of one block. */
   stagger?: boolean;
   y?: number;
@@ -175,7 +183,12 @@ export function GsapReveal({
     );
   });
   return (
-    <div ref={ref} className={cn("gs-reveal", className)} data-gs-hidden="">
+    <div
+      ref={ref}
+      className={cn("gs-reveal", className)}
+      style={style}
+      data-gs-hidden=""
+    >
       {children}
     </div>
   );
