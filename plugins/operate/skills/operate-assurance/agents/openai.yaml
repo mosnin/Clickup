@@ -1,0 +1,4 @@
+interface:
+  display_name: "Operate Outcome Assurance"
+  short_description: "Verify plan outcomes against independent evidence."
+  default_prompt: "Verify this Operate execution plan against its original success criteria with independent evidence review."

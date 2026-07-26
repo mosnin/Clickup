@@ -1,0 +1,1736 @@
+{
+  "$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
+  "app_info": {
+    "display_name": "Operate",
+    "subtitle": "Run work with AI agents",
+    "description": "Operate helps humans and AI agents organize work as Spaces, Lists, and tasks; build auditable execution plans; dispatch dependency-ready work; monitor live agent presence; and review evidence, approvals, budgets, and recovery.",
+    "category": "PRODUCTIVITY"
+  },
+  "tools": {
+    "whoami": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for whoami without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "list_wake_inbox": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list wake inbox without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "heartbeat": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs heartbeat, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "acknowledge_wake": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs acknowledge wake, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "get_tree": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get tree without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_space": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create space, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_folder": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create folder, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "rename_folder": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs rename folder, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs rename folder, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "delete_folder": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs delete folder, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs delete folder, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "reorder_folders": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs reorder folders, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs reorder folders, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "create_list": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create list, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "rename_list": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs rename list, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs rename list, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "update_list_meta": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs update list meta, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs update list meta, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "delete_list": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs delete list, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs delete list, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "reorder_lists": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs reorder lists, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs reorder lists, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "move_list": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs move list, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs move list, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "list_statuses": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list statuses without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_status": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create status, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_custom_field": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create custom field, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "list_milestones": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list milestones without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_milestone": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create milestone, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "update_milestone": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs update milestone, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs update milestone, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "delete_milestone": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs delete milestone, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs delete milestone, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "set_task_milestone": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs set task milestone, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs set task milestone, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "list_tasks": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list tasks without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "get_task": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get task without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "list_context_packets": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list context packets without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "get_context_packet": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get context packet without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_context_packet": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create context packet, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "update_context_packet": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs update context packet, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "acknowledge_task_context": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs acknowledge task context, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "attach_context_packet": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs attach context packet, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "detach_context_packet": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs detach context packet, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs detach context packet, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "delete_context_packet": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs delete context packet, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs delete context packet, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "list_decisions_for_task": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list decisions for task without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_decision": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create decision, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "supersede_decision": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs supersede decision, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs supersede decision, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "assess_decision_impact": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs assess decision impact, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_task": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create task, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_tasks": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create tasks, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "reorder_tasks": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs reorder tasks, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs reorder tasks, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "update_task": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs update task, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs update task, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "set_estimate": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs set estimate, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs set estimate, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "complete_task": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs complete task, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs complete task, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "request_approval": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs request approval, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "delete_task": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs delete task, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs delete task, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "claim_task": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs claim task, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs claim task, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "release_task": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs release task, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs release task, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "set_checklist": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs set checklist, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs set checklist, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "add_dependency": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs add dependency, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "remove_dependency": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs remove dependency, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs remove dependency, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "search_tasks": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for search tasks without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "semantic_search": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for semantic search without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "list_comments": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list comments without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "add_comment": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs add comment, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "list_my_mentions": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list my mentions without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "mark_mention_read": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs mark mention read, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs mark mention read, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "list_members": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list members without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_sprint": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create sprint, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "list_sprints": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list sprints without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "list_sprint_templates": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list sprint templates without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "apply_sprint_template": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs apply sprint template, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs apply sprint template, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "update_sprint": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs update sprint, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs update sprint, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "sprint_summary": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for sprint summary without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "set_sprint_capacity": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs set sprint capacity, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs set sprint capacity, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "set_sprint_retrospective": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs set sprint retrospective, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs set sprint retrospective, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "get_sprint_board": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get sprint board without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "get_sprint_planning": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get sprint planning without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "get_execution_policy": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get execution policy without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_execution_plan": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create execution plan, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "revise_execution_plan_context": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs revise execution plan context, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs revise execution plan context, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "list_execution_plans": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list execution plans without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "get_execution_plan": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get execution plan without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "get_outcome_assurance": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get outcome assurance without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "submit_outcome_evidence": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs submit outcome evidence, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "review_outcome_criterion": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs review outcome criterion, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs review outcome criterion, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "get_execution_readiness": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get execution readiness without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "get_execution_control": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get execution control without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "reconcile_execution_plan": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs reconcile execution plan, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs reconcile execution plan, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "dispatch_execution_wave": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs dispatch execution wave, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs dispatch execution wave, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "get_roadmaps": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get roadmaps without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_roadmap": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create roadmap, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "add_roadmap_phase": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs add roadmap phase, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "update_roadmap_phase": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs update roadmap phase, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs update roadmap phase, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "remove_roadmap_phase": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs remove roadmap phase, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs remove roadmap phase, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "assign_project_to_phase": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs assign project to phase, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs assign project to phase, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "assign_list_to_phase": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs assign list to phase, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs assign list to phase, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "create_scheduled_task": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create scheduled task, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "list_scheduled_tasks": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list scheduled tasks without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "set_scheduled_task_enabled": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs set scheduled task enabled, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs set scheduled task enabled, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "delete_scheduled_task": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs delete scheduled task, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs delete scheduled task, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "list_events": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list events without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "register_webhook": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs register webhook, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Performs register webhook through a user-configured external endpoint or payment rail.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "list_webhooks": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list webhooks without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "delete_webhook": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs delete webhook, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs delete webhook, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "list_skills": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list skills without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "get_skill": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get skill without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_skill": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create skill, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "list_blueprints": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list blueprints without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_blueprint": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create blueprint, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "instantiate_blueprint": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs instantiate blueprint, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "list_docs": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list docs without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "get_doc": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get doc without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_doc": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create doc, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "update_doc": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs update doc, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs update doc, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "next_task": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for next task without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "handoff_task": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs handoff task, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs handoff task, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "start_run": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs start run, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs start run, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "finish_run": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs finish run, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs finish run, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "report_error": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs report error, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs report error, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "list_channels": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list channels without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_channel": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create channel, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "log_time": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs log time, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "list_time_entries": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list time entries without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "list_goals": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list goals without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_goal": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create goal, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "set_goal_progress": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs set goal progress, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs set goal progress, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "list_automations": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list automations without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "create_automation": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create automation, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "delete_automation": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs delete automation, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs delete automation, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "list_templates": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list templates without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "get_template": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get template without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "apply_template": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs apply template, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs apply template, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "list_starter_templates": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list starter templates without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "apply_starter_template": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs apply starter template, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs apply starter template, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "list_custom_fields": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list custom fields without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "get_task_fields": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get task fields without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "set_task_field": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs set task field, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs set task field, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "clear_task_field": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs clear task field, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs clear task field, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "list_checklist_templates": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for list checklist templates without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "apply_checklist_template": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs apply checklist template, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs apply checklist template, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "create_checklist_template": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Performs create checklist template, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "get_portfolio": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get portfolio without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "get_task_network": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get task network without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    },
+    "update_comment": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs update comment, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs update comment, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "delete_comment": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs delete comment, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs delete comment, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "resolve_comment": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Performs resolve comment, which creates or changes state in the user's private Operate workspace.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Performs resolve comment, which can overwrite, remove, transition, dispatch, or irreversibly commit selected workspace state."
+      }
+    },
+    "get_wallet": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves or computes private Operate workspace data for get wallet without changing records.",
+        "open_world_justification": "Operates only within the user's private Operate workspace and does not publish to public internet services.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, dispatch execution, or perform an irreversible transaction."
+      }
+    }
+  },
+  "test_cases": [
+    {
+      "description": "Inspect the connected workspace hierarchy.",
+      "user_prompt": "Show my Spaces and the Lists inside each one.",
+      "file_attachment_urls": null,
+      "tools_triggered": "get_tree",
+      "expected_output": "Returns the accessible Workspace → Space → Folder → List hierarchy without exposing restricted data.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Create a private task in a selected List.",
+      "user_prompt": "Create a task called “Review launch checklist” in the Launch Readiness List.",
+      "file_attachment_urls": null,
+      "tools_triggered": "create_task",
+      "expected_output": "Creates exactly one task in the resolved List and confirms its title, status, and destination.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Compile an auditable multi-workstream plan.",
+      "user_prompt": "Turn this confirmed launch brief into an execution plan inside the Launch Space, but do not dispatch it.",
+      "file_attachment_urls": null,
+      "tools_triggered": "create_execution_plan",
+      "expected_output": "Creates one atomic execution plan with Lists, dependencies, open questions, provenance, and pending dispatch authorization.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Propagate a confirmed source update safely.",
+      "user_prompt": "Add this confirmed compliance requirement to the plan and revalidate every workstream before dispatch.",
+      "file_attachment_urls": null,
+      "tools_triggered": "revise_execution_plan_context",
+      "expected_output": "Appends a versioned context revision to every generated workstream and returns dispatch authorization to human review.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Dispatch only the next safe execution wave.",
+      "user_prompt": "Show readiness, then dispatch the next safe wave for this plan.",
+      "file_attachment_urls": null,
+      "tools_triggered": "get_execution_readiness, dispatch_execution_wave",
+      "expected_output": "Explains blockers and dispatches only dependency-ready work that satisfies capability, capacity, policy, and approval constraints.",
+      "expected_output_url": null
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "description": "Do not trigger for unrelated calendar work.",
+      "user_prompt": "What meetings do I have tomorrow?",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because personal calendar retrieval is outside Operate's supported workflows.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger for general web research.",
+      "user_prompt": "Find today's top artificial-intelligence news.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because general internet search is outside Operate's supported workflows.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger for personal email delivery.",
+      "user_prompt": "Email my accountant the attached tax return.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because Operate does not provide personal email sending or attachment delivery.",
+      "expected_output_url": null
+    }
+  ]
+}

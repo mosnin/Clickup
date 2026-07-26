@@ -15,6 +15,7 @@ import type { Actor } from "./_agentAuth";
 // nextRunAt has passed.
 
 const cadenceValidator = v.union(
+  v.literal("hourly"),
   v.literal("daily"),
   v.literal("weekly"),
   v.literal("monthly"),
@@ -27,7 +28,9 @@ const priorityValidator = v.union(
   v.literal("low"),
 );
 
-type Cadence = "daily" | "weekly" | "monthly";
+// "hourly" comes from the restored schema — the other build already writes
+// schedules with it, so narrowing this type would reject live rows.
+type Cadence = "hourly" | "daily" | "weekly" | "monthly";
 
 // Next occurrence of the schedule strictly after `after`.
 export function computeNextRunAt(
@@ -39,6 +42,12 @@ export function computeNextRunAt(
 ): number {
   const d = new Date(after);
   d.setUTCMinutes(0, 0, 0);
+  // Hourly ignores hourUtc by definition: it fires at the top of every hour,
+  // so pinning the hour first would make every candidate the same instant.
+  if (cadence === "hourly") {
+    while (d.getTime() <= after) d.setUTCHours(d.getUTCHours() + 1);
+    return d.getTime();
+  }
   d.setUTCHours(hourUtc);
   if (cadence === "daily") {
     while (d.getTime() <= after) d.setUTCDate(d.getUTCDate() + 1);

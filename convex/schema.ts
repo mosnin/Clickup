@@ -41,6 +41,23 @@ export default defineSchema({
     slug: v.string(),
     ownerClerkId: v.string(),
     createdAt: v.number(),
+    // Owner-controlled autonomy boundary. Missing means the conservative
+    // supervised defaults so existing workspaces never gain authority from
+    // a schema migration alone.
+    executionPolicy: v.optional(
+      v.object({
+        mode: v.union(
+          v.literal("supervised"),
+          v.literal("bounded_autonomous"),
+        ),
+        version: v.number(),
+        maxPlanTasks: v.number(),
+        maxTasksPerWave: v.number(),
+        dailyTaskLimit: v.number(),
+        updatedByClerkId: v.string(),
+        updatedAt: v.number(),
+      }),
+    ),
     // Platform-admin control: a suspended workspace's members lose access.
     suspendedAt: v.optional(v.number()),
     suspendedReason: v.optional(v.string()),
@@ -396,6 +413,9 @@ export default defineSchema({
     startDate: v.optional(v.number()),
     dueDate: v.optional(v.number()),
     assigneeClerkIds: v.array(v.string()),
+    // Explicit execution contract used by capability-aware routing. Agents
+    // may only claim tasks whose complete requirement set they advertise.
+    requiredCapabilities: v.optional(v.array(v.string())),
     parentTaskId: v.optional(v.id("tasks")),
     // When set, completing this task spawns a fresh task on the same list
     // with its dates advanced by the chosen interval. The new task copies
@@ -449,9 +469,6 @@ export default defineSchema({
     // Set by the watchdog when it emits task.overdue, so each task nags
     // at most once per overdue period.
     overdueNotifiedAt: v.optional(v.number()),
-    // Paired with agents.capabilities above — capability-based routing from the
-    // newer build. Declared for validation only.
-    requiredCapabilities: v.optional(v.array(v.string())),
     // Dedupe for the due-soon reminder (one nudge per due date).
     dueSoonNotifiedAt: v.optional(v.number()),
     createdByClerkId: v.string(),
@@ -470,6 +487,373 @@ export default defineSchema({
     .index("by_due", ["dueDate"])
     // The global set of approval-gated tasks (small) for the inbox queue.
     .index("by_approval", ["requiresApproval"]),
+
+  // Versioned source-of-truth briefs shared by every human and agent
+  // working in a project. A packet is deliberately list-scoped: the list
+  // is both the access boundary and the project whose conventions it
+  // describes. Attachments let one packet travel with many tasks without
+  // copying markdown that would immediately drift.
+  contextPackets: defineTable({
+    listId: v.id("lists"),
+    title: v.string(),
+    summary: v.optional(v.string()),
+    content: v.string(),
+    version: v.number(),
+    createdByActorId: v.string(),
+    createdAt: v.number(),
+    updatedByActorId: v.string(),
+    updatedAt: v.number(),
+  }).index("by_list", ["listId"]),
+
+  taskContextPackets: defineTable({
+    taskId: v.id("tasks"),
+    packetId: v.id("contextPackets"),
+    attachedByActorId: v.string(),
+    attachedAt: v.number(),
+  })
+    .index("by_task", ["taskId"])
+    .index("by_packet", ["packetId"])
+    .index("by_task_and_packet", ["taskId", "packetId"]),
+
+  // Proof that a specific agent read the exact packet version attached to
+  // a task. Updating a packet makes older receipts stale automatically;
+  // claim/complete gates then force the agent to reload before proceeding.
+  agentContextReceipts: defineTable({
+    agentId: v.id("agents"),
+    taskId: v.id("tasks"),
+    packetId: v.id("contextPackets"),
+    version: v.number(),
+    acknowledgedAt: v.number(),
+  })
+    .index("by_task", ["taskId"])
+    .index("by_packet", ["packetId"])
+    .index("by_agent_task", ["agentId", "taskId"])
+    .index("by_agent_task_packet", ["agentId", "taskId", "packetId"]),
+
+  // Immutable operating-policy versions. A stable key (for example
+  // "launch.region") identifies one decision chain; superseding creates a
+  // new row and only links the old row forward, preserving the exact words
+  // and rationale every task originally relied on.
+  decisions: defineTable({
+    listId: v.id("lists"),
+    key: v.string(),
+    version: v.number(),
+    title: v.string(),
+    statement: v.string(),
+    rationale: v.string(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("superseded"),
+      v.literal("revoked"),
+    ),
+    supersedesDecisionId: v.optional(v.id("decisions")),
+    supersededByDecisionId: v.optional(v.id("decisions")),
+    contextPacketId: v.optional(v.id("contextPackets")),
+    createdByActorType: v.union(
+      v.literal("user"),
+      v.literal("agent"),
+      v.literal("system"),
+    ),
+    createdByActorId: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_list", ["listId", "createdAt"])
+    .index("by_list_and_key", ["listId", "key", "version"]),
+
+  // A decision change is not considered absorbed merely because it exists.
+  // Each affected task gets an explicit impact assessment. Pending and
+  // rework-required rows gate agent execution; completed tasks remain in
+  // this table so post-completion revalidation cannot disappear.
+  decisionImpacts: defineTable({
+    decisionId: v.id("decisions"),
+    taskId: v.id("tasks"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("no_change"),
+      v.literal("rework_required"),
+      v.literal("resolved"),
+    ),
+    assessedByActorType: v.optional(
+      v.union(
+        v.literal("user"),
+        v.literal("agent"),
+        v.literal("system"),
+      ),
+    ),
+    assessedByActorId: v.optional(v.string()),
+    note: v.optional(v.string()),
+    assessedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_decision", ["decisionId"])
+    .index("by_task", ["taskId", "createdAt"])
+    .index("by_decision_and_task", ["decisionId", "taskId"]),
+
+  // Immutable provenance for a plan compiled from one conversation/brief
+  // into a roadmap, projects, tasks, dependencies, assignments, and
+  // versioned context. The original source and explicit assumptions stay
+  // beside the generated artifact ids so humans and agents can audit why
+  // the execution graph exists. `idempotencyKey` makes retries safe.
+  executionPlans: defineTable({
+    workspaceId: v.id("workspaces"),
+    spaceId: v.id("spaces"),
+    createdByAgentId: v.id("agents"),
+    idempotencyKey: v.string(),
+    requestFingerprint: v.string(),
+    name: v.string(),
+    objective: v.string(),
+    sourceContext: v.string(),
+    successCriteria: v.array(v.string()),
+    assumptions: v.array(v.string()),
+    openQuestions: v.array(v.string()),
+    // New plans require a human owner/admin decision before agents may
+    // dispatch them. Undefined is reserved for plans created before this
+    // control existed and is treated as legacy-approved.
+    reviewStatus: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("approved"),
+        v.literal("rejected"),
+      ),
+    ),
+    authorizationSource: v.optional(
+      v.union(
+        v.literal("human_review"),
+        v.literal("workspace_policy"),
+      ),
+    ),
+    // Policy-authorized plans are valid only while this exact workspace
+    // policy version remains active. Human approval does not depend on it.
+    authorizationPolicyVersion: v.optional(v.number()),
+    authorizationReason: v.optional(v.string()),
+    roadmapId: v.id("roadmaps"),
+    projects: v.array(
+      v.object({
+        ref: v.string(),
+        name: v.string(),
+        listId: v.id("lists"),
+        phaseId: v.string(),
+        contextPacketId: v.id("contextPackets"),
+      }),
+    ),
+    tasks: v.array(
+      v.object({
+        ref: v.string(),
+        title: v.string(),
+        taskId: v.id("tasks"),
+        listId: v.id("lists"),
+      }),
+    ),
+    // Incremented whenever new source context is appended across every
+    // workstream packet. The original manifest stays immutable; revisions
+    // live in executionPlanRevisions and force re-review.
+    contextRevision: v.optional(v.number()),
+    lastContextRevisionAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId", "createdAt"])
+    .index("by_agent_key", ["createdByAgentId", "idempotencyKey"]),
+
+  // Append-only amendments to the source conversation behind an execution
+  // plan. One revision updates every generated context packet in the same
+  // transaction, making prior agent acknowledgements stale automatically.
+  executionPlanRevisions: defineTable({
+    planId: v.id("executionPlans"),
+    revision: v.number(),
+    idempotencyKey: v.string(),
+    requestFingerprint: v.string(),
+    changeSummary: v.string(),
+    sourceAddendum: v.string(),
+    createdByAgentId: v.id("agents"),
+    affectedPacketCount: v.number(),
+    affectedTaskCount: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_plan", ["planId", "revision"])
+    .index("by_plan_key", ["planId", "idempotencyKey"]),
+
+  // Append-only authorization history. Re-reviewing a plan creates another
+  // row instead of overwriting the evidence behind an earlier decision.
+  executionPlanReviews: defineTable({
+    planId: v.id("executionPlans"),
+    decision: v.union(v.literal("approved"), v.literal("rejected")),
+    note: v.string(),
+    reviewedByClerkId: v.string(),
+    reviewedAt: v.number(),
+  }).index("by_plan", ["planId", "reviewedAt"]),
+
+  // Auditable releases of ready work from an execution plan to real agent
+  // runtimes. A short lease prevents repeated dispatch storms; expired,
+  // unclaimed work becomes eligible for a later recovery wave.
+  executionWaves: defineTable({
+    workspaceId: v.id("workspaces"),
+    planId: v.id("executionPlans"),
+    createdByAgentId: v.id("agents"),
+    idempotencyKey: v.string(),
+    requestFingerprint: v.string(),
+    openQuestionDisposition: v.optional(v.string()),
+    authorizationSource: v.optional(
+      v.union(
+        v.literal("legacy"),
+        v.literal("human_review"),
+        v.literal("workspace_policy"),
+      ),
+    ),
+    authorizationPolicyVersion: v.optional(v.number()),
+    assignments: v.array(
+      v.object({
+        taskId: v.id("tasks"),
+        taskRef: v.string(),
+        agentId: v.id("agents"),
+        delivery: v.union(
+          v.literal("notify_url"),
+          v.literal("poll_required"),
+        ),
+        contextPacketCount: v.optional(v.number()),
+        estimatedContextTokens: v.optional(v.number()),
+        contextVersionFingerprint: v.optional(v.string()),
+      }),
+    ),
+    skipped: v.array(
+      v.object({
+        taskRef: v.string(),
+        reason: v.string(),
+      }),
+    ),
+    createdAt: v.number(),
+  })
+    .index("by_plan", ["planId", "createdAt"])
+    .index("by_workspace", ["workspaceId", "createdAt"])
+    .index("by_agent_key", ["createdByAgentId", "idempotencyKey"]),
+
+  // Mutable lifecycle receipt for every immutable wave assignment. This is
+  // the execution control plane: it proves whether dispatched work was
+  // claimed, actually started, finished with evidence, failed, or was
+  // abandoned and made safe to retry.
+  executionAssignments: defineTable({
+    workspaceId: v.id("workspaces"),
+    planId: v.id("executionPlans"),
+    waveId: v.id("executionWaves"),
+    taskId: v.id("tasks"),
+    taskRef: v.string(),
+    agentId: v.id("agents"),
+    delivery: v.union(
+      v.literal("notify_url"),
+      v.literal("poll_required"),
+    ),
+    contextPacketCount: v.optional(v.number()),
+    estimatedContextTokens: v.optional(v.number()),
+    contextVersionFingerprint: v.optional(v.string()),
+    status: v.union(
+      v.literal("dispatched"),
+      v.literal("claimed"),
+      v.literal("running"),
+      v.literal("succeeded"),
+      v.literal("failed"),
+      v.literal("abandoned"),
+    ),
+    attempt: v.number(),
+    runId: v.optional(v.id("agentRuns")),
+    dispatchedAt: v.number(),
+    claimedAt: v.optional(v.number()),
+    startedAt: v.optional(v.number()),
+    lastHeartbeatAt: v.optional(v.number()),
+    finishedAt: v.optional(v.number()),
+    summary: v.optional(v.string()),
+    error: v.optional(v.string()),
+    links: v.optional(v.array(v.string())),
+  })
+    .index("by_plan", ["planId", "dispatchedAt"])
+    .index("by_wave", ["waveId"])
+    .index("by_task", ["taskId", "dispatchedAt"])
+    .index("by_agent", ["agentId", "dispatchedAt"])
+    .index("by_run", ["runId"]),
+
+  // Durable wake delivery for every direct agent notification. A configured
+  // notify URL is only a requested channel; this row proves whether the signed
+  // ping actually reached the agent runtime after bounded retries.
+  agentPingDeliveries: defineTable({
+    // Optional for migration compatibility with execution-only receipts
+    // created before delivery was generalized.
+    scopeType: v.optional(
+      v.union(v.literal("user"), v.literal("workspace")),
+    ),
+    scopeId: v.optional(v.string()),
+    workspaceId: v.optional(v.id("workspaces")),
+    sourceKind: v.optional(
+      v.union(
+        v.literal("execution_assignment"),
+        v.literal("task_assignment"),
+        v.literal("mention"),
+      ),
+    ),
+    sourceId: v.optional(v.string()),
+    executionAssignmentId: v.optional(v.id("executionAssignments")),
+    agentId: v.id("agents"),
+    taskId: v.optional(v.id("tasks")),
+    messageId: v.optional(v.id("messages")),
+    type: v.string(),
+    payload: v.any(),
+    status: v.union(
+      v.literal("poll_required"),
+      v.literal("pending"),
+      v.literal("delivered"),
+      v.literal("failed"),
+    ),
+    attempts: v.number(),
+    responseStatus: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    lastAttemptAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    // HTTP delivery proves the runtime accepted the wake. This second receipt
+    // proves the authenticated target agent consumed it over MCP.
+    acknowledgedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_execution_assignment", ["executionAssignmentId"])
+    .index("by_source", ["sourceKind", "sourceId"])
+    .index("by_agent", ["agentId", "createdAt"])
+    .index("by_agent_acknowledged", [
+      "agentId",
+      "acknowledgedAt",
+      "createdAt",
+    ])
+    .index("by_workspace", ["workspaceId", "createdAt"])
+    .index("by_status", ["status", "createdAt"]),
+
+  // Plan-level outcome assurance. Tasks and runs prove that work happened;
+  // these rows prove that the original success criteria were independently
+  // evaluated against evidence. Older plans are supported without a data
+  // migration: missing rows are synthesized as pending and created on the
+  // first submission or review.
+  outcomeChecks: defineTable({
+    planId: v.id("executionPlans"),
+    // Evidence is valid only for the source context revision it evaluated.
+    // Older rows stay stored for provenance but read as stale after context
+    // advances.
+    contextRevision: v.optional(v.number()),
+    criterionIndex: v.number(),
+    criterion: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("submitted"),
+      v.literal("passed"),
+      v.literal("failed"),
+    ),
+    submittedByAgentId: v.optional(v.id("agents")),
+    evidenceSummary: v.optional(v.string()),
+    evidenceLinks: v.optional(v.array(v.string())),
+    submittedAt: v.optional(v.number()),
+    reviewedByActorType: v.optional(
+      v.union(v.literal("user"), v.literal("agent")),
+    ),
+    reviewedByActorId: v.optional(v.string()),
+    reviewNote: v.optional(v.string()),
+    reviewedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  })
+    .index("by_plan", ["planId", "criterionIndex"]),
 
   // External integrations attached to a workspace. Each kind stores its
   // own credential shape inside `config` (e.g. { webhookUrl } for Slack).
@@ -581,10 +965,10 @@ export default defineSchema({
   docs: defineTable({
     // Wiki nesting: a doc may live under another doc as a subpage.
     parentDocId: v.optional(v.id("docs")),
-    // "list" is a project. A doc attached to a project is where the detailed
-    // context lives — the brief, the decisions, the constraints an agent needs
-    // and a task description has no room for. Same table as space/workspace
-    // docs on purpose: one editor, one search index, one authz path.
+    // "list" is a project. A doc attached to a project holds the detailed
+    // context an agent needs and a task description has no room for. Same
+    // table as space/workspace docs on purpose: one editor, one search index,
+    // one authorization path (see requireDocLikeParentAccess).
     parentType: v.union(
       v.literal("user"),
       v.literal("workspace"),
@@ -594,51 +978,13 @@ export default defineSchema({
     parentId: v.string(),
     title: v.string(),
     content: v.any(),
-    // Marks a project doc as canonical context. Agents are handed pinned docs
-    // automatically with the task bundle instead of having to go looking, so
-    // "read the brief first" stops being something you hope they do.
+    // Marks a project doc as canonical context, so agents are handed it with
+    // the task instead of having to know to go looking.
     pinnedContext: v.optional(v.boolean()),
     createdByClerkId: v.string(),
     updatedAt: v.number(),
     createdAt: v.number(),
   }).index("by_parent", ["parentType", "parentId"]),
-
-  // ── Revision requests ──
-  // "This isn't right yet, here's what to change." A comment can say the same
-  // thing, but a comment has no state: nothing tells you which asks are still
-  // outstanding, and an agent reading a thread cannot tell a passing remark
-  // from a blocking correction. A revision is explicit, addressable, and shows
-  // up in the agent's own queue.
-  //
-  // Lifecycle: open -> addressed (the agent says it's done, with a note) ->
-  // accepted or reopened (a human decides). Agents may move open -> addressed
-  // and nothing else; only people accept or reopen, the same asymmetry the
-  // approval gates use.
-  revisions: defineTable({
-    parentType: v.union(v.literal("task"), v.literal("list")),
-    parentId: v.string(),
-    body: v.string(),
-    status: v.union(
-      v.literal("open"),
-      v.literal("addressed"),
-      v.literal("accepted"),
-    ),
-    requestedByActorId: v.string(),
-    requestedByName: v.string(),
-    createdAt: v.number(),
-    // Set when whoever is doing the work reports back.
-    addressedAt: v.optional(v.number()),
-    addressedByActorId: v.optional(v.string()),
-    addressedByName: v.optional(v.string()),
-    responseNote: v.optional(v.string()),
-    // Set when a human accepts the revision as done.
-    acceptedAt: v.optional(v.number()),
-    acceptedByClerkId: v.optional(v.string()),
-  })
-    .index("by_parent", ["parentType", "parentId"])
-    // Ranged by the agent-facing "what is waiting on me" queries, so open
-    // revisions never need a table scan.
-    .index("by_status", ["status"]),
 
   // Whiteboards backed by tldraw. `snapshot` is the tldraw store snapshot.
   whiteboards: defineTable({
@@ -767,6 +1113,13 @@ export default defineSchema({
     // set, list/task access (read AND write) is further restricted to
     // those lists.
     role: v.optional(v.union(v.literal("member"), v.literal("readonly"))),
+    // Normalized capability slugs (for example typescript, research,
+    // quality-assurance). Routing matches these against task requirements;
+    // an empty set is intentionally not treated as "can do anything."
+    capabilities: v.optional(v.array(v.string())),
+    // Hard ceiling for simultaneous dispatched/claimed tasks. The execution
+    // controller defaults to one when unset.
+    maxConcurrentTasks: v.optional(v.number()),
     allowedListIds: v.optional(v.array(v.id("lists"))),
     // Mutations per UTC day before the agent is throttled. Undefined =
     // DEFAULT_DAILY_ACTION_LIMIT (see _agentAuth.ts).
@@ -778,22 +1131,14 @@ export default defineSchema({
     notifyUrl: v.optional(v.string()),
     notifySecret: v.optional(v.string()),
     createdByClerkId: v.string(),
-    // Live presence, reported over MCP: heartbeat bumps lastSeenAt, and
-    // agents self-report what they're doing right now so Mission Control
-    // can show "Scout — working on 'Fix login flow': refactoring auth…".
+    // Live presence over MCP. lastSeenAt remains the compatibility rollup
+    // used for the green dot; the two source timestamps make diagnostics
+    // truthful: transport authentication proves connectivity, while an
+    // explicit heartbeat proves the runtime is actively following the
+    // collaboration protocol.
     lastSeenAt: v.optional(v.number()),
-    // Written by the newer production build alongside the adopted tables
-    // below. Declared so a deploy validates against live rows; nothing in this
-    // repo reads them yet.
-    //   lastConnectedAt / lastHeartbeatAt — a finer-grained split of
-    //     lastSeenAt: first connect vs most recent beat.
-    //   capabilities — the capability list `whoami` reports. Worth noting for
-    //     the audit item about whoami showing an empty capability set while the
-    //     key could still write workspace-wide: the field exists, this build
-    //     just never populates it.
     lastConnectedAt: v.optional(v.number()),
     lastHeartbeatAt: v.optional(v.number()),
-    capabilities: v.optional(v.array(v.string())),
     currentTaskId: v.optional(v.id("tasks")),
     statusText: v.optional(v.string()),
     createdAt: v.number(),
@@ -815,11 +1160,9 @@ export default defineSchema({
   // run land here too as instant failed runs. Powers the per-agent
   // history on the agent detail page and agent.error events.
   agentRuns: defineTable({
-    // Written by the execution-assignment layer below. Declared here because a
-    // deploy without it fails schema validation against live production rows.
-    executionAssignmentId: v.optional(v.string()),
     agentId: v.id("agents"),
     taskId: v.optional(v.id("tasks")),
+    executionAssignmentId: v.optional(v.id("executionAssignments")),
     title: v.string(),
     status: v.union(
       v.literal("running"),
@@ -852,6 +1195,49 @@ export default defineSchema({
   })
     .index("by_agent", ["agentId"])
     .index("by_hash", ["keyHash"]),
+
+  // OAuth 2.1 authorization for public MCP hosts (ChatGPT, Claude, and
+  // standards-compliant clients). Clients are dynamically registered,
+  // authorization codes require PKCE, and access/refresh credentials are
+  // stored only as hashes.
+  oauthClients: defineTable({
+    clientId: v.string(),
+    clientName: v.string(),
+    redirectUris: v.array(v.string()),
+    tokenEndpointAuthMethod: v.literal("none"),
+    grantTypes: v.array(v.string()),
+    createdAt: v.number(),
+  }).index("by_client_id", ["clientId"]),
+
+  oauthAuthorizationCodes: defineTable({
+    codeHash: v.string(),
+    clientId: v.string(),
+    redirectUri: v.string(),
+    codeChallenge: v.string(),
+    scopes: v.array(v.string()),
+    agentId: v.id("agents"),
+    userClerkId: v.string(),
+    expiresAt: v.number(),
+    usedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  }).index("by_code_hash", ["codeHash"]),
+
+  oauthAccessTokens: defineTable({
+    tokenHash: v.string(),
+    refreshTokenHash: v.string(),
+    clientId: v.string(),
+    scopes: v.array(v.string()),
+    agentId: v.id("agents"),
+    userClerkId: v.string(),
+    expiresAt: v.number(),
+    refreshExpiresAt: v.number(),
+    createdAt: v.number(),
+    lastUsedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_token_hash", ["tokenHash"])
+    .index("by_refresh_hash", ["refreshTokenHash"])
+    .index("by_agent", ["agentId"]),
 
   // Append-only activity log. Every meaningful mutation (task created,
   // status changed, comment posted, sprint started, …) writes one row.
@@ -971,11 +1357,12 @@ export default defineSchema({
     ),
     assigneeIds: v.array(v.string()),
     cadence: v.union(
+      v.literal("hourly"),
       v.literal("daily"),
       v.literal("weekly"),
       v.literal("monthly"),
     ),
-    // weekly: 0 (Sunday) – 6. monthly: 1–28. Ignored for daily.
+    // weekly: 0 (Sunday) – 6. monthly: 1–28. Ignored for hourly/daily.
     dayOfWeek: v.optional(v.number()),
     dayOfMonth: v.optional(v.number()),
     hourUtc: v.number(),
@@ -983,6 +1370,9 @@ export default defineSchema({
     dueInDays: v.optional(v.number()),
     nextRunAt: v.number(),
     lastRunAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    lastErrorAt: v.optional(v.number()),
+    consecutiveFailures: v.optional(v.number()),
     enabled: v.boolean(),
     createdByActorId: v.string(),
     createdAt: v.number(),
@@ -1023,6 +1413,57 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_scope", ["scopeType", "scopeId"]),
 
+  // ── Revision requests ──
+  // "This isn't right yet, here's what to change." A comment can say the same
+  // thing, but a comment has no state: nothing tells you which asks are still
+  // outstanding, and an agent reading a thread cannot tell a passing remark
+  // from a blocking correction. A revision is explicit and addressable, and it
+  // shows up in the agent's own queue.
+  //
+  // Lifecycle: open -> addressed (whoever did the work reports back, with a
+  // note) -> accepted or reopened (a human decides). Agents may move
+  // open -> addressed and nothing else, the same asymmetry as approval gates.
+  revisions: defineTable({
+    parentType: v.union(v.literal("task"), v.literal("list")),
+    parentId: v.string(),
+    body: v.string(),
+    status: v.union(
+      v.literal("open"),
+      v.literal("addressed"),
+      v.literal("accepted"),
+    ),
+    requestedByActorId: v.string(),
+    requestedByName: v.string(),
+    createdAt: v.number(),
+    addressedAt: v.optional(v.number()),
+    addressedByActorId: v.optional(v.string()),
+    addressedByName: v.optional(v.string()),
+    responseNote: v.optional(v.string()),
+    acceptedAt: v.optional(v.number()),
+    acceptedByClerkId: v.optional(v.string()),
+  })
+    .index("by_parent", ["parentType", "parentId"])
+    // Ranged by the agent-facing "what is waiting on me" queries, so open
+    // revisions never need a table scan.
+    .index("by_status", ["status"]),
+
+  // ── Agent operation receipts ──
+  // Makes a timed-out write safe to retry. Without a receipt an agent cannot
+  // tell whether a lost response means nothing happened, the write committed,
+  // or it half-committed — so retrying risks duplicating a whole plan and not
+  // retrying risks dropping it. With a caller-supplied idempotencyKey the
+  // second attempt replays the stored result verbatim, including the ids the
+  // first attempt created.
+  agentOperations: defineTable({
+    agentId: v.id("agents"),
+    idempotencyKey: v.string(),
+    tool: v.string(),
+    result: v.any(),
+    createdAt: v.number(),
+  })
+    .index("by_agent_and_key", ["agentId", "idempotencyKey"])
+    .index("by_created", ["createdAt"]),
+
   // ── Phase L: per-user personalization ──
   // One row per user. homeWidgets is the ordered list of visible Home
   // cards (absent = default layout).
@@ -1038,13 +1479,9 @@ export default defineSchema({
     listViewSettings: v.optional(
       v.array(v.object({ listId: v.id("lists"), settings: v.string() })),
     ),
-    // Real-time notification preferences. Absent means "the defaults" —
-    // see NOTIFICATION_DEFAULTS in convex/notificationPrefs.ts — so an
-    // existing user needs no migration and a new one needs no setup.
-    //
-    // `realtime` is the master switch for the live stream (Ably). Turning it
-    // off does not stop anything being recorded: the inbox and the event log
-    // are unaffected, only the push is silenced.
+    // Real-time notification preferences. Absent means the defaults (see
+    // convex/notificationPrefs.ts), so no migration and no setup step. Turning
+    // a category off silences the push, never the record.
     notificationPrefs: v.optional(
       v.object({
         realtime: v.optional(v.boolean()),
@@ -1058,202 +1495,6 @@ export default defineSchema({
       }),
     ),
   }).index("by_clerk", ["clerkId"]),
-
-  // ── Adopted from production ─────────────────────────────────────────────
-  //
-  // These eleven tables hold live data on hidden-parrot-977 and were created by
-  // a NEWER build of operate than this repository contains. They are declared
-  // here, not because this codebase writes them, but because Convex validates
-  // every existing document against the deployed schema: without these
-  // definitions `convex deploy` fails outright, and a deploy that dropped them
-  // would orphan real rows.
-  //
-  // What they implement, and why it matters — this is the missing half of the
-  // agent audit's "contract drift" report:
-  //   executionPlans / executionAssignments / executionWaves /
-  //   executionPlanReviews  -> create_execution_plan, the "atomic execution
-  //                            plan endpoint" advertised by the connector and
-  //                            missing from the serving functions
-  //   contextPackets / taskContextPackets / agentContextReceipts
-  //                         -> context packets and their acknowledgement
-  //                            receipts, versioned per task
-  //   outcomeChecks         -> outcome assurance against success criteria
-  //   oauthClients / oauthAccessTokens
-  //                         -> an OAuth authorization server for MCP, which is
-  //                            why one bearer token was being read by two
-  //                            different auth systems
-  //   agentPingDeliveries   -> durable, retried agent pings
-  //
-  // Note executionPlans.idempotencyKey and requestFingerprint: idempotent
-  // writes were already solved in that build.
-  //
-  // Every field is optional on purpose. This schema does not own these tables,
-  // so it must not assert what a shape it did not design is required to have —
-  // a stricter validator would fail the next time the other build writes a row.
-  // Do not build features against these until the source is reconciled; treat
-  // them as reserved.
-  executionPlans: defineTable({
-    assumptions: v.optional(v.array(v.any())),
-    authorizationReason: v.optional(v.string()),
-    authorizationSource: v.optional(v.string()),
-    createdAt: v.optional(v.float64()),
-    createdByAgentId: v.optional(v.string()),
-    idempotencyKey: v.optional(v.string()),
-    name: v.optional(v.string()),
-    objective: v.optional(v.string()),
-    openQuestions: v.optional(v.array(v.any())),
-    projects: v.optional(v.array(v.any())),
-    requestFingerprint: v.optional(v.string()),
-    reviewStatus: v.optional(v.string()),
-    roadmapId: v.optional(v.string()),
-    sourceContext: v.optional(v.string()),
-    spaceId: v.optional(v.string()),
-    successCriteria: v.optional(v.array(v.any())),
-    tasks: v.optional(v.array(v.any())),
-    workspaceId: v.optional(v.string()),
-  }),
-  executionAssignments: defineTable({
-    agentId: v.optional(v.string()),
-    attempt: v.optional(v.float64()),
-    claimedAt: v.optional(v.float64()),
-    contextPacketCount: v.optional(v.float64()),
-    contextVersionFingerprint: v.optional(v.string()),
-    delivery: v.optional(v.string()),
-    dispatchedAt: v.optional(v.float64()),
-    estimatedContextTokens: v.optional(v.float64()),
-    finishedAt: v.optional(v.float64()),
-    lastHeartbeatAt: v.optional(v.float64()),
-    links: v.optional(v.array(v.any())),
-    planId: v.optional(v.string()),
-    runId: v.optional(v.string()),
-    startedAt: v.optional(v.float64()),
-    status: v.optional(v.string()),
-    summary: v.optional(v.string()),
-    taskId: v.optional(v.string()),
-    taskRef: v.optional(v.string()),
-    waveId: v.optional(v.string()),
-    workspaceId: v.optional(v.string()),
-  }),
-  executionWaves: defineTable({
-    assignments: v.optional(v.array(v.any())),
-    authorizationSource: v.optional(v.string()),
-    createdAt: v.optional(v.float64()),
-    createdByAgentId: v.optional(v.string()),
-    idempotencyKey: v.optional(v.string()),
-    openQuestionDisposition: v.optional(v.string()),
-    planId: v.optional(v.string()),
-    requestFingerprint: v.optional(v.string()),
-    skipped: v.optional(v.array(v.any())),
-    workspaceId: v.optional(v.string()),
-  }),
-  executionPlanReviews: defineTable({
-    decision: v.optional(v.string()),
-    note: v.optional(v.string()),
-    planId: v.optional(v.string()),
-    reviewedAt: v.optional(v.float64()),
-    reviewedByClerkId: v.optional(v.string()),
-  }),
-  contextPackets: defineTable({
-    content: v.optional(v.string()),
-    createdAt: v.optional(v.float64()),
-    createdByActorId: v.optional(v.string()),
-    listId: v.optional(v.string()),
-    summary: v.optional(v.string()),
-    title: v.optional(v.string()),
-    updatedAt: v.optional(v.float64()),
-    updatedByActorId: v.optional(v.string()),
-    version: v.optional(v.float64()),
-  }),
-  taskContextPackets: defineTable({
-    attachedAt: v.optional(v.float64()),
-    attachedByActorId: v.optional(v.string()),
-    packetId: v.optional(v.string()),
-    taskId: v.optional(v.string()),
-  }),
-  agentContextReceipts: defineTable({
-    acknowledgedAt: v.optional(v.float64()),
-    agentId: v.optional(v.string()),
-    packetId: v.optional(v.string()),
-    taskId: v.optional(v.string()),
-    version: v.optional(v.float64()),
-  }),
-  outcomeChecks: defineTable({
-    contextRevision: v.optional(v.float64()),
-    criterion: v.optional(v.string()),
-    criterionIndex: v.optional(v.float64()),
-    evidenceLinks: v.optional(v.array(v.any())),
-    evidenceSummary: v.optional(v.string()),
-    planId: v.optional(v.string()),
-    reviewNote: v.optional(v.string()),
-    reviewedAt: v.optional(v.float64()),
-    reviewedByActorId: v.optional(v.string()),
-    reviewedByActorType: v.optional(v.string()),
-    status: v.optional(v.string()),
-    submittedAt: v.optional(v.float64()),
-    submittedByAgentId: v.optional(v.string()),
-    updatedAt: v.optional(v.float64()),
-  }),
-  oauthClients: defineTable({
-    clientId: v.optional(v.string()),
-    clientName: v.optional(v.string()),
-    createdAt: v.optional(v.float64()),
-    grantTypes: v.optional(v.array(v.any())),
-    redirectUris: v.optional(v.array(v.any())),
-    tokenEndpointAuthMethod: v.optional(v.string()),
-  }),
-  oauthAccessTokens: defineTable({
-    agentId: v.optional(v.string()),
-    clientId: v.optional(v.string()),
-    createdAt: v.optional(v.float64()),
-    expiresAt: v.optional(v.float64()),
-    refreshExpiresAt: v.optional(v.float64()),
-    refreshTokenHash: v.optional(v.string()),
-    revokedAt: v.optional(v.float64()),
-    scopes: v.optional(v.array(v.any())),
-    tokenHash: v.optional(v.string()),
-    userClerkId: v.optional(v.string()),
-  }),
-  agentPingDeliveries: defineTable({
-    acknowledgedAt: v.optional(v.float64()),
-    agentId: v.optional(v.string()),
-    attempts: v.optional(v.float64()),
-    createdAt: v.optional(v.float64()),
-    executionAssignmentId: v.optional(v.string()),
-    payload: v.optional(v.any()),
-    scopeId: v.optional(v.string()),
-    scopeType: v.optional(v.string()),
-    sourceId: v.optional(v.string()),
-    sourceKind: v.optional(v.string()),
-    status: v.optional(v.string()),
-    taskId: v.optional(v.string()),
-    type: v.optional(v.string()),
-    workspaceId: v.optional(v.string()),
-  }),
-
-  // ── Agent operation receipts ──
-  // Makes a timed-out write safe to retry.
-  //
-  // The failure this removes: an agent POSTs create_tasks, the response is lost
-  // to a timeout, and the agent cannot tell whether nothing happened, the write
-  // committed, or it half-committed. Retrying might duplicate a whole plan;
-  // not retrying might drop it. Neither choice is safe, so the agent stalls.
-  //
-  // With a caller-supplied idempotencyKey the second attempt is not a second
-  // write: the stored receipt is replayed verbatim, including the ids the first
-  // attempt created. `result` is the exact value the tool returned, so a replay
-  // is indistinguishable from the original success.
-  //
-  // Scoped per agent so two agents cannot collide on the same key, and pruned
-  // by the retention cron like every other operational table.
-  agentOperations: defineTable({
-    agentId: v.id("agents"),
-    idempotencyKey: v.string(),
-    tool: v.string(),
-    result: v.any(),
-    createdAt: v.number(),
-  })
-    .index("by_agent_and_key", ["agentId", "idempotencyKey"])
-    .index("by_created", ["createdAt"]),
 
   // ── Phase L: workspace field library ──
   // Define a custom field once, apply it to any list (applying copies the
