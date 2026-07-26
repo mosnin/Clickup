@@ -7,7 +7,6 @@ import { requireIdentity, requireMessageParentAccess } from "./_authz";
 import type { Actor } from "./_agentAuth";
 import { emitEvent, scopeForList } from "./events";
 import { notify } from "./notificationCenter";
-import { enqueueAgentPingDelivery } from "./agentPingDeliveries";
 
 async function describeMessageContext(
   ctx: MutationCtx,
@@ -318,23 +317,9 @@ export async function createMessageCore(
     const mentionedAgentId = ctx.db.normalizeId("agents", id);
     if (mentionedAgentId) {
       const mentionedAgent = await ctx.db.get(mentionedAgentId);
-      if (mentionedAgent && scope) {
-        await enqueueAgentPingDelivery(ctx, {
-          scopeType: scope.scopeType,
-          scopeId: scope.scopeId,
-          workspaceId:
-            scope.scopeType === "workspace"
-              ? (scope.scopeId as Id<"workspaces">)
-              : undefined,
-          sourceKind: "mention",
-          sourceId: messageId,
-          messageId,
-          agentId: mentionedAgentId,
-          taskId:
-            args.parentType === "task"
-              ? (args.parentId as Id<"tasks">)
-              : undefined,
-          push: mentionedAgent.notifyUrl !== undefined,
+      if (mentionedAgent?.notifyUrl) {
+        await ctx.scheduler.runAfter(0, internal.notifications.postAgentPing, {
+          url: mentionedAgent.notifyUrl,
           type: "mention.created",
           payload: {
             parentType: args.parentType,
@@ -342,6 +327,7 @@ export async function createMessageCore(
             snippet,
             byName: actor.name,
           },
+          secret: mentionedAgent.notifySecret,
         });
       }
     }

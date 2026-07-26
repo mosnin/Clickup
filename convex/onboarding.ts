@@ -159,7 +159,7 @@ export const completeSetup = mutation({
           `2. Point your runtime at  <your app URL>/api/mcp  with header  Authorization: Bearer <key>.`,
           `3. Tell it to call get_skill("collaboration-protocol") first.`,
           ``,
-          `Its first authenticated MCP request turns the dot on the Agents page green; explicit heartbeats then prove the runtime is actively working.`,
+          `The moment it heartbeats, its dot on the Agents page turns green.`,
         ].join("\n"),
         priority: "high",
         checklist: [

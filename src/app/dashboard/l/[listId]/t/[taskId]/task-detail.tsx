@@ -29,8 +29,6 @@ import { errorMessage } from "@/lib/errors";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { useToast } from "@/components/toast";
 import { motion } from "@/components/motion";
-import { TaskContext } from "@/components/dashboard/task-context";
-import { TaskDecisions } from "@/components/dashboard/task-decisions";
 
 type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
 type TaskRecurrence = NonNullable<Doc<"tasks">["recurrence"]>;
@@ -137,9 +135,6 @@ function TaskEditor({
   const [estimateDraft, setEstimateDraft] = useState(
     task.estimatePoints !== undefined ? String(task.estimatePoints) : "",
   );
-  const [capabilitiesDraft, setCapabilitiesDraft] = useState(
-    (task.requiredCapabilities ?? []).join(", "),
-  );
 
   const parentTask = useQuery(
     api.tasks.get,
@@ -154,11 +149,6 @@ function TaskEditor({
         task.estimatePoints !== undefined ? String(task.estimatePoints) : "",
       ),
     [task.estimatePoints],
-  );
-  useEffect(
-    () =>
-      setCapabilitiesDraft((task.requiredCapabilities ?? []).join(", ")),
-    [task.requiredCapabilities],
   );
 
   async function saveEstimate(value: number | null) {
@@ -369,9 +359,6 @@ function TaskEditor({
 
           <TaskChecklist task={task} />
 
-          <TaskContext taskId={task._id} listId={listId} />
-          <TaskDecisions taskId={task._id} listId={listId} />
-
           <Subtasks taskId={task._id} listId={listId} />
 
           <section>
@@ -560,44 +547,6 @@ function TaskEditor({
           </Field>
 
           <TaskMilestonePicker task={task} listId={listId} />
-
-          <Field label="Required capabilities">
-            <input
-              value={capabilitiesDraft}
-              onChange={(e) =>
-                setCapabilitiesDraft(e.currentTarget.value)
-              }
-              onBlur={() => {
-                const next = capabilitiesDraft
-                  .split(",")
-                  .map((value) => value.trim())
-                  .filter(Boolean);
-                if (
-                  next.join(",") !==
-                  (task.requiredCapabilities ?? []).join(",")
-                ) {
-                  update({
-                    taskId: task._id,
-                    requiredCapabilities: next,
-                  }).catch((e) =>
-                    toast(
-                      errorMessage(
-                        e,
-                        "Couldn't save required capabilities",
-                      ),
-                      { kind: "error" },
-                    ),
-                  );
-                }
-              }}
-              placeholder="typescript, backend"
-              className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Agents missing any capability cannot be assigned or claim this
-              task.
-            </p>
-          </Field>
 
           <section>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">

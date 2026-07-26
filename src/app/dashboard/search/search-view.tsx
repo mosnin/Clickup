@@ -93,7 +93,7 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
       {!active ? (
         <EmptyState
           title="Search across your workspace"
-          message="Type at least two characters to look up task titles, list names, docs, and spaces you have access to."
+          message="Type at least two characters to look up task titles, project (list) names, docs, and spaces you have access to."
         />
       ) : results === undefined ? (
         <SearchSkeleton />
@@ -117,7 +117,7 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
             ))}
           </ResultSection>
 
-          <ResultSection title="Lists">
+          <ResultSection title="Projects">
             {results.lists.map((l) => {
               const chip = l.projectStatus ? STATUS_CHIP[l.projectStatus] : null;
               return (

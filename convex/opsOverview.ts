@@ -93,9 +93,6 @@ export const workspaceOps = query({
           hourUtc: st.hourUtc,
           nextRunAt: st.nextRunAt,
           lastRunAt: st.lastRunAt,
-          lastError: st.lastError,
-          lastErrorAt: st.lastErrorAt,
-          consecutiveFailures: st.consecutiveFailures ?? 0,
           enabled: st.enabled,
           blueprintName,
         });

@@ -7,7 +7,7 @@ import type { CSSProperties, ReactNode } from "react";
 // live in globals.css under `.animated-gradient-text`. Layout-neutral:
 // the wrapper is inline-flex so it drops into headings mid-sentence.
 
-const BRAND_COLORS = ["#ffd27a", "#ff9d4d", "#ff5f6d", "#ff8a3d", "#ffd27a"];
+const BRAND_COLORS = ["#7dd3fc", "#38bdf8", "#3b82f6", "#06b6d4", "#7dd3fc"];
 
 export default function GradientText({
   children,

@@ -21,6 +21,12 @@
     var(--font-instrument), "Inter", -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
+  /* Display face for headings — Darker Grotesque, a tall condensed grotesk.
+     Exposed as a `font-title` utility for anything that needs it outside the
+     h1-h3 rule further down. */
+  --font-title:
+    var(--font-darker-grotesque), var(--font-instrument), "Inter", sans-serif;
+
   /* Canvas + surfaces */
   --color-page: #ededf0;
   --color-background: #ffffff;
@@ -270,13 +276,13 @@ body {
   --color-navy-950: #000000;
 
   
-  --color-azure-100: #3a2418;
-  --color-azure-200: #5c3320;
-  --color-azure-300: #ffc27a;
-  --color-azure-400: #ff9d5c;
-  --color-azure-500: #ff7a45;
-  --color-azure-600: #ff8f52;
-  --color-azure-700: #ffcf6b;
+  --color-azure-100: #0d2732;
+  --color-azure-200: #123c4d;
+  --color-azure-300: #a5e8ff;
+  --color-azure-400: #5ec8f5;
+  --color-azure-500: #22a7e8;
+  --color-azure-600: #3fc8e0;
+  --color-azure-700: #7beadb;
   --mk-panel: #141414;
   --mk-panel-2: #1b1b1b;
 
@@ -285,7 +291,7 @@ body {
   background: transparent;
 }
 
-/* Warm gradient text — a living amber→coral→rose→gold sunset that slowly
+/* Brand gradient text — a living light-blue→blue→teal ramp that slowly
    pans for flair (not a flat linear ramp). Apply to a heading span; it clips
    the gradient to the glyphs. Endpoints match so the pan loops seamlessly. */
 /* react-bits GradientText (vendored, src/components/gradient-text.tsx).
@@ -336,11 +342,11 @@ body {
 .text-gradient {
   background-image: linear-gradient(
     100deg,
-    #ffd27a 0%,
-    #ff9d4d 24%,
-    #ff5f6d 50%,
-    #ff8a3d 76%,
-    #ffd27a 100%
+    #7dd3fc 0%,
+    #38bdf8 24%,
+    #3b82f6 50%,
+    #06b6d4 76%,
+    #7dd3fc 100%
   );
   background-size: 220% auto;
   -webkit-background-clip: text;
@@ -350,7 +356,7 @@ body {
   animation: gradient-pan 9s linear infinite;
 }
 .text-gradient-soft {
-  background-image: linear-gradient(100deg, #ffffff 0%, #ffdcae 55%, #ff9d4d 100%);
+  background-image: linear-gradient(100deg, #ffffff 0%, #bfe9ff 55%, #3b82f6 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -380,28 +386,28 @@ body {
   background: transparent;
 }
 
-/* Warm gradient fill for primary CTAs and accent chips — a coral→rose→amber
-   sunset that gently pans (endpoints match for a seamless loop). */
+/* Brand gradient fill for primary CTAs and accent chips — a light-blue→
+   blue→teal ramp that gently pans (endpoints match for a seamless loop). */
 .mk-gradient-fill {
   background-image: linear-gradient(
     100deg,
-    #ff8a3d 0%,
-    #ff5f6d 40%,
-    #ffb04d 70%,
-    #ff8a3d 100%
+    #06b6d4 0%,
+    #3b82f6 45%,
+    #2563eb 70%,
+    #06b6d4 100%
   );
   background-size: 200% auto;
   color: #ffffff;
   animation: gradient-pan 10s linear infinite;
 }
 
-/* A soft warm glow blob for depth behind hero art / feature mocks — a faint
-   amber lift that matches the warm accent scheme. */
+/* A soft glow blob for depth behind hero art / feature mocks — a faint
+   sky→teal lift that matches the accent ramp. */
 .mk-glow {
   background: radial-gradient(
     closest-side,
-    rgb(255 138 61 / 0.16),
-    rgb(255 95 109 / 0.08) 55%,
+    rgb(59 130 246 / 0.20),
+    rgb(6 182 212 / 0.10) 55%,
     transparent 75%
   );
   filter: blur(28px);
@@ -770,4 +776,215 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ── Marketing card kit ───────────────────────────────────────────────────
+   The animation vocabulary behind the feature card grid
+   (src/app/(marketing)/sections/feature-cards.tsx). Ambient CSS loops only —
+   cheap, no JS timers. Entrances are GSAP/ScrollTrigger (gsap.tsx) so they
+   fire on scroll rather than on load, and every loop here is switched off
+   wholesale under prefers-reduced-motion at the bottom of the block. */
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fadeSlideIn {
+  animation: fadeSlideIn 0.8s ease-out both;
+}
+
+/* Slow diagonal sheen crossing a card, so a static panel still reads alive. */
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 36%,
+    rgb(255 255 255 / 0.055) 48%,
+    transparent 60%
+  );
+  background-size: 250% 100%;
+  animation: sheen 7s linear infinite;
+}
+@keyframes sheen {
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -80% 0;
+  }
+}
+
+/* Presence dots and live chips: a soft opacity + scale pulse. */
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.88);
+  }
+}
+.animate-breathe {
+  animation: breathe 2.6s ease-in-out infinite;
+}
+
+/* Accent buttons and bubbles: the glow swells and settles. */
+@keyframes glowPulse {
+  0%,
+  100% {
+    box-shadow: 0 6px 18px rgb(59 130 246 / 0.32);
+  }
+  50% {
+    box-shadow: 0 10px 28px rgb(6 182 212 / 0.45);
+  }
+}
+.animate-glowPulse {
+  animation: glowPulse 3.4s ease-in-out infinite;
+}
+
+/* Avatars and tiles hovering a few pixels, phase-shifted with an inline
+   animation-delay so a row of them never moves in lockstep. */
+@keyframes floatSlow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+.animate-floatSlow {
+  animation: floatSlow 6s ease-in-out infinite;
+}
+
+/* The "+" glyph in the composer, rocking a couple of degrees. */
+@keyframes tilt {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(90deg);
+  }
+}
+.animate-tilt {
+  animation: tilt 6s ease-in-out infinite;
+}
+
+/* Blinking terminal caret, appended to a filename or typed line. */
+.caret::after {
+  content: "";
+  display: inline-block;
+  width: 1px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  animation: caret-blink 1.05s step-end infinite;
+}
+@keyframes caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Three-dot "agent is thinking" indicator. */
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.typing-dots > i {
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: typing-dots 1.2s ease-in-out infinite;
+}
+.typing-dots > i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.typing-dots > i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes typing-dots {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* A meter that fills once, when its card scrolls into view. */
+.meter-fill {
+  transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fadeSlideIn,
+  .shimmer::after,
+  .animate-breathe,
+  .animate-glowPulse,
+  .animate-floatSlow,
+  .animate-tilt,
+  .caret::after,
+  .typing-dots > i {
+    animation: none;
+  }
+  .animate-fadeSlideIn {
+    opacity: 1;
+    transform: none;
+  }
+  .meter-fill {
+    transition: none;
+  }
+}
+
+/* Headings render in the display face. Darker Grotesque is condensed with a
+   small x-height, so at an identical font-size it reads noticeably smaller
+   than Instrument Sans — the 1.08em bump restores the intended optical size
+   without touching every heading's utility classes, and the tighter leading
+   keeps multi-line headlines from opening up. Tailwind tracking utilities
+   still win over the letter-spacing here (class beats element selector),
+   which is what we want on the hero. */
+h1,
+h2,
+h3,
+.font-title {
+  font-family: var(--font-title);
+  /* Darker Grotesque is condensed with a small x-height: at an identical
+     font-size it reads roughly a third smaller than Instrument Sans. The
+     bump restores the intended optical size without rewriting every
+     heading's utility classes, and the tight leading is what the face is
+     drawn for. Tailwind tracking utilities still win over the
+     letter-spacing here (class beats element selector). */
+  /* font-size-adjust rather than a font-size multiplier: Tailwind's
+     text-* utilities are classes and would win a specificity fight over
+     this element selector, so scaling here has to happen on a property
+     the utilities never set. 0.52 is Instrument Sans' x-height ratio, so
+     headings keep the optical size they had before the swap. */
+  font-size-adjust: 0.52;
+  line-height: 0.95;
+  letter-spacing: 0;
 }

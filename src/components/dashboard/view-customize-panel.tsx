@@ -36,12 +36,12 @@ import {
   type ViewSettings,
 } from "@/lib/view-settings";
 
-// "Customize view" — the one place a list's presentation is configured.
+// "Customize view" — the one place a project's presentation is configured.
 // Everything here is wired to real rendering (see list-view / board-view);
 // nothing is a placeholder toggle. State lives in the URL (so "Copy link to
 // view" reproduces exactly what you see) and in localStorage per list.
 
-// Views `lists.updateMeta` accepts as a list default. Overview, Timeline
+// Views `lists.updateMeta` accepts as a project default. Overview, Timeline
 // and Network aren't in that union yet, so the action explains itself
 // instead of failing on the server.
 const DEFAULTABLE_VIEWS = new Set([
@@ -120,7 +120,7 @@ export function ViewCustomizePanel({
             Customize view
           </SheetTitle>
           <SheetDescription className="text-xs">
-            Saved for you on this list, and carried in the link — copy it
+            Saved for you on this project, and carried in the link — copy it
             and whoever opens it sees the same view.
           </SheetDescription>
         </SheetHeader>
@@ -515,7 +515,7 @@ function ViewActionsSection({
   async function setAsDefault() {
     try {
       await updateMeta({ listId, defaultView: view as DefaultableView });
-      toast("Set as the default view for this list");
+      toast("Set as the default view for this project");
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
       toast(
@@ -528,7 +528,7 @@ function ViewActionsSection({
 
   async function copyLink() {
     // The link is explicit about everything: the view (a bare URL would fall
-    // back to the list default, which may be a different view) plus the
+    // back to the project default, which may be a different view) plus the
     // filters and customization already in the address bar.
     const params = writeViewSettingsToParams(
       new URLSearchParams(searchParams.toString()),
@@ -566,7 +566,7 @@ function ViewActionsSection({
       note={
         canDefault
           ? undefined
-          : "Overview, Timeline and Network can't be a list default yet."
+          : "Overview, Timeline and Network can't be a project default yet."
       }
     >
       <div className="flex min-w-0 flex-col gap-2">
@@ -574,8 +574,8 @@ function ViewActionsSection({
           label="Set as default view"
           hint={
             alreadyDefault
-              ? "Everyone opening this list lands here."
-              : "Open this list on this view by default."
+              ? "Everyone opening this project lands here."
+              : "Open this project on this view by default."
           }
           action={
             <Button
@@ -599,10 +599,10 @@ function ViewActionsSection({
         />
         <ActionRow
           label="Favorite"
-          hint="Pin this list to the top of your sidebar."
+          hint="Pin this project to the top of your sidebar."
           action={
             <Switch
-              label="Favorite this list"
+              label="Favorite this project"
               checked={!!isFavorite}
               onCheckedChange={() => void favorite()}
             />

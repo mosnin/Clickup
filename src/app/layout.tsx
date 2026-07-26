@@ -14,6 +14,20 @@ const instrumentSans = localFont({
   display: "swap",
 });
 
+// Darker Grotesque (OFL) — the display face for headings. Two subsets of the
+// variable file (latin + latin-ext), bundled locally for the same reason as
+// above: no runtime font-CDN request, no layout shift from a third-party
+// stylesheet. Applied to h1-h3 (and .font-title) in globals.css.
+const darkerGrotesque = localFont({
+  src: [
+    { path: "./fonts/DarkerGrotesque-Latin.woff2" },
+    { path: "./fonts/DarkerGrotesque-LatinExt.woff2" },
+  ],
+  weight: "300 900",
+  variable: "--font-darker-grotesque",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "https://operate.to",
@@ -68,7 +82,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className={instrumentSans.variable}>
+    <html lang="en" suppressHydrationWarning className={`${instrumentSans.variable} ${darkerGrotesque.variable}`}>
       <head>
         {/* Resolve the theme before first paint so there's no flash. The
             toggle writes localStorage "theme" = dark | light; anything else

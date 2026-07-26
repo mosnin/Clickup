@@ -1,7 +1,0 @@
-dependencies:
-  tools:
-    - type: "mcp"
-      value: "operate"
-      description: "Read and coordinate Spaces, Lists, tasks, roadmaps, agents, evidence, and operations in Operate"
-      transport: "streamable_http"
-      url: "https://operate.to/api/mcp?profile=chatgpt"

@@ -5,8 +5,8 @@ import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import {
-  billingConfigurationIssue,
   buildPaymentRequired,
+  facilitatorConfigured,
   validatePaymentShape,
   x402Config,
   type PaymentPayload,
@@ -122,28 +122,16 @@ export const settleTopup = action({
     xPayment: v.string(),
     credits: v.number(),
   },
-  returns: v.object({
-    settled: v.boolean(),
-    balance: v.number(),
-    creditsGranted: v.number(),
-    txReference: v.optional(v.string()),
-    network: v.string(),
-    asset: v.string(),
-  }),
-  handler: async (
-    ctx,
-    { apiKey, xPayment, credits },
-  ): Promise<SettleResult> => {
+  handler: async (ctx, { apiKey, xPayment, credits }): Promise<SettleResult> => {
     if (!Number.isInteger(credits) || credits <= 0) {
       throw new ConvexError("credits must be a positive integer");
     }
     const cfg = x402Config();
     // Fail closed: never settle (and never mint credits) unless a real
     // facilitator is configured or the mock is explicitly opted into for dev.
-    const configurationIssue = billingConfigurationIssue(cfg);
-    if (configurationIssue) {
+    if (!facilitatorConfigured(cfg)) {
       throw new ConvexError(
-        `Billing unavailable: ${configurationIssue}. Configure X402_FACILITATOR_URL and X402_PAY_TO (production), or explicitly opt into the mock with a non-zero test receiver for development only.`,
+        "Payment facilitator not configured. Set X402_FACILITATOR_URL (production), or X402_ALLOW_MOCK=1 for development only.",
       );
     }
     const scope: {

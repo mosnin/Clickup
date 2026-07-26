@@ -5,7 +5,6 @@ import { v } from "convex/values";
 import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { RETRY_DELAYS_MS } from "./webhooks";
-import { assertSafeWebhookDestination } from "./_webhookNetwork";
 
 // Webhook delivery worker. Scheduled from emitEvent() (convex/events.ts)
 // with a fresh delivery row; retries reschedule themselves with backoff.
@@ -56,13 +55,8 @@ export const deliver = internalAction({
     let responseStatus: number | undefined;
     let error: string | undefined;
     try {
-      // Validate again at delivery time so DNS rebinding cannot bypass the
-      // registration-time URL check. Redirects are refused because an
-      // otherwise-public endpoint could redirect to a private service.
-      await assertSafeWebhookDestination(sub.url);
       const res = await fetch(sub.url, {
         method: "POST",
-        redirect: "error",
         headers: {
           "Content-Type": "application/json",
           "X-Webhook-Event": event.type,

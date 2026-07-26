@@ -12,7 +12,6 @@ import {
   FileText,
   FolderInput,
   LayoutGrid,
-  LayoutTemplate,
   Lock,
   MoreHorizontal,
   Plus,
@@ -32,8 +31,6 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { Monogram } from "@/components/dashboard/monogram";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { TemplatePicker } from "@/components/dashboard/template-picker";
-import { Button } from "@/components/ui/button";
 import { Picker, type PickerOption } from "@/components/ui/picker";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -103,9 +100,7 @@ const CATEGORY_LABEL: Record<StatusCategory, string> = {
 export function SpaceView({ spaceId }: { spaceId: string }) {
   const id = spaceId as Id<"spaces">;
   const overview = useQuery(api.spaces.overview, { spaceId: id });
-  const router = useRouter();
   const [tab, setTab] = useState<"overview" | "settings">("overview");
-  const [templateOpen, setTemplateOpen] = useState(false);
 
   if (overview === undefined) {
     return <PageSkeleton />;
@@ -151,18 +146,6 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
               )}
             </>
           )
-        }
-        actions={
-          tab === "overview" && !space.archivedAt ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setTemplateOpen(true)}
-            >
-              <LayoutTemplate className="h-4 w-4" />
-              Use template
-            </Button>
-          ) : undefined
         }
       >
         <nav
@@ -216,15 +199,6 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
           canGovern={canGovern}
         />
       )}
-      <TemplatePicker
-        open={templateOpen}
-        parent={{ kind: "space", spaceId: id }}
-        onClose={() => setTemplateOpen(false)}
-        onCreated={(listId) => {
-          setTemplateOpen(false);
-          router.push(`/dashboard/l/${listId}`);
-        }}
-      />
     </div>
   );
 }
@@ -282,13 +256,13 @@ function OverviewTab({
       ))}
 
       <ProjectSection
-        title="Lists"
+        title="Projects"
         parentType="space"
         parentId={spaceId}
         rollupsById={rollupsById}
         fallback={lists.filter((l) => l.folderId === null)}
         dest={dest}
-        emptyMessage={`Lists created straight in ${spaceName} live here. Group them into a folder whenever it helps.`}
+        emptyMessage={`Projects created straight in ${spaceName} live here. Group them into a folder whenever it helps.`}
       />
 
       <section>
@@ -427,7 +401,7 @@ function ProjectSection({
         <div className="mt-3 rounded-2xl panel">
           <EmptyState
             compact
-            title="No lists yet"
+            title="No projects yet"
             message={emptyMessage}
             action={
               <NewListControl parentType={parentType} parentId={parentId} />
@@ -586,7 +560,7 @@ function FolderSection({
                     setHidden(true);
                     toast(
                       hasLists
-                        ? `"${folder.name}" deleted — its lists moved to ${spaceName}`
+                        ? `"${folder.name}" deleted — its projects moved to ${spaceName}`
                         : `"${folder.name}" deleted`,
                       {
                         action: {
@@ -616,7 +590,7 @@ function FolderSection({
             fallback={fallback}
             dest={dest}
             hideFolderLine
-            emptyMessage={`Nothing in ${folder.name} yet. Add a list here, or move an existing one in from ${spaceName}.`}
+            emptyMessage={`Nothing in ${folder.name} yet. Add a project here, or move an existing one in from ${spaceName}.`}
           />
         </div>
       )}
@@ -785,7 +759,7 @@ function ProjectCard({
                 });
                 toast(`"${list.name}" moved`);
               } catch (e) {
-                toast(errorMessage(e, "Couldn't move list"), {
+                toast(errorMessage(e, "Couldn't move project"), {
                   kind: "error",
                 });
               }

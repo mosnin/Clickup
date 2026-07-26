@@ -31,12 +31,6 @@ async function seed(t: ReturnType<typeof convexTest>) {
       role: "owner",
       joinedAt: Date.now(),
     });
-    await ctx.db.insert("memberships", {
-      workspaceId,
-      userClerkId: OTHER.subject,
-      role: "member",
-      joinedAt: Date.now(),
-    });
     return workspaceId;
   });
 }
@@ -98,9 +92,9 @@ describe("my work", () => {
       statusId: completeStatusId,
     });
 
-    // T3: workspace, assigned to another member -> excluded.
+    // T3: personal, not assigned to me -> excluded.
     await t.withIdentity(ME).mutation(api.tasks.create, {
-      listId: wsListId,
+      listId: personalListId,
       title: "Someone else's task",
       assigneeClerkIds: [OTHER.subject],
     });

@@ -2,10 +2,8 @@ import type { Metadata } from "next";
 import { SITE_NAME, SITE_URL } from "@/lib/marketing-nav";
 import { Hero } from "./sections/hero";
 import { SocialProof } from "./sections/social-proof";
-import { OpsStack } from "./sections/ops-stack";
 import { Showcase } from "./sections/showcase";
-import { Bento } from "./sections/bento";
-import { MiniFeatures } from "./sections/mini-features";
+import { FeatureCards } from "./sections/feature-cards";
 import { CtaPanel } from "./sections/cta-panel";
 import { PricingSection } from "./sections/pricing-section";
 import { Faq } from "./sections/faq";
@@ -48,10 +46,13 @@ const JSON_LD = {
   url: SITE_URL,
 };
 
-// Home (marketing v2) — section order mirrors the reference layout 1:1:
-// blue band (hero + social proof), then white ops-stack/showcase/bento
-// sections, dark CTA panel, pricing, FAQ, "simpler" closing panel. Copy
-// lives in src/lib/marketing-content.ts; sections own their backgrounds.
+// Home (marketing v2) — band (hero + social proof), the product screenshot,
+// then the feature card grid, dark CTA panel, pricing, FAQ, and the "simpler"
+// closing panel. Sections own their backgrounds.
+//
+// <Showcase /> carries the real product screenshots; <FeatureCards /> is the
+// one feature block, five live surfaces rendered as the chrome they wear in
+// the app rather than a grid of copy tiles.
 
 export default function HomePage() {
   return (
@@ -68,10 +69,8 @@ export default function HomePage() {
         <Hero />
         <SocialProof />
       </div>
-      <OpsStack />
       <Showcase />
-      <Bento />
-      <MiniFeatures />
+      <FeatureCards />
       <CtaPanel />
       <PricingSection />
       <Faq />

@@ -212,10 +212,6 @@ export function TaskAssignees({
     if (agent.allowedListIds && !agent.allowedListIds.includes(listId)) {
       return "restricted";
     }
-    const missing = (task.requiredCapabilities ?? []).filter(
-      (capability) => !(agent.capabilities ?? []).includes(capability),
-    );
-    if (missing.length > 0) return `missing ${missing.join(", ")}`;
     return null;
   }
 

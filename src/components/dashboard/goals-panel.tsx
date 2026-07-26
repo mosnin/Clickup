@@ -18,7 +18,7 @@ type ParentType = "user" | "workspace";
 type TargetType = Doc<"goals">["targetType"];
 type GoalStatus = Doc<"goals">["status"];
 // Query rows carry `linked` plus DERIVED currentValue/status when the goal
-// tracks a list (sourceListId) — the server recomputes both on every
+// tracks a project (sourceListId) — the server recomputes both on every
 // read, so this component never does its own rollup math.
 type GoalList = NonNullable<
   ReturnType<typeof useQuery<typeof api.goals.listForParent>>
@@ -54,7 +54,7 @@ export function GoalsPanel({
 }) {
   const goals = useQuery(api.goals.listForParent, { parentType, parentId });
   // Already subscribed app-wide by the sidebar — free source for the
-  // "Track a list" picker, filtered to this goal scope.
+  // "Track a project" picker, filtered to this goal scope.
   const tree = useQuery(api.sidebar.tree, {});
   const [showForm, setShowForm] = useState(false);
 
@@ -158,7 +158,7 @@ function CreateGoalForm({
   const effectiveType: TargetType = sourceListId ? "number" : targetType;
   const sourceName = sourceListId
     ? (projects.find((p) => p.id === (sourceListId as string))?.label ??
-      "list")
+      "project")
     : null;
 
   return (
@@ -250,12 +250,12 @@ function CreateGoalForm({
         <div className="flex flex-wrap items-center gap-2">
           {sourceListId ? (
             <TracksChip
-              name={sourceName ?? "list"}
+              name={sourceName ?? "project"}
               onClear={() => setSourceListId(null)}
             />
           ) : (
             <Picker
-              label="Track a list…"
+              label="Track a project…"
               dashed
               options={projects}
               onSelect={(id) => setSourceListId(id as Id<"lists">)}
@@ -263,7 +263,7 @@ function CreateGoalForm({
           )}
           <span className="text-xs text-muted-foreground">
             {sourceListId
-              ? "Progress counts that list's completed tasks — no manual updates."
+              ? "Progress counts that project's completed tasks — no manual updates."
               : "Optional: progress moves itself as tasks complete."}
           </span>
         </div>
@@ -272,7 +272,7 @@ function CreateGoalForm({
   );
 }
 
-// "Tracks {list}" chip with a clear (x). Same voice in create and row.
+// "Tracks {project}" chip with a clear (x). Same voice in create and row.
 function TracksChip({
   name,
   onClear,
@@ -317,7 +317,7 @@ function GoalRow({
       : 0;
 
   const sourceName = goal.sourceListId
-    ? (projectNameById.get(goal.sourceListId as string) ?? "a list")
+    ? (projectNameById.get(goal.sourceListId as string) ?? "a project")
     : null;
 
   function link(listId: string) {
@@ -356,7 +356,7 @@ function GoalRow({
             value={goal.status}
             title={
               goal.linked
-                ? "Status follows the tracked list; only Abandoned can be set by hand."
+                ? "Status follows the tracked project; only Abandoned can be set by hand."
                 : undefined
             }
             onChange={(e) =>
@@ -401,14 +401,14 @@ function GoalRow({
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {goal.linked ? (
-          <TracksChip name={sourceName ?? "a list"} onClear={unlink} />
+          <TracksChip name={sourceName ?? "a project"} onClear={unlink} />
         ) : (
-          // Only number goals can track a list (the server refuses the
+          // Only number goals can track a project (the server refuses the
           // rest — a money/boolean goal deriving a task count is nonsense).
           goal.status !== "abandoned" &&
           goal.targetType === "number" && (
             <Picker
-              label="Track a list…"
+              label="Track a project…"
               dashed
               options={projects}
               onSelect={link}
@@ -479,7 +479,7 @@ function ProgressEditor({
         <span>{Math.round(progress * 100)}%</span>
       </div>
       <Progress value={progress * 100} className="h-2" />
-      {/* Linked goals derive the number from the list's rollup — the
+      {/* Linked goals derive the number from the project's rollup — the
           server refuses manual setProgress, so no input to offer. */}
       {!goal.linked && (
         <div className="flex items-center gap-2">

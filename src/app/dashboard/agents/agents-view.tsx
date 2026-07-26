@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useAction, useMutation, useQuery } from "convex/react";
@@ -42,7 +42,6 @@ import TextType from "@/components/text-type";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { eventHref, eventLabel } from "@/lib/event-labels";
-import { agentPresence } from "@/lib/agent-presence";
 import { useToast } from "@/components/toast";
 import {
   AnimatedNumber,
@@ -69,14 +68,7 @@ const TABS: { key: Tab; label: string; icon: typeof Bot }[] = [
   { key: "skills", label: "Skills", icon: BookOpen },
 ];
 
-function usePresenceClock() {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
-  return now;
-}
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 
 export function AgentsView() {
   // Tab is URL-addressable (?tab=) so the sidebar can deep-link to Activity/
@@ -92,7 +84,6 @@ export function AgentsView() {
   // Agents tab, exactly where it always has.
   const [creating, setCreating] = useState(false);
   const [templating, setTemplating] = useState(false);
-  const now = usePresenceClock();
 
   const agentsData = useQuery(api.agents.listForCurrentUser, {});
   const { onlineCount, totalCount } = useMemo(() => {
@@ -101,9 +92,14 @@ export function AgentsView() {
       ...agentsData.personal,
       ...agentsData.workspaces.flatMap((w) => w.agents),
     ];
-    const online = all.filter((a) => agentPresence(a, now).online).length;
+    const online = all.filter(
+      (a) =>
+        a.status === "active" &&
+        a.lastSeenAt !== undefined &&
+        Date.now() - a.lastSeenAt < ONLINE_WINDOW_MS,
+    ).length;
     return { onlineCount: online, totalCount: all.length };
-  }, [agentsData, now]);
+  }, [agentsData]);
 
   return (
     <div className="space-y-6">
@@ -260,12 +256,10 @@ function AgentsTab({
             className="overflow-hidden"
           >
             <TemplateGallery
-              workspaces={data.workspaces
-                .filter((w) => w.canManageAgents)
-                .map((w) => ({
-                  id: w.workspaceId,
-                  name: w.workspaceName,
-                }))}
+              workspaces={data.workspaces.map((w) => ({
+                id: w.workspaceId,
+                name: w.workspaceName,
+              }))}
               onDone={() => setTemplating(false)}
             />
           </motion.div>
@@ -274,12 +268,10 @@ function AgentsTab({
 
       {creating && (
         <CreateAgentForm
-          workspaces={data.workspaces
-            .filter((w) => w.canManageAgents)
-            .map((w) => ({
-              id: w.workspaceId,
-              name: w.workspaceName,
-            }))}
+          workspaces={data.workspaces.map((w) => ({
+            id: w.workspaceId,
+            name: w.workspaceName,
+          }))}
           onDone={() => setCreating(false)}
         />
       )}
@@ -288,7 +280,6 @@ function AgentsTab({
         label="Personal space"
         agents={data.personal}
         taskTitles={taskTitles ?? {}}
-        canManage
       />
       {data.workspaces.map((w) => (
         <AgentGroup
@@ -296,7 +287,6 @@ function AgentsTab({
           label={w.workspaceName}
           agents={w.agents}
           taskTitles={taskTitles ?? {}}
-          canManage={w.canManageAgents}
         />
       ))}
     </div>
@@ -599,7 +589,6 @@ function CreateAgentForm({
   const { toast } = useToast();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [capabilities, setCapabilities] = useState("");
   const [scope, setScope] = useState("personal");
   const [pending, setPending] = useState(false);
   // After create: the guided connect step, so nobody has to hunt for the
@@ -665,10 +654,6 @@ function CreateAgentForm({
           const agentId = await create({
             name: name.trim(),
             description: description.trim() || undefined,
-            capabilities: capabilities
-              .split(",")
-              .map((value) => value.trim())
-              .filter(Boolean),
             parentType: scope === "personal" ? "user" : "workspace",
             parentId: scope === "personal" ? user.id : scope,
           });
@@ -737,20 +722,6 @@ function CreateAgentForm({
           className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
         />
       </label>
-      <label className="block">
-        <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Capabilities (optional)
-        </span>
-        <input
-          value={capabilities}
-          onChange={(e) => setCapabilities(e.currentTarget.value)}
-          placeholder="typescript, backend, quality-assurance"
-          className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-        />
-        <span className="mt-1 block text-xs text-muted-foreground">
-          Comma-separated contracts used to route only compatible work.
-        </span>
-      </label>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={onDone}>
           Cancel
@@ -767,34 +738,21 @@ function AgentGroup({
   label,
   agents,
   taskTitles,
-  canManage,
 }: {
   label: string;
   agents: Doc<"agents">[];
   taskTitles: Record<string, string>;
-  canManage: boolean;
 }) {
   if (agents.length === 0) return null;
   return (
     <section>
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {label}
-        </h3>
-        {!canManage && (
-          <span className="text-xs text-muted-foreground">
-            Owners and admins manage access
-          </span>
-        )}
-      </div>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </h3>
       <Stagger className="grid gap-3 lg:grid-cols-2">
         {agents.map((agent) => (
           <StaggerItem key={agent._id}>
-            <AgentCard
-              agent={agent}
-              taskTitles={taskTitles}
-              canManage={canManage}
-            />
+            <AgentCard agent={agent} taskTitles={taskTitles} />
           </StaggerItem>
         ))}
       </Stagger>
@@ -805,20 +763,19 @@ function AgentGroup({
 function AgentCard({
   agent,
   taskTitles,
-  canManage,
 }: {
   agent: Doc<"agents">;
   taskTitles: Record<string, string>;
-  canManage: boolean;
 }) {
-  const now = usePresenceClock();
   const update = useMutation(api.agents.update);
   const remove = useMutation(api.agents.remove);
   const [showKeys, setShowKeys] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
 
-  const presence = agentPresence(agent, now);
+  const online =
+    agent.lastSeenAt !== undefined &&
+    Date.now() - agent.lastSeenAt < ONLINE_WINDOW_MS;
   const currentTitle = agent.currentTaskId
     ? taskTitles[agent.currentTaskId]
     : undefined;
@@ -827,16 +784,13 @@ function AgentCard({
   // only commits once the undo window closes.
   if (deleting) return null;
 
-  const statusLabel =
-    presence.state === "recently_seen" || presence.state === "offline"
-      ? `Seen ${timeAgo(agent.lastSeenAt!)}`
-      : presence.label;
-  const signalLabel =
-    presence.state === "online_heartbeating"
-      ? "Heartbeat live"
-      : presence.state === "online_connected"
-        ? "MCP connected · heartbeat pending"
-        : presence.detail;
+  const statusLabel = agent.status === "paused"
+    ? "Paused"
+    : online
+      ? "Online"
+      : agent.lastSeenAt
+        ? `Seen ${timeAgo(agent.lastSeenAt)}`
+        : "Never connected";
 
   return (
     <Card className="lift gap-3 rounded-2xl p-4">
@@ -854,12 +808,12 @@ function AgentCard({
               variant="secondary"
               className={cn(
                 "gap-1.5 uppercase tracking-wider",
-                presence.online &&
+                agent.status === "active" &&
+                  online &&
                   "bg-pastel-green text-foreground dark:text-neutral-900",
               )}
-              title={presence.detail}
             >
-              <PresenceDot online={presence.online} />
+              <PresenceDot online={agent.status === "active" && online} />
               {statusLabel}
             </Badge>
           </div>
@@ -868,14 +822,9 @@ function AgentCard({
               {agent.description}
             </p>
           )}
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            Signal: {signalLabel}
-          </p>
           {(agent.statusText || currentTitle) && (
             <p className="mt-2 rounded-2xl bg-muted/50 px-3 py-1.5 text-xs">
-              <span className="font-medium">
-                {presence.online ? "Now:" : "Last status:"}
-              </span>{" "}
+              <span className="font-medium">Now:</span>{" "}
               {currentTitle && agent.currentTaskId ? (
                 <span className="font-medium">{currentTitle}, </span>
               ) : null}
@@ -883,49 +832,47 @@ function AgentCard({
             </p>
           )}
         </div>
-        {canManage && (
-          <div className="flex flex-shrink-0 items-center gap-1">
-            <button
-              type="button"
-              title={agent.status === "active" ? "Pause agent" : "Resume agent"}
-              onClick={() =>
-                update({
-                  agentId: agent._id,
-                  status: agent.status === "active" ? "paused" : "active",
-                })
-              }
-              className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              {agent.status === "active" ? (
-                <Pause className="h-3.5 w-3.5" />
-              ) : (
-                <Play className="h-3.5 w-3.5" />
-              )}
-            </button>
-            <button
-              type="button"
-              title="API keys"
-              onClick={() => setShowKeys((v) => !v)}
-              className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <KeyRound className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              title="Delete agent"
-              onClick={() => {
-                setDeleting(true);
-                toast(`${agent.name} deleted, keys stop working`, {
-                  action: { label: "Undo", onClick: () => setDeleting(false) },
-                  onExpire: () => remove({ agentId: agent._id }),
-                });
-              }}
-              className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
+        <div className="flex flex-shrink-0 items-center gap-1">
+          <button
+            type="button"
+            title={agent.status === "active" ? "Pause agent" : "Resume agent"}
+            onClick={() =>
+              update({
+                agentId: agent._id,
+                status: agent.status === "active" ? "paused" : "active",
+              })
+            }
+            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            {agent.status === "active" ? (
+              <Pause className="h-3.5 w-3.5" />
+            ) : (
+              <Play className="h-3.5 w-3.5" />
+            )}
+          </button>
+          <button
+            type="button"
+            title="API keys"
+            onClick={() => setShowKeys((v) => !v)}
+            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <KeyRound className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            title="Delete agent"
+            onClick={() => {
+              setDeleting(true);
+              toast(`${agent.name} deleted, keys stop working`, {
+                action: { label: "Undo", onClick: () => setDeleting(false) },
+                onExpire: () => remove({ agentId: agent._id }),
+              });
+            }}
+            className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-danger"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
       <AnimatePresence initial={false}>
         {showKeys && (
@@ -1137,58 +1084,6 @@ export function ActivityFeed({
 
 // ── Webhooks tab ───────────────────────────────────────────────────────
 
-function WebhookDeliveryState({
-  subscriptionId,
-}: {
-  subscriptionId: Id<"webhookSubscriptions">;
-}) {
-  const deliveries = useQuery(api.webhooks.recentDeliveries, {
-    subscriptionId,
-    limit: 1,
-  });
-  const delivery = deliveries?.[0];
-  if (deliveries === undefined) {
-    return <span className="text-xs text-muted-foreground">Checking…</span>;
-  }
-  if (!delivery) {
-    return <span className="text-xs text-muted-foreground">No deliveries</span>;
-  }
-  const detail =
-    delivery.responseStatus !== undefined
-      ? `HTTP ${delivery.responseStatus}`
-      : delivery.lastError
-        ? "Network error"
-        : null;
-  return (
-    <div className="flex flex-col items-start gap-1">
-      <Badge
-        variant="secondary"
-        className={cn(
-          "uppercase tracking-wider",
-          delivery.status === "success"
-            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-            : delivery.status === "failed"
-              ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
-              : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-        )}
-      >
-        {delivery.status === "success"
-          ? "Delivered"
-          : delivery.status === "failed"
-            ? "Failed"
-            : delivery.attempts === 0
-              ? "Queued"
-              : `Retrying · ${delivery.attempts}/4`}
-      </Badge>
-      <span className="text-xs text-muted-foreground">
-        {[detail, timeAgo(delivery.completedAt ?? delivery.createdAt)]
-          .filter(Boolean)
-          .join(" · ")}
-      </span>
-    </div>
-  );
-}
-
 function WebhooksTab() {
   const { user } = useUser();
   const subs = useQuery(api.webhooks.listForCurrentUser, {});
@@ -1273,13 +1168,11 @@ function WebhooksTab() {
             className="rounded-full border border-border bg-background px-3 py-1.5 text-sm"
           >
             <option value="personal">Personal space</option>
-            {(agents?.workspaces ?? [])
-              .filter((w) => w.canManageAgents)
-              .map((w) => (
-                <option key={w.workspaceId} value={w.workspaceId}>
-                  {w.workspaceName}
-                </option>
-              ))}
+            {(agents?.workspaces ?? []).map((w) => (
+              <option key={w.workspaceId} value={w.workspaceId}>
+                {w.workspaceName}
+              </option>
+            ))}
           </select>
         </label>
         <label className="block min-w-44">
@@ -1318,7 +1211,6 @@ function WebhooksTab() {
                 <TableHead>Endpoint</TableHead>
                 <TableHead>Events</TableHead>
                 <TableHead>Owner</TableHead>
-                <TableHead>Last delivery</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Delete</TableHead>
               </TableRow>
@@ -1354,35 +1246,19 @@ function WebhooksTab() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <WebhookDeliveryState subscriptionId={s._id} />
-                  </TableCell>
-                  <TableCell>
                     <button
                       type="button"
                       onClick={() =>
                         update({ subscriptionId: s._id, enabled: !s.enabled })
                       }
-                      title={
-                        s.disabledAt
-                          ? "Auto-disabled after repeated delivery failures. Fix the endpoint, then click to reset and retry."
-                          : s.enabled
-                            ? "Pause webhook delivery"
-                            : "Resume webhook delivery"
-                      }
                       className={cn(
                         "rounded-full px-2.5 py-0.5 text-xs",
                         s.enabled
                           ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                          : s.disabledAt
-                            ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
                           : "bg-muted text-muted-foreground",
                       )}
                     >
-                      {s.enabled
-                        ? "Enabled"
-                        : s.disabledAt
-                          ? "Auto-disabled"
-                          : "Paused"}
+                      {s.enabled ? "Enabled" : "Disabled"}
                     </button>
                   </TableCell>
                   <TableCell className="text-right">

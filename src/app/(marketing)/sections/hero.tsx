@@ -7,7 +7,7 @@ import gsap from "gsap";
 import { HERO } from "@/lib/marketing-content";
 import { Container, CtaButton, ScreenshotFrame } from "@/components/marketing/ui";
 import { HeroRotator } from "@/components/marketing/hero-rotator";
-import { HeroFilm } from "@/components/marketing/hero-film";
+import { HeroUnicorn } from "@/components/marketing/hero-unicorn";
 import { useGsap, GsapParallax, EASE_OUT } from "@/components/marketing/gsap";
 import { cn } from "@/lib/utils";
 import GradientText from "@/components/gradient-text";
@@ -130,28 +130,23 @@ export function Hero() {
       data-gs-hidden=""
       className="gs-reveal relative overflow-x-clip bg-black pt-28 pb-10 sm:pt-36"
     >
-      {/* Background film — decorative, so aria-hidden and controls-free. See
-          components/marketing/hero-film.tsx for why autoplay is driven from
-          JS and why phones get a different encode.
+      {/* Unicorn Studio scene behind the headline.
 
-          z-0, not a negative layer: the marketing layout parks a fixed
-          dithered field at -z-10, so anything below that never shows. The
-          hero's own content is lifted to z-10 to sit over the film.
+          z-0, not the vendor snippet's -z-10: the marketing layout parks a
+          fixed black field at -z-10, so a negative layer would sit behind it
+          and never show. Hero content lifts to z-10 instead.
 
-          The film covers the headline band and fades out before the product
-          shot — NOT the whole section. Height matters for sharpness: filling
-          a tall narrow box with a landscape clip made object-cover crop hard
-          and magnify what was left (measured 2.6x on desktop). A short, wide box
-          keeps the frame at roughly native scale. */}
+          The scene covers the headline band and fades out before the product
+          shot rather than filling the whole section. */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[clamp(24rem,62vh,38rem)] overflow-hidden"
       >
-        <HeroFilm />
-        {/* Vignette keeps the headline legible over a busy frame; the bottom
-            fade lands on pure black, the same fill the page canvas uses, so the
-            film dissolves into the rest of the page with no seam. */}
-        <div className="absolute inset-0 bg-[radial-gradient(120%_95%_at_50%_18%,transparent_30%,rgba(0,0,0,0.8)_100%)]" />
+        <HeroUnicorn />
+        {/* Light vignette keeps the headline legible without muddying the
+            scene; the bottom fade lands on pure black, the same fill the page
+            canvas uses, so it dissolves into the page with no seam. */}
+        <div className="absolute inset-0 bg-[radial-gradient(120%_95%_at_50%_18%,transparent_30%,rgba(0,0,0,0.72)_100%)]" />
         <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-b from-transparent via-black/75 to-black" />
       </div>
 

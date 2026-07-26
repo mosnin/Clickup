@@ -25,21 +25,19 @@ async function requireWorkspaceAdmin(
 export const listForWorkspace = query({
   args: { workspaceId: v.id("workspaces") },
   handler: async (ctx, { workspaceId }) => {
-    try {
-      await requireWorkspaceAdmin(ctx, workspaceId);
-    } catch {
-      return [];
-    }
-    const integrations = await ctx.db
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const m = await ctx.db
+      .query("memberships")
+      .withIndex("by_user_and_workspace", (q) =>
+        q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
+      )
+      .unique();
+    if (!m) return [];
+    return await ctx.db
       .query("integrations")
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
       .collect();
-    // Incoming-webhook URLs are bearer credentials. The management UI only
-    // needs presence and enabled state; never return config after creation.
-    return integrations.map(({ config: _config, ...integration }) => ({
-      ...integration,
-      configured: true as const,
-    }));
   },
 });
 

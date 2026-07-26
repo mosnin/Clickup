@@ -7,7 +7,7 @@ import type { ComponentProps } from "react";
 // which is why the old config rendered Clerk's stock blue).
 export const authAppearance: ComponentProps<typeof SignIn>["appearance"] = {
   variables: {
-    colorPrimary: "#ff7a45",
+    colorPrimary: "#22a7e8",
     colorText: "#f5f5f5",
     colorTextSecondary: "rgba(255,255,255,0.62)",
     colorBackground: "#161616",
@@ -29,9 +29,9 @@ export const authAppearance: ComponentProps<typeof SignIn>["appearance"] = {
     dividerLine: "bg-white/10",
     dividerText: "text-white/40",
     formFieldLabel: "text-white/80",
-    formFieldInput: "border-white/12 focus:border-[#ff9d5c]",
+    formFieldInput: "border-white/12 focus:border-[#5ec8f5]",
     formButtonPrimary:
-      "bg-gradient-to-r from-[#ff9d5c] to-[#ff7a45] text-[#1a0d05] shadow-none transition-opacity hover:opacity-90",
+      "bg-gradient-to-r from-[#5ec8f5] to-[#22a7e8] text-[#04141c] shadow-none transition-opacity hover:opacity-90",
     footerActionText: "text-white/60",
     footerActionLink: "text-[#ffb27d] hover:text-[#ffc79b]",
     identityPreview: "border-white/12 bg-white/[0.04]",

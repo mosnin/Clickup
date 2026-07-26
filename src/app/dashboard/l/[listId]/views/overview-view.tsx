@@ -118,7 +118,7 @@ function AboutCard({
             void save({ description });
           }
         }}
-        placeholder="What is this list for?"
+        placeholder="What is this project about?"
         className="mt-2 w-full bg-transparent text-sm focus:outline-none"
       />
 
@@ -390,7 +390,7 @@ function MilestonesCard({ listId }: { listId: Id<"lists"> }) {
         <EmptyState
           compact
           title="No checkpoints yet"
-          message="Milestones are dated checkpoints for this list — a beta cut, a design freeze. Link tasks to one and its progress tracks itself."
+          message="Milestones are the dated checkpoints inside this project — a beta cut, a design freeze. Link tasks to one and its progress tracks itself."
           action={
             <Button variant="outline" size="sm" onClick={() => setCreating(true)}>
               Add milestone

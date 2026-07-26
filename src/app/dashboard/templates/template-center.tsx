@@ -767,17 +767,6 @@ function ConfirmStep({
         ? "space or folder"
         : "space";
 
-  const destinationHelp =
-    template.entityType === "task"
-      ? "This template creates one task inside the list you choose."
-      : template.entityType === "view"
-        ? "This template adds a saved view to the list you choose."
-        : template.entityType === "list"
-          ? "This template creates a new list inside the space or folder you choose."
-          : template.entityType === "doc"
-            ? "This template creates a new doc inside the space you choose."
-            : "This template creates a new whiteboard inside the space you choose.";
-
   async function run() {
     if (!destination) return;
     const [kind, id] = destination.split(":");
@@ -830,9 +819,8 @@ function ConfirmStep({
       <div className="min-w-0 space-y-4">
         <div className="min-w-0 space-y-1.5">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Create in
+            Destination
           </p>
-          <p className="text-xs text-muted-foreground">{destinationHelp}</p>
           {loading ? (
             <div className="h-9 w-48 animate-pulse rounded-full bg-muted" />
           ) : options.length === 0 ? (

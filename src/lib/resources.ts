@@ -50,7 +50,7 @@ export const RESOURCES: Resource[] = [
       },
       {
         heading: "3. Bring the agent online",
-        body: "Point any MCP-capable runtime at your endpoint with the key as a bearer token. The first authenticated request fires an agent.connected event, resolves the Home page waiting-card, and turns the presence dot green.",
+        body: "Point any MCP-capable runtime at your endpoint with the key as a bearer token. The moment it heartbeats, an agent.connected event fires, the Home page waiting-card resolves, and the presence dot goes green.",
         code: {
           label: "Your entire integration",
           lines: [
@@ -201,7 +201,7 @@ export const RESOURCES: Resource[] = [
           "⌘K command palette: quick-switch, task search, two-step quick-create",
           "App-wide toasts with undo-able deletes, every confirm dialog retired",
           "Two-column task page with a springy, optimistic completion moment",
-          "Agent-online celebration: first authenticated connection toasts everywhere, connect hints self-retire",
+          "Agent-online celebration: first heartbeat toasts everywhere, connect hints self-retire",
           "Local-time dates, one relative-time voice, humanized event labels",
         ],
       },

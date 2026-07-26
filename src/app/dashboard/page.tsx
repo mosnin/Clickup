@@ -110,7 +110,7 @@ const WIDGETS = [
   { id: "stats", title: "Overview stats", span: "lg:col-span-3" },
   { id: "today", title: "Today's tasks", span: "lg:col-span-2" },
   { id: "activity", title: "Recent activity", span: "" },
-  { id: "projects", title: "Lists", span: "lg:col-span-3" },
+  { id: "projects", title: "Projects", span: "lg:col-span-3" },
   { id: "live", title: "Live feed", span: "lg:col-span-2" },
   { id: "agents", title: "Agents online", span: "" },
 ] as const;
@@ -274,7 +274,7 @@ export default function DashboardHome() {
       <InviteCards />
 
       {/* AnimatePresence so the card resolves with a satisfying collapse
-          the moment the agent's first authenticated request lands. */}
+          the moment the agent's first heartbeat lands (live via Convex). */}
       <AnimatePresence initial={false}>
         {waiting.length > 0 && (
           <motion.div
@@ -293,7 +293,7 @@ export default function DashboardHome() {
               <span className="relative inline-flex h-12 w-12 flex-shrink-0" aria-hidden>
                 <Orb seed={waiting[0]._id} size="lg" />
                 {/* Small pending dot — the "dot" the copy references, which
-                    turns green on first connection. A gentle pulse signals
+                    turns green on first heartbeat. A gentle pulse signals
                     waiting without the whole avatar strobing. */}
                 <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-card">
                   <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-pastel-yellow" />
@@ -805,25 +805,25 @@ function ProjectsTable({
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <h3 className="text-base font-medium">Lists</h3>
+        <h3 className="text-base font-medium">Projects</h3>
         <span className="text-xs text-muted-foreground">
           {projects.length === totalProjects
-            ? `${totalProjects} list${totalProjects === 1 ? "" : "s"}`
+            ? `${totalProjects} project${totalProjects === 1 ? "" : "s"}`
             : `Showing ${projects.length} of ${totalProjects}`}
         </span>
       </div>
       {projects.length === 0 ? (
         <EmptyState
           compact
-          title="No lists yet"
-          message="Create a list inside a space and it'll show up here, live."
+          title="No projects yet"
+          message="Create a list inside your personal space or a workspace and it'll show up here, live."
         />
       ) : (
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead>List</TableHead>
+                <TableHead>Project</TableHead>
                 <TableHead>Health</TableHead>
                 <TableHead>Progress</TableHead>
                 <TableHead>Target date</TableHead>
@@ -903,10 +903,10 @@ function ProjectsTable({
       {projects.length < totalProjects && (
         <div className="border-t border-border px-4 py-3">
           <Link
-            href="/dashboard/spaces"
+            href="/dashboard/projects"
             className="text-sm font-medium hover:underline"
           >
-            View all spaces
+            View all projects
           </Link>
         </div>
       )}
@@ -926,7 +926,7 @@ function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
           <EmptyState
             compact
             title="It's quiet"
-            message="Activity across your spaces will land here the moment it happens."
+            message="Activity across your projects will land here the moment it happens."
           />
         ) : (
           <ul className="space-y-3">

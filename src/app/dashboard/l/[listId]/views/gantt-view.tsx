@@ -576,7 +576,7 @@ export function GanttView({
           <EmptyState
             compact
             title="No milestones yet"
-            message="Mark a task as a milestone, or add a list milestone on Overview, to see it here."
+            message="Mark a task as a milestone, or add a project milestone on Overview, to see it here."
           />
         </div>
       ) : (
@@ -716,7 +716,7 @@ export function GanttView({
                       <div
                         className="absolute top-1/2 flex -translate-y-1/2 items-center gap-1.5"
                         style={{ left: row.offset * DAY_PX + DAY_PX / 2 - 6 }}
-                        title={`${format(addDays(start, row.offset), "MMM d")} · list milestone${
+                        title={`${format(addDays(start, row.offset), "MMM d")} · project milestone${
                           complete ? " · complete" : ""
                         }`}
                       >

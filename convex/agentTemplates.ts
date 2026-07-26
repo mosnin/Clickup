@@ -21,7 +21,6 @@ export type AgentTemplate = {
   dailyActionLimit: number;
   // Built-in skill slugs worth importing for this persona (informational).
   recommendedSkills: string[];
-  capabilities: string[];
   // True when the template's persona is meaningless (or unsupported) outside
   // a team workspace — e.g. sprints are workspace-only. Enforced server-side
   // in createFromTemplate, not just hidden/disabled in the picker UI.
@@ -39,7 +38,6 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     role: "member",
     dailyActionLimit: 1500,
     recommendedSkills: ["collaboration-protocol"],
-    capabilities: ["project-management", "triage"],
   },
   {
     slug: "sprint-planner",
@@ -51,7 +49,6 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     role: "member",
     dailyActionLimit: 1000,
     recommendedSkills: ["collaboration-protocol", "sprint-planner"],
-    capabilities: ["project-management", "sprint-planning"],
     requiresWorkspace: true,
   },
   {
@@ -64,7 +61,6 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     role: "member",
     dailyActionLimit: 1500,
     recommendedSkills: ["collaboration-protocol"],
-    capabilities: ["quality-assurance"],
   },
   {
     slug: "docs-writer",
@@ -76,7 +72,6 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     role: "member",
     dailyActionLimit: 800,
     recommendedSkills: ["collaboration-protocol"],
-    capabilities: ["documentation"],
   },
   {
     slug: "research-analyst",
@@ -88,7 +83,6 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     role: "member",
     dailyActionLimit: 600,
     recommendedSkills: ["collaboration-protocol"],
-    capabilities: ["research", "analysis"],
   },
   {
     slug: "watchtower",
@@ -100,7 +94,6 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     role: "readonly",
     dailyActionLimit: 2000,
     recommendedSkills: ["collaboration-protocol"],
-    capabilities: ["operations-monitoring"],
   },
 ];
 
@@ -109,9 +102,8 @@ export const listTemplates = query({
   handler: async () => AGENT_TEMPLATES,
 });
 
-// Create an agent from a template with its preset governance. Personal agents
-// are self-managed; workspace agents require owner/admin access, matching
-// direct creation and key management in agents.ts.
+// Create an agent from a template with its preset governance. Access is
+// the same as agents.create (own personal space or a member workspace).
 export const createFromTemplate = mutation({
   args: {
     slug: v.string(),
@@ -121,8 +113,8 @@ export const createFromTemplate = mutation({
   },
   handler: async (ctx, { slug, parentType, parentId, nameOverride }) => {
     const identity = await requireIdentity(ctx);
-    // Scope check: personal space must be the caller's; workspace agent
-    // credentials and governance are limited to owners/admins.
+    // Scope check: personal space must be the caller's; workspace requires
+    // membership.
     if (parentType === "user") {
       if (parentId !== identity.subject) throw new ConvexError("Forbidden");
     } else {
@@ -134,14 +126,7 @@ export const createFromTemplate = mutation({
             .eq("workspaceId", parentId as Id<"workspaces">),
         )
         .unique();
-      if (
-        !membership ||
-        (membership.role !== "owner" && membership.role !== "admin")
-      ) {
-        throw new ConvexError(
-          "Only workspace owners and admins can manage agents",
-        );
-      }
+      if (!membership) throw new ConvexError("Forbidden");
     }
 
     const tpl = AGENT_TEMPLATES.find((t) => t.slug === slug);
@@ -159,8 +144,6 @@ export const createFromTemplate = mutation({
       parentId,
       status: "active",
       role: tpl.role,
-      capabilities: tpl.capabilities,
-      maxConcurrentTasks: 1,
       dailyActionLimit: tpl.dailyActionLimit,
       createdByClerkId: identity.subject,
       createdAt: Date.now(),

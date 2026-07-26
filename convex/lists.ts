@@ -13,8 +13,6 @@ import type { Actor } from "./_agentAuth";
 import { emitEvent, scopeForList, userActor } from "./events";
 import { seedDefaultStatuses } from "./listStatuses";
 import { deleteMilestonesForList } from "./milestones";
-import { deleteContextPacketsForList } from "./contextPackets";
-import { deleteDecisionsForList } from "./decisions";
 import { cleanupTaskArtifacts } from "./tasks";
 
 const parentTypeValidator = v.union(
@@ -557,8 +555,6 @@ export async function removeListCore(
     // Milestones belong to exactly this project — the tasks that pointed at
     // them are already gone above, so there's nothing left to unlink.
     await deleteMilestonesForList(ctx, list._id);
-    await deleteDecisionsForList(ctx, list._id);
-    await deleteContextPacketsForList(ctx, list._id);
 
     const rollup = await ctx.db
       .query("listRollups")

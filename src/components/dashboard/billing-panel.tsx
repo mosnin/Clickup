@@ -25,11 +25,7 @@ import Counter, { placesFor } from "@/components/counter";
 
 type Scope = { type: "user" | "workspace"; id: string; label: string };
 
-function formatAtomic(
-  atomic: string,
-  decimals: number,
-  symbol: string,
-): string {
+function formatAtomic(atomic: string, decimals: number, symbol: string): string {
   let big: bigint;
   try {
     big = BigInt(atomic);
@@ -38,10 +34,7 @@ function formatAtomic(
   }
   const scale = BigInt(10) ** BigInt(decimals);
   const whole = big / scale;
-  const frac = (big % scale)
-    .toString()
-    .padStart(decimals, "0")
-    .replace(/0+$/, "");
+  const frac = (big % scale).toString().padStart(decimals, "0").replace(/0+$/, "");
   return `${whole}${frac ? "." + frac : ""} ${symbol}`;
 }
 
@@ -101,7 +94,9 @@ export function BillingTab() {
         {scopes.length > 1 && (
           <Picker
             label={active.label}
-            selectedId={active.type === "user" ? "personal" : `ws:${active.id}`}
+            selectedId={
+              active.type === "user" ? "personal" : `ws:${active.id}`
+            }
             options={scopes.map((s) => ({
               id: s.type === "user" ? "personal" : `ws:${s.id}`,
               label: s.label,
@@ -167,11 +162,6 @@ function ScopeBilling({ scope }: { scope: Scope }) {
             {wallet.lifetimeSpent.toLocaleString()} spent
           </p>
           <div className="mt-4 flex flex-wrap gap-1.5">
-            {!pricing.available && (
-              <Badge className="w-fit border-transparent bg-pastel-red text-foreground dark:text-black">
-                Billing setup incomplete
-              </Badge>
-            )}
             <Badge
               className={cn(
                 "w-fit border-transparent",
@@ -214,18 +204,9 @@ function ScopeBilling({ scope }: { scope: Scope }) {
               label={`${pricing.exampleBundle.credits.toLocaleString()} credits`}
               value={pricing.exampleBundle.display}
             />
-            <Row
-              label="Facilitator"
-              value={pricing.facilitator ?? "Not configured"}
-            />
+            <Row label="Facilitator" value={pricing.facilitator} />
             <Row label="Pay to" value={truncMiddle(pricing.payTo)} mono />
           </dl>
-          {!pricing.available && pricing.configurationIssue && (
-            <p className="mt-4 rounded-md bg-pastel-red px-3 py-2 text-sm text-foreground dark:text-black">
-              Top-ups are unavailable: {pricing.configurationIssue}. Existing
-              agents remain unmetered until an operator finishes payment setup.
-            </p>
-          )}
         </Card>
       </div>
 
@@ -235,9 +216,10 @@ function ScopeBilling({ scope }: { scope: Scope }) {
           How agents top up
         </CardDescription>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          {pricing.available
-            ? "Your agents can pay for their own usage, with no card and no human in the loop. When an agent runs low, it buys more credits by itself using the open x402 payment standard. The steps below are what the agent does; you never have to."
-            : "Agent top-ups stay disabled until the payment facilitator and receiving wallet are configured. The platform will not issue an unusable challenge or turn on metering in the meantime."}
+          Your agents can pay for their own usage, with no card and no human
+          in the loop. When an agent runs low, it buys more credits by itself
+          using the open x402 payment standard. The steps below are what the
+          agent does; you never have to.
         </p>
         <ol className="mt-4 space-y-2.5">
           {[

@@ -174,62 +174,6 @@ describe("whoami governance mirror", () => {
   });
 });
 
-describe("transport presence", () => {
-  it("marks an authenticated MCP connection online and emits the first connection once", async () => {
-    const { t, agentId, apiKey } = await setup();
-    await t.mutation(api.agentApi.connect, { apiKey });
-    const first = await t.run(async (ctx) => ({
-      agent: await ctx.db.get(agentId),
-      events: await ctx.db
-        .query("events")
-        .filter((q) => q.eq(q.field("type"), "agent.connected"))
-        .collect(),
-    }));
-    expect(first.agent?.lastSeenAt).toEqual(expect.any(Number));
-    expect(first.agent?.lastConnectedAt).toEqual(expect.any(Number));
-    expect(first.agent?.lastHeartbeatAt).toBeUndefined();
-    expect(first.events).toHaveLength(1);
-
-    await t.mutation(api.agentApi.heartbeat, {
-      apiKey,
-      statusText: "Ready for work",
-    });
-    const heartbeating = await t.run((ctx) => ctx.db.get(agentId));
-    expect(heartbeating?.lastHeartbeatAt).toEqual(expect.any(Number));
-    expect(heartbeating?.lastSeenAt).toBe(heartbeating?.lastHeartbeatAt);
-
-    await t.mutation(api.agentApi.connect, { apiKey });
-    const events = await t.run((ctx) =>
-      ctx.db
-        .query("events")
-        .filter((q) => q.eq(q.field("type"), "agent.connected"))
-        .collect(),
-    );
-    expect(events).toHaveLength(1);
-  });
-
-  it("clears the current-work line when an agent completes that task", async () => {
-    const { t, alice, listId, agentId, apiKey } = await setup();
-    const taskId = await alice.mutation(api.tasks.create, {
-      listId,
-      title: "Finish the certification",
-    });
-    await t.mutation(api.agentApi.claimTask, { apiKey, taskId });
-    await t.mutation(api.agentApi.heartbeat, {
-      apiKey,
-      currentTaskId: taskId,
-      statusText: "Producing certification evidence",
-    });
-
-    await t.mutation(api.agentApi.completeTask, { apiKey, taskId });
-
-    const completed = await t.run((ctx) => ctx.db.get(agentId));
-    expect(completed?.currentTaskId).toBeUndefined();
-    expect(completed?.statusText).toBeUndefined();
-    expect(completed?.lastSeenAt).toEqual(expect.any(Number));
-  });
-});
-
 describe("linked goals over the agent API", () => {
   it("refuses manual progress on a linked goal and mirrors the human overlay", async () => {
     const { t, alice, listId, doneStatus, apiKey } = await setup();

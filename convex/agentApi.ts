@@ -18,7 +18,6 @@ import {
   requireTaskAccessForAgent,
   requireUnrestricted,
   requireWorkspaceAccessForAgent,
-  sha256Hex,
   canAgentAccessSpace,
   BURST_LIMIT_PER_MINUTE,
   DEFAULT_DAILY_ACTION_LIMIT,
@@ -84,10 +83,7 @@ import { createScheduledTaskCore, computeNextRunAt } from "./scheduledTasks";
 import { createSubscription } from "./webhooks";
 import { skillsForScope } from "./skills";
 import { withDerivedProgress } from "./goals";
-import {
-  blueprintTaskFields,
-  createTaskBlueprintCore,
-} from "./taskBlueprints";
+import { blueprintTaskFields } from "./taskBlueprints";
 import { createChannelCore } from "./channels";
 import {
   applyCatalogDocTemplateCore,
@@ -106,53 +102,6 @@ import {
 import { seedDefaultStatuses } from "./listStatuses";
 import { emitEvent, scopeForList } from "./events";
 import { getRollup } from "./rollups";
-import { executionPlanSummary, executionPlanView } from "./executionPlans";
-import {
-  hasCapabilities,
-  missingCapabilities,
-} from "./capabilities";
-import {
-  executionControlCore,
-  executionReadinessCore,
-} from "./executionDispatch";
-import {
-  executionPolicyFor,
-  executionPolicyValidator,
-  planAuthorization,
-} from "./executionPolicy";
-import {
-  abandonExecutionAssignmentForTask,
-  finishExecutionAssignment,
-  latestExecutionAssignmentForTask,
-  markExecutionAssignmentClaimed,
-  markExecutionAssignmentRunning,
-  reconcileStaleExecutionAssignments,
-  touchExecutionAssignment,
-} from "./executionLifecycle";
-import {
-  outcomeAssuranceView,
-  reviewOutcomeCriterionCore,
-  submitOutcomeEvidenceCore,
-} from "./outcomeAssurance";
-import {
-  acknowledgeTaskContextCore,
-  attachContextPacketCore,
-  contextReadinessForAgent,
-  createContextPacketCore,
-  deleteContextPacketCore,
-  detachContextPacketCore,
-  listPacketsForTask,
-  requireCurrentContext,
-  updateContextPacketCore,
-} from "./contextPackets";
-import {
-  assessDecisionImpactCore,
-  createDecisionCore,
-  decisionRowsForTask,
-  requireDecisionImpactsResolved,
-  supersedeDecisionCore,
-} from "./decisions";
-import { enqueueAgentPingDelivery } from "./agentPingDeliveries";
 
 // The agent-facing API: every function here authenticates with an agent
 // API key instead of Clerk, resolves the agent's scope (personal space or
@@ -171,15 +120,6 @@ const checklistValidator = v.array(
   v.object({ id: v.string(), text: v.string(), done: v.boolean() }),
 );
 
-async function requireTaskExecutionReady(
-  ctx: MutationCtx,
-  taskId: Id<"tasks">,
-  agentId: Id<"agents">,
-) {
-  await requireCurrentContext(ctx, taskId, agentId);
-  await requireDecisionImpactsResolved(ctx, taskId);
-}
-
 // ── Shared helpers ─────────────────────────────────────────────────────
 
 function scopeOf(agent: Doc<"agents">): {
@@ -187,20 +127,6 @@ function scopeOf(agent: Doc<"agents">): {
   scopeId: string;
 } {
   return { scopeType: agent.parentType, scopeId: agent.parentId };
-}
-
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map(canonicalJson).join(",")}]`;
-  }
-  if (value !== null && typeof value === "object") {
-    const row = value as Record<string, unknown>;
-    return `{${Object.keys(row)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonicalJson(row[key])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "null";
 }
 
 async function workspaceIdForMessageParent(
@@ -340,7 +266,6 @@ async function taskView(ctx: QueryCtx | MutationCtx, task: Doc<"tasks">) {
     startDate: task.startDate,
     dueDate: task.dueDate,
     assigneeIds: task.assigneeClerkIds,
-    requiredCapabilities: task.requiredCapabilities ?? [],
     parentTaskId: task.parentTaskId,
     sprintId: task.sprintId,
     recurrence: task.recurrence,
@@ -494,12 +419,7 @@ export const whoami = query({
       scopeName,
       statusText: agent.statusText,
       currentTaskId: agent.currentTaskId,
-      lastSeenAt: agent.lastSeenAt,
-      lastConnectedAt: agent.lastConnectedAt,
-      lastHeartbeatAt: agent.lastHeartbeatAt,
       role,
-      capabilities: agent.capabilities ?? [],
-      maxConcurrentTasks: agent.maxConcurrentTasks ?? 1,
       allowedLists,
       dailyActionLimit,
       actionsUsedToday,
@@ -511,44 +431,8 @@ export const whoami = query({
         creditsPerAction,
       },
       firstSteps:
-        "New here? Fetch the collaboration-protocol skill, find work with next_task, read get_task, acknowledge its context versions, then claim and heartbeat while working.",
+        "New here? Fetch the 'collaboration-protocol' skill (get_skill) and follow it: find work with next_task, claim before working, heartbeat while working.",
     };
-  },
-});
-
-// MCP clients call this during transport authentication. A successful
-// connection is presence even before the client starts a task or schedules
-// explicit heartbeats, so Mission Control should reflect it immediately.
-export const connect = mutation({
-  args: { apiKey: v.string() },
-  handler: async (ctx, { apiKey }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
-    const firstConnection = agent.lastSeenAt === undefined;
-    const now = Date.now();
-    // Authentication runs for every MCP request. Keep presence responsive
-    // without turning a busy tool session into a write per tool call.
-    if (
-      firstConnection ||
-      agent.lastConnectedAt === undefined ||
-      now - agent.lastConnectedAt >= 30_000
-    ) {
-      await ctx.db.patch(agent._id, {
-        lastSeenAt: now,
-        lastConnectedAt: now,
-      });
-    }
-    if (firstConnection) {
-      await emitEvent(ctx, {
-        scopeType: agent.parentType,
-        scopeId: agent.parentId,
-        type: "agent.connected",
-        actor: agentActor(agent),
-        entityType: "agent",
-        entityId: agent._id,
-        entityTitle: agent.name,
-      });
-    }
-    return { agentId: agent._id, name: agent.name };
   },
 });
 
@@ -563,11 +447,7 @@ export const heartbeat = mutation({
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
     const firstConnection = agent.lastSeenAt === undefined;
-    const now = Date.now();
-    const patch: Record<string, unknown> = {
-      lastSeenAt: now,
-      lastHeartbeatAt: now,
-    };
+    const patch: Record<string, unknown> = { lastSeenAt: Date.now() };
     if (args.statusText !== undefined) {
       patch.statusText = args.statusText.slice(0, 200) || undefined;
     }
@@ -575,23 +455,8 @@ export const heartbeat = mutation({
       if (args.currentTaskId === null) {
         patch.currentTaskId = undefined;
       } else {
-        const { task } = await requireTaskAccessForAgent(
-          ctx,
-          args.currentTaskId,
-          agent,
-        );
-        await requireTaskExecutionReady(ctx, args.currentTaskId, agent._id);
-        if (
-          task.claimedByActorId !== agent._id ||
-          task.claimedAt === undefined ||
-          Date.now() - task.claimedAt > CLAIM_TTL_MS
-        ) {
-          throw new ConvexError(
-            "Claim this task before setting it as your current work",
-          );
-        }
+        await requireTaskAccessForAgent(ctx, args.currentTaskId, agent);
         patch.currentTaskId = args.currentTaskId;
-        await touchExecutionAssignment(ctx, args.currentTaskId, agent._id);
       }
     }
     await ctx.db.patch(agent._id, patch);
@@ -608,67 +473,6 @@ export const heartbeat = mutation({
         entityTitle: agent.name,
       });
     }
-  },
-});
-
-// End-to-end wake receipt. The outbound HTTP response proves only that a
-// runtime endpoint accepted a notification; this authenticated callback proves
-// the intended agent consumed it and resumed the collaboration protocol.
-export const acknowledgeWakeDelivery = mutation({
-  args: {
-    apiKey: v.string(),
-    deliveryId: v.id("agentPingDeliveries"),
-  },
-  handler: async (ctx, { apiKey, deliveryId }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey, "presence");
-    const delivery = await ctx.db.get(deliveryId);
-    if (!delivery || delivery.agentId !== agent._id) {
-      throw new ConvexError("Wake delivery not found");
-    }
-    const acknowledgedAt = delivery.acknowledgedAt ?? Date.now();
-    if (delivery.acknowledgedAt === undefined) {
-      await ctx.db.patch(deliveryId, { acknowledgedAt });
-    }
-    await ctx.db.patch(agent._id, {
-      lastSeenAt: acknowledgedAt,
-      lastConnectedAt: acknowledgedAt,
-    });
-    return {
-      deliveryId,
-      type: delivery.type,
-      taskId: delivery.taskId,
-      messageId: delivery.messageId,
-      deliveryStatus: delivery.status,
-      acknowledgedAt,
-    };
-  },
-});
-
-// Pull fallback for runtimes that were offline, restarted between HTTP accept
-// and processing, or intentionally operate without a notify URL. Unconsumed
-// wakes remain available until the target agent acknowledges each receipt.
-export const listWakeInbox = query({
-  args: { apiKey: v.string() },
-  handler: async (ctx, { apiKey }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
-    const deliveries = await ctx.db
-      .query("agentPingDeliveries")
-      .withIndex("by_agent_acknowledged", (q) =>
-        q.eq("agentId", agent._id).eq("acknowledgedAt", undefined),
-      )
-      .order("desc")
-      .take(50);
-    return deliveries.map((delivery) => ({
-      deliveryId: delivery._id,
-      type: delivery.type,
-      payload: delivery.payload,
-      taskId: delivery.taskId,
-      messageId: delivery.messageId,
-      pushStatus: delivery.status,
-      pushAttempts: delivery.attempts,
-      pushError: delivery.lastError,
-      createdAt: delivery.createdAt,
-    }));
   },
 });
 
@@ -1000,20 +804,10 @@ export const getTask = query({
           url: await ctx.storage.getUrl(a.storageId),
         })),
     );
-    const contextPackets = await listPacketsForTask(ctx, taskId);
-    const contextReadiness = await contextReadinessForAgent(
-      ctx,
-      taskId,
-      agent._id,
-    );
-    const decisions = await decisionRowsForTask(ctx, taskId);
     return {
       ...view,
       listName: taskList?.name ?? null,
       attachments,
-      contextPackets,
-      contextReadiness,
-      decisions,
       sop,
       customFields,
       // Raw rows kept for backwards compatibility with existing agents.
@@ -1046,314 +840,6 @@ export const getTask = query({
   },
 });
 
-// ── Shared project context ─────────────────────────────────────────────
-
-export const listContextPackets = query({
-  args: {
-    apiKey: v.string(),
-    listId: v.id("lists"),
-  },
-  handler: async (ctx, { apiKey, listId }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
-    await requireListAccessForAgent(ctx, listId, agent);
-    const packets = await ctx.db
-      .query("contextPackets")
-      .withIndex("by_list", (q) => q.eq("listId", listId))
-      .collect();
-    return packets
-      .sort((a, b) => b.updatedAt - a.updatedAt)
-      .map((packet) => ({
-        packetId: packet._id,
-        listId: packet.listId,
-        title: packet.title,
-        summary: packet.summary,
-        version: packet.version,
-        updatedAt: packet.updatedAt,
-      }));
-  },
-});
-
-export const getContextPacket = query({
-  args: { apiKey: v.string(), packetId: v.id("contextPackets") },
-  handler: async (ctx, { apiKey, packetId }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
-    const packet = await ctx.db.get(packetId);
-    if (!packet) throw new ConvexError("Context packet not found");
-    await requireListAccessForAgent(ctx, packet.listId, agent);
-    return {
-      packetId: packet._id,
-      listId: packet.listId,
-      title: packet.title,
-      summary: packet.summary,
-      content: packet.content,
-      version: packet.version,
-      createdByActorId: packet.createdByActorId,
-      createdAt: packet.createdAt,
-      updatedByActorId: packet.updatedByActorId,
-      updatedAt: packet.updatedAt,
-    };
-  },
-});
-
-export const createContextPacket = mutation({
-  args: {
-    apiKey: v.string(),
-    listId: v.id("lists"),
-    title: v.string(),
-    summary: v.optional(v.string()),
-    content: v.string(),
-    taskIds: v.optional(v.array(v.id("tasks"))),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    const { list } = await requireListAccessForAgent(ctx, args.listId, agent);
-    const actor = agentActor(agent);
-    const packetId = await createContextPacketCore(ctx, list, args, actor);
-    const packet = (await ctx.db.get(packetId))!;
-    for (const taskId of args.taskIds ?? []) {
-      const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
-      await attachContextPacketCore(ctx, packet, task, actor);
-    }
-    return { packetId, version: 1 };
-  },
-});
-
-export const updateContextPacket = mutation({
-  args: {
-    apiKey: v.string(),
-    packetId: v.id("contextPackets"),
-    title: v.optional(v.string()),
-    summary: v.optional(v.union(v.string(), v.null())),
-    content: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    const packet = await ctx.db.get(args.packetId);
-    if (!packet) throw new ConvexError("Context packet not found");
-    const { list } = await requireListAccessForAgent(ctx, packet.listId, agent);
-    const version = await updateContextPacketCore(
-      ctx,
-      packet,
-      list,
-      args,
-      agentActor(agent),
-    );
-    return { version };
-  },
-});
-
-export const acknowledgeTaskContext = mutation({
-  args: {
-    apiKey: v.string(),
-    taskId: v.id("tasks"),
-    packets: v.array(
-      v.object({
-        packetId: v.id("contextPackets"),
-        version: v.number(),
-      }),
-    ),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
-    const { task } = await requireTaskAccessForAgent(ctx, args.taskId, agent);
-    const readiness = await acknowledgeTaskContextCore(
-      ctx,
-      task._id,
-      agent._id,
-      args.packets,
-    );
-    const list = await ctx.db.get(task.listId);
-    const scope = list ? await scopeForList(ctx, list) : null;
-    if (scope) {
-      await emitEvent(ctx, {
-        ...scope,
-        type: "context.acknowledged",
-        actor: agentActor(agent),
-        entityType: "task",
-        entityId: task._id,
-        entityTitle: task.title,
-        listId: task.listId,
-        payload: {
-          packetVersions: args.packets.map((packet) => ({
-            packetId: packet.packetId,
-            version: packet.version,
-          })),
-        },
-      });
-    }
-    return readiness;
-  },
-});
-
-export const deleteContextPacket = mutation({
-  args: {
-    apiKey: v.string(),
-    packetId: v.id("contextPackets"),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    const packet = await ctx.db.get(args.packetId);
-    if (!packet) throw new ConvexError("Context packet not found");
-    const { list } = await requireListAccessForAgent(ctx, packet.listId, agent);
-    const detachedTaskCount = await deleteContextPacketCore(
-      ctx,
-      packet,
-      list,
-      agentActor(agent),
-    );
-    return { deleted: true, detachedTaskCount };
-  },
-});
-
-export const attachContextPacket = mutation({
-  args: {
-    apiKey: v.string(),
-    packetId: v.id("contextPackets"),
-    taskIds: v.array(v.id("tasks")),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    if (args.taskIds.length > 100) {
-      throw new ConvexError("Attach context to at most 100 tasks per call");
-    }
-    const packet = await ctx.db.get(args.packetId);
-    if (!packet) throw new ConvexError("Context packet not found");
-    await requireListAccessForAgent(ctx, packet.listId, agent);
-    let attached = 0;
-    for (const taskId of args.taskIds) {
-      const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
-      if (
-        await attachContextPacketCore(ctx, packet, task, agentActor(agent))
-      ) {
-        attached += 1;
-      }
-    }
-    return { attached };
-  },
-});
-
-export const detachContextPacket = mutation({
-  args: {
-    apiKey: v.string(),
-    packetId: v.id("contextPackets"),
-    taskId: v.id("tasks"),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    const packet = await ctx.db.get(args.packetId);
-    if (!packet) throw new ConvexError("Context packet not found");
-    const { task } = await requireTaskAccessForAgent(ctx, args.taskId, agent);
-    if (task.listId !== packet.listId) {
-      throw new ConvexError("Context packet and task belong to different projects");
-    }
-    return {
-      detached: await detachContextPacketCore(
-        ctx,
-        packet._id,
-        task._id,
-      ),
-    };
-  },
-});
-
-// ── Versioned operating decisions ─────────────────────────────────────
-
-export const listDecisionsForTask = query({
-  args: { apiKey: v.string(), taskId: v.id("tasks") },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey);
-    await requireTaskAccessForAgent(ctx, args.taskId, agent);
-    return await decisionRowsForTask(ctx, args.taskId);
-  },
-});
-
-export const createDecision = mutation({
-  args: {
-    apiKey: v.string(),
-    listId: v.id("lists"),
-    key: v.string(),
-    title: v.string(),
-    statement: v.string(),
-    rationale: v.string(),
-    contextPacketId: v.optional(v.id("contextPackets")),
-    taskIds: v.array(v.id("tasks")),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    const { list } = await requireListAccessForAgent(ctx, args.listId, agent);
-    const decision = await createDecisionCore(
-      ctx,
-      list,
-      args,
-      agentActor(agent),
-    );
-    return { decisionId: decision._id, version: decision.version };
-  },
-});
-
-export const supersedeDecision = mutation({
-  args: {
-    apiKey: v.string(),
-    decisionId: v.id("decisions"),
-    title: v.optional(v.string()),
-    statement: v.string(),
-    rationale: v.string(),
-    taskIds: v.optional(v.array(v.id("tasks"))),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    const current = await ctx.db.get(args.decisionId);
-    if (!current) throw new ConvexError("Decision not found");
-    const { list } = await requireListAccessForAgent(
-      ctx,
-      current.listId,
-      agent,
-    );
-    const decision = await supersedeDecisionCore(
-      ctx,
-      current,
-      list,
-      args,
-      agentActor(agent),
-    );
-    return { decisionId: decision._id, version: decision.version };
-  },
-});
-
-export const assessDecisionImpact = mutation({
-  args: {
-    apiKey: v.string(),
-    impactId: v.id("decisionImpacts"),
-    status: v.union(
-      v.literal("no_change"),
-      v.literal("rework_required"),
-      v.literal("resolved"),
-    ),
-    note: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    const impact = await ctx.db.get(args.impactId);
-    if (!impact) throw new ConvexError("Decision impact not found");
-    await requireTaskAccessForAgent(ctx, impact.taskId, agent);
-    await assessDecisionImpactCore(
-      ctx,
-      impact,
-      args.status,
-      args.note,
-      agentActor(agent),
-    );
-    return { status: args.status };
-  },
-});
-
 export const createTask = mutation({
   args: {
     apiKey: v.string(),
@@ -1365,7 +851,6 @@ export const createTask = mutation({
     startDate: v.optional(v.number()),
     dueDate: v.optional(v.number()),
     assigneeIds: v.optional(v.array(v.string())),
-    requiredCapabilities: v.optional(v.array(v.string())),
     parentTaskId: v.optional(v.id("tasks")),
     recurrence: v.optional(
       v.union(v.literal("daily"), v.literal("weekly"), v.literal("monthly")),
@@ -1395,7 +880,6 @@ export const updateTask = mutation({
     startDate: v.optional(v.union(v.number(), v.null())),
     dueDate: v.optional(v.union(v.number(), v.null())),
     assigneeIds: v.optional(v.array(v.string())),
-    requiredCapabilities: v.optional(v.array(v.string())),
     recurrence: v.optional(
       v.union(
         v.literal("daily"),
@@ -1414,15 +898,6 @@ export const updateTask = mutation({
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     await requireTaskAccessForAgent(ctx, args.taskId, agent);
-    if (args.statusId) {
-      const status = await ctx.db.get(args.statusId);
-      if (
-        status?.category === "complete" ||
-        status?.category === "closed"
-      ) {
-        await requireTaskExecutionReady(ctx, args.taskId, agent._id);
-      }
-    }
     const { apiKey: _apiKey, ...rest } = args;
     await updateTaskCore(ctx, rest, agentActor(agent));
   },
@@ -1453,7 +928,6 @@ export const completeTask = mutation({
   handler: async (ctx, { apiKey, taskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
-    await requireTaskExecutionReady(ctx, taskId, agent._id);
     const statuses = await ctx.db
       .query("listStatuses")
       .withIndex("by_list", (q) => q.eq("listId", task.listId))
@@ -1471,13 +945,6 @@ export const completeTask = mutation({
       { taskId, statusId: complete._id },
       agentActor(agent),
     );
-    if (agent.currentTaskId === taskId) {
-      await ctx.db.patch(agent._id, {
-        currentTaskId: undefined,
-        statusText: undefined,
-        lastSeenAt: Date.now(),
-      });
-    }
   },
 });
 
@@ -1494,19 +961,8 @@ export const claimTask = mutation({
   args: { apiKey: v.string(), taskId: v.id("tasks") },
   handler: async (ctx, { apiKey, taskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
-    const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
-    const missing = missingCapabilities(
-      agent.capabilities,
-      task.requiredCapabilities,
-    );
-    if (missing.length > 0) {
-      throw new ConvexError(
-        `This task requires capabilities this agent does not advertise: ${missing.join(", ")}`,
-      );
-    }
-    await requireTaskExecutionReady(ctx, taskId, agent._id);
+    await requireTaskAccessForAgent(ctx, taskId, agent);
     await claimTaskCore(ctx, taskId, agentActor(agent));
-    await markExecutionAssignmentClaimed(ctx, taskId, agent._id);
   },
 });
 
@@ -1515,12 +971,6 @@ export const releaseTask = mutation({
   handler: async (ctx, { apiKey, taskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     await requireTaskAccessForAgent(ctx, taskId, agent);
-    await abandonExecutionAssignmentForTask(
-      ctx,
-      taskId,
-      agent._id,
-      "Released by assigned agent",
-    );
     await releaseTaskCore(ctx, taskId, agentActor(agent));
   },
 });
@@ -1710,13 +1160,6 @@ export const listMembers = query({
       kind: "user" | "agent";
       statusText?: string;
       lastSeenAt?: number;
-      lastConnectedAt?: number;
-      lastHeartbeatAt?: number;
-      capabilities?: string[];
-      maxConcurrentTasks?: number;
-      role?: "member" | "readonly";
-      status?: "active" | "paused";
-      currentTaskId?: Id<"tasks">;
     }[] = [];
     if (agent.parentType === "user") {
       const user = await ctx.db
@@ -1764,13 +1207,6 @@ export const listMembers = query({
         kind: "agent",
         statusText: a.statusText,
         lastSeenAt: a.lastSeenAt,
-        lastConnectedAt: a.lastConnectedAt,
-        lastHeartbeatAt: a.lastHeartbeatAt,
-        capabilities: a.capabilities ?? [],
-        maxConcurrentTasks: a.maxConcurrentTasks ?? 1,
-        role: a.role ?? "member",
-        status: a.status,
-        currentTaskId: a.currentTaskId,
       });
     }
     return members;
@@ -2046,7 +1482,6 @@ export const createScheduledTask = mutation({
     priority: v.optional(priorityValidator),
     assigneeIds: v.optional(v.array(v.string())),
     cadence: v.union(
-      v.literal("hourly"),
       v.literal("daily"),
       v.literal("weekly"),
       v.literal("monthly"),
@@ -2055,21 +1490,10 @@ export const createScheduledTask = mutation({
     dayOfMonth: v.optional(v.number()),
     hourUtc: v.optional(v.number()),
     dueInDays: v.optional(v.number()),
-    blueprintId: v.optional(v.id("taskBlueprints")),
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     await requireListAccessForAgent(ctx, args.listId, agent);
-    if (args.blueprintId) {
-      const blueprint = await ctx.db.get(args.blueprintId);
-      if (
-        !blueprint ||
-        blueprint.scopeType !== agent.parentType ||
-        blueprint.scopeId !== agent.parentId
-      ) {
-        throw new ConvexError("Blueprint not found in your scope");
-      }
-    }
     const { apiKey: _apiKey, ...rest } = args;
     return await createScheduledTaskCore(ctx, rest, agentActor(agent));
   },
@@ -2098,9 +1522,6 @@ export const listScheduledTasks = query({
       dueInDays: st.dueInDays,
       nextRunAt: st.nextRunAt,
       lastRunAt: st.lastRunAt,
-      lastError: st.lastError,
-      lastErrorAt: st.lastErrorAt,
-      consecutiveFailures: st.consecutiveFailures ?? 0,
       enabled: st.enabled,
       blueprintId: st.blueprintId,
       createdByActorId: st.createdByActorId,
@@ -2125,9 +1546,6 @@ export const updateScheduledTask = mutation({
         enabled,
         ...(enabled
           ? {
-              lastError: undefined,
-              lastErrorAt: undefined,
-              consecutiveFailures: 0,
               nextRunAt: computeNextRunAt(
                 Date.now(),
                 st.cadence,
@@ -2643,9 +2061,6 @@ export const nextTask = query({
               }
             }
             if (blocked) continue;
-            if (!hasCapabilities(agent.capabilities, t.requiredCapabilities)) {
-              continue;
-            }
             candidates.push({
               task: t,
               mine,
@@ -2717,12 +2132,6 @@ export const handoffTask = mutation({
     } else if (args.toId !== agent.parentId) {
       throw new ConvexError("Recipient is not in this scope");
     }
-    await abandonExecutionAssignmentForTask(
-      ctx,
-      args.taskId,
-      agent._id,
-      `Handed off to ${args.toId}`,
-    );
     await handoffTaskCore(
       ctx,
       args.taskId,
@@ -2746,7 +2155,6 @@ export const requestApproval = mutation({
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     const { task } = await requireTaskAccessForAgent(ctx, args.taskId, agent);
-    await requireTaskExecutionReady(ctx, args.taskId, agent._id);
     if (!task.requiresApproval) {
       await updateTaskCore(
         ctx,
@@ -2824,61 +2232,14 @@ export const startRun = mutation({
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
-    const title = args.title.trim();
-    if (!title) throw new ConvexError("Run title is required");
-    if (title.length > 200) {
-      throw new ConvexError("Run title must be 200 characters or fewer");
-    }
-    if (args.taskId) {
-      const { task } = await requireTaskAccessForAgent(
-        ctx,
-        args.taskId,
-        agent,
-      );
-      await requireTaskExecutionReady(ctx, args.taskId, agent._id);
-      if (
-        task.claimedByActorId !== agent._id ||
-        task.claimedAt === undefined ||
-        Date.now() - task.claimedAt > CLAIM_TTL_MS
-      ) {
-        throw new ConvexError("Claim this task before starting a run");
-      }
-      const recentRuns = await ctx.db
-        .query("agentRuns")
-        .withIndex("by_agent", (q) => q.eq("agentId", agent._id))
-        .order("desc")
-        .take(20);
-      if (
-        recentRuns.some(
-          (run) => run.taskId === args.taskId && run.status === "running",
-        )
-      ) {
-        throw new ConvexError(
-          "A run is already active for this agent and task",
-        );
-      }
-    }
-    const runId = await ctx.db.insert("agentRuns", {
+    if (args.taskId) await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    return await ctx.db.insert("agentRuns", {
       agentId: agent._id,
       taskId: args.taskId,
-      title,
+      title: args.title.slice(0, 200),
       status: "running",
       startedAt: Date.now(),
     });
-    if (args.taskId) {
-      const assignment = await markExecutionAssignmentRunning(
-        ctx,
-        args.taskId,
-        agent._id,
-        runId,
-      );
-      if (assignment) {
-        await ctx.db.patch(runId, {
-          executionAssignmentId: assignment._id,
-        });
-      }
-    }
-    return runId;
   },
 });
 
@@ -2903,43 +2264,6 @@ export const finishRun = mutation({
     if (!run || run.agentId !== agent._id) {
       throw new ConvexError("Run not found or it doesn't belong to you");
     }
-    if (run.status !== "running") {
-      if (run.status === args.status) {
-        return { runId: run._id, status: run.status, replayed: true };
-      }
-      throw new ConvexError(
-        `Run is already ${run.status}; terminal outcomes cannot be changed`,
-      );
-    }
-    if (
-      args.tokensUsed !== undefined &&
-      (!Number.isFinite(args.tokensUsed) || args.tokensUsed < 0)
-    ) {
-      throw new ConvexError("tokensUsed must be a non-negative number");
-    }
-    if (
-      args.costUsd !== undefined &&
-      (!Number.isFinite(args.costUsd) || args.costUsd < 0)
-    ) {
-      throw new ConvexError("costUsd must be a non-negative number");
-    }
-    if ((args.links?.length ?? 0) > 20) {
-      throw new ConvexError("links may contain at most 20 URLs");
-    }
-    for (const link of args.links ?? []) {
-      let parsed: URL;
-      try {
-        parsed = new URL(link);
-      } catch {
-        throw new ConvexError(`Invalid evidence URL: ${link}`);
-      }
-      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-        throw new ConvexError(`Evidence URL must use http or https: ${link}`);
-      }
-    }
-    if (args.status === "succeeded" && run.taskId) {
-      await requireTaskExecutionReady(ctx, run.taskId, agent._id);
-    }
     await ctx.db.patch(args.runId, {
       status: args.status,
       summary: args.summary?.slice(0, 2000),
@@ -2949,34 +2273,6 @@ export const finishRun = mutation({
       costUsd: args.costUsd,
       finishedAt: Date.now(),
     });
-    if (run.executionAssignmentId) {
-      await finishExecutionAssignment(
-        ctx,
-        run.executionAssignmentId,
-        agent._id,
-        {
-          status: args.status,
-          summary: args.summary,
-          error: args.error,
-          links: args.links,
-        },
-      );
-    }
-    if (
-      args.status !== "succeeded" &&
-      run.taskId
-    ) {
-      const task = await ctx.db.get(run.taskId);
-      if (task?.claimedByActorId === agent._id) {
-        await releaseTaskCore(ctx, run.taskId, agentActor(agent));
-      }
-      if (agent.currentTaskId === run.taskId) {
-        await ctx.db.patch(agent._id, {
-          currentTaskId: undefined,
-          statusText: undefined,
-        });
-      }
-    }
     if (args.status === "failed") {
       await emitEvent(ctx, {
         ...scopeOf(agent),
@@ -2992,7 +2288,6 @@ export const finishRun = mutation({
         },
       });
     }
-    return { runId: run._id, status: args.status, replayed: false };
   },
 });
 
@@ -3008,7 +2303,7 @@ export const reportError = mutation({
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
     if (args.taskId) await requireTaskAccessForAgent(ctx, args.taskId, agent);
     const now = Date.now();
-    const runId = await ctx.db.insert("agentRuns", {
+    await ctx.db.insert("agentRuns", {
       agentId: agent._id,
       taskId: args.taskId,
       title: "Error report",
@@ -3017,35 +2312,6 @@ export const reportError = mutation({
       startedAt: now,
       finishedAt: now,
     });
-    if (args.taskId) {
-      const assignment = await markExecutionAssignmentRunning(
-        ctx,
-        args.taskId,
-        agent._id,
-        runId,
-      );
-      if (assignment) {
-        await ctx.db.patch(runId, {
-          executionAssignmentId: assignment._id,
-        });
-        await finishExecutionAssignment(
-          ctx,
-          assignment._id,
-          agent._id,
-          { status: "failed", error: args.message },
-        );
-      }
-      const task = await ctx.db.get(args.taskId);
-      if (task?.claimedByActorId === agent._id) {
-        await releaseTaskCore(ctx, args.taskId, agentActor(agent));
-      }
-      if (agent.currentTaskId === args.taskId) {
-        await ctx.db.patch(agent._id, {
-          currentTaskId: undefined,
-          statusText: undefined,
-        });
-      }
-    }
     await emitEvent(ctx, {
       ...scopeOf(agent),
       type: "agent.error",
@@ -4567,7 +3833,6 @@ const bulkTaskSpecValidator = v.object({
   startDate: v.optional(v.number()),
   dueDate: v.optional(v.number()),
   assigneeIds: v.optional(v.array(v.string())),
-  requiredCapabilities: v.optional(v.array(v.string())),
   // Parent by ref (earlier spec in this batch) or by existing task id.
   parentRef: v.optional(v.string()),
   parentTaskId: v.optional(v.id("tasks")),
@@ -4635,7 +3900,6 @@ export const createTasks = mutation({
           startDate: spec.startDate,
           dueDate: spec.dueDate,
           assigneeIds: spec.assigneeIds,
-          requiredCapabilities: spec.requiredCapabilities,
           parentTaskId,
           sprintId: spec.sprintId,
           checklist: spec.checklist,
@@ -4682,1371 +3946,6 @@ export const createTasks = mutation({
     }
 
     return { created, count: created.length };
-  },
-});
-
-const executionPlanTaskValidator = v.object({
-  ref: v.string(),
-  title: v.string(),
-  description: v.optional(v.string()),
-  priority: v.optional(priorityValidator),
-  startDate: v.optional(v.number()),
-  dueDate: v.optional(v.number()),
-  assigneeIds: v.optional(v.array(v.string())),
-  requiredCapabilities: v.optional(v.array(v.string())),
-  parentRef: v.optional(v.string()),
-  dependsOn: v.optional(v.array(v.string())),
-  checklist: v.optional(checklistValidator),
-  requiresApproval: v.optional(v.boolean()),
-  estimatePoints: v.optional(v.number()),
-  milestone: v.optional(v.boolean()),
-});
-
-const executionPlanProjectValidator = v.object({
-  ref: v.string(),
-  name: v.string(),
-  description: v.optional(v.string()),
-  phaseRef: v.string(),
-  projectStatus: v.optional(
-    v.union(
-      v.literal("on_track"),
-      v.literal("at_risk"),
-      v.literal("off_track"),
-      v.literal("paused"),
-    ),
-  ),
-  ownerActorId: v.optional(v.string()),
-  targetDate: v.optional(v.number()),
-  tasks: v.array(executionPlanTaskValidator),
-});
-
-function executionRef(value: string, label: string): string {
-  const ref = value.trim();
-  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(ref)) {
-    throw new ConvexError(
-      `${label} must be 1-64 letters, numbers, underscores, or hyphens`,
-    );
-  }
-  return ref;
-}
-
-function executionText(
-  value: string,
-  label: string,
-  max: number,
-): string {
-  const text = value.trim();
-  if (!text) throw new ConvexError(`${label} is required`);
-  if (text.length > max) {
-    throw new ConvexError(`${label} must be ${max} characters or fewer`);
-  }
-  return text;
-}
-
-function executionTextList(
-  values: string[],
-  label: string,
-  options: { min?: number; max?: number } = {},
-): string[] {
-  const rows = values.map((value, index) =>
-    executionText(value, `${label}[${index}]`, 500),
-  );
-  if (rows.length < (options.min ?? 0)) {
-    throw new ConvexError(`${label} must contain at least ${options.min} item`);
-  }
-  if (rows.length > (options.max ?? 25)) {
-    throw new ConvexError(`${label} is capped at ${options.max ?? 25} items`);
-  }
-  return rows;
-}
-
-function executionContext(args: {
-  name: string;
-  objective: string;
-  sourceContext: string;
-  successCriteria: string[];
-  assumptions: string[];
-  openQuestions: string[];
-  projectName: string;
-  projectDescription?: string;
-}): string {
-  const bullets = (rows: string[], empty: string) =>
-    rows.length > 0 ? rows.map((row) => `- ${row}`).join("\n") : empty;
-  return [
-    `# ${args.name}`,
-    "",
-    "## Objective",
-    args.objective,
-    "",
-    "## This project",
-    args.projectDescription
-      ? `${args.projectName}: ${args.projectDescription}`
-      : args.projectName,
-    "",
-    "## Success criteria",
-    bullets(args.successCriteria, "- Define success before execution."),
-    "",
-    "## Confirmed source context",
-    args.sourceContext,
-    "",
-    "## Explicit assumptions",
-    bullets(args.assumptions, "None."),
-    "",
-    "## Open questions",
-    bullets(args.openQuestions, "None."),
-  ].join("\n");
-}
-
-// Compile one conversation/brief into an executable company plan in a
-// single Convex transaction. Any invalid ref, assignee, dependency, or
-// context packet rolls the whole mutation back, so an agent never leaves a
-// half-built roadmap behind. The immutable manifest is both provenance and
-// the idempotency receipt for safe retries.
-export const createExecutionPlan = mutation({
-  args: {
-    apiKey: v.string(),
-    idempotencyKey: v.string(),
-    spaceId: v.id("spaces"),
-    name: v.string(),
-    objective: v.string(),
-    sourceContext: v.string(),
-    successCriteria: v.array(v.string()),
-    assumptions: v.optional(v.array(v.string())),
-    openQuestions: v.optional(v.array(v.string())),
-    phases: v.array(
-      v.object({
-        ref: v.string(),
-        name: v.string(),
-        targetDate: v.optional(v.number()),
-      }),
-    ),
-    projects: v.array(executionPlanProjectValidator),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    if (agent.parentType !== "workspace") {
-      throw new ConvexError(
-        "Execution plans require a workspace-scoped agent because they create roadmaps and multi-project work",
-      );
-    }
-    const workspaceId = agent.parentId as Id<"workspaces">;
-    const { space } = await requireSpaceAccessForAgent(
-      ctx,
-      args.spaceId,
-      agent,
-    );
-    if (space.parentType !== "workspace" || space.parentId !== workspaceId) {
-      throw new ConvexError("Pick a Space in this agent's workspace");
-    }
-
-    const idempotencyKey = executionText(
-      args.idempotencyKey,
-      "idempotencyKey",
-      120,
-    );
-    const fingerprintInput = {
-      spaceId: args.spaceId,
-      name: args.name,
-      objective: args.objective,
-      sourceContext: args.sourceContext,
-      successCriteria: args.successCriteria,
-      assumptions: args.assumptions ?? [],
-      openQuestions: args.openQuestions ?? [],
-      phases: args.phases,
-      projects: args.projects,
-    };
-    const requestFingerprint = sha256Hex(canonicalJson(fingerprintInput));
-    const previous = await ctx.db
-      .query("executionPlans")
-      .withIndex("by_agent_key", (q) =>
-        q
-          .eq("createdByAgentId", agent._id)
-          .eq("idempotencyKey", idempotencyKey),
-      )
-      .unique();
-    if (previous) {
-      if (previous.requestFingerprint !== requestFingerprint) {
-        throw new ConvexError(
-          "This idempotencyKey was already committed with a different plan. Use a new key for a changed plan.",
-        );
-      }
-      return { ...executionPlanView(previous), replayed: true };
-    }
-
-    const name = executionText(args.name, "Plan name", 120);
-    const objective = executionText(args.objective, "Objective", 1_000);
-    const sourceContext = executionText(
-      args.sourceContext,
-      "sourceContext",
-      35_000,
-    );
-    const successCriteria = executionTextList(
-      args.successCriteria,
-      "successCriteria",
-      { min: 1, max: 25 },
-    );
-    const assumptions = executionTextList(
-      args.assumptions ?? [],
-      "assumptions",
-      { max: 25 },
-    );
-    const openQuestions = executionTextList(
-      args.openQuestions ?? [],
-      "openQuestions",
-      { max: 25 },
-    );
-    if (args.phases.length === 0 || args.phases.length > 12) {
-      throw new ConvexError("phases must contain 1-12 ordered phases");
-    }
-    if (args.projects.length === 0 || args.projects.length > 12) {
-      throw new ConvexError("projects must contain 1-12 projects");
-    }
-
-    const phaseRefs = new Map<string, number>();
-    const phases = args.phases.map((phase, index) => {
-      const ref = executionRef(phase.ref, `phases[${index}].ref`);
-      if (phaseRefs.has(ref)) {
-        throw new ConvexError(`Duplicate phase ref "${ref}"`);
-      }
-      phaseRefs.set(ref, index);
-      return {
-        ref,
-        name: executionText(phase.name, `phases[${index}].name`, 120),
-        targetDate: phase.targetDate,
-      };
-    });
-
-    const projectRefs = new Set<string>();
-    const tasksByRef = new Map<
-      string,
-      {
-        projectRef: string;
-        projectIndex: number;
-        taskIndex: number;
-        spec: (typeof args.projects)[number]["tasks"][number];
-      }
-    >();
-    const parentByRef = new Map<string, string | undefined>();
-    let totalTasks = 0;
-    const projects = args.projects.map((project, projectIndex) => {
-      const ref = executionRef(
-        project.ref,
-        `projects[${projectIndex}].ref`,
-      );
-      if (projectRefs.has(ref)) {
-        throw new ConvexError(`Duplicate project ref "${ref}"`);
-      }
-      projectRefs.add(ref);
-      const phaseRef = executionRef(
-        project.phaseRef,
-        `projects[${projectIndex}].phaseRef`,
-      );
-      if (!phaseRefs.has(phaseRef)) {
-        throw new ConvexError(
-          `Project "${ref}" references unknown phase "${phaseRef}"`,
-        );
-      }
-      if (project.tasks.length === 0 || project.tasks.length > 50) {
-        throw new ConvexError(
-          `Project "${ref}" must contain 1-50 tasks`,
-        );
-      }
-      totalTasks += project.tasks.length;
-      const localRefs = new Set<string>();
-      const tasks = project.tasks.map((task, taskIndex) => {
-        const localRef = executionRef(
-          task.ref,
-          `projects[${projectIndex}].tasks[${taskIndex}].ref`,
-        );
-        if (localRefs.has(localRef)) {
-          throw new ConvexError(
-            `Duplicate task ref "${localRef}" in project "${ref}"`,
-          );
-        }
-        localRefs.add(localRef);
-        const qualifiedRef = `${ref}.${localRef}`;
-        tasksByRef.set(qualifiedRef, {
-          projectRef: ref,
-          projectIndex,
-          taskIndex,
-          spec: task,
-        });
-        let parentRef: string | undefined;
-        if (task.parentRef !== undefined) {
-          const localParent = executionRef(
-            task.parentRef,
-            `parentRef for "${qualifiedRef}"`,
-          );
-          if (!localRefs.has(localParent) || localParent === localRef) {
-            throw new ConvexError(
-              `parentRef "${task.parentRef}" for "${qualifiedRef}" must reference an earlier task in the same project`,
-            );
-          }
-          parentRef = `${ref}.${localParent}`;
-        }
-        parentByRef.set(qualifiedRef, parentRef);
-        return {
-          ...task,
-          ref: localRef,
-          qualifiedRef,
-          title: executionText(task.title, `Task "${qualifiedRef}" title`, 500),
-        };
-      });
-      return {
-        ...project,
-        ref,
-        phaseRef,
-        name: executionText(project.name, `Project "${ref}" name`, 120),
-        description:
-          project.description === undefined
-            ? undefined
-            : executionText(
-                project.description,
-                `Project "${ref}" description`,
-                1_000,
-              ),
-        tasks,
-      };
-    });
-    if (totalTasks > 100) {
-      throw new ConvexError(
-        "Execution plans are capped at 100 tasks; split a larger program into multiple plans",
-      );
-    }
-    const workspace = await ctx.db.get(workspaceId);
-    if (!workspace) throw new ConvexError("Workspace not found");
-    const executionPolicy = executionPolicyFor(workspace);
-    const hasApprovalGatedTasks = projects.some((project) =>
-      project.tasks.some((task) => task.requiresApproval === true),
-    );
-    const policyAuthorized =
-      executionPolicy.mode === "bounded_autonomous" &&
-      totalTasks <= executionPolicy.maxPlanTasks &&
-      openQuestions.length === 0 &&
-      !hasApprovalGatedTasks;
-    const reviewStatus = policyAuthorized ? "approved" : "pending";
-    const authorizationReason = policyAuthorized
-      ? `Automatically authorized by workspace policy v${executionPolicy.version}: ${totalTasks} tasks, no open questions, and no approval-gated work.`
-      : executionPolicy.mode === "bounded_autonomous"
-        ? totalTasks > executionPolicy.maxPlanTasks
-          ? `Human review required because ${totalTasks} tasks exceeds the autonomous plan limit of ${executionPolicy.maxPlanTasks}.`
-          : openQuestions.length > 0
-            ? "Human review required because the plan contains open questions."
-            : "Human review required because the plan contains approval-gated tasks."
-        : "Workspace policy requires human review.";
-
-    const dependencyRefs = new Map<string, string[]>();
-    for (const project of projects) {
-      for (const task of project.tasks) {
-        const resolved: string[] = [];
-        for (const raw of task.dependsOn ?? []) {
-          const trimmed = raw.trim();
-          const ref = trimmed.includes(".")
-            ? trimmed
-            : `${project.ref}.${executionRef(trimmed, `dependency for "${task.qualifiedRef}"`)}`;
-          if (!tasksByRef.has(ref)) {
-            throw new ConvexError(
-              `Task "${task.qualifiedRef}" depends on unknown task ref "${raw}"`,
-            );
-          }
-          if (ref === task.qualifiedRef) {
-            throw new ConvexError(
-              `Task "${task.qualifiedRef}" can't depend on itself`,
-            );
-          }
-          if (!resolved.includes(ref)) resolved.push(ref);
-        }
-        dependencyRefs.set(task.qualifiedRef, resolved);
-      }
-    }
-
-    const visiting = new Set<string>();
-    const visited = new Set<string>();
-    function visit(ref: string, path: string[]) {
-      if (visiting.has(ref)) {
-        throw new ConvexError(
-          `Dependency cycle detected: ${[...path, ref].join(" -> ")}`,
-        );
-      }
-      if (visited.has(ref)) return;
-      visiting.add(ref);
-      for (const dependency of dependencyRefs.get(ref) ?? []) {
-        visit(dependency, [...path, ref]);
-      }
-      visiting.delete(ref);
-      visited.add(ref);
-    }
-    for (const ref of tasksByRef.keys()) visit(ref, []);
-
-    const validActorIds = new Set<string>();
-    const memberships = await ctx.db
-      .query("memberships")
-      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
-      .collect();
-    for (const membership of memberships) {
-      validActorIds.add(membership.userClerkId);
-    }
-    const scopeAgents = await ctx.db
-      .query("agents")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "workspace").eq("parentId", workspaceId),
-      )
-      .collect();
-    for (const scopeAgent of scopeAgents) validActorIds.add(scopeAgent._id);
-    for (const project of projects) {
-      if (
-        project.ownerActorId !== undefined &&
-        !validActorIds.has(project.ownerActorId)
-      ) {
-        throw new ConvexError(
-          `Project "${project.ref}" ownerActorId is not a workspace member or agent`,
-        );
-      }
-      for (const task of project.tasks) {
-        for (const assigneeId of task.assigneeIds ?? []) {
-          if (!validActorIds.has(assigneeId)) {
-            throw new ConvexError(
-              `Task "${task.qualifiedRef}" assignee "${assigneeId}" is not a workspace member or agent`,
-            );
-          }
-        }
-      }
-    }
-
-    const actor = agentActor(agent);
-    const roadmapId = await createRoadmapCore(
-      ctx,
-      workspaceId,
-      {
-        name,
-        description: objective,
-        phases: phases.map((phase) => ({
-          name: phase.name,
-          targetDate: phase.targetDate,
-        })),
-      },
-      actor,
-    );
-    const roadmap = await ctx.db.get(roadmapId);
-    if (!roadmap) throw new ConvexError("Roadmap creation failed");
-    const phaseIds = new Map(
-      phases.map((phase, index) => [phase.ref, roadmap.phases[index].id]),
-    );
-    const siblings = await ctx.db
-      .query("lists")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "space").eq("parentId", args.spaceId),
-      )
-      .collect();
-    const nextListPosition = siblings.reduce(
-      (max, list) => Math.max(max, list.position + 1),
-      0,
-    );
-    const phasePositions = new Map<string, number>();
-    const createdProjects: Doc<"executionPlans">["projects"] = [];
-    const createdTasks: Doc<"executionPlans">["tasks"] = [];
-    const listByProject = new Map<string, Doc<"lists">>();
-    const taskIdsByRef = new Map<string, Id<"tasks">>();
-    const tasksByProject = new Map<string, Doc<"tasks">[]>();
-
-    for (let projectIndex = 0; projectIndex < projects.length; projectIndex++) {
-      const project = projects[projectIndex];
-      const phaseId = phaseIds.get(project.phaseRef)!;
-      const roadmapPosition = phasePositions.get(phaseId) ?? 0;
-      phasePositions.set(phaseId, roadmapPosition + 1);
-      const listId = await ctx.db.insert("lists", {
-        name: project.name,
-        parentType: "space",
-        parentId: args.spaceId,
-        position: nextListPosition + projectIndex,
-        createdAt: Date.now(),
-        roadmapId,
-        roadmapPhaseId: phaseId,
-        roadmapPosition,
-        description: project.description,
-        projectStatus: project.projectStatus ?? "on_track",
-        ownerActorId: project.ownerActorId,
-        targetDate: project.targetDate,
-      });
-      await seedDefaultStatuses(ctx, listId, space.defaultStatuses);
-      const list = (await ctx.db.get(listId))!;
-      listByProject.set(project.ref, list);
-      const projectTasks: Doc<"tasks">[] = [];
-      for (const task of project.tasks) {
-        const parentRef = parentByRef.get(task.qualifiedRef);
-        const taskId = await createTaskCore(
-          ctx,
-          {
-            listId,
-            title: task.title,
-            description: task.description,
-            priority: task.priority,
-            startDate: task.startDate,
-            dueDate: task.dueDate,
-            assigneeIds: task.assigneeIds,
-            requiredCapabilities: task.requiredCapabilities,
-            parentTaskId:
-              parentRef === undefined ? undefined : taskIdsByRef.get(parentRef),
-            checklist: task.checklist,
-            requiresApproval: task.requiresApproval,
-            estimatePoints: task.estimatePoints,
-            milestone: task.milestone,
-          },
-          actor,
-        );
-        taskIdsByRef.set(task.qualifiedRef, taskId);
-        const createdTask = (await ctx.db.get(taskId))!;
-        projectTasks.push(createdTask);
-        createdTasks.push({
-          ref: task.qualifiedRef,
-          title: task.title,
-          taskId,
-          listId,
-        });
-      }
-      tasksByProject.set(project.ref, projectTasks);
-    }
-
-    for (const project of projects) {
-      for (const task of project.tasks) {
-        const blockers = (dependencyRefs.get(task.qualifiedRef) ?? []).map(
-          (ref) => taskIdsByRef.get(ref)!,
-        );
-        if (blockers.length === 0) continue;
-        await updateTaskCore(
-          ctx,
-          {
-            taskId: taskIdsByRef.get(task.qualifiedRef)!,
-            blockedByTaskIds: blockers,
-          },
-          actor,
-        );
-      }
-    }
-
-    for (const project of projects) {
-      const list = listByProject.get(project.ref)!;
-      const content = executionContext({
-        name,
-        objective,
-        sourceContext,
-        successCriteria,
-        assumptions,
-        openQuestions,
-        projectName: project.name,
-        projectDescription: project.description,
-      });
-      if (content.length > 50_000) {
-        throw new ConvexError(
-          "The compiled context packet exceeds 50,000 characters; shorten sourceContext or planning notes",
-        );
-      }
-      const contextPacketId = await createContextPacketCore(
-        ctx,
-        list,
-        {
-          title: `${name}: operating brief`.slice(0, 120),
-          summary: objective.slice(0, 500),
-          content,
-        },
-        actor,
-      );
-      const packet = (await ctx.db.get(contextPacketId))!;
-      for (const task of tasksByProject.get(project.ref) ?? []) {
-        await attachContextPacketCore(ctx, packet, task, actor);
-      }
-      createdProjects.push({
-        ref: project.ref,
-        name: project.name,
-        listId: list._id,
-        phaseId: phaseIds.get(project.phaseRef)!,
-        contextPacketId,
-      });
-    }
-
-    const planId = await ctx.db.insert("executionPlans", {
-      workspaceId,
-      spaceId: args.spaceId,
-      createdByAgentId: agent._id,
-      idempotencyKey,
-      requestFingerprint,
-      name,
-      objective,
-      sourceContext,
-      successCriteria,
-      assumptions,
-      openQuestions,
-      reviewStatus,
-      authorizationSource: policyAuthorized
-        ? "workspace_policy"
-        : undefined,
-      authorizationPolicyVersion: policyAuthorized
-        ? executionPolicy.version
-        : undefined,
-      authorizationReason,
-      roadmapId,
-      projects: createdProjects,
-      tasks: createdTasks,
-      createdAt: Date.now(),
-    });
-    await emitEvent(ctx, {
-      scopeType: "workspace",
-      scopeId: workspaceId,
-      type: "plan.committed",
-      actor,
-      entityType: "roadmap",
-      entityId: roadmapId,
-      entityTitle: name,
-      payload: {
-        planId,
-        projectCount: createdProjects.length,
-        taskCount: createdTasks.length,
-        openQuestionCount: openQuestions.length,
-        reviewStatus,
-        authorizationSource: policyAuthorized
-          ? "workspace_policy"
-          : "none",
-        authorizationPolicyVersion: policyAuthorized
-          ? executionPolicy.version
-          : undefined,
-      },
-    });
-    const plan = (await ctx.db.get(planId))!;
-    return { ...executionPlanView(plan), replayed: false };
-  },
-});
-
-// Append new source truth to an existing plan without rewriting its
-// immutable original manifest. Every workstream packet advances together,
-// prior acknowledgements become stale by version, and dispatch returns to
-// human review until the revised context is explicitly authorized.
-export const reviseExecutionPlanContext = mutation({
-  args: {
-    apiKey: v.string(),
-    planId: v.id("executionPlans"),
-    idempotencyKey: v.string(),
-    changeSummary: v.string(),
-    sourceAddendum: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    const plan = await ctx.db.get(args.planId);
-    if (
-      !plan ||
-      agent.parentType !== "workspace" ||
-      plan.workspaceId !== agent.parentId
-    ) {
-      throw new ConvexError("Execution plan not found in your workspace");
-    }
-    await requireSpaceAccessForAgent(ctx, plan.spaceId, agent);
-
-    const idempotencyKey = executionText(
-      args.idempotencyKey,
-      "idempotencyKey",
-      120,
-    );
-    const changeSummary = executionText(
-      args.changeSummary,
-      "changeSummary",
-      1_000,
-    );
-    const sourceAddendum = executionText(
-      args.sourceAddendum,
-      "sourceAddendum",
-      15_000,
-    );
-    const requestFingerprint = sha256Hex(
-      canonicalJson({ changeSummary, sourceAddendum }),
-    );
-    const previous = await ctx.db
-      .query("executionPlanRevisions")
-      .withIndex("by_plan_key", (q) =>
-        q.eq("planId", args.planId).eq("idempotencyKey", idempotencyKey),
-      )
-      .unique();
-    if (previous) {
-      if (previous.requestFingerprint !== requestFingerprint) {
-        throw new ConvexError(
-          "This idempotencyKey was already committed with a different context revision.",
-        );
-      }
-      return {
-        revisionId: previous._id,
-        revision: previous.revision,
-        affectedPacketCount: previous.affectedPacketCount,
-        affectedTaskCount: previous.affectedTaskCount,
-        reviewStatus: "pending" as const,
-        replayed: true,
-      };
-    }
-
-    const revisions = await ctx.db
-      .query("executionPlanRevisions")
-      .withIndex("by_plan", (q) => q.eq("planId", args.planId))
-      .order("desc")
-      .take(1);
-    const revision = (revisions[0]?.revision ?? plan.contextRevision ?? 0) + 1;
-    const actor = agentActor(agent);
-    const createdAt = Date.now();
-    let affectedTaskCount = 0;
-    const revisionBlock = [
-      "",
-      "",
-      `# Plan context revision ${revision}`,
-      "",
-      `## Change summary`,
-      changeSummary,
-      "",
-      `## Confirmed source addendum`,
-      sourceAddendum,
-    ].join("\n");
-
-    for (const workstream of plan.projects) {
-      const packet = await ctx.db.get(workstream.contextPacketId);
-      const list = await ctx.db.get(workstream.listId);
-      if (!packet || !list || packet.listId !== list._id) {
-        throw new ConvexError(
-          `Workstream "${workstream.name}" is missing its context packet`,
-        );
-      }
-      await updateContextPacketCore(
-        ctx,
-        packet,
-        list,
-        { content: `${packet.content}${revisionBlock}` },
-        actor,
-      );
-      const links = await ctx.db
-        .query("taskContextPackets")
-        .withIndex("by_packet", (q) =>
-          q.eq("packetId", workstream.contextPacketId),
-        )
-        .collect();
-      affectedTaskCount += links.length;
-    }
-
-    const revisionId = await ctx.db.insert("executionPlanRevisions", {
-      planId: args.planId,
-      revision,
-      idempotencyKey,
-      requestFingerprint,
-      changeSummary,
-      sourceAddendum,
-      createdByAgentId: agent._id,
-      affectedPacketCount: plan.projects.length,
-      affectedTaskCount,
-      createdAt,
-    });
-    await ctx.db.patch(args.planId, {
-      contextRevision: revision,
-      lastContextRevisionAt: createdAt,
-      reviewStatus: "pending",
-      authorizationSource: undefined,
-      authorizationPolicyVersion: undefined,
-      authorizationReason:
-        `Context revision ${revision} requires owner or admin review before further dispatch.`,
-    });
-    await emitEvent(ctx, {
-      scopeType: "workspace",
-      scopeId: plan.workspaceId,
-      type: "plan.context_revised",
-      actor,
-      entityType: "roadmap",
-      entityId: plan.roadmapId,
-      entityTitle: plan.name,
-      payload: {
-        planId: args.planId,
-        revision,
-        affectedPacketCount: plan.projects.length,
-        affectedTaskCount,
-      },
-    });
-    return {
-      revisionId,
-      revision,
-      affectedPacketCount: plan.projects.length,
-      affectedTaskCount,
-      reviewStatus: "pending" as const,
-      replayed: false,
-    };
-  },
-});
-
-export const getExecutionPlan = query({
-  args: { apiKey: v.string(), planId: v.id("executionPlans") },
-  handler: async (ctx, { apiKey, planId }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
-    const plan = await ctx.db.get(planId);
-    if (
-      !plan ||
-      agent.parentType !== "workspace" ||
-      plan.workspaceId !== agent.parentId
-    ) {
-      throw new ConvexError("Execution plan not found in your workspace");
-    }
-    const revisions = await ctx.db
-      .query("executionPlanRevisions")
-      .withIndex("by_plan", (q) => q.eq("planId", planId))
-      .order("desc")
-      .collect();
-    return {
-      ...executionPlanView(plan),
-      revisions: revisions.map((revision) => ({
-        revisionId: revision._id,
-        revision: revision.revision,
-        changeSummary: revision.changeSummary,
-        sourceAddendum: revision.sourceAddendum,
-        createdByAgentId: revision.createdByAgentId,
-        affectedPacketCount: revision.affectedPacketCount,
-        affectedTaskCount: revision.affectedTaskCount,
-        createdAt: revision.createdAt,
-      })),
-    };
-  },
-});
-
-export const getExecutionPolicy = query({
-  args: { apiKey: v.string() },
-  returns: executionPolicyValidator,
-  handler: async (ctx, { apiKey }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
-    if (agent.parentType !== "workspace") {
-      throw new ConvexError(
-        "Execution policy requires a workspace-scoped agent",
-      );
-    }
-    const workspace = await ctx.db.get(
-      agent.parentId as Id<"workspaces">,
-    );
-    if (!workspace) throw new ConvexError("Workspace not found");
-    return executionPolicyFor(workspace);
-  },
-});
-
-export const listExecutionPlans = query({
-  args: { apiKey: v.string() },
-  handler: async (ctx, { apiKey }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
-    if (agent.parentType !== "workspace") {
-      throw new ConvexError(
-        "Execution plans require a workspace-scoped agent",
-      );
-    }
-    const plans = await ctx.db
-      .query("executionPlans")
-      .withIndex("by_workspace", (q) =>
-        q.eq("workspaceId", agent.parentId as Id<"workspaces">),
-      )
-      .order("desc")
-      .take(20);
-    return plans.map(executionPlanSummary);
-  },
-});
-
-export const getOutcomeAssurance = query({
-  args: { apiKey: v.string(), planId: v.id("executionPlans") },
-  handler: async (ctx, { apiKey, planId }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
-    const plan = await ctx.db.get(planId);
-    if (
-      !plan ||
-      agent.parentType !== "workspace" ||
-      plan.workspaceId !== agent.parentId
-    ) {
-      throw new ConvexError("Execution plan not found in your workspace");
-    }
-    return await outcomeAssuranceView(ctx, plan);
-  },
-});
-
-export const submitOutcomeEvidence = mutation({
-  args: {
-    apiKey: v.string(),
-    planId: v.id("executionPlans"),
-    criterionIndex: v.number(),
-    evidenceSummary: v.string(),
-    evidenceLinks: v.array(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    const plan = await ctx.db.get(args.planId);
-    if (
-      !plan ||
-      agent.parentType !== "workspace" ||
-      plan.workspaceId !== agent.parentId
-    ) {
-      throw new ConvexError("Execution plan not found in your workspace");
-    }
-    const checkId = await submitOutcomeEvidenceCore(
-      ctx,
-      plan,
-      args.criterionIndex,
-      agent._id,
-      args.evidenceSummary,
-      args.evidenceLinks,
-    );
-    await emitEvent(ctx, {
-      scopeType: "workspace",
-      scopeId: plan.workspaceId,
-      type: "outcome.evidence_submitted",
-      actor: agentActor(agent),
-      entityType: "executionPlan",
-      entityId: plan._id,
-      entityTitle: plan.name,
-      payload: { criterionIndex: args.criterionIndex, checkId },
-    });
-    return await outcomeAssuranceView(ctx, plan);
-  },
-});
-
-export const reviewOutcomeCriterion = mutation({
-  args: {
-    apiKey: v.string(),
-    planId: v.id("executionPlans"),
-    criterionIndex: v.number(),
-    verdict: v.union(v.literal("passed"), v.literal("failed")),
-    reviewNote: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    const plan = await ctx.db.get(args.planId);
-    if (
-      !plan ||
-      agent.parentType !== "workspace" ||
-      plan.workspaceId !== agent.parentId
-    ) {
-      throw new ConvexError("Execution plan not found in your workspace");
-    }
-    await reviewOutcomeCriterionCore(
-      ctx,
-      plan,
-      args.criterionIndex,
-      args.verdict,
-      args.reviewNote,
-      agentActor(agent),
-    );
-    return await outcomeAssuranceView(ctx, plan);
-  },
-});
-
-function executionWaveView(wave: Doc<"executionWaves">) {
-  return {
-    waveId: wave._id,
-    planId: wave.planId,
-    assignments: wave.assignments,
-    skipped: wave.skipped,
-    openQuestionDisposition: wave.openQuestionDisposition,
-    authorizationSource: wave.authorizationSource,
-    authorizationPolicyVersion: wave.authorizationPolicyVersion,
-    createdByAgentId: wave.createdByAgentId,
-    createdAt: wave.createdAt,
-  };
-}
-
-export const getExecutionReadiness = query({
-  args: {
-    apiKey: v.string(),
-    planId: v.id("executionPlans"),
-    agentIds: v.optional(v.array(v.id("agents"))),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey);
-    const plan = await ctx.db.get(args.planId);
-    if (
-      !plan ||
-      agent.parentType !== "workspace" ||
-      plan.workspaceId !== agent.parentId
-    ) {
-      throw new ConvexError("Execution plan not found in your workspace");
-    }
-    return await executionReadinessCore(
-      ctx,
-      plan,
-      args.agentIds ? new Set(args.agentIds) : undefined,
-    );
-  },
-});
-
-export const getExecutionControl = query({
-  args: {
-    apiKey: v.string(),
-    planId: v.id("executionPlans"),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey);
-    const plan = await ctx.db.get(args.planId);
-    if (
-      !plan ||
-      agent.parentType !== "workspace" ||
-      plan.workspaceId !== agent.parentId
-    ) {
-      throw new ConvexError("Execution plan not found in your workspace");
-    }
-    return await executionControlCore(ctx, plan);
-  },
-});
-
-async function reconcileExecutionPlanCore(
-  ctx: MutationCtx,
-  plan: Doc<"executionPlans">,
-  actorAgent: Doc<"agents">,
-) {
-  const result = await reconcileStaleExecutionAssignments(ctx, plan._id);
-  const recoveredAgentIdsByTask = new Map<string, Set<string>>();
-  for (const assignment of result.recovered) {
-    const agentIds =
-      recoveredAgentIdsByTask.get(assignment.taskId) ?? new Set<string>();
-    agentIds.add(assignment.agentId);
-    recoveredAgentIdsByTask.set(assignment.taskId, agentIds);
-  }
-  let releasedClaimCount = 0;
-  for (const [taskId, recoveredAgentIds] of recoveredAgentIdsByTask) {
-    const normalizedTaskId = ctx.db.normalizeId("tasks", taskId);
-    if (!normalizedTaskId) continue;
-    const [task, latestAssignment] = await Promise.all([
-      ctx.db.get(normalizedTaskId),
-      latestExecutionAssignmentForTask(ctx, normalizedTaskId),
-    ]);
-    if (
-      !task?.claimedByActorId ||
-      !recoveredAgentIds.has(task.claimedByActorId) ||
-      (latestAssignment &&
-        (latestAssignment.status === "dispatched" ||
-          latestAssignment.status === "claimed" ||
-          latestAssignment.status === "running"))
-    ) {
-      continue;
-    }
-    await releaseTaskCore(
-      ctx,
-      normalizedTaskId,
-      agentActor(actorAgent),
-      true,
-    );
-    releasedClaimCount += 1;
-  }
-  if (result.recovered.length > 0) {
-    await emitEvent(ctx, {
-      scopeType: "workspace",
-      scopeId: plan.workspaceId,
-      type: "plan.execution_reconciled",
-      actor: agentActor(actorAgent),
-      entityType: "roadmap",
-      entityId: plan.roadmapId,
-      entityTitle: plan.name,
-      payload: {
-        planId: plan._id,
-        recoveredAssignmentCount: result.recovered.length,
-        releasedClaimCount,
-        truncated: result.truncated,
-      },
-    });
-  }
-  return {
-    recoveredAssignmentCount: result.recovered.length,
-    releasedClaimCount,
-    scannedCount: result.scannedCount,
-    truncated: result.truncated,
-    assignments: result.recovered,
-  };
-}
-
-export const reconcileExecutionPlan = mutation({
-  args: {
-    apiKey: v.string(),
-    planId: v.id("executionPlans"),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    const plan = await ctx.db.get(args.planId);
-    if (
-      !plan ||
-      agent.parentType !== "workspace" ||
-      plan.workspaceId !== agent.parentId
-    ) {
-      throw new ConvexError("Execution plan not found in your workspace");
-    }
-    return await reconcileExecutionPlanCore(ctx, plan, agent);
-  },
-});
-
-export const dispatchExecutionWave = mutation({
-  args: {
-    apiKey: v.string(),
-    idempotencyKey: v.string(),
-    planId: v.id("executionPlans"),
-    maxTasks: v.optional(v.number()),
-    agentIds: v.optional(v.array(v.id("agents"))),
-    openQuestionDisposition: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    if (agent.parentType !== "workspace") {
-      throw new ConvexError(
-        "Execution waves require a workspace-scoped agent",
-      );
-    }
-    const plan = await ctx.db.get(args.planId);
-    if (!plan || plan.workspaceId !== agent.parentId) {
-      throw new ConvexError("Execution plan not found in your workspace");
-    }
-    const workspace = await ctx.db.get(plan.workspaceId);
-    if (!workspace) throw new ConvexError("Workspace not found");
-    const executionPolicy = executionPolicyFor(workspace);
-    const authorization = planAuthorization(plan, executionPolicy);
-    if (!authorization.authorized) {
-      throw new ConvexError(authorization.reason);
-    }
-    if (authorization.source === "none") {
-      throw new ConvexError("Execution authorization source is missing");
-    }
-    const idempotencyKey = executionText(
-      args.idempotencyKey,
-      "idempotencyKey",
-      120,
-    );
-    const maxTasks = args.maxTasks ?? executionPolicy.maxTasksPerWave;
-    if (!Number.isInteger(maxTasks) || maxTasks < 1 || maxTasks > 25) {
-      throw new ConvexError("maxTasks must be an integer from 1-25");
-    }
-    if (maxTasks > executionPolicy.maxTasksPerWave) {
-      throw new ConvexError(
-        `Workspace execution policy allows at most ${executionPolicy.maxTasksPerWave} tasks per wave`,
-      );
-    }
-    const requestedAgentIds = [...new Set(args.agentIds ?? [])];
-    for (const agentId of requestedAgentIds) {
-      const candidate = await ctx.db.get(agentId);
-      if (
-        !candidate ||
-        candidate.parentType !== "workspace" ||
-        candidate.parentId !== plan.workspaceId
-      ) {
-        throw new ConvexError(
-          `agentIds includes an agent outside this workspace: ${agentId}`,
-        );
-      }
-    }
-    let openQuestionDisposition = args.openQuestionDisposition?.trim();
-    if (openQuestionDisposition && openQuestionDisposition.length > 2_000) {
-      throw new ConvexError(
-        "openQuestionDisposition must be 2,000 characters or fewer",
-      );
-    }
-    if (plan.openQuestions.length > 0) {
-      if (!openQuestionDisposition || openQuestionDisposition.length < 10) {
-        throw new ConvexError(
-          "This plan has open questions. Provide openQuestionDisposition explaining what was resolved, deferred, or intentionally bounded before dispatch.",
-        );
-      }
-    } else {
-      openQuestionDisposition = undefined;
-    }
-    const fingerprint = sha256Hex(
-      canonicalJson({
-        planId: args.planId,
-        maxTasks,
-        agentIds: requestedAgentIds,
-        openQuestionDisposition,
-      }),
-    );
-    const previous = await ctx.db
-      .query("executionWaves")
-      .withIndex("by_agent_key", (q) =>
-        q
-          .eq("createdByAgentId", agent._id)
-          .eq("idempotencyKey", idempotencyKey),
-      )
-      .unique();
-    if (previous) {
-      if (previous.requestFingerprint !== fingerprint) {
-        throw new ConvexError(
-          "This idempotencyKey already dispatched a different wave. Use a new key for changed routing.",
-        );
-      }
-      return { ...executionWaveView(previous), replayed: true };
-    }
-
-    await reconcileExecutionPlanCore(ctx, plan, agent);
-    const readiness = await executionReadinessCore(
-      ctx,
-      plan,
-      requestedAgentIds.length > 0
-        ? new Set(requestedAgentIds)
-        : undefined,
-    );
-    const selected = readiness.recommendations.slice(0, maxTasks);
-    if (selected.length === 0) {
-      const reasons = [
-        ...new Set(readiness.skipped.map((row) => row.reason)),
-      ].join(", ");
-      throw new ConvexError(
-        `No tasks are dispatchable in this wave${reasons ? ` (${reasons})` : ""}`,
-      );
-    }
-    const assignments: Doc<"executionWaves">["assignments"] = [];
-    for (const recommendation of selected) {
-      const task = await ctx.db.get(recommendation.taskId);
-      const target = await ctx.db.get(recommendation.recommendedAgentId);
-      if (!task || !target) {
-        throw new ConvexError(
-          `Dispatch artifact disappeared for ${recommendation.taskRef}; retry with a new wave key`,
-        );
-      }
-      const humanAssignees = task.assigneeClerkIds.filter(
-        (assigneeId) => !ctx.db.normalizeId("agents", assigneeId),
-      );
-      const assigneeIds = [
-        ...humanAssignees,
-        recommendation.recommendedAgentId,
-      ];
-      if (
-        assigneeIds.length !== task.assigneeClerkIds.length ||
-        assigneeIds.some(
-          (assigneeId, index) =>
-            assigneeId !== task.assigneeClerkIds[index],
-        )
-      ) {
-        await updateTaskCore(
-          ctx,
-          { taskId: task._id, assigneeIds },
-          agentActor(agent),
-          { suppressAgentPing: true },
-        );
-      }
-      const delivery = target.notifyUrl
-        ? ("notify_url" as const)
-        : ("poll_required" as const);
-      assignments.push({
-        taskId: task._id,
-        taskRef: recommendation.taskRef,
-        agentId: target._id,
-        delivery,
-        contextPacketCount: recommendation.contextPacketCount,
-        estimatedContextTokens: recommendation.estimatedContextTokens,
-        contextVersionFingerprint:
-          recommendation.contextVersionFingerprint,
-      });
-    }
-    const selectedRefs = new Set(
-      selected.map((recommendation) => recommendation.taskRef),
-    );
-    const skipped = readiness.skipped.filter(
-      (row) => !selectedRefs.has(row.taskRef),
-    );
-    for (const recommendation of readiness.recommendations.slice(maxTasks)) {
-      skipped.push({
-        taskRef: recommendation.taskRef,
-        reason: "wave_limit",
-      });
-    }
-    const dispatchedAt = Date.now();
-    const waveId = await ctx.db.insert("executionWaves", {
-      workspaceId: plan.workspaceId,
-      planId: plan._id,
-      createdByAgentId: agent._id,
-      idempotencyKey,
-      requestFingerprint: fingerprint,
-      openQuestionDisposition,
-      authorizationSource: authorization.source,
-      authorizationPolicyVersion:
-        authorization.source === "workspace_policy"
-          ? executionPolicy.version
-          : undefined,
-      assignments,
-      skipped,
-      createdAt: dispatchedAt,
-    });
-    const recommendationByTaskId = new Map(
-      selected.map((recommendation) => [
-        recommendation.taskId as string,
-        recommendation,
-      ]),
-    );
-    for (const assignment of assignments) {
-      const previousAttempts = await ctx.db
-        .query("executionAssignments")
-        .withIndex("by_task", (q) => q.eq("taskId", assignment.taskId))
-        .collect();
-      const executionAssignmentId = await ctx.db.insert(
-        "executionAssignments",
-        {
-        workspaceId: plan.workspaceId,
-        planId: plan._id,
-        waveId,
-        taskId: assignment.taskId,
-        taskRef: assignment.taskRef,
-        agentId: assignment.agentId,
-        delivery: assignment.delivery,
-        contextPacketCount: assignment.contextPacketCount,
-        estimatedContextTokens: assignment.estimatedContextTokens,
-        contextVersionFingerprint: assignment.contextVersionFingerprint,
-        status: "dispatched",
-        attempt: previousAttempts.length + 1,
-        dispatchedAt,
-        },
-      );
-      const recommendation = recommendationByTaskId.get(
-        assignment.taskId as string,
-      );
-      if (!recommendation) {
-        throw new ConvexError(
-          `Dispatch recommendation disappeared for ${assignment.taskRef}`,
-        );
-      }
-      await enqueueAgentPingDelivery(ctx, {
-        scopeType: "workspace",
-        scopeId: plan.workspaceId,
-        workspaceId: plan.workspaceId,
-        sourceKind: "execution_assignment",
-        sourceId: executionAssignmentId,
-        executionAssignmentId,
-        agentId: assignment.agentId,
-        taskId: assignment.taskId,
-        push: assignment.delivery === "notify_url",
-        type: "task.ready",
-        payload: {
-          planId: plan._id,
-          taskId: assignment.taskId,
-          listId: recommendation.listId,
-          title: recommendation.title,
-          contextRequired: true,
-          contextPacketCount: recommendation.contextPacketCount,
-          estimatedContextTokens: recommendation.estimatedContextTokens,
-          contextVersionFingerprint:
-            recommendation.contextVersionFingerprint,
-          contextPackets: recommendation.contextPackets.map((packet) => ({
-            packetId: packet.packetId,
-            version: packet.version,
-          })),
-        },
-      });
-    }
-    await emitEvent(ctx, {
-      scopeType: "workspace",
-      scopeId: plan.workspaceId,
-      type: "plan.wave_dispatched",
-      actor: agentActor(agent),
-      entityType: "roadmap",
-      entityId: plan.roadmapId,
-      entityTitle: plan.name,
-      payload: {
-        planId: plan._id,
-        waveId,
-        assignmentCount: assignments.length,
-        pollRequiredCount: assignments.filter(
-          (assignment) => assignment.delivery === "poll_required",
-        ).length,
-      },
-    });
-    const wave = (await ctx.db.get(waveId))!;
-    return { ...executionWaveView(wave), replayed: false };
   },
 });
 
@@ -6238,34 +4137,6 @@ export const listBlueprints = query({
         dueInDays: bp.dueInDays,
         requiresApproval: bp.requiresApproval ?? false,
       }));
-  },
-});
-
-export const createBlueprint = mutation({
-  args: {
-    apiKey: v.string(),
-    name: v.string(),
-    title: v.string(),
-    description: v.optional(v.string()),
-    priority: v.optional(priorityValidator),
-    checklist: v.optional(v.array(v.string())),
-    estimatePoints: v.optional(v.number()),
-    sopSlug: v.optional(v.string()),
-    dueInDays: v.optional(v.number()),
-    requiresApproval: v.optional(v.boolean()),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    const { apiKey: _apiKey, ...blueprint } = args;
-    return await createTaskBlueprintCore(
-      ctx,
-      {
-        scopeType: agent.parentType,
-        scopeId: agent.parentId,
-        ...blueprint,
-      },
-      agentActor(agent),
-    );
   },
 });
 

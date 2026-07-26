@@ -55,7 +55,6 @@ const ROUTING_MODE_LABEL: Record<RoutedList["mode"], string> = {
 
 /** "Weekly · Mon · 09:00 UTC" — one voice for a schedule's cadence. */
 function cadenceLabel(s: Schedule): string {
-  if (s.cadence === "hourly") return "Hourly";
   const hour = `${String(s.hourUtc).padStart(2, "0")}:00 UTC`;
   if (s.cadence === "daily") return `Daily · ${hour}`;
   if (s.cadence === "weekly") {
@@ -155,9 +154,9 @@ export function OperationsPanel({
           subtext={ops.overdueOpen > 0 ? "needs attention" : "all clear"}
         />
         <StatTile
-          label="Routed lists"
+          label="Routed projects"
           value={ops.routedLists.length}
-          subtext={`of ${ops.listCount} list${ops.listCount === 1 ? "" : "s"}`}
+          subtext={`of ${ops.listCount} project${ops.listCount === 1 ? "" : "s"}`}
         />
         <StatTile
           label="Schedules"
@@ -281,7 +280,7 @@ function SchedulesSection({ schedules }: { schedules: Schedule[] }) {
       </div>
       {schedules.length === 0 ? (
         <p className="mt-2 text-sm text-muted-foreground">
-          No recurring schedules yet — create one from a list&apos;s
+          No recurring schedules yet — create one from a project&apos;s
           settings and it will report in here.
         </p>
       ) : (
@@ -311,14 +310,6 @@ function SchedulesSection({ schedules }: { schedules: Schedule[] }) {
                     {!s.enabled && (
                       <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                         Paused
-                      </span>
-                    )}
-                    {s.lastError && (
-                      <span
-                        className="max-w-56 truncate rounded-full bg-pastel-red px-2 py-0.5 text-[10px] font-medium text-neutral-900"
-                        title={s.lastError}
-                      >
-                        Failed {s.consecutiveFailures}×
                       </span>
                     )}
                   </div>
@@ -364,14 +355,14 @@ function SchedulesSection({ schedules }: { schedules: Schedule[] }) {
   );
 }
 
-// ── Routed lists ─────────────────────────────────────────────────────────
+// ── Routed projects ──────────────────────────────────────────────────────
 
 function RoutedSection({ routedLists }: { routedLists: RoutedList[] }) {
   return (
     <section className="rounded-2xl panel p-4 sm:p-5">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Routed lists
+          Routed projects
         </h2>
         {routedLists.length > 0 && (
           <span className="text-[11px] text-muted-foreground">
@@ -381,7 +372,7 @@ function RoutedSection({ routedLists }: { routedLists: RoutedList[] }) {
       </div>
       {routedLists.length === 0 ? (
         <p className="mt-2 text-sm text-muted-foreground">
-          Set a routing rule in a list&apos;s settings and new tasks assign
+          Set a routing rule in a project&apos;s settings and new tasks assign
           themselves.
         </p>
       ) : (

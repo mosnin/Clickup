@@ -10,9 +10,6 @@ const withSerwist = withSerwistInit({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  outputFileTracingIncludes: {
-    "/skills/operate/*": ["./plugins/operate/skills/**"],
-  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "img.clerk.com" },

@@ -7,12 +7,6 @@ import { ConvexHttpClient } from "convex/browser";
 import type { FunctionReference } from "convex/server";
 import { api } from "@convex/_generated/api";
 import { ConvexError } from "convex/values";
-import {
-  toolAvailableForProfile,
-  toolAnnotationsForProfile,
-  toolDescriptionForProfile,
-  type AnnotationProfile,
-} from "@/lib/mcp-annotation-profile";
 
 // Hosted MCP server (Streamable HTTP) at POST /api/mcp.
 //
@@ -47,9 +41,7 @@ function asAction(ref: unknown): FunctionReference<"action"> {
 }
 
 // ISO date string (or epoch ms) → epoch ms.
-function ms(
-  value: string | number | null | undefined,
-): number | null | undefined {
+function ms(value: string | number | null | undefined): number | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;
   if (typeof value === "number") return value;
@@ -140,18 +132,16 @@ const checklistArg = z
   )
   .describe("Full checklist (replaces the existing one)");
 
-// Annotation hints surfaced to MCP clients on tools/list. Reads, overwrites,
-// irreversible actions, and external side effects are classified independently;
-// safely-retryable mutations also get idempotentHint.
+// Annotation hints surfaced to MCP clients on tools/list. Reads are marked
+// readOnlyHint; delete_* tools destructiveHint; safely-retryable mutations
+// idempotentHint. Everything operates on the closed operate.to workspace,
+// so openWorldHint is false across the board.
 const READ_TOOLS = new Set([
   "whoami",
-  "list_wake_inbox",
   "get_tree",
   "list_statuses",
   "list_tasks",
   "get_task",
-  "list_context_packets",
-  "get_context_packet",
   "search_tasks",
   "semantic_search",
   "list_comments",
@@ -162,12 +152,6 @@ const READ_TOOLS = new Set([
   "get_sprint_board",
   "get_sprint_planning",
   "get_roadmaps",
-  "list_execution_plans",
-  "get_execution_plan",
-  "get_outcome_assurance",
-  "get_execution_policy",
-  "get_execution_readiness",
-  "get_execution_control",
   "list_scheduled_tasks",
   "list_events",
   "list_webhooks",
@@ -190,13 +174,11 @@ const READ_TOOLS = new Set([
   "list_checklist_templates",
   "get_portfolio",
   "get_task_network",
-  "list_decisions_for_task",
   "list_milestones",
   "get_wallet",
   "buy_credits", // returns a payment challenge; charges nothing by itself
 ]);
 const DESTRUCTIVE_TOOLS = new Set([
-  "rename_folder",
   "delete_task",
   "delete_scheduled_task",
   "delete_webhook",
@@ -204,68 +186,11 @@ const DESTRUCTIVE_TOOLS = new Set([
   "delete_comment",
   "delete_list",
   "delete_folder",
-  "delete_context_packet",
-  "detach_context_packet",
-  "supersede_decision",
-  "reorder_tasks",
-  "update_task",
-  "set_estimate",
-  "complete_task",
-  "claim_task",
-  "release_task",
-  "set_checklist",
-  "remove_dependency",
-  "mark_mention_read",
-  "apply_sprint_template",
-  "update_sprint",
-  "set_sprint_capacity",
-  "set_sprint_retrospective",
-  "revise_execution_plan_context",
-  "review_outcome_criterion",
-  "reconcile_execution_plan",
-  "dispatch_execution_wave",
   "remove_roadmap_phase",
-  "update_roadmap_phase",
-  "assign_project_to_phase",
-  "assign_list_to_phase",
-  "set_scheduled_task_enabled",
-  "update_doc",
-  "handoff_task",
-  "start_run",
-  "finish_run",
-  "report_error",
-  "set_goal_progress",
-  "apply_template",
-  "apply_starter_template",
-  "set_task_field",
-  "clear_task_field",
-  "apply_checklist_template",
-  "update_comment",
-  "resolve_comment",
-  "settle_payment",
-  "rename_list",
-  "update_list_meta",
-  "reorder_lists",
-  "move_list",
-  "reorder_folders",
   "delete_milestone",
-  "update_milestone",
-  "set_task_milestone",
-]);
-const OPEN_WORLD_TOOLS = new Set([
-  // Delivers future workspace events to a user-supplied external endpoint.
-  "register_webhook",
-  // Completes a payment through the configured external payment rail.
-  "settle_payment",
 ]);
 const IDEMPOTENT_TOOLS = new Set([
-  "create_execution_plan",
-  "revise_execution_plan_context",
-  "dispatch_execution_wave",
-  "reconcile_execution_plan",
   "heartbeat",
-  "acknowledge_wake",
-  "acknowledge_task_context",
   "update_task",
   "set_estimate",
   "complete_task",
@@ -278,7 +203,6 @@ const IDEMPOTENT_TOOLS = new Set([
   "set_sprint_capacity",
   "set_sprint_retrospective",
   "assign_project_to_phase",
-  "assign_list_to_phase",
   "rename_list",
   "update_list_meta",
   "reorder_lists",
@@ -305,21 +229,14 @@ function titleFor(name: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-function annotationsFor(
-  name: string,
-  profile: AnnotationProfile,
-): ToolAnnotations {
-  const readOnly = READ_TOOLS.has(name);
-  return toolAnnotationsForProfile(
-    {
-      title: titleFor(name),
-      readOnly,
-      openWorld: OPEN_WORLD_TOOLS.has(name),
-      destructive: DESTRUCTIVE_TOOLS.has(name),
-      idempotent: IDEMPOTENT_TOOLS.has(name),
-    },
-    profile,
-  );
+function annotationsFor(name: string): ToolAnnotations {
+  return {
+    title: titleFor(name),
+    openWorldHint: false,
+    ...(READ_TOOLS.has(name) ? { readOnlyHint: true } : {}),
+    ...(DESTRUCTIVE_TOOLS.has(name) ? { destructiveHint: true } : {}),
+    ...(IDEMPOTENT_TOOLS.has(name) ? { idempotentHint: true } : {}),
+  };
 }
 
 type ToolDef = {
@@ -345,13 +262,6 @@ const TOOLS: ToolDef[] = [
     run: (c, k) => c.query(asQuery(api.agentApi.whoami), { apiKey: k }),
   },
   {
-    name: "list_wake_inbox",
-    description:
-      "My unconsumed assignment, execution-ready, and mention wakes, newest first. Use at session start and after reconnecting so a missed push cannot lose work. Each row includes its authoritative deliveryId, payload, push status, attempts, and error; call acknowledge_wake for each row before fetching current task or collaboration context.",
-    shape: {},
-    run: (c, k) => c.query(asQuery(api.agentApi.listWakeInbox), { apiKey: k }),
-  },
-  {
     name: "heartbeat",
     description:
       "Presence ping shown live on the humans' Agents page. Call every few minutes while working. Set statusText to a short 'what I'm doing right now' line and currentTaskId to the task you're on (null to clear).",
@@ -361,19 +271,6 @@ const TOOLS: ToolDef[] = [
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.heartbeat), { apiKey: k, ...a }),
-  },
-  {
-    name: "acknowledge_wake",
-    description:
-      "Confirm that I consumed a signed runtime wake. Call immediately with the deliveryId from a task.assigned, task.ready, or mention.created payload, before fetching the authoritative task or collaboration context. Idempotent and presence-budget exempt.",
-    shape: {
-      deliveryId: z.string().describe("deliveryId from the signed wake body"),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.acknowledgeWakeDelivery), {
-        apiKey: k,
-        ...a,
-      }),
   },
 
   // ── Structure ────────────────────────────────────────────────────
@@ -386,8 +283,7 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "create_space",
-    description:
-      "Create a new top-level Space in my scope. Spaces own lists, optional folders, docs, whiteboards, and templates.",
+    description: "Create a new space (top-level project container) in my scope.",
     shape: { name: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.createSpace), { apiKey: k, ...a }),
@@ -437,7 +333,7 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "rename_list",
-    description: "Rename a list. Fix your own typos — no human needed.",
+    description: "Rename a list (project). Fix your own typos — no human needed.",
     shape: { listId: z.string(), name: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.renameList), { apiKey: k, ...a }),
@@ -445,7 +341,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "update_list_meta",
     description:
-      "Set a list's intent: description, health (on_track/at_risk/off_track/paused), target date, notes, or attached SOP slug. null clears a field. Shows on the list Overview and in get_tree.",
+      "Set a project's intent: description, health (on_track/at_risk/off_track/paused), target date, notes, or attached SOP slug. null clears a field. Shows on the project Overview and in get_tree.",
     shape: {
       listId: z.string(),
       description: z.string().nullable().optional(),
@@ -459,7 +355,7 @@ const TOOLS: ToolDef[] = [
         .string()
         .nullable()
         .optional()
-        .describe("skill slug attached as this list's SOP"),
+        .describe("skill slug attached as this project's SOP"),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.updateListMeta), { apiKey: k, ...a }),
@@ -467,7 +363,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "delete_list",
     description:
-      "Delete a list and everything in it: tasks, comments, statuses, fields, automations, schedules. Irreversible — prefer rename_list for fixing mistakes. Goals tracking the list freeze at their current value.",
+      "Delete a list (project) and everything in it: tasks, comments, statuses, fields, automations, schedules. Irreversible — prefer rename_list for fixing mistakes. Goals tracking the list freeze at their current value.",
     shape: { listId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.deleteList), { apiKey: k, ...a }),
@@ -551,7 +447,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_milestones",
     description:
-      "The dated checkpoints inside one list: name, targetDate, status, and derived progress (done/total of the tasks linked to each). Read this before planning dates — it is the list's internal timeline.",
+      "The dated checkpoints inside one project: name, targetDate, status, and derived progress (done/total of the tasks linked to each). Read this before planning dates — it's the project's internal timeline.",
     shape: { listId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listMilestones), { apiKey: k, ...a }),
@@ -559,7 +455,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "create_milestone",
     description:
-      "Add a dated checkpoint to a list (e.g. 'Beta cut', 'Design freeze'). Link tasks to it with set_task_milestone; its progress then derives from those tasks.",
+      "Add a dated checkpoint to a project (e.g. 'Beta cut', 'Design freeze'). Link tasks to it with set_task_milestone; its progress then derives from those tasks.",
     shape: {
       listId: z.string(),
       name: z.string(),
@@ -602,7 +498,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "set_task_milestone",
     description:
-      "Put a task under one of its list's milestones, or pass milestoneId null to detach it. The milestone must belong to the task's own list.",
+      "Put a task under one of its project's milestones, or pass milestoneId null to detach it. The milestone must belong to the task's own project.",
     shape: { taskId: z.string(), milestoneId: z.string().nullable() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.setTaskMilestone), {
@@ -621,10 +517,7 @@ const TOOLS: ToolDef[] = [
       sprintId: z.string().optional(),
       assignedToMe: z.boolean().optional(),
       includeCompleted: z.boolean().optional(),
-      limit: z
-        .number()
-        .optional()
-        .describe("max results, default 100, max 500"),
+      limit: z.number().optional().describe("max results, default 100, max 500"),
     },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listTasks), { apiKey: k, ...a }),
@@ -632,181 +525,15 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_task",
     description:
-      "Full detail of one task: status, checklist, dependencies, claim, subtasks, comments, attachments, SOP, full attached contextPackets, and versioned operating decisions. contextReadiness says which packet versions this agent acknowledged; decisions show pending/no-change/rework-required impact reviews. Clear both gates before claiming, starting a run, reporting currentTaskId, or completing.",
+      "Full detail of one task: status, checklist, dependencies (with open/closed state), claim, subtasks, and the last 50 comments. Also returns listName, attachments (with download urls), and the list's SOP when one is attached.",
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.getTask), { apiKey: k, ...a }),
   },
   {
-    name: "list_context_packets",
-    description:
-      "List the versioned source-of-truth briefs available in a list. Packets keep objectives, constraints, decisions, and references consistent across parallel tasks.",
-    shape: { listId: z.string() },
-    run: (c, k, a) =>
-      c.query(asQuery(api.agentApi.listContextPackets), { apiKey: k, ...a }),
-  },
-  {
-    name: "get_context_packet",
-    description:
-      "Read one context packet in full. Re-read when its version changes before continuing work based on it.",
-    shape: { packetId: z.string() },
-    run: (c, k, a) =>
-      c.query(asQuery(api.agentApi.getContextPacket), { apiKey: k, ...a }),
-  },
-  {
-    name: "create_context_packet",
-    description:
-      "Create a versioned source-of-truth brief for a list and optionally attach it to many tasks atomically. Use markdown sections such as Objective, Constraints, Decisions, References, and Open Questions.",
-    shape: {
-      listId: z.string(),
-      title: z.string(),
-      summary: z.string().optional(),
-      content: z.string(),
-      taskIds: z.array(z.string()).max(100).optional(),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.createContextPacket), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "update_context_packet",
-    description:
-      "Update a context packet. Every material change increments its version so agents can detect stale context instead of silently diverging.",
-    shape: {
-      packetId: z.string(),
-      title: z.string().optional(),
-      summary: z.string().nullable().optional(),
-      content: z.string().optional(),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.updateContextPacket), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "acknowledge_task_context",
-    description:
-      "Prove that I loaded the complete current context bundle for a task. First call get_task, read every contextPacket, then send every packetId + exact version here. Required before claim_task, start_run, heartbeat(currentTaskId), or completion whenever context is attached; any later packet update makes the receipt stale automatically.",
-    shape: {
-      taskId: z.string(),
-      packets: z.array(
-        z.object({
-          packetId: z.string(),
-          version: z.number(),
-        }),
-      ),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.acknowledgeTaskContext), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "attach_context_packet",
-    description:
-      "Attach one list context packet to up to 100 tasks. get_task then returns the full packet to every assigned agent.",
-    shape: {
-      packetId: z.string(),
-      taskIds: z.array(z.string()).min(1).max(100),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.attachContextPacket), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "detach_context_packet",
-    description:
-      "Detach context that no longer applies to a task. The packet remains available to its other tasks.",
-    shape: { packetId: z.string(), taskId: z.string() },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.detachContextPacket), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "delete_context_packet",
-    description:
-      "Permanently retire a list context packet and detach it from every task. Use only when the source itself is obsolete, not when it merely stops applying to one task.",
-    shape: { packetId: z.string() },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.deleteContextPacket), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "list_decisions_for_task",
-    description:
-      "Read every operating decision that affected a task, including superseded versions, rationale, linked context, and the task's pending/no-change/rework-required/resolved assessment. Pending or rework-required impacts block execution.",
-    shape: { taskId: z.string() },
-    run: (c, k, a) =>
-      c.query(asQuery(api.agentApi.listDecisionsForTask), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "create_decision",
-    description:
-      "Record a new immutable operating decision for a list and mark the named tasks as needing impact review. key is a stable machine-readable name such as launch.region. Optionally link a context packet: it is attached to impacted tasks and version-bumped so prior agent acknowledgements become stale.",
-    shape: {
-      listId: z.string(),
-      key: z.string().max(80),
-      title: z.string().max(160),
-      statement: z.string().max(5000),
-      rationale: z.string().max(5000),
-      contextPacketId: z.string().optional(),
-      taskIds: z.array(z.string()).max(100),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.createDecision), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "supersede_decision",
-    description:
-      "Replace the current active decision with an immutable next version. The previous wording remains auditable; every previously impacted task plus optional new taskIds returns to pending review, and linked context becomes stale.",
-    shape: {
-      decisionId: z.string(),
-      title: z.string().max(160).optional(),
-      statement: z.string().max(5000),
-      rationale: z.string().max(5000),
-      taskIds: z.array(z.string()).max(100).optional(),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.supersedeDecision), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "assess_decision_impact",
-    description:
-      "Assess how one decision version affects one task. no_change clears the gate; rework_required keeps execution blocked and requires a note; resolved clears a prior rework requirement after the task has been updated.",
-    shape: {
-      impactId: z.string(),
-      status: z.enum(["no_change", "rework_required", "resolved"]),
-      note: z.string().max(2000).optional(),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.assessDecisionImpact), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
     name: "create_task",
     description:
-      "Create a task. assigneeIds may mix human ids and agent ids (from list_members). requiredCapabilities is an explicit execution contract; an agent missing any requirement cannot be assigned or claim it. checklist seeds acceptance criteria.",
+      "Create a task. assigneeIds may mix human ids and agent ids (from list_members). checklist seeds acceptance criteria.",
     shape: {
       listId: z.string(),
       title: z.string(),
@@ -816,7 +543,6 @@ const TOOLS: ToolDef[] = [
       startDate: dateArg.optional(),
       dueDate: dateArg.optional(),
       assigneeIds: z.array(z.string()).optional(),
-      requiredCapabilities: z.array(z.string().max(40)).max(10).optional(),
       parentTaskId: z.string().optional().describe("makes this a subtask"),
       recurrence: z.enum(["daily", "weekly", "monthly"]).optional(),
       sprintId: z.string().optional(),
@@ -862,10 +588,6 @@ const TOOLS: ToolDef[] = [
             startDate: dateArg.optional(),
             dueDate: dateArg.optional(),
             assigneeIds: z.array(z.string()).optional(),
-            requiredCapabilities: z
-              .array(z.string().max(40))
-              .max(10)
-              .optional(),
             parentRef: z
               .string()
               .optional()
@@ -920,7 +642,6 @@ const TOOLS: ToolDef[] = [
       startDate: nullableDateArg.optional(),
       dueDate: nullableDateArg.optional(),
       assigneeIds: z.array(z.string()).optional(),
-      requiredCapabilities: z.array(z.string().max(40)).max(10).optional(),
       recurrence: z.enum(["daily", "weekly", "monthly"]).nullable().optional(),
       sprintId: z.string().nullable().optional(),
       blockedByTaskIds: z.array(z.string()).optional(),
@@ -928,9 +649,7 @@ const TOOLS: ToolDef[] = [
       requiresApproval: z
         .boolean()
         .optional()
-        .describe(
-          "true = gate completion behind human approval (only a human can set false)",
-        ),
+        .describe("true = gate completion behind human approval (only a human can set false)"),
       estimatePoints: z
         .number()
         .nullable()
@@ -957,7 +676,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "complete_task",
     description:
-      "Mark a task complete (moves it to the list's Complete status, releases my claim, triggers recurrence/automations). Fails if blockers are open or attached context changed since I acknowledged it.",
+      "Mark a task complete (moves it to the list's Complete status, releases my claim, triggers recurrence/automations). Fails if blockers are open.",
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.completeTask), { apiKey: k, ...a }),
@@ -965,7 +684,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "request_approval",
     description:
-      "My work on a gated task is done, ask a human to sign off. Requires the task's current context to be acknowledged, raises the approval gate if needed, emits task.approval_requested, and emails a responsible human. Wait for the task.approved event (or poll get_task) before complete_task.",
+      "My work on a gated task is done, ask a human to sign off. Raises the approval gate if needed, emits task.approval_requested, and emails a responsible human. Wait for the task.approved event (or poll get_task) before complete_task.",
     shape: {
       taskId: z.string(),
       note: z.string().optional().describe("what to review / where to look"),
@@ -975,8 +694,7 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "delete_task",
-    description:
-      "Delete a task (and its subtasks). Prefer completing over deleting.",
+    description: "Delete a task (and its subtasks). Prefer completing over deleting.",
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.deleteTask), { apiKey: k, ...a }),
@@ -984,15 +702,14 @@ const TOOLS: ToolDef[] = [
   {
     name: "claim_task",
     description:
-      "Claim a task before working on it so other agents don't duplicate the work. Fails if another actor holds a fresh claim or attached context is unread/stale; call get_task then acknowledge_task_context first. Claims expire after 60 min.",
+      "Claim a task before working on it so other agents don't duplicate the work. Fails if another actor holds a fresh claim (claims expire after 60 min).",
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.claimTask), { apiKey: k, ...a }),
   },
   {
     name: "release_task",
-    description:
-      "Release my claim on a task (e.g. when handing off or pausing).",
+    description: "Release my claim on a task (e.g. when handing off or pausing).",
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.releaseTask), { apiKey: k, ...a }),
@@ -1086,7 +803,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_members",
     description:
-      "Everyone in my scope, humans and agents, with ids usable in assigneeIds/mentionIds. Agents include lastSeenAt, lastConnectedAt, and lastHeartbeatAt as separate live signals, plus role, capabilities, concurrency ceiling, and current task for safe routing.",
+      "Everyone in my scope, humans and agents, with ids usable in assigneeIds/mentionIds. Agents include live status.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.listMembers), { apiKey: k }),
   },
@@ -1211,307 +928,9 @@ const TOOLS: ToolDef[] = [
 
   // ── Roadmaps ─────────────────────────────────────────────────────
   {
-    name: "get_execution_policy",
-    description:
-      "Read the owner-controlled workspace execution policy. Returns supervised or bounded_autonomous mode, the active policy version, autonomous plan-size ceiling, per-wave task ceiling, and rolling 24-hour dispatch limit. Call before compiling or dispatching a plan; agents cannot change this policy.",
-    shape: {},
-    run: (c, k) =>
-      c.query(asQuery(api.agentApi.getExecutionPolicy), { apiKey: k }),
-  },
-  {
-    name: "create_execution_plan",
-    description:
-      "Atomically compile one conversation/brief into an auditable execution system inside one Space: a phased roadmap, 1-12 workstreams materialized as Lists, up to 100 tasks/subtasks, cross-workstream dependencies, assignments, and a versioned operating brief attached to every task. The input field remains projects for backward compatibility, but each entry is a workstream that creates one List—not another container. The immutable manifest preserves source context, success criteria, assumptions, open questions, every generated id, and its authorization source. Supervised workspaces start plans pending owner/admin review. Bounded-autonomous workspaces may policy-authorize plans only when they fit the plan-size ceiling, contain no open questions, and contain no approval-gated tasks. Reuse the same idempotencyKey to retry safely; changing the plan requires a new key. All refs are local handles: dependencies within a workstream use task refs; cross-workstream dependencies use workstreamRef.taskRef. The entire call commits or rolls back together.",
-    shape: {
-      idempotencyKey: z
-        .string()
-        .max(120)
-        .describe(
-          "stable caller-generated key for this exact plan, e.g. conversation id + revision",
-        ),
-      spaceId: z
-        .string()
-        .describe("workspace Space that will own the generated Lists"),
-      name: z.string().max(120),
-      objective: z.string().max(1000),
-      sourceContext: z
-        .string()
-        .max(35000)
-        .describe(
-          "confirmed conversation/brief source; preserve facts and decisions, do not invent missing details",
-        ),
-      successCriteria: z.array(z.string().max(500)).min(1).max(25),
-      assumptions: z
-        .array(z.string().max(500))
-        .max(25)
-        .optional()
-        .describe(
-          "explicitly labeled assumptions; never hide guesses in tasks",
-        ),
-      openQuestions: z
-        .array(z.string().max(500))
-        .max(25)
-        .optional()
-        .describe(
-          "unresolved decisions preserved in every workstream's context",
-        ),
-      phases: z
-        .array(
-          z.object({
-            ref: z.string().max(64),
-            name: z.string().max(120),
-            targetDate: dateArg.optional(),
-          }),
-        )
-        .min(1)
-        .max(12),
-      projects: z
-        .array(
-          z.object({
-            ref: z.string().max(64),
-            name: z.string().max(120),
-            description: z.string().max(1000).optional(),
-            phaseRef: z.string().max(64),
-            projectStatus: z
-              .enum(["on_track", "at_risk", "off_track", "paused"])
-              .optional(),
-            ownerActorId: z
-              .string()
-              .optional()
-              .describe("human or agent id from list_members"),
-            targetDate: dateArg.optional(),
-            tasks: z
-              .array(
-                z.object({
-                  ref: z.string().max(64),
-                  title: z.string().max(500),
-                  description: z.string().optional(),
-                  priority: priorityArg.optional(),
-                  startDate: dateArg.optional(),
-                  dueDate: dateArg.optional(),
-                  assigneeIds: z
-                    .array(z.string())
-                    .optional()
-                    .describe("human/agent ids from list_members"),
-                  requiredCapabilities: z
-                    .array(z.string().max(40))
-                    .max(10)
-                    .optional()
-                    .describe(
-                      "capability slugs every assigned agent must advertise",
-                    ),
-                  parentRef: z
-                    .string()
-                    .optional()
-                    .describe(
-                      "earlier task ref in this workstream; creates a subtask",
-                    ),
-                  dependsOn: z
-                    .array(z.string())
-                    .optional()
-                    .describe(
-                      "same-workstream task refs or workstreamRef.taskRef for cross-workstream blockers",
-                    ),
-                  checklist: checklistArg.optional(),
-                  requiresApproval: z.boolean().optional(),
-                  estimatePoints: z.number().optional(),
-                  milestone: z.boolean().optional(),
-                }),
-              )
-              .min(1)
-              .max(50),
-          }),
-        )
-        .min(1)
-        .max(12),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.createExecutionPlan), {
-        apiKey: k,
-        ...a,
-        phases: a.phases.map(
-          (phase: {
-            ref: string;
-            name: string;
-            targetDate?: number | string;
-          }) => ({
-            ...phase,
-            targetDate: ms(phase.targetDate) ?? undefined,
-          }),
-        ),
-        projects: a.projects.map(
-          (project: {
-            targetDate?: number | string;
-            tasks: Array<{
-              startDate?: number | string;
-              dueDate?: number | string;
-            }>;
-          }) => ({
-            ...project,
-            targetDate: ms(project.targetDate) ?? undefined,
-            tasks: project.tasks.map((task) => ({
-              ...task,
-              startDate: ms(task.startDate) ?? undefined,
-              dueDate: ms(task.dueDate) ?? undefined,
-            })),
-          }),
-        ),
-      }),
-  },
-  {
-    name: "revise_execution_plan_context",
-    description:
-      "Append confirmed new source context to an existing execution plan without rewriting its original manifest. Atomically versions every workstream context packet, making prior agent acknowledgements stale, records an append-only revision receipt, and returns dispatch to owner/admin review. Use for factual or decision updates that do not change the plan's structure; create a new plan when workstreams, dependencies, or success criteria materially change. Reuse the same idempotencyKey to retry safely.",
-    shape: {
-      planId: z.string(),
-      idempotencyKey: z
-        .string()
-        .max(120)
-        .describe("stable key for this exact context revision"),
-      changeSummary: z
-        .string()
-        .max(1000)
-        .describe("concise explanation of what changed and why"),
-      sourceAddendum: z
-        .string()
-        .max(15000)
-        .describe("confirmed source facts or decisions to append verbatim"),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.reviseExecutionPlanContext), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "list_execution_plans",
-    description:
-      "List the 20 most recent immutable execution-plan manifests in this workspace, with roadmap, workstream/task counts, unresolved-question counts, and review status.",
-    shape: {},
-    run: (c, k) =>
-      c.query(asQuery(api.agentApi.listExecutionPlans), { apiKey: k }),
-  },
-  {
-    name: "get_execution_plan",
-    description:
-      "Read the full provenance manifest for a committed execution plan: original source context, append-only context revisions, success criteria, explicit assumptions/open questions, review status, and every generated roadmap/workstream List/task id.",
-    shape: { planId: z.string() },
-    run: (c, k, a) =>
-      c.query(asQuery(api.agentApi.getExecutionPlan), { apiKey: k, ...a }),
-  },
-  {
-    name: "get_outcome_assurance",
-    description:
-      "Read plan-level outcome assurance. Every original success criterion is tracked separately as pending, evidence submitted, independently passed, or failed. A plan is verified only when every criterion passes.",
-    shape: { planId: z.string() },
-    run: (c, k, a) =>
-      c.query(asQuery(api.agentApi.getOutcomeAssurance), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "submit_outcome_evidence",
-    description:
-      "Submit concrete evidence against one original plan success criterion. Requires at least one http(s) artifact URL and moves the criterion into independent review; submitting work does not verify it.",
-    shape: {
-      planId: z.string(),
-      criterionIndex: z.number().int().min(0),
-      evidenceSummary: z.string().min(1).max(2000),
-      evidenceLinks: z.array(z.string().url()).min(1).max(20),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.submitOutcomeEvidence), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "review_outcome_criterion",
-    description:
-      "Independently pass or fail submitted evidence for one plan success criterion. An agent cannot review its own submission. Record a concrete review note; failed criteria can receive corrected evidence and be reviewed again.",
-    shape: {
-      planId: z.string(),
-      criterionIndex: z.number().int().min(0),
-      verdict: z.enum(["passed", "failed"]),
-      reviewNote: z.string().min(1).max(2000),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.reviewOutcomeCriterion), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "get_execution_readiness",
-    description:
-      "Preview the next safe parallel wave for an execution plan without changing anything. Returns dispatchAuthorized, authorization source/reason, active execution policy and version, rolling 24-hour policy capacity, ready recommendations with exact context-packet versions, fingerprints, and estimated token load, dependency/claim/lease/capability/capacity/policy skips, each agent's advertised capabilities and free slots, open-question gates, and recent waves. Pass agentIds to constrain routing to a deliberate fleet subset.",
-    shape: {
-      planId: z.string(),
-      agentIds: z.array(z.string()).optional(),
-    },
-    run: (c, k, a) =>
-      c.query(asQuery(api.agentApi.getExecutionReadiness), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "get_execution_control",
-    description:
-      "Read the execution ledger for a committed plan. Returns every recent dispatch attempt with its task, agent, requested delivery mode, durable wake delivery and authenticated consumption receipts, attempt evidence, claimed/running/stale/terminal lifecycle, run linkage, heartbeat freshness, evidence links, errors, retryability, context load at dispatch, current context load, version fingerprints, context drift, and truthful status totals. Active receipts with no execution heartbeat for 30 minutes are surfaced as stale even before reconciliation.",
-    shape: {
-      planId: z.string(),
-    },
-    run: (c, k, a) =>
-      c.query(asQuery(api.agentApi.getExecutionControl), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "reconcile_execution_plan",
-    description:
-      "Recover a stalled execution plan without erasing history. Atomically marks active attempts abandoned after 30 minutes without an execution heartbeat, preserves the original recorded state and timeout reason, and releases only claims still held by those stale attempts. Safe to retry; returns recovered attempts, released claim count, and scan bounds. Call before retrying stale work; dispatch_execution_wave also performs this reconciliation automatically.",
-    shape: {
-      planId: z.string(),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.reconcileExecutionPlan), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "dispatch_execution_wave",
-    description:
-      "Atomically reconcile stale attempts, then release the next dependency-ready, capability-matched work wave to active writable agents without exceeding their concurrency ceilings or the workspace's per-wave and rolling 24-hour limits. A plan must have valid human approval or a current bounded-autonomy policy authorization; policy-authorized plans stop dispatching when that policy version changes. Pending or rejected plans cannot dispatch. Assignments snapshot context-packet count, estimated token load, and a version fingerprint so later drift is visible; agents must still fetch and acknowledge current packets before work. Configured notify URLs receive a signed task.ready through durable bounded retries whose pending/delivered/failed evidence appears in get_execution_control; otherwise a poll_required receipt is placed in list_wake_inbox. Both channels require authenticated consumption acknowledgement. A 30-minute lease prevents duplicate wake storms; expired work is preserved as abandoned before a retry receipt is created. If the plan preserves open questions, openQuestionDisposition is required so uncertainty is never silently ignored. Exact retries are idempotent.",
-    shape: {
-      idempotencyKey: z.string().max(120),
-      planId: z.string(),
-      maxTasks: z.number().int().min(1).max(25).optional(),
-      agentIds: z
-        .array(z.string())
-        .optional()
-        .describe("optional deliberate subset of workspace agent ids"),
-      openQuestionDisposition: z
-        .string()
-        .max(2000)
-        .optional()
-        .describe(
-          "required when the plan has open questions; explain what was resolved, deferred, or bounded",
-        ),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.dispatchExecutionWave), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
     name: "get_roadmaps",
     description:
-      "The workspace's roadmaps: ordered phases (Now/Next/Later style) with the Lists in each and their done/total. Workspace-scoped agents only.",
+      "The workspace's roadmaps: ordered phases (Now/Next/Later style) with the projects in each and their done/total. Workspace-scoped agents only.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.getRoadmaps), { apiKey: k }),
   },
@@ -1568,7 +987,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "remove_roadmap_phase",
     description:
-      "Remove a phase from a roadmap. Lists in that phase fall back to Not on roadmap — nothing is deleted.",
+      "Remove a phase from a roadmap. Projects in that phase fall back to Unassigned — nothing is deleted.",
     shape: { roadmapId: z.string(), phaseId: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.removeRoadmapPhase), {
@@ -1579,34 +998,13 @@ const TOOLS: ToolDef[] = [
   {
     name: "assign_project_to_phase",
     description:
-      "Legacy-compatible alias for assign_list_to_phase. Put a List into a roadmap phase, or pull it out with roadmapId null.",
+      "Put a project (list) into a roadmap phase, or pull it out with roadmapId null.",
     shape: {
       listId: z.string(),
       roadmapId: z
         .string()
         .nullable()
-        .describe("null removes the list from its roadmap"),
-      phaseId: z
-        .string()
-        .optional()
-        .describe("phase id from get_roadmaps; defaults to the first phase"),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.assignProjectToPhase), {
-        apiKey: k,
-        ...a,
-      }),
-  },
-  {
-    name: "assign_list_to_phase",
-    description:
-      "Put a List into a roadmap phase, or pull it out with roadmapId null. Roadmaps sequence existing Lists; they do not create or own another hierarchy container.",
-    shape: {
-      listId: z.string(),
-      roadmapId: z
-        .string()
-        .nullable()
-        .describe("null removes the list from its roadmap"),
+        .describe("null removes the project from its roadmap"),
       phaseId: z
         .string()
         .optional()
@@ -1623,24 +1021,18 @@ const TOOLS: ToolDef[] = [
   {
     name: "create_scheduled_task",
     description:
-      "Time-based recurring task: 'hourly create a health check' or 'every Monday 09:00 UTC create X in list Y'. cadence hourly/daily/weekly/monthly; hourUtc is ignored for hourly; dayOfWeek 0-6 (weekly), dayOfMonth 1-28 (monthly); dueInDays sets the created task's due date. Assigned agents receive the materialized task through signed push or their durable wake inbox.",
+      "Time-based recurring task: 'every Monday 09:00 UTC create X in list Y'. cadence daily/weekly/monthly; dayOfWeek 0-6 (weekly), dayOfMonth 1-28 (monthly); dueInDays sets the created task's due date.",
     shape: {
       listId: z.string(),
       title: z.string(),
       description: z.string().optional(),
       priority: priorityArg.optional(),
       assigneeIds: z.array(z.string()).optional(),
-      cadence: z.enum(["hourly", "daily", "weekly", "monthly"]),
+      cadence: z.enum(["daily", "weekly", "monthly"]),
       dayOfWeek: z.number().min(0).max(6).optional(),
       dayOfMonth: z.number().min(1).max(28).optional(),
       hourUtc: z.number().min(0).max(23).optional(),
       dueInDays: z.number().optional(),
-      blueprintId: z
-        .string()
-        .optional()
-        .describe(
-          "optional reusable SOP from list_blueprints; supplies the materialized task's full controlled shape",
-        ),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.createScheduledTask), {
@@ -1651,15 +1043,14 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_scheduled_tasks",
     description:
-      "Recurring task definitions on a list (each row's id field is scheduledTaskId), including last run, next run, consecutive failures, and the last isolated materialization error. Three consecutive failures pause only that definition; healthy schedules continue.",
+      "Recurring task definitions on a list (each row's id field is scheduledTaskId).",
     shape: { listId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listScheduledTasks), { apiKey: k, ...a }),
   },
   {
     name: "set_scheduled_task_enabled",
-    description:
-      "Pause or resume a recurring task definition. Resuming clears its recorded failure state and schedules a fresh future attempt.",
+    description: "Pause or resume a recurring task definition.",
     shape: { scheduledTaskId: z.string(), enabled: z.boolean() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.updateScheduledTask), {
@@ -1698,10 +1089,7 @@ const TOOLS: ToolDef[] = [
       url: z.string().describe("https:// endpoint on my runtime"),
       eventTypes: z.array(z.string()).optional(),
       listId: z.string().optional(),
-      secret: z
-        .string()
-        .optional()
-        .describe("supply your own or one is generated"),
+      secret: z.string().optional().describe("supply your own or one is generated"),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.registerWebhook), {
@@ -1761,28 +1149,8 @@ const TOOLS: ToolDef[] = [
     description:
       "Reusable task blueprints in my scope (standardized ops work: title, checklist, priority, SOP, approval gate). Instantiate one with instantiate_blueprint.",
     shape: {},
-    run: (c, k) => c.query(asQuery(api.agentApi.listBlueprints), { apiKey: k }),
-  },
-  {
-    name: "create_blueprint",
-    description:
-      "Standardize a proven operation as a reusable task blueprint in my scope. Captures its task title, SOP description, checklist, priority, estimate, optional skill slug, due offset, and approval gate. Use the returned blueprintId with instantiate_blueprint or create_scheduled_task.",
-    shape: {
-      name: z.string().describe("human-readable blueprint name"),
-      title: z.string().describe("title of each materialized task"),
-      description: z.string().optional(),
-      priority: priorityArg.optional(),
-      checklist: z.array(z.string()).optional(),
-      estimatePoints: z.number().nonnegative().optional(),
-      sopSlug: z.string().optional(),
-      dueInDays: z.number().nonnegative().optional(),
-      requiresApproval: z.boolean().optional(),
-    },
-    run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.createBlueprint), {
-        apiKey: k,
-        ...a,
-      }),
+    run: (c, k) =>
+      c.query(asQuery(api.agentApi.listBlueprints), { apiKey: k }),
   },
   {
     name: "instantiate_blueprint",
@@ -1811,8 +1179,7 @@ const TOOLS: ToolDef[] = [
     name: "get_doc",
     description: "Read a document as plain text.",
     shape: { docId: z.string() },
-    run: (c, k, a) =>
-      c.query(asQuery(api.agentApi.getDoc), { apiKey: k, ...a }),
+    run: (c, k, a) => c.query(asQuery(api.agentApi.getDoc), { apiKey: k, ...a }),
   },
   {
     name: "create_doc",
@@ -1862,7 +1229,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "start_run",
     description:
-      "Start a structured work session ('run') humans can see on my detail page. Task runs require a fresh claim and current context acknowledgement, and automatically move a dispatched assignment into running. Pair with finish_run; only one active run per agent/task is allowed.",
+      "Start a structured work session ('run') humans can see on my detail page. Pair with finish_run. Use for any multi-step piece of work.",
     shape: {
       title: z.string().describe("what this session is doing"),
       taskId: z.string().optional(),
@@ -1873,7 +1240,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "finish_run",
     description:
-      "Finish a run exactly once with its outcome and optional evidence. Exact terminal retries are safe; conflicting rewrites are rejected. A succeeded task run requires current context acknowledgement. The linked dispatch receipt becomes succeeded, failed, or abandoned; failures become recoverable and emit agent.error.",
+      "Finish a run with its outcome. failed runs emit an agent.error event that alerts humans.",
     shape: {
       runId: z.string(),
       status: z.enum(["succeeded", "failed", "abandoned"]),
@@ -1883,8 +1250,8 @@ const TOOLS: ToolDef[] = [
         .array(z.string())
         .optional()
         .describe("artifacts produced: PR/doc/deploy URLs (max 20)"),
-      tokensUsed: z.number().nonnegative().optional(),
-      costUsd: z.number().nonnegative().optional(),
+      tokensUsed: z.number().optional(),
+      costUsd: z.number().optional(),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.finishRun), { apiKey: k, ...a }),
@@ -1921,8 +1288,7 @@ const TOOLS: ToolDef[] = [
   // ── Time tracking ────────────────────────────────────────────────
   {
     name: "log_time",
-    description:
-      "Log time spent on a task (shows up in reports and the task's Time section).",
+    description: "Log time spent on a task (shows up in reports and the task's Time section).",
     shape: {
       taskId: z.string(),
       durationMs: z.number(),
@@ -1955,7 +1321,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "create_goal",
     description:
-      "Create a goal (number / money / boolean target). Pass sourceListId to link a number goal to a List for auto-rollup: progress then derives live from that list's completed tasks (no manual set_goal_progress).",
+      "Create a goal (number / money / boolean target). Pass sourceListId to link a number goal to a project for auto-rollup: progress then derives live from that list's completed tasks (no manual set_goal_progress).",
     shape: {
       title: z.string(),
       description: z.string().optional(),
@@ -1991,10 +1357,7 @@ const TOOLS: ToolDef[] = [
       "Automation rules on a list (trigger → action; each row's id field is automationId).",
     shape: { listId: z.string() },
     run: (c, k, a) =>
-      c.query(asQuery(api.agentApi.listAutomationsForList), {
-        apiKey: k,
-        ...a,
-      }),
+      c.query(asQuery(api.agentApi.listAutomationsForList), { apiKey: k, ...a }),
   },
   {
     name: "create_automation",
@@ -2041,10 +1404,7 @@ const TOOLS: ToolDef[] = [
     description: "Delete a list automation rule.",
     shape: { automationId: z.string() },
     run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.deleteAutomation), {
-        apiKey: k,
-        ...a,
-      }),
+      c.mutation(asMutation(api.agentApi.deleteAutomation), { apiKey: k, ...a }),
   },
 
   // ── Templates ────────────────────────────────────────────────────
@@ -2227,7 +1587,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_portfolio",
     description:
-      "Every List in my scope, skipping archived Spaces: name, Space, health, targetDate, and task totals (total/done/inProgress). Use for a cross-list status rollup.",
+      "Every list (project) in my scope, skipping archived spaces: name, space, projectStatus, targetDate, and task totals (total/done/inProgress). Use for a cross-project status rollup.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.getPortfolio), { apiKey: k }),
   },
@@ -2286,7 +1646,9 @@ const TOOLS: ToolDef[] = [
     description:
       "Settle a top-up: submit the base64 X-PAYMENT you built from a buy_credits challenge. Verifies and settles it through the payment facilitator, then credits my wallet. Returns the new balance and the settlement reference. Payments are single-use (replay-protected).",
     shape: {
-      xPayment: z.string().describe("base64-encoded X-PAYMENT header value"),
+      xPayment: z
+        .string()
+        .describe("base64-encoded X-PAYMENT header value"),
       credits: z
         .number()
         .int()
@@ -2298,137 +1660,117 @@ const TOOLS: ToolDef[] = [
   },
 ];
 
-function createOperateMcpHandler(profile: AnnotationProfile) {
-  return createMcpHandler(
-    (server) => {
-      // Skills double as MCP resources (skill://<slug>) so clients that
-      // prefer resource imports over tool calls can pull playbooks directly.
-      server.resource(
-        "skills",
-        new ResourceTemplate("skill://{slug}", {
-          list: async (extra) => {
-            const apiKey = extra.authInfo?.token;
-            if (!apiKey) return { resources: [] };
-            try {
-              const skills = (await convexClient().query(
-                asQuery(api.agentApi.listSkills),
-                { apiKey },
-              )) as { slug: string; name: string; description: string }[];
-              return {
-                resources: skills.map((sk) => ({
-                  uri: `skill://${sk.slug}`,
-                  name: sk.name,
-                  description: sk.description,
-                  mimeType: "text/markdown",
-                })),
-              };
-            } catch {
-              return { resources: [] };
-            }
-          },
-        }),
-        async (uri, variables, extra) => {
+const handler = createMcpHandler(
+  (server) => {
+    // Skills double as MCP resources (skill://<slug>) so clients that
+    // prefer resource imports over tool calls can pull playbooks directly.
+    server.resource(
+      "skills",
+      new ResourceTemplate("skill://{slug}", {
+        list: async (extra) => {
           const apiKey = extra.authInfo?.token;
-          if (!apiKey) throw new Error("Missing API key");
-          const skill = (await convexClient().query(
-            asQuery(api.agentApi.getSkill),
-            { apiKey, slug: String(variables.slug) },
-          )) as { content: string } | null;
-          if (!skill) throw new Error(`Unknown skill: ${variables.slug}`);
-          return {
-            contents: [
-              {
-                uri: uri.href,
+          if (!apiKey) return { resources: [] };
+          try {
+            const skills = (await convexClient().query(
+              asQuery(api.agentApi.listSkills),
+              { apiKey },
+            )) as { slug: string; name: string; description: string }[];
+            return {
+              resources: skills.map((sk) => ({
+                uri: `skill://${sk.slug}`,
+                name: sk.name,
+                description: sk.description,
                 mimeType: "text/markdown",
-                text: skill.content,
-              },
-            ],
-          };
+              })),
+            };
+          } catch {
+            return { resources: [] };
+          }
+        },
+      }),
+      async (uri, variables, extra) => {
+        const apiKey = extra.authInfo?.token;
+        if (!apiKey) throw new Error("Missing API key");
+        const skill = (await convexClient().query(
+          asQuery(api.agentApi.getSkill),
+          { apiKey, slug: String(variables.slug) },
+        )) as { content: string } | null;
+        if (!skill) throw new Error(`Unknown skill: ${variables.slug}`);
+        return {
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: "text/markdown",
+              text: skill.content,
+            },
+          ],
+        };
+      },
+    );
+
+    for (const tool of TOOLS) {
+      server.registerTool(
+        tool.name,
+        {
+          description: tool.description,
+          inputSchema: tool.shape,
+          annotations: annotationsFor(tool.name),
+        },
+        async (args, extra) => {
+          const apiKey = extra.authInfo?.token;
+          if (!apiKey) {
+            return {
+              content: [
+                { type: "text" as const, text: "Error: missing API key" },
+              ],
+              isError: true,
+            };
+          }
+          try {
+            const result = await tool.run(convexClient(), apiKey, args);
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  // Compact on purpose: pretty-printing roughly doubles the
+                  // token cost of every list-shaped response.
+                  text: JSON.stringify(result ?? { ok: true }),
+                },
+              ],
+            };
+          } catch (err) {
+            // ConvexError.data survives production redaction (plain Error
+            // messages become "Server Error" on the wire) — surface it so
+            // refusal messages and the x402 challenge reach the agent intact.
+            let message: string;
+            if (err instanceof ConvexError) {
+              message =
+                typeof err.data === "string"
+                  ? err.data
+                  : JSON.stringify(err.data);
+            } else {
+              message = err instanceof Error ? err.message : String(err);
+            }
+            return {
+              content: [{ type: "text" as const, text: `Error: ${message}` }],
+              isError: true,
+            };
+          }
         },
       );
-
-      for (const tool of TOOLS.filter((candidate) =>
-        toolAvailableForProfile(candidate.name, profile),
-      )) {
-        server.registerTool(
-          tool.name,
-          {
-            description: toolDescriptionForProfile(
-              tool.name,
-              tool.description,
-              profile,
-            ),
-            inputSchema: tool.shape,
-            // A stable envelope lets modern clients consume structured results
-            // without pretending every heterogeneous Operate response has the
-            // same domain shape. Compact text remains for older MCP clients.
-            outputSchema: {
-              result: z.unknown().describe("The tool's JSON-compatible result"),
-            },
-            annotations: annotationsFor(tool.name, profile),
-          },
-          async (args, extra) => {
-            const apiKey = extra.authInfo?.token;
-            if (!apiKey) {
-              return {
-                content: [
-                  { type: "text" as const, text: "Error: missing API key" },
-                ],
-                isError: true,
-              };
-            }
-            try {
-              const result = await tool.run(convexClient(), apiKey, args);
-              const normalizedResult = result ?? { ok: true };
-              return {
-                content: [
-                  {
-                    type: "text" as const,
-                    // Compact on purpose: pretty-printing roughly doubles the
-                    // token cost of every list-shaped response.
-                    text: JSON.stringify(normalizedResult),
-                  },
-                ],
-                structuredContent: { result: normalizedResult },
-              };
-            } catch (err) {
-              // ConvexError.data survives production redaction (plain Error
-              // messages become "Server Error" on the wire) — surface it so
-              // refusal messages and the x402 challenge reach the agent intact.
-              let message: string;
-              if (err instanceof ConvexError) {
-                message =
-                  typeof err.data === "string"
-                    ? err.data
-                    : JSON.stringify(err.data);
-              } else {
-                message = err instanceof Error ? err.message : String(err);
-              }
-              return {
-                content: [{ type: "text" as const, text: `Error: ${message}` }],
-                isError: true,
-              };
-            }
-          },
-        );
-      }
-    },
-    {
-      serverInfo: { name: "operate-agents", version: "1.0.0" },
-      instructions:
-        "You are an agent teammate in operate.to. The hierarchy is Workspace → Space → optional Folder → List → Task → Subtask. A roadmap sequences existing Lists into phases; it is not another container. First: call whoami, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-workstream roadmap? Prefer create_execution_plan: choose one Space, preserve the source, treat each projects input entry as a workstream that materializes as a List, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. If confirmed source facts change without changing structure, use revise_execution_plan_context so every workstream advances together and stale acknowledgements are invalidated; use a new plan for structural changes. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. A stale receipt is not active work: call reconcile_execution_plan before manually retrying it; dispatch also reconciles transactionally and preserves the timed-out attempt. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Use create_tasks for smaller additions to an existing List. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
-    },
-    {
-      basePath: "/api",
-      disableSse: true,
-      maxDuration: 60,
-    },
-  );
-}
-
-const handler = createOperateMcpHandler("openai");
-const chatgptHandler = createOperateMcpHandler("chatgpt");
-const anthropicHandler = createOperateMcpHandler("anthropic");
+    }
+  },
+  {
+    serverInfo: { name: "operate-agents", version: "1.0.0" },
+    instructions:
+      "You are an agent teammate in operate.to. First: call whoami, then fetch the 'collaboration-protocol' skill with get_skill and follow it. Find work with next_task, claim_task before working, heartbeat while working, complete_task when done. Planning a project from a brief? Use create_roadmap (explicit phases with target dates), create_tasks for bulk task+subtask+dependency creation, and create_goal with sourceListId for auto-tracking progress. All ids are opaque strings returned by other tools; dates accept ISO 8601 or epoch ms.",
+  },
+  {
+    basePath: "/api",
+    disableSse: true,
+    maxDuration: 60,
+  },
+);
 
 // Bearer-token auth: the token IS the agent API key. Verified upstream by
 // asking Convex who it belongs to; tools then pass it through on each call
@@ -2438,56 +1780,9 @@ const authHandler = withMcpAuth(
   async (_req, bearerToken) => {
     if (!bearerToken) return undefined;
     try {
-      const me = await convexClient().mutation(
-        asMutation(api.agentApi.connect),
-        {
-          apiKey: bearerToken,
-        },
-      );
-      return {
-        token: bearerToken,
-        clientId: (me as { agentId: string }).agentId,
-        scopes: [],
-      };
-    } catch {
-      return undefined;
-    }
-  },
-  { required: true },
-);
-const anthropicAuthHandler = withMcpAuth(
-  anthropicHandler,
-  async (_req, bearerToken) => {
-    if (!bearerToken) return undefined;
-    try {
-      const me = await convexClient().mutation(
-        asMutation(api.agentApi.connect),
-        {
-          apiKey: bearerToken,
-        },
-      );
-      return {
-        token: bearerToken,
-        clientId: (me as { agentId: string }).agentId,
-        scopes: [],
-      };
-    } catch {
-      return undefined;
-    }
-  },
-  { required: true },
-);
-const chatgptAuthHandler = withMcpAuth(
-  chatgptHandler,
-  async (_req, bearerToken) => {
-    if (!bearerToken) return undefined;
-    try {
-      const me = await convexClient().mutation(
-        asMutation(api.agentApi.connect),
-        {
-          apiKey: bearerToken,
-        },
-      );
+      const me = await convexClient().query(asQuery(api.agentApi.whoami), {
+        apiKey: bearerToken,
+      });
       return {
         token: bearerToken,
         clientId: (me as { agentId: string }).agentId,
@@ -2504,93 +1799,12 @@ const chatgptAuthHandler = withMcpAuth(
 // under /api — explicitly 404 anything that isn't the MCP endpoint so
 // unknown /api/* paths never reach the MCP handler. (Static routes always
 // win over this dynamic segment, so real API routes are unaffected.)
-const MCP_BROWSER_ORIGINS = new Set([
-  "https://chatgpt.com",
-  "https://claude.ai",
-  "https://claude.com",
-]);
-
-function withCors(req: Request, response: Response) {
-  const origin = req.headers.get("origin");
-  if (!origin || !MCP_BROWSER_ORIGINS.has(origin)) return response;
-  const headers = new Headers(response.headers);
-  headers.set("Access-Control-Allow-Origin", origin);
-  headers.set(
-    "Access-Control-Allow-Headers",
-    "Authorization, Content-Type, Mcp-Protocol-Version, Mcp-Session-Id",
-  );
-  headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-  headers.append("Vary", "Origin");
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
-}
-
-async function guarded(req: Request): Promise<Response> {
-  const { pathname, searchParams } = new URL(req.url);
+function guarded(req: Request): Promise<Response> | Response {
+  const { pathname } = new URL(req.url);
   if (pathname !== "/api/mcp") {
     return new Response("Not found", { status: 404 });
   }
-  // Streamable HTTP formally asks clients to advertise both response types.
-  // A large share of first connections are hand-written curl commands,
-  // though, and older examples only sent Content-Type. Normalize that narrow
-  // case at our boundary so a valid JSON-RPC request does not authenticate,
-  // turn the agent green, and then confusingly fail with HTTP 406.
-  let transportRequest = req;
-  if (req.method === "POST") {
-    const accept = req.headers.get("accept") ?? "";
-    if (
-      !accept.includes("application/json") ||
-      !accept.includes("text/event-stream")
-    ) {
-      const headers = new Headers(req.headers);
-      headers.set("Accept", "application/json, text/event-stream");
-      // NextRequest carries framework-private state and cannot safely be used
-      // as the Request constructor's input in the production edge wrapper.
-      // Rebuild a plain standards Request from the public URL/body instead.
-      transportRequest = new Request(req.url, {
-        method: req.method,
-        headers,
-        body: await req.arrayBuffer(),
-      });
-    }
-  }
-  const profile = searchParams.get("profile");
-  const selectedHandler =
-    profile === "claude"
-      ? anthropicAuthHandler
-      : profile === "chatgpt"
-        ? chatgptAuthHandler
-        : authHandler;
-  const response = await selectedHandler(transportRequest);
-  if (response.status !== 401) return withCors(req, response);
-  const headers = new Headers(response.headers);
-  const origin =
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ??
-    new URL(req.url).origin;
-  headers.set(
-    "WWW-Authenticate",
-    `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"`,
-  );
-  return withCors(
-    req,
-    new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    }),
-  );
+  return authHandler(req);
 }
 
-function options(req: Request) {
-  return withCors(req, new Response(null, { status: 204 }));
-}
-
-export {
-  guarded as GET,
-  guarded as POST,
-  guarded as DELETE,
-  options as OPTIONS,
-};
+export { guarded as GET, guarded as POST, guarded as DELETE };

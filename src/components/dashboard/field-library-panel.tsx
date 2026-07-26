@@ -13,7 +13,7 @@ import { AnimatePresence, EASE, motion } from "@/components/motion";
 import { errorMessage } from "@/lib/errors";
 
 // Workspace field library: define a custom field once here, then stamp it
-// onto any list ("Apply to list…"). Applying copies the definition
+// onto any project ("Apply to project…"). Applying copies the definition
 // into that list's own customFields row, so per-list behavior downstream
 // is unchanged — deleting a library field never touches the copies.
 //
@@ -43,7 +43,7 @@ export function FieldLibraryPanel({
 }) {
   const fields = useQuery(api.fieldLibrary.listForWorkspace, { workspaceId });
   // The sidebar tree is already subscribed app-wide — free source for the
-  // "Apply to list…" picker.
+  // "Apply to project…" picker.
   const tree = useQuery(api.sidebar.tree, {});
   const create = useMutation(api.fieldLibrary.create);
   const remove = useMutation(api.fieldLibrary.remove);
@@ -54,7 +54,7 @@ export function FieldLibraryPanel({
   // Hidden while their undo toasts are live — deletes commit on expiry.
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
 
-  const lists = useMemo(() => {
+  const projects = useMemo(() => {
     const ws = tree?.workspaces.find((w) => w._id === workspaceId);
     if (!ws) return [];
     const rows: { id: string; label: string; hint?: string }[] = [];
@@ -74,7 +74,7 @@ export function FieldLibraryPanel({
         return next;
       });
     setHiddenIds((prev) => new Set(prev).add(field._id));
-    toast(`"${field.name}" removed — lists keep their copies`, {
+    toast(`"${field.name}" removed — projects keep their copies`, {
       action: { label: "Undo", onClick: unhide },
       onExpire: () =>
         void remove({ fieldId: field._id }).catch((e) => {
@@ -86,14 +86,14 @@ export function FieldLibraryPanel({
   }
 
   function apply(field: LibraryField, listId: string) {
-    const list = lists.find((p) => p.id === listId);
+    const project = projects.find((p) => p.id === listId);
     void applyToList({
       fieldId: field._id,
       listId: listId as Id<"lists">,
     }).then(
       () =>
         toast(
-          `"${field.name}" added to ${list?.label ?? "the list"}`,
+          `"${field.name}" added to ${project?.label ?? "the project"}`,
         ),
       (e: unknown) =>
         toast(errorMessage(e, "Couldn't apply field"), { kind: "error" }),
@@ -121,7 +121,7 @@ export function FieldLibraryPanel({
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold">Field library</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Define a field once, apply it to any list in this workspace.
+            Define a field once, apply it to any project in this workspace.
           </p>
         </div>
         {!creating && (
@@ -150,7 +150,7 @@ export function FieldLibraryPanel({
 
       {visible.length === 0 && !creating ? (
         <p className="mt-3 text-sm text-muted-foreground">
-          No library fields yet. Create one and stamp it onto any list —
+          No library fields yet. Create one and stamp it onto any project —
           no more redefining &quot;Priority&quot; list by list.
         </p>
       ) : (
@@ -183,9 +183,9 @@ export function FieldLibraryPanel({
                 )}
                 <div className="ml-auto flex items-center gap-1">
                   <Picker
-                    label="Apply to list…"
+                    label="Apply to project…"
                     dashed
-                    options={lists}
+                    options={projects}
                     onSelect={(listId) => apply(field, listId)}
                   />
                   <button

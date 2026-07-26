@@ -2,10 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Check, Copy } from "lucide-react";
-import {
-  snippetFor,
-  type AgentRuntime,
-} from "@/lib/connect-snippet";
 import { cn } from "@/lib/utils";
 
 // Paste-ready connection config for an agent, with the API key filled in.
@@ -13,13 +9,58 @@ import { cn } from "@/lib/utils";
 // kept: pick your runtime, copy one block, done. No protocol knowledge
 // required to succeed.
 
-const RUNTIMES: { key: AgentRuntime; label: string }[] = [
+type Runtime = "claude" | "cursor" | "curl";
+
+const RUNTIMES: { key: Runtime; label: string }[] = [
   { key: "claude", label: "Claude Desktop / Code" },
   { key: "cursor", label: "Cursor" },
   { key: "curl", label: "Any HTTP client" },
 ];
 
-const RUNTIME_HINT: Record<AgentRuntime, string> = {
+function snippetFor(runtime: Runtime, url: string, key: string): string {
+  const shownKey = key || "<paste your agent's API key>";
+  switch (runtime) {
+    case "claude":
+      return JSON.stringify(
+        {
+          mcpServers: {
+            operate: {
+              command: "npx",
+              args: ["-y", "operate-mcp"],
+              env: {
+                OPERATE_MCP_URL: url,
+                OPERATE_API_KEY: shownKey,
+              },
+            },
+          },
+        },
+        null,
+        2,
+      );
+    case "cursor":
+      return JSON.stringify(
+        {
+          mcpServers: {
+            operate: {
+              url,
+              headers: { Authorization: `Bearer ${shownKey}` },
+            },
+          },
+        },
+        null,
+        2,
+      );
+    case "curl":
+      return [
+        `curl -X POST ${url} \\`,
+        `  -H "Authorization: Bearer ${shownKey}" \\`,
+        `  -H "Content-Type: application/json" \\`,
+        `  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`,
+      ].join("\n");
+  }
+}
+
+const RUNTIME_HINT: Record<Runtime, string> = {
   claude:
     "Add this to your MCP settings (Claude Desktop: Settings, Developer, Edit Config). Restart, and the agent is connected.",
   cursor:
@@ -35,7 +76,7 @@ export function ConnectSnippet({
   apiKey?: string;
   className?: string;
 }) {
-  const [runtime, setRuntime] = useState<AgentRuntime>("claude");
+  const [runtime, setRuntime] = useState<Runtime>("claude");
   const [copied, setCopied] = useState(false);
   const [url, setUrl] = useState("https://operate.to/api/mcp");
   useEffect(() => {

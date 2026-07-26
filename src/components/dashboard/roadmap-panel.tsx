@@ -11,18 +11,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery } from "convex/react";
-import {
-  BookOpen,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  MoreHorizontal,
-  Plus,
-  ShieldCheck,
-  Trash2,
-  XCircle,
-} from "lucide-react";
+import { ChevronDown, ChevronUp, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -41,9 +30,9 @@ import {
 } from "@/components/motion";
 import { errorMessage } from "@/lib/errors";
 
-// Roadmap tab on the workspace page: workspace lists slotted
+// Roadmap tab on the workspace page: workspace projects (lists) slotted
 // into the ordered phases of one or more roadmaps ("Now / Next / Later",
-// quarters, launch trains…). Phases render as horizontal columns; lists
+// quarters, launch trains…). Phases render as horizontal columns; projects
 // move between phases, reorder within one, and fall back to the
 // "Not on roadmap" rail at the bottom when unassigned. All data lives in
 // convex/roadmaps.ts — this file is pure surface.
@@ -55,7 +44,7 @@ type Roadmap = RoadmapList[number];
 type Phase = Roadmap["phases"][number];
 type RoadmapProject = Roadmap["projects"][number];
 
-// Same pastel language as the list cards: dark ink stays pinned on
+// Same pastel language as the projects directory: dark ink stays pinned on
 // pastel fills in both themes; "paused" rides the theme-adaptive muted pair.
 const STATUS_CHIP: Record<
   NonNullable<RoadmapProject["projectStatus"]>,
@@ -74,26 +63,8 @@ function fmtTarget(ts: number): string {
   return d.toLocaleDateString(undefined, opts);
 }
 
-function fmtExecutionTime(ts: number): string {
-  const minutes = Math.max(0, Math.floor((Date.now() - ts) / 60_000));
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
-
-function fmtContextTokens(tokens: number): string {
-  if (tokens < 1_000) return `~${tokens} tokens`;
-  const thousands = tokens / 1_000;
-  return `~${thousands >= 10 ? Math.round(thousands) : thousands.toFixed(1)}k tokens`;
-}
-
 export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const roadmaps = useQuery(api.roadmaps.listForWorkspace, { workspaceId });
-  const executionPlans = useQuery(api.executionPlans.listForWorkspace, {
-    workspaceId,
-  });
   // The sidebar tree is already subscribed by the workspace page, so this
   // costs nothing extra — it's the source for the "Not on roadmap" rail.
   const tree = useQuery(api.sidebar.tree, {});
@@ -114,7 +85,7 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
   );
   const [hiddenPhaseIds, setHiddenPhaseIds] = useState<Set<string>>(new Set());
 
-  // Workspace lists not assigned to any roadmap, for the bottom rail.
+  // Workspace projects not assigned to any roadmap, for the bottom rail.
   const unassigned = useMemo(() => {
     const ws = tree?.workspaces.find((w) => w._id === workspaceId);
     if (!ws) return [];
@@ -139,11 +110,7 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
     return rows;
   }, [tree, workspaceId]);
 
-  if (
-    roadmaps === undefined ||
-    tree === undefined ||
-    executionPlans === undefined
-  ) {
+  if (roadmaps === undefined || tree === undefined) {
     return (
       <div className="space-y-3">
         <div className="h-8 w-48 animate-pulse rounded-full bg-muted/40" />
@@ -162,9 +129,6 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
 
   const visible = roadmaps.filter((r) => !hiddenRoadmapIds.has(r._id));
   const active = visible.find((r) => r._id === activeId) ?? visible[0];
-  const provenance = active
-    ? executionPlans.find((plan) => plan.roadmapId === active._id)
-    : undefined;
 
   async function submitCreate(name: string) {
     try {
@@ -181,7 +145,7 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
       <div className="rounded-2xl panel px-6 py-14 text-center">
         <p className="text-sm font-semibold">Plan the arc of the work</p>
         <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
-          A roadmap sequences this workspace&apos;s lists into phases — Now,
+          A roadmap lines this workspace&apos;s projects up into phases — Now,
           Next, Later — so everyone can see what ships when.
         </p>
         <div className="mt-4 flex justify-center">
@@ -214,7 +178,7 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
         return next;
       });
     setHiddenRoadmapIds((prev) => new Set(prev).add(rm._id));
-    toast(`${rm.name} deleted — lists stay put`, {
+    toast(`${rm.name} deleted — projects stay put`, {
       action: { label: "Undo", onClick: unhide },
       onExpire: () =>
         void removeRoadmap({ roadmapId: rm._id }).catch((e) => {
@@ -236,7 +200,7 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
     const count = rm.projects.filter((p) => p.phaseId === phase.id).length;
     toast(
       count > 0
-        ? `${phase.name} deleted — ${count} list${count === 1 ? "" : "s"} return to Not on roadmap`
+        ? `${phase.name} deleted — ${count} project${count === 1 ? "" : "s"} return to Not on roadmap`
         : `${phase.name} deleted`,
       {
         action: { label: "Undo", onClick: unhide },
@@ -332,12 +296,12 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
         {totalTasks > 0 && (
           <span className="text-xs text-muted-foreground">
             {totalDone}/{totalTasks} tasks done · {active.projects.length}{" "}
-            list{active.projects.length === 1 ? "" : "s"}
+            project{active.projects.length === 1 ? "" : "s"}
           </span>
         )}
         <button
           type="button"
-          title="Delete roadmap (lists are kept)"
+          title="Delete roadmap (projects are kept)"
           onClick={() => deleteRoadmap(active)}
           className="tap-target ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-600"
         >
@@ -348,9 +312,6 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
         <p className="-mt-2 text-sm text-muted-foreground">
           {active.description}
         </p>
-      )}
-      {provenance && (
-        <ExecutionPlanProvenance planId={provenance.planId} />
       )}
 
       {/* Phase columns — horizontal scroll, like the other pill rows. */}
@@ -422,749 +383,6 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
   );
 }
 
-function ExecutionPlanProvenance({
-  planId,
-}: {
-  planId: Id<"executionPlans">;
-}) {
-  const plan = useQuery(api.executionPlans.get, { planId });
-  const readiness = useQuery(api.executionDispatch.readiness, { planId });
-  const control = useQuery(api.executionDispatch.control, { planId });
-  const assurance = useQuery(api.outcomeAssurance.get, { planId });
-  const reviewPlan = useMutation(api.executionPlans.review);
-  const reviewOutcome = useMutation(api.outcomeAssurance.review);
-  const { toast } = useToast();
-  const [authorizationNote, setAuthorizationNote] = useState("");
-  const [authorizing, setAuthorizing] = useState(false);
-  const [reviewingIndex, setReviewingIndex] = useState<number | null>(null);
-  const [reviewNote, setReviewNote] = useState("");
-  const [reviewing, setReviewing] = useState(false);
-  if (!plan) return null;
-
-  async function commitAuthorization(
-    decision: "approved" | "rejected",
-  ) {
-    if (authorizationNote.trim().length < 10) {
-      toast("Add a short note explaining the authorization decision.", {
-        kind: "error",
-      });
-      return;
-    }
-    setAuthorizing(true);
-    try {
-      await reviewPlan({
-        planId,
-        decision,
-        note: authorizationNote,
-      });
-      toast(
-        decision === "approved"
-          ? "Execution plan approved for dispatch."
-          : "Execution plan rejected. Future dispatch is blocked.",
-        { kind: decision === "approved" ? "success" : "error" },
-      );
-      setAuthorizationNote("");
-    } catch (error) {
-      toast(errorMessage(error, "Couldn't review the execution plan"), {
-        kind: "error",
-      });
-    } finally {
-      setAuthorizing(false);
-    }
-  }
-
-  async function commitReview(
-    criterionIndex: number,
-    verdict: "passed" | "failed",
-  ) {
-    if (!reviewNote.trim()) {
-      toast("Add a review note explaining the decision.", { kind: "error" });
-      return;
-    }
-    setReviewing(true);
-    try {
-      await reviewOutcome({
-        planId,
-        criterionIndex,
-        verdict,
-        reviewNote,
-      });
-      toast(
-        verdict === "passed"
-          ? "Outcome criterion independently verified."
-          : "Outcome criterion failed review.",
-        { kind: verdict === "passed" ? "success" : "error" },
-      );
-      setReviewingIndex(null);
-      setReviewNote("");
-    } catch (error) {
-      toast(errorMessage(error, "Couldn't record the review"), {
-        kind: "error",
-      });
-    } finally {
-      setReviewing(false);
-    }
-  }
-
-  return (
-    <details className="group rounded-2xl border border-brand-500/20 bg-brand-500/[0.04]">
-      <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-3">
-        <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400">
-          <BookOpen className="h-3.5 w-3.5" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-sm font-semibold">Compiled from source</span>
-            <span className="text-xs text-muted-foreground">
-              {plan.projectCount} workstreams · {plan.taskCount} tasks
-            </span>
-            {plan.openQuestionCount > 0 && (
-              <span className="rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] font-medium text-neutral-900">
-                {plan.openQuestionCount} open question
-                {plan.openQuestionCount === 1 ? "" : "s"}
-              </span>
-            )}
-            {plan.contextRevision > 0 && (
-              <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-[11px] font-medium text-brand-700 dark:text-brand-300">
-                context v{plan.contextRevision + 1}
-              </span>
-            )}
-          </span>
-          <span className="mt-1 block text-sm text-foreground/80">
-            {plan.objective}
-          </span>
-        </span>
-        <ChevronDown className="mt-1 h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
-      </summary>
-      <div className="grid gap-4 border-t border-brand-500/15 px-4 py-4 text-sm md:grid-cols-2">
-        <div className="md:col-span-2 rounded-xl border border-border bg-background/60 p-3">
-          <div className="flex flex-wrap items-start gap-3">
-            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400">
-              <ShieldCheck className="h-4 w-4" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Dispatch authorization
-                </p>
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-[11px] font-medium capitalize text-neutral-900",
-                    readiness &&
-                    !readiness.dispatchAuthorized &&
-                    plan.reviewStatus === "approved"
-                      ? "bg-pastel-yellow"
-                      : plan.reviewStatus === "approved" ||
-                          plan.reviewStatus === "legacy_approved"
-                      ? "bg-pastel-green"
-                      : plan.reviewStatus === "rejected"
-                        ? "bg-pastel-red"
-                        : "bg-pastel-yellow",
-                  )}
-                >
-                  {readiness &&
-                  !readiness.dispatchAuthorized &&
-                  plan.reviewStatus === "approved"
-                    ? "Needs revalidation"
-                    : plan.authorizationSource === "workspace_policy"
-                      ? "Policy authorized"
-                      : plan.reviewStatus === "legacy_approved"
-                        ? "Previously authorized"
-                        : plan.reviewStatus}
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-foreground/70">
-                {readiness?.authorization.reason ??
-                (plan.reviewStatus === "pending"
-                  ? "An owner or admin must review this plan before agents can dispatch its tasks."
-                  : plan.reviewStatus === "rejected"
-                    ? "Future dispatch is blocked until an owner or admin approves this plan."
-                    : "This plan is authorized for agent dispatch. Open questions still require an explicit disposition.")}
-              </p>
-            </div>
-          </div>
-          {plan.canReview && (
-            <div className="mt-3 space-y-2">
-              <textarea
-                value={authorizationNote}
-                onChange={(event) =>
-                  setAuthorizationNote(event.target.value)
-                }
-                placeholder="Record what you reviewed and why this plan should proceed or be revised."
-                rows={2}
-                className="w-full resize-y rounded-lg border border-border bg-background px-2.5 py-2 text-xs outline-none transition focus:border-brand-500"
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={authorizing}
-                  onClick={() => void commitAuthorization("approved")}
-                >
-                  Approve dispatch
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={authorizing}
-                  onClick={() => void commitAuthorization("rejected")}
-                >
-                  Reject plan
-                </Button>
-              </div>
-            </div>
-          )}
-          {plan.reviews.length > 0 && (
-            <ul className="mt-3 space-y-1.5 border-t border-border/70 pt-3">
-              {plan.reviews.slice(0, 3).map((review) => (
-                <li
-                  key={review.reviewId}
-                  className="text-[11px] leading-4 text-muted-foreground"
-                >
-                  <span className="font-medium text-foreground/80">
-                    {review.reviewerName}
-                  </span>{" "}
-                  {review.decision} this plan ·{" "}
-                  {fmtExecutionTime(review.reviewedAt)}
-                  <span className="block pl-2">“{review.note}”</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Success criteria
-          </p>
-          <ul className="mt-2 space-y-1.5 text-foreground/80">
-            {plan.successCriteria.map((criterion, index) => (
-              <li key={`${index}-${criterion}`}>• {criterion}</li>
-            ))}
-          </ul>
-        </div>
-        {assurance && (
-          <div className="md:col-span-2 rounded-xl border border-border bg-background/60 p-3">
-            <div className="flex flex-wrap items-start gap-2">
-              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400">
-                <ShieldCheck className="h-3.5 w-3.5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Outcome assurance
-                  </p>
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-[11px] font-medium capitalize text-neutral-900",
-                      assurance.status === "verified"
-                        ? "bg-pastel-green"
-                        : assurance.status === "failed"
-                          ? "bg-pastel-red"
-                          : assurance.status === "in_review"
-                            ? "bg-pastel-yellow"
-                            : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {assurance.status.replace("_", " ")}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    {assurance.passed}/{assurance.total} independently verified
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-foreground/70">
-                  Finished tasks prove activity. This gate proves the original
-                  objective against concrete evidence.
-                </p>
-              </div>
-            </div>
-            <ul className="mt-3 space-y-2">
-              {assurance.checks.map((check) => (
-                <li
-                  key={check.criterionIndex}
-                  className="rounded-xl border border-border/70 px-3 py-2.5"
-                >
-                  <div className="flex min-w-0 items-start gap-2">
-                    {check.status === "passed" ? (
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" />
-                    ) : check.status === "failed" ? (
-                      <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-600" />
-                    ) : (
-                      <span className="mt-1 h-3 w-3 flex-shrink-0 rounded-full border border-muted-foreground/40" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
-                        <p className="min-w-0 flex-1 text-xs font-medium">
-                          {check.criterion}
-                        </p>
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">
-                          {check.status}
-                        </span>
-                      </div>
-                      {check.evidenceSummary && (
-                        <p className="mt-1.5 text-[11px] leading-4 text-foreground/70">
-                          {check.evidenceSummary}
-                        </p>
-                      )}
-                      {check.evidenceLinks.length > 0 && (
-                        <div className="mt-1.5 flex flex-wrap gap-2">
-                          {check.evidenceLinks.map((link, index) => (
-                            <a
-                              key={`${index}-${link}`}
-                              href={link}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-600 hover:underline dark:text-brand-400"
-                            >
-                              Evidence {index + 1}
-                              <ExternalLink className="h-2.5 w-2.5" />
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                      {check.reviewNote && (
-                        <p className="mt-1.5 text-[11px] text-muted-foreground">
-                          Review by {check.reviewerName ?? "reviewer"}:{" "}
-                          {check.reviewNote}
-                        </p>
-                      )}
-                      {check.staleDueToContextRevision && (
-                        <p className="mt-1.5 rounded-lg bg-pastel-yellow px-2 py-1.5 text-[11px] text-neutral-900">
-                          Plan context changed after this evidence was
-                          submitted. Submit current evidence before review.
-                        </p>
-                      )}
-                      {check.status === "submitted" &&
-                        reviewingIndex !== check.criterionIndex && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setReviewingIndex(check.criterionIndex);
-                              setReviewNote("");
-                            }}
-                            className="mt-2 text-[11px] font-semibold text-brand-600 hover:underline dark:text-brand-400"
-                          >
-                            Review evidence
-                          </button>
-                        )}
-                      {reviewingIndex === check.criterionIndex && (
-                        <div className="mt-2 space-y-2">
-                          <textarea
-                            value={reviewNote}
-                            onChange={(event) =>
-                              setReviewNote(event.target.value)
-                            }
-                            placeholder="What did you verify, and why does the evidence pass or fail?"
-                            rows={2}
-                            className="w-full resize-y rounded-lg border border-border bg-background px-2.5 py-2 text-xs outline-none transition focus:border-brand-500"
-                          />
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              disabled={reviewing}
-                              onClick={() =>
-                                void commitReview(
-                                  check.criterionIndex,
-                                  "passed",
-                                )
-                              }
-                            >
-                              Pass criterion
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={reviewing}
-                              onClick={() =>
-                                void commitReview(
-                                  check.criterionIndex,
-                                  "failed",
-                                )
-                              }
-                            >
-                              Fail review
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              disabled={reviewing}
-                              onClick={() => {
-                                setReviewingIndex(null);
-                                setReviewNote("");
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <div className="space-y-4">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Explicit assumptions
-            </p>
-            <ul className="mt-2 space-y-1.5 text-foreground/80">
-              {plan.assumptions.length > 0 ? (
-                plan.assumptions.map((assumption, index) => (
-                  <li key={`${index}-${assumption}`}>• {assumption}</li>
-                ))
-              ) : (
-                <li>None recorded.</li>
-              )}
-            </ul>
-          </div>
-          {plan.openQuestions.length > 0 && (
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Open questions
-              </p>
-              <ul className="mt-2 space-y-1.5 text-foreground/80">
-                {plan.openQuestions.map((question, index) => (
-                  <li key={`${index}-${question}`}>• {question}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-        <div className="md:col-span-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Confirmed source
-          </p>
-          <pre className="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap rounded-xl bg-background/70 p-3 font-sans text-xs leading-5 text-foreground/75">
-            {plan.sourceContext}
-          </pre>
-        </div>
-        {plan.revisions.length > 0 && (
-          <div className="md:col-span-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Context revisions
-            </p>
-            <p className="mt-1 text-xs text-foreground/70">
-              Every revision advanced all workstream packets together and
-              required agents to acknowledge the new versions.
-            </p>
-            <ol className="mt-2 space-y-2">
-              {plan.revisions.map((revision) => (
-                <li
-                  key={revision.revisionId}
-                  className="rounded-xl border border-border/70 bg-background/50 px-3 py-2.5"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-semibold">
-                      Revision {revision.revision}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">
-                      {fmtExecutionTime(revision.createdAt)} ·{" "}
-                      {revision.affectedPacketCount} workstreams ·{" "}
-                      {revision.affectedTaskCount} tasks revalidated
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-foreground/80">
-                    {revision.changeSummary}
-                  </p>
-                  <pre className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap rounded-lg bg-muted/40 p-2.5 font-sans text-[11px] leading-4 text-foreground/70">
-                    {revision.sourceAddendum}
-                  </pre>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
-        {readiness && (
-          <div className="md:col-span-2 rounded-xl border border-border bg-background/50 p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Next dispatch wave
-              </p>
-              <span
-                className={cn(
-                  "rounded-full px-2 py-0.5 text-[11px] font-medium text-neutral-900",
-                  readiness.dispatchAuthorized
-                    ? "bg-pastel-green"
-                    : "bg-pastel-yellow",
-                )}
-              >
-                {readiness.recommendations.length}{" "}
-                {readiness.dispatchAuthorized
-                  ? "ready"
-                  : "ready after approval"}
-              </span>
-              {readiness.skipped.filter(
-                (item) => item.reason === "capability_gap",
-              ).length > 0 && (
-                <span className="rounded-full bg-pastel-red px-2 py-0.5 text-[11px] font-medium text-neutral-900">
-                  {
-                    readiness.skipped.filter(
-                      (item) => item.reason === "capability_gap",
-                    ).length
-                  }{" "}
-                  capability gap
-                </span>
-              )}
-              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                {readiness.policyCapacityRemaining} policy capacity · 24h
-              </span>
-              {readiness.recommendations.length > 0 && (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                  {fmtContextTokens(
-                    readiness.recommendations.reduce(
-                      (total, item) => total + item.estimatedContextTokens,
-                      0,
-                    ),
-                  )}{" "}
-                  next-wave context
-                </span>
-              )}
-              {readiness.skipped.filter(
-                (item) => item.reason === "capacity_exhausted",
-              ).length > 0 && (
-                <span className="rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] font-medium text-neutral-900">
-                  {
-                    readiness.skipped.filter(
-                      (item) => item.reason === "capacity_exhausted",
-                    ).length
-                  }{" "}
-                  waiting for capacity
-                </span>
-              )}
-            </div>
-            {readiness.requiresOpenQuestionDisposition && (
-              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                Dispatch is gated until the open questions have an explicit
-                resolved, deferred, or bounded disposition.
-              </p>
-            )}
-            {plan.reviewStatus === "pending" && (
-              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                Dispatch is gated until an owner or admin approves this plan.
-              </p>
-            )}
-            {plan.reviewStatus === "rejected" && (
-              <p className="mt-2 text-xs text-red-700 dark:text-red-300">
-                Dispatch is blocked because this plan was rejected.
-              </p>
-            )}
-            {!readiness.dispatchAuthorized &&
-              plan.reviewStatus === "approved" && (
-                <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                  Dispatch is gated because the workspace autonomy policy
-                  changed. A fresh human approval restores authorization.
-                </p>
-              )}
-            {readiness.recommendations.length > 0 ? (
-              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-                {readiness.recommendations.slice(0, 6).map((item) => (
-                  <li
-                    key={item.taskId}
-                    className="flex min-w-0 items-center gap-2 rounded-xl border border-border/70 px-3 py-2"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                      {item.title}
-                    </span>
-                    <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px]">
-                      {item.recommendedAgentName}
-                    </span>
-                    <span
-                      title={`${item.contextPacketCount} current context packet${item.contextPacketCount === 1 ? "" : "s"} must be acknowledged before work starts.`}
-                      className="flex-shrink-0 text-[10px] text-muted-foreground"
-                    >
-                      {fmtContextTokens(item.estimatedContextTokens)}
-                    </span>
-                    {!item.notifyConfigured && (
-                      <span
-                        title="This runtime must poll next_task because it has no notify URL."
-                        className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground"
-                      >
-                        poll
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-2 text-xs text-muted-foreground">
-                No undispatched work is ready within current dependencies,
-                capabilities, leases, and concurrency limits.
-              </p>
-            )}
-            {readiness.waves.length > 0 && (
-              <p className="mt-3 text-xs text-muted-foreground">
-                Last wave sent {readiness.waves[0].assignmentCount} task
-                {readiness.waves[0].assignmentCount === 1 ? "" : "s"}
-                {readiness.waves[0].pollRequiredCount > 0
-                  ? ` · ${readiness.waves[0].pollRequiredCount} runtime${readiness.waves[0].pollRequiredCount === 1 ? "" : "s"} must poll`
-                  : " · wake delivery requested for every runtime"}
-              </p>
-            )}
-          </div>
-        )}
-        {control && control.assignmentCount > 0 && (
-          <div className="md:col-span-2 rounded-xl border border-border bg-background/50 p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Execution ledger
-              </p>
-              {(
-                [
-                  ["running", control.counts.running, "bg-pastel-blue"],
-                  ["claimed", control.counts.claimed, "bg-pastel-purple"],
-                  ["sent", control.counts.dispatched, "bg-muted"],
-                  ["succeeded", control.counts.succeeded, "bg-pastel-green"],
-                  ["failed", control.counts.failed, "bg-pastel-red"],
-                  ["stale", control.staleCount, "bg-pastel-yellow"],
-                  [
-                    "wake failed",
-                    control.assignments.filter(
-                      (assignment) => assignment.deliveryStatus === "failed",
-                    ).length,
-                    "bg-pastel-red",
-                  ],
-                  [
-                    "wake consumed",
-                    control.assignments.filter(
-                      (assignment) => assignment.acknowledgedAt !== undefined,
-                    ).length,
-                    "bg-pastel-green",
-                  ],
-                  [
-                    "context changed",
-                    control.assignments.filter(
-                      (assignment) => assignment.contextDrifted,
-                    ).length,
-                    "bg-pastel-yellow",
-                  ],
-                  ["retryable", control.counts.abandoned, "bg-pastel-yellow"],
-                ] as const
-              ).map(([label, count, className]) =>
-                count > 0 ? (
-                  <span
-                    key={label}
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-[11px] font-medium text-neutral-900",
-                      className,
-                    )}
-                  >
-                    {count} {label}
-                  </span>
-                ) : null,
-              )}
-            </div>
-            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-              {control.assignments.slice(0, 6).map((assignment) => (
-                <li
-                  key={assignment.assignmentId}
-                  className="min-w-0 rounded-xl border border-border/70 px-3 py-2"
-                >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                      {assignment.taskTitle}
-                    </span>
-                    <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] capitalize">
-                      {assignment.status}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
-                    <span>{assignment.agentName}</span>
-                    <span>attempt {assignment.attempt}</span>
-                    <span>
-                      {fmtExecutionTime(
-                        assignment.finishedAt ??
-                          assignment.lastHeartbeatAt ??
-                          assignment.dispatchedAt,
-                      )}
-                    </span>
-                    {assignment.delivery === "poll_required" && (
-                      <span className="uppercase tracking-wider">poll</span>
-                    )}
-                    {assignment.delivery === "notify_url" && (
-                      <span
-                        className={cn(
-                          "rounded-full px-1.5 py-0.5 font-medium",
-                          assignment.acknowledgedAt !== undefined
-                            ? "bg-pastel-green text-neutral-900"
-                            : assignment.deliveryStatus === "delivered"
-                              ? "bg-pastel-blue text-neutral-900"
-                              : assignment.deliveryStatus === "failed"
-                                ? "bg-pastel-red text-neutral-900"
-                                : assignment.deliveryStatus === "pending"
-                                  ? "bg-pastel-yellow text-neutral-900"
-                                  : "bg-muted text-muted-foreground",
-                        )}
-                        title={
-                          assignment.deliveryLastError ??
-                          `${assignment.deliveryAttempts} delivery attempt${assignment.deliveryAttempts === 1 ? "" : "s"}`
-                        }
-                      >
-                        wake{" "}
-                        {assignment.acknowledgedAt !== undefined
-                          ? "consumed"
-                          : assignment.deliveryStatus}
-                        {assignment.deliveryAttempts > 0
-                          ? ` · ${assignment.deliveryAttempts}`
-                          : ""}
-                      </span>
-                    )}
-                    {assignment.estimatedContextTokens !== undefined && (
-                      <span>
-                        {fmtContextTokens(
-                          assignment.currentEstimatedContextTokens,
-                        )}{" "}
-                        context
-                      </span>
-                    )}
-                    {assignment.contextDrifted && (
-                      <span className="rounded-full bg-pastel-yellow px-1.5 py-0.5 font-medium text-neutral-900">
-                        context changed · re-read required
-                      </span>
-                    )}
-                  </div>
-                  {(assignment.error || assignment.summary) && (
-                    <p
-                      className={cn(
-                        "mt-1.5 line-clamp-2 text-[11px]",
-                        assignment.error
-                          ? "text-red-700 dark:text-red-300"
-                          : "text-foreground/70",
-                      )}
-                    >
-                      {assignment.error ?? assignment.summary}
-                    </p>
-                  )}
-                  {assignment.links.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-2">
-                      {assignment.links.slice(0, 3).map((link, index) => (
-                        <a
-                          key={`${index}-${link}`}
-                          href={link}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[11px] font-medium text-brand-600 hover:underline dark:text-brand-400"
-                        >
-                          Evidence {index + 1}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-    </details>
-  );
-}
-
 // ── Phase column ─────────────────────────────────────────────────────────
 
 function PhaseColumn({
@@ -1231,7 +449,7 @@ function PhaseColumn({
       orderedIds: ids,
     }).catch((e) => {
       setOverride(null);
-      toast(errorMessage(e, "Couldn't reorder lists"), { kind: "error" });
+      toast(errorMessage(e, "Couldn't reorder projects"), { kind: "error" });
     });
   }
 
@@ -1245,7 +463,7 @@ function PhaseColumn({
             phaseId: targetId,
           });
     void action.catch((e) =>
-      toast(errorMessage(e, "Couldn't move list"), { kind: "error" }),
+      toast(errorMessage(e, "Couldn't move project"), { kind: "error" }),
     );
   }
 
@@ -1327,7 +545,7 @@ function PhaseColumn({
       <div className="mt-3 space-y-2">
         {ordered.length === 0 && (
           <p className="px-1 py-2 text-xs text-muted-foreground">
-            Nothing in this phase yet — move a list here.
+            Nothing in this phase yet — move a project here.
           </p>
         )}
         <AnimatePresence initial={false}>
@@ -1650,7 +868,7 @@ function UnassignedRail({
       </p>
       {projects.length === 0 ? (
         <p className="mt-2 text-xs text-muted-foreground">
-          Every list in this workspace is on a roadmap.
+          Every project in this workspace is on a roadmap.
         </p>
       ) : (
         <ul className="mt-3 space-y-1">

@@ -32,27 +32,17 @@ export const EVENT_LABEL: Record<string, string> = {
   "roadmap.phase_added": "added a phase to",
   "roadmap.phase_updated": "updated a phase of",
   "roadmap.phase_removed": "removed a phase from",
-  "plan.committed": "compiled execution plan",
-  "plan.context_revised": "revised execution context",
-  "plan.wave_dispatched": "dispatched execution wave",
-  "plan.execution_reconciled": "recovered stalled execution in",
-  "workspace.execution_policy_updated": "updated execution policy for",
-  "schedule.auto_paused": "paused recurring operation",
   "milestone.created": "added milestone",
   "milestone.updated": "updated milestone",
   "milestone.completed": "reached milestone",
   "milestone.deleted": "deleted milestone",
-  "list.renamed": "renamed list",
-  "list.updated": "updated list",
-  "list.deleted": "deleted list",
-  "list.moved": "moved list",
+  "list.renamed": "renamed project",
+  "list.updated": "updated project",
+  "list.deleted": "deleted project",
+  "list.moved": "moved project",
   "folder.created": "created folder",
   "folder.renamed": "renamed folder",
   "folder.deleted": "deleted folder",
-  "context.created": "created shared context",
-  "context.updated": "updated shared context",
-  "context.deleted": "deleted shared context",
-  "context.acknowledged": "acknowledged context for",
 };
 
 export function eventLabel(type: string): string {
@@ -92,16 +82,6 @@ export function eventHref(e: {
   }
   if (e.entityType === "roadmap" && e.scopeType === "workspace") {
     return `/dashboard/w/${e.scopeId}?tab=roadmap`;
-  }
-  if (e.entityType === "scheduled_task") {
-    return e.scopeType === "workspace"
-      ? `/dashboard/w/${e.scopeId}?tab=operations`
-      : e.listId
-        ? `/dashboard/l/${e.listId}/settings`
-        : null;
-  }
-  if (e.entityType === "workspace" && e.scopeType === "workspace") {
-    return `/dashboard/w/${e.scopeId}?tab=settings`;
   }
   // A milestone has no page of its own — it lives on its project's
   // Overview, which is still the right landing spot after a delete.

@@ -174,7 +174,7 @@ function SidebarHeaderSwitcher() {
   const ctx = useCurrentContext(tree);
 
   const currentName =
-    ctx.kind === "workspace" ? ctx.workspace.name : "My workspace";
+    ctx.kind === "workspace" ? ctx.workspace.name : (tree?.personal?.name ?? "Personal");
   // Identity marks are seeded by the entity's stable id, never by its name
   // or a flat brand fill, so a workspace/space is the same color here, in
   // the tree, and everywhere else it appears (lib/identity-color).
@@ -195,19 +195,19 @@ function SidebarHeaderSwitcher() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">
           <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
-            Workspaces
+            Spaces
           </DropdownMenuLabel>
           {tree?.personal && (
             <DropdownMenuItem asChild>
               <Link href="/dashboard/personal">
                 <Orb
                   seed={tree.personal._id}
-                  label="My workspace"
+                  label={tree.personal.name}
                   shape="squircle"
                   size="xs"
                   className="mr-1 h-5 w-5 text-[9px]"
                 />
-                <span className="truncate">My workspace</span>
+                <span className="truncate">{tree.personal.name}</span>
                 {ctx.kind === "personal" && <Check className="ml-auto size-4" />}
               </Link>
             </DropdownMenuItem>
@@ -272,8 +272,8 @@ function SidebarContentBody() {
               exact
             />
             <NavMenuItem
-              href="/dashboard/spaces"
-              label="Spaces"
+              href="/dashboard/projects"
+              label="Projects"
               icon={FolderKanban}
               iconColor="text-amber-500"
               exact
@@ -468,15 +468,11 @@ function TreeLoadingGroup() {
 function PersonalTreeGroup({ personal }: { personal: SpaceNode | null | undefined }) {
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Spaces</SidebarGroupLabel>
+      <SidebarGroupLabel>Personal</SidebarGroupLabel>
       <SidebarGroupContent>
         {personal ? (
           <SidebarMenu>
-            <SpaceTree
-              space={personal}
-              linkHref="/dashboard/personal"
-              displayName="Personal space"
-            />
+            <SpaceTree space={personal} linkHref="/dashboard/personal" />
           </SidebarMenu>
         ) : (
           <p className="px-2 py-1 text-xs text-muted-foreground">Setting up…</p>
@@ -570,19 +566,13 @@ const SPACE_CREATE_ITEMS = [
   { k: "list" as const, icon: ListIcon, label: "List" },
   { k: "doc" as const, icon: FileText, label: "Doc" },
   { k: "board" as const, icon: LayoutGrid, label: "Whiteboard" },
-  {
-    k: "template" as const,
-    icon: Columns3,
-    label: "New list from template",
-  },
+  { k: "template" as const, icon: Columns3, label: "From template" },
   { k: "folder" as const, icon: Folder, label: "Folder" },
 ];
 
 function SpaceCreateMenu({
-  spaceName,
   onPick,
 }: {
-  spaceName: string;
   onPick: (kind: "list" | "doc" | "board" | "template" | "folder") => void;
 }) {
   return (
@@ -590,8 +580,8 @@ function SpaceCreateMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label={`Add to ${spaceName}`}
-          title={`Add to ${spaceName}`}
+          aria-label="Add to space"
+          title="Add"
           // Always visible on touch (no hover to reveal it), hover-revealed
           // from `sm:` up — this is the only path to "new folder"/"new
           // list" for a space, so it must never be hover-gated on mobile.
@@ -612,15 +602,7 @@ function SpaceCreateMenu({
   );
 }
 
-function SpaceTree({
-  space,
-  linkHref,
-  displayName,
-}: {
-  space: SpaceNode;
-  linkHref: string;
-  displayName?: string;
-}) {
+function SpaceTree({ space, linkHref }: { space: SpaceNode; linkHref: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [expanded, setExpanded] = useState(true);
@@ -673,7 +655,6 @@ function SpaceTree({
     space.whiteboards.length === 0;
 
   const active = pathname === linkHref;
-  const visibleName = displayName ?? space.name;
 
   return (
     <SidebarMenuItem>
@@ -688,12 +669,7 @@ function SpaceTree({
             className={cn("size-3.5 transition-transform duration-200", expanded && "rotate-90")}
           />
         </button>
-        <SidebarMenuButton
-          asChild
-          isActive={active}
-          tooltip={visibleName}
-          className="min-w-0 flex-1"
-        >
+        <SidebarMenuButton asChild isActive={active} tooltip={space.name} className="min-w-0 flex-1">
           <Link href={linkHref} aria-current={active ? "page" : undefined}>
             {/* Sized down to the 16px icon slot the sibling rows use, so
                 swapping the old color dot for the orb doesn't change the
@@ -701,18 +677,17 @@ function SpaceTree({
                 overflow-hidden — a full 24px xs orb would be clipped). */}
             <Orb
               seed={space._id}
-              label={visibleName}
+              label={space.name}
               color={space.color}
               shape="squircle"
               size="xs"
               className="h-4 w-4 text-[8px]"
             />
-            <span className="truncate">{visibleName}</span>
+            <span className="truncate">{space.name}</span>
             {space.private && <Lock className="ml-auto size-3 flex-shrink-0" aria-hidden />}
           </Link>
         </SidebarMenuButton>
         <SpaceCreateMenu
-          spaceName={visibleName}
           onPick={(kind) => {
             setExpanded(true);
             if (kind === "template") setTemplateOpen(true);
@@ -725,9 +700,6 @@ function SpaceTree({
         <SidebarMenuSub>
           {adding && (
             <SidebarMenuSubItem className="py-1">
-              <p className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                New {ADD_LABEL[adding]} in {visibleName}
-              </p>
               <InlineCreate
                 placeholder={ADD_PLACEHOLDER[adding]}
                 onCancel={() => setAdding(null)}

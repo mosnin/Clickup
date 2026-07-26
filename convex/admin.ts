@@ -14,34 +14,6 @@ import {
 // return customer content (task/doc bodies). Every mutation is audited.
 
 const LIST_LIMIT = 200;
-const AGENT_ONLINE_WINDOW_MS = 5 * 60 * 1000;
-
-// Keep platform-wide counts aligned with the customer-facing Agents page:
-// paused agents are never online, an explicit heartbeat or authenticated MCP
-// connection is authoritative, and legacy rows fall back to lastSeenAt.
-function agentIsOnline(
-  agent: {
-    status: "active" | "paused";
-    lastSeenAt?: number;
-    lastConnectedAt?: number;
-    lastHeartbeatAt?: number;
-  },
-  now: number,
-): boolean {
-  if (agent.status !== "active") return false;
-  const latest =
-    Math.max(
-      agent.lastConnectedAt ?? 0,
-      agent.lastHeartbeatAt ?? 0,
-      agent.lastConnectedAt === undefined &&
-      agent.lastHeartbeatAt === undefined
-        ? (agent.lastSeenAt ?? 0)
-        : 0,
-    ) || undefined;
-  return (
-    latest !== undefined && now - latest < AGENT_ONLINE_WINDOW_MS
-  );
-}
 
 // ── Gating + identity ───────────────────────────────────────────────────
 
@@ -63,6 +35,7 @@ export const overview = query({
     await requirePlatformAdmin(ctx);
     const now = Date.now();
     const dayAgo = now - 24 * 60 * 60 * 1000;
+    const onlineWindow = now - 5 * 60 * 1000;
 
     const users = await ctx.db.query("users").collect();
     const workspaces = await ctx.db.query("workspaces").collect();
@@ -86,7 +59,9 @@ export const overview = query({
       },
       agents: {
         total: agents.length,
-        online: agents.filter((a) => agentIsOnline(a, now)).length,
+        online: agents.filter(
+          (a) => a.lastSeenAt && a.lastSeenAt >= onlineWindow,
+        ).length,
         paused: agents.filter((a) => a.status === "paused").length,
       },
       runsToday: {
@@ -288,6 +263,7 @@ export const listAgents = query({
   handler: async (ctx) => {
     await requirePlatformAdmin(ctx);
     const now = Date.now();
+    const onlineWindow = now - 5 * 60 * 1000;
     const agents = await ctx.db.query("agents").take(LIST_LIMIT);
     const keys = await ctx.db.query("agentKeys").collect();
     const keyCount = new Map<string, number>();
@@ -305,10 +281,8 @@ export const listAgents = query({
         parentId: a.parentId,
         status: a.status,
         role: a.role ?? "member",
-        online: agentIsOnline(a, now),
+        online: !!a.lastSeenAt && a.lastSeenAt >= onlineWindow,
         lastSeenAt: a.lastSeenAt,
-        lastConnectedAt: a.lastConnectedAt,
-        lastHeartbeatAt: a.lastHeartbeatAt,
         activeKeys: keyCount.get(a._id) ?? 0,
         createdAt: a._creationTime,
       }))

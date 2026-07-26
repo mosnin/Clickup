@@ -26,7 +26,6 @@ import { setTheme } from "@/components/theme-toggle";
 import { useToast } from "@/components/toast";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
 import { errorMessage } from "@/lib/errors";
-import { capCommandPaletteItems } from "@/lib/command-palette-items";
 
 // ⌘K command palette: jump to any list/doc/board/workspace/agent, search
 // tasks by title, or create a task without leaving the keyboard. Mounted
@@ -465,7 +464,7 @@ export function CommandPalette() {
     if (strongMatch) out.push(createItem);
     else out.unshift(createItem);
 
-    return capCommandPaletteItems(out);
+    return out.slice(0, 24);
   }, [
     query,
     createTitle,

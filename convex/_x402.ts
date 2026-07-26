@@ -50,36 +50,6 @@ export function facilitatorConfigured(cfg: X402Config): boolean {
   return cfg.facilitatorUrl !== null || cfg.allowMock;
 }
 
-const ZERO_EVM_ADDRESS = /^0x0{40}$/i;
-
-// A facilitator alone is not enough: a challenge with an empty/zero receiver
-// can be signed but cannot deliver funds to the platform. Keep one shared
-// readiness check so the MCP challenge, HTTP route, admin toggle, and
-// settlement action all fail the same way instead of advertising an
-// impossible payment.
-export function billingConfigurationIssue(cfg: X402Config): string | null {
-  if (!facilitatorConfigured(cfg)) {
-    return "Payment facilitator is not configured";
-  }
-  if (!cfg.payTo.trim() || ZERO_EVM_ADDRESS.test(cfg.payTo.trim())) {
-    return "Receiving wallet is not configured";
-  }
-  if (
-    !Number.isSafeInteger(cfg.creditPriceAtomic) ||
-    cfg.creditPriceAtomic <= 0
-  ) {
-    return "Credit price must be a positive integer";
-  }
-  if (!Number.isInteger(cfg.assetDecimals) || cfg.assetDecimals < 0) {
-    return "Asset decimals must be a non-negative integer";
-  }
-  return null;
-}
-
-export function billingConfigured(cfg: X402Config): boolean {
-  return billingConfigurationIssue(cfg) === null;
-}
-
 // Resolve config from deployment env vars, with testnet-friendly defaults so
 // the flow works out of the box against the mock facilitator. Point these at
 // mainnet + a real facilitator (X402_FACILITATOR_URL) for production.
@@ -109,14 +79,7 @@ export type PaymentRequirements = {
   payTo: string;
   maxTimeoutSeconds: number;
   asset: string;
-  extra: {
-    name: string;
-    version: string;
-    decimals: number;
-    creditsGranted: number;
-    creditPriceAtomic: number;
-    displayAmount: string;
-  };
+  extra: Record<string, unknown>;
 };
 
 export type PaymentRequiredResponse = {
@@ -127,9 +90,7 @@ export type PaymentRequiredResponse = {
 
 // Atomic asset units owed for `credits` credits.
 export function creditsToAtomic(credits: number, cfg: X402Config): string {
-  return (
-    BigInt(Math.trunc(credits)) * BigInt(cfg.creditPriceAtomic)
-  ).toString();
+  return (BigInt(Math.trunc(credits)) * BigInt(cfg.creditPriceAtomic)).toString();
 }
 
 // How many whole credits an atomic payment buys (floor).
@@ -228,8 +189,7 @@ export function validatePaymentShape(
   if (payment.network !== cfg.network)
     return { ok: false, reason: "network mismatch" };
   const auth = payment.payload?.authorization;
-  const nonce =
-    auth?.nonce ?? (payment.payload?.transaction as string | undefined);
+  const nonce = auth?.nonce ?? (payment.payload?.transaction as string | undefined);
   if (!nonce) return { ok: false, reason: "missing payment nonce" };
   // Amount is mandatory — never accept a payload that omits it.
   if (auth?.value === undefined)

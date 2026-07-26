@@ -58,86 +58,9 @@ export const ANNOUNCE_BAR = {
   text: "Meet the hosted MCP server — agents connect with one URL and an API key.",
   cta: { label: "Read more", href: "/features#mcp" },
 } as const;
-
-export const OPS_STACK = {
-  eyebrow: "The stack",
-  title: "The agent ops stack.",
-  sub: "Everything a hybrid team needs to plan, ship and stay in control — in one place.",
-  cards: [
-    {
-      title: "Focus on outcomes, not plumbing",
-      body: "Spaces, lists and tasks agents actually understand. Assign work to a person or an agent the same way — one shared workflow, no glue code.",
-      art: "/features/01_task_assignment.svg",
-      alt: "Illustration of a task being assigned to an AI agent",
-    },
-    {
-      title: "Govern every agent action",
-      body: "Roles, per-agent daily budgets, human approval gates and an append-only audit trail. Agents move fast; you keep the keys.",
-      art: "/features/02_governance.svg",
-      alt: "Illustration of governance controls: roles, budgets and approval gates",
-    },
-    {
-      title: "Catch issues before users do",
-      body: "Structured runs, live presence and a watchdog for stalled work and overdue tasks. Know what every agent did, and why.",
-      art: "/features/03_observability.svg",
-      alt: "Illustration of live observability over agent runs",
-    },
-    {
-      title: "Plan and ship like a team",
-      body: "Sprints with points and capacity, scrum boards, burndown and velocity — people and agents on one board.",
-      art: "/features/04_sprint_planning.svg",
-      alt: "Illustration of sprint planning with points and capacity",
-    },
-  ],
-} as const;
-
 export const SHOWCASE = {
   screenshot: "Dashboard — sprint report and burndown",
 } as const;
-
-export const BENTO = {
-  tiles: [
-    {
-      title: "Estimates, made honest",
-      body: "Story points on every task, capacity bars on every sprint.",
-      art: "/features/10_estimates.svg",
-      alt: "Illustration of story-point estimates on tasks",
-    },
-    {
-      title: "Dependencies, sorted",
-      body: "Blockers, critical paths and a live network diagram.",
-      art: "/features/11_dependencies.svg",
-      alt: "Illustration of a task dependency network",
-    },
-    {
-      title: "Payments, metered",
-      body: "Agents top up credits over x402 and pay for their own usage.",
-      art: "/features/12_payments.svg",
-      alt: "Illustration of an agent credit wallet topping up over x402",
-    },
-    {
-      title: "Knowledge, indexed",
-      body: "Semantic search across tasks and docs — your team's brain.",
-      art: "/features/13_knowledge_indexed.svg",
-      alt: "Illustration of semantic search across indexed tasks and docs",
-    },
-    {
-      title: "Presence, live",
-      body: "See what every agent is doing right now, not in a log later.",
-      art: "/features/14_presence_live.svg",
-      alt: "Illustration of live agent presence indicators",
-    },
-    {
-      title: "Measure what matters",
-      body: "Velocity, run analytics and cost per agent, per week.",
-      art: "/features/15_analytics.svg",
-      alt: "Illustration of per-agent analytics charts",
-    },
-  ],
-} as const;
-
-// Nav "Products" dropdown (reference: dark glass panel with two product
-// entries + a compare row).
 export const PRODUCTS_MENU = {
   items: [
     {

@@ -4,17 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useConvex, useMutation, useQuery } from "convex/react";
-import {
-  Bot,
-  Copy,
-  Download,
-  LogOut,
-  ShieldCheck,
-  Trash2,
-  Upload,
-  UserPlus,
-  Users,
-} from "lucide-react";
+import { Copy, Download, LogOut, Trash2, Upload, UserPlus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -38,7 +28,6 @@ import { Monogram } from "@/components/dashboard/monogram";
 import { useToast } from "@/components/toast";
 import { ImportDialog } from "@/components/dashboard/import-dialog";
 import { errorMessage } from "@/lib/errors";
-import { cn } from "@/lib/utils";
 
 // Native-<select> chrome for the invite-role picker — matches Input/Button
 // grammar; Picker is reserved for people/agents/tasks/sprints per house
@@ -51,25 +40,18 @@ export function WorkspaceSettings({
 }: {
   workspaceId: Id<"workspaces">;
 }) {
-  const { user } = useUser();
-  const members = useQuery(api.workspaces.listMembers, { workspaceId });
-  const myRole = members?.find((member) => member.clerkId === user?.id)?.role;
-  const canManageIntegrations = myRole === "owner" || myRole === "admin";
-  const integrations = useQuery(
-    api.integrations.listForWorkspace,
-    canManageIntegrations ? { workspaceId } : "skip",
-  );
+  const integrations = useQuery(api.integrations.listForWorkspace, {
+    workspaceId,
+  });
 
-  if (members === undefined || (canManageIntegrations && integrations === undefined)) {
+  if (integrations === undefined) {
     return <Card className="h-32 animate-pulse bg-muted/40" />;
   }
 
-  const slack = integrations?.find((i) => i.kind === "slack") ?? null;
+  const slack = integrations.find((i) => i.kind === "slack") ?? null;
 
   return (
     <div className="space-y-8">
-      <ExecutionPolicySection workspaceId={workspaceId} />
-
       <MembersSection workspaceId={workspaceId} />
 
       <ImportSection />
@@ -82,282 +64,15 @@ export function WorkspaceSettings({
           Workspace owners and admins can connect external services here.
         </p>
         <div className="mt-4">
-          {canManageIntegrations ? (
-            <SlackIntegration workspaceId={workspaceId} integration={slack} />
-          ) : (
-            <Card className="p-5 text-sm text-muted-foreground">
-              An owner or admin manages workspace integrations.
-            </Card>
-          )}
+          <SlackIntegration
+            workspaceId={workspaceId}
+            integration={slack}
+          />
         </div>
       </section>
 
       <ExportSection workspaceId={workspaceId} />
     </div>
-  );
-}
-
-function ExecutionPolicySection({
-  workspaceId,
-}: {
-  workspaceId: Id<"workspaces">;
-}) {
-  const result = useQuery(api.executionPolicy.getForWorkspace, {
-    workspaceId,
-  });
-  if (result === undefined) {
-    return <Card className="h-64 animate-pulse bg-muted/40" />;
-  }
-  return (
-    <ExecutionPolicyForm
-      key={result.policy.version}
-      workspaceId={workspaceId}
-      policy={result.policy}
-      canEdit={result.canEdit}
-    />
-  );
-}
-
-function ExecutionPolicyForm({
-  workspaceId,
-  policy,
-  canEdit,
-}: {
-  workspaceId: Id<"workspaces">;
-  policy: {
-    mode: "supervised" | "bounded_autonomous";
-    version: number;
-    maxPlanTasks: number;
-    maxTasksPerWave: number;
-    dailyTaskLimit: number;
-  };
-  canEdit: boolean;
-}) {
-  const updatePolicy = useMutation(api.executionPolicy.update);
-  const { toast } = useToast();
-  const [mode, setMode] = useState(policy.mode);
-  const [maxPlanTasks, setMaxPlanTasks] = useState(policy.maxPlanTasks);
-  const [maxTasksPerWave, setMaxTasksPerWave] = useState(
-    policy.maxTasksPerWave,
-  );
-  const [dailyTaskLimit, setDailyTaskLimit] = useState(
-    policy.dailyTaskLimit,
-  );
-  const [acknowledged, setAcknowledged] = useState(
-    policy.mode === "bounded_autonomous",
-  );
-  const [pending, setPending] = useState(false);
-  const enteringAutonomous =
-    policy.mode !== "bounded_autonomous" &&
-    mode === "bounded_autonomous";
-  const changed =
-    mode !== policy.mode ||
-    maxPlanTasks !== policy.maxPlanTasks ||
-    maxTasksPerWave !== policy.maxTasksPerWave ||
-    dailyTaskLimit !== policy.dailyTaskLimit;
-
-  async function save() {
-    setPending(true);
-    try {
-      await updatePolicy({
-        workspaceId,
-        mode,
-        maxPlanTasks,
-        maxTasksPerWave,
-        dailyTaskLimit,
-      });
-      toast(
-        mode === "bounded_autonomous"
-          ? "Bounded autonomy policy activated."
-          : "Supervised execution policy activated.",
-        { kind: "success" },
-      );
-    } catch (error) {
-      toast(errorMessage(error, "Couldn't update execution policy"), {
-        kind: "error",
-      });
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <section>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Execution authority
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Decide where humans approve the plan and where agents may proceed
-            inside explicit limits. Only workspace owners can change this
-            boundary.
-          </p>
-        </div>
-        <Badge variant="outline" className="uppercase tracking-wider">
-          Policy v{policy.version}
-        </Badge>
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        <button
-          type="button"
-          disabled={!canEdit}
-          aria-pressed={mode === "supervised"}
-          onClick={() => setMode("supervised")}
-          className={cn(
-            "rounded-2xl border p-5 text-left transition disabled:cursor-default",
-            mode === "supervised"
-              ? "border-brand-500 bg-brand-500/[0.06] ring-2 ring-brand-500/15"
-              : "border-border bg-card hover:border-brand-500/40",
-          )}
-        >
-          <span className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-pastel-blue text-neutral-900">
-              <Users className="h-4 w-4" />
-            </span>
-            <span>
-              <span className="block text-sm font-semibold">Supervised</span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">
-                Every new execution plan waits for an owner or admin.
-              </span>
-            </span>
-          </span>
-        </button>
-        <button
-          type="button"
-          disabled={!canEdit}
-          aria-pressed={mode === "bounded_autonomous"}
-          onClick={() => setMode("bounded_autonomous")}
-          className={cn(
-            "rounded-2xl border p-5 text-left transition disabled:cursor-default",
-            mode === "bounded_autonomous"
-              ? "border-brand-500 bg-brand-500/[0.06] ring-2 ring-brand-500/15"
-              : "border-border bg-card hover:border-brand-500/40",
-          )}
-        >
-          <span className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-pastel-green text-neutral-900">
-              <Bot className="h-4 w-4" />
-            </span>
-            <span>
-              <span className="block text-sm font-semibold">
-                Bounded autonomous
-              </span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">
-                Clean, low-risk plans may start inside owner-set limits.
-              </span>
-            </span>
-          </span>
-        </button>
-      </div>
-
-      <Card className="mt-3 p-5">
-        <div className="flex items-start gap-3">
-          <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400" />
-          <div>
-            <p className="text-sm font-medium">Non-negotiable safety gates</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Open questions and approval-gated tasks always require a human.
-              Policy-authorized plans are invalidated when these limits change.
-              Human approval can re-authorize a plan without weakening the
-              workspace policy.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-4 sm:grid-cols-3">
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium">Tasks per autonomous plan</span>
-            <Input
-              type="number"
-              min={1}
-              max={100}
-              disabled={!canEdit}
-              value={maxPlanTasks}
-              onChange={(event) =>
-                setMaxPlanTasks(Number(event.currentTarget.value))
-              }
-            />
-            <span className="block text-[11px] text-muted-foreground">
-              1–100
-            </span>
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium">Tasks per dispatch wave</span>
-            <Input
-              type="number"
-              min={1}
-              max={25}
-              disabled={!canEdit}
-              value={maxTasksPerWave}
-              onChange={(event) =>
-                setMaxTasksPerWave(Number(event.currentTarget.value))
-              }
-            />
-            <span className="block text-[11px] text-muted-foreground">
-              1–25
-            </span>
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-xs font-medium">Tasks per rolling 24 hours</span>
-            <Input
-              type="number"
-              min={1}
-              max={1000}
-              disabled={!canEdit}
-              value={dailyTaskLimit}
-              onChange={(event) =>
-                setDailyTaskLimit(Number(event.currentTarget.value))
-              }
-            />
-            <span className="block text-[11px] text-muted-foreground">
-              1–1,000
-            </span>
-          </label>
-        </div>
-
-        {enteringAutonomous && (
-          <label className="mt-5 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] p-3 text-xs leading-5">
-            <input
-              type="checkbox"
-              checked={acknowledged}
-              onChange={(event) =>
-                setAcknowledged(event.currentTarget.checked)
-              }
-              className="mt-0.5"
-            />
-            <span>
-              I understand that eligible plans can dispatch without a separate
-              human approval, within these limits and the agents&apos; own
-              permissions.
-            </span>
-          </label>
-        )}
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
-            {canEdit
-              ? "Saving creates a new policy version and revalidates policy-authorized plans."
-              : "Read only. Ask a workspace owner to change execution authority."}
-          </p>
-          {canEdit && (
-            <Button
-              type="button"
-              size="sm"
-              disabled={
-                !changed ||
-                pending ||
-                (enteringAutonomous && !acknowledged)
-              }
-              onClick={() => void save()}
-            >
-              {pending ? "Saving…" : "Save execution policy"}
-            </Button>
-          )}
-        </div>
-      </Card>
-    </section>
   );
 }
 
@@ -829,9 +544,7 @@ function SlackIntegration({
   integration,
 }: {
   workspaceId: Id<"workspaces">;
-  integration:
-    | Omit<Doc<"integrations">, "config">
-    | null;
+  integration: Doc<"integrations"> | null;
 }) {
   const upsert = useMutation(api.integrations.upsertSlack);
   const setEnabled = useMutation(api.integrations.setEnabled);

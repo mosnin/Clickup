@@ -18,10 +18,10 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 
-// All-lists directory: every list the current user can access, across
+// All-projects directory: every list the current user can access, across
 // their personal space and every workspace they belong to, in one
 // searchable grid — the escape hatch from the sidebar tree once an
-// account accumulates more lists than fit comfortably in it. Sort and
+// account accumulates more projects than fit comfortably in it. Sort and
 // group-by live in the URL (?sort=, ?group=) so a curated view — "group
 // by workspace, problems first" — is shareable and survives reload, same
 // pattern as the list views' ?view=/?lane= params.
@@ -222,11 +222,11 @@ export function ProjectsView() {
     <div className="space-y-6">
       <PageHeader
         icon={FolderKanban}
-        title="Lists"
+        title="Projects"
         context={
           data === undefined
             ? undefined
-            : `${data.totalCount} list${data.totalCount === 1 ? "" : "s"}`
+            : `${data.totalCount} project${data.totalCount === 1 ? "" : "s"}`
         }
       >
         {/* Search + health filter + sort/group live in the header's own
@@ -237,7 +237,7 @@ export function ProjectsView() {
           <Input
             value={raw}
             onChange={(e) => setRaw(e.currentTarget.value)}
-            placeholder="Search lists…"
+            placeholder="Search projects…"
             className="h-8 w-40 sm:w-56"
           />
           <nav
@@ -286,7 +286,7 @@ export function ProjectsView() {
         <ProjectsSkeleton />
       ) : data.rows.length === 0 ? (
         <EmptyState
-          title="No lists match"
+          title="No projects match"
           message={
             debounced || status
               ? "Try a different search term or clear the health filter."
