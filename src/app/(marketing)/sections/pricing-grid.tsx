@@ -171,6 +171,25 @@ export function PricingGrid() {
           ))}
         </div>
 
+        {/* Enterprise row — carried over from the card version of this
+            section, which /pricing no longer renders. */}
+        <div className="flex flex-col gap-4 border-t border-white/[0.06] px-6 py-8 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-lg font-medium text-foreground">
+              {PRICING.enterprise.title}
+            </p>
+            <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted-foreground">
+              {PRICING.enterprise.body}
+            </p>
+          </div>
+          <Link
+            href={PRICING.enterprise.cta.href}
+            className="shrink-0 rounded-full bg-white/[0.07] px-5 py-2.5 text-center text-sm font-medium text-foreground transition-colors hover:bg-white/[0.12]"
+          >
+            {PRICING.enterprise.cta.label}
+          </Link>
+        </div>
+
         {/* Closing texture strip — the reference's ruled footer. */}
         <div
           aria-hidden

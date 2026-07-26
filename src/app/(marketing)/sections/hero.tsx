@@ -62,16 +62,18 @@ export function Hero() {
         "-=0.5",
       );
 
-    // Two scrubbed tweens on the shot, and they do different jobs.
+    // One scrubbed tween on the shot: it arrives slightly over-scaled, leaned
+    // back and a touch soft, and resolves as it reaches the middle of the
+    // viewport — so scrolling into the product reads as focusing on it.
     //
-    // Arriving: the frame comes up out of focus, slightly over-scaled and
-    // leaning back, and resolves as it reaches the middle of the viewport —
-    // a zoom-blur settle, so scrolling *into* the product feels like
-    // focusing on it rather than passing it.
+    // The blur is small (5px) on purpose. A heavy value looks like a broken
+    // render rather than depth of field, and there is deliberately no matching
+    // blur on the way out: defocusing the frame as it left turned it into a
+    // smeared ghost under the next section.
     const tilt = root.querySelector("[data-hero-shot-tilt]");
     gsap.fromTo(
       tilt,
-      { rotateX: 5, scale: 1.06, filter: "blur(14px)" },
+      { rotateX: 4, scale: 1.03, filter: "blur(5px)" },
       {
         rotateX: 0,
         scale: 1,
@@ -80,27 +82,7 @@ export function Hero() {
         scrollTrigger: {
           trigger: tilt,
           start: "top bottom",
-          end: "top 45%",
-          scrub: true,
-        },
-      },
-    );
-
-    // Leaving: it defocuses and lifts away as the next section takes over,
-    // so the seam between the hero and what follows is a dissolve instead of
-    // a hard cut.
-    gsap.fromTo(
-      tilt,
-      { filter: "blur(0px)", scale: 1, autoAlpha: 1 },
-      {
-        filter: "blur(10px)",
-        scale: 0.97,
-        autoAlpha: 0.35,
-        ease: "none",
-        scrollTrigger: {
-          trigger: tilt,
-          start: "bottom 55%",
-          end: "bottom top",
+          end: "top 55%",
           scrub: true,
         },
       },

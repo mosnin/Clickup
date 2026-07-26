@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { SITE_NAME, SITE_URL } from "@/lib/marketing-nav";
 import { Hero } from "./sections/hero";
 import { SocialProof } from "./sections/social-proof";
+import { LogoCloud } from "./sections/logo-cloud";
 import { Showcase } from "./sections/showcase";
 import { FeatureCards } from "./sections/feature-cards";
 import { CalendarShowcase } from "./sections/calendar-showcase";
@@ -70,6 +71,7 @@ export default function HomePage() {
           the announce strip. */}
       <div className="mk-band">
         <Hero />
+        <LogoCloud />
         <SocialProof />
       </div>
       <Showcase />

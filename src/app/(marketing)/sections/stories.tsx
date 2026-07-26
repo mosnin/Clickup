@@ -33,8 +33,6 @@ type Story = {
   orb: string;
   /** Light gradient — needs to stay light enough for near-black ink. */
   gradient: string;
-  /** Stripe band behind the portrait, a darker shade of the same family. */
-  stripe: string;
 };
 
 const STORIES: Story[] = [
@@ -53,7 +51,6 @@ const STORIES: Story[] = [
     ],
     orb: "#1d4ed8",
     gradient: "from-[#bfe6ff] via-[#6cb0ff] to-[#2f6df0]",
-    stripe: "bg-[#14356b]",
   },
   {
     org: "Delivery",
@@ -70,7 +67,6 @@ const STORIES: Story[] = [
     ],
     orb: "#0d9488",
     gradient: "from-[#c3f5ee] via-[#5fd6cd] to-[#0f8f9c]",
-    stripe: "bg-[#08414a]",
   },
   {
     org: "Solo",
@@ -87,7 +83,6 @@ const STORIES: Story[] = [
     ],
     orb: "#4f46e5",
     gradient: "from-[#d5dcff] via-[#8f9cff] to-[#4f46e5]",
-    stripe: "bg-[#221a6b]",
   },
 ];
 
@@ -165,23 +160,16 @@ export function Stories() {
                 </header>
 
                 {/* The well. The reference puts a portrait here; we put the
-                    team itself — the humans and agents on the roster as orbs,
-                    over the same stripe band. It keeps the layout's rhythm
-                    without inventing a face, and it says something the quote
-                    can't: the actual shape of the team. */}
-                <div className="relative mt-2 flex h-[260px] w-full shrink-0 items-center justify-center overflow-hidden px-7">
-                  <div
-                    aria-hidden
-                    className="pointer-events-none absolute inset-x-0 top-[34%] z-0 flex h-[112px] flex-col justify-between opacity-10"
-                  >
-                    {[0, 1, 2, 3].map((n) => (
-                      <div
-                        key={n}
-                        className={cn("h-[6px] w-full blur-[1px]", story.stripe)}
-                      />
-                    ))}
-                  </div>
+                    team itself — the humans and agents on the roster as orbs.
+                    It keeps the layout's rhythm without inventing a face, and
+                    it says something the quote can't: the actual shape of the
+                    team.
 
+                    No stripe band behind it. That treatment exists in the
+                    reference to cut a photographed figure into the panel;
+                    with a card in the well it just streaked horizontally
+                    across all three columns and read as a rendering bug. */}
+                <div className="relative mt-2 flex h-[260px] w-full shrink-0 items-center justify-center overflow-hidden px-7">
                   <div className="relative z-10 w-full rounded-xl bg-black/[0.07] p-4 ring-1 ring-black/10 backdrop-blur-[2px]">
                     <p className="text-[10px] font-semibold uppercase tracking-widest opacity-55">
                       On this team

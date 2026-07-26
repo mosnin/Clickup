@@ -31,9 +31,27 @@ export const HERO = {
 } as const;
 
 export const SOCIAL_PROOF = {
-  eyebrow: "Built for the agent era",
-  title: "Powering teams that run on agents.",
-  screenshot: "Mission Control — live agent fleet",
+  eyebrow: "One board, both kinds of teammate",
+  title: "Agents work where your team already works.",
+  sub: "No agent console off to the side. An agent picks up a card in the same column as everyone else, and you can see which one is holding it.",
+  // The shot is a project's Board view — lanes, filters, sprint context.
+  screenshot: "Board view — a sprint in progress",
+  caption:
+    "A project's board mid-sprint. Filters across the top, lanes by status, and agent-held cards sitting in the same columns as human work.",
+  points: [
+    {
+      title: "Assign an agent like a person",
+      body: "Same assignee picker, same due date, same comment thread.",
+    },
+    {
+      title: "See who has what",
+      body: "A presence dot and a live \u201cnow working on\u201d line per agent.",
+    },
+    {
+      title: "Four views, one dataset",
+      body: "List, Board, Calendar and Gantt over the same tasks.",
+    },
+  ],
   dockLabel: "Works with every MCP runtime",
   dockCount: 8,
   floatingNotes: ["Live presence", "4 agents working right now"],
@@ -59,7 +77,13 @@ export const ANNOUNCE_BAR = {
   cta: { label: "Read more", href: "/features#mcp" },
 } as const;
 export const SHOWCASE = {
-  screenshot: "Dashboard — sprint report and burndown",
+  eyebrow: "Scope you can see",
+  title: "Every project, and how far through it you are.",
+  sub: "Scope creep is invisible until it is expensive. The projects directory keeps each one\u2019s status, owner and completion in one row, so drift shows up as a number instead of a surprise.",
+  // The shot is the projects directory — cards with status and task rollups.
+  screenshot: "Projects directory — status and rollups",
+  caption:
+    "Every project in one place: on-track / at-risk / off-track status, where it lives, and how many of its tasks are done.",
 } as const;
 export const PRODUCTS_MENU = {
   items: [

@@ -1,20 +1,35 @@
 "use client";
 
 import gsap from "gsap";
-import { Container, ScreenshotFrame } from "@/components/marketing/ui";
+import GradientText from "@/components/gradient-text";
+import { Container, Eyebrow, ScreenshotFrame } from "@/components/marketing/ui";
 import { GsapReveal, GsapParallax, useGsap } from "@/components/marketing/gsap";
 import { SHOWCASE } from "@/lib/marketing-content";
 
-// Phase G — full-bleed dashboard showcase between sections. One large
-// screenshot frame that scales up into place on scroll (Apple-style) while
-// still drifting via GsapParallax — the two wrappers nest and compose. No
-// copy.
+// Full-bleed dashboard showcase between sections. One large screenshot frame
+// that scales up into place on scroll while still drifting via GsapParallax —
+// the two wrappers nest and compose.
+//
+// It used to ship with no copy at all, which left a reader staring at an
+// unexplained screenshot: the heading and caption now say which surface this
+// is and what it is evidence of (scope, visible as a number).
 
 export function Showcase() {
   return (
     <section className="bg-background py-16">
       <Container>
-        <GsapReveal className="relative mx-auto max-w-5xl">
+        <GsapReveal className="mx-auto max-w-2xl text-center">
+          <Eyebrow>{SHOWCASE.eyebrow}</Eyebrow>
+          <h2 className="mt-3 text-balance text-3xl font-semibold tracking-[-0.02em] text-foreground sm:text-4xl">
+            Every project, and{" "}
+            <GradientText>how far through it you are</GradientText>.
+          </h2>
+          <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+            {SHOWCASE.sub}
+          </p>
+        </GsapReveal>
+
+        <GsapReveal className="relative mx-auto mt-12 max-w-5xl">
           <div
             aria-hidden
             className="mk-glow pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[75%] w-[80%] -translate-x-1/2 -translate-y-1/2 rounded-full"
@@ -66,8 +81,8 @@ function ShowcaseScaleFrame() {
         ratio="2498/1534"
         tone="dark"
         src="/screenshots/home-showcase.png"
-        alt="operate.to dashboard — projects, sprints and agent activity"
-        caption="A workspace mid-sprint — tasks grouped by status, with the agents holding them named on each row."
+        alt="The projects directory in operate.to, with per-project status and task rollups"
+        caption={SHOWCASE.caption}
         className="gs-showcase-frame"
       />
     </div>

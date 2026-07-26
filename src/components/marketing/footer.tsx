@@ -70,20 +70,35 @@ export function MarketingFooter() {
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
       >
-        <iframe
-          src="https://my.spline.design/aidatamodelinteraction-mdTL3FktFVHgDvFr5TKtnYDV"
-          title=""
-          aria-hidden
-          tabIndex={-1}
-          loading="lazy"
-          className="absolute left-0 top-0 h-full w-full border-0"
-        />
-        <div className="absolute inset-0 bg-navy-950/70" />
-        <div className="absolute inset-0 bg-gradient-to-b from-navy-950 via-navy-950/55 to-navy-950/85" />
+        {/* Over-sized and edge-masked. The scene letterboxes to its own
+            aspect, so at inset-0 its boundary landed inside the footer as two
+            hard vertical seams; blowing it out past the container and fading
+            the outer 30% to transparent means the viewer only ever sees the
+            middle of it. */}
+        <div
+          className="absolute -inset-x-[15%] -inset-y-[25%]"
+          style={{
+            maskImage:
+              "radial-gradient(70% 65% at 50% 50%, black 40%, transparent 100%)",
+            WebkitMaskImage:
+              "radial-gradient(70% 65% at 50% 50%, black 40%, transparent 100%)",
+          }}
+        >
+          <iframe
+            src="https://my.spline.design/aidatamodelinteraction-mdTL3FktFVHgDvFr5TKtnYDV"
+            title=""
+            aria-hidden
+            tabIndex={-1}
+            loading="lazy"
+            className="absolute left-0 top-0 h-full w-full border-0"
+          />
+        </div>
+        <div className="absolute inset-0 bg-navy-950/72" />
+        <div className="absolute inset-0 bg-gradient-to-b from-navy-950 via-navy-950/55 to-navy-950/90" />
       </div>
 
       <Container className="py-16">
-        <div className="grid grid-cols-1 gap-12 lg:grid-cols-[minmax(0,1fr)_2fr]">
+        <div className="grid grid-cols-1 gap-x-10 gap-y-12 lg:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
           <div>
             <Link href="/" aria-label="operate.to" className="inline-flex items-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -93,7 +108,7 @@ export function MarketingFooter() {
                 className="h-6 w-auto"
               />
             </Link>
-            <p className="mt-3 max-w-xs text-sm text-white/50">
+            <p className="mt-3 max-w-[15rem] text-sm leading-relaxed text-white/50">
               {SITE_TAGLINE}
             </p>
             <CtaButton
@@ -106,7 +121,7 @@ export function MarketingFooter() {
             </CtaButton>
           </div>
 
-          <div className="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-4 lg:justify-items-end">
             <FooterColumn title="Product" links={PRODUCT_LINKS} />
             <FooterColumn title="Use cases" links={USE_CASE_LINKS} />
             <FooterColumn title="Resources" links={RESOURCE_LINKS} />

@@ -161,6 +161,9 @@ export function SocialProof() {
                 </span>
               ))}
             </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-white/65 sm:text-lg">
+              {SOCIAL_PROOF.sub}
+            </p>
           </GsapReveal>
 
           <GsapReveal className="mt-12">
@@ -172,8 +175,8 @@ export function SocialProof() {
                   ratio="2502/1420"
                   label={SOCIAL_PROOF.screenshot}
                   src="/screenshots/mission-control.png"
-                  alt="Mission Control — the live agent fleet in operate.to"
-                  caption="Agents HQ: every connected agent, its presence dot, and the task it is working on right now."
+                  alt="A project board in operate.to, mid-sprint"
+                  caption={SOCIAL_PROOF.caption}
                 />
               </div>
               <div className="gs-float-wrap absolute -left-4 top-8 hidden sm:block">
@@ -189,7 +192,23 @@ export function SocialProof() {
             </div>
           </GsapReveal>
 
-          <div ref={dockRef} className="mt-12 flex flex-col items-center">
+          <GsapReveal
+            stagger
+            className="mx-auto mt-12 grid max-w-4xl grid-cols-1 gap-8 sm:grid-cols-3"
+          >
+            {SOCIAL_PROOF.points.map((point) => (
+              <div key={point.title}>
+                <p className="text-sm font-semibold text-white">
+                  {point.title}
+                </p>
+                <p className="mt-1.5 text-sm leading-relaxed text-white/60">
+                  {point.body}
+                </p>
+              </div>
+            ))}
+          </GsapReveal>
+
+          <div ref={dockRef} className="mt-16 flex flex-col items-center">
             <p className="text-xs uppercase tracking-widest text-white/60">
               {SOCIAL_PROOF.dockLabel}
             </p>

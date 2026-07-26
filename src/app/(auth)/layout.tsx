@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BorderBeam } from "@/components/ui/beam";
 
 // Split-screen auth shell: the left half sells (brand mark, one promise,
 // the three-step story, ambient motion), the right half signs you in.
@@ -29,6 +30,27 @@ export default function AuthLayout({
 }) {
   return (
     <div className="flex min-h-dvh bg-[#0a0a0a] text-white">
+      {/* Beam around the inside edge of the viewport, desktop and mobile.
+          Fixed rather than absolute so it stays framing the screen while a
+          long form scrolls, pointer-events-none so it never intercepts a
+          click on the fields underneath, and inset by a few pixels so the
+          travelling light reads as a frame inside the screen rather than a
+          glow bleeding off it. The empty child is what BorderBeam traces —
+          it carries no content of its own. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-1.5 z-50 sm:inset-2.5"
+      >
+        <BorderBeam
+          size="md"
+          colorVariant="ocean"
+          theme="dark"
+          className="h-full w-full"
+        >
+          <div className="h-full w-full rounded-[inherit]" />
+        </BorderBeam>
+      </div>
+
       <aside className="relative hidden w-[46%] flex-col justify-between overflow-hidden p-10 lg:flex xl:p-14">
         <div
           aria-hidden

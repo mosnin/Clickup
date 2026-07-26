@@ -4,7 +4,6 @@ import gsap from "gsap";
 import { Container, Eyebrow } from "@/components/marketing/ui";
 import { useGsap, EASE_OUT } from "@/components/marketing/gsap";
 import GradientText from "@/components/gradient-text";
-import { PricingSection } from "../sections/pricing-section";
 import { PricingGrid } from "../sections/pricing-grid";
 import { Faq } from "../sections/faq";
 
@@ -68,12 +67,10 @@ export function PricingContent() {
   return (
     <>
       <PricingHero />
-      {/* The tier grid is the page's main event: columns of one table rather
-          than three floating cards, so the tiers read as a single comparison.
-          <PricingSection /> stays below it for the annual toggle and the
-          enterprise panel. */}
+      {/* The grid is the only tier list on this page. <PricingSection />'s
+          card version still runs on the home page; showing both here printed
+          the same three tiers twice. */}
       <PricingGrid />
-      <PricingSection />
       <Faq />
     </>
   );
