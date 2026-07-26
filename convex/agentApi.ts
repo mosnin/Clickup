@@ -4422,3 +4422,166 @@ export const writeProjectDoc = mutation({
     return { docId };
   },
 });
+
+// ── Project updates ──────────────────────────────────────────────────────
+
+/**
+ * "What changed in my projects since I last looked."
+ *
+ * listEvents already returns the whole scope's raw feed, which is the right
+ * primitive and the wrong ergonomics: an agent working two projects has to
+ * pull every event in the account and filter client-side, and it gets no sense
+ * of what is *waiting* on it versus what merely happened.
+ *
+ * This returns a digest instead, grouped per project, restricted to projects
+ * the agent is actually involved in — one it has a task assigned on, or one
+ * inside its allowedListIds. Along with the events it reports the two things
+ * that need action: revisions still open, and gated tasks it cannot finish
+ * without a human.
+ *
+ * `cursor` is the value to pass as `since` next time. It is the newest event
+ * timestamp actually returned, not "now" — so an event committed between the
+ * read and the next poll can never be skipped.
+ */
+export const getProjectUpdates = query({
+  args: {
+    apiKey: v.string(),
+    since: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { apiKey, since, limit }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const perProjectLimit = Math.min(limit ?? 40, 100);
+    const cutoff = since ?? 0;
+
+    // Which projects count as "mine": anywhere I hold work, plus anywhere I
+    // have been explicitly scoped to. A list-restricted agent gets exactly its
+    // restriction; an unrestricted one gets the projects it is working in
+    // rather than the entire account.
+    const scoped = (await listsInScope(ctx, agent)).map((e) => e.list);
+    const mine: Doc<"lists">[] = [];
+    for (const list of scoped) {
+      if (agent.allowedListIds?.includes(list._id)) {
+        mine.push(list);
+        continue;
+      }
+      const tasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_list", (q) => q.eq("listId", list._id))
+        .collect();
+      if (tasks.some((t) => t.assigneeClerkIds.includes(agent._id))) {
+        mine.push(list);
+      }
+    }
+
+    // One scope-ranged read, then bucketed — cheaper than a query per project
+    // and it keeps the ordering consistent across buckets.
+    const events = await ctx.db
+      .query("events")
+      .withIndex("by_scope", (q) =>
+        q
+          .eq("scopeType", agent.parentType)
+          .eq("scopeId", agent.parentId)
+          .gt("createdAt", cutoff),
+      )
+      .collect();
+
+    const mineIds = new Set(mine.map((l) => l._id as string));
+    let newest = cutoff;
+
+    const projects = await Promise.all(
+      mine.map(async (list) => {
+        const listEvents = events
+          .filter((e) => e.listId === list._id)
+          // Own actions are not news. Without this an agent wakes itself up
+          // every time it writes anything.
+          .filter((e) => e.actorId !== agent._id)
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .slice(0, perProjectLimit);
+        for (const e of listEvents) {
+          if (e.createdAt > newest) newest = e.createdAt;
+        }
+
+        const tasks = await ctx.db
+          .query("tasks")
+          .withIndex("by_list", (q) => q.eq("listId", list._id))
+          .collect();
+        const openRevisions: {
+          revisionId: Id<"revisions">;
+          parentType: "task" | "list";
+          parentId: string;
+          taskTitle: string | null;
+          body: string;
+          requestedBy: string;
+        }[] = [];
+        for (const revision of openOnly(
+          await revisionsForParent(ctx, "list", list._id),
+        )) {
+          openRevisions.push({
+            revisionId: revision._id,
+            parentType: "list",
+            parentId: list._id,
+            taskTitle: null,
+            body: revision.body,
+            requestedBy: revision.requestedByName,
+          });
+        }
+        for (const task of tasks) {
+          for (const revision of openOnly(
+            await revisionsForParent(ctx, "task", task._id),
+          )) {
+            openRevisions.push({
+              revisionId: revision._id,
+              parentType: "task",
+              parentId: task._id,
+              taskTitle: task.title,
+              body: revision.body,
+              requestedBy: revision.requestedByName,
+            });
+          }
+        }
+
+        const awaitingApproval = tasks
+          .filter(
+            (t) =>
+              t.requiresApproval === true &&
+              t.approvedAt === undefined &&
+              t.assigneeClerkIds.includes(agent._id),
+          )
+          .map((t) => ({ taskId: t._id, title: t.title }));
+
+        return {
+          listId: list._id,
+          listName: list.name,
+          events: listEvents.map((e) => ({
+            eventId: e._id,
+            type: e.type,
+            actorType: e.actorType,
+            actorName: e.actorName,
+            entityType: e.entityType,
+            entityId: e.entityId,
+            entityTitle: e.entityTitle,
+            createdAt: e.createdAt,
+          })),
+          openRevisions,
+          awaitingApproval,
+        };
+      }),
+    );
+
+    return {
+      cursor: newest,
+      // Events outside any of my projects, so an agent can tell "nothing for
+      // me" from "nothing happened at all" without a second call.
+      otherScopeActivity: events.filter(
+        (e) => e.listId === undefined || !mineIds.has(e.listId),
+      ).length,
+      projects: projects.filter(
+        (p) =>
+          p.events.length > 0 ||
+          p.openRevisions.length > 0 ||
+          p.awaitingApproval.length > 0,
+      ),
+    };
+  },
+});

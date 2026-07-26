@@ -37,12 +37,15 @@ import {
   Stagger,
   StaggerItem,
 } from "@/components/motion";
+import { useNow } from "@/lib/use-now";
 
 // Per-agent drill-down: live status, governance controls (role, budget,
 // notify URL), run history, current claims/assignments, and the agent's
 // own event trail.
 
 export function AgentDetail({ agentId }: { agentId: string }) {
+  // Ticks so 'went offline' actually renders — see use-now.ts.
+  const now = useNow();
   const detail = useQuery(api.agents.detail, {
     agentId: agentId as Id<"agents">,
   });
@@ -91,7 +94,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
     detail;
   const online =
     agent.lastSeenAt !== undefined &&
-    Date.now() - agent.lastSeenAt < 5 * 60 * 1000;
+    now - agent.lastSeenAt < 5 * 60 * 1000;
   const statusLabel = agent.status === "paused"
     ? "Paused"
     : online

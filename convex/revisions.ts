@@ -5,6 +5,7 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity, requireListAccess, requireTaskAccess } from "./_authz";
 import { emitEvent, scopeForList, userActor } from "./events";
+import { internal } from "./_generated/api";
 import type { Actor } from "./_agentAuth";
 
 // Revision requests — "this isn't right yet, here's what to change."
@@ -128,7 +129,65 @@ export async function createRevisionCore(
     actor,
     summary: shorten(body),
   });
+  await pingAgentsAboutRevision(ctx, args, revisionId, body);
   return revisionId;
+}
+
+/**
+ * Push a revision to the runtimes that have to act on it.
+ *
+ * Deliberately narrow. Pinging agents on *every* event in their projects reads
+ * well in a design doc and is unusable in practice — a busy board would wake
+ * every runtime dozens of times an hour, and each wake costs the agent's daily
+ * budget. A revision is the one event that is definitionally addressed to
+ * whoever holds the work, so it is worth an interrupt; everything else an agent
+ * discovers on its own schedule through get_project_updates.
+ *
+ * Task-level asks reach that task's agent assignees. Project-level asks reach
+ * every agent holding work in the project. Best-effort: postAgentPing does not
+ * retry, and the digest is the reliable path.
+ */
+async function pingAgentsAboutRevision(
+  ctx: MutationCtx,
+  args: { parentType: RevisionParentType; parentId: string },
+  revisionId: Id<"revisions">,
+  body: string,
+): Promise<void> {
+  const list = await projectForParent(ctx, args.parentType, args.parentId);
+
+  const actorIds = new Set<string>();
+  if (args.parentType === "task") {
+    const task = await ctx.db.get(args.parentId as Id<"tasks">);
+    for (const id of task?.assigneeClerkIds ?? []) actorIds.add(id);
+  } else {
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_list", (q) => q.eq("listId", list._id))
+      .collect();
+    for (const task of tasks) {
+      for (const id of task.assigneeClerkIds) actorIds.add(id);
+    }
+  }
+
+  for (const actorId of actorIds) {
+    // Assignee ids are clerkIds or agent document ids in the same column, so a
+    // failed lookup just means "this one is a human" — nothing to push to.
+    const agent = await ctx.db.get(actorId as Id<"agents">).catch(() => null);
+    if (!agent || !("notifyUrl" in agent) || !agent.notifyUrl) continue;
+    await ctx.scheduler.runAfter(0, internal.notifications.postAgentPing, {
+      url: agent.notifyUrl,
+      type: "revision.requested",
+      payload: {
+        revisionId,
+        parentType: args.parentType,
+        parentId: args.parentId,
+        listId: list._id,
+        listName: list.name,
+        body: shorten(body),
+      },
+      secret: agent.notifySecret,
+    });
+  }
 }
 
 export async function addressRevisionCore(

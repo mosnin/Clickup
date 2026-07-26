@@ -14,6 +14,8 @@ import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { Clips } from "@/components/dashboard/clips";
 import { Attachments } from "@/components/dashboard/attachments";
 import { Comments } from "@/components/dashboard/comments";
+import { RevisionsPanel } from "@/components/dashboard/revisions-panel";
+import { TaskContextPanel } from "@/components/dashboard/task-context-panel";
 import { Subtasks } from "@/components/dashboard/subtasks";
 import {
   TaskAssignees,
@@ -374,6 +376,10 @@ function TaskEditor({
             </h2>
             <Clips taskId={task._id} />
           </section>
+
+          <TaskContextPanel listId={listId} />
+
+          <RevisionsPanel parentType="task" parentId={task._id} />
 
           <section>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">

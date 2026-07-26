@@ -22,6 +22,7 @@ import {
   StaggerItem,
 } from "@/components/motion";
 import { errorMessage } from "@/lib/errors";
+import { NotificationSettings } from "@/components/dashboard/notification-settings";
 
 // The one inbox. Everything that needs the user's attention lives here, in
 // order of urgency: approvals to grant, mentions to answer, updates to skim.
@@ -130,6 +131,15 @@ export function Inbox() {
           )}
         </>
       )}
+      <details className="panel rounded-2xl p-5">
+        <summary className="tap-target cursor-pointer text-sm font-semibold text-foreground">
+          Notification settings
+        </summary>
+        <div className="mt-5 max-w-xl">
+          <NotificationSettings />
+        </div>
+      </details>
+
     </div>
   );
 }

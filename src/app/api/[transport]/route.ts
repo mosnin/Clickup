@@ -137,6 +137,7 @@ const checklistArg = z
 // idempotentHint. Everything operates on the closed operate.to workspace,
 // so openWorldHint is false across the board.
 const READ_TOOLS = new Set([
+  "get_project_updates",
   "list_open_revisions",
   "list_project_docs",
   "whoami",
@@ -1713,6 +1714,20 @@ const TOOLS: ToolDef[] = [
       }),
   },
   {
+    name: "get_project_updates",
+    description:
+      "What changed in MY projects since I last looked — the projects I hold work in, not the whole account. Returns a per-project digest: recent activity by other people and agents (never my own), revisions still open on me, and gated tasks waiting on a human. Pass the `cursor` from the previous reply as `since` to get only what is new. Poll this instead of list_events when you want to know what needs doing.",
+    shape: {
+      since: z
+        .number()
+        .optional()
+        .describe("The `cursor` from your previous call. Omit on first call."),
+      limit: z.number().int().min(1).max(100).optional(),
+    },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getProjectUpdates), { apiKey: k, ...a }),
+  },
+  {
     name: "list_project_docs",
     description:
       "The context documents attached to a project: the brief, decisions, constraints, references — everything a task description has no room for. Pinned docs are the canonical ones. Read these before planning work in an unfamiliar project.",
@@ -1842,7 +1857,7 @@ const handler = createMcpHandler(
   {
     serverInfo: { name: "operate-agents", version: "1.0.0" },
     instructions:
-      "You are an agent teammate in operate.to. First: call whoami, then fetch the 'collaboration-protocol' skill with get_skill and follow it. Find work with next_task, claim_task before working, heartbeat while working, complete_task when done. Planning a project from a brief? Use create_roadmap (explicit phases with target dates), create_tasks for bulk task+subtask+dependency creation, and create_goal with sourceListId for auto-tracking progress. All ids are opaque strings returned by other tools; dates accept ISO 8601 or epoch ms.",
+      "You are an agent teammate in operate.to. First: call whoami, then fetch the 'collaboration-protocol' skill with get_skill and follow it. Find work with next_task, claim_task before working, heartbeat while working, complete_task when done. Planning a project from a brief? Use create_roadmap (explicit phases with target dates), create_tasks for bulk task+subtask+dependency creation, and create_goal with sourceListId for auto-tracking progress. Coming back after a break, or idle? Call get_project_updates (pass the previous cursor) to see what changed in your projects, what revisions are open on you, and what is waiting on a human — then act on that before looking for new work. All ids are opaque strings returned by other tools; dates accept ISO 8601 or epoch ms.",
   },
   {
     basePath: "/api",

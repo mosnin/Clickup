@@ -52,6 +52,7 @@ import {
   Stagger,
   StaggerItem,
 } from "@/components/motion";
+import { useNow } from "@/lib/use-now";
 
 // Agents HQ ("Mission Control"): manage agent principals + API keys, watch
 // a live activity feed of everything agents and humans are doing, and
@@ -86,6 +87,8 @@ export function AgentsView() {
   const [templating, setTemplating] = useState(false);
 
   const agentsData = useQuery(api.agents.listForCurrentUser, {});
+  // Ticks so 'went offline' actually renders — see use-now.ts.
+  const now = useNow();
   const { onlineCount, totalCount } = useMemo(() => {
     if (!agentsData) return { onlineCount: 0, totalCount: 0 };
     const all = [
@@ -96,10 +99,10 @@ export function AgentsView() {
       (a) =>
         a.status === "active" &&
         a.lastSeenAt !== undefined &&
-        Date.now() - a.lastSeenAt < ONLINE_WINDOW_MS,
+        now - a.lastSeenAt < ONLINE_WINDOW_MS,
     ).length;
     return { onlineCount: online, totalCount: all.length };
-  }, [agentsData]);
+  }, [agentsData, now]);
 
   return (
     <div className="space-y-6">
@@ -772,10 +775,13 @@ function AgentCard({
   const [showKeys, setShowKeys] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
+  // Same reason as the fleet counter above: a raw Date.now() here would freeze
+  // the dot green the moment an agent stops heartbeating.
+  const now = useNow();
 
   const online =
     agent.lastSeenAt !== undefined &&
-    Date.now() - agent.lastSeenAt < ONLINE_WINDOW_MS;
+    now - agent.lastSeenAt < ONLINE_WINDOW_MS;
   const currentTitle = agent.currentTaskId
     ? taskTitles[agent.currentTaskId]
     : undefined;
