@@ -512,3 +512,64 @@ describe("pages over the agent API", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("roadmap ↔ workstream connection", () => {
+  const AGENT_KEY = "cua_test_key_roadmap_agent";
+
+  it("create_project places a workstream on the roadmap in one call", async () => {
+    const { t, workspaceId, spaceId } = await seed();
+    await t.run(async (ctx) => {
+      const agentId = await ctx.db.insert("agents", {
+        name: "Planner",
+        parentType: "workspace",
+        parentId: workspaceId,
+        status: "active",
+        createdByClerkId: ALICE.subject,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("agentKeys", {
+        agentId,
+        keyHash: sha256Hex(AGENT_KEY),
+        keyPrefix: AGENT_KEY.slice(0, 12),
+        createdAt: Date.now(),
+      });
+    });
+
+    const roadmap = await t.mutation(api.agentApi.createRoadmap, {
+      apiKey: AGENT_KEY,
+      name: "Delivery",
+      phases: [{ name: "M1" }, { name: "M2" }],
+    });
+
+    // The whole point: structure and sequencing in one call. Three separate
+    // calls is how five workstreams ended up beside a roadmap that
+    // referenced none of them.
+    const projectId = await t.mutation(api.agentApi.createProject, {
+      apiKey: AGENT_KEY,
+      spaceId,
+      name: "Ingest pipeline",
+      description: "Everything that gets data in",
+      targetDate: 1_800_000_000_000,
+      roadmapId: roadmap.roadmapId,
+      phaseId: roadmap.phases[1].id,
+    });
+
+    const roadmaps = await t.query(api.agentApi.getRoadmaps, {
+      apiKey: AGENT_KEY,
+    });
+    const rm = roadmaps.find((r) => r.roadmapId === roadmap.roadmapId)!;
+    expect(rm.projects).toHaveLength(1);
+    expect(rm.projects[0]).toMatchObject({
+      projectId,
+      name: "Ingest pipeline",
+      phaseId: roadmap.phases[1].id,
+      targetDate: 1_800_000_000_000,
+    });
+
+    // And the project itself carries the placement, so the link reads the
+    // same from either direction.
+    const project = await t.run(async (ctx) => await ctx.db.get(projectId));
+    expect(project?.roadmapId).toBe(roadmap.roadmapId);
+    expect(project?.roadmapPhaseId).toBe(roadmap.phases[1].id);
+  });
+});

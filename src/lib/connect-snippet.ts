@@ -13,7 +13,8 @@ export function snippetFor(
       // been published, so everyone who followed this block failed before
       // reaching us. mcp-remote is a published, maintained stdio<->HTTP
       // bridge that does the same job, so the instructions work today rather
-      // than after a release.
+      // than after a release. If you ever do publish mcp/, this is the one
+      // place to change; nothing else names a bridge.
       return JSON.stringify(
         {
           mcpServers: {

@@ -27,10 +27,22 @@ import {
 // all live server-side there. stdio-only clients can use the proxy in
 // mcp/ (npx-runnable) which bridges stdio ↔ this endpoint.
 
+// One client per warm lambda, not one per call.
+//
+// This used to construct a ConvexHttpClient on every invocation — the auth
+// handler plus every tool call — which threw away the HTTP keep-alive pool
+// each time and paid a fresh TLS handshake to Convex per request. An agent
+// doing a normal task makes a dozen calls in a row; that is a dozen
+// handshakes it does not need. The client holds no per-request state, so
+// sharing it is safe: the API key travels as a function argument.
+let sharedConvexClient: ConvexHttpClient | null = null;
+
 function convexClient(): ConvexHttpClient {
+  if (sharedConvexClient) return sharedConvexClient;
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not configured");
-  return new ConvexHttpClient(url);
+  sharedConvexClient = new ConvexHttpClient(url);
+  return sharedConvexClient;
 }
 
 // The MCP boundary passes through JSON arguments; the Convex validators in
@@ -403,11 +415,23 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "create_project",
-    description: "Create a project inside a space to group lists.",
-    shape: { spaceId: z.string(), name: z.string() },
+    description:
+      "Create a Project inside a Space. A Project is the unit of work people name (\"the billing migration\"); Lists are the boards of tasks inside it. Pass roadmapId (and optionally phaseId) to place it on the roadmap in the same call — do that rather than creating projects and a roadmap separately, or you get two descriptions of the same work that reference nothing.",
+    shape: {
+      spaceId: z.string(),
+      name: z.string(),
+      description: z.string().optional(),
+      targetDate: z.number().optional().describe("epoch ms"),
+      roadmapId: z.string().optional(),
+      phaseId: z
+        .string()
+        .optional()
+        .describe("phase id from get_roadmaps; defaults to the first phase"),
+    },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.createProject), { apiKey: k, ...a }),
   },
+
   {
     name: "rename_project",
     description:
@@ -1607,13 +1631,13 @@ const TOOLS: ToolDef[] = [
   {
     name: "assign_project_to_phase",
     description:
-      "Legacy-compatible alias for assign_list_to_phase. Put a List into a roadmap phase, or pull it out with roadmapId null.",
+      "Put a Project into a roadmap phase, or pull it out with roadmapId null. This is what mechanically connects a roadmap to the workstreams under it — without it the roadmap and the projects describe the same work while referencing nothing. create_project can do this in one step via roadmapId/phaseId.",
     shape: {
-      listId: z.string(),
+      projectId: z.string(),
       roadmapId: z
         .string()
         .nullable()
-        .describe("null removes the list from its roadmap"),
+        .describe("null removes the project from its roadmap"),
       phaseId: z
         .string()
         .optional()
@@ -1628,17 +1652,11 @@ const TOOLS: ToolDef[] = [
   {
     name: "assign_list_to_phase",
     description:
-      "Put a List into a roadmap phase, or pull it out with roadmapId null. Roadmaps sequence existing Lists; they do not create or own another hierarchy container.",
+      "Deprecated: roadmaps sequence Projects, not Lists. Use assign_project_to_phase with a projectId.",
     shape: {
-      listId: z.string(),
-      roadmapId: z
-        .string()
-        .nullable()
-        .describe("null removes the list from its roadmap"),
-      phaseId: z
-        .string()
-        .optional()
-        .describe("phase id from get_roadmaps; defaults to the first phase"),
+      projectId: z.string(),
+      roadmapId: z.string().nullable(),
+      phaseId: z.string().optional(),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.assignProjectToPhase), {
@@ -1646,6 +1664,7 @@ const TOOLS: ToolDef[] = [
         ...a,
       }),
   },
+
 
   // ── Scheduled recurring tasks ────────────────────────────────────
   {

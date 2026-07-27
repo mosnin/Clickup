@@ -3,12 +3,22 @@
 // Forwards tools (tools/list, tools/call) and resources (resources/list,
 // resources/templates/list, resources/read — the skill:// playbooks).
 //
-// For MCP clients that only speak stdio. Clients that support remote
-// servers should connect straight to the URL instead.
+// NOT PUBLISHED TO NPM. This is a local development tool, run from a
+// checkout. `npx operate-mcp` does not work and never did — that name was
+// documented before the package existed, which sent everyone who followed
+// the instructions to an npm 404. If you need a stdio bridge and do not
+// have this repo, use the published `mcp-remote` instead:
 //
-// Usage (e.g. in an MCP client config):
 //   command: "npx"
-//   args: ["operate-mcp"]           (or "node mcp/index.mjs")
+//   args: ["-y", "mcp-remote", "https://<your-app>/api/mcp",
+//          "--header", "Authorization: Bearer cua_..."]
+//
+// Clients that speak Streamable HTTP should skip the bridge entirely and
+// point at the URL with an Authorization header.
+//
+// Usage from a checkout:
+//   command: "node"
+//   args: ["mcp/index.mjs"]
 //   env:
 //     OPERATE_MCP_URL: "https://<your-app>/api/mcp"
 //     OPERATE_API_KEY: "cua_..."
@@ -42,7 +52,7 @@ if (!url || !apiKey) {
   process.exit(1);
 }
 
-const upstream = new Client({ name: "operate-mcp-proxy", version: "1.0.0" });
+const upstream = new Client({ name: "operate-mcp-stdio-proxy", version: "1.0.0" });
 await upstream.connect(
   new StreamableHTTPClientTransport(new URL(url), {
     requestInit: { headers: { Authorization: `Bearer ${apiKey}` } },

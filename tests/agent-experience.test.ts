@@ -94,10 +94,16 @@ async function setupWorkspace() {
       position: 0,
       createdAt: Date.now(),
     });
+    const projectId = await ctx.db.insert("projects", {
+      name: "Launch",
+      spaceId,
+      position: 0,
+      createdAt: Date.now(),
+    });
     const listId = await ctx.db.insert("lists", {
       name: "Launch",
-      parentType: "space",
-      parentId: spaceId,
+      parentType: "project",
+      parentId: projectId,
       position: 0,
       createdAt: Date.now(),
     });
@@ -134,7 +140,15 @@ async function setupWorkspace() {
       keyPrefix: apiKey.slice(0, 12),
       createdAt: Date.now(),
     });
-    return { workspaceId, spaceId, listId, roadmapId, agentId, apiKey };
+    return {
+      workspaceId,
+      spaceId,
+      projectId,
+      listId,
+      roadmapId,
+      agentId,
+      apiKey,
+    };
   });
   return { t, ...ids };
 }
@@ -307,11 +321,11 @@ describe("self-correcting refusals", () => {
 
 describe("roadmaps over the agent API", () => {
   it("assigns a project to a phase and reads it back", async () => {
-    const { t, listId, roadmapId, apiKey } = await setupWorkspace();
+    const { t, projectId, roadmapId, apiKey } = await setupWorkspace();
 
     await t.mutation(api.agentApi.assignProjectToPhase, {
       apiKey,
-      listId,
+      projectId,
       roadmapId,
       phaseId: "ph_next",
     });
@@ -323,7 +337,7 @@ describe("roadmaps over the agent API", () => {
     expect(rm.phases.map((p) => p.name)).toEqual(["Now", "Next"]);
     expect(rm.projects).toHaveLength(1);
     expect(rm.projects[0]).toMatchObject({
-      listId,
+      projectId,
       name: "Launch",
       phaseId: "ph_next",
       position: 0,
@@ -335,7 +349,7 @@ describe("roadmaps over the agent API", () => {
     await expect(
       t.mutation(api.agentApi.assignProjectToPhase, {
         apiKey,
-        listId,
+        projectId,
         roadmapId,
         phaseId: "ph_gone",
       }),
@@ -344,7 +358,7 @@ describe("roadmaps over the agent API", () => {
     // Unassign with roadmapId: null.
     await t.mutation(api.agentApi.assignProjectToPhase, {
       apiKey,
-      listId,
+      projectId,
       roadmapId: null,
     });
     const after = await t.query(api.agentApi.getRoadmaps, { apiKey });

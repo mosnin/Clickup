@@ -98,7 +98,7 @@ function errText(e: unknown): string {
 
 describe("agent roadmap authoring", () => {
   it("creates a roadmap with explicit phases (no Now/Next/Later defaults)", async () => {
-    const { t, apiKey, listId } = await setupWorkspace();
+    const { t, apiKey, spaceId } = await setupWorkspace();
     const created = await t.mutation(api.agentApi.createRoadmap, {
       apiKey,
       name: "Nimbus",
@@ -125,14 +125,18 @@ describe("agent roadmap authoring", () => {
       phaseId,
       targetDate: 1_900_000_000_000,
     });
-    await t.mutation(api.agentApi.assignProjectToPhase, {
+    // Roadmaps sequence Projects, so this needs one — and creating it with
+    // roadmapId placed is the single-call path the tools now advertise.
+    const roadmapProjectId = await t.mutation(api.agentApi.createProject, {
       apiKey,
-      listId,
+      spaceId,
+      name: "Launch workstream",
       roadmapId: created.roadmapId,
       phaseId: created.phases[0].id,
     });
     const roadmaps = await t.query(api.agentApi.getRoadmaps, { apiKey });
     const rm = roadmaps.find((r) => r.roadmapId === created.roadmapId)!;
+    expect(rm.projects.map((p) => p.projectId)).toContain(roadmapProjectId);
     expect(rm.phases).toHaveLength(3);
     expect(rm.phases[2].targetDate).toBe(1_900_000_000_000);
     expect(rm.projects[0].phaseId).toBe(created.phases[0].id);

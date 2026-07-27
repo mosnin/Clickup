@@ -1,10 +1,10 @@
 {
-  "name": "operate-mcp",
+  "name": "@operate/mcp-stdio-proxy",
   "version": "1.0.0",
-  "description": "stdio proxy for the hosted operate.to agents MCP endpoint",
+  "description": "Local stdio proxy for the hosted operate.to MCP endpoint. NOT published to npm \u2014 see README.",
   "type": "module",
-  "bin": { "operate-mcp": "./index.mjs" },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0"
-  }
+  },
+  "private": true
 }

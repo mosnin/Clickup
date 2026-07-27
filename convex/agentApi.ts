@@ -448,7 +448,7 @@ function textToTiptap(text: string): unknown {
 export const whoami = query({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { agent, key } = await requireAgentByKey(ctx, apiKey);
     let scopeName = "Personal space";
     if (agent.parentType === "workspace") {
       const ws = await ctx.db.get(agent.parentId as Id<"workspaces">);
@@ -513,9 +513,36 @@ export const whoami = query({
       lastConnectedAt: agent.lastConnectedAt,
       lastHeartbeatAt: agent.lastHeartbeatAt,
       role,
+      // Declared specialties used to match work to agents. This is NOT a
+      // permission list — an empty array means "no declared specialty", not
+      // "no authority". Effective authority is `permissions` below, which
+      // exists because reading an empty `capabilities` next to broad
+      // workspace mutation rights is genuinely misleading.
       capabilities: agent.capabilities ?? [],
       maxConcurrentTasks: agent.maxConcurrentTasks ?? 1,
       allowedLists,
+      // What this credential can actually do, stated rather than inferred.
+      // Every field mirrors a check that would otherwise only surface as a
+      // refusal at call time.
+      permissions: {
+        read: true,
+        // readonly agents may call every read tool and no mutation.
+        write: role !== "readonly",
+        // Structure = spaces, projects, lists, roadmaps, sprints. A
+        // list-restricted agent is refused these outright, because creating
+        // structure is not scopeable to a list.
+        manageStructure: role !== "readonly" && allowedLists === null,
+        // Writing tasks/comments/pages, within allowedLists when set.
+        writeTasks: role !== "readonly",
+        restrictedToLists: allowedLists !== null,
+        // Approval is deliberately one-directional: an agent may raise a
+        // gate and report work as ready, never approve it.
+        canRequestApproval: role !== "readonly",
+        canApprove: false,
+        // Revisions mirror the same asymmetry.
+        canAddressRevisions: role !== "readonly",
+        canAcceptRevisions: false,
+      },
       dailyActionLimit,
       actionsUsedToday,
       actionsRemainingToday: Math.max(0, dailyActionLimit - actionsUsedToday),
@@ -525,8 +552,25 @@ export const whoami = query({
         creditsBalance: wallet ? wallet.balance : null,
         creditsPerAction,
       },
+      // Provenance: which credential is talking and what it will change.
+      // A key is bound to exactly one scope and cannot be pointed at
+      // another, so "which workspace am I about to modify" has a single
+      // answer — but the caller has to be able to see it before acting,
+      // not discover it from the results.
+      connection: {
+        // A credential is either a minted API key or an OAuth access token.
+        // Which one is in play changes how it was obtained and how it is
+        // revoked, so the caller should not have to guess.
+        authMethod: "keyPrefix" in key ? ("api_key" as const) : ("oauth" as const),
+        keyPrefix: "keyPrefix" in key ? key.keyPrefix : null,
+        // The one sentence a human needs when a connector is bound to the
+        // wrong place: this is what you are editing.
+        boundTo: `${agent.name} in ${scopeName}`,
+        scopeIsSwitchable: false,
+        note: "This API key is permanently bound to the scope above. To act in a different workspace, use that workspace's own key — there is no scope selector.",
+      },
       firstSteps:
-        "New here? Fetch the collaboration-protocol skill, find work with next_task, read get_task, acknowledge its context versions, then claim and heartbeat while working.",
+        "New here? Confirm `connection.boundTo` is the workspace you mean before writing anything. Then fetch the collaboration-protocol skill, find work with next_task, read get_task, acknowledge its context versions, and claim and heartbeat while working.",
     };
   },
 });
@@ -766,12 +810,78 @@ export const createSpace = mutation({
 // picks up the core's append-after-max positioning instead of a row count
 // that collides once a project has been deleted.
 export const createProject = mutation({
-  args: { apiKey: v.string(), spaceId: v.id("spaces"), name: v.string() },
-  handler: async (ctx, { apiKey, spaceId, name }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
+  args: {
+    apiKey: v.string(),
+    spaceId: v.id("spaces"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    targetDate: v.optional(v.number()),
+    // Roadmap placement at creation time. A workstream that has to be
+    // created, then described, then assigned to a phase in three separate
+    // calls is a workstream that ends up on no roadmap at all — which is
+    // exactly how five AI Tutor workstreams existed beside a roadmap that
+    // never referenced them.
+    roadmapId: v.optional(v.id("roadmaps")),
+    phaseId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     requireUnrestricted(agent);
-    const { space } = await requireSpaceAccessForAgent(ctx, spaceId, agent);
-    return await createProjectCore(ctx, space, name, agentActor(agent));
+    const { space } = await requireSpaceAccessForAgent(
+      ctx,
+      args.spaceId,
+      agent,
+    );
+    const actor = agentActor(agent);
+    const projectId = await createProjectCore(ctx, space, args.name, actor, {
+      description: args.description,
+    });
+
+    if (args.targetDate !== undefined) {
+      const project = (await ctx.db.get(projectId))!;
+      await updateProjectMetaCore(
+        ctx,
+        project,
+        space,
+        { targetDate: args.targetDate },
+        actor,
+      );
+    }
+
+    if (args.roadmapId !== undefined) {
+      if (space.parentType !== "workspace") {
+        throw new ConvexError("Only workspace projects can join a roadmap");
+      }
+      const roadmap = await ctx.db.get(args.roadmapId);
+      if (!roadmap || roadmap.workspaceId !== space.parentId) {
+        throw new ConvexError("Roadmap belongs to a different workspace");
+      }
+      const phase =
+        args.phaseId !== undefined
+          ? roadmap.phases.find((p) => p.id === args.phaseId)
+          : roadmap.phases[0];
+      if (!phase) {
+        throw new ConvexError(
+          args.phaseId !== undefined
+            ? "Phase not found"
+            : "Roadmap has no phases",
+        );
+      }
+      const siblings = await ctx.db
+        .query("projects")
+        .withIndex("by_roadmap", (q) => q.eq("roadmapId", roadmap._id))
+        .collect();
+      const maxPosition = siblings
+        .filter((p) => p.roadmapPhaseId === phase.id)
+        .reduce((m, p) => Math.max(m, p.roadmapPosition ?? 0), -1);
+      await ctx.db.patch(projectId, {
+        roadmapId: roadmap._id,
+        roadmapPhaseId: phase.id,
+        roadmapPosition: maxPosition + 1,
+      });
+    }
+
+    return projectId;
   },
 });
 
@@ -4062,13 +4172,13 @@ export const getRoadmaps = query({
     const out = [];
     for (const rm of roadmaps) {
       const assigned = await ctx.db
-        .query("lists")
+        .query("projects")
         .withIndex("by_roadmap", (q) => q.eq("roadmapId", rm._id))
         .collect();
       const projects = [];
-      for (const list of assigned) {
-        if (!agentCanTouchList(agent, list._id)) continue;
-        const space = await getSpaceForList(ctx, list);
+      for (const project of assigned) {
+        if (project.archivedAt !== undefined) continue;
+        const space = await ctx.db.get(project.spaceId);
         if (
           !space ||
           space.parentType !== "workspace" ||
@@ -4077,14 +4187,32 @@ export const getRoadmaps = query({
           continue;
         }
         if (space.archivedAt !== undefined) continue;
-        const rollup = await getRollup(ctx, list._id);
+        // A project's progress is the sum of its lists', so a roadmap row
+        // reports the workstream rather than one board inside it.
+        const lists = await ctx.db
+          .query("lists")
+          .withIndex("by_parent", (q) =>
+            q.eq("parentType", "project").eq("parentId", project._id),
+          )
+          .collect();
+        let total = 0;
+        let done = 0;
+        for (const l of lists) {
+          if (!agentCanTouchList(agent, l._id)) continue;
+          const rollup = await getRollup(ctx, l._id);
+          total += rollup?.total ?? 0;
+          done += rollup?.done ?? 0;
+        }
         projects.push({
-          listId: list._id,
-          name: list.name,
-          phaseId: list.roadmapPhaseId,
-          position: list.roadmapPosition ?? 0,
-          total: rollup?.total ?? 0,
-          done: rollup?.done ?? 0,
+          projectId: project._id,
+          name: project.name,
+          projectStatus: project.projectStatus ?? null,
+          targetDate: project.targetDate ?? null,
+          listCount: lists.length,
+          phaseId: project.roadmapPhaseId,
+          position: project.roadmapPosition ?? 0,
+          total,
+          done,
         });
       }
       projects.sort((a, b) => a.position - b.position);
@@ -4103,10 +4231,13 @@ export const getRoadmaps = query({
 // Put a project (list) into a roadmap phase, or pull it out with
 // roadmapId: null. Structure-level: off-limits to list-restricted agents.
 // Mirrors the validation in roadmaps.assignProject.
+// Roadmaps sequence Projects. This used to take a listId, back when a list
+// WAS a project; keeping that signature after the split is how a roadmap and
+// its workstreams end up describing the same work without being connected.
 export const assignProjectToPhase = mutation({
   args: {
     apiKey: v.string(),
-    listId: v.id("lists"),
+    projectId: v.id("projects"),
     roadmapId: v.union(v.id("roadmaps"), v.null()),
     phaseId: v.optional(v.string()),
   },
@@ -4116,13 +4247,13 @@ export const assignProjectToPhase = mutation({
     if (agent.parentType !== "workspace") {
       throw new ConvexError("Roadmaps require a workspace-scoped agent");
     }
-    const { space } = await requireListAccessForAgent(
+    const { space } = await requireProjectAccessForAgent(
       ctx,
-      args.listId,
+      args.projectId,
       agent,
     );
     if (args.roadmapId === null) {
-      await ctx.db.patch(args.listId, {
+      await ctx.db.patch(args.projectId, {
         roadmapId: undefined,
         roadmapPhaseId: undefined,
         roadmapPosition: undefined,
@@ -4148,29 +4279,24 @@ export const assignProjectToPhase = mutation({
       );
     }
     const siblings = await ctx.db
-      .query("lists")
+      .query("projects")
       .withIndex("by_roadmap", (q) => q.eq("roadmapId", roadmap._id))
       .collect();
     const inPhase = siblings.filter(
-      (l) => l.roadmapPhaseId === phase.id && l._id !== args.listId,
+      (p) => p.roadmapPhaseId === phase.id && p._id !== args.projectId,
     );
     // max+1, not count: unassigns leave gaps, so length would collide.
     const maxPosition = inPhase.reduce(
-      (m, l) => Math.max(m, l.roadmapPosition ?? 0),
+      (m, p) => Math.max(m, p.roadmapPosition ?? 0),
       -1,
     );
-    await ctx.db.patch(args.listId, {
+    await ctx.db.patch(args.projectId, {
       roadmapId: roadmap._id,
       roadmapPhaseId: phase.id,
       roadmapPosition: maxPosition + 1,
     });
   },
 });
-
-// ── Roadmap authoring (Phase N) ────────────────────────────────────────
-// The other half of the roadmap surface: agents could already read and
-// place projects, now they can build the timeline itself. Structure-level:
-// off-limits to list-restricted agents, workspace scope required.
 
 async function requireRoadmapForAgent(
   ctx: QueryCtx | MutationCtx,
@@ -5216,14 +5342,12 @@ export const createExecutionPlan = mutation({
     const phaseIds = new Map(
       phases.map((phase, index) => [phase.ref, roadmap.phases[index].id]),
     );
-    const siblings = await ctx.db
-      .query("lists")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "space").eq("parentId", args.spaceId),
-      )
+    const siblingProjects = await ctx.db
+      .query("projects")
+      .withIndex("by_space", (q) => q.eq("spaceId", args.spaceId))
       .collect();
-    const nextListPosition = siblings.reduce(
-      (max, list) => Math.max(max, list.position + 1),
+    const nextProjectPosition = siblingProjects.reduce(
+      (max, project) => Math.max(max, project.position + 1),
       0,
     );
     const phasePositions = new Map<string, number>();
@@ -5238,11 +5362,14 @@ export const createExecutionPlan = mutation({
       const phaseId = phaseIds.get(project.phaseRef)!;
       const roadmapPosition = phasePositions.get(phaseId) ?? 0;
       phasePositions.set(phaseId, roadmapPosition + 1);
-      const listId = await ctx.db.insert("lists", {
+      // A workstream materializes as a Project ON the roadmap, with one
+      // List inside it holding the tasks. It used to be a bare list wearing
+      // the roadmap fields, which is why a plan's roadmap and its
+      // workstreams could both exist and reference nothing.
+      const createdProjectId = await ctx.db.insert("projects", {
         name: project.name,
-        parentType: "space",
-        parentId: args.spaceId,
-        position: nextListPosition + projectIndex,
+        spaceId: args.spaceId,
+        position: nextProjectPosition + projectIndex,
         createdAt: Date.now(),
         roadmapId,
         roadmapPhaseId: phaseId,
@@ -5251,6 +5378,14 @@ export const createExecutionPlan = mutation({
         projectStatus: project.projectStatus ?? "on_track",
         ownerActorId: project.ownerActorId,
         targetDate: project.targetDate,
+      });
+      const listId = await ctx.db.insert("lists", {
+        name: project.name,
+        parentType: "project",
+        parentId: createdProjectId,
+        position: 0,
+        createdAt: Date.now(),
+        description: project.description,
       });
       await seedDefaultStatuses(ctx, listId, space.defaultStatuses);
       const list = (await ctx.db.get(listId))!;
