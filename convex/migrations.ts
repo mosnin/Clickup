@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 
@@ -208,5 +208,133 @@ export const foldersToProjects = internalMutation({
     }
 
     return report;
+  },
+});
+
+/**
+ * Invariant check for the Project layer, safe to run any time.
+ *
+ * Read-only. Exists because the migration ran against live data: "it
+ * reported the right counts" is not the same claim as "nothing is orphaned".
+ * Every finding here is something a user would eventually hit as a broken
+ * page or a missing row.
+ */
+export const auditProjectLayer = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const problems: { kind: string; id: string; detail: string }[] = [];
+
+    const projects = await ctx.db.query("projects").collect();
+    const lists = await ctx.db.query("lists").collect();
+    const folders = await ctx.db.query("folders").collect();
+
+    const spaceIds = new Set(
+      (await ctx.db.query("spaces").collect()).map((s) => s._id as string),
+    );
+    const projectIds = new Set(projects.map((p) => p._id as string));
+
+    // 1. Nothing should still be parented to a folder, and no folders left.
+    for (const l of lists) {
+      if (l.parentType === "folder") {
+        problems.push({
+          kind: "list_still_in_folder",
+          id: l._id,
+          detail: `"${l.name}" still has parentType "folder"`,
+        });
+      }
+    }
+    for (const f of folders) {
+      problems.push({
+        kind: "folder_row_remains",
+        id: f._id,
+        detail: `folder "${f.name}" was not converted`,
+      });
+    }
+
+    // 2. Every list's parent must exist. A dangling parentId renders as a
+    // list that loads nowhere.
+    for (const l of lists) {
+      const ok =
+        l.parentType === "space"
+          ? spaceIds.has(l.parentId)
+          : l.parentType === "project"
+            ? projectIds.has(l.parentId)
+            : false;
+      if (!ok) {
+        problems.push({
+          kind: "orphan_list",
+          id: l._id,
+          detail: `"${l.name}" points at missing ${l.parentType} ${l.parentId}`,
+        });
+      }
+    }
+
+    // 3. Every project must sit in a real space.
+    for (const p of projects) {
+      if (!spaceIds.has(p.spaceId)) {
+        problems.push({
+          kind: "orphan_project",
+          id: p._id,
+          detail: `"${p.name}" points at missing space ${p.spaceId}`,
+        });
+      }
+    }
+
+    // 4. Project identity must live in exactly one place. A list still
+    // carrying it means two sources of truth that will disagree.
+    for (const l of lists) {
+      const stale = MOVED_FIELDS.filter(
+        (f) => (l as Record<string, unknown>)[f] !== undefined,
+      );
+      if (stale.length > 0) {
+        problems.push({
+          kind: "list_retains_project_identity",
+          id: l._id,
+          detail: `"${l.name}" still carries ${stale.join(", ")}`,
+        });
+      }
+    }
+
+    // 5. Roadmap membership must point at a roadmap that exists, and at a
+    // phase that still exists on it.
+    const roadmaps = new Map(
+      (await ctx.db.query("roadmaps").collect()).map((r) => [r._id as string, r]),
+    );
+    for (const p of projects) {
+      if (p.roadmapId === undefined) continue;
+      const rm = roadmaps.get(p.roadmapId as string);
+      if (!rm) {
+        problems.push({
+          kind: "project_points_at_missing_roadmap",
+          id: p._id,
+          detail: `"${p.name}" references roadmap ${p.roadmapId}`,
+        });
+        continue;
+      }
+      if (
+        p.roadmapPhaseId !== undefined &&
+        !rm.phases.some((ph) => ph.id === p.roadmapPhaseId)
+      ) {
+        problems.push({
+          kind: "project_points_at_missing_phase",
+          id: p._id,
+          detail: `"${p.name}" references phase ${p.roadmapPhaseId} on "${rm.name}"`,
+        });
+      }
+    }
+
+    return {
+      counts: {
+        projects: projects.length,
+        lists: lists.length,
+        listsInProjects: lists.filter((l) => l.parentType === "project").length,
+        listsInSpaces: lists.filter((l) => l.parentType === "space").length,
+        foldersRemaining: folders.length,
+        projectsOnRoadmaps: projects.filter((p) => p.roadmapId !== undefined)
+          .length,
+      },
+      healthy: problems.length === 0,
+      problems,
+    };
   },
 });
