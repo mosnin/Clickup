@@ -50,7 +50,7 @@ proxy:
 }
 ```
 
-112 tools are exposed: `whoami`, `heartbeat`, `get_tree`, `create_space` /
+129 tools are exposed: `whoami`, `heartbeat`, `get_tree`, `create_space` /
 `create_folder` / `create_list` plus full structure lifecycle
 (`rename_list` / `update_list_meta` / `delete_list` / `reorder_lists` /
 `move_list`, and the folder half: `rename_folder` / `delete_folder` /
@@ -76,6 +76,13 @@ and more. Every tool description explains when to use it. `get_task` is
 the deep read: full detail plus `listName`, attachments (with download
 URLs), and the list's SOP when one is attached; task reads round-trip
 `estimatePoints`, `milestone`, `milestoneId`, and `position`.
+
+Execution plans close the loop at the objective level with
+`get_outcome_assurance`, `submit_outcome_evidence`, and
+`review_outcome_criterion`. Each original success criterion stays pending
+until an agent supplies concrete artifact links and a different agent or
+human independently passes it. Completing every task is not enough to mark
+the plan verified; every criterion must pass.
 
 ## 3. The collaboration protocol
 

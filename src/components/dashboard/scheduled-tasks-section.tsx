@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
+import { scheduleFailureMessage } from "@/lib/schedule-errors";
 
 // List-settings section for time-based recurring tasks ("every Monday
 // 09:00 UTC create X"). The cron in convex/crons.ts materializes them.
@@ -28,6 +29,7 @@ function fmtHourUtc(hourUtc: number): string {
 }
 
 function describeSchedule(st: Doc<"scheduledTasks">): string {
+  if (st.cadence === "hourly") return "Every hour";
   const at = fmtHourUtc(st.hourUtc);
   if (st.cadence === "daily") return `Daily at ${at}`;
   if (st.cadence === "weekly") {
@@ -78,6 +80,15 @@ export function ScheduledTasksSection({ listId }: { listId: Id<"lists"> }) {
               {describeSchedule(st)}
               {st.dueInDays !== undefined && ` · due in ${st.dueInDays}d`}
             </span>
+            {st.lastError && (
+              <span
+                className="max-w-64 truncate rounded-full bg-pastel-red px-2.5 py-0.5 text-xs text-neutral-900"
+                title={scheduleFailureMessage(st.lastError)}
+              >
+                Failed {st.consecutiveFailures ?? 1}× ·{" "}
+                {st.enabled ? "retrying" : "resume to retry"}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => update({ scheduledTaskId: st._id, enabled: !st.enabled })}
@@ -120,9 +131,9 @@ function CreateScheduleForm({
   const create = useMutation(api.scheduledTasks.create);
   const { toast } = useToast();
   const [title, setTitle] = useState("");
-  const [cadence, setCadence] = useState<"daily" | "weekly" | "monthly">(
-    "weekly",
-  );
+  const [cadence, setCadence] = useState<
+    "hourly" | "daily" | "weekly" | "monthly"
+  >("weekly");
   const [dayOfWeek, setDayOfWeek] = useState(1);
   const [dayOfMonth, setDayOfMonth] = useState(1);
   const [hourUtc, setHourUtc] = useState(9);
@@ -175,6 +186,7 @@ function CreateScheduleForm({
           }
           className="rounded-full border border-border bg-background px-3 py-1.5 text-sm"
         >
+          <option value="hourly">Hourly</option>
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
@@ -213,19 +225,21 @@ function CreateScheduleForm({
           />
         </label>
       )}
-      <label className="block">
-        <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Hour (UTC)
-        </span>
-        <input
-          type="number"
-          min={0}
-          max={23}
-          value={hourUtc}
-          onChange={(e) => setHourUtc(Number(e.currentTarget.value))}
-          className="w-20 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
-        />
-      </label>
+      {cadence !== "hourly" && (
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Hour (UTC)
+          </span>
+          <input
+            type="number"
+            min={0}
+            max={23}
+            value={hourUtc}
+            onChange={(e) => setHourUtc(Number(e.currentTarget.value))}
+            className="w-20 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          />
+        </label>
+      )}
       <label className="block">
         <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Due in (days)

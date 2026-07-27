@@ -31,13 +31,15 @@ export const BUILTIN_SKILLS: Omit<SkillShape, "builtin" | "enabled">[] = [
 You are one of several agents (and humans) working in this workspace. Follow this loop for every piece of work:
 
 1. **Find work**: \`next_task\` picks the best open, unclaimed, unblocked task for you (assignments first, then unassigned). Also check \`list_my_mentions\` for direct requests.
-2. **Claim before working**: call \`claim_task\` before you start. If it fails, the task is taken, move on. Claims expire after 60 minutes, so re-claim if a long task runs past that.
-3. **Open a run**: \`start_run\` with a one-line title so humans can audit the session later; \`finish_run\` with succeeded/failed + a summary when done.
-4. **Show your status**: call \`heartbeat\` with \`currentTaskId\` and a short \`statusText\` ("writing migration script…") every few minutes. Humans watch this live; going silent for 30+ minutes gets you flagged as stalled and your claim eventually expires.
-5. **Narrate meaningful progress**: post \`add_comment\` on the task when you finish a step, hit a blocker, or make a decision worth recording. Mention people with \`@[Name](id)\` tokens (get ids from \`list_members\`). For longer multi-agent discussion, open a topic channel (\`create_channel\`) instead of flooding the main chat.
-6. **Respect dependencies and gates**: \`get_task\` shows \`blockedByTaskIds\` and \`requiresApproval\`. Completing is refused while a blocker is open. If a task needs approval, finish the work, tick the checklist, then call \`request_approval\` with a note on what to review, it lands in the humans' inbox and emails them. The \`task.approved\` event tells you when to \`complete_task\`. Report artifacts (PR links, docs) and cost via \`finish_run\`.
-7. **Finish cleanly**: tick acceptance criteria with \`set_checklist\`, then \`complete_task\`. Completing releases your claim automatically.
-8. **Hand off when stuck**: \`handoff_task\` with a note covering state, what you tried, and what's left. If something breaks and you can't proceed, \`report_error\`, never just go quiet.
+2. **Load and acknowledge the source of truth**: \`get_task\` returns every attached \`contextPacket\` in full plus \`contextReadiness\`. Read every packet, then call \`acknowledge_task_context\` with every packet id and exact version. This receipt is an execution invariant: a later packet edit makes you stale, and Operate refuses claim/start/complete until you re-read and acknowledge. Treat packet objectives and constraints as authoritative and record versions in your run summary.
+3. **Absorb decision changes explicitly**: inspect the task's \`decisions\` (or call \`list_decisions_for_task\`). Read the active version, every superseded version relevant to the task, and the rationale. A pending impact is not permission to guess: call \`assess_decision_impact\` with \`no_change\` only when the task already conforms, or \`rework_required\` with a concrete note. Complete the rework and mark it \`resolved\` before execution continues. If you change operating policy, use \`create_decision\` or \`supersede_decision\`; never bury a policy reversal in a comment.
+4. **Claim before working**: call \`claim_task\` after context and decision impacts are current. If it fails because the task is taken, move on. Claims expire after 60 minutes, so re-claim if a long task runs past that.
+5. **Open a run**: \`start_run\` with a one-line title so humans can audit the session later. A task run requires your fresh claim and only one may be active per agent/task. \`finish_run\` exactly once with succeeded/failed/abandoned, a concise summary, and artifact URLs. An exact retry is safe; a conflicting terminal rewrite is refused. For dispatched plans this automatically updates the execution ledger visible through \`get_execution_control\`.
+6. **Show your status**: call \`heartbeat\` with \`currentTaskId\` and a short \`statusText\` ("writing migration script…") every few minutes. Humans watch this live; going silent for 30+ minutes gets you flagged as stalled and your claim eventually expires.
+7. **Narrate meaningful progress**: post \`add_comment\` on the task when you finish a step or hit a blocker. Record operating-policy changes with the decision tools, not only a comment. Mention people with \`@[Name](id)\` tokens (get ids from \`list_members\`). For longer multi-agent discussion, open a topic channel (\`create_channel\`) instead of flooding the main chat.
+8. **Respect dependencies and gates**: \`get_task\` shows \`blockedByTaskIds\` and \`requiresApproval\`. Completing is refused while a blocker is open. If a task needs approval, finish the work, tick the checklist, then call \`request_approval\` with a note on what to review, it lands in the humans' inbox and emails them. The \`task.approved\` event tells you when to \`complete_task\`. Report artifacts (PR links, docs) and cost via \`finish_run\`.
+9. **Finish cleanly**: tick acceptance criteria with \`set_checklist\`, then \`complete_task\`. Completing releases your claim automatically.
+10. **Hand off when stuck**: \`handoff_task\` with a note covering state, what you tried, what's left, the context-packet versions, and active decision versions you used. If something breaks and you can't proceed, \`report_error\`, never just go quiet.
 
 Etiquette: don't edit a task's description someone else owns without a comment; don't complete tasks with unchecked checklist items unless told to; keep statusText honest.`,
   },
@@ -103,6 +105,63 @@ Lists carry structured fields beyond title/status/priority, and a half-filled fi
 5. \`clear_task_field\` when a value is wrong and you have nothing better to put there. Empty is honest; a wrong value isn't.`,
   },
   {
+    slug: "execution-plan-compiler",
+    name: "Execution plan compiler",
+    description:
+      "Turn a confirmed conversation or brief into one auditable roadmap, multi-project task graph, and shared agent context without inventing missing facts.",
+    content: `# Execution plan compiler
+
+Use this when a human asks you to turn a conversation, transcript, PRD, or operating brief into a roadmap and parallel execution plan.
+
+## 1. Separate facts from inference
+
+Before creating anything, extract:
+
+- **Objective**: one outcome sentence.
+- **Success criteria**: observable tests that prove the outcome.
+- **Confirmed source context**: the relevant conversation/brief faithfully preserved.
+- **Assumptions**: every inference you need to make, explicitly labeled.
+- **Open questions**: unresolved decisions that agents must not silently guess.
+
+Do not bury an assumption inside a task description. If a missing answer changes architecture, scope, permissions, money, or an irreversible action, keep it in openQuestions and create an approval-gated decision task before dependent execution.
+
+## 2. Design the graph
+
+1. \`get_execution_policy\`, then \`get_tree\` for the destination workspace Space. Supervised work requires human plan approval. Bounded autonomy only policy-authorizes plans within its task ceiling that have no open questions and no approval-gated tasks.
+2. \`list_members\` for real human and agent ids, advertised capabilities, concurrency ceilings, and live load. Never invent assignee ids or assume a capability that is not listed.
+3. Define ordered roadmap phases with short refs.
+4. Define 1–12 projects. Each project belongs to one phase and has 1–50 tasks.
+5. Give every task a short ref unique inside its project.
+6. Use \`parentRef\` only for an earlier task in the same project.
+7. Use \`dependsOn: ["taskRef"]\` inside one project and \`dependsOn: ["otherProject.taskRef"]\` across projects.
+8. Put verifiable acceptance criteria in each task's checklist and explicit \`requiredCapabilities\` on specialized work. Use \`requiresApproval\` for decisions or high-impact changes.
+9. Assign only when an agent advertises every required capability. Independent tasks can run in parallel; express real ordering with dependencies instead of prose.
+
+## 3. Commit atomically
+
+Call \`create_execution_plan\` once with a stable idempotencyKey derived from the conversation/document id and revision. The call validates refs, scope, assignees, and dependency cycles before committing. It then creates:
+
+- one immutable provenance manifest;
+- one phased roadmap;
+- every project;
+- every task and subtask;
+- cross-project blockers;
+- one versioned operating brief per project, attached to every task.
+
+The call is transactional: any error creates nothing. Retry the exact same payload with the same idempotencyKey. If the plan changes, use a new key.
+
+## 4. Verify and launch
+
+1. \`get_execution_plan\` and compare counts, source, assumptions, open questions, review status, and generated ids to your intended graph.
+2. \`get_roadmaps\` to verify phase placement.
+3. Sample the critical-path tasks with \`get_task\`; confirm blockers, assignees, checklists, and attached operating brief.
+4. Read the returned authorization source and reason. Never trim tasks, hide uncertainty, or remove approval gates to qualify for autonomous authorization. An agent must never claim, fabricate, or change authorization.
+5. Call \`get_execution_readiness\` before releasing work. Require \`dispatchAuthorized\`; verify the active policy version and rolling capacity, then inspect capability gaps, exhausted capacity, dependency blocks, prior dispatch leases, and runtimes that require polling.
+6. Call \`dispatch_execution_wave\` with a stable wave idempotency key. If open questions remain, record exactly what was resolved, deferred, or bounded in \`openQuestionDisposition\`; never silently wave uncertainty through.
+7. Dispatched agents follow the collaboration protocol: read and acknowledge context, claim, start a run, heartbeat, and finish. Completing blockers makes the next wave eligible.
+8. Never dispatch an unresolved task merely because the graph exists. Open questions remain visible context until their disposition is auditable.`,
+  },
+  {
     slug: "project-kickoff",
     name: "Project kickoff",
     description:
@@ -112,15 +171,16 @@ Lists carry structured fields beyond title/status/priority, and a half-filled fi
 Input: a short brief (goal, rough deadline, who's involved).
 
 0. **Don't start from a blank page**: \`list_templates\` first, filtered by \`useCase\` or \`search\` against the brief. The Template Center covers lists (with their statuses, fields, and starter tasks), single tasks, docs, whiteboards, and saved view presets. \`get_template(slug)\` shows exactly what a slug will create before you commit; \`apply_template(slug, destinationType, destinationId, name?)\` creates it — a list template into a space or folder, a task or view template onto a list, a doc or whiteboard into a space. Applying a template is the same write path as building by hand, so everything below still applies on top of it. Adopt the parts that fit, then fill the gaps with the steps below.
-1. **Roadmap first** (workspace scope): \`create_roadmap\` named after the project with explicit \`phases\` — one per milestone, each with a \`targetDate\` walking back from the deadline. This is the plan's spine; skip the Now/Next/Later defaults by passing your own phases.
+1. **Compile the confirmed brief first**: for a multi-project kickoff, fetch the \`execution-plan-compiler\` skill and use \`create_execution_plan\` once. It atomically creates the roadmap, phased projects, tasks/subtasks, cross-project dependencies, assignments, and attached operating briefs while preserving source context, assumptions, and open questions. Use the manual steps below only for additions or a deliberately bespoke structure.
 2. **Structure**: \`create_space\` named after the project. Inside it, \`create_list\` per milestone (or "Backlog" + "Milestones" for a small project). Group related lists with \`create_folder\`, and regroup later with \`move_list\` (into a folder, back out to the space, or over to a sibling — the destination must be in the same space). Then \`assign_project_to_phase\` to place each list on the roadmap, and \`update_list_meta\` to set each project's description and target date. Typo'd a name? \`rename_list\` / \`rename_folder\`. Wrong grouping? \`reorder_folders\` / \`reorder_lists\`, or \`delete_folder\` — that one only ungroups, every list inside moves up to the space with its tasks intact. Wrong shape entirely? \`delete_list\` and redo.
 3. **Checkpoints inside each project**: \`create_milestone\` per dated checkpoint of that project ("Design freeze", "Beta cut") with its \`targetDate\`. Roadmap phases sequence PROJECTS; milestones are the timeline INSIDE one project — use both when a project spans weeks. \`list_milestones\` shows derived progress (done/total of linked tasks) at any time.
 4. **Plan in bulk**: decompose each milestone with ONE \`create_tasks\` call — epic tasks flagged \`milestone: true\` with \`estimatePoints\` and due dates, subtasks nested via \`parentRef\`, and cross-task dependencies via \`dependsOn\` (refs or task ids, cross-list allowed). Encode quality gates ("p95 < 200ms") as \`checklist\` acceptance criteria. Then \`set_task_milestone\` each task onto the checkpoint it belongs to, so every milestone's progress moves on its own. Use \`reorder_tasks\` if execution order matters beyond dependencies.
 5. **Workflow fit**: need a stage or field the defaults lack? \`create_status\` (e.g. "QA", category in_progress) and \`create_custom_field\`. Fields are the project's structured memory — define them at kickoff, not after the data is already lost. The full type set: text, long_text, number, money (\`config.currency\`), dropdown, labels (multi-select), date, checkbox, email, phone, url, location, rating (\`config.ratingMax\`), progress, people, files, relationship (\`config.relationListId\`), voting, plus the computed \`rollup\` (sum/avg/count over subtasks or a relationship field) and \`formula\` (arithmetic over other numeric fields, written as \`{Field name} * 2\`). A kickoff usually wants at least: a "Severity" or "Impact" dropdown, an "Owner" people field, an "Effort" number, and a formula or rollup that turns those into one number humans can sort by. Then fill them as you create tasks (\`set_task_field\`) — \`list_custom_fields\` returns a \`writeHint\` per field naming the exact argument to send.
 6. **Track it**: \`create_goal\` with \`sourceListId\` pointing at the main list — progress then rolls up automatically from completed tasks. \`create_sprint\` for the first timebox and pull tasks in.
 7. **Kickoff doc**: \`create_doc\` titled "<Project>, brief" containing the goal, scope boundaries, milestone table, and links/ids of the milestone tasks. Write project conventions as a custom skill (\`create_skill\`) so future agents inherit them.
-8. **Recurring heartbeat**: \`create_scheduled_task\` for a weekly "<Project> status update" task assigned to yourself.
-9. **Announce**: workspace-chat comment mentioning everyone involved, linking the doc and the first tasks.`,
+8. **Shared context packet**: \`create_context_packet\` with the objective, non-goals, constraints, confirmed decisions, references, and open questions; attach it to every task created above in the same call. This is the compact source of truth agents load through \`get_task\`. Update the packet when a decision changes instead of copying new instructions into twenty descriptions.
+9. **Recurring heartbeat**: \`create_scheduled_task\` for a weekly "<Project> status update" task assigned to yourself.
+10. **Announce**: workspace-chat comment mentioning everyone involved, linking the doc and the first tasks.`,
   },
   {
     slug: "progress-reporter",

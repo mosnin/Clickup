@@ -97,6 +97,7 @@ async function requireScopeMembership(
   ctx: MutationCtx | Parameters<typeof requireIdentity>[0],
   scopeType: "user" | "workspace",
   scopeId: string,
+  mode: "read" | "manage" = "read",
 ): Promise<string> {
   const identity = await requireIdentity(ctx);
   if (scopeType === "user") {
@@ -113,6 +114,15 @@ async function requireScopeMembership(
       )
       .unique();
     if (!member) throw new ConvexError("Forbidden");
+    if (
+      mode === "manage" &&
+      member.role !== "owner" &&
+      member.role !== "admin"
+    ) {
+      throw new ConvexError(
+        "Only workspace owners and admins can manage webhooks",
+      );
+    }
   }
   return identity.subject;
 }
@@ -130,10 +140,12 @@ export const listForCurrentUser = query({
       .collect();
     const scopes = [
       { scopeType: "user" as const, scopeId: identity.subject },
-      ...memberships.map((m) => ({
-        scopeType: "workspace" as const,
-        scopeId: m.workspaceId as string,
-      })),
+      ...memberships
+        .filter((m) => m.role === "owner" || m.role === "admin")
+        .map((m) => ({
+          scopeType: "workspace" as const,
+          scopeId: m.workspaceId as string,
+        })),
     ];
     const chunks = await Promise.all(
       scopes.map((s) =>
@@ -164,6 +176,7 @@ export const create = mutation({
       ctx,
       args.scopeType,
       args.scopeId,
+      "manage",
     );
     return await createSubscription(ctx, {
       ...args,
@@ -183,7 +196,7 @@ export const update = mutation({
   handler: async (ctx, args) => {
     const sub = await ctx.db.get(args.subscriptionId);
     if (!sub) throw new ConvexError("Subscription not found");
-    await requireScopeMembership(ctx, sub.scopeType, sub.scopeId);
+    await requireScopeMembership(ctx, sub.scopeType, sub.scopeId, "manage");
     const patch: Record<string, unknown> = {};
     if (args.enabled !== undefined) {
       patch.enabled = args.enabled;
@@ -206,7 +219,7 @@ export const remove = mutation({
   handler: async (ctx, { subscriptionId }) => {
     const sub = await ctx.db.get(subscriptionId);
     if (!sub) return;
-    await requireScopeMembership(ctx, sub.scopeType, sub.scopeId);
+    await requireScopeMembership(ctx, sub.scopeType, sub.scopeId, "manage");
     const deliveries = await ctx.db
       .query("webhookDeliveries")
       .withIndex("by_subscription", (q) =>
@@ -227,7 +240,7 @@ export const recentDeliveries = query({
     const sub = await ctx.db.get(subscriptionId);
     if (!sub) return [];
     try {
-      await requireScopeMembership(ctx, sub.scopeType, sub.scopeId);
+      await requireScopeMembership(ctx, sub.scopeType, sub.scopeId, "manage");
     } catch {
       return [];
     }
@@ -263,9 +276,10 @@ export const _recordResult = internalMutation({
     error: v.optional(v.string()),
     final: v.boolean(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const delivery = await ctx.db.get(args.deliveryId);
-    if (!delivery) return;
+    if (!delivery || delivery.status !== "pending") return null;
     const attempts = delivery.attempts + 1;
     await ctx.db.patch(args.deliveryId, {
       attempts,
@@ -276,7 +290,7 @@ export const _recordResult = internalMutation({
     });
 
     const sub = await ctx.db.get(delivery.subscriptionId);
-    if (!sub) return;
+    if (!sub) return null;
     if (args.ok) {
       if (sub.failureCount > 0) {
         await ctx.db.patch(sub._id, { failureCount: 0 });
@@ -290,5 +304,6 @@ export const _recordResult = internalMutation({
           : {}),
       });
     }
+    return null;
   },
 });

@@ -786,6 +786,7 @@ export default defineSchema({
         v.literal("execution_assignment"),
         v.literal("task_assignment"),
         v.literal("mention"),
+        v.literal("revision"),
       ),
     ),
     sourceId: v.optional(v.string()),

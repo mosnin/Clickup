@@ -83,9 +83,9 @@ describe("assignment routing", () => {
     const explicit = await owner.mutation(api.tasks.create, {
       listId,
       title: "Explicitly assigned",
-      assigneeClerkIds: ["human_c"],
+      assigneeClerkIds: [MATE.subject],
     });
-    expect(await assigneesOf(t, explicit)).toEqual(["human_c"]);
+    expect(await assigneesOf(t, explicit)).toEqual([MATE.subject]);
   });
 
   it("round_robin rotates through the roster", async () => {
@@ -263,7 +263,9 @@ describe("task blueprints", () => {
     await t.run(async (ctx) => {
       await ctx.db.patch(scheduleId, { nextRunAt: Date.now() - 1000 });
     });
-    await t.mutation(internal.scheduledTasks.materializeDue, {});
+    await t.action(internal.scheduledTasks.materializeOne, {
+      scheduledTaskId: scheduleId,
+    });
     const tasks = await owner.query(api.tasks.listForList, { listId });
     expect(tasks).toHaveLength(1);
     expect(tasks[0].title).toBe("Prep the standup");

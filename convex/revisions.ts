@@ -5,7 +5,7 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity, requireListAccess, requireTaskAccess } from "./_authz";
 import { emitEvent, scopeForList, userActor } from "./events";
-import { internal } from "./_generated/api";
+import { enqueueAgentPingDelivery } from "./agentPingDeliveries";
 import type { Actor } from "./_agentAuth";
 
 // Revision requests — "this isn't right yet, here's what to change."
@@ -144,8 +144,8 @@ export async function createRevisionCore(
  * discovers on its own schedule through get_project_updates.
  *
  * Task-level asks reach that task's agent assignees. Project-level asks reach
- * every agent holding work in the project. Best-effort: postAgentPing does not
- * retry, and the digest is the reliable path.
+ * every agent holding work in the project. Delivery goes through the shared
+ * agentPingDeliveries queue, so it retries and leaves a receipt.
  */
 async function pingAgentsAboutRevision(
   ctx: MutationCtx,
@@ -169,13 +169,35 @@ async function pingAgentsAboutRevision(
     }
   }
 
+  const scope = await scopeForList(ctx, list);
+  if (!scope) return;
+
   for (const actorId of actorIds) {
     // Assignee ids are clerkIds or agent document ids in the same column, so a
     // failed lookup just means "this one is a human" — nothing to push to.
-    const agent = await ctx.db.get(actorId as Id<"agents">).catch(() => null);
-    if (!agent || !("notifyUrl" in agent) || !agent.notifyUrl) continue;
-    await ctx.scheduler.runAfter(0, internal.notifications.postAgentPing, {
-      url: agent.notifyUrl,
+    const agentId = ctx.db.normalizeId("agents", actorId);
+    if (!agentId) continue;
+    const agent = await ctx.db.get(agentId);
+    if (!agent) continue;
+    // Routed through the same delivery queue as assignments and mentions, so a
+    // revision gets the retries and the receipt those get. Agents with no
+    // notifyUrl still get a row — status "poll_required" — which is how they
+    // find the request on their next MCP call instead of never hearing about it.
+    await enqueueAgentPingDelivery(ctx, {
+      scopeType: scope.scopeType,
+      scopeId: scope.scopeId,
+      workspaceId:
+        scope.scopeType === "workspace"
+          ? (scope.scopeId as Id<"workspaces">)
+          : undefined,
+      sourceKind: "revision",
+      sourceId: revisionId,
+      agentId,
+      taskId:
+        args.parentType === "task"
+          ? (args.parentId as Id<"tasks">)
+          : undefined,
+      push: agent.notifyUrl !== undefined,
       type: "revision.requested",
       payload: {
         revisionId,
@@ -185,7 +207,6 @@ async function pingAgentsAboutRevision(
         listName: list.name,
         body: shorten(body),
       },
-      secret: agent.notifySecret,
     });
   }
 }

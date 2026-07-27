@@ -5,6 +5,7 @@ import type { Id } from "./_generated/dataModel";
 import { requireIdentity, requireListAccess, requireTaskAccess } from "./_authz";
 import { createTaskCore } from "./tasks";
 import { scopeForList, userActor } from "./events";
+import type { Actor } from "./_agentAuth";
 
 // Task blueprints (Phase L): reusable task definitions — everything a
 // well-formed task carries except the list it lands on. Define "run the
@@ -19,6 +20,48 @@ const priorityValidator = v.union(
   v.literal("normal"),
   v.literal("low"),
 );
+
+export type CreateTaskBlueprintArgs = {
+  scopeType: "user" | "workspace";
+  scopeId: string;
+  name: string;
+  title: string;
+  description?: string;
+  priority?: "urgent" | "high" | "normal" | "low";
+  checklist?: string[];
+  estimatePoints?: number;
+  sopSlug?: string;
+  dueInDays?: number;
+  requiresApproval?: boolean;
+};
+
+export async function createTaskBlueprintCore(
+  ctx: MutationCtx,
+  args: CreateTaskBlueprintArgs,
+  actor: Actor,
+): Promise<Id<"taskBlueprints">> {
+  const name = args.name.trim();
+  const title = args.title.trim();
+  if (!name) throw new ConvexError("Blueprint name is required");
+  if (!title) throw new ConvexError("Task title is required");
+  return await ctx.db.insert("taskBlueprints", {
+    scopeType: args.scopeType,
+    scopeId: args.scopeId,
+    name,
+    title,
+    description: args.description?.trim() || undefined,
+    priority: args.priority,
+    checklist: (args.checklist ?? [])
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0),
+    estimatePoints: args.estimatePoints,
+    sopSlug: args.sopSlug?.trim() || undefined,
+    dueInDays: args.dueInDays,
+    requiresApproval: args.requiresApproval || undefined,
+    createdByActorId: actor.id,
+    createdAt: Date.now(),
+  });
+}
 
 async function requireScopeMembership(
   ctx: QueryCtx | MutationCtx,
@@ -83,26 +126,10 @@ export const create = mutation({
       args.scopeType,
       args.scopeId,
     );
-    const name = args.name.trim();
-    const title = args.title.trim();
-    if (!name) throw new ConvexError("Blueprint name is required");
-    if (!title) throw new ConvexError("Task title is required");
-    return await ctx.db.insert("taskBlueprints", {
-      scopeType: args.scopeType,
-      scopeId: args.scopeId,
-      name,
-      title,
-      description: args.description?.trim() || undefined,
-      priority: args.priority,
-      checklist: (args.checklist ?? [])
-        .map((c) => c.trim())
-        .filter((c) => c.length > 0),
-      estimatePoints: args.estimatePoints,
-      sopSlug: args.sopSlug,
-      dueInDays: args.dueInDays,
-      requiresApproval: args.requiresApproval || undefined,
-      createdByActorId: subject,
-      createdAt: Date.now(),
+    return await createTaskBlueprintCore(ctx, args, {
+      type: "user",
+      id: subject,
+      name: subject,
     });
   },
 });

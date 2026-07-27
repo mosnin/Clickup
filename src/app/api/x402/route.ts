@@ -79,6 +79,27 @@ async function handle(req: Request): Promise<Response> {
   // No payment yet → return the 402 challenge.
   if (!xPayment) {
     try {
+      // Convex intentionally redacts thrown server errors at this boundary.
+      // Read readiness first so an incomplete payment deployment maps to a
+      // truthful 503 instead of a generic 400 "Server Error".
+      const wallet = (await client.query(asQuery(api.x402.walletByKey), {
+        apiKey,
+      })) as {
+        pricing?: {
+          available?: boolean;
+          configurationIssue?: string | null;
+        };
+      };
+      if (wallet.pricing?.available === false) {
+        return Response.json(
+          {
+            error: `Billing unavailable: ${
+              wallet.pricing.configurationIssue ?? "payment setup is incomplete"
+            }`,
+          },
+          { status: 503 },
+        );
+      }
       const challenge = await client.query(
         asQuery(api.x402.topupRequirements),
         { apiKey, credits },
@@ -86,7 +107,11 @@ async function handle(req: Request): Promise<Response> {
       return Response.json(challenge, { status: 402 });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const status = /invalid api key/i.test(message) ? 401 : 400;
+      const status = /invalid api key/i.test(message)
+        ? 401
+        : /billing unavailable|not configured/i.test(message)
+          ? 503
+          : 400;
       return Response.json({ error: message }, { status });
     }
   }
@@ -109,7 +134,9 @@ async function handle(req: Request): Promise<Response> {
       ? 401
       : /already been settled/i.test(message)
         ? 409
-        : 402;
+        : /billing unavailable|not configured/i.test(message)
+          ? 503
+          : 402;
     return Response.json({ error: message }, { status });
   }
 }

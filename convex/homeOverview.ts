@@ -294,8 +294,16 @@ export const get = query({
         .collect();
       for (const a of agents) {
         if (a.status !== "active") continue;
+        const latestPresenceAt = Math.max(
+          a.lastConnectedAt ?? 0,
+          a.lastHeartbeatAt ?? 0,
+          a.lastConnectedAt === undefined &&
+          a.lastHeartbeatAt === undefined
+            ? (a.lastSeenAt ?? 0)
+            : 0,
+        );
         const online =
-          a.lastSeenAt !== undefined && now - a.lastSeenAt < 5 * 60 * 1000;
+          latestPresenceAt > 0 && now - latestPresenceAt < 5 * 60 * 1000;
         agentsWorking.push({
           agentId: a._id,
           name: a.name,
@@ -304,16 +312,17 @@ export const get = query({
         });
       }
     }
-    agentsWorking.sort((a, b) => Number(b.online) - Number(a.online));
+    const onlineAgents = agentsWorking.filter((agent) => agent.online);
 
     return {
       projects: projects.slice(0, 12),
       totalProjects: projects.length,
       me: { open: myOpen, overdue: myOverdue, dueToday: myDueToday },
-      agents: agentsWorking.slice(0, 8),
-      // Full-fleet online count — the agents array above is a display
-      // preview capped at 8 and must not be used for counting.
-      totalAgentsOnline: agentsWorking.filter((a) => a.online).length,
+      // The "Agents online" card must never turn an old status message into
+      // apparent live presence. Keep offline agents out of its preview.
+      agents: onlineAgents.slice(0, 8),
+      // Full-fleet online count — the preview above is capped at 8.
+      totalAgentsOnline: onlineAgents.length,
       ticker: ticker.slice(0, 10),
       completions7d,
     };

@@ -13,9 +13,8 @@
     "vercel-build": "convex deploy --cmd 'next build'"
   },
   "dependencies": {
-    "@capacitor/cli": "^6.2.0",
     "@capacitor/core": "^6.2.0",
-    "@clerk/nextjs": "^6.12.0",
+    "@clerk/nextjs": "^6.39.6",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -29,7 +28,6 @@
     "@radix-ui/react-separator": "^1.1.12",
     "@radix-ui/react-slot": "^1.3.0",
     "@radix-ui/react-tooltip": "^1.2.13",
-    "@serwist/next": "^9.0.11",
     "@tanstack/react-table": "^8.21.3",
     "@tiptap/pm": "^2.10.3",
     "@tiptap/react": "^2.10.3",
@@ -38,13 +36,13 @@
     "border-beam": "^1.3.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "convex": "^1.17.0",
+    "convex": "^1.42.3",
     "date-fns": "^4.1.0",
     "gsap": "^3.15.0",
     "lucide-react": "^0.468.0",
     "mcp-handler": "^1.1.0",
     "motion": "^12.42.2",
-    "next": "^15.1.0",
+    "next": "^15.5.21",
     "ogl": "^1.0.11",
     "openai": "^4.71.1",
     "radix-ui": "^1.6.4",
@@ -60,8 +58,18 @@
     "usehooks-ts": "^3.1.1",
     "zod": "^3.25.76"
   },
+  "overrides": {
+    "brace-expansion@2": "2.1.2",
+    "brace-expansion@5": "5.0.8",
+    "fast-uri": "3.1.4",
+    "form-data": "4.0.6",
+    "linkify-it": "5.0.2",
+    "markdown-it": "14.3.0"
+  },
   "devDependencies": {
+    "@capacitor/cli": "^6.2.0",
     "@edge-runtime/vm": "^5.0.0",
+    "@serwist/next": "^9.0.11",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",

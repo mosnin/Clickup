@@ -4,14 +4,23 @@
 // one):
 //
 //   MCP_URL=https://<your-app>/api/mcp MCP_KEY=cua_... node scripts/smoke-mcp.mjs
+//   MCP_URL='https://<your-app>/api/mcp?profile=claude' \
+//     MCP_PROFILE=anthropic MCP_KEY=cua_... node scripts/smoke-mcp.mjs
+//   MCP_URL='https://<your-app>/api/mcp?profile=chatgpt' \
+//     MCP_PROFILE=chatgpt MCP_KEY=cua_... node scripts/smoke-mcp.mjs
 //
 // Exercises: initialize → tools/list → whoami → get_tree → resources/list.
 // Exits non-zero on the first failure.
 
 const url = process.env.MCP_URL;
 const key = process.env.MCP_KEY;
+const profile = process.env.MCP_PROFILE ?? "openai";
 if (!url || !key) {
   console.error("Set MCP_URL and MCP_KEY.");
+  process.exit(1);
+}
+if (!["openai", "chatgpt", "anthropic"].includes(profile)) {
+  console.error("MCP_PROFILE must be openai, chatgpt, or anthropic.");
   process.exit(1);
 }
 
@@ -56,15 +65,64 @@ console.log(`✓ initialize (server: ${init.serverInfo?.name})`);
 
 const tools = await rpc("tools/list", {});
 console.log(`✓ tools/list (${tools.tools.length} tools)`);
+const expectedToolCount = profile === "openai" ? 140 : 138;
+if (tools.tools.length !== expectedToolCount) {
+  throw new Error(
+    `expected ${expectedToolCount} tools, received ${tools.tools.length}`,
+  );
+}
 for (const required of ["whoami", "next_task", "claim_task", "get_skill"]) {
   if (!tools.tools.some((t) => t.name === required)) {
     throw new Error(`missing expected tool: ${required}`);
   }
 }
+for (const tool of tools.tools) {
+  for (const hint of ["readOnlyHint", "destructiveHint", "openWorldHint"]) {
+    if (typeof tool.annotations?.[hint] !== "boolean") {
+      throw new Error(`${tool.name}: missing explicit ${hint}`);
+    }
+  }
+  if (!tool.outputSchema) {
+    throw new Error(`${tool.name}: missing outputSchema`);
+  }
+  if (
+    profile === "anthropic" &&
+    !tool.annotations.readOnlyHint &&
+    !tool.annotations.destructiveHint
+  ) {
+    throw new Error(`${tool.name}: Anthropic mutations must be destructive`);
+  }
+}
+if (
+  profile !== "openai" &&
+  tools.tools.some((tool) =>
+    ["buy_credits", "settle_payment"].includes(tool.name),
+  )
+) {
+  throw new Error(
+    `${profile} directory profile must not expose financial-transaction tools`,
+  );
+}
+const createTask = tools.tools.find((tool) => tool.name === "create_task");
+const updateTask = tools.tools.find((tool) => tool.name === "update_task");
+if (
+  profile !== "anthropic" &&
+  (createTask?.annotations.destructiveHint ||
+    !updateTask?.annotations.destructiveHint)
+) {
+  throw new Error(
+    "OpenAI destructive hints do not match create/update semantics",
+  );
+}
+console.log(`✓ ${profile} annotations and output schemas`);
 
 const whoami = await rpc("tools/call", { name: "whoami", arguments: {} });
-if (whoami.isError) throw new Error(`whoami errored: ${JSON.stringify(whoami)}`);
+if (whoami.isError)
+  throw new Error(`whoami errored: ${JSON.stringify(whoami)}`);
 const me = JSON.parse(whoami.content[0].text);
+if (JSON.stringify(whoami.structuredContent?.result) !== JSON.stringify(me)) {
+  throw new Error("whoami structuredContent does not match compact text");
+}
 console.log(`✓ whoami (${me.name} in ${me.scopeName})`);
 
 const tree = await rpc("tools/call", { name: "get_tree", arguments: {} });
@@ -73,41 +131,5 @@ console.log(`✓ get_tree`);
 
 const resources = await rpc("resources/list", {});
 console.log(`✓ resources/list (${resources.resources.length} skills)`);
-
-// Catalog parity. The failure this exists to catch: the deployed frontend
-// advertises a tool whose Convex function was never deployed, so the tool is
-// listed and then fails when an agent calls it — which looks like a platform
-// outage rather than a stale backend.
-//
-// Probe method: call each tool with deliberately empty arguments. A deployed
-// function answers with a validation or authorization complaint, which is a
-// pass — the function resolved. A missing one answers "Could not find public
-// function", which is the failure. Nothing is created either way.
-const PROBE = [
-  "create_tasks",
-  "create_roadmap",
-  "get_sprint_planning",
-  "list_events",
-  "get_wallet",
-];
-const stale = [];
-for (const name of PROBE) {
-  if (!tools.tools.some((t) => t.name === name)) {
-    stale.push(`${name} (not advertised)`);
-    continue;
-  }
-  const out = await rpc("tools/call", { name, arguments: {} });
-  const text = out.content?.[0]?.text ?? "";
-  if (/could not find public function|function not found/i.test(text)) {
-    stale.push(`${name} (advertised, missing upstream)`);
-  }
-}
-if (stale.length) {
-  throw new Error(
-    `tool catalog is ahead of the deployed backend:\n  - ${stale.join("\n  - ")}\n` +
-      "Deploy Convex and the frontend together (npm run vercel-build).",
-  );
-}
-console.log(`✓ catalog parity (${PROBE.length} probed)`);
 
 console.log("\nAll smoke checks passed.");

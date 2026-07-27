@@ -15,7 +15,11 @@ export async function enqueueAgentPingDelivery(
     scopeType: "user" | "workspace";
     scopeId: string;
     workspaceId?: Id<"workspaces">;
-    sourceKind: "execution_assignment" | "task_assignment" | "mention";
+    sourceKind:
+      | "execution_assignment"
+      | "task_assignment"
+      | "mention"
+      | "revision";
     sourceId: string;
     executionAssignmentId?: Id<"executionAssignments">;
     agentId: Id<"agents">;

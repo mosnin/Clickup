@@ -14,8 +14,6 @@ import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { Clips } from "@/components/dashboard/clips";
 import { Attachments } from "@/components/dashboard/attachments";
 import { Comments } from "@/components/dashboard/comments";
-import { RevisionsPanel } from "@/components/dashboard/revisions-panel";
-import { TaskContextPanel } from "@/components/dashboard/task-context-panel";
 import { Subtasks } from "@/components/dashboard/subtasks";
 import {
   TaskAssignees,
@@ -31,6 +29,10 @@ import { errorMessage } from "@/lib/errors";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { useToast } from "@/components/toast";
 import { motion } from "@/components/motion";
+import { TaskContext } from "@/components/dashboard/task-context";
+import { TaskDecisions } from "@/components/dashboard/task-decisions";
+import { TaskContextPanel } from "@/components/dashboard/task-context-panel";
+import { RevisionsPanel } from "@/components/dashboard/revisions-panel";
 
 type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
 type TaskRecurrence = NonNullable<Doc<"tasks">["recurrence"]>;
@@ -137,6 +139,9 @@ function TaskEditor({
   const [estimateDraft, setEstimateDraft] = useState(
     task.estimatePoints !== undefined ? String(task.estimatePoints) : "",
   );
+  const [capabilitiesDraft, setCapabilitiesDraft] = useState(
+    (task.requiredCapabilities ?? []).join(", "),
+  );
 
   const parentTask = useQuery(
     api.tasks.get,
@@ -151,6 +156,11 @@ function TaskEditor({
         task.estimatePoints !== undefined ? String(task.estimatePoints) : "",
       ),
     [task.estimatePoints],
+  );
+  useEffect(
+    () =>
+      setCapabilitiesDraft((task.requiredCapabilities ?? []).join(", ")),
+    [task.requiredCapabilities],
   );
 
   async function saveEstimate(value: number | null) {
@@ -361,6 +371,14 @@ function TaskEditor({
 
           <TaskChecklist task={task} />
 
+          {/* Two kinds of context sit next to each other on purpose. Packets
+              are per-task and versioned; the panel below is the project's
+              standing brief, the same pinned docs get_task hands an agent. */}
+          <TaskContext taskId={task._id} listId={listId} />
+          <TaskContextPanel listId={listId} />
+          <TaskDecisions taskId={task._id} listId={listId} />
+          <RevisionsPanel parentType="task" parentId={task._id} />
+
           <Subtasks taskId={task._id} listId={listId} />
 
           <section>
@@ -376,10 +394,6 @@ function TaskEditor({
             </h2>
             <Clips taskId={task._id} />
           </section>
-
-          <TaskContextPanel listId={listId} />
-
-          <RevisionsPanel parentType="task" parentId={task._id} />
 
           <section>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -553,6 +567,44 @@ function TaskEditor({
           </Field>
 
           <TaskMilestonePicker task={task} listId={listId} />
+
+          <Field label="Required capabilities">
+            <input
+              value={capabilitiesDraft}
+              onChange={(e) =>
+                setCapabilitiesDraft(e.currentTarget.value)
+              }
+              onBlur={() => {
+                const next = capabilitiesDraft
+                  .split(",")
+                  .map((value) => value.trim())
+                  .filter(Boolean);
+                if (
+                  next.join(",") !==
+                  (task.requiredCapabilities ?? []).join(",")
+                ) {
+                  update({
+                    taskId: task._id,
+                    requiredCapabilities: next,
+                  }).catch((e) =>
+                    toast(
+                      errorMessage(
+                        e,
+                        "Couldn't save required capabilities",
+                      ),
+                      { kind: "error" },
+                    ),
+                  );
+                }
+              }}
+              placeholder="typescript, backend"
+              className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Agents missing any capability cannot be assigned or claim this
+              task.
+            </p>
+          </Field>
 
           <section>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">

@@ -33,7 +33,7 @@ export const authAppearance: ComponentProps<typeof SignIn>["appearance"] = {
     formButtonPrimary:
       "bg-gradient-to-r from-[#5ec8f5] to-[#22a7e8] text-[#04141c] shadow-none transition-opacity hover:opacity-90",
     footerActionText: "text-white/60",
-    footerActionLink: "text-[#ffb27d] hover:text-[#ffc79b]",
+    footerActionLink: "text-[#5ec8f5] hover:text-[#9adcfa]",
     identityPreview: "border-white/12 bg-white/[0.04]",
     identityPreviewText: "text-white/80",
     otpCodeFieldInput: "border-white/15 text-white",

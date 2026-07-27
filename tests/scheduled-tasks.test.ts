@@ -1,10 +1,26 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { convexTest } from "convex-test";
 import { computeNextRunAt } from "../convex/scheduledTasks";
+import schema from "../convex/schema";
+import { api, internal } from "../convex/_generated/api";
+import { sha256Hex } from "../convex/_agentAuth";
+
+const modules = import.meta.glob("../convex/**/*.*s");
+const OWNER = { subject: "schedule_owner", email: "owner@schedule.test" };
 
 // Monday 2026-07-13 10:30 UTC.
 const MON_1030 = Date.UTC(2026, 6, 13, 10, 30);
 
 describe("computeNextRunAt", () => {
+  it("hourly: advances to the next top of hour", () => {
+    expect(computeNextRunAt(MON_1030, "hourly", 9)).toBe(
+      Date.UTC(2026, 6, 13, 11),
+    );
+    expect(
+      computeNextRunAt(Date.UTC(2026, 6, 13, 10), "hourly", 23),
+    ).toBe(Date.UTC(2026, 6, 13, 11));
+  });
+
   it("daily: next occurrence strictly after `after`", () => {
     // 09:00 already passed today → tomorrow 09:00.
     expect(computeNextRunAt(MON_1030, "daily", 9)).toBe(
@@ -41,9 +57,247 @@ describe("computeNextRunAt", () => {
   });
 
   it("always returns a strictly future time", () => {
-    for (const cadence of ["daily", "weekly", "monthly"] as const) {
+    for (const cadence of ["hourly", "daily", "weekly", "monthly"] as const) {
       const next = computeNextRunAt(MON_1030, cadence, 10, 1, 13);
       expect(next).toBeGreaterThan(MON_1030);
     }
+  });
+
+  it("materializes hourly agent work into the durable wake inbox", async () => {
+    const t = convexTest(schema, modules);
+    const { workspaceId, agentId } = await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        clerkId: OWNER.subject,
+        email: OWNER.email,
+      });
+      const wsId = await ctx.db.insert("workspaces", {
+        name: "Autonomous Ops",
+        slug: "autonomous-ops",
+        ownerClerkId: OWNER.subject,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("memberships", {
+        workspaceId: wsId,
+        userClerkId: OWNER.subject,
+        role: "owner",
+        joinedAt: Date.now(),
+      });
+      const workerId = await ctx.db.insert("agents", {
+        name: "Hourly operator",
+        parentType: "workspace",
+        parentId: wsId,
+        status: "active",
+        createdByClerkId: OWNER.subject,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("agentKeys", {
+        agentId: workerId,
+        keyHash: sha256Hex("cua_hourly_operator"),
+        keyPrefix: "cua_hour",
+        createdAt: Date.now(),
+      });
+      return {
+        workspaceId: wsId,
+        agentId: workerId,
+      };
+    });
+    const spaceId = await t.withIdentity(OWNER).mutation(api.spaces.create, {
+      name: "Operations",
+      parentType: "workspace",
+      parentId: workspaceId,
+    });
+    const listId = await t.withIdentity(OWNER).mutation(api.lists.create, {
+      name: "Health checks",
+      parentType: "space",
+      parentId: spaceId,
+    });
+    const foreignBlueprintId = await t.run(async (ctx) => {
+      return await ctx.db.insert("taskBlueprints", {
+        scopeType: "user",
+        scopeId: "someone_else",
+        name: "Foreign SOP",
+        title: "Should not run",
+        checklist: [],
+        createdByActorId: "someone_else",
+        createdAt: Date.now(),
+      });
+    });
+    await expect(
+      t.mutation(api.agentApi.createScheduledTask, {
+        apiKey: "cua_hourly_operator",
+        listId,
+        title: "invalid",
+        cadence: "hourly",
+        blueprintId: foreignBlueprintId,
+      }),
+    ).rejects.toThrow(/blueprint not found/i);
+    await expect(
+      t.mutation(api.agentApi.createScheduledTask, {
+        apiKey: "cua_hourly_operator",
+        listId,
+        title: "invalid assignee",
+        assigneeIds: ["outside_the_workspace"],
+        cadence: "hourly",
+      }),
+    ).rejects.toThrow(/outside this task's scope/i);
+    const blueprintId = await t.mutation(api.agentApi.createBlueprint, {
+      apiKey: "cua_hourly_operator",
+      name: "  Agent health SOP  ",
+      title: "Inspect agent health",
+      description: "Verify presence, wake consumption, and stalled work.",
+      priority: "high",
+      checklist: [
+        " Review presence ",
+        "",
+        "Review unconsumed wakes",
+        "Escalate stale work",
+      ],
+      estimatePoints: 1,
+      requiresApproval: true,
+    });
+    expect(
+      await t.query(api.agentApi.listBlueprints, {
+        apiKey: "cua_hourly_operator",
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        blueprintId,
+        name: "Agent health SOP",
+        checklist: [
+          "Review presence",
+          "Review unconsumed wakes",
+          "Escalate stale work",
+        ],
+      }),
+    ]);
+    const scheduledTaskId = await t.mutation(
+      api.agentApi.createScheduledTask,
+      {
+        apiKey: "cua_hourly_operator",
+        listId,
+        title: "fallback title",
+        assigneeIds: [agentId],
+        cadence: "hourly",
+        blueprintId,
+      },
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.patch(scheduledTaskId, { nextRunAt: Date.now() - 1 });
+    });
+
+    await t.action(internal.scheduledTasks.materializeOne, {
+      scheduledTaskId,
+    });
+
+    const tasks = await t.withIdentity(OWNER).query(api.tasks.listForList, {
+      listId,
+    });
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]).toMatchObject({
+      title: "Inspect agent health",
+      assigneeClerkIds: [agentId],
+      description: "Verify presence, wake consumption, and stalled work.",
+      priority: "high",
+      estimatePoints: 1,
+      requiresApproval: true,
+    });
+    expect(tasks[0].checklist?.map((item) => item.text)).toEqual([
+      "Review presence",
+      "Review unconsumed wakes",
+      "Escalate stale work",
+    ]);
+    expect(
+      await t.query(api.agentApi.listWakeInbox, {
+        apiKey: "cua_hourly_operator",
+      }),
+    ).toEqual([
+      expect.objectContaining({
+        type: "task.assigned",
+        taskId: tasks[0]._id,
+        pushStatus: "poll_required",
+      }),
+    ]);
+    const schedule = await t.run(async (ctx) =>
+      ctx.db.get(scheduledTaskId),
+    );
+    expect(schedule?.lastRunAt).toEqual(expect.any(Number));
+    expect(schedule!.nextRunAt).toBeGreaterThan(schedule!.lastRunAt!);
+
+    const badScheduleId = await t.mutation(
+      api.agentApi.createScheduledTask,
+      {
+        apiKey: "cua_hourly_operator",
+        listId,
+        title: "Corrupted definition",
+        assigneeIds: [agentId],
+        cadence: "hourly",
+      },
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.patch(scheduledTaskId, { nextRunAt: Date.now() - 1 });
+      // Simulate legacy/corrupt persisted data that bypassed current creation
+      // validation. The healthy definition must still commit independently.
+      await ctx.db.patch(badScheduleId, {
+        assigneeIds: ["outside_the_workspace"],
+        nextRunAt: Date.now() - 1,
+      });
+    });
+    vi.useFakeTimers();
+    try {
+      await t.mutation(internal.scheduledTasks.materializeDue, {});
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(
+      await t.withIdentity(OWNER).query(api.tasks.listForList, { listId }),
+    ).toHaveLength(2);
+    expect(
+      await t.run(async (ctx) => ctx.db.get(badScheduleId)),
+    ).toMatchObject({
+      enabled: true,
+      consecutiveFailures: 1,
+      lastError: expect.stringMatching(/outside this task's scope/i),
+    });
+
+    // Three isolated failures pause only the corrupt definition.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await t.action(internal.scheduledTasks.materializeOne, {
+        scheduledTaskId: badScheduleId,
+      });
+    }
+    expect(
+      await t.run(async (ctx) => ctx.db.get(badScheduleId)),
+    ).toMatchObject({
+      enabled: false,
+      consecutiveFailures: 3,
+    });
+    expect(
+      await t
+        .withIdentity(OWNER)
+        .query(api.notificationCenter.listForCurrent, {}),
+    ).toEqual([
+      expect.objectContaining({
+        type: "schedule_failed",
+        title: "Recurring operation paused: Corrupted definition",
+        body:
+          "The assigned agent no longer has access to this list. Choose another assignee or update its access.",
+        href: `/dashboard/w/${workspaceId}?tab=operations`,
+      }),
+    ]);
+    expect(
+      await t.withIdentity(OWNER).query(api.events.feed, {
+        scopeType: "workspace",
+        scopeId: workspaceId,
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "schedule.auto_paused",
+          entityId: badScheduleId,
+          payload: expect.objectContaining({ consecutiveFailures: 3 }),
+        }),
+      ]),
+    );
   });
 });

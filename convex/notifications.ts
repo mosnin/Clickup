@@ -1,6 +1,5 @@
 "use node";
 
-import { createHmac } from "crypto";
 import { v } from "convex/values";
 import { Resend } from "resend";
 import { internalAction } from "./_generated/server";
@@ -22,12 +21,9 @@ function makeResend(): {
 } | null {
   const key = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL;
-  if (!key || !from) {
-    console.warn(
-      "[notifications] RESEND_API_KEY or RESEND_FROM_EMAIL not set; skipping email send",
-    );
-    return null;
-  }
+  // Email is optional in local/test deployments. A quiet no-op keeps
+  // scheduled actions from flooding logs or outliving a test environment.
+  if (!key || !from) return null;
   return { client: new Resend(key), from };
 }
 
@@ -152,48 +148,6 @@ export const sendAssignmentEmail = internalAction({
       });
     } catch (err) {
       console.warn("[notifications] sendAssignmentEmail failed:", err);
-    }
-  },
-});
-
-// Direct push to an agent's notifyUrl: a small JSON ping telling the
-// agent's runtime "you were assigned / mentioned — connect over MCP and
-// look". Signed with HMAC-SHA256 (X-Ping-Signature) when the agent has a
-// notifySecret configured. Best effort, no retries: the webhook
-// subscription system is the reliable channel; this is the zero-setup
-// default.
-export const postAgentPing = internalAction({
-  args: {
-    url: v.string(),
-    type: v.string(),
-    payload: v.any(),
-    secret: v.optional(v.string()),
-  },
-  handler: async (_, args) => {
-    try {
-      const body = JSON.stringify({
-        apiVersion: 1,
-        type: args.type,
-        payload: args.payload,
-      });
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (args.secret) {
-        headers["X-Ping-Signature"] =
-          `sha256=${createHmac("sha256", args.secret).update(body).digest("hex")}`;
-      }
-      const res = await fetch(args.url, {
-        method: "POST",
-        headers,
-        body,
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!res.ok) {
-        console.warn("[notifications] postAgentPing failed:", res.status);
-      }
-    } catch (err) {
-      console.warn("[notifications] postAgentPing error:", err);
     }
   },
 });

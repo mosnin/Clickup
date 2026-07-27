@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   ArrowLeft,
@@ -16,6 +16,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { eventLabel } from "@/lib/event-labels";
+import { agentPresence } from "@/lib/agent-presence";
 import { useToast } from "@/components/toast";
 import { Orb } from "@/components/dashboard/orb";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -37,15 +38,17 @@ import {
   Stagger,
   StaggerItem,
 } from "@/components/motion";
-import { useNow } from "@/lib/use-now";
 
 // Per-agent drill-down: live status, governance controls (role, budget,
 // notify URL), run history, current claims/assignments, and the agent's
 // own event trail.
 
 export function AgentDetail({ agentId }: { agentId: string }) {
-  // Ticks so 'went offline' actually renders — see use-now.ts.
-  const now = useNow();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const detail = useQuery(api.agents.detail, {
     agentId: agentId as Id<"agents">,
   });
@@ -90,18 +93,23 @@ export function AgentDetail({ agentId }: { agentId: string }) {
     );
   }
 
-  const { agent, runs, usageToday, usageLimit, events, claimed, assigned } =
-    detail;
-  const online =
-    agent.lastSeenAt !== undefined &&
-    now - agent.lastSeenAt < 5 * 60 * 1000;
-  const statusLabel = agent.status === "paused"
-    ? "Paused"
-    : online
-      ? "Online"
-      : agent.lastSeenAt
-        ? `Seen ${timeAgo(agent.lastSeenAt)}`
-        : "Never connected";
+  const {
+    agent,
+    runs,
+    usageToday,
+    usageLimit,
+    events,
+    deliveries,
+    claimed,
+    assigned,
+    canManage,
+    hasNotifySecret,
+  } = detail;
+  const presence = agentPresence(agent, now);
+  const statusLabel =
+    presence.state === "recently_seen" || presence.state === "offline"
+      ? `Seen ${timeAgo(agent.lastSeenAt!)}`
+      : presence.label;
 
   return (
     <div className="space-y-6">
@@ -120,12 +128,12 @@ export function AgentDetail({ agentId }: { agentId: string }) {
               variant="secondary"
               className={cn(
                 "gap-1.5 uppercase tracking-wider",
-                agent.status !== "paused" &&
-                  online &&
+                presence.online &&
                   "bg-pastel-green text-foreground dark:text-neutral-900",
               )}
+              title={presence.detail}
             >
-              <PresenceDot online={agent.status === "active" && online} />
+              <PresenceDot online={presence.online} />
               {statusLabel}
             </Badge>
             <Badge variant="outline" className="uppercase tracking-wider">
@@ -145,19 +153,39 @@ export function AgentDetail({ agentId }: { agentId: string }) {
           )}
           {agent.statusText && (
             <p className="mt-2 inline-block rounded-2xl bg-muted/50 px-3 py-1.5 text-sm">
-              <span className="font-medium">Now:</span> {agent.statusText}
+              <span className="font-medium">
+                {presence.online ? "Now:" : "Last status:"}
+              </span>{" "}
+              {agent.statusText}
             </p>
           )}
         </div>
       </header>
 
+      <ConnectionDiagnostics agent={agent} presenceDetail={presence.detail} />
+
+      <WakeDeliveryDiagnostics deliveries={deliveries} />
+
       {stats && <StatsRow stats={stats} />}
 
-      <GovernancePanel
-        agent={agent}
-        usageToday={usageToday}
-        usageLimit={usageLimit}
-      />
+      {canManage ? (
+        <GovernancePanel
+          agent={agent}
+          usageToday={usageToday}
+          usageLimit={usageLimit}
+          hasNotifySecret={hasNotifySecret}
+        />
+      ) : (
+        <section className="rounded-2xl panel p-4">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Governance
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Workspace owners and admins manage this agent&apos;s role, limits,
+            credentials, and runtime connection.
+          </p>
+        </section>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section>
@@ -255,6 +283,169 @@ export function AgentDetail({ agentId }: { agentId: string }) {
   );
 }
 
+function WakeDeliveryDiagnostics({
+  deliveries,
+}: {
+  deliveries: Doc<"agentPingDeliveries">[];
+}) {
+  const failed = deliveries.filter((delivery) => delivery.status === "failed");
+  const pending = deliveries.filter(
+    (delivery) => delivery.status === "pending",
+  );
+  const pollRequired = deliveries.filter(
+    (delivery) => delivery.status === "poll_required",
+  );
+  const delivered = deliveries.filter(
+    (delivery) => delivery.status === "delivered",
+  );
+  const consumed = deliveries.filter(
+    (delivery) => delivery.acknowledgedAt !== undefined,
+  );
+  const awaitingConsumption = delivered.filter(
+    (delivery) => delivery.acknowledgedAt === undefined,
+  );
+  const sourceLabel = {
+    execution_assignment: "Roadmap dispatch",
+    task_assignment: "Task assignment",
+    mention: "Mention",
+    revision: "Revision request",
+  } as const;
+
+  return (
+    <Card className="gap-3 rounded-2xl p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Wake delivery
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Signed runtime notifications with recorded delivery receipts.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Badge
+            variant="secondary"
+            className="bg-pastel-green text-foreground dark:text-neutral-900"
+          >
+            {consumed.length} consumed
+          </Badge>
+          {awaitingConsumption.length > 0 && (
+            <Badge variant="outline">
+              {awaitingConsumption.length} delivered
+            </Badge>
+          )}
+          {pending.length > 0 && (
+            <Badge variant="secondary">{pending.length} pending</Badge>
+          )}
+          {pollRequired.length > 0 && (
+            <Badge variant="outline">{pollRequired.length} inbox-only</Badge>
+          )}
+          {failed.length > 0 && (
+            <Badge variant="destructive">{failed.length} failed</Badge>
+          )}
+        </div>
+      </div>
+      {deliveries.length > 0 ? (
+        <ul className="space-y-1">
+          {deliveries.slice(0, 5).map((delivery) => (
+            <li
+              key={delivery._id}
+              className="flex items-center gap-3 rounded-xl bg-muted/40 px-3 py-2 text-sm"
+              title={delivery.lastError}
+            >
+              {delivery.acknowledgedAt !== undefined ? (
+                <CheckCircle2 className="h-4 w-4 flex-none text-emerald-600" />
+              ) : delivery.status === "delivered" ? (
+                <CheckCircle2 className="h-4 w-4 flex-none text-sky-600" />
+              ) : delivery.status === "failed" ? (
+                <XCircle className="h-4 w-4 flex-none text-destructive" />
+              ) : (
+                <CircleDashed className="h-4 w-4 flex-none text-amber-600" />
+              )}
+              <span className="min-w-0 flex-1 truncate">
+                {delivery.sourceKind
+                  ? sourceLabel[delivery.sourceKind]
+                  : delivery.executionAssignmentId
+                    ? "Roadmap dispatch"
+                    : "Agent notification"}
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {delivery.type}
+                </span>
+              </span>
+              <span className="flex-none text-xs text-muted-foreground">
+                {delivery.acknowledgedAt !== undefined
+                  ? "consumed · "
+                  : delivery.status === "delivered"
+                    ? "delivered · "
+                    : delivery.status === "poll_required"
+                      ? "inbox · "
+                    : ""}
+                {delivery.attempts}{" "}
+                {delivery.attempts === 1 ? "attempt" : "attempts"} ·{" "}
+                {timeAgo(delivery.createdAt)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="rounded-xl bg-muted/40 px-3 py-4 text-center text-sm text-muted-foreground">
+          No direct wake notifications have been requested yet.
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ConnectionDiagnostics({
+  agent,
+  presenceDetail,
+}: {
+  agent: Doc<"agents">;
+  presenceDetail: string;
+}) {
+  const signals = [
+    {
+      label: "MCP authentication",
+      value: agent.lastConnectedAt
+        ? timeAgo(agent.lastConnectedAt)
+        : agent.lastSeenAt
+          ? "No source data yet"
+          : "Never",
+    },
+    {
+      label: "Explicit heartbeat",
+      value: agent.lastHeartbeatAt
+        ? timeAgo(agent.lastHeartbeatAt)
+        : "Never",
+    },
+    {
+      label: "Any agent activity",
+      value: agent.lastSeenAt ? timeAgo(agent.lastSeenAt) : "Never",
+    },
+  ];
+
+  return (
+    <Card className="gap-3 rounded-2xl p-4">
+      <div>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Connection diagnostics
+        </h2>
+        <p className="mt-1 text-sm">{presenceDetail}</p>
+      </div>
+      <dl className="grid gap-2 sm:grid-cols-3">
+        {signals.map((signal) => (
+          <div key={signal.label} className="rounded-xl bg-muted/40 px-3 py-2">
+            <dt className="text-[11px] text-muted-foreground">
+              {signal.label}
+            </dt>
+            <dd className="mt-0.5 text-sm font-medium">{signal.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </Card>
+  );
+}
+
 function fmtMs(ms: number | null): string {
   if (ms === null) return "-";
   const m = Math.round(ms / 60000);
@@ -331,15 +522,23 @@ function GovernancePanel({
   agent,
   usageToday,
   usageLimit,
+  hasNotifySecret,
 }: {
   agent: Doc<"agents">;
   usageToday: number;
   usageLimit: number;
+  hasNotifySecret: boolean;
 }) {
   const update = useMutation(api.agents.update);
   const { toast } = useToast();
   const [limitDraft, setLimitDraft] = useState(String(usageLimit));
   const [notifyDraft, setNotifyDraft] = useState(agent.notifyUrl ?? "");
+  const [capabilitiesDraft, setCapabilitiesDraft] = useState(
+    (agent.capabilities ?? []).join(", "),
+  );
+  const [concurrencyDraft, setConcurrencyDraft] = useState(
+    String(agent.maxConcurrentTasks ?? 1),
+  );
   // The stored secret is never rendered back — like API keys, it's write-only
   // from the UI. An empty field means "unchanged"; typing replaces it.
   const [secretDraft, setSecretDraft] = useState("");
@@ -481,13 +680,13 @@ function GovernancePanel({
                 }
               }}
               placeholder={
-                agent.notifySecret
+                hasNotifySecret
                   ? "Secret set. Type to replace it."
                   : "Add a secret to sign pings"
               }
               className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
             />
-            {agent.notifySecret && (
+            {hasNotifySecret && (
               <button
                 type="button"
                 onClick={() =>
@@ -507,6 +706,69 @@ function GovernancePanel({
 
       {isMember && (
         <div className="mt-4 border-t border-border pt-4">
+          <div className="mb-4 grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Capabilities
+              </span>
+              <input
+                value={capabilitiesDraft}
+                onChange={(e) =>
+                  setCapabilitiesDraft(e.currentTarget.value)
+                }
+                onBlur={() => {
+                  const next = capabilitiesDraft
+                    .split(",")
+                    .map((value) => value.trim())
+                    .filter(Boolean);
+                  if (next.join(",") !== (agent.capabilities ?? []).join(",")) {
+                    save(
+                      { agentId: agent._id, capabilities: next },
+                      "Capabilities",
+                    );
+                  }
+                }}
+                placeholder="typescript, backend, quality-assurance"
+                className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              />
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Only tasks whose complete requirement set matches can be
+                claimed.
+              </span>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Concurrent work limit
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={concurrencyDraft}
+                onChange={(e) =>
+                  setConcurrencyDraft(e.currentTarget.value)
+                }
+                onBlur={() => {
+                  const value = Number.parseInt(concurrencyDraft, 10);
+                  if (
+                    Number.isInteger(value) &&
+                    value >= 1 &&
+                    value <= 20 &&
+                    value !== (agent.maxConcurrentTasks ?? 1)
+                  ) {
+                    save(
+                      { agentId: agent._id, maxConcurrentTasks: value },
+                      "Concurrent work limit",
+                    );
+                  }
+                }}
+                className="w-28 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              />
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Hard ceiling used by dispatch planning.
+              </span>
+            </label>
+          </div>
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Restricted to lists (optional)
           </span>

@@ -22,6 +22,7 @@ import {
   StaggerItem,
 } from "@/components/motion";
 import { errorMessage } from "@/lib/errors";
+import { safeNotificationBody } from "@/lib/notification-copy";
 import { NotificationSettings } from "@/components/dashboard/notification-settings";
 
 // The one inbox. Everything that needs the user's attention lives here, in
@@ -131,6 +132,9 @@ export function Inbox() {
           )}
         </>
       )}
+
+      {/* Collapsed by default: the controls belong next to the thing they
+          govern, but nobody comes to the Inbox to change settings. */}
       <details className="panel rounded-2xl p-5">
         <summary className="tap-target cursor-pointer text-sm font-semibold text-foreground">
           Notification settings
@@ -139,7 +143,6 @@ export function Inbox() {
           <NotificationSettings />
         </div>
       </details>
-
     </div>
   );
 }
@@ -316,6 +319,7 @@ function UpdateItem({ n }: { n: Doc<"notifications"> }) {
   const markRead = useMutation(api.notificationCenter.markRead);
   const router = useRouter();
   const unread = n.readAt === undefined;
+  const body = safeNotificationBody(n.type, n.body ?? "");
 
   return (
     <button
@@ -339,9 +343,9 @@ function UpdateItem({ n }: { n: Doc<"notifications"> }) {
                   {timeAgo(n.createdAt)}
                 </span>
               </div>
-              {n.body && (
+              {body && (
                 <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                  {n.body}
+                  {body}
                 </p>
               )}
             </div>

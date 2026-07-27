@@ -47,6 +47,7 @@ export function InlineCreate({
     >
       <input
         autoFocus
+        aria-label={placeholder}
         value={value}
         disabled={pending}
         onChange={(e) => setValue(e.currentTarget.value)}

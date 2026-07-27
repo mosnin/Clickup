@@ -11,10 +11,11 @@ import { requireIdentity } from "./_authz";
 import { requireAgentByKey } from "./_agentAuth";
 import { requirePlatformAdmin, logAdminAction } from "./_adminAuth";
 import {
+  billingConfigurationIssue,
+  billingConfigured,
   buildPaymentRequired,
   creditsToAtomic,
   creditsToDisplayAmount,
-  facilitatorConfigured,
   x402Config,
 } from "./_x402";
 
@@ -26,6 +27,45 @@ import {
 // internal applySettlement mutation here after a payment clears.
 
 const SCOPE = v.union(v.literal("user"), v.literal("workspace"));
+const METERING = v.object({
+  enabled: v.boolean(),
+  actionCredits: v.number(),
+});
+const PRICING = v.object({
+  available: v.boolean(),
+  configurationIssue: v.union(v.string(), v.null()),
+  network: v.string(),
+  asset: v.string(),
+  assetSymbol: v.string(),
+  assetDecimals: v.number(),
+  creditPriceAtomic: v.number(),
+  payTo: v.string(),
+  facilitator: v.union(v.string(), v.null()),
+  exampleBundle: v.object({
+    credits: v.number(),
+    atomic: v.string(),
+    display: v.string(),
+  }),
+});
+const PAYMENT_REQUIREMENTS = v.object({
+  scheme: v.literal("exact"),
+  network: v.string(),
+  maxAmountRequired: v.string(),
+  resource: v.string(),
+  description: v.string(),
+  mimeType: v.string(),
+  payTo: v.string(),
+  maxTimeoutSeconds: v.number(),
+  asset: v.string(),
+  extra: v.object({
+    name: v.string(),
+    version: v.string(),
+    decimals: v.number(),
+    creditsGranted: v.number(),
+    creditPriceAtomic: v.number(),
+    displayAmount: v.string(),
+  }),
+});
 
 // A resource identifier for a scope's top-up endpoint (goes in the 402
 // challenge's `resource` field).
@@ -109,14 +149,17 @@ async function canAccessScope(
 
 function pricingSummary() {
   const cfg = x402Config();
+  const configurationIssue = billingConfigurationIssue(cfg);
   return {
+    available: configurationIssue === null,
+    configurationIssue,
     network: cfg.network,
     asset: cfg.asset,
     assetSymbol: cfg.assetSymbol,
     assetDecimals: cfg.assetDecimals,
     creditPriceAtomic: cfg.creditPriceAtomic,
     payTo: cfg.payTo,
-    facilitator: cfg.facilitatorUrl ?? "mock",
+    facilitator: cfg.facilitatorUrl ?? (cfg.allowMock ? "mock" : null),
     // What 1000 credits costs, for display.
     exampleBundle: {
       credits: 1000,
@@ -131,6 +174,26 @@ function pricingSummary() {
 // The agent's own wallet: balance, pricing, metering status, recent ledger.
 export const walletByKey = query({
   args: { apiKey: v.string() },
+  returns: v.object({
+    scopeType: SCOPE,
+    scopeId: v.string(),
+    balance: v.number(),
+    lifetimeCredits: v.number(),
+    lifetimeSpent: v.number(),
+    metering: METERING,
+    pricing: PRICING,
+    recentPayments: v.array(
+      v.object({
+        amountAtomic: v.string(),
+        creditsGranted: v.number(),
+        asset: v.string(),
+        network: v.string(),
+        status: v.union(v.literal("settled"), v.literal("failed")),
+        txReference: v.optional(v.string()),
+        createdAt: v.number(),
+      }),
+    ),
+  }),
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "read");
     const wallet = await getWallet(ctx, agent.parentType, agent.parentId);
@@ -168,12 +231,24 @@ export const walletByKey = query({
 // submits it to the settle endpoint / MCP tool.
 export const topupRequirements = query({
   args: { apiKey: v.string(), credits: v.number() },
+  returns: v.object({
+    x402Version: v.number(),
+    accepts: v.array(PAYMENT_REQUIREMENTS),
+    error: v.optional(v.string()),
+    currentBalance: v.number(),
+    creditsRequested: v.number(),
+    displayAmount: v.string(),
+  }),
   handler: async (ctx, { apiKey, credits }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "read");
     if (!Number.isInteger(credits) || credits <= 0) {
       throw new ConvexError("credits must be a positive integer");
     }
     const cfg = x402Config();
+    const configurationIssue = billingConfigurationIssue(cfg);
+    if (configurationIssue) {
+      throw new ConvexError(`Billing unavailable: ${configurationIssue}`);
+    }
     const resource = topupResource(agent.parentType, agent.parentId);
     const challenge = buildPaymentRequired(credits, resource, cfg);
     const wallet = await getWallet(ctx, agent.parentType, agent.parentId);
@@ -190,6 +265,11 @@ export const topupRequirements = query({
 // settlement action, which runs in Node and can't touch the db directly).
 export const resolveScopeByKey = internalQuery({
   args: { apiKey: v.string() },
+  returns: v.object({
+    scopeType: SCOPE,
+    scopeId: v.string(),
+    agentId: v.id("agents"),
+  }),
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "read");
     return {
@@ -217,6 +297,10 @@ export const applySettlement = internalMutation({
     txReference: v.optional(v.string()),
     facilitator: v.string(),
   },
+  returns: v.object({
+    balance: v.number(),
+    creditsGranted: v.number(),
+  }),
   handler: async (ctx, args) => {
     // Replay protection: a nonce that has already SETTLED can never be
     // credited twice. We match only settled rows (not failed observability
@@ -270,6 +354,7 @@ export const recordFailedPayment = internalMutation({
     reason: v.string(),
     facilitator: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const cfg = x402Config();
     await ctx.db.insert("payments", {
@@ -286,6 +371,7 @@ export const recordFailedPayment = internalMutation({
       reason: args.reason,
       createdAt: Date.now(),
     });
+    return null;
   },
 });
 
@@ -294,6 +380,27 @@ export const recordFailedPayment = internalMutation({
 // Wallet view for the UI. Access-checked against the caller's scope.
 export const walletForScope = query({
   args: { scopeType: SCOPE, scopeId: v.string() },
+  returns: v.object({
+    balance: v.number(),
+    lifetimeCredits: v.number(),
+    lifetimeSpent: v.number(),
+    metering: METERING,
+    pricing: PRICING,
+    payments: v.array(
+      v.object({
+        _id: v.id("payments"),
+        amountAtomic: v.string(),
+        creditsGranted: v.number(),
+        asset: v.string(),
+        network: v.string(),
+        status: v.union(v.literal("settled"), v.literal("failed")),
+        reason: v.optional(v.string()),
+        txReference: v.optional(v.string()),
+        payer: v.optional(v.string()),
+        createdAt: v.number(),
+      }),
+    ),
+  }),
   handler: async (ctx, { scopeType, scopeId }) => {
     const { subject } = await requireIdentity(ctx);
     if (!(await canAccessScope(ctx, scopeType, scopeId, subject))) {
@@ -333,14 +440,29 @@ export const walletForScope = query({
 // ── Admin (platform revenue) ────────────────────────────────────────────────
 export const platformRevenue = query({
   args: {},
+  returns: v.object({
+    totalCreditsSold: v.number(),
+    settledCount: v.number(),
+    walletCount: v.number(),
+    metering: METERING,
+    pricing: PRICING,
+    recent: v.array(
+      v.object({
+        scopeType: SCOPE,
+        scopeId: v.string(),
+        creditsGranted: v.number(),
+        amountAtomic: v.string(),
+        asset: v.string(),
+        status: v.union(v.literal("settled"), v.literal("failed")),
+        createdAt: v.number(),
+      }),
+    ),
+  }),
   handler: async (ctx) => {
     await requirePlatformAdmin(ctx);
     // Settled payments across the platform (bounded scan; payments are
     // low-volume relative to events/tasks).
-    const settled = await ctx.db
-      .query("payments")
-      .order("desc")
-      .take(500);
+    const settled = await ctx.db.query("payments").order("desc").take(500);
     let totalCredits = 0;
     let settledCount = 0;
     const walletCount = (await ctx.db.query("agentWallets").take(1000)).length;
@@ -377,14 +499,16 @@ export const setMeteringConfig = mutation({
     enabled: v.optional(v.boolean()),
     actionCredits: v.optional(v.number()),
   },
+  returns: METERING,
   handler: async (ctx, { enabled, actionCredits }) => {
     const admin = await requirePlatformAdmin(ctx, { minRole: "superadmin" });
     // Fail closed: refuse to enable metering unless a payment facilitator is
     // configured (or the mock is explicitly opted into). Otherwise metering
     // would be enforced while agents could self-mint credits through the mock.
-    if (enabled === true && !facilitatorConfigured(x402Config())) {
+    if (enabled === true && !billingConfigured(x402Config())) {
+      const issue = billingConfigurationIssue(x402Config());
       throw new ConvexError(
-        "Refusing to enable metering: no payment facilitator is configured. Set X402_FACILITATOR_URL first (or X402_ALLOW_MOCK=1 for development only).",
+        `Refusing to enable metering: ${issue ?? "billing is not configured"}. Configure X402_FACILITATOR_URL and X402_PAY_TO first (or explicitly opt into the mock for development only).`,
       );
     }
     async function put(key: string, value: unknown) {
@@ -407,7 +531,8 @@ export const setMeteringConfig = mutation({
         });
       }
     }
-    if (enabled !== undefined) await put("x402.metering", enabled ? "on" : "off");
+    if (enabled !== undefined)
+      await put("x402.metering", enabled ? "on" : "off");
     if (actionCredits !== undefined) {
       if (!Number.isInteger(actionCredits) || actionCredits < 0) {
         throw new ConvexError("actionCredits must be a non-negative integer");

@@ -159,12 +159,35 @@ function OverviewTab() {
   if (data === undefined) return <SkeletonGrid n={6} />;
 
   const tiles = [
-    { label: "Users", value: data.users.total, sub: `${data.users.onboarded} onboarded` },
-    { label: "Suspended users", value: data.users.suspended, sub: "account holds", warn: data.users.suspended > 0 },
-    { label: "Workspaces", value: data.workspaces.total, sub: `${data.workspaces.suspended} suspended`, warn: data.workspaces.suspended > 0 },
-    { label: "Agents", value: data.agents.total, sub: `${data.agents.online} online now` },
+    {
+      label: "Users",
+      value: data.users.total,
+      sub: `${data.users.onboarded} onboarded`,
+    },
+    {
+      label: "Suspended users",
+      value: data.users.suspended,
+      sub: "account holds",
+      warn: data.users.suspended > 0,
+    },
+    {
+      label: "Workspaces",
+      value: data.workspaces.total,
+      sub: `${data.workspaces.suspended} suspended`,
+      warn: data.workspaces.suspended > 0,
+    },
+    {
+      label: "Agents",
+      value: data.agents.total,
+      sub: `${data.agents.online} online now`,
+    },
     { label: "Paused agents", value: data.agents.paused, sub: "kill-switched" },
-    { label: "Agent runs · 24h", value: data.runsToday.total, sub: `${data.runsToday.failed} failed`, warn: data.runsToday.failed > 0 },
+    {
+      label: "Agent runs · 24h",
+      value: data.runsToday.total,
+      sub: `${data.runsToday.failed} failed`,
+      warn: data.runsToday.failed > 0,
+    },
   ];
 
   return (
@@ -206,7 +229,11 @@ function UsersTab() {
 
   return (
     <div className="space-y-4">
-      <SearchBar value={search} onChange={setSearch} placeholder="Search users by email or name…" />
+      <SearchBar
+        value={search}
+        onChange={setSearch}
+        placeholder="Search users by email or name…"
+      />
       {users === undefined ? (
         <SkeletonRows />
       ) : users.length === 0 ? (
@@ -240,7 +267,8 @@ function UsersTab() {
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {u.workspaceCount} workspace{u.workspaceCount === 1 ? "" : "s"}
+                    {u.workspaceCount} workspace
+                    {u.workspaceCount === 1 ? "" : "s"}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {timeAgo(u.createdAt)}
@@ -256,7 +284,10 @@ function UsersTab() {
                         )}
                       </div>
                     ) : (
-                      <Badge variant="outline" className="text-muted-foreground">
+                      <Badge
+                        variant="outline"
+                        className="text-muted-foreground"
+                      >
                         Active
                       </Badge>
                     )}
@@ -303,14 +334,20 @@ function UsersTab() {
 
 function WorkspacesTab() {
   const [search, setSearch] = useState("");
-  const rows = useQuery(api.admin.listWorkspaces, { search: search || undefined });
+  const rows = useQuery(api.admin.listWorkspaces, {
+    search: search || undefined,
+  });
   const suspend = useMutation(api.admin.suspendWorkspace);
   const reactivate = useMutation(api.admin.reactivateWorkspace);
   const { toast } = useToast();
 
   return (
     <div className="space-y-4">
-      <SearchBar value={search} onChange={setSearch} placeholder="Search workspaces…" />
+      <SearchBar
+        value={search}
+        onChange={setSearch}
+        placeholder="Search workspaces…"
+      />
       {rows === undefined ? (
         <SkeletonRows />
       ) : rows.length === 0 ? (
@@ -352,7 +389,10 @@ function WorkspacesTab() {
                     {w.suspendedAt ? (
                       <Badge variant="destructive">Suspended</Badge>
                     ) : (
-                      <Badge variant="outline" className="text-muted-foreground">
+                      <Badge
+                        variant="outline"
+                        className="text-muted-foreground"
+                      >
                         Active
                       </Badge>
                     )}
@@ -403,7 +443,8 @@ function AgentsTab({ isSuper }: { isSuper: boolean }) {
   const { toast } = useToast();
 
   if (rows === undefined) return <SkeletonRows />;
-  if (rows.length === 0) return <Empty label="No agents on the platform yet." />;
+  if (rows.length === 0)
+    return <Empty label="No agents on the platform yet." />;
 
   return (
     <TableCard>
@@ -436,16 +477,25 @@ function AgentsTab({ isSuper }: { isSuper: boolean }) {
                               : "bg-muted text-muted-foreground",
                         )}
                       >
-                        {a.status === "paused" ? "Paused" : a.online ? "Online" : "Offline"}
+                        {a.status === "paused"
+                          ? "Paused"
+                          : a.online
+                            ? "Online"
+                            : "Offline"}
                       </Badge>
-                      <Badge variant="outline" className="uppercase tracking-wider text-muted-foreground">
+                      <Badge
+                        variant="outline"
+                        className="uppercase tracking-wider text-muted-foreground"
+                      >
                         {a.role}
                       </Badge>
                     </p>
                   </div>
                 </div>
               </TableCell>
-              <TableCell className="text-muted-foreground">{a.parentType}</TableCell>
+              <TableCell className="text-muted-foreground">
+                {a.parentType}
+              </TableCell>
               <TableCell className="text-muted-foreground">
                 {a.activeKeys} active key{a.activeKeys === 1 ? "" : "s"}
               </TableCell>
@@ -529,7 +579,9 @@ function AuditTab() {
           {rows.map((r) => (
             <TableRow key={r._id}>
               <TableCell>
-                <Badge className={cn("border-transparent", auditTone(r.action))}>
+                <Badge
+                  className={cn("border-transparent", auditTone(r.action))}
+                >
                   {r.action}
                 </Badge>
               </TableCell>
@@ -539,7 +591,9 @@ function AuditTab() {
                   <span className="text-muted-foreground"> · {r.summary}</span>
                 )}
                 {r.reason && (
-                  <span className="text-muted-foreground">, &ldquo;{r.reason}&rdquo;</span>
+                  <span className="text-muted-foreground">
+                    , &ldquo;{r.reason}&rdquo;
+                  </span>
                 )}
               </TableCell>
               <TableCell className="text-right text-xs text-muted-foreground">
@@ -629,6 +683,13 @@ function BillingAdminTab({ isSuper }: { isSuper: boolean }) {
           scope wallet. Agents top up via x402. Priced in {pricing.assetSymbol}{" "}
           on {pricing.network}.
         </CardDescription>
+        {!pricing.available && (
+          <div className="mt-3 rounded-md bg-pastel-red px-3 py-2 text-sm text-foreground dark:text-black">
+            Payment setup incomplete: {pricing.configurationIssue}. Metering
+            cannot be enabled until the facilitator and receiving wallet are
+            configured.
+          </div>
+        )}
         {isSuper ? (
           <div className="mt-4 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -642,6 +703,7 @@ function BillingAdminTab({ isSuper }: { isSuper: boolean }) {
                 type="button"
                 role="switch"
                 aria-checked={metering.enabled}
+                disabled={!pricing.available && !metering.enabled}
                 onClick={async () => {
                   try {
                     await setConfig({ enabled: !metering.enabled });
@@ -653,14 +715,16 @@ function BillingAdminTab({ isSuper }: { isSuper: boolean }) {
                   }
                 }}
                 className={cn(
-                  "relative h-6 w-11 flex-shrink-0 rounded-full transition-colors",
+                  "relative h-6 w-11 flex-shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50",
                   metering.enabled ? "bg-foreground" : "bg-border",
                 )}
               >
                 <span
                   className={cn(
                     "absolute top-0.5 h-5 w-5 rounded-full bg-background shadow-sm transition-transform",
-                    metering.enabled ? "translate-x-[1.375rem]" : "translate-x-0.5",
+                    metering.enabled
+                      ? "translate-x-[1.375rem]"
+                      : "translate-x-0.5",
                   )}
                 />
               </button>
@@ -945,7 +1009,9 @@ function AdminsTab({ isSuper }: { isSuper: boolean }) {
                 <TableHead>Admin</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Granted</TableHead>
-                {isSuper && <TableHead className="text-right">Actions</TableHead>}
+                {isSuper && (
+                  <TableHead className="text-right">Actions</TableHead>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -972,7 +1038,9 @@ function AdminsTab({ isSuper }: { isSuper: boolean }) {
                         aria-label="Revoke admin"
                         onClick={async () => {
                           try {
-                            await revoke({ adminId: a._id as Id<"platformAdmins"> });
+                            await revoke({
+                              adminId: a._id as Id<"platformAdmins">,
+                            });
                             toast(`Revoked ${a.email}`);
                           } catch (err) {
                             toast(errMsg(err), { kind: "error" });
@@ -1026,7 +1094,9 @@ function ReasonAction({
       <Button
         size="sm"
         variant="outline"
-        className={cn(danger && "hover:border-destructive/40 hover:text-destructive")}
+        className={cn(
+          danger && "hover:border-destructive/40 hover:text-destructive",
+        )}
         onClick={() => setOpen(true)}
       >
         {label}
@@ -1162,5 +1232,8 @@ function SkeletonGrid({ n }: { n: number }) {
 
 function errMsg(e: unknown): string {
   const raw = e instanceof Error ? e.message : String(e);
-  return raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() || "Something went wrong";
+  return (
+    raw.split("Uncaught Error:").pop()?.split("\n")[0]?.trim() ||
+    "Something went wrong"
+  );
 }

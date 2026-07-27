@@ -121,18 +121,58 @@ export async function requireAgentByKey(
   ctx: QueryCtx | MutationCtx,
   apiKey: string,
   mode: "read" | "write" | "presence" = "read",
-): Promise<{ agent: Doc<"agents">; key: Doc<"agentKeys"> }> {
+): Promise<{
+  agent: Doc<"agents">;
+  key: Doc<"agentKeys"> | Doc<"oauthAccessTokens">;
+}> {
   const keyHash = sha256Hex(apiKey);
-  const key = await ctx.db
+  const agentKey = await ctx.db
     .query("agentKeys")
     .withIndex("by_hash", (q) => q.eq("keyHash", keyHash))
     .unique();
-  if (!key || key.revokedAt !== undefined) {
+  const oauthToken = agentKey
+    ? null
+    : await ctx.db
+        .query("oauthAccessTokens")
+        .withIndex("by_token_hash", (q) => q.eq("tokenHash", keyHash))
+        .unique();
+  const key = agentKey ?? oauthToken;
+  if (
+    !key ||
+    key.revokedAt !== undefined ||
+    (oauthToken !== null && oauthToken.expiresAt <= Date.now())
+  ) {
     throw new ConvexError("Invalid API key");
   }
   const agent = await ctx.db.get(key.agentId);
   if (!agent) throw new ConvexError("Invalid API key");
   if (agent.status !== "active") throw new ConvexError("Agent is paused");
+  if (oauthToken) {
+    const stillAuthorized =
+      agent.parentType === "user"
+        ? agent.parentId === oauthToken.userClerkId
+        : (await ctx.db
+            .query("memberships")
+            .withIndex("by_user_and_workspace", (q) =>
+              q
+                .eq("userClerkId", oauthToken.userClerkId)
+                .eq(
+                  "workspaceId",
+                  agent.parentId as Id<"workspaces">,
+                ),
+            )
+            .unique()) !== null;
+    if (!stillAuthorized) throw new ConvexError("OAuth access was revoked");
+    if (!oauthToken.scopes.includes("operate:read")) {
+      throw new ConvexError("OAuth token is missing operate:read");
+    }
+    if (
+      mode !== "read" &&
+      !oauthToken.scopes.includes("operate:write")
+    ) {
+      throw new ConvexError("OAuth token is missing operate:write");
+    }
+  }
 
   if (mode !== "read" && "patch" in ctx.db) {
     const db = (ctx as MutationCtx).db;

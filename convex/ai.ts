@@ -19,17 +19,16 @@ const CHAT_MODEL = "gpt-4o-mini";
 
 function makeClient(): OpenAI | null {
   const key = process.env.OPENAI_API_KEY;
-  if (!key) {
-    console.warn("[ai] OPENAI_API_KEY not set");
-    return null;
-  }
+  // AI enrichment is optional in local/test deployments.
+  if (!key) return null;
   return new OpenAI({ apiKey: key });
 }
 
 // --- Embedding helpers ----------------------------------------------------
 
 // Both helpers live in _docText.ts so the default-runtime queries in
-// agentApi.ts can use the same extraction this Node action does.
+// agentApi.ts can use the same extraction this Node action does. Two copies
+// would drift, and the copy an agent reads has to match the copy we index.
 
 // --- Index actions: called from mutations via ctx.scheduler --------------
 
@@ -258,4 +257,3 @@ export const taskAutofill = action({
     };
   },
 });
-
