@@ -198,6 +198,17 @@ describe("structure lifecycle parity", () => {
       apiKey,
       listId: typoId,
       description: "All customer feedback triage",
+    });
+    // Health and dates describe the project, not the board — so they go
+    // through the project surface and come back on the project node.
+    const projectId = await t.mutation(api.agentApi.createProject, {
+      apiKey,
+      spaceId,
+      name: "Customer feedback",
+    });
+    await t.mutation(api.agentApi.updateProjectMeta, {
+      apiKey,
+      projectId,
       projectStatus: "on_track",
       targetDate: 1_800_000_000_000,
     });
@@ -210,8 +221,9 @@ describe("structure lifecycle parity", () => {
 
     const tree = (await t.query(api.agentApi.getTree, { apiKey })) as {
       spaces: {
-        lists: {
-          listId: string;
+        lists: { listId: string; name: string; description: string | null }[];
+        projects: {
+          projectId: string;
           name: string;
           projectStatus: string | null;
           targetDate: number | null;
@@ -221,8 +233,12 @@ describe("structure lifecycle parity", () => {
     const lists = tree.spaces.flatMap((s) => s.lists);
     const renamed = lists.find((l) => l.listId === typoId)!;
     expect(renamed.name).toBe("Triage inbox work");
-    expect(renamed.projectStatus).toBe("on_track");
-    expect(renamed.targetDate).toBe(1_800_000_000_000);
+    expect(renamed.description).toBe("All customer feedback triage");
+
+    const projects = tree.spaces.flatMap((s) => s.projects);
+    const project = projects.find((p) => p.projectId === projectId)!;
+    expect(project.projectStatus).toBe("on_track");
+    expect(project.targetDate).toBe(1_800_000_000_000);
 
     await t.mutation(api.agentApi.deleteList, { apiKey, listId: typoId });
     const after = await t.run(async (ctx) => ctx.db.get(typoId));

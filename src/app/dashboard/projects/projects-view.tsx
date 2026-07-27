@@ -188,10 +188,10 @@ export function ProjectsView() {
   const toggleFavorite = useMutation(api.favorites.toggle);
   const { toast } = useToast();
 
-  const favoritedListIds = useMemo(() => {
+  const favoritedProjectIds = useMemo(() => {
     const set = new Set<string>();
     for (const f of favorites ?? []) {
-      if (f.entityType === "list") set.add(f.entityId);
+      if (f.entityType === "project") set.add(f.entityId);
     }
     return set;
   }, [favorites]);
@@ -206,9 +206,9 @@ export function ProjectsView() {
     [sorted, group],
   );
 
-  async function onToggleFavorite(listId: Id<"lists">, wasFavorited: boolean) {
+  async function onToggleFavorite(listId: Id<"projects">, wasFavorited: boolean) {
     try {
-      await toggleFavorite({ entityType: "list", entityId: listId });
+      await toggleFavorite({ entityType: "project", entityId: listId });
       toast(wasFavorited ? "Removed from favorites" : "Added to favorites");
     } catch {
       toast("Couldn't update favorites", { kind: "error" });
@@ -298,7 +298,7 @@ export function ProjectsView() {
           {groups === null ? (
             <ProjectsGrid
               projects={sorted}
-              favoritedListIds={favoritedListIds}
+              favoritedProjectIds={favoritedProjectIds}
               onToggleFavorite={onToggleFavorite}
             />
           ) : (
@@ -313,7 +313,7 @@ export function ProjectsView() {
                   </h2>
                   <ProjectsGrid
                     projects={g.rows}
-                    favoritedListIds={favoritedListIds}
+                    favoritedProjectIds={favoritedProjectIds}
                     onToggleFavorite={onToggleFavorite}
                   />
                 </section>
@@ -334,20 +334,20 @@ export function ProjectsView() {
 
 function ProjectsGrid({
   projects,
-  favoritedListIds,
+  favoritedProjectIds,
   onToggleFavorite,
 }: {
   projects: ProjectRow[];
-  favoritedListIds: Set<string>;
-  onToggleFavorite: (listId: Id<"lists">, wasFavorited: boolean) => void;
+  favoritedProjectIds: Set<string>;
+  onToggleFavorite: (listId: Id<"projects">, wasFavorited: boolean) => void;
 }) {
   return (
     <Stagger className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {projects.map((project) => (
-        <StaggerItem key={project.listId}>
+        <StaggerItem key={project.projectId}>
           <ProjectCard
             project={project}
-            favorited={favoritedListIds.has(project.listId)}
+            favorited={favoritedProjectIds.has(project.projectId)}
             onToggleFavorite={onToggleFavorite}
           />
         </StaggerItem>
@@ -363,7 +363,7 @@ function ProjectCard({
 }: {
   project: ProjectRow;
   favorited: boolean;
-  onToggleFavorite: (listId: Id<"lists">, wasFavorited: boolean) => void;
+  onToggleFavorite: (listId: Id<"projects">, wasFavorited: boolean) => void;
 }) {
   const pct = project.total > 0 ? (project.done / project.total) * 100 : 0;
   const chip = project.projectStatus
@@ -380,7 +380,7 @@ function ProjectCard({
     hasOpenWork;
 
   return (
-    <Link href={`/dashboard/l/${project.listId}`} className="lift block">
+    <Link href={`/dashboard/p/${project.projectId}`} className="lift block">
       <Card className="gap-0 rounded-2xl py-5">
         <CardContent className="px-5">
           <div className="flex items-start justify-between gap-2">
@@ -416,7 +416,7 @@ function ProjectCard({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  onToggleFavorite(project.listId, favorited);
+                  onToggleFavorite(project.projectId, favorited);
                 }}
                 className={cn(
                   "tap-target inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full transition-colors",

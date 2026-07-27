@@ -53,14 +53,10 @@ async function createProjects(
   spaceId: Id<"spaces">,
   names: string[],
 ) {
-  const ids: Id<"lists">[] = [];
+  const ids: Id<"projects">[] = [];
   for (const name of names) {
     ids.push(
-      await owner.mutation(api.lists.create, {
-        name,
-        parentType: "space",
-        parentId: spaceId,
-      }),
+      await owner.mutation(api.projects.create, { name, spaceId }),
     );
   }
   return ids;
@@ -97,8 +93,8 @@ describe("roadmaps", () => {
       workspaceId,
       name: "Roadmap",
     });
-    await owner.mutation(api.roadmaps.assignProject, { listId: a, roadmapId });
-    await owner.mutation(api.roadmaps.assignProject, { listId: b, roadmapId });
+    await owner.mutation(api.roadmaps.assignProject, { projectId: a, roadmapId });
+    await owner.mutation(api.roadmaps.assignProject, { projectId: b, roadmapId });
 
     let roadmaps = await owner.query(api.roadmaps.listForWorkspace, {
       workspaceId,
@@ -119,7 +115,7 @@ describe("roadmaps", () => {
     ).toEqual([0, 1]);
 
     await owner.mutation(api.roadmaps.assignProject, {
-      listId: a,
+      projectId: a,
       roadmapId: null,
     });
     roadmaps = await owner.query(api.roadmaps.listForWorkspace, {
@@ -158,7 +154,7 @@ describe("roadmaps", () => {
 
     await expect(
       owner.mutation(api.roadmaps.assignProject, {
-        listId: a,
+        projectId: a,
         roadmapId: foreignRoadmap,
       }),
     ).rejects.toThrow(/different workspace/i);
@@ -173,7 +169,7 @@ describe("roadmaps", () => {
       name: "Roadmap",
     });
 
-    const personalListId = await t.run(async (ctx) => {
+    const personalProjectId = await t.run(async (ctx) => {
       const personalSpaceId = await ctx.db.insert("spaces", {
         name: "Personal",
         parentType: "user",
@@ -181,10 +177,9 @@ describe("roadmaps", () => {
         position: 0,
         createdAt: Date.now(),
       });
-      return await ctx.db.insert("lists", {
+      return await ctx.db.insert("projects", {
         name: "My stuff",
-        parentType: "space",
-        parentId: personalSpaceId,
+        spaceId: personalSpaceId,
         position: 0,
         createdAt: Date.now(),
       });
@@ -192,7 +187,7 @@ describe("roadmaps", () => {
 
     await expect(
       owner.mutation(api.roadmaps.assignProject, {
-        listId: personalListId,
+        projectId: personalProjectId,
         roadmapId,
       }),
     ).rejects.toThrow(/workspace projects/i);
@@ -208,7 +203,7 @@ describe("roadmaps", () => {
       name: "Roadmap",
     });
     for (const id of [a, b, c]) {
-      await owner.mutation(api.roadmaps.assignProject, { listId: id, roadmapId });
+      await owner.mutation(api.roadmaps.assignProject, { projectId: id, roadmapId });
     }
     let roadmaps = await owner.query(api.roadmaps.listForWorkspace, {
       workspaceId,
@@ -218,7 +213,7 @@ describe("roadmaps", () => {
     // C was unassigned by another client after this client captured its
     // order — the stale id must be skipped, not corrupt positions.
     await owner.mutation(api.roadmaps.assignProject, {
-      listId: c,
+      projectId: c,
       roadmapId: null,
     });
     await owner.mutation(api.roadmaps.reorderPhase, {
@@ -249,12 +244,12 @@ describe("roadmaps", () => {
     });
     const [now, next] = roadmaps![0].phases;
     await owner.mutation(api.roadmaps.assignProject, {
-      listId: a,
+      projectId: a,
       roadmapId,
       phaseId: now.id,
     });
     await owner.mutation(api.roadmaps.assignProject, {
-      listId: b,
+      projectId: b,
       roadmapId,
       phaseId: next.id,
     });
@@ -283,16 +278,16 @@ describe("roadmaps", () => {
       workspaceId,
       name: "Roadmap",
     });
-    await owner.mutation(api.roadmaps.assignProject, { listId: a, roadmapId });
+    await owner.mutation(api.roadmaps.assignProject, { projectId: a, roadmapId });
 
     await owner.mutation(api.roadmaps.remove, { roadmapId });
     const roadmaps = await owner.query(api.roadmaps.listForWorkspace, {
       workspaceId,
     });
     expect(roadmaps).toEqual([]);
-    const list = await owner.query(api.lists.get, { listId: a });
-    expect(list?.roadmapId).toBeUndefined();
-    expect(list?.roadmapPhaseId).toBeUndefined();
+    const project = await t.run(async (ctx) => await ctx.db.get(a));
+    expect(project?.roadmapId).toBeUndefined();
+    expect(project?.roadmapPhaseId).toBeUndefined();
   });
 
   it("private spaces: a locked-out member neither sees nor reorders their projects", async () => {
@@ -332,11 +327,11 @@ describe("roadmaps", () => {
       name: "Roadmap",
     });
     await owner.mutation(api.roadmaps.assignProject, {
-      listId: secret,
+      projectId: secret,
       roadmapId,
     });
     await owner.mutation(api.roadmaps.assignProject, {
-      listId: pub,
+      projectId: pub,
       roadmapId,
     });
 
@@ -379,13 +374,13 @@ describe("roadmaps", () => {
   });
 });
 
-describe("lists.reorder", () => {
-  it("renumbers lists under a space and skips ids from other parents", async () => {
+describe("projects.reorder", () => {
+  it("renumbers projects under a space and skips ids from other parents", async () => {
     const t = convexTest(schema, modules);
     const { owner, workspaceId, spaceId } = await seedWorkspace(t);
     const [a, b, c] = await createProjects(owner, spaceId, ["A", "B", "C"]);
 
-    // A list under a DIFFERENT space, snuck into the ordered ids.
+    // A project under a DIFFERENT space, snuck into the ordered ids.
     const otherSpaceId = await owner.mutation(api.spaces.create, {
       name: "Design",
       parentType: "workspace",
@@ -393,17 +388,16 @@ describe("lists.reorder", () => {
     });
     const [foreign] = await createProjects(owner, otherSpaceId, ["Foreign"]);
 
-    await owner.mutation(api.lists.reorder, {
-      parentType: "space",
-      parentId: spaceId,
+    await owner.mutation(api.projects.reorder, {
+      spaceId,
       orderedIds: [c, foreign, a, b],
     });
 
     const positions = await t.run(async (ctx) => {
       const rows: Record<string, number> = {};
       for (const id of [a, b, c, foreign]) {
-        const list = await ctx.db.get(id);
-        rows[list!.name] = list!.position;
+        const project = await ctx.db.get(id);
+        rows[project!.name] = project!.position;
       }
       return rows;
     });
@@ -423,9 +417,8 @@ describe("lists.reorder", () => {
 
     const outsider = t.withIdentity(OUTSIDER);
     await expect(
-      outsider.mutation(api.lists.reorder, {
-        parentType: "space",
-        parentId: spaceId,
+      outsider.mutation(api.projects.reorder, {
+        spaceId,
         orderedIds: [a],
       }),
     ).rejects.toThrow();

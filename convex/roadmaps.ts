@@ -8,9 +8,9 @@ import { emitEvent, userActor } from "./events";
 import { getRollup } from "./rollups";
 
 // Roadmaps (Phase K): workspace-level phased containers that projects
-// (lists) slot into — the organization layer that keeps a fleet of
+// slot into — the organization layer that keeps a fleet of
 // agent-created projects from turning into an unordered pile. A roadmap
-// owns an ordered set of phases; a list may sit in exactly one phase of
+// owns an ordered set of phases; a project may sit in exactly one phase of
 // one roadmap, ordered by roadmapPosition. Reads are per-viewer: projects
 // in private spaces the viewer can't access are skipped, mirroring
 // portfolio.ts.
@@ -145,12 +145,12 @@ export async function removePhaseCore(
   // Projects in the removed phase fall out of the roadmap (never lost —
   // they stay ordinary projects and show under "Unassigned").
   const assigned = await ctx.db
-    .query("lists")
+    .query("projects")
     .withIndex("by_roadmap", (q) => q.eq("roadmapId", roadmap._id))
     .collect();
-  for (const list of assigned) {
-    if (list.roadmapPhaseId === phaseIdToRemove) {
-      await ctx.db.patch(list._id, {
+  for (const project of assigned) {
+    if (project.roadmapPhaseId === phaseIdToRemove) {
+      await ctx.db.patch(project._id, {
         roadmapId: undefined,
         roadmapPhaseId: undefined,
         roadmapPosition: undefined,
@@ -197,22 +197,40 @@ async function requireRoadmap(
   return { roadmap, identity };
 }
 
-// Resolve the workspace that owns a list (space- or project-parented), or
-// null for personal-space lists.
-async function workspaceOfList(ctx: QueryCtx | MutationCtx, listId: Id<"lists">) {
-  const list = await ctx.db.get(listId);
-  if (!list) return null;
-  let spaceId: Id<"spaces">;
-  if (list.parentType === "space") {
-    spaceId = list.parentId as Id<"spaces">;
-  } else {
-    const project = await ctx.db.get(list.parentId as Id<"projects">);
-    if (!project) return null;
-    spaceId = project.spaceId;
-  }
-  const space = await ctx.db.get(spaceId);
+// Resolve the workspace that owns a project, or null when the project lives
+// in a personal space — roadmaps are workspace-level, so a personal project
+// can never join one.
+async function workspaceOfProject(
+  ctx: QueryCtx | MutationCtx,
+  projectId: Id<"projects">,
+) {
+  const project = await ctx.db.get(projectId);
+  if (!project) return null;
+  const space = await ctx.db.get(project.spaceId);
   if (!space || space.parentType !== "workspace") return null;
-  return { list, space, workspaceId: space.parentId as Id<"workspaces"> };
+  return { project, space, workspaceId: space.parentId as Id<"workspaces"> };
+}
+
+// A project's progress is the sum of its lists' rollups. Roadmap rows show
+// "12 of 30 done" for the project as a whole, not for one board inside it.
+async function progressForProject(
+  ctx: QueryCtx | MutationCtx,
+  projectId: Id<"projects">,
+): Promise<{ total: number; done: number }> {
+  const lists = await ctx.db
+    .query("lists")
+    .withIndex("by_parent", (q) =>
+      q.eq("parentType", "project").eq("parentId", projectId),
+    )
+    .collect();
+  let total = 0;
+  let done = 0;
+  for (const l of lists) {
+    const rollup = await getRollup(ctx, l._id);
+    total += rollup?.total ?? 0;
+    done += rollup?.done ?? 0;
+  }
+  return { total, done };
 }
 
 export const listForWorkspace = query({
@@ -236,12 +254,13 @@ export const listForWorkspace = query({
     const out = [];
     for (const rm of roadmaps) {
       const assigned = await ctx.db
-        .query("lists")
+        .query("projects")
         .withIndex("by_roadmap", (q) => q.eq("roadmapId", rm._id))
         .collect();
       const projects = [];
-      for (const list of assigned) {
-        const resolved = await workspaceOfList(ctx, list._id);
+      for (const project of assigned) {
+        if (project.archivedAt !== undefined) continue;
+        const resolved = await workspaceOfProject(ctx, project._id);
         if (!resolved || resolved.workspaceId !== workspaceId) continue;
         if (resolved.space.archivedAt !== undefined) continue;
         let ok = spaceOk.get(resolved.space._id);
@@ -252,17 +271,17 @@ export const listForWorkspace = query({
           spaceOk.set(resolved.space._id, ok);
         }
         if (!ok) continue;
-        const rollup = await getRollup(ctx, list._id);
+        const progress = await progressForProject(ctx, project._id);
         projects.push({
-          listId: list._id,
-          name: list.name,
-          color: list.color,
-          projectStatus: list.projectStatus,
-          targetDate: list.targetDate,
-          phaseId: list.roadmapPhaseId,
-          position: list.roadmapPosition ?? 0,
-          total: rollup?.total ?? 0,
-          done: rollup?.done ?? 0,
+          projectId: project._id,
+          name: project.name,
+          color: project.color,
+          projectStatus: project.projectStatus,
+          targetDate: project.targetDate,
+          phaseId: project.roadmapPhaseId,
+          position: project.roadmapPosition ?? 0,
+          total: progress.total,
+          done: progress.done,
         });
       }
       projects.sort((a, b) => a.position - b.position);
@@ -324,11 +343,11 @@ export const remove = mutation({
     // Unassign every project first — deleting a roadmap never touches the
     // projects themselves.
     const assigned = await ctx.db
-      .query("lists")
+      .query("projects")
       .withIndex("by_roadmap", (q) => q.eq("roadmapId", roadmapId))
       .collect();
-    for (const list of assigned) {
-      await ctx.db.patch(list._id, {
+    for (const project of assigned) {
+      await ctx.db.patch(project._id, {
         roadmapId: undefined,
         roadmapPhaseId: undefined,
         roadmapPosition: undefined,
@@ -387,12 +406,12 @@ export const removePhase = mutation({
 // Put a project into a roadmap phase (or pull it out with roadmapId: null).
 export const assignProject = mutation({
   args: {
-    listId: v.id("lists"),
+    projectId: v.id("projects"),
     roadmapId: v.union(v.id("roadmaps"), v.null()),
     phaseId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const resolved = await workspaceOfList(ctx, args.listId);
+    const resolved = await workspaceOfProject(ctx, args.projectId);
     if (!resolved) {
       throw new ConvexError("Only workspace projects can join a roadmap");
     }
@@ -404,7 +423,7 @@ export const assignProject = mutation({
       throw new ConvexError("No access to this project");
     }
     if (args.roadmapId === null) {
-      await ctx.db.patch(args.listId, {
+      await ctx.db.patch(args.projectId, {
         roadmapId: undefined,
         roadmapPhaseId: undefined,
         roadmapPosition: undefined,
@@ -427,18 +446,18 @@ export const assignProject = mutation({
       );
     }
     const siblings = await ctx.db
-      .query("lists")
+      .query("projects")
       .withIndex("by_roadmap", (q) => q.eq("roadmapId", roadmap._id))
       .collect();
     const inPhase = siblings.filter(
-      (l) => l.roadmapPhaseId === phase.id && l._id !== args.listId,
+      (p) => p.roadmapPhaseId === phase.id && p._id !== args.projectId,
     );
     // max+1, not count: unassigns leave gaps, so length would collide.
     const maxPosition = inPhase.reduce(
-      (m, l) => Math.max(m, l.roadmapPosition ?? 0),
+      (m, p) => Math.max(m, p.roadmapPosition ?? 0),
       -1,
     );
-    await ctx.db.patch(args.listId, {
+    await ctx.db.patch(args.projectId, {
       roadmapId: roadmap._id,
       roadmapPhaseId: phase.id,
       roadmapPosition: maxPosition + 1,
@@ -451,24 +470,24 @@ export const reorderPhase = mutation({
   args: {
     roadmapId: v.id("roadmaps"),
     phaseId: v.string(),
-    orderedIds: v.array(v.id("lists")),
+    orderedIds: v.array(v.id("projects")),
   },
   handler: async (ctx, args) => {
     const { roadmap, identity } = await requireRoadmap(ctx, args.roadmapId);
     // Same per-space gate as listForWorkspace: workspace membership alone
-    // must not let a caller rewrite ordering of lists in private spaces
+    // must not let a caller rewrite ordering of projects in private spaces
     // they can't access.
     const spaceOk = new Map<string, boolean>();
     for (let i = 0; i < args.orderedIds.length; i++) {
-      const list = await ctx.db.get(args.orderedIds[i]);
+      const project = await ctx.db.get(args.orderedIds[i]);
       if (
-        !list ||
-        list.roadmapId !== roadmap._id ||
-        list.roadmapPhaseId !== args.phaseId
+        !project ||
+        project.roadmapId !== roadmap._id ||
+        project.roadmapPhaseId !== args.phaseId
       ) {
         continue; // stale client order — skip rather than corrupt
       }
-      const resolved = await workspaceOfList(ctx, list._id);
+      const resolved = await workspaceOfProject(ctx, project._id);
       if (!resolved || resolved.workspaceId !== roadmap.workspaceId) continue;
       let ok = spaceOk.get(resolved.space._id);
       if (ok === undefined) {
@@ -478,8 +497,8 @@ export const reorderPhase = mutation({
         spaceOk.set(resolved.space._id, ok);
       }
       if (!ok) continue;
-      if (list.roadmapPosition !== i) {
-        await ctx.db.patch(list._id, { roadmapPosition: i });
+      if (project.roadmapPosition !== i) {
+        await ctx.db.patch(project._id, { roadmapPosition: i });
       }
     }
   },

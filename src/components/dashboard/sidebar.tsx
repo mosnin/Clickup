@@ -900,10 +900,15 @@ function ProjectTree({
             }}
           />
         ) : (
-          <span className="flex min-w-0 flex-1 items-center gap-2 px-1 text-sm text-sidebar-foreground/80">
+          // A project has its own page now (overview, health, owner, its
+          // lists), so the row navigates instead of only expanding.
+          <Link
+            href={`/dashboard/p/${project._id}`}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 text-sm text-sidebar-foreground/80 hover:text-sidebar-foreground"
+          >
             <Folder className="size-3.5 flex-shrink-0" aria-hidden />
             <span className="truncate">{project.name}</span>
-          </span>
+          </Link>
         )}
         {!renaming && (
           <RowMenu label={`Project actions for ${project.name}`}>

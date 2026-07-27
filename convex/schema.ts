@@ -1739,6 +1739,7 @@ export default defineSchema({
     userClerkId: v.string(),
     entityType: v.union(
       v.literal("list"),
+      v.literal("project"),
       v.literal("space"),
       v.literal("doc"),
       v.literal("whiteboard"),

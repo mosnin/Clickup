@@ -286,6 +286,7 @@ const IDEMPOTENT_TOOLS = new Set([
   "assign_list_to_phase",
   "rename_list",
   "update_list_meta",
+  "update_project_meta",
   "reorder_lists",
   "move_list",
   "rename_project",
@@ -450,16 +451,10 @@ const TOOLS: ToolDef[] = [
   {
     name: "update_list_meta",
     description:
-      "Set a list's intent: description, health (on_track/at_risk/off_track/paused), target date, notes, or attached SOP slug. null clears a field. Shows on the list Overview and in get_tree.",
+      "Set a list's own intent: its description and attached SOP slug. null clears a field. A list is one board of tasks — health, owner, notes and target date describe the Project that owns it, so use update_project_meta for those.",
     shape: {
       listId: z.string(),
       description: z.string().nullable().optional(),
-      projectStatus: z
-        .enum(["on_track", "at_risk", "off_track", "paused"])
-        .nullable()
-        .optional(),
-      notes: z.string().nullable().optional(),
-      targetDate: z.number().nullable().optional().describe("epoch ms"),
       sopSlug: z
         .string()
         .nullable()
@@ -468,6 +463,31 @@ const TOOLS: ToolDef[] = [
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.updateListMeta), { apiKey: k, ...a }),
+  },
+  {
+    name: "update_project_meta",
+    description:
+      "Report on a project: description, health (on_track/at_risk/off_track/paused), owner, target date, and freeform notes. null clears a field. This is how you tell humans a project has slipped without waiting to be asked — it drives the status chips on Home, the projects directory, and the roadmap.",
+    shape: {
+      projectId: z.string(),
+      description: z.string().nullable().optional(),
+      projectStatus: z
+        .enum(["on_track", "at_risk", "off_track", "paused"])
+        .nullable()
+        .optional(),
+      ownerActorId: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("clerkId or agent id from list_members"),
+      notes: z.string().nullable().optional(),
+      targetDate: z.number().nullable().optional().describe("epoch ms"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.updateProjectMeta), {
+        apiKey: k,
+        ...a,
+      }),
   },
   {
     name: "delete_list",

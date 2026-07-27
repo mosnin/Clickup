@@ -60,6 +60,11 @@ export const tree = query({
               _id: project._id,
               name: project.name,
               position: project.position,
+              color: project.color,
+              projectStatus: project.projectStatus,
+              // Carried so the roadmap panel can tell assigned projects
+              // from unassigned ones without a second round trip.
+              roadmapId: project.roadmapId,
               lists: lists.sort(byPosition),
             };
           }),

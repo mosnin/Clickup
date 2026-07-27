@@ -1,5 +1,5 @@
 // Per-user starred items powering the sidebar Favorites rail. A favorite is
-// a (userClerkId, entityType, entityId) pin over a list, space, doc, or
+// a (userClerkId, entityType, entityId) pin over a list, project, space, doc, or
 // whiteboard the user can already access — pinning never grants access, it
 // just remembers a shortcut. `toggle` re-checks access on every call (not
 // just at pin time) so a favorite silently stops resolving the moment the
@@ -13,11 +13,13 @@ import {
   requireDocLikeParentAccess,
   requireIdentity,
   requireListAccess,
+  requireProjectAccess,
   requireSpaceAccess,
 } from "./_authz";
 
 const entityTypeValidator = v.union(
   v.literal("list"),
+  v.literal("project"),
   v.literal("space"),
   v.literal("doc"),
   v.literal("whiteboard"),
@@ -38,6 +40,10 @@ async function canAccessEntity(
   try {
     if (entityType === "list") {
       await requireListAccess(ctx, entityId as Id<"lists">);
+      return true;
+    }
+    if (entityType === "project") {
+      await requireProjectAccess(ctx, entityId as Id<"projects">);
       return true;
     }
     if (entityType === "space") {
@@ -150,6 +156,22 @@ async function resolveFavorite(
       name: list.name,
       href: `/dashboard/l/${list._id}`,
       color: list.color,
+    };
+  }
+  if (row.entityType === "project") {
+    const project = await ctx.db.get(row.entityId as Id<"projects">);
+    if (!project) return null;
+    try {
+      await requireProjectAccess(ctx, project._id);
+    } catch {
+      return null;
+    }
+    return {
+      entityType: "project",
+      entityId: row.entityId,
+      name: project.name,
+      href: `/dashboard/p/${project._id}`,
+      color: project.color,
     };
   }
   if (row.entityType === "space") {

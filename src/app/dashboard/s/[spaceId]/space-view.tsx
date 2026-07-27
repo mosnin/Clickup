@@ -562,7 +562,12 @@ function ProjectSection({
         ) : (
           <>
             <h2 className="min-w-0 truncate text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              {project.name}
+              <Link
+                href={`/dashboard/p/${project.projectId}`}
+                className="hover:text-foreground"
+              >
+                {project.name}
+              </Link>
             </h2>
             <span className="flex-shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
               Project

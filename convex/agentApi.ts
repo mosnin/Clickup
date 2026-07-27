@@ -56,6 +56,7 @@ import {
 } from "./lists";
 import {
   createProjectCore,
+  updateProjectMetaCore,
   removeProjectCore,
   renameProjectCore,
   reorderProjectsCore,
@@ -382,13 +383,24 @@ function treeListNode(l: Doc<"lists">) {
       ? { mode: l.routing.mode, assignees: l.routing.assigneeIds.length }
       : null,
     sopSlug: l.sopSlug ?? null,
-    // Project-level intent, so the tree alone answers "what is this list
-    // for and when is it due" without a per-list read.
+    // What this board is for. Health, owner and target date describe the
+    // Project that owns the list and ride the project node instead.
     description: l.description ?? null,
-    projectStatus: l.projectStatus ?? null,
-    targetDate: l.targetDate ?? null,
-    roadmap: l.roadmapId
-      ? { roadmapId: l.roadmapId, phaseId: l.roadmapPhaseId ?? null }
+  };
+}
+
+// Project-level intent, so the tree alone answers "what is this project for,
+// how is it going and when is it due" without a per-project read.
+function treeProjectNode(p: Doc<"projects">) {
+  return {
+    projectId: p._id,
+    name: p.name,
+    description: p.description ?? null,
+    projectStatus: p.projectStatus ?? null,
+    ownerActorId: p.ownerActorId ?? null,
+    targetDate: p.targetDate ?? null,
+    roadmap: p.roadmapId
+      ? { roadmapId: p.roadmapId, phaseId: p.roadmapPhaseId ?? null }
       : null,
   };
 }
@@ -696,8 +708,7 @@ export const getTree = query({
           )
           .collect();
         projectNodes.push({
-          projectId: project._id,
-          name: project.name,
+          ...treeProjectNode(project),
           lists: lists
             .filter((l) => agentCanTouchList(agent, l._id))
             .map(treeListNode),
@@ -4280,6 +4291,27 @@ export const updateListMeta = mutation({
     listId: v.id("lists"),
     // null clears a field; omitted fields stay untouched.
     description: v.optional(v.union(v.string(), v.null())),
+    sopSlug: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    requireUnrestricted(agent);
+    const { list } = await requireListAccessForAgent(ctx, args.listId, agent);
+    const { apiKey: _apiKey, listId: _listId, ...patch } = args;
+    await updateListMetaCore(ctx, list, patch, agentActor(agent));
+  },
+});
+
+// Project identity — health, owner, notes, target date. Separate from
+// updateListMeta because a list is a board of tasks and a project is the
+// thing the board belongs to; an agent reporting "this project is at risk"
+// is making a claim about the project, not about one of its boards.
+export const updateProjectMeta = mutation({
+  args: {
+    apiKey: v.string(),
+    projectId: v.id("projects"),
+    // null clears a field; omitted fields stay untouched.
+    description: v.optional(v.union(v.string(), v.null())),
     projectStatus: v.optional(
       v.union(
         v.literal("on_track"),
@@ -4289,16 +4321,32 @@ export const updateListMeta = mutation({
         v.null(),
       ),
     ),
+    ownerActorId: v.optional(v.union(v.string(), v.null())),
     notes: v.optional(v.union(v.string(), v.null())),
     targetDate: v.optional(v.union(v.number(), v.null())),
-    sopSlug: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     requireUnrestricted(agent);
-    const { list } = await requireListAccessForAgent(ctx, args.listId, agent);
-    const { apiKey: _apiKey, listId: _listId, ...patch } = args;
-    await updateListMetaCore(ctx, list, patch, agentActor(agent));
+    const { project, space } = await requireProjectAccessForAgent(
+      ctx,
+      args.projectId,
+      agent,
+    );
+    const { apiKey: _apiKey, projectId: _projectId, ...patch } = args;
+    await updateProjectMetaCore(
+      ctx,
+      project,
+      space,
+      {
+        description: patch.description ?? undefined,
+        projectStatus: patch.projectStatus,
+        ownerActorId: patch.ownerActorId,
+        notes: patch.notes ?? undefined,
+        targetDate: patch.targetDate,
+      },
+      agentActor(agent),
+    );
   },
 });
 

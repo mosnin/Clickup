@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { convexTest } from "convex-test";
 import { ConvexError } from "convex/values";
 import schema from "../convex/schema";
-import { api } from "../convex/_generated/api";
+import { api, internal } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 
-// Folders are first-class siblings of lists inside a Space. The rules that
+// Projects are the layer between a Space and its Lists. The rules that
 // matter and can't be re-derived from the UI:
 //
 //  1. A list can move into a project and back out, keeping everything.
@@ -438,5 +438,182 @@ describe("ordering", () => {
     expect(foreignDoc?.position).toBe(0); // untouched
     const mineDoc = await t.run((ctx) => ctx.db.get(mine));
     expect(mineDoc?.position).toBe(1);
+  });
+});
+
+describe("project identity", () => {
+  it("carries health, owner, notes and target date, and clears them with null", async () => {
+    const { t, spaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+
+    const projectId = await alice.mutation(api.projects.create, {
+      spaceId,
+      name: "Billing migration",
+      description: "Move billing off the legacy processor",
+    });
+
+    await alice.mutation(api.projects.updateMeta, {
+      projectId,
+      projectStatus: "at_risk",
+      ownerActorId: ALICE.subject,
+      notes: "Vendor cutover slipped a week",
+      targetDate: 1_800_000_000_000,
+    });
+
+    let project = await t.run(async (ctx) => await ctx.db.get(projectId));
+    expect(project?.description).toBe("Move billing off the legacy processor");
+    expect(project?.projectStatus).toBe("at_risk");
+    expect(project?.ownerActorId).toBe(ALICE.subject);
+    expect(project?.notes).toBe("Vendor cutover slipped a week");
+    expect(project?.targetDate).toBe(1_800_000_000_000);
+
+    // null is an explicit clear; an omitted field must stay untouched.
+    await alice.mutation(api.projects.updateMeta, {
+      projectId,
+      projectStatus: null,
+      targetDate: null,
+    });
+    project = await t.run(async (ctx) => await ctx.db.get(projectId));
+    expect(project?.projectStatus).toBeUndefined();
+    expect(project?.targetDate).toBeUndefined();
+    expect(project?.notes).toBe("Vendor cutover slipped a week");
+  });
+
+  it("a non-member can neither read nor patch a project", async () => {
+    const { t, spaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    const outsider = t.withIdentity(OUTSIDER);
+
+    const projectId = await alice.mutation(api.projects.create, {
+      spaceId,
+      name: "Secret",
+    });
+
+    expect(await outsider.query(api.projects.get, { projectId })).toBeNull();
+    await expect(
+      outsider.mutation(api.projects.updateMeta, {
+        projectId,
+        projectStatus: "off_track",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("projects.get returns the project's lists in order", async () => {
+    const { t, spaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+
+    const projectId = await alice.mutation(api.projects.create, {
+      spaceId,
+      name: "Q3",
+    });
+    for (const name of ["Backlog", "Milestones"]) {
+      await alice.mutation(api.lists.create, {
+        name,
+        parentType: "project",
+        parentId: projectId,
+      });
+    }
+
+    const data = await alice.query(api.projects.get, { projectId });
+    expect(data?.spaceName).toBe("HQ");
+    expect(data?.lists.map((l) => l.name)).toEqual(["Backlog", "Milestones"]);
+  });
+});
+
+describe("migrations.foldersToProjects", () => {
+  it("converts folders, wraps identity-carrying lists, and leaves bare lists alone", async () => {
+    const { t, spaceId } = await seed();
+
+    // Three pre-migration shapes, written straight to the tables the way
+    // the old code would have left them.
+    const { folderListId, identityListId, bareListId } = await t.run(
+      async (ctx) => {
+        const folderId = await ctx.db.insert("folders", {
+          name: "Grouped",
+          spaceId,
+          position: 0,
+          createdAt: 1,
+        });
+        const folderListId = await ctx.db.insert("lists", {
+          name: "Inside a folder",
+          parentType: "folder",
+          parentId: folderId,
+          position: 0,
+          createdAt: 2,
+        });
+        const identityListId = await ctx.db.insert("lists", {
+          name: "Was a project",
+          parentType: "space",
+          parentId: spaceId,
+          position: 0,
+          createdAt: 3,
+          projectStatus: "at_risk",
+          notes: "carried over",
+          targetDate: 1_800_000_000_000,
+        });
+        const bareListId = await ctx.db.insert("lists", {
+          name: "Just a board",
+          parentType: "space",
+          parentId: spaceId,
+          position: 1,
+          createdAt: 4,
+        });
+        return { folderListId, identityListId, bareListId };
+      },
+    );
+
+    const dry = await t.mutation(internal.migrations.foldersToProjects, {
+      dryRun: true,
+    });
+    expect(dry.foldersConverted).toBe(1);
+    expect(dry.listsWrappedInNewProject).toBe(1);
+    expect(dry.bareListsLeftInSpace).toBe(1);
+    // A dry run must not have touched anything.
+    expect(
+      await t.run(async (ctx) => (await ctx.db.query("projects").collect()).length),
+    ).toBe(0);
+
+    await t.mutation(internal.migrations.foldersToProjects, {});
+
+    const after = await t.run(async (ctx) => ({
+      projects: await ctx.db.query("projects").collect(),
+      folders: await ctx.db.query("folders").collect(),
+      folderList: await ctx.db.get(folderListId),
+      identityList: await ctx.db.get(identityListId),
+      bareList: await ctx.db.get(bareListId),
+    }));
+
+    expect(after.folders).toHaveLength(0);
+    expect(after.projects.map((p) => p.name).sort()).toEqual([
+      "Grouped",
+      "Was a project",
+    ]);
+
+    // The folder's list is reparented onto the project that replaced it.
+    const grouped = after.projects.find((p) => p.name === "Grouped")!;
+    expect(after.folderList?.parentType).toBe("project");
+    expect(after.folderList?.parentId).toBe(grouped._id);
+
+    // The identity-carrying list gets a project wrapped around it, and the
+    // identity moves — one source of truth, not two.
+    const wrapped = after.projects.find((p) => p.name === "Was a project")!;
+    expect(wrapped.projectStatus).toBe("at_risk");
+    expect(wrapped.notes).toBe("carried over");
+    expect(wrapped.targetDate).toBe(1_800_000_000_000);
+    expect(after.identityList?.parentType).toBe("project");
+    expect(after.identityList?.parentId).toBe(wrapped._id);
+    expect(after.identityList?.projectStatus).toBeUndefined();
+    expect(after.identityList?.notes).toBeUndefined();
+
+    // A board nobody promoted stays exactly where it was.
+    expect(after.bareList?.parentType).toBe("space");
+    expect(after.bareList?.parentId).toBe(spaceId);
+
+    // Idempotent: a second run changes nothing.
+    await t.mutation(internal.migrations.foldersToProjects, {});
+    const twice = await t.run(
+      async (ctx) => (await ctx.db.query("projects").collect()).length,
+    );
+    expect(twice).toBe(2);
   });
 });

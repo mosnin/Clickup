@@ -7,8 +7,6 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Picker, type PickerOption } from "@/components/ui/picker";
-import { Monogram } from "@/components/dashboard/monogram";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import {
@@ -24,30 +22,11 @@ import { timeAgo } from "@/lib/time";
 import { errorMessage } from "@/lib/errors";
 
 // The Overview surface: what makes a list a real PROJECT. Description +
-// notes on the left, health/owner/target date + at-a-glance metadata on the
-// right. Every field blur/click-saves through lists.updateMeta and confirms
+// notes on the left, at-a-glance metadata on the right. Health, owner and
+// target date describe the Project, not this board, and live on the project
+// page. Every field blur/click-saves through lists.updateMeta and confirms
 // with a quiet toast — there's no separate "save" step anywhere on this page.
 
-type ProjectStatus = "on_track" | "at_risk" | "off_track" | "paused";
-
-const STATUS_CHIPS: { key: ProjectStatus; label: string; className: string }[] = [
-  {
-    key: "on_track",
-    label: "On track",
-    className: "bg-pastel-green dark:text-neutral-900",
-  },
-  {
-    key: "at_risk",
-    label: "At risk",
-    className: "bg-pastel-yellow dark:text-neutral-900",
-  },
-  {
-    key: "off_track",
-    label: "Off track",
-    className: "bg-pastel-red dark:text-neutral-900",
-  },
-  { key: "paused", label: "Paused", className: "bg-muted" },
-];
 
 export function OverviewView({
   listId,
@@ -68,9 +47,6 @@ export function OverviewView({
         <MilestonesCard listId={listId} />
       </div>
       <div className="space-y-6">
-        <StatusCard listId={listId} list={list} />
-        <OwnerCard listId={listId} list={list} />
-        <TargetDateCard listId={listId} list={list} />
         <DetailsCard list={list} tasks={tasks} statuses={statuses} />
       </div>
     </div>
@@ -564,166 +540,6 @@ function MilestoneRowCard({
         )}
       </div>
     </div>
-  );
-}
-
-function StatusCard({
-  listId,
-  list,
-}: {
-  listId: Id<"lists">;
-  list: Doc<"lists">;
-}) {
-  const updateMeta = useMutation(api.lists.updateMeta);
-  const { toast } = useToast();
-
-  async function setStatus(key: ProjectStatus) {
-    const next = list.projectStatus === key ? null : key;
-    try {
-      await updateMeta({ listId, projectStatus: next });
-      toast("Saved");
-    } catch (e) {
-      toast(errorMessage(e, "Couldn't save status"), { kind: "error" });
-    }
-  }
-
-  return (
-    <Card className="rounded-2xl p-5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-        Status
-      </span>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {STATUS_CHIPS.map((chip) => {
-          const active = list.projectStatus === chip.key;
-          return (
-            <button
-              key={chip.key}
-              type="button"
-              aria-pressed={active}
-              onClick={() => void setStatus(chip.key)}
-              className={cn(
-                "rounded-full px-3 py-1.5 text-xs font-medium text-foreground transition-opacity",
-                chip.className,
-                !active && "opacity-45 hover:opacity-80",
-              )}
-            >
-              {chip.label}
-            </button>
-          );
-        })}
-      </div>
-    </Card>
-  );
-}
-
-function OwnerCard({
-  listId,
-  list,
-}: {
-  listId: Id<"lists">;
-  list: Doc<"lists">;
-}) {
-  const options = useQuery(api.agents.listAssignableForList, { listId });
-  const updateMeta = useMutation(api.lists.updateMeta);
-  const { toast } = useToast();
-
-  const owner = options?.find((o) => o.id === list.ownerActorId);
-
-  async function setOwner(id: string | null) {
-    try {
-      await updateMeta({ listId, ownerActorId: id });
-      toast("Saved");
-    } catch (e) {
-      toast(errorMessage(e, "Couldn't save owner"), { kind: "error" });
-    }
-  }
-
-  const pickerOptions: PickerOption[] = (options ?? []).map((o) => ({
-    id: o.id,
-    label: o.name,
-    hint: o.kind === "agent" ? "agent" : undefined,
-  }));
-
-  return (
-    <Card className="rounded-2xl p-5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-        Owner
-      </span>
-      <div className="mt-3 space-y-3">
-        {owner && (
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <Monogram name={owner.name} size="sm" />
-              <span className="truncate text-sm font-medium">
-                {owner.name}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => void setOwner(null)}
-              className="flex-shrink-0 text-xs text-muted-foreground hover:text-foreground"
-            >
-              Remove
-            </button>
-          </div>
-        )}
-        <Picker
-          label={owner ? "Change owner…" : "Assign an owner…"}
-          dashed
-          selectedId={owner?.id}
-          options={pickerOptions}
-          onSelect={(id) => void setOwner(id)}
-        />
-      </div>
-    </Card>
-  );
-}
-
-function TargetDateCard({
-  listId,
-  list,
-}: {
-  listId: Id<"lists">;
-  list: Doc<"lists">;
-}) {
-  const updateMeta = useMutation(api.lists.updateMeta);
-  const { toast } = useToast();
-
-  async function setDate(value: number | null) {
-    try {
-      await updateMeta({ listId, targetDate: value });
-      toast("Saved");
-    } catch (e) {
-      toast(errorMessage(e, "Couldn't save target date"), { kind: "error" });
-    }
-  }
-
-  return (
-    <Card className="rounded-2xl p-5">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Target date
-        </span>
-        {list.targetDate !== undefined && (
-          <button
-            type="button"
-            onClick={() => void setDate(null)}
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            Clear
-          </button>
-        )}
-      </div>
-      <input
-        type="date"
-        aria-label="Target date"
-        value={list.targetDate ? toDateInputValue(list.targetDate) : ""}
-        onChange={(e) =>
-          void setDate(fromDateInputValue(e.currentTarget.value) ?? null)
-        }
-        className="soft-field mt-3 w-full px-3 py-2 text-sm"
-      />
-    </Card>
   );
 }
 

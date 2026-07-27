@@ -1,7 +1,12 @@
-// Searchable all-projects directory: every list ("project") the current
-// user can access, across their personal space and every workspace they're
-// a member of — so a company with thousands of projects stays navigable
-// from one screen instead of only the sidebar tree.
+// Searchable all-projects directory: every project the current user can
+// access, across their personal space and every workspace they're a member
+// of — so a company with hundreds of projects stays navigable from one
+// screen instead of only the sidebar tree.
+//
+// A row is a Project, and its counts are the sum of its lists. Lists sitting
+// straight in a Space are deliberately absent: they are boards nobody
+// promoted to a project, and padding the directory with them would make the
+// screen answer a different question than the one it is for.
 //
 // Access shape mirrors homeOverview.get: personal space + member
 // workspaces' spaces, with archived spaces skipped outright and private
@@ -25,22 +30,24 @@ const projectStatusValidator = v.union(
 );
 
 export type ProjectDirectoryRow = {
-  listId: Id<"lists">;
+  projectId: Id<"projects">;
   name: string;
   place: string;
   description?: string;
-  projectStatus?: Doc<"lists">["projectStatus"];
+  projectStatus?: Doc<"projects">["projectStatus"];
   targetDate?: number;
   color?: string;
+  ownerActorId?: string;
+  listCount: number;
   total: number;
   done: number;
   inProgress: number;
-  // ── Sort/group inputs (Phase K directory upgrade) ──
-  // Sidebar manual order within the list's parent (space or project).
+  // ── Sort/group inputs ──
+  // Sidebar manual order within the parent space.
   position: number;
-  // Cheapest available "recent activity" signal: the list rollup's
-  // updatedAt (bumped on every task write in the list) when a rollup row
-  // exists, else the list's createdAt. No extra scans.
+  // Cheapest available "recent activity" signal: the newest rollup
+  // updatedAt across the project's lists (bumped on every task write) when
+  // any rollup row exists, else the project's createdAt. No extra scans.
   activityAt: number;
   // Structured place parts so the client can group without string-splitting
   // the display-oriented `place`. workspaceName is "Personal" for the
@@ -51,33 +58,6 @@ export type ProjectDirectoryRow = {
   roadmapName?: string;
   phaseName?: string;
 };
-
-async function listsForSpace(
-  ctx: QueryCtx,
-  spaceId: Id<"spaces">,
-): Promise<Doc<"lists">[]> {
-  const direct = await ctx.db
-    .query("lists")
-    .withIndex("by_parent", (q) =>
-      q.eq("parentType", "space").eq("parentId", spaceId),
-    )
-    .collect();
-  const projects = await ctx.db
-    .query("projects")
-    .withIndex("by_space", (q) => q.eq("spaceId", spaceId))
-    .collect();
-  const nested = await Promise.all(
-    projects.map((f) =>
-      ctx.db
-        .query("lists")
-        .withIndex("by_parent", (q) =>
-          q.eq("parentType", "project").eq("parentId", f._id),
-        )
-        .collect(),
-    ),
-  );
-  return [...direct, ...nested.flat()];
-}
 
 // Rollup fallback for lists that predate the rollups table or have drifted
 // out of sync — same shape as homeOverview's scan, just without the
@@ -180,7 +160,7 @@ export const list = query({
     const needle = search?.trim().toLowerCase();
     const matched: ProjectDirectoryRow[] = [];
 
-    // Roadmap docs are shared across many lists in the same workspace —
+    // Roadmap docs are shared across many projects in the same workspace —
     // fetch each at most once per query, keyed by id. `null` caches a
     // miss (deleted roadmap with a stale pointer) so we don't re-fetch it.
     const roadmapCache = new Map<Id<"roadmaps">, Doc<"roadmaps"> | null>();
@@ -195,16 +175,40 @@ export const list = query({
     }
 
     for (const sc of scopes) {
-      const lists = await listsForSpace(ctx, sc.spaceId);
-      for (const l of lists) {
-        if (status && l.projectStatus !== status) continue;
+      const projects = await ctx.db
+        .query("projects")
+        .withIndex("by_space", (q) => q.eq("spaceId", sc.spaceId))
+        .collect();
+
+      for (const p of projects) {
+        if (p.archivedAt !== undefined) continue;
+        if (status && p.projectStatus !== status) continue;
         if (needle) {
-          const haystack = `${l.name} ${l.description ?? ""}`.toLowerCase();
+          const haystack = `${p.name} ${p.description ?? ""}`.toLowerCase();
           if (!haystack.includes(needle)) continue;
         }
 
-        const rollup = await getRollup(ctx, l._id);
-        const counts = rollup ?? (await countTasks(ctx, l._id));
+        const lists = await ctx.db
+          .query("lists")
+          .withIndex("by_parent", (q) =>
+            q.eq("parentType", "project").eq("parentId", p._id),
+          )
+          .collect();
+
+        let total = 0;
+        let done = 0;
+        let inProgress = 0;
+        let activityAt = p.createdAt;
+        for (const l of lists) {
+          const rollup = await getRollup(ctx, l._id);
+          const counts = rollup ?? (await countTasks(ctx, l._id));
+          total += counts.total;
+          done += counts.done;
+          inProgress += counts.inProgress;
+          if (rollup && rollup.updatedAt > activityAt) {
+            activityAt = rollup.updatedAt;
+          }
+        }
 
         // Roadmap context: resolve the phase name via the cached roadmap
         // doc. Roadmaps are workspace-level, so only attach when the
@@ -213,29 +217,31 @@ export const list = query({
         // name to this viewer.
         let roadmapName: string | undefined;
         let phaseName: string | undefined;
-        if (l.roadmapId && sc.workspaceId) {
-          const roadmap = await getRoadmap(l.roadmapId);
+        if (p.roadmapId && sc.workspaceId) {
+          const roadmap = await getRoadmap(p.roadmapId);
           if (roadmap && roadmap.workspaceId === sc.workspaceId) {
             roadmapName = roadmap.name;
             phaseName = roadmap.phases.find(
-              (p) => p.id === l.roadmapPhaseId,
+              (ph) => ph.id === p.roadmapPhaseId,
             )?.name;
           }
         }
 
         matched.push({
-          listId: l._id,
-          name: l.name,
+          projectId: p._id,
+          name: p.name,
           place: sc.place,
-          description: l.description,
-          projectStatus: l.projectStatus,
-          targetDate: l.targetDate,
-          color: l.color,
-          total: counts.total,
-          done: counts.done,
-          inProgress: counts.inProgress,
-          position: l.position,
-          activityAt: rollup?.updatedAt ?? l.createdAt,
+          description: p.description,
+          projectStatus: p.projectStatus,
+          targetDate: p.targetDate,
+          color: p.color,
+          ownerActorId: p.ownerActorId,
+          listCount: lists.length,
+          total,
+          done,
+          inProgress,
+          position: p.position,
+          activityAt,
           workspaceName: sc.workspaceName,
           spaceName: sc.spaceName,
           roadmapName,

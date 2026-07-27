@@ -114,24 +114,23 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
   );
   const [hiddenPhaseIds, setHiddenPhaseIds] = useState<Set<string>>(new Set());
 
-  // Workspace lists not assigned to any roadmap, for the bottom rail.
+  // Workspace projects not assigned to any roadmap, for the bottom rail.
   const unassigned = useMemo(() => {
     const ws = tree?.workspaces.find((w) => w._id === workspaceId);
     if (!ws) return [];
     const rows: {
-      listId: Id<"lists">;
+      projectId: Id<"projects">;
       name: string;
       color?: string;
       spaceName: string;
     }[] = [];
     for (const sp of ws.spaces) {
-      const lists = [...sp.lists, ...sp.projects.flatMap((f) => f.lists)];
-      for (const l of lists) {
-        if (l.roadmapId !== undefined) continue;
+      for (const p of sp.projects) {
+        if (p.roadmapId !== undefined) continue;
         rows.push({
-          listId: l._id,
-          name: l.name,
-          color: l.color,
+          projectId: p._id,
+          name: p.name,
+          color: p.color,
           spaceName: sp.name,
         });
       }
@@ -409,7 +408,7 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
               (p) => p.phaseId !== undefined && hiddenPhaseIds.has(p.phaseId),
             )
             .map((p) => ({
-              listId: p.listId,
+              projectId: p.projectId,
               name: p.name,
               color: p.color,
               spaceName: "",
@@ -1191,7 +1190,7 @@ function PhaseColumn({
   // the server's order take back over once it catches up (or the phase's
   // membership changes under us).
   const [override, setOverride] = useState<string[] | null>(null);
-  const serverKey = projects.map((p) => p.listId as string).join(",");
+  const serverKey = projects.map((p) => p.projectId as string).join(",");
   useEffect(() => {
     setOverride((cur) => {
       if (!cur) return cur;
@@ -1206,7 +1205,7 @@ function PhaseColumn({
 
   const ordered = useMemo(() => {
     if (!override) return projects;
-    const byId = new Map(projects.map((p) => [p.listId as string, p]));
+    const byId = new Map(projects.map((p) => [p.projectId as string, p]));
     const out: RoadmapProject[] = [];
     for (const id of override) {
       const p = byId.get(id);
@@ -1220,7 +1219,7 @@ function PhaseColumn({
   }, [projects, override]);
 
   function move(index: number, dir: -1 | 1) {
-    const ids = ordered.map((p) => p.listId);
+    const ids = ordered.map((p) => p.projectId);
     const j = index + dir;
     if (j < 0 || j >= ids.length) return;
     [ids[index], ids[j]] = [ids[j], ids[index]];
@@ -1238,9 +1237,9 @@ function PhaseColumn({
   function moveToPhase(project: RoadmapProject, targetId: string) {
     const action =
       targetId === "__remove"
-        ? assign({ listId: project.listId, roadmapId: null })
+        ? assign({ projectId: project.projectId, roadmapId: null })
         : assign({
-            listId: project.listId,
+            projectId: project.projectId,
             roadmapId: roadmap._id,
             phaseId: targetId,
           });
@@ -1333,7 +1332,7 @@ function PhaseColumn({
         <AnimatePresence initial={false}>
           {ordered.map((project, i) => (
             <motion.div
-              key={project.listId}
+              key={project.projectId}
               layout
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1571,7 +1570,7 @@ function ProjectCard({
           />
         )}
         <Link
-          href={`/dashboard/l/${project.listId}`}
+          href={`/dashboard/p/${project.projectId}`}
           className="min-w-0 flex-1 truncate text-sm font-medium hover:underline"
           title={project.name}
         >
@@ -1635,7 +1634,7 @@ function UnassignedRail({
   roadmap,
   phases,
 }: {
-  projects: { listId: Id<"lists">; name: string; color?: string; spaceName: string }[];
+  projects: { projectId: Id<"projects">; name: string; color?: string; spaceName: string }[];
   roadmap: Roadmap;
   /** Phases not pending deletion — the only valid assignment targets. */
   phases: Phase[];
@@ -1657,7 +1656,7 @@ function UnassignedRail({
           <AnimatePresence initial={false}>
             {projects.map((p) => (
               <motion.li
-                key={p.listId}
+                key={p.projectId}
                 layout
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1673,7 +1672,7 @@ function UnassignedRail({
                   />
                 )}
                 <Link
-                  href={`/dashboard/l/${p.listId}`}
+                  href={`/dashboard/p/${p.projectId}`}
                   className="min-w-0 truncate text-sm font-medium hover:underline"
                   title={p.name}
                 >
@@ -1694,7 +1693,7 @@ function UnassignedRail({
                   }))}
                   onSelect={(phaseId) =>
                     void assign({
-                      listId: p.listId,
+                      projectId: p.projectId,
                       roadmapId: roadmap._id,
                       phaseId,
                     }).catch((e) =>

@@ -166,12 +166,13 @@ export async function renameListCore(
   }
 }
 
+// List-level presentation and operations only. Project identity — health,
+// owner, notes, target date, roadmap membership — belongs to the Project
+// that owns the list and is patched through projects.updateMeta. A list
+// keeps its own blurb because "what this board is for" is a different
+// sentence from "what this project is".
 export type ListMetaPatch = {
   description?: string | null;
-  projectStatus?: "on_track" | "at_risk" | "off_track" | "paused" | null;
-  ownerActorId?: string | null;
-  notes?: string | null;
-  targetDate?: number | null;
   sopSlug?: string | null;
   defaultView?:
     | "list"
@@ -190,15 +191,7 @@ export async function updateListMetaCore(
   actor: Actor,
 ): Promise<void> {
   const patch: Record<string, unknown> = {};
-  for (const key of [
-    "description",
-    "projectStatus",
-    "ownerActorId",
-    "notes",
-    "targetDate",
-    "sopSlug",
-    "defaultView",
-  ] as const) {
+  for (const key of ["description", "sopSlug", "defaultView"] as const) {
     if (args[key] !== undefined) {
       patch[key] = args[key] === null ? undefined : args[key];
     }
@@ -358,18 +351,6 @@ export const updateMeta = mutation({
   args: {
     listId: v.id("lists"),
     description: v.optional(v.union(v.string(), v.null())),
-    projectStatus: v.optional(
-      v.union(
-        v.literal("on_track"),
-        v.literal("at_risk"),
-        v.literal("off_track"),
-        v.literal("paused"),
-        v.null(),
-      ),
-    ),
-    ownerActorId: v.optional(v.union(v.string(), v.null())),
-    notes: v.optional(v.union(v.string(), v.null())),
-    targetDate: v.optional(v.union(v.number(), v.null())),
     sopSlug: v.optional(v.union(v.string(), v.null())),
     defaultView: v.optional(
       v.union(

@@ -183,11 +183,12 @@ describe("projectsDirectory", () => {
         parentType: "workspace",
         parentId: workspaceId,
       });
-    const openListId = await t.withIdentity(CREATOR).mutation(api.lists.create, {
-      name: "Public roadmap",
-      parentType: "space",
-      parentId: openSpaceId,
-    });
+    const openProjectId = await t
+      .withIdentity(CREATOR)
+      .mutation(api.projects.create, {
+        name: "Public roadmap",
+        spaceId: openSpaceId,
+      });
 
     const secretSpaceId = await t
       .withIdentity(CREATOR)
@@ -200,27 +201,26 @@ describe("projectsDirectory", () => {
       spaceId: secretSpaceId,
       private: true,
     });
-    const secretListId = await t
+    const secretProjectId = await t
       .withIdentity(CREATOR)
-      .mutation(api.lists.create, {
+      .mutation(api.projects.create, {
         name: "Secret launch plan",
-        parentType: "space",
-        parentId: secretSpaceId,
+        spaceId: secretSpaceId,
       });
 
     const outsiderDirectory = await t
       .withIdentity(OUTSIDER)
       .query(api.projectsDirectory.list, {});
-    const outsiderIds = outsiderDirectory.rows.map((r) => r.listId);
-    expect(outsiderIds).toContain(openListId);
-    expect(outsiderIds).not.toContain(secretListId);
+    const outsiderIds = outsiderDirectory.rows.map((r) => r.projectId);
+    expect(outsiderIds).toContain(openProjectId);
+    expect(outsiderIds).not.toContain(secretProjectId);
 
     const creatorDirectory = await t
       .withIdentity(CREATOR)
       .query(api.projectsDirectory.list, {});
-    const creatorIds = creatorDirectory.rows.map((r) => r.listId);
-    expect(creatorIds).toContain(openListId);
-    expect(creatorIds).toContain(secretListId);
+    const creatorIds = creatorDirectory.rows.map((r) => r.projectId);
+    expect(creatorIds).toContain(openProjectId);
+    expect(creatorIds).toContain(secretProjectId);
   });
 
   it("filters by search text and project status", async () => {
@@ -231,28 +231,27 @@ describe("projectsDirectory", () => {
       parentType: "workspace",
       parentId: workspaceId,
     });
-    const listId = await t.withIdentity(CREATOR).mutation(api.lists.create, {
-      name: "Q3 launch",
-      parentType: "space",
-      parentId: spaceId,
-    });
-    await t.run(async (ctx) => {
-      await ctx.db.patch(listId as Id<"lists">, { projectStatus: "at_risk" });
+    const projectId = await t
+      .withIdentity(CREATOR)
+      .mutation(api.projects.create, { name: "Q3 launch", spaceId });
+    await t.withIdentity(CREATOR).mutation(api.projects.updateMeta, {
+      projectId,
+      projectStatus: "at_risk",
     });
 
     const bySearch = await t.withIdentity(CREATOR).query(api.projectsDirectory.list, {
       search: "q3",
     });
-    expect(bySearch.rows.map((r) => r.listId)).toContain(listId);
+    expect(bySearch.rows.map((r) => r.projectId)).toContain(projectId);
 
     const byStatus = await t.withIdentity(CREATOR).query(api.projectsDirectory.list, {
       status: "at_risk",
     });
-    expect(byStatus.rows.map((r) => r.listId)).toContain(listId);
+    expect(byStatus.rows.map((r) => r.projectId)).toContain(projectId);
 
     const wrongStatus = await t
       .withIdentity(CREATOR)
       .query(api.projectsDirectory.list, { status: "paused" });
-    expect(wrongStatus.rows.map((r) => r.listId)).not.toContain(listId);
+    expect(wrongStatus.rows.map((r) => r.projectId)).not.toContain(projectId);
   });
 });
