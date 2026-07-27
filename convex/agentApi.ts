@@ -161,6 +161,12 @@ import {
   revisionsForParent,
 } from "./revisions";
 import { clipText, tiptapToText } from "./_docText";
+import { markdownExcerpt } from "./_markdown";
+import {
+  attachPageCore,
+  createPageCore,
+  updatePageCore,
+} from "./pages";
 
 // The agent-facing API: every function here authenticates with an agent
 // API key instead of Clerk, resolves the agent's scope (personal space or
@@ -2556,7 +2562,11 @@ export const _filterSearchHits = internalQuery({
     apiKey: v.string(),
     hits: v.array(
       v.object({
-        parentType: v.union(v.literal("doc"), v.literal("task")),
+        parentType: v.union(
+      v.literal("doc"),
+      v.literal("task"),
+      v.literal("page"),
+    ),
         parentId: v.string(),
         textPreview: v.string(),
       }),
@@ -6760,5 +6770,248 @@ export const getProjectUpdates = query({
           p.awaitingApproval.length > 0,
       ),
     };
+  },
+});
+
+/**
+ * The scope a page target lives in, resolved agent-side.
+ *
+ * An agent is bound to exactly one scope, so this is both the access check
+ * and the answer: resolve the target's scope and refuse anything outside the
+ * agent's own. No separate permission model — an agent cannot reach a target
+ * it could not already read.
+ */
+async function requireTargetAccessForAgent(
+  ctx: MutationCtx,
+  targetType:
+    | "workspace"
+    | "space"
+    | "project"
+    | "list"
+    | "task"
+    | "agent"
+    | "goal"
+    | "sprint",
+  targetId: string,
+  agent: Doc<"agents">,
+): Promise<{ scopeType: "user" | "workspace"; scopeId: string }> {
+  const scope = await scopeOfTarget(ctx, targetType, targetId);
+  if (!scope) throw new ConvexError("Not found");
+  if (
+    scope.scopeType !== agent.parentType ||
+    scope.scopeId !== agent.parentId
+  ) {
+    throw new ConvexError("Forbidden");
+  }
+  return scope;
+}
+
+async function scopeOfTarget(
+  ctx: MutationCtx,
+  targetType: string,
+  targetId: string,
+): Promise<{ scopeType: "user" | "workspace"; scopeId: string } | null> {
+  const spaceScope = async (spaceId: Id<"spaces">) => {
+    const space = await ctx.db.get(spaceId);
+    return space
+      ? { scopeType: space.parentType, scopeId: space.parentId }
+      : null;
+  };
+  switch (targetType) {
+    case "workspace":
+      return { scopeType: "workspace", scopeId: targetId };
+    case "space":
+      return await spaceScope(targetId as Id<"spaces">);
+    case "project": {
+      const project = await ctx.db.get(targetId as Id<"projects">);
+      return project ? await spaceScope(project.spaceId) : null;
+    }
+    case "list": {
+      const list = await ctx.db.get(targetId as Id<"lists">);
+      if (!list) return null;
+      const space = await getSpaceForList(ctx, list);
+      return space
+        ? { scopeType: space.parentType, scopeId: space.parentId }
+        : null;
+    }
+    case "task": {
+      const task = await ctx.db.get(targetId as Id<"tasks">);
+      if (!task) return null;
+      const list = await ctx.db.get(task.listId);
+      if (!list) return null;
+      const space = await getSpaceForList(ctx, list);
+      return space
+        ? { scopeType: space.parentType, scopeId: space.parentId }
+        : null;
+    }
+    case "agent": {
+      const a = await ctx.db.get(targetId as Id<"agents">);
+      return a ? { scopeType: a.parentType, scopeId: a.parentId } : null;
+    }
+    case "goal": {
+      const g = await ctx.db.get(targetId as Id<"goals">);
+      return g ? { scopeType: g.parentType, scopeId: g.parentId } : null;
+    }
+    case "sprint": {
+      const sp = await ctx.db.get(targetId as Id<"sprints">);
+      return sp
+        ? { scopeType: "workspace" as const, scopeId: sp.workspaceId }
+        : null;
+    }
+    default:
+      return null;
+  }
+}
+
+// ── Pages ──────────────────────────────────────────────────────────────
+//
+// The long-form surface, agent side. Markdown is what an agent writes
+// natively, and it is exactly what the page stores — so an agent drafting a
+// spec and a human editing it afterwards are touching the same bytes, with
+// no conversion step in between to lose anyone's work.
+
+export const listPages = query({
+  args: {
+    apiKey: v.string(),
+    search: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { apiKey, search, limit }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const needle = search?.trim().toLowerCase();
+    const pages = await ctx.db
+      .query("pages")
+      .withIndex("by_scope", (q) =>
+        q.eq("scopeType", agent.parentType).eq("scopeId", agent.parentId),
+      )
+      .collect();
+    return pages
+      .filter((p) => p.archivedAt === undefined)
+      .filter((p) =>
+        needle
+          ? `${p.title} ${p.markdown}`.toLowerCase().includes(needle)
+          : true,
+      )
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, Math.min(limit ?? 50, 200))
+      .map((p) => ({
+        pageId: p._id,
+        title: p.title,
+        excerpt: markdownExcerpt(p.markdown),
+        updatedAt: p.updatedAt,
+        updatedBy: p.updatedByName ?? p.createdByName,
+      }));
+  },
+});
+
+export const readPage = query({
+  args: { apiKey: v.string(), pageId: v.id("pages") },
+  handler: async (ctx, { apiKey, pageId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const page = await ctx.db.get(pageId);
+    if (!page) throw new ConvexError("Page not found");
+    if (
+      page.scopeType !== agent.parentType ||
+      page.scopeId !== agent.parentId
+    ) {
+      throw new ConvexError("Forbidden");
+    }
+    const attachments = await ctx.db
+      .query("pageAttachments")
+      .withIndex("by_page", (q) => q.eq("pageId", pageId))
+      .collect();
+    return {
+      pageId: page._id,
+      title: page.title,
+      // The full markdown, not a rendering of it — this is the point.
+      markdown: page.markdown,
+      updatedAt: page.updatedAt,
+      updatedBy: page.updatedByName ?? page.createdByName,
+      attachedTo: attachments.map((a) => ({
+        targetType: a.targetType,
+        targetId: a.targetId,
+      })),
+    };
+  },
+});
+
+export const writePage = mutation({
+  args: {
+    apiKey: v.string(),
+    // Omit to create; pass to update in place.
+    pageId: v.optional(v.id("pages")),
+    title: v.optional(v.string()),
+    markdown: v.string(),
+    attachTo: v.optional(
+      v.object({
+        targetType: v.union(
+          v.literal("workspace"),
+          v.literal("space"),
+          v.literal("project"),
+          v.literal("list"),
+          v.literal("task"),
+          v.literal("agent"),
+          v.literal("goal"),
+          v.literal("sprint"),
+        ),
+        targetId: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const actor = agentActor(agent);
+
+    let pageId = args.pageId;
+    if (pageId) {
+      const page = await ctx.db.get(pageId);
+      if (!page) throw new ConvexError("Page not found");
+      if (
+        page.scopeType !== agent.parentType ||
+        page.scopeId !== agent.parentId
+      ) {
+        throw new ConvexError("Forbidden");
+      }
+      await updatePageCore(
+        ctx,
+        page,
+        { title: args.title, markdown: args.markdown },
+        actor,
+      );
+    } else {
+      pageId = await createPageCore(
+        ctx,
+        { scopeType: agent.parentType, scopeId: agent.parentId },
+        { title: args.title, markdown: args.markdown },
+        actor,
+      );
+    }
+
+    if (args.attachTo && pageId) {
+      const page = (await ctx.db.get(pageId))!;
+      const scope = await requireTargetAccessForAgent(
+        ctx,
+        args.attachTo.targetType,
+        args.attachTo.targetId,
+        agent,
+      );
+      if (
+        scope.scopeType !== page.scopeType ||
+        scope.scopeId !== page.scopeId
+      ) {
+        throw new ConvexError(
+          "A page can only be attached to things in its own workspace",
+        );
+      }
+      await attachPageCore(
+        ctx,
+        page,
+        args.attachTo.targetType,
+        args.attachTo.targetId,
+        actor,
+      );
+    }
+
+    return { pageId, url: `/dashboard/pages/${pageId}` };
   },
 });

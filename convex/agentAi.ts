@@ -22,7 +22,11 @@ export const search = action({
     { apiKey, query },
   ): Promise<{
     configured: boolean;
-    results: { parentType: "doc" | "task"; parentId: string; textPreview: string }[];
+    results: {
+      parentType: "doc" | "task" | "page";
+      parentId: string;
+      textPreview: string;
+    }[];
   }> => {
     const scope = await ctx.runQuery(internal.agentApi._validateKey, {
       apiKey,
@@ -47,7 +51,7 @@ export const search = action({
     // as agentApi.listDocs/getDoc). The vector filter above only scopes by
     // user/workspace, so this second pass enforces the finer boundary.
     const results: {
-      parentType: "doc" | "task";
+      parentType: "doc" | "task" | "page";
       parentId: string;
       textPreview: string;
     }[] = await ctx.runQuery(internal.agentApi._filterSearchHits, {

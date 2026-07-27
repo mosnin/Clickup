@@ -6,6 +6,7 @@ import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { clipText as clip, tiptapToText } from "./_docText";
+import { markdownToText } from "./_markdown";
 
 // All OpenAI calls live here so the rest of the codebase doesn't depend
 // on the SDK. Set OPENAI_API_KEY on the Convex deployment via
@@ -81,9 +82,50 @@ export const indexTask = internalAction({
   },
 });
 
+// Pages carry markdown, not Tiptap JSON, and the caller already has the
+// text — so unlike indexDocument this takes the content rather than
+// re-reading it, saving a round trip on every keystroke-debounced save.
+export const indexPage = internalAction({
+  args: {
+    pageId: v.id("pages"),
+    title: v.string(),
+    text: v.string(),
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const client = makeClient();
+    if (!client) return;
+    const body = `${args.title}\n\n${markdownToText(args.text)}`.trim();
+    if (!body) {
+      await ctx.runMutation(internal.aiDb._dropEmbeddings, {
+        parentType: "page",
+        parentId: args.pageId,
+      });
+      return;
+    }
+    const embedding = await client.embeddings.create({
+      model: EMBEDDING_MODEL,
+      input: clip(body, 8000),
+    });
+    await ctx.runMutation(internal.aiDb._upsertEmbedding, {
+      parentType: "page",
+      parentId: args.pageId,
+      scopeType: args.scopeType,
+      scopeId: args.scopeId,
+      textPreview: clip(body, 400),
+      embedding: embedding.data[0].embedding,
+    });
+  },
+});
+
 export const dropEmbeddings = internalAction({
   args: {
-    parentType: v.union(v.literal("doc"), v.literal("task")),
+    parentType: v.union(
+      v.literal("doc"),
+      v.literal("task"),
+      v.literal("page"),
+    ),
     parentId: v.string(),
   },
   handler: async (ctx, args) => {
@@ -97,7 +139,7 @@ export const dropEmbeddings = internalAction({
 // --- Public AI actions ---------------------------------------------------
 
 type BrainSource = {
-  parentType: "doc" | "task";
+  parentType: "doc" | "task" | "page";
   parentId: string;
   textPreview: string;
 };

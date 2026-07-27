@@ -81,6 +81,10 @@ export const get = query({
       project,
       spaceName: space.name,
       spaceId: space._id,
+      // The billing/tenancy scope this project sits in, so surfaces that
+      // create scope-owned things (pages) don't have to re-walk the tree.
+      scopeType: space.parentType,
+      scopeParentId: space.parentId,
       lists: lists.sort(
         (a, b) => a.position - b.position || a.createdAt - b.createdAt,
       ),

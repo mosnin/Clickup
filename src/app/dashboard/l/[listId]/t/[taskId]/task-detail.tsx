@@ -33,6 +33,7 @@ import { TaskContext } from "@/components/dashboard/task-context";
 import { TaskDecisions } from "@/components/dashboard/task-decisions";
 import { TaskContextPanel } from "@/components/dashboard/task-context-panel";
 import { RevisionsPanel } from "@/components/dashboard/revisions-panel";
+import { AttachedPages } from "@/components/dashboard/attached-pages";
 
 type TaskPriority = NonNullable<Doc<"tasks">["priority"]>;
 type TaskRecurrence = NonNullable<Doc<"tasks">["recurrence"]>;
@@ -377,6 +378,7 @@ function TaskEditor({
           <TaskContext taskId={task._id} listId={listId} />
           <TaskContextPanel listId={listId} />
           <TaskDecisions taskId={task._id} listId={listId} />
+          <AttachedPages targetType="task" targetId={task._id} />
           <RevisionsPanel parentType="task" parentId={task._id} />
 
           <Subtasks taskId={task._id} listId={listId} />

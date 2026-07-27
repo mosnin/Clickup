@@ -80,7 +80,11 @@ async function scopeForDocLikeParent(
 
 export const _upsertEmbedding = internalMutation({
   args: {
-    parentType: v.union(v.literal("doc"), v.literal("task")),
+    parentType: v.union(
+      v.literal("doc"),
+      v.literal("task"),
+      v.literal("page"),
+    ),
     parentId: v.string(),
     scopeType: v.union(v.literal("user"), v.literal("workspace")),
     scopeId: v.string(),
@@ -110,7 +114,11 @@ export const _upsertEmbedding = internalMutation({
 
 export const _dropEmbeddings = internalMutation({
   args: {
-    parentType: v.union(v.literal("doc"), v.literal("task")),
+    parentType: v.union(
+      v.literal("doc"),
+      v.literal("task"),
+      v.literal("page"),
+    ),
     parentId: v.string(),
   },
   handler: async (ctx, args) => {

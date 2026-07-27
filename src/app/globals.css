@@ -1078,3 +1078,90 @@ h3,
     animation: none !important;
   }
 }
+
+/* ── Page prose ───────────────────────────────────────────────────────────
+   Rendered markdown for Pages. Scoped to .page-prose so it can style bare
+   tags (h1, p, ul…) without leaking into the rest of the app, which styles
+   everything with utilities. Sized for reading a spec, not skimming a card:
+   a measure that tops out around 70 characters and generous leading. */
+.page-prose {
+  max-width: 68ch;
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: var(--color-foreground);
+}
+.page-prose > * + * {
+  margin-top: 1em;
+}
+.page-prose h1,
+.page-prose h2,
+.page-prose h3,
+.page-prose h4 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  margin-top: 1.8em;
+}
+.page-prose h1 { font-size: 1.6rem; }
+.page-prose h2 { font-size: 1.3rem; }
+.page-prose h3 { font-size: 1.1rem; }
+.page-prose h4 { font-size: 1rem; }
+.page-prose ul,
+.page-prose ol {
+  padding-left: 1.35em;
+}
+.page-prose ul { list-style: disc; }
+.page-prose ol { list-style: decimal; }
+.page-prose li + li { margin-top: 0.35em; }
+.page-prose a {
+  color: var(--color-brand-600);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.page-prose code {
+  background: var(--color-muted);
+  border-radius: 0.3rem;
+  padding: 0.1em 0.35em;
+  font-size: 0.875em;
+}
+.page-prose pre {
+  background: var(--color-muted);
+  border-radius: 0.75rem;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+}
+.page-prose pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+.page-prose blockquote {
+  border-left: 2px solid var(--color-border);
+  padding-left: 1em;
+  color: var(--color-muted-foreground);
+}
+.page-prose hr {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+/* Tables can be wider than the measure; scroll them rather than the page. */
+.page-prose table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.page-prose th,
+.page-prose td {
+  border: 1px solid var(--color-border);
+  padding: 0.4rem 0.65rem;
+  text-align: left;
+}
+/* A [[wikilink]] whose page doesn't exist yet. Visible, not broken: naming
+   the page before writing it is how a wiki is supposed to work. */
+.page-link-missing {
+  color: var(--color-muted-foreground);
+  border-bottom: 1px dashed var(--color-border);
+  cursor: help;
+}

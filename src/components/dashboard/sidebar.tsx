@@ -289,6 +289,12 @@ function SidebarContentBody() {
               exact
             />
             <NavMenuItem
+              href="/dashboard/pages"
+              label="Pages"
+              icon={FileText}
+              iconColor="text-rose-500"
+            />
+            <NavMenuItem
               href="/dashboard/agents"
               label="Agents"
               icon={Bot}

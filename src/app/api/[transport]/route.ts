@@ -144,6 +144,8 @@ const checklistArg = z
 // irreversible actions, and external side effects are classified independently;
 // safely-retryable mutations also get idempotentHint.
 const READ_TOOLS = new Set([
+  "list_pages",
+  "read_page",
   "get_project_updates",
   "list_open_revisions",
   "list_project_docs",
@@ -262,6 +264,7 @@ const OPEN_WORLD_TOOLS = new Set([
   "settle_payment",
 ]);
 const IDEMPOTENT_TOOLS = new Set([
+  "write_page",
   "address_revision",
   "write_project_doc",
   "create_execution_plan",
@@ -2407,6 +2410,53 @@ const TOOLS: ToolDef[] = [
         ...a,
       }),
   },
+  // ── Pages ──────────────────────────────────────────────────────────────
+  {
+    name: "list_pages",
+    description:
+      "The long-form documents in my scope: briefs, specs, decision records, runbooks. This is where the reasoning lives that a task description has no room for. Search covers titles and body text.",
+    shape: {
+      search: z.string().optional(),
+      limit: z.number().int().min(1).max(200).optional(),
+    },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.listPages), { apiKey: k, ...a }),
+  },
+  {
+    name: "read_page",
+    description:
+      "The full markdown of one page, exactly as stored — not a rendering of it. Read the pages attached to a project before planning work in it; they are the brief.",
+    shape: { pageId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.readPage), { apiKey: k, ...a }),
+  },
+  {
+    name: "write_page",
+    description:
+      "Create or update a page, in markdown. Omit pageId to create, pass it to rewrite in place. Use this for anything worth keeping that outlives a comment: an investigation writeup, a design you settled on, a runbook. Pass attachTo to pin it where the work is, so people and other agents find it without searching. Link pages to each other with [[Page title]].",
+    shape: {
+      pageId: z.string().optional(),
+      title: z.string().optional(),
+      markdown: z.string(),
+      attachTo: z
+        .object({
+          targetType: z.enum([
+            "workspace",
+            "space",
+            "project",
+            "list",
+            "task",
+            "agent",
+            "goal",
+            "sprint",
+          ]),
+          targetId: z.string(),
+        })
+        .optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.writePage), { apiKey: k, ...a }),
+  },
 ];
 
 // Renamed tools, kept reachable under their old names.
@@ -2557,7 +2607,7 @@ function createOperateMcpHandler(profile: AnnotationProfile) {
     {
       serverInfo: { name: "operate-agents", version: "1.0.0" },
       instructions:
-        "You are an agent teammate in operate.to. The hierarchy is Workspace → Space → Project → List → Task → Subtask. A Project is the unit of work people name; a List is one board of tasks inside it. A List may also sit straight in a Space when it needs no project around it. A roadmap sequences existing Projects into phases; it is not another container. First: call whoami, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-workstream roadmap? Prefer create_execution_plan: choose one Space, preserve the source, treat each projects input entry as a workstream that materializes as a Project with its lists, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. If confirmed source facts change without changing structure, use revise_execution_plan_context so every workstream advances together and stale acknowledgements are invalidated; use a new plan for structural changes. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. A stale receipt is not active work: call reconcile_execution_plan before manually retrying it; dispatch also reconciles transactionally and preserves the timed-out attempt. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Coming back after a break, or idle? Call get_project_updates (pass the previous cursor as since) to see what changed in your projects, which revisions are open on you, and what is waiting on a human — act on that before looking for new work. An open revision on a task you already finished means it is not finished. Use create_tasks for smaller additions to an existing List. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
+        "You are an agent teammate in operate.to. The hierarchy is Workspace → Space → Project → List → Task → Subtask. A Project is the unit of work people name; a List is one board of tasks inside it. A List may also sit straight in a Space when it needs no project around it. A roadmap sequences existing Projects into phases; it is not another container. First: call whoami, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-workstream roadmap? Prefer create_execution_plan: choose one Space, preserve the source, treat each projects input entry as a workstream that materializes as a Project with its lists, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. If confirmed source facts change without changing structure, use revise_execution_plan_context so every workstream advances together and stale acknowledgements are invalidated; use a new plan for structural changes. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. A stale receipt is not active work: call reconcile_execution_plan before manually retrying it; dispatch also reconciles transactionally and preserves the timed-out attempt. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Coming back after a break, or idle? Call get_project_updates (pass the previous cursor as since) to see what changed in your projects, which revisions are open on you, and what is waiting on a human — act on that before looking for new work. An open revision on a task you already finished means it is not finished. Writing something down that outlives a comment — an investigation, a design decision, a runbook? Use write_page and pin it to the project or task with attachTo; read_page and list_pages are how you pick up context somebody (human or agent) already wrote. Use create_tasks for smaller additions to an existing List. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
     },
     {
       basePath: "/api",

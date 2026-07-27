@@ -1075,7 +1075,11 @@ export default defineSchema({
   // owning user; a workspace task scopes to its workspace) so vector
   // search filters never leak across boundaries.
   embeddings: defineTable({
-    parentType: v.union(v.literal("doc"), v.literal("task")),
+    parentType: v.union(
+      v.literal("doc"),
+      v.literal("task"),
+      v.literal("page"),
+    ),
     parentId: v.string(),
     scopeType: v.union(v.literal("user"), v.literal("workspace")),
     scopeId: v.string(),
@@ -1089,6 +1093,96 @@ export default defineSchema({
       dimensions: 1536,
       filterFields: ["scopeType", "scopeId"],
     }),
+
+
+  // ── Pages ──
+  // The long-form layer: briefs, specs, decision records, runbooks — the
+  // context a task description has no room for and a comment thread buries.
+  //
+  // Markdown is the source of truth, not a rendering of something else. An
+  // agent writes markdown because that is what it writes natively; a person
+  // reads it rendered and types into the same bytes. One representation means
+  // no lossy conversion step where an agent's edit destroys a human's
+  // formatting or the reverse.
+  //
+  // A page belongs to exactly one scope (a person's own space, or a
+  // workspace) — that is the tenancy boundary, and it never moves. Where a
+  // page *shows up* is a separate, many-to-many question answered by
+  // pageAttachments, so the same architecture note can hang off the project,
+  // the list it mostly concerns, and the three tasks that implement it,
+  // without being copied.
+  pages: defineTable({
+    title: v.string(),
+    markdown: v.string(),
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    // Pages nest, the way Notion pages do. Null/absent means top level.
+    parentPageId: v.optional(v.id("pages")),
+    position: v.number(),
+    // clerkId (human) or agent document id — the actor id shape used
+    // everywhere else.
+    createdByActorId: v.string(),
+    createdByName: v.string(),
+    updatedByActorId: v.optional(v.string()),
+    updatedByName: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    archivedAt: v.optional(v.number()),
+  })
+    .index("by_scope", ["scopeType", "scopeId"])
+    .index("by_parent_page", ["parentPageId"])
+    .searchIndex("by_text", {
+      searchField: "markdown",
+      filterFields: ["scopeType", "scopeId"],
+    }),
+
+  // Where a page appears. Deliberately open-ended: a page can be pinned to
+  // anything that has a page worth reading next to it.
+  pageAttachments: defineTable({
+    pageId: v.id("pages"),
+    targetType: v.union(
+      v.literal("workspace"),
+      v.literal("space"),
+      v.literal("project"),
+      v.literal("list"),
+      v.literal("task"),
+      v.literal("agent"),
+      v.literal("goal"),
+      v.literal("sprint"),
+    ),
+    targetId: v.string(),
+    createdByActorId: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_page", ["pageId"])
+    .index("by_target", ["targetType", "targetId"])
+    .index("by_page_and_target", ["pageId", "targetType", "targetId"]),
+
+  // Who is looking at a page right now.
+  //
+  // Presence is liveness, not state, so every row carries its own expiry: a
+  // client refreshes its row on a timer and readers ignore anything stale.
+  // A tab that crashes stops refreshing and simply ages out — which is why
+  // this can live in the database at all without leaving ghosts behind.
+  pagePresence: defineTable({
+    pageId: v.id("pages"),
+    actorId: v.string(),
+    name: v.string(),
+    editing: v.boolean(),
+    updatedAt: v.number(),
+  })
+    .index("by_page", ["pageId"])
+    .index("by_page_and_actor", ["pageId", "actorId"]),
+
+  // Resolved [[wikilinks]] between pages, rewritten on every save. Stored
+  // rather than derived so backlinks are an index range instead of a scan of
+  // every page's markdown.
+  pageLinks: defineTable({
+    fromPageId: v.id("pages"),
+    toPageId: v.id("pages"),
+  })
+    .index("by_from", ["fromPageId"])
+    .index("by_to", ["toPageId"]),
 
   // Short screen+voice recordings ("Clips") attached to a task.
   // Bytes live in Convex file storage; we keep a metadata row per clip

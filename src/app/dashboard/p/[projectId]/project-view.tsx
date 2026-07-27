@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { InlineCreate } from "@/components/dashboard/inline-create";
+import { AttachedPages } from "@/components/dashboard/attached-pages";
 import {
   ProjectNotesCard,
   ProjectOwnerCard,
@@ -210,6 +211,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
         </div>
 
         <div className="space-y-6">
+          <AttachedPages targetType="project" targetId={project._id} />
           <ProjectStatusCard project={project} />
           <ProjectOwnerCard project={project} anyListId={lists[0]?._id} />
           <ProjectTargetDateCard project={project} />
