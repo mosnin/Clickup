@@ -7,7 +7,7 @@ import { requireIdentity } from "./_authz";
 // export their workspace's structure and task data as a single JSON
 // document (downloaded client-side). Secrets are never included: no API
 // keys, webhook secrets, or embeddings. Bounded to the workspace's own
-// spaces → folders → lists → tasks, plus sprints and agent metadata.
+// spaces → projects → lists → tasks, plus sprints and agent metadata.
 
 export const exportWorkspace = query({
   args: { workspaceId: v.id("workspaces") },
@@ -123,20 +123,20 @@ export const exportWorkspace = query({
 
     const spaceNodes = [];
     for (const space of spaces) {
-      const folders = await ctx.db
-        .query("folders")
+      const projects = await ctx.db
+        .query("projects")
         .withIndex("by_space", (q) => q.eq("spaceId", space._id))
         .collect();
-      const folderNodes = [];
-      for (const folder of folders) {
+      const projectNodes = [];
+      for (const project of projects) {
         const lists = await ctx.db
           .query("lists")
           .withIndex("by_parent", (q) =>
-            q.eq("parentType", "folder").eq("parentId", folder._id),
+            q.eq("parentType", "project").eq("parentId", project._id),
           )
           .collect();
-        folderNodes.push({
-          name: folder.name,
+        projectNodes.push({
+          name: project.name,
           lists: await Promise.all(lists.map(listNode)),
         });
       }
@@ -148,7 +148,7 @@ export const exportWorkspace = query({
         .collect();
       spaceNodes.push({
         name: space.name,
-        folders: folderNodes,
+        projects: projectNodes,
         lists: await Promise.all(directLists.map(listNode)),
       });
     }

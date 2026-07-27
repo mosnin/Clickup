@@ -307,7 +307,7 @@ export function TaskSprintPicker({
     for (const w of tree?.workspaces ?? []) {
       for (const s of w.spaces) {
         if (s.lists.some((l) => l._id === listId)) return w._id;
-        for (const f of s.folders) {
+        for (const f of s.projects) {
           if (f.lists.some((l) => l._id === listId)) return w._id;
         }
       }

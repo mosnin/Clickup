@@ -35,8 +35,8 @@ export const _getTaskForIndex = internalQuery({
     if (list.parentType === "space") {
       space = await ctx.db.get(list.parentId as Id<"spaces">);
     } else {
-      const folder = await ctx.db.get(list.parentId as Id<"folders">);
-      if (folder) space = await ctx.db.get(folder.spaceId);
+      const project = await ctx.db.get(list.parentId as Id<"projects">);
+      if (project) space = await ctx.db.get(project.spaceId);
     }
     if (!space) return null;
     return {
@@ -67,7 +67,7 @@ async function scopeForDocLikeParent(
     const spaceId =
       list.parentType === "space"
         ? (list.parentId as Id<"spaces">)
-        : (await ctx.db.get(list.parentId as Id<"folders">))?.spaceId;
+        : (await ctx.db.get(list.parentId as Id<"projects">))?.spaceId;
     if (!spaceId) return null;
     const listSpace = await ctx.db.get(spaceId);
     if (!listSpace) return null;

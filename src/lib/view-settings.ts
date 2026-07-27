@@ -36,7 +36,7 @@ export type ViewSettings = {
   wrapText: boolean;
   /** Include tasks sitting in a closed-category status. */
   showClosed: boolean;
-  /** Render the Space › Folder › List breadcrumb on each row/card. */
+  /** Render the Space › Project › List breadcrumb on each row/card. */
   showLocation: boolean;
   /** Label subtasks with their parent task's title. */
   showSubtaskParents: boolean;

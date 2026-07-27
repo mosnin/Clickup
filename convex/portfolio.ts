@@ -2,7 +2,7 @@
 // list (project) the caller can see across a workspace, laid out on a
 // shared date axis. Read-only; the frontend renders bars + milestones.
 //
-// Walks spaces -> folders -> lists -> tasks for the given workspace, same
+// Walks spaces -> projects -> lists -> tasks for the given workspace, same
 // O(tasks-in-scope) shape as homeOverview / reports.workspaceSummary; fine
 // at target scale. Private spaces are skipped unless the caller passes
 // _authz.canAccessSpace; archived spaces are always skipped (their data
@@ -68,16 +68,16 @@ async function listsForSpace(
       q.eq("parentType", "space").eq("parentId", spaceId),
     )
     .collect();
-  const folders = await ctx.db
-    .query("folders")
+  const projects = await ctx.db
+    .query("projects")
     .withIndex("by_space", (q) => q.eq("spaceId", spaceId))
     .collect();
   const nested = await Promise.all(
-    folders.map((f) =>
+    projects.map((f) =>
       ctx.db
         .query("lists")
         .withIndex("by_parent", (q) =>
-          q.eq("parentType", "folder").eq("parentId", f._id),
+          q.eq("parentType", "project").eq("parentId", f._id),
         )
         .collect(),
     ),

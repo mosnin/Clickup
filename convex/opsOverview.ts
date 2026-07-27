@@ -48,15 +48,15 @@ export const workspaceOps = query({
         )
         .collect();
       lists.push(...direct);
-      const folders = await ctx.db
-        .query("folders")
+      const projects = await ctx.db
+        .query("projects")
         .withIndex("by_space", (q) => q.eq("spaceId", space._id))
         .collect();
-      for (const folder of folders) {
+      for (const project of projects) {
         const nested = await ctx.db
           .query("lists")
           .withIndex("by_parent", (q) =>
-            q.eq("parentType", "folder").eq("parentId", folder._id),
+            q.eq("parentType", "project").eq("parentId", project._id),
           )
           .collect();
         lists.push(...nested);

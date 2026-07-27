@@ -31,28 +31,28 @@ export default function PersonalPage() {
         Just for you. Nothing in here is shared.
       </p>
 
-      {personal.folders.length === 0 && directLists.length === 0 ? (
+      {personal.projects.length === 0 && directLists.length === 0 ? (
         <div className="rounded-2xl panel p-10 text-center">
           <p className="text-sm text-muted-foreground">
             No lists yet. Use the <span className="font-medium">+</span> next to{" "}
             <span className="font-medium">{personal.name}</span> in the sidebar
-            to add a list or folder.
+            to add a list or project.
           </p>
         </div>
       ) : (
         <>
-          {personal.folders.map((folder) => (
-            <section key={folder._id}>
+          {personal.projects.map((project) => (
+            <section key={project._id}>
               <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                {folder.name}
+                {project.name}
               </h2>
-              {folder.lists.length === 0 ? (
+              {project.lists.length === 0 ? (
                 <p className="mt-2 text-sm text-muted-foreground">
-                  This folder is empty. Add a list to it from the sidebar.
+                  This project is empty. Add a list to it from the sidebar.
                 </p>
               ) : (
                 <Stagger className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {folder.lists.map((list) => (
+                  {project.lists.map((list) => (
                     <ListCard key={list._id} list={list} />
                   ))}
                 </Stagger>

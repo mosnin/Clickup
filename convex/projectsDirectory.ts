@@ -36,7 +36,7 @@ export type ProjectDirectoryRow = {
   done: number;
   inProgress: number;
   // ── Sort/group inputs (Phase K directory upgrade) ──
-  // Sidebar manual order within the list's parent (space or folder).
+  // Sidebar manual order within the list's parent (space or project).
   position: number;
   // Cheapest available "recent activity" signal: the list rollup's
   // updatedAt (bumped on every task write in the list) when a rollup row
@@ -62,16 +62,16 @@ async function listsForSpace(
       q.eq("parentType", "space").eq("parentId", spaceId),
     )
     .collect();
-  const folders = await ctx.db
-    .query("folders")
+  const projects = await ctx.db
+    .query("projects")
     .withIndex("by_space", (q) => q.eq("spaceId", spaceId))
     .collect();
   const nested = await Promise.all(
-    folders.map((f) =>
+    projects.map((f) =>
       ctx.db
         .query("lists")
         .withIndex("by_parent", (q) =>
-          q.eq("parentType", "folder").eq("parentId", f._id),
+          q.eq("parentType", "project").eq("parentId", f._id),
         )
         .collect(),
     ),

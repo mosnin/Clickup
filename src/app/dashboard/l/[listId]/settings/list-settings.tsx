@@ -507,7 +507,7 @@ function DangerCard({ list }: { list: Doc<"lists"> }) {
   const [confirming, setConfirming] = useState(false);
 
   // We only have enough context client-side to resolve straight back to a
-  // Space (parentId IS the spaceId); a folder-parented list has no folder
+  // Space (parentId IS the spaceId); a project-parented list has no project
   // page to land on yet, so fall back to the dashboard root.
   const destination =
     list.parentType === "space"

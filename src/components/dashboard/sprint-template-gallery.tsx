@@ -518,9 +518,9 @@ function ConfirmStep({
       for (const l of space.lists) {
         out.push({ id: l._id, label: l.name, hint: space.name });
       }
-      for (const folder of space.folders) {
-        for (const l of folder.lists) {
-          out.push({ id: l._id, label: l.name, hint: folder.name });
+      for (const project of space.projects) {
+        for (const l of project.lists) {
+          out.push({ id: l._id, label: l.name, hint: project.name });
         }
       }
     }

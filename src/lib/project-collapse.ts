@@ -2,21 +2,21 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-// Per-folder open/closed memory, persisted the same way the sidebar
+// Per-project open/closed memory, persisted the same way the sidebar
 // persists its own collapsed state: a plain cookie, no store, no server
-// round-trip. Both surfaces that render folders (the sidebar tree and the
-// Space page) read the same cookie, so collapsing a folder in one place
+// round-trip. Both surfaces that render projects (the sidebar tree and the
+// Space page) read the same cookie, so collapsing a project in one place
 // keeps it collapsed in the other.
 //
-// The cookie holds the ids that are CLOSED — folders default to open, so
+// The cookie holds the ids that are CLOSED — projects default to open, so
 // the common case costs zero bytes and the cookie stays bounded by how
-// many folders a user has deliberately collapsed.
+// many projects a user has deliberately collapsed.
 
-const COOKIE_NAME = "folder_closed";
+const COOKIE_NAME = "project_closed";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
 const MAX_IDS = 200;
 
-// One module-level cache + subscriber set: every folder row shares the
+// One module-level cache + subscriber set: every project row shares the
 // parsed value, so toggling one row re-renders the others that care
 // without each of them re-parsing document.cookie.
 let cache: Set<string> | null = null;
@@ -49,37 +49,37 @@ function write(next: Set<string>) {
 }
 
 /**
- * `[expanded, toggle]` for one folder id, persisted across reloads.
+ * `[expanded, toggle]` for one project id, persisted across reloads.
  *
- * Reads lazily on mount rather than during the server render: folder rows
+ * Reads lazily on mount rather than during the server render: project rows
  * only exist once the Convex tree query resolves (client-side), so there
  * is no hydration mismatch to guard against.
  */
-export function useFolderExpanded(
-  folderId: string,
+export function useProjectExpanded(
+  projectId: string,
 ): [boolean, (next?: boolean) => void] {
   const [closed, setClosed] = useState(false);
 
   useEffect(() => {
-    const sync = () => setClosed(read().has(folderId));
+    const sync = () => setClosed(read().has(projectId));
     sync();
     listeners.add(sync);
     return () => {
       listeners.delete(sync);
     };
-  }, [folderId]);
+  }, [projectId]);
 
   // `next` is the desired EXPANDED state; omit it to flip.
   const toggle = useCallback(
     (next?: boolean) => {
       const current = read();
-      const wantExpanded = next ?? current.has(folderId);
+      const wantExpanded = next ?? current.has(projectId);
       const set = new Set(current);
-      if (wantExpanded) set.delete(folderId);
-      else set.add(folderId);
+      if (wantExpanded) set.delete(projectId);
+      else set.add(projectId);
       write(set);
     },
-    [folderId],
+    [projectId],
   );
 
   return [!closed, toggle];

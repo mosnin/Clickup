@@ -315,7 +315,7 @@ function DisplaySection({
         />
         <ToggleRow
           label="Show task locations"
-          hint="Add the Space › Folder › List breadcrumb to every task."
+          hint="Add the Space › Project › List breadcrumb to every task."
           checked={settings.showLocation}
           onChange={(showLocation) => update({ showLocation })}
         />

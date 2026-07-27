@@ -942,7 +942,7 @@ export const TEMPLATE_CATALOG: CatalogTemplate[] = [
         {
           title: "Asset naming convention",
           description:
-            "One convention for filenames and folders so an asset can be found six months later.",
+            "One convention for filenames and projects so an asset can be found six months later.",
         },
         { title: "Export presets for every format", statusIndex: 1 },
       ],

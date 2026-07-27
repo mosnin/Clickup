@@ -86,7 +86,7 @@ export function receipt(args: {
 
 /** Deep-link path for the objects agents create, so receipts carry a URL. */
 export function urlFor(
-  type: "task" | "list" | "doc" | "folder" | "sprint",
+  type: "task" | "list" | "doc" | "project" | "sprint",
   id: string,
   listId?: Id<"lists">,
 ): string | undefined {

@@ -127,7 +127,7 @@ export function CommandPalette() {
       for (const l of space.lists) {
         out.push({ id: l._id, name: l.name, place: `${place} · ${space.name}` });
       }
-      for (const f of space.folders) {
+      for (const f of space.projects) {
         for (const l of f.lists) {
           out.push({
             id: l._id,

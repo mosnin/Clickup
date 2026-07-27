@@ -127,6 +127,11 @@ export default defineSchema({
   })
     .index("by_parent", ["parentType", "parentId"]),
 
+  // Deprecated: superseded by `projects` below. Kept declared only so the
+  // one-shot migration in migrations.ts can read the rows it converts —
+  // Convex refuses to validate documents in a table the schema omits, so
+  // this cannot be deleted until the migration has run everywhere and the
+  // table is empty.
   folders: defineTable({
     name: v.string(),
     spaceId: v.id("spaces"),
@@ -135,20 +140,19 @@ export default defineSchema({
   })
     .index("by_space", ["spaceId"]),
 
-  lists: defineTable({
+  // ── Projects ──
+  // The layer between a Space and its Lists: Workspace → Space → Project →
+  // List → Task. A project is the unit of work people talk about ("the
+  // billing migration"); a list is one board of tasks inside it. This
+  // replaces `folders`, which was the same shape with none of the meaning —
+  // and it takes over the project identity that used to be bolted onto
+  // `lists` back when a list *was* a project.
+  projects: defineTable({
     name: v.string(),
-    color: v.optional(v.string()),
-    parentType: v.union(v.literal("space"), v.literal("folder")),
-    parentId: v.string(),
+    spaceId: v.id("spaces"),
     position: v.number(),
     createdAt: v.number(),
-    // ── Roadmap membership (Phase K) ──
-    // A project can sit in one roadmap phase; roadmapPosition orders it
-    // within that phase. All optional — projects outside roadmaps are fine.
-    roadmapId: v.optional(v.id("roadmaps")),
-    roadmapPhaseId: v.optional(v.string()),
-    roadmapPosition: v.optional(v.number()),
-    // ── Project metadata (a list IS a project) ──
+    color: v.optional(v.string()),
     // One-line summary shown on Home cards and the project header.
     description: v.optional(v.string()),
     // Health signal, set by the owner; drives status chips everywhere.
@@ -160,11 +164,55 @@ export default defineSchema({
         v.literal("paused"),
       ),
     ),
-    // Accountable human (clerkId) or agent (agent doc id).
+    // Accountable human (clerkId) or agent (agent doc id) — actor id shape.
     ownerActorId: v.optional(v.string()),
     // Freeform project notes: decisions, links, context. Plain text.
     notes: v.optional(v.string()),
     // Target completion date (local-midnight ms).
+    targetDate: v.optional(v.number()),
+    // ── Roadmap membership ──
+    // A project can sit in one roadmap phase; roadmapPosition orders it
+    // within that phase. All optional — projects outside roadmaps are fine.
+    roadmapId: v.optional(v.id("roadmaps")),
+    roadmapPhaseId: v.optional(v.string()),
+    roadmapPosition: v.optional(v.number()),
+    archivedAt: v.optional(v.number()),
+  })
+    .index("by_space", ["spaceId"])
+    .index("by_roadmap", ["roadmapId"]),
+
+  lists: defineTable({
+    name: v.string(),
+    color: v.optional(v.string()),
+    // "folder" is legacy and only appears on rows the migration has not
+    // reached yet; new lists are parented to a space or a project.
+    parentType: v.union(
+      v.literal("space"),
+      v.literal("folder"),
+      v.literal("project"),
+    ),
+    parentId: v.string(),
+    position: v.number(),
+    createdAt: v.number(),
+    // A list keeps its own blurb ("what this board is for"); the project's
+    // description is a different sentence and lives on the project.
+    description: v.optional(v.string()),
+    // ── Deprecated: project identity moved to `projects` ──
+    // The migration copies these onto the owning project and clears them.
+    // Declared until then because Convex validates every stored field.
+    roadmapId: v.optional(v.id("roadmaps")),
+    roadmapPhaseId: v.optional(v.string()),
+    roadmapPosition: v.optional(v.number()),
+    projectStatus: v.optional(
+      v.union(
+        v.literal("on_track"),
+        v.literal("at_risk"),
+        v.literal("off_track"),
+        v.literal("paused"),
+      ),
+    ),
+    ownerActorId: v.optional(v.string()),
+    notes: v.optional(v.string()),
     targetDate: v.optional(v.number()),
     // ── Operations (Phase L) ──
     // Assignment routing: tasks created WITHOUT an explicit assignee get
@@ -204,8 +252,8 @@ export default defineSchema({
 
   // ── Roadmaps (Phase K) ──
   // Workspace-level phased containers ("Now / Next / Later", quarters,
-  // launch trains…) that projects (lists) slot into. Phases are embedded:
-  // small, ordered, and always fetched with the roadmap.
+  // launch trains…) that projects slot into. Phases are embedded: small,
+  // ordered, and always fetched with the roadmap.
   roadmaps: defineTable({
     workspaceId: v.id("workspaces"),
     name: v.string(),

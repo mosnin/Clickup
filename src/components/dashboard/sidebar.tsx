@@ -72,7 +72,7 @@ import { NewWorkspaceDialog } from "@/components/dashboard/new-workspace-dialog"
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
-import { useFolderExpanded } from "@/lib/folder-collapse";
+import { useProjectExpanded } from "@/lib/project-collapse";
 
 type SidebarTree = NonNullable<ReturnType<typeof useTreeQuery>>;
 type SpaceNode = SidebarTree["workspaces"][number]["spaces"][number];
@@ -105,7 +105,7 @@ export function DashboardSidebar() {
   const { setOpenMobile } = useSidebar();
 
   // Close the mobile drawer on every navigation — covers every link in the
-  // tree (nav items, favorites, spaces/folders/lists, docs, whiteboards,
+  // tree (nav items, favorites, spaces/projects/lists, docs, whiteboards,
   // admin) without wiring each one individually.
   useEffect(() => {
     setOpenMobile(false);
@@ -142,7 +142,7 @@ function useCurrentContext(tree: SidebarTree | null | undefined) {
   const id = CONTENT_ID_RE.exec(pathname)?.[1];
 
   // Reverse lookup from every id a workspace subtree owns (the workspace
-  // itself, its spaces, folders, space-direct + folder-nested lists, docs,
+  // itself, its spaces, projects, space-direct + project-nested lists, docs,
   // whiteboards) back to that workspace. Built once per tree/pathname
   // change rather than walked on every render.
   const idToWorkspace = useMemo(() => {
@@ -154,9 +154,9 @@ function useCurrentContext(tree: SidebarTree | null | undefined) {
         for (const list of space.lists) map.set(list._id, workspace);
         for (const doc of space.docs) map.set(doc._id, workspace);
         for (const wb of space.whiteboards) map.set(wb._id, workspace);
-        for (const folder of space.folders) {
-          map.set(folder._id, workspace);
-          for (const list of folder.lists) map.set(list._id, workspace);
+        for (const project of space.projects) {
+          map.set(project._id, workspace);
+          for (const list of project.lists) map.set(list._id, workspace);
         }
       }
     }
@@ -563,14 +563,14 @@ function WorkspaceTreeGroup({
   );
 }
 
-// ── Space → folder → list tree ───────────────────────────────────────────
+// ── Space → project → list tree ───────────────────────────────────────────
 //
-// The per-space "+" popover (list/doc/whiteboard/template/folder) now rides
+// The per-space "+" popover (list/doc/whiteboard/template/project) now rides
 // a Radix DropdownMenu instead of the old hand-rolled AnchoredMenu portal —
 // Radix already handles positioning/escape/outside-click for us.
 
 const ADD_LABEL: Record<string, string> = {
-  folder: "folder",
+  project: "project",
   list: "list",
   doc: "doc",
   board: "whiteboard",
@@ -585,7 +585,7 @@ const SPACE_CREATE_ITEMS = [
     icon: Columns3,
     label: "New list from template",
   },
-  { k: "folder" as const, icon: Folder, label: "Folder" },
+  { k: "project" as const, icon: Folder, label: "Project" },
 ];
 
 function SpaceCreateMenu({
@@ -593,7 +593,7 @@ function SpaceCreateMenu({
   onPick,
 }: {
   spaceName: string;
-  onPick: (kind: "list" | "doc" | "board" | "template" | "folder") => void;
+  onPick: (kind: "list" | "doc" | "board" | "template" | "project") => void;
 }) {
   return (
     <DropdownMenu>
@@ -603,7 +603,7 @@ function SpaceCreateMenu({
           aria-label={`Add to ${spaceName}`}
           title={`Add to ${spaceName}`}
           // Always visible on touch (no hover to reveal it), hover-revealed
-          // from `sm:` up — this is the only path to "new folder"/"new
+          // from `sm:` up — this is the only path to "new project"/"new
           // list" for a space, so it must never be hover-gated on mobile.
           className="tap-target flex size-5 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground transition-opacity hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:opacity-100 data-[state=open]:opacity-100 group-data-[collapsible=icon]:hidden sm:opacity-0 sm:group-hover/space:opacity-100"
         >
@@ -635,8 +635,8 @@ function SpaceTree({
   const router = useRouter();
   const [expanded, setExpanded] = useState(true);
   const [templateOpen, setTemplateOpen] = useState(false);
-  const [adding, setAdding] = useState<"folder" | "list" | "doc" | "board" | null>(null);
-  const createFolder = useMutation(api.folders.create);
+  const [adding, setAdding] = useState<"project" | "list" | "doc" | "board" | null>(null);
+  const createProject = useMutation(api.projects.create);
   const createList = useMutation(api.lists.create);
   const createDoc = useMutation(api.docs.create);
   const createWhiteboard = useMutation(api.whiteboards.create);
@@ -644,8 +644,8 @@ function SpaceTree({
 
   async function submitAdd(name: string) {
     try {
-      if (adding === "folder") {
-        await createFolder({ spaceId: space._id, name });
+      if (adding === "project") {
+        await createProject({ spaceId: space._id, name });
       } else if (adding === "list") {
         const listId = await createList({ name, parentType: "space", parentId: space._id });
         router.push(`/dashboard/l/${listId}`);
@@ -670,14 +670,14 @@ function SpaceTree({
   }
 
   const ADD_PLACEHOLDER: Record<string, string> = {
-    folder: "Folder name…",
+    project: "Project name…",
     list: "List name…",
     doc: "Doc title…",
     board: "Whiteboard title…",
   };
 
   const isEmpty =
-    space.folders.length === 0 &&
+    space.projects.length === 0 &&
     space.lists.length === 0 &&
     space.docs.length === 0 &&
     space.whiteboards.length === 0;
@@ -756,11 +756,11 @@ function SpaceTree({
               </SidebarMenuSubButton>
             </SidebarMenuSubItem>
           )}
-          {/* Ordering rule (mirrored on the Space page): folders first,
+          {/* Ordering rule (mirrored on the Space page): projects first,
               then space-direct lists — the server already sorts each by
               position with a createdAt tiebreak. */}
-          {space.folders.map((folder) => (
-            <FolderTree key={folder._id} folder={folder} space={space} />
+          {space.projects.map((project) => (
+            <ProjectTree key={project._id} project={project} space={space} />
           ))}
           {space.lists.map((list) => (
             <ListSubItem
@@ -794,7 +794,7 @@ function SpaceTree({
 }
 
 // A row's overflow menu. One "⋯" trigger instead of a strip of inline
-// icon buttons keeps folder and list rows the same width at 360px — the
+// icon buttons keeps project and list rows the same width at 360px — the
 // row can never widen past the name, which truncates.
 function RowMenu({
   label,
@@ -826,44 +826,44 @@ function RowMenu({
 }
 
 // Destinations for "move a list": the Space itself plus each of its
-// folders, minus wherever the list already lives. Crossing into another
+// projects, minus wherever the list already lives. Crossing into another
 // Space is deliberately not offered — the server refuses it too, because a
 // Space is a visibility boundary.
 function moveDestinations(
   space: SpaceNode,
-  parent: { type: "space" | "folder"; id: string },
+  parent: { type: "space" | "project"; id: string },
 ): { id: string; label: string; hint: string }[] {
   const out: { id: string; label: string; hint: string }[] = [];
   if (parent.type !== "space") {
     out.push({ id: `space:${space._id}`, label: space.name, hint: "space" });
   }
-  for (const f of space.folders) {
-    if (parent.type === "folder" && parent.id === f._id) continue;
-    out.push({ id: `folder:${f._id}`, label: f.name, hint: "folder" });
+  for (const f of space.projects) {
+    if (parent.type === "project" && parent.id === f._id) continue;
+    out.push({ id: `project:${f._id}`, label: f.name, hint: "project" });
   }
   return out;
 }
 
-function FolderTree({
-  folder,
+function ProjectTree({
+  project,
   space,
 }: {
-  folder: SpaceNode["folders"][number];
+  project: SpaceNode["projects"][number];
   space: SpaceNode;
 }) {
   const router = useRouter();
-  const [expanded, setExpanded] = useFolderExpanded(folder._id);
+  const [expanded, setExpanded] = useProjectExpanded(project._id);
   const [addingList, setAddingList] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [hidden, setHidden] = useState(false);
   const createList = useMutation(api.lists.create);
-  const renameFolder = useMutation(api.folders.rename);
-  const removeFolder = useMutation(api.folders.remove);
+  const renameProject = useMutation(api.projects.rename);
+  const removeProject = useMutation(api.projects.remove);
   const { toast } = useToast();
 
   // Deferred delete: hide the row immediately, only actually removing the
-  // folder once the undo window closes — same pattern as every other
-  // delete in the app (grep `onExpire`). Deleting a folder keeps its
+  // project once the undo window closes — same pattern as every other
+  // delete in the app (grep `onExpire`). Deleting a project keeps its
   // lists: the server moves them up to the Space.
   if (hidden) return null;
 
@@ -883,16 +883,16 @@ function FolderTree({
         </button>
         {renaming ? (
           <InlineCreate
-            placeholder="Folder name…"
-            initialValue={folder.name}
+            placeholder="Project name…"
+            initialValue={project.name}
             className="min-w-0 flex-1"
             onCancel={() => setRenaming(false)}
             onSubmit={async (name) => {
               try {
-                await renameFolder({ folderId: folder._id, name });
+                await renameProject({ projectId: project._id, name });
                 setRenaming(false);
               } catch (e) {
-                toast(errorMessage(e, "Couldn't rename folder"), {
+                toast(errorMessage(e, "Couldn't rename project"), {
                   kind: "error",
                 });
                 setRenaming(false);
@@ -902,11 +902,11 @@ function FolderTree({
         ) : (
           <span className="flex min-w-0 flex-1 items-center gap-2 px-1 text-sm text-sidebar-foreground/80">
             <Folder className="size-3.5 flex-shrink-0" aria-hidden />
-            <span className="truncate">{folder.name}</span>
+            <span className="truncate">{project.name}</span>
           </span>
         )}
         {!renaming && (
-          <RowMenu label={`Folder actions for ${folder.name}`}>
+          <RowMenu label={`Project actions for ${project.name}`}>
             <DropdownMenuItem
               onSelect={() => {
                 setExpanded(true);
@@ -925,18 +925,18 @@ function FolderTree({
               onSelect={() => {
                 setHidden(true);
                 toast(
-                  folder.lists.length > 0
-                    ? `"${folder.name}" deleted — its lists moved to ${space.name}`
-                    : `"${folder.name}" deleted`,
+                  project.lists.length > 0
+                    ? `"${project.name}" deleted — its lists moved to ${space.name}`
+                    : `"${project.name}" deleted`,
                   {
                     action: { label: "Undo", onClick: () => setHidden(false) },
-                    onExpire: () => void removeFolder({ folderId: folder._id }),
+                    onExpire: () => void removeProject({ projectId: project._id }),
                   },
                 );
               }}
             >
               <Trash2 className="text-muted-foreground" />
-              Delete folder
+              Delete project
             </DropdownMenuItem>
           </RowMenu>
         )}
@@ -952,8 +952,8 @@ function FolderTree({
                   try {
                     const listId = await createList({
                       name,
-                      parentType: "folder",
-                      parentId: folder._id,
+                      parentType: "project",
+                      parentId: project._id,
                     });
                     setAddingList(false);
                     router.push(`/dashboard/l/${listId}`);
@@ -967,19 +967,19 @@ function FolderTree({
               />
             </SidebarMenuSubItem>
           )}
-          {folder.lists.map((list) => (
+          {project.lists.map((list) => (
             <ListSubItem
               key={list._id}
               listId={list._id}
               name={list.name}
               space={space}
-              parent={{ type: "folder", id: folder._id }}
+              parent={{ type: "project", id: project._id }}
             />
           ))}
-          {folder.lists.length === 0 && !addingList && (
+          {project.lists.length === 0 && !addingList && (
             <SidebarMenuSubItem className="px-1 py-1">
               <p className="px-1 pb-1 text-xs text-muted-foreground">
-                This folder is empty.
+                This project is empty.
               </p>
               <SidebarMenuSubButton asChild size="sm">
                 <button type="button" onClick={() => setAddingList(true)}>
@@ -1004,7 +1004,7 @@ function ListSubItem({
   listId: Id<"lists">;
   name: string;
   space: SpaceNode;
-  parent: { type: "space" | "folder"; id: string };
+  parent: { type: "space" | "project"; id: string };
 }) {
   const pathname = usePathname();
   const [renaming, setRenaming] = useState(false);
@@ -1057,7 +1057,7 @@ function ListSubItem({
               try {
                 await moveList({
                   listId,
-                  parentType: type === "folder" ? "folder" : "space",
+                  parentType: type === "project" ? "project" : "space",
                   parentId: id,
                 });
                 toast(`"${name}" moved`);

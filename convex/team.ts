@@ -37,7 +37,7 @@ export const hub = query({
       }),
     );
 
-    // Walk workspace → spaces → (folders →) lists → tasks once.
+    // Walk workspace → spaces → (projects →) lists → tasks once.
     const spaces = await ctx.db
       .query("spaces")
       .withIndex("by_parent", (q) =>
@@ -59,18 +59,18 @@ export const hub = query({
         )
         .collect();
       lists.push(...direct);
-      const folders = await ctx.db
-        .query("folders")
+      const projects = await ctx.db
+        .query("projects")
         .withIndex("by_space", (q) => q.eq("spaceId", space._id))
         .collect();
-      for (const folder of folders) {
-        const folderLists = await ctx.db
+      for (const project of projects) {
+        const projectLists = await ctx.db
           .query("lists")
           .withIndex("by_parent", (q) =>
-            q.eq("parentType", "folder").eq("parentId", folder._id),
+            q.eq("parentType", "project").eq("parentId", project._id),
           )
           .collect();
-        lists.push(...folderLists);
+        lists.push(...projectLists);
       }
     }
 

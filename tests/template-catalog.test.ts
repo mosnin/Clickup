@@ -233,28 +233,28 @@ describe("applying catalog templates", () => {
     expect(narrative?.checklist?.every((i) => i.done === false)).toBe(true);
   });
 
-  it("materialises a list template into a folder", async () => {
+  it("materialises a list template into a project", async () => {
     const t = convexTest(schema, modules);
     await seedUsers(t);
     const spaceId = await personalSpace(t);
-    const folderId = await t
+    const projectId = await t
       .withIdentity(OWNER)
-      .mutation(api.folders.create, { spaceId, name: "Campaigns" });
+      .mutation(api.projects.create, { spaceId, name: "Campaigns" });
 
     const result = await t
       .withIdentity(OWNER)
       .mutation(api.templates.applyCatalogTemplate, {
         slug: "editorial-calendar",
         name: "Q3 calendar",
-        destinationType: "folder",
-        destinationId: folderId,
+        destinationType: "project",
+        destinationId: projectId,
       });
     expect(result.name).toBe("Q3 calendar");
 
     const listId = result.href.split("/").pop() as Id<"lists">;
     const list = await t.run(async (ctx) => ctx.db.get(listId));
-    expect(list?.parentType).toBe("folder");
-    expect(list?.parentId).toBe(folderId);
+    expect(list?.parentType).toBe("project");
+    expect(list?.parentId).toBe(projectId);
     expect(list?.name).toBe("Q3 calendar");
   });
 

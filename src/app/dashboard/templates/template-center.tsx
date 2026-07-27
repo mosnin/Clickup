@@ -673,7 +673,7 @@ function TemplateCard({
 type SpaceNode = {
   _id: Id<"spaces">;
   name: string;
-  folders: { _id: Id<"folders">; name: string; lists: { _id: Id<"lists">; name: string }[] }[];
+  projects: { _id: Id<"projects">; name: string; lists: { _id: Id<"lists">; name: string }[] }[];
   lists: { _id: Id<"lists">; name: string }[];
 };
 
@@ -682,15 +682,15 @@ type Tree = {
   workspaces: { _id: Id<"workspaces">; name: string; spaces: SpaceNode[] }[];
 } | null;
 
-// Destination ids are prefixed so one Picker can offer spaces, folders, and
-// lists without a second control: "space:<id>", "folder:<id>", "list:<id>".
+// Destination ids are prefixed so one Picker can offer spaces, projects, and
+// lists without a second control: "space:<id>", "project:<id>", "list:<id>".
 function destinationOptions(
   tree: Tree | undefined,
   entityType: EntityType,
 ): PickerOption[] {
   if (!tree) return [];
   const wantsList = entityType === "task" || entityType === "view";
-  const wantsFolder = entityType === "list";
+  const wantsProject = entityType === "list";
   const out: PickerOption[] = [];
 
   const walk = (space: SpaceNode, scope: string) => {
@@ -706,20 +706,20 @@ function destinationOptions(
         });
       }
     }
-    for (const folder of space.folders) {
-      if (wantsFolder) {
+    for (const project of space.projects) {
+      if (wantsProject) {
         out.push({
-          id: `folder:${folder._id}`,
-          label: `${space.name} / ${folder.name}`,
+          id: `project:${project._id}`,
+          label: `${space.name} / ${project.name}`,
           hint: scope,
         });
       }
-      for (const list of folder.lists) {
+      for (const list of project.lists) {
         if (wantsList) {
           out.push({
             id: `list:${list._id}`,
             label: list.name,
-            hint: `${space.name} / ${folder.name}`,
+            hint: `${space.name} / ${project.name}`,
           });
         }
       }
@@ -764,7 +764,7 @@ function ConfirmStep({
     template.entityType === "task" || template.entityType === "view"
       ? "list"
       : template.entityType === "list"
-        ? "space or folder"
+        ? "space or project"
         : "space";
 
   const destinationHelp =
@@ -773,7 +773,7 @@ function ConfirmStep({
       : template.entityType === "view"
         ? "This template adds a saved view to the list you choose."
         : template.entityType === "list"
-          ? "This template creates a new list inside the space or folder you choose."
+          ? "This template creates a new list inside the space or project you choose."
           : template.entityType === "doc"
             ? "This template creates a new doc inside the space you choose."
             : "This template creates a new whiteboard inside the space you choose.";
@@ -786,7 +786,7 @@ function ConfirmStep({
       const result = await apply({
         slug: template.slug,
         name: name.trim() || undefined,
-        destinationType: kind as "space" | "folder" | "list",
+        destinationType: kind as "space" | "project" | "list",
         destinationId: id,
       });
       toast(`${result.name} created`, {

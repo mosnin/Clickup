@@ -504,10 +504,10 @@ function useScopeLists(agent: Doc<"agents">) {
   return useMemo(() => {
     if (!tree) return [];
     function flatten(
-      space: { lists: Doc<"lists">[]; folders: { lists: Doc<"lists">[] }[] } | null,
+      space: { lists: Doc<"lists">[]; projects: { lists: Doc<"lists">[] }[] } | null,
     ): Doc<"lists">[] {
       if (!space) return [];
-      return [...space.lists, ...space.folders.flatMap((f) => f.lists)];
+      return [...space.lists, ...space.projects.flatMap((f) => f.lists)];
     }
     if (agent.parentType === "user") {
       return flatten(tree.personal);
@@ -775,7 +775,7 @@ function GovernancePanel({
           <p className="mb-2 text-xs text-muted-foreground">
             Leave empty for full access to every list in scope. When set,
             this agent can only read or write these lists — structure-level
-            operations (create list/folder) are refused entirely.
+            operations (create list/project) are refused entirely.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {allowedListIds.map((id) => (

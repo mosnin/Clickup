@@ -55,10 +55,10 @@ export function SpacesView() {
         <div className="space-y-2 pb-2">
           <p className="max-w-2xl text-sm text-muted-foreground">
             Spaces organize work inside a workspace. Each space holds lists,
-            optional folders, docs, and whiteboards.
+            optional projects, docs, and whiteboards.
           </p>
           <p className="text-xs font-medium text-foreground/80">
-            Workspace → Space → Folder (optional) → List → Task
+            Workspace → Space → Project → List → Task
           </p>
           <Input
             value={raw}
@@ -146,7 +146,7 @@ function SpaceCard({ space }: { space: SpaceRow }) {
 
           <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
             <Stat icon={List} value={space.listCount} label="list" />
-            <Stat icon={Folder} value={space.folderCount} label="folder" />
+            <Stat icon={Folder} value={space.projectCount} label="project" />
             <Stat icon={FileText} value={space.docCount} label="doc" />
             <Stat
               icon={LayoutGrid}

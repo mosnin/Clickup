@@ -24,16 +24,16 @@ async function listsForSpace(
       q.eq("parentType", "space").eq("parentId", spaceId),
     )
     .collect();
-  const folders = await ctx.db
-    .query("folders")
+  const projects = await ctx.db
+    .query("projects")
     .withIndex("by_space", (q) => q.eq("spaceId", spaceId))
     .collect();
   const nested = await Promise.all(
-    folders.map((f) =>
+    projects.map((f) =>
       ctx.db
         .query("lists")
         .withIndex("by_parent", (q) =>
-          q.eq("parentType", "folder").eq("parentId", f._id),
+          q.eq("parentType", "project").eq("parentId", f._id),
         )
         .collect(),
     ),

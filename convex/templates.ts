@@ -4,7 +4,7 @@ import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import {
-  requireFolderAccess,
+  requireProjectAccess,
   requireListAccess,
   requireSpaceAccess,
 } from "./_authz";
@@ -171,7 +171,7 @@ export const list = query({
 
 const parentTypeValidator = v.union(
   v.literal("space"),
-  v.literal("folder"),
+  v.literal("project"),
 );
 
 // Shared with the agent API: creates the list + statuses + fields +
@@ -181,7 +181,7 @@ export async function applyListTemplateCore(
   args: {
     templateId: string;
     name: string;
-    parentType: "space" | "folder";
+    parentType: "space" | "project";
     parentId: string;
   },
   creatorId: string,
@@ -279,7 +279,7 @@ export const applyListTemplate = mutation({
     const { identity } =
       args.parentType === "space"
         ? await requireSpaceAccess(ctx, args.parentId as Id<"spaces">)
-        : await requireFolderAccess(ctx, args.parentId as Id<"folders">);
+        : await requireProjectAccess(ctx, args.parentId as Id<"projects">);
     return await applyListTemplateCore(ctx, args, identity.subject);
   },
 });
@@ -385,7 +385,7 @@ export async function applyCatalogListTemplateCore(
   args: {
     slug: string;
     name?: string;
-    parentType: "space" | "folder";
+    parentType: "space" | "project";
     parentId: string;
   },
   actor: Actor,
@@ -575,7 +575,7 @@ export const catalog = query({
 
 const destinationValidator = v.union(
   v.literal("space"),
-  v.literal("folder"),
+  v.literal("project"),
   v.literal("list"),
 );
 
@@ -603,8 +603,8 @@ export const applyCatalogTemplate = mutation({
 
     // Each entity type has exactly one shape of destination. Checking it
     // here keeps every core below able to trust its arguments.
-    const allowed: Record<string, ("space" | "folder" | "list")[]> = {
-      list: ["space", "folder"],
+    const allowed: Record<string, ("space" | "project" | "list")[]> = {
+      list: ["space", "project"],
       task: ["list"],
       doc: ["space"],
       whiteboard: ["space"],
@@ -621,8 +621,8 @@ export const applyCatalogTemplate = mutation({
     const { identity } =
       args.destinationType === "space"
         ? await requireSpaceAccess(ctx, args.destinationId as Id<"spaces">)
-        : args.destinationType === "folder"
-          ? await requireFolderAccess(ctx, args.destinationId as Id<"folders">)
+        : args.destinationType === "project"
+          ? await requireProjectAccess(ctx, args.destinationId as Id<"projects">)
           : await requireListAccess(ctx, args.destinationId as Id<"lists">);
 
     const actor = await userActor(ctx, identity.subject);
@@ -633,7 +633,7 @@ export const applyCatalogTemplate = mutation({
         {
           slug: args.slug,
           name: args.name,
-          parentType: args.destinationType === "space" ? "space" : "folder",
+          parentType: args.destinationType === "space" ? "space" : "project",
           parentId: args.destinationId,
         },
         actor,

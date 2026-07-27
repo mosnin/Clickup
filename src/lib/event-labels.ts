@@ -46,9 +46,9 @@ export const EVENT_LABEL: Record<string, string> = {
   "list.updated": "updated list",
   "list.deleted": "deleted list",
   "list.moved": "moved list",
-  "folder.created": "created folder",
-  "folder.renamed": "renamed folder",
-  "folder.deleted": "deleted folder",
+  "project.created": "created project",
+  "project.renamed": "renamed project",
+  "project.deleted": "deleted project",
   "context.created": "created shared context",
   "context.updated": "updated shared context",
   "context.deleted": "deleted shared context",
@@ -111,9 +111,9 @@ export function eventHref(e: {
   if (e.entityType === "list" && e.type !== "list.deleted") {
     return `/dashboard/l/${e.entityId}`;
   }
-  // A folder has no page of its own — it lives inside its Space, and a
-  // deleted folder's Space is still the right place to land.
-  if (e.entityType === "folder") {
+  // A project has no page of its own — it lives inside its Space, and a
+  // deleted project's Space is still the right place to land.
+  if (e.entityType === "project") {
     const p = (e.payload ?? {}) as { spaceId?: string };
     return p.spaceId ? `/dashboard/s/${p.spaceId}` : null;
   }

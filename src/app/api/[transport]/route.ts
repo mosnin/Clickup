@@ -199,14 +199,14 @@ const READ_TOOLS = new Set([
   "buy_credits", // returns a payment challenge; charges nothing by itself
 ]);
 const DESTRUCTIVE_TOOLS = new Set([
-  "rename_folder",
+  "rename_project",
   "delete_task",
   "delete_scheduled_task",
   "delete_webhook",
   "delete_automation",
   "delete_comment",
   "delete_list",
-  "delete_folder",
+  "delete_project",
   "delete_context_packet",
   "detach_context_packet",
   "supersede_decision",
@@ -250,7 +250,7 @@ const DESTRUCTIVE_TOOLS = new Set([
   "update_list_meta",
   "reorder_lists",
   "move_list",
-  "reorder_folders",
+  "reorder_projects",
   "delete_milestone",
   "update_milestone",
   "set_task_milestone",
@@ -288,8 +288,8 @@ const IDEMPOTENT_TOOLS = new Set([
   "update_list_meta",
   "reorder_lists",
   "move_list",
-  "rename_folder",
-  "reorder_folders",
+  "rename_project",
+  "reorder_projects",
   "reorder_tasks",
   "update_roadmap_phase",
   "update_milestone",
@@ -385,56 +385,56 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_tree",
     description:
-      "The full structure of my scope: spaces → folders → lists, with ids. Start here to find where work lives.",
+      "The full structure of my scope: spaces → projects → lists, with ids. Start here to find where work lives.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.getTree), { apiKey: k }),
   },
   {
     name: "create_space",
     description:
-      "Create a new top-level Space in my scope. Spaces own lists, optional folders, docs, whiteboards, and templates.",
+      "Create a new top-level Space in my scope. Spaces own lists, optional projects, docs, whiteboards, and templates.",
     shape: { name: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.createSpace), { apiKey: k, ...a }),
   },
   {
-    name: "create_folder",
-    description: "Create a folder inside a space to group lists.",
+    name: "create_project",
+    description: "Create a project inside a space to group lists.",
     shape: { spaceId: z.string(), name: z.string() },
     run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.createFolder), { apiKey: k, ...a }),
+      c.mutation(asMutation(api.agentApi.createProject), { apiKey: k, ...a }),
   },
   {
-    name: "rename_folder",
+    name: "rename_project",
     description:
-      "Rename a folder. Fix your own typos — no human needed. folderId comes from get_tree.",
-    shape: { folderId: z.string(), name: z.string() },
+      "Rename a project. Fix your own typos — no human needed. projectId comes from get_tree.",
+    shape: { projectId: z.string(), name: z.string() },
     run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.renameFolder), { apiKey: k, ...a }),
+      c.mutation(asMutation(api.agentApi.renameProject), { apiKey: k, ...a }),
   },
   {
-    name: "delete_folder",
+    name: "delete_project",
     description:
-      "Delete a folder. This is a grouping change, NOT a content deletion: every list inside moves up to the parent space and keeps its tasks, statuses, fields, and history.",
-    shape: { folderId: z.string() },
+      "Delete a project. This is a grouping change, NOT a content deletion: every list inside moves up to the parent space and keeps its tasks, statuses, fields, and history.",
+    shape: { projectId: z.string() },
     run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.deleteFolder), { apiKey: k, ...a }),
+      c.mutation(asMutation(api.agentApi.deleteProject), { apiKey: k, ...a }),
   },
   {
-    name: "reorder_folders",
+    name: "reorder_projects",
     description:
-      "Reorder the folders inside one space. Pass the full desired order of folder ids; ids that no longer live in this space are skipped. Folder order is independent of list order.",
+      "Reorder the projects inside one space. Pass the full desired order of project ids; ids that no longer live in this space are skipped. Project order is independent of list order.",
     shape: { spaceId: z.string(), orderedIds: z.array(z.string()) },
     run: (c, k, a) =>
-      c.mutation(asMutation(api.agentApi.reorderFolders), { apiKey: k, ...a }),
+      c.mutation(asMutation(api.agentApi.reorderProjects), { apiKey: k, ...a }),
   },
   {
     name: "create_list",
     description:
-      "Create a task list inside a space or folder. Seeds default statuses (To Do / In Progress / Complete / Closed).",
+      "Create a task list inside a space or project. Seeds default statuses (To Do / In Progress / Complete / Closed).",
     shape: {
       name: z.string(),
-      parentType: z.enum(["space", "folder"]),
+      parentType: z.enum(["space", "project"]),
       parentId: z.string(),
     },
     run: (c, k, a) =>
@@ -480,9 +480,9 @@ const TOOLS: ToolDef[] = [
   {
     name: "reorder_lists",
     description:
-      "Reorder the lists under one space or folder. Pass the full desired order of list ids.",
+      "Reorder the lists under one space or project. Pass the full desired order of list ids.",
     shape: {
-      parentType: z.enum(["space", "folder"]),
+      parentType: z.enum(["space", "project"]),
       parentId: z.string(),
       orderedIds: z.array(z.string()),
     },
@@ -492,11 +492,11 @@ const TOOLS: ToolDef[] = [
   {
     name: "move_list",
     description:
-      "Regroup a list: into a folder, back out to its space, or over to a sibling folder. The destination must be in the same space as the list — a space is a visibility boundary, so crossing one is refused rather than silently changing who can see the tasks.",
+      "Regroup a list: into a project, back out to its space, or over to a sibling project. The destination must be in the same space as the list — a space is a visibility boundary, so crossing one is refused rather than silently changing who can see the tasks.",
     shape: {
       listId: z.string(),
-      parentType: z.enum(["space", "folder"]),
-      parentId: z.string().describe("the destination space or folder id"),
+      parentType: z.enum(["space", "project"]),
+      parentId: z.string().describe("the destination space or project id"),
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.moveList), { apiKey: k, ...a }),
@@ -2080,11 +2080,11 @@ const TOOLS: ToolDef[] = [
   {
     name: "apply_template",
     description:
-      "Create real work from a Template Center template. destinationType depends on the entity type (get_template tells you): a list template goes into a space or folder, a task or view template onto a list, a doc or whiteboard template into a space. Optional name overrides the template's own. Returns { entityType, id, name }. Creates structure, so list-restricted agents can't call it.",
+      "Create real work from a Template Center template. destinationType depends on the entity type (get_template tells you): a list template goes into a space or project, a task or view template onto a list, a doc or whiteboard template into a space. Optional name overrides the template's own. Returns { entityType, id, name }. Creates structure, so list-restricted agents can't call it.",
     shape: {
       slug: z.string(),
       name: z.string().optional(),
-      destinationType: z.enum(["space", "folder", "list"]),
+      destinationType: z.enum(["space", "project", "list"]),
       destinationId: z.string(),
     },
     run: (c, k, a) =>
@@ -2103,11 +2103,11 @@ const TOOLS: ToolDef[] = [
   {
     name: "apply_starter_template",
     description:
-      "Create a new list from one of the four starter presets inside a space or folder. templateId comes from list_starter_templates.",
+      "Create a new list from one of the four starter presets inside a space or project. templateId comes from list_starter_templates.",
     shape: {
       templateId: z.string(),
       name: z.string(),
-      parentType: z.enum(["space", "folder"]),
+      parentType: z.enum(["space", "project"]),
       parentId: z.string(),
     },
     run: (c, k, a) =>
@@ -2389,6 +2389,36 @@ const TOOLS: ToolDef[] = [
   },
 ];
 
+// Renamed tools, kept reachable under their old names.
+//
+// Folders became Projects — the same layer with the meaning it always should
+// have had. An agent mid-run holds a tool list from before the rename, and
+// having its next call fail with "unknown tool" is a worse outcome than
+// answering it. These delegate to the canonical implementation and are hidden
+// from tools/list, so new agents only ever learn the current name.
+const DEPRECATED_TOOL_ALIASES: Record<string, string> = {
+  create_folder: "create_project",
+  rename_folder: "rename_project",
+  delete_folder: "delete_project",
+  reorder_folders: "reorder_projects",
+};
+
+const ALIAS_TOOLS = Object.entries(DEPRECATED_TOOL_ALIASES).flatMap(
+  ([legacy, canonical]) => {
+    const target = TOOLS.find((t) => t.name === canonical);
+    if (!target) return [];
+    return [{ ...target, name: legacy, deprecatedAliasOf: canonical }];
+  },
+);
+
+// Legacy names inherit the canonical tool's read-only / idempotent
+// classification, so the request guard treats an alias call exactly like the
+// call it forwards to.
+for (const [legacy, canonical] of Object.entries(DEPRECATED_TOOL_ALIASES)) {
+  if (READ_TOOLS.has(canonical)) READ_TOOLS.add(legacy);
+  if (IDEMPOTENT_TOOLS.has(canonical)) IDEMPOTENT_TOOLS.add(legacy);
+}
+
 function createOperateMcpHandler(profile: AnnotationProfile) {
   return createMcpHandler(
     (server) => {
@@ -2438,7 +2468,7 @@ function createOperateMcpHandler(profile: AnnotationProfile) {
         },
       );
 
-      for (const tool of TOOLS.filter((candidate) =>
+      for (const tool of [...TOOLS, ...ALIAS_TOOLS].filter((candidate) =>
         toolAvailableForProfile(candidate.name, profile),
       )) {
         server.registerTool(
@@ -2507,7 +2537,7 @@ function createOperateMcpHandler(profile: AnnotationProfile) {
     {
       serverInfo: { name: "operate-agents", version: "1.0.0" },
       instructions:
-        "You are an agent teammate in operate.to. The hierarchy is Workspace → Space → optional Folder → List → Task → Subtask. A roadmap sequences existing Lists into phases; it is not another container. First: call whoami, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-workstream roadmap? Prefer create_execution_plan: choose one Space, preserve the source, treat each projects input entry as a workstream that materializes as a List, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. If confirmed source facts change without changing structure, use revise_execution_plan_context so every workstream advances together and stale acknowledgements are invalidated; use a new plan for structural changes. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. A stale receipt is not active work: call reconcile_execution_plan before manually retrying it; dispatch also reconciles transactionally and preserves the timed-out attempt. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Coming back after a break, or idle? Call get_project_updates (pass the previous cursor as since) to see what changed in your projects, which revisions are open on you, and what is waiting on a human — act on that before looking for new work. An open revision on a task you already finished means it is not finished. Use create_tasks for smaller additions to an existing List. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
+        "You are an agent teammate in operate.to. The hierarchy is Workspace → Space → Project → List → Task → Subtask. A Project is the unit of work people name; a List is one board of tasks inside it. A List may also sit straight in a Space when it needs no project around it. A roadmap sequences existing Projects into phases; it is not another container. First: call whoami, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; call get_task, read every attached context packet, acknowledge_task_context with exact versions, and assess every pending operating-decision impact before claim_task. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done. Turning a whole confirmed conversation or brief into a multi-workstream roadmap? Prefer create_execution_plan: choose one Space, preserve the source, treat each projects input entry as a workstream that materializes as a Project with its lists, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. If confirmed source facts change without changing structure, use revise_execution_plan_context so every workstream advances together and stale acknowledgements are invalidated; use a new plan for structural changes. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. A stale receipt is not active work: call reconcile_execution_plan before manually retrying it; dispatch also reconciles transactionally and preserves the timed-out attempt. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Coming back after a break, or idle? Call get_project_updates (pass the previous cursor as since) to see what changed in your projects, which revisions are open on you, and what is waiting on a human — act on that before looking for new work. An open revision on a task you already finished means it is not finished. Use create_tasks for smaller additions to an existing List. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
     },
     {
       basePath: "/api",

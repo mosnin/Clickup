@@ -102,7 +102,7 @@ export function OperationsPanel({
     if (!ws) return [];
     const rows: { id: string; label: string; hint?: string }[] = [];
     for (const sp of ws.spaces) {
-      const lists = [...sp.lists, ...sp.folders.flatMap((f) => f.lists)];
+      const lists = [...sp.lists, ...sp.projects.flatMap((f) => f.lists)];
       for (const l of lists) {
         rows.push({ id: l._id, label: l.name, hint: sp.name });
       }

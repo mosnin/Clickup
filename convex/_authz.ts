@@ -77,6 +77,15 @@ export async function canAccessSpace(
   return true;
 }
 
+/**
+ * The one place that knows how a list reaches its Space.
+ *
+ * A list hangs off a Space directly or off a Project inside one. "folder" is
+ * the pre-Project spelling and only appears on rows the migration has not
+ * reached; handling it here means no caller has to know the history. Every
+ * other module resolves through this rather than re-deriving the walk — the
+ * ad-hoc copies of it were where the parent-type bugs lived.
+ */
 export async function getSpaceForList(
   ctx: QueryCtx | MutationCtx,
   list: Doc<"lists">,
@@ -84,9 +93,27 @@ export async function getSpaceForList(
   if (list.parentType === "space") {
     return await ctx.db.get(list.parentId as Id<"spaces">);
   }
+  if (list.parentType === "project") {
+    const project = await ctx.db.get(list.parentId as Id<"projects">);
+    if (!project) return null;
+    return await ctx.db.get(project.spaceId);
+  }
   const folder = await ctx.db.get(list.parentId as Id<"folders">);
   if (!folder) return null;
   return await ctx.db.get(folder.spaceId);
+}
+
+/**
+ * The project a list belongs to, or null when it sits straight in a Space.
+ * Lists are allowed to live outside a project — wrapping a one-off board in a
+ * project would be structure nobody asked for.
+ */
+export async function getProjectForList(
+  ctx: QueryCtx | MutationCtx,
+  list: Doc<"lists">,
+): Promise<Doc<"projects"> | null> {
+  if (list.parentType !== "project") return null;
+  return await ctx.db.get(list.parentId as Id<"projects">);
 }
 
 export async function requireListAccess(
@@ -117,23 +144,23 @@ export async function requireSpaceAccess(
   return { space, identity };
 }
 
-export async function requireFolderAccess(
+export async function requireProjectAccess(
   ctx: QueryCtx | MutationCtx,
-  folderId: Id<"folders">,
+  projectId: Id<"projects">,
 ): Promise<{
-  folder: Doc<"folders">;
+  project: Doc<"projects">;
   space: Doc<"spaces">;
   identity: Identity;
 }> {
   const identity = await requireIdentity(ctx);
-  const folder = await ctx.db.get(folderId);
-  if (!folder) throw new ConvexError("Folder not found");
-  const space = await ctx.db.get(folder.spaceId);
-  if (!space) throw new ConvexError("Orphan folder");
+  const project = await ctx.db.get(projectId);
+  if (!project) throw new ConvexError("Project not found");
+  const space = await ctx.db.get(project.spaceId);
+  if (!space) throw new ConvexError("Orphan project");
   if (!(await canAccessSpace(ctx, space, identity))) {
     throw new ConvexError("Forbidden");
   }
-  return { folder, space, identity };
+  return { project, space, identity };
 }
 
 export async function requireTaskAccess(

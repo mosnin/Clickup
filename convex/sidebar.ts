@@ -38,28 +38,28 @@ export const tree = query({
     );
 
     async function buildSpaceNode(space: Doc<"spaces">) {
-      const folders = await ctx.db
-        .query("folders")
+      const projects = await ctx.db
+        .query("projects")
         .withIndex("by_space", (q) => q.eq("spaceId", space._id))
         .collect();
 
-      // Ordering rule (mirrored on the Space page): folders first, then
+      // Ordering rule (mirrored on the Space page): projects first, then
       // space-direct lists — each by position with a createdAt tiebreak so
       // rows never shuffle when two siblings share a position.
-      const folderNodes = await Promise.all(
-        folders
+      const projectNodes = await Promise.all(
+        projects
           .sort(byPosition)
-          .map(async (folder) => {
+          .map(async (project) => {
             const lists = await ctx.db
               .query("lists")
               .withIndex("by_parent", (q) =>
-                q.eq("parentType", "folder").eq("parentId", folder._id),
+                q.eq("parentType", "project").eq("parentId", project._id),
               )
               .collect();
             return {
-              _id: folder._id,
-              name: folder.name,
-              position: folder.position,
+              _id: project._id,
+              name: project.name,
+              position: project.position,
               lists: lists.sort(byPosition),
             };
           }),
@@ -91,7 +91,7 @@ export const tree = query({
         name: space.name,
         color: space.color,
         private: space.private ?? false,
-        folders: folderNodes,
+        projects: projectNodes,
         lists: directLists.sort(byPosition),
         docs: docs
           // Subpages live under their parent doc, not as flat tree rows.

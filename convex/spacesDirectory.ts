@@ -17,7 +17,7 @@ export type SpaceDirectoryRow = {
   position: number;
   createdAt: number;
   listCount: number;
-  folderCount: number;
+  projectCount: number;
   docCount: number;
   whiteboardCount: number;
   totalTasks: number;
@@ -56,8 +56,8 @@ async function summarizeSpace(
   space: Doc<"spaces">,
   workspaceName: string,
 ): Promise<SpaceDirectoryRow> {
-  const folders = await ctx.db
-    .query("folders")
+  const projects = await ctx.db
+    .query("projects")
     .withIndex("by_space", (q) => q.eq("spaceId", space._id))
     .collect();
   const directLists = await ctx.db
@@ -68,11 +68,11 @@ async function summarizeSpace(
     .collect();
   const nestedLists = (
     await Promise.all(
-      folders.map((folder) =>
+      projects.map((project) =>
         ctx.db
           .query("lists")
           .withIndex("by_parent", (q) =>
-            q.eq("parentType", "folder").eq("parentId", folder._id),
+            q.eq("parentType", "project").eq("parentId", project._id),
           )
           .collect(),
       ),
@@ -104,7 +104,7 @@ async function summarizeSpace(
     position: space.position,
     createdAt: space.createdAt,
     listCount: lists.length,
-    folderCount: folders.length,
+    projectCount: projects.length,
     docCount: docs.length,
     whiteboardCount: whiteboards.length,
     totalTasks: rollups.reduce((sum, rollup) => sum + rollup.total, 0),

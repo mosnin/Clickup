@@ -7,7 +7,7 @@ import { sha256Hex } from "../convex/_agentAuth";
 import type { Id } from "../convex/_generated/dataModel";
 
 // The structure + template half of the agent surface: moving lists between
-// grouping parents, the folder lifecycle, and both template catalogs. Every
+// grouping parents, the project lifecycle, and both template catalogs. Every
 // one of these routes through the same *Core the human UI calls, so these
 // tests are as much about "did it emit the event / move the children" as
 // about "did it refuse the wrong caller".
@@ -64,13 +64,13 @@ async function setup() {
       createdAt: Date.now(),
     });
 
-    const folderId = await ctx.db.insert("folders", {
+    const projectId = await ctx.db.insert("projects", {
       name: "Q3",
       spaceId,
       position: 0,
       createdAt: Date.now(),
     });
-    const otherFolderId = await ctx.db.insert("folders", {
+    const otherFolderId = await ctx.db.insert("projects", {
       name: "Elsewhere",
       spaceId: otherSpaceId,
       position: 0,
@@ -143,7 +143,7 @@ async function setup() {
       spaceId,
       otherSpaceId,
       personalSpaceId,
-      folderId,
+      projectId,
       otherFolderId,
       listId,
       agentId,
@@ -157,19 +157,19 @@ function errText(e: unknown): string {
 }
 
 describe("move_list", () => {
-  it("moves a list into a folder and back out, emitting list.moved", async () => {
-    const { t, listId, folderId, spaceId } = await setup();
+  it("moves a list into a project and back out, emitting list.moved", async () => {
+    const { t, listId, projectId, spaceId } = await setup();
 
     await t.mutation(api.agentApi.moveList, {
       apiKey: WORKSPACE_KEY,
       listId,
-      parentType: "folder",
-      parentId: folderId,
+      parentType: "project",
+      parentId: projectId,
     });
 
     let list = await t.run(async (ctx) => await ctx.db.get(listId));
-    expect(list?.parentType).toBe("folder");
-    expect(list?.parentId).toBe(folderId);
+    expect(list?.parentType).toBe("project");
+    expect(list?.parentId).toBe(projectId);
 
     await t.mutation(api.agentApi.moveList, {
       apiKey: WORKSPACE_KEY,
@@ -192,35 +192,35 @@ describe("move_list", () => {
     expect(moved[0].actorType).toBe("agent");
   });
 
-  it("refuses a destination folder in another space", async () => {
+  it("refuses a destination project in another space", async () => {
     const { t, listId, otherFolderId } = await setup();
     await expect(
       t.mutation(api.agentApi.moveList, {
         apiKey: WORKSPACE_KEY,
         listId,
-        parentType: "folder",
+        parentType: "project",
         parentId: otherFolderId,
       }),
-    ).rejects.toThrow(/Pick a folder in this Space/);
+    ).rejects.toThrow(/Pick a project in this Space/);
 
     const list = await t.run(async (ctx) => await ctx.db.get(listId));
     expect(list?.parentType).toBe("space");
   });
 
   it("refuses a list-restricted agent (structure-level op)", async () => {
-    const { t, listId, folderId } = await setup();
+    const { t, listId, projectId } = await setup();
     await expect(
       t.mutation(api.agentApi.moveList, {
         apiKey: RESTRICTED_KEY,
         listId,
-        parentType: "folder",
-        parentId: folderId,
+        parentType: "project",
+        parentId: projectId,
       }),
     ).rejects.toThrow(/restricted to specific lists/);
   });
 
   it("refuses a list outside the agent's scope", async () => {
-    const { t, folderId } = await setup();
+    const { t, projectId } = await setup();
     const foreignListId = await t.run(async (ctx) => {
       const spaceId = await ctx.db.insert("spaces", {
         name: "Other org",
@@ -242,27 +242,27 @@ describe("move_list", () => {
       t.mutation(api.agentApi.moveList, {
         apiKey: WORKSPACE_KEY,
         listId: foreignListId,
-        parentType: "folder",
-        parentId: folderId,
+        parentType: "project",
+        parentId: projectId,
       }),
     ).rejects.toThrow(/outside your scope|allow-list/);
   });
 });
 
-describe("folder lifecycle over the agent path", () => {
-  it("creates through the core, so folder.created is emitted", async () => {
+describe("project lifecycle over the agent path", () => {
+  it("creates through the core, so project.created is emitted", async () => {
     const { t, spaceId } = await setup();
-    const folderId = await t.mutation(api.agentApi.createFolder, {
+    const projectId = await t.mutation(api.agentApi.createProject, {
       apiKey: WORKSPACE_KEY,
       spaceId,
       name: "  Discovery  ",
     });
-    const folder = await t.run(async (ctx) => await ctx.db.get(folderId));
-    expect(folder?.name).toBe("Discovery");
+    const project = await t.run(async (ctx) => await ctx.db.get(projectId));
+    expect(project?.name).toBe("Discovery");
 
     const created = await t.run(async (ctx) =>
       (await ctx.db.query("events").collect()).filter(
-        (e) => e.type === "folder.created",
+        (e) => e.type === "project.created",
       ),
     );
     expect(created).toHaveLength(1);
@@ -270,88 +270,88 @@ describe("folder lifecycle over the agent path", () => {
     expect(created[0].entityTitle).toBe("Discovery");
   });
 
-  it("renames a folder", async () => {
-    const { t, folderId } = await setup();
-    await t.mutation(api.agentApi.renameFolder, {
+  it("renames a project", async () => {
+    const { t, projectId } = await setup();
+    await t.mutation(api.agentApi.renameProject, {
       apiKey: WORKSPACE_KEY,
-      folderId,
+      projectId,
       name: "Q4",
     });
-    const folder = await t.run(async (ctx) => await ctx.db.get(folderId));
-    expect(folder?.name).toBe("Q4");
+    const project = await t.run(async (ctx) => await ctx.db.get(projectId));
+    expect(project?.name).toBe("Q4");
 
     const renamed = await t.run(async (ctx) =>
       (await ctx.db.query("events").collect()).filter(
-        (e) => e.type === "folder.renamed",
+        (e) => e.type === "project.renamed",
       ),
     );
     expect(renamed).toHaveLength(1);
   });
 
-  it("deleting a folder ungroups its lists instead of destroying them", async () => {
-    const { t, folderId, listId, spaceId } = await setup();
+  it("deleting a project ungroups its lists instead of destroying them", async () => {
+    const { t, projectId, listId, spaceId } = await setup();
     await t.mutation(api.agentApi.moveList, {
       apiKey: WORKSPACE_KEY,
       listId,
-      parentType: "folder",
-      parentId: folderId,
+      parentType: "project",
+      parentId: projectId,
     });
 
-    await t.mutation(api.agentApi.deleteFolder, {
+    await t.mutation(api.agentApi.deleteProject, {
       apiKey: WORKSPACE_KEY,
-      folderId,
+      projectId,
     });
 
-    const { folder, list } = await t.run(async (ctx) => ({
-      folder: await ctx.db.get(folderId),
+    const { project, list } = await t.run(async (ctx) => ({
+      project: await ctx.db.get(projectId),
       list: await ctx.db.get(listId),
     }));
-    expect(folder).toBeNull();
+    expect(project).toBeNull();
     // The list survived and moved up to the parent space.
     expect(list?.parentType).toBe("space");
     expect(list?.parentId).toBe(spaceId);
   });
 
-  it("reorders folders inside one space", async () => {
-    const { t, spaceId, folderId } = await setup();
-    const second = await t.mutation(api.agentApi.createFolder, {
+  it("reorders projects inside one space", async () => {
+    const { t, spaceId, projectId } = await setup();
+    const second = await t.mutation(api.agentApi.createProject, {
       apiKey: WORKSPACE_KEY,
       spaceId,
       name: "Later",
     });
 
-    await t.mutation(api.agentApi.reorderFolders, {
+    await t.mutation(api.agentApi.reorderProjects, {
       apiKey: WORKSPACE_KEY,
       spaceId,
-      orderedIds: [second, folderId],
+      orderedIds: [second, projectId],
     });
 
     const positions = await t.run(async (ctx) => ({
       second: (await ctx.db.get(second))?.position,
-      first: (await ctx.db.get(folderId))?.position,
+      first: (await ctx.db.get(projectId))?.position,
     }));
     expect(positions.second).toBe(0);
     expect(positions.first).toBe(1);
   });
 
-  it("refuses folder writes from a list-restricted agent", async () => {
-    const { t, folderId } = await setup();
+  it("refuses project writes from a list-restricted agent", async () => {
+    const { t, projectId } = await setup();
     await expect(
-      t.mutation(api.agentApi.renameFolder, {
+      t.mutation(api.agentApi.renameProject, {
         apiKey: RESTRICTED_KEY,
-        folderId,
+        projectId,
         name: "Nope",
       }),
     ).rejects.toThrow(/restricted to specific lists/);
     await expect(
-      t.mutation(api.agentApi.deleteFolder, {
+      t.mutation(api.agentApi.deleteProject, {
         apiKey: RESTRICTED_KEY,
-        folderId,
+        projectId,
       }),
     ).rejects.toThrow(/restricted to specific lists/);
   });
 
-  it("refuses a folder outside the agent's scope", async () => {
+  it("refuses a project outside the agent's scope", async () => {
     const { t } = await setup();
     const foreignFolderId = await t.run(async (ctx) => {
       const spaceId = await ctx.db.insert("spaces", {
@@ -361,7 +361,7 @@ describe("folder lifecycle over the agent path", () => {
         position: 0,
         createdAt: Date.now(),
       });
-      return await ctx.db.insert("folders", {
+      return await ctx.db.insert("projects", {
         name: "Theirs",
         spaceId,
         position: 0,
@@ -370,9 +370,9 @@ describe("folder lifecycle over the agent path", () => {
     });
 
     await expect(
-      t.mutation(api.agentApi.renameFolder, {
+      t.mutation(api.agentApi.renameProject, {
         apiKey: WORKSPACE_KEY,
-        folderId: foreignFolderId,
+        projectId: foreignFolderId,
         name: "Mine now",
       }),
     ).rejects.toThrow(/outside your agent's scope/);
@@ -532,7 +532,7 @@ describe("Template Center over the agent path", () => {
       slug: "product-launch-runway",
     });
     expect(detail.template.entityType).toBe("list");
-    expect(detail.destinationTypes).toEqual(["space", "folder"]);
+    expect(detail.destinationTypes).toEqual(["space", "project"]);
     expect(detail.summary.stats.length).toBeGreaterThan(0);
 
     await expect(

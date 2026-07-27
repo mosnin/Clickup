@@ -4,7 +4,7 @@ import { useState } from "react";
 import { EASE, motion } from "@/components/motion";
 
 // In-place naming input — the replacement for window.prompt() everywhere
-// something gets created from a tree or tab row (spaces, folders, lists,
+// something gets created from a tree or tab row (spaces, projects, lists,
 // docs, boards, channels). Enter creates, Escape cancels, blurring an
 // empty input cancels too so a stray click never leaves a dangling form.
 export function InlineCreate({

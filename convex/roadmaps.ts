@@ -197,7 +197,7 @@ async function requireRoadmap(
   return { roadmap, identity };
 }
 
-// Resolve the workspace that owns a list (space- or folder-parented), or
+// Resolve the workspace that owns a list (space- or project-parented), or
 // null for personal-space lists.
 async function workspaceOfList(ctx: QueryCtx | MutationCtx, listId: Id<"lists">) {
   const list = await ctx.db.get(listId);
@@ -206,9 +206,9 @@ async function workspaceOfList(ctx: QueryCtx | MutationCtx, listId: Id<"lists">)
   if (list.parentType === "space") {
     spaceId = list.parentId as Id<"spaces">;
   } else {
-    const folder = await ctx.db.get(list.parentId as Id<"folders">);
-    if (!folder) return null;
-    spaceId = folder.spaceId;
+    const project = await ctx.db.get(list.parentId as Id<"projects">);
+    if (!project) return null;
+    spaceId = project.spaceId;
   }
   const space = await ctx.db.get(spaceId);
   if (!space || space.parentType !== "workspace") return null;

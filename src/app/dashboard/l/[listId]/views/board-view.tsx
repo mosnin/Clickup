@@ -109,7 +109,7 @@ export function BoardView({
   settings?: ViewSettings;
   /** taskId → title, for the "show subtask parent names" chip. */
   parentTitles?: Map<string, string>;
-  /** Space › Folder › List breadcrumb; undefined when the toggle is off. */
+  /** Space › Project › List breadcrumb; undefined when the toggle is off. */
   locationLabel?: string;
 }) {
   // Optimistic local copy so drag-drop feels instant. Server is the source

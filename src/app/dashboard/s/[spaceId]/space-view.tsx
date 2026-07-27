@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
-import { useFolderExpanded } from "@/lib/folder-collapse";
+import { useProjectExpanded } from "@/lib/project-collapse";
 
 // The Space page: a ClickUp-style Space now has identity (name/color/
 // description), privacy (creator/owner-governed membership), an archive
@@ -126,7 +126,7 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
     );
   }
 
-  const { space, lists, folders, docs, whiteboards, members, canGovern } =
+  const { space, lists, projects, docs, whiteboards, members, canGovern } =
     overview;
   const spaceName = space.name;
   const showWhiteboards = space.features?.whiteboards !== false;
@@ -203,7 +203,7 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
           spaceId={id}
           spaceName={spaceName}
           lists={lists}
-          folders={folders}
+          projects={projects}
           docs={docs}
           whiteboards={whiteboards}
           showWhiteboards={showWhiteboards}
@@ -235,7 +235,7 @@ function OverviewTab({
   spaceId,
   spaceName,
   lists,
-  folders,
+  projects,
   docs,
   whiteboards,
   showWhiteboards,
@@ -243,7 +243,7 @@ function OverviewTab({
   spaceId: Id<"spaces">;
   spaceName: string;
   lists: Overview["lists"];
-  folders: Overview["folders"];
+  projects: Overview["projects"];
   docs: Overview["docs"];
   whiteboards: Overview["whiteboards"];
   showWhiteboards: boolean;
@@ -253,42 +253,42 @@ function OverviewTab({
     [lists],
   );
   // Destination catalogue for "move a project", shared by every card on
-  // the page: the Space itself plus each of its folders. The row filters
+  // the page: the Space itself plus each of its projects. The row filters
   // out wherever the project already lives.
   const dest = useMemo(
-    () => ({ spaceId, spaceName, folders }),
-    [spaceId, spaceName, folders],
+    () => ({ spaceId, spaceName, projects }),
+    [spaceId, spaceName, projects],
   );
 
   return (
     <div className="space-y-6">
-      {/* Ordering rule (mirrored in the sidebar tree): folders first, then
+      {/* Ordering rule (mirrored in the sidebar tree): projects first, then
           the Space's own projects — each by position, createdAt tiebreak,
           sorted server-side. */}
       <div className="flex flex-wrap items-center gap-2">
-        <NewFolderControl spaceId={spaceId} />
+        <NewProjectControl spaceId={spaceId} />
       </div>
 
-      {folders.map((f) => (
-        <FolderSection
-          key={f.folderId}
-          folder={f}
+      {projects.map((f) => (
+        <ProjectSection
+          key={f.projectId}
+          project={f}
           spaceName={spaceName}
-          hasLists={lists.some((l) => l.folderId === f.folderId)}
+          hasLists={lists.some((l) => l.projectId === f.projectId)}
           rollupsById={rollupsById}
-          fallback={lists.filter((l) => l.folderId === f.folderId)}
+          fallback={lists.filter((l) => l.projectId === f.projectId)}
           dest={dest}
         />
       ))}
 
-      <ProjectSection
+      <ListSection
         title="Lists"
         parentType="space"
         parentId={spaceId}
         rollupsById={rollupsById}
-        fallback={lists.filter((l) => l.folderId === null)}
+        fallback={lists.filter((l) => l.projectId === null)}
         dest={dest}
-        emptyMessage={`Lists created straight in ${spaceName} live here. Group them into a folder whenever it helps.`}
+        emptyMessage={`Lists created straight in ${spaceName} live here. Group them into a project whenever it helps.`}
       />
 
       <section>
@@ -326,28 +326,28 @@ function OverviewTab({
 }
 
 // One reorderable card grid under a single lists-parent (the space itself,
-// or one of its folders). Ordering truth comes from the raw lists rows
+// or one of its projects). Ordering truth comes from the raw lists rows
 // (position asc, createdAt tiebreak) fetched per parent; the overview
 // rollups are joined in by id. Reorders apply optimistically via a local
 // order override, then persist through api.lists.reorder — on refusal the
 // override reverts and the server's reason surfaces as an error toast.
-function ProjectSection({
+function ListSection({
   title,
   parentType,
   parentId,
   rollupsById,
   fallback,
-  hideFolderLine,
+  hideProjectLine,
   dest,
   emptyMessage,
 }: {
-  /** Omit to let the caller (a folder header) own the heading. */
+  /** Omit to let the caller (a project header) own the heading. */
   title?: string;
-  parentType: "space" | "folder";
+  parentType: "space" | "project";
   parentId: string;
   rollupsById: Map<string, ListRollup>;
   fallback: ListRollup[];
-  hideFolderLine?: boolean;
+  hideProjectLine?: boolean;
   dest: MoveDest;
   emptyMessage: string;
 }) {
@@ -441,7 +441,7 @@ function ProjectSection({
               <motion.div layout transition={SPRING} className="h-full">
                 <ProjectCard
                   list={list}
-                  hideFolderLine={hideFolderLine}
+                  hideProjectLine={hideProjectLine}
                   parent={{ type: parentType, id: parentId }}
                   dest={dest}
                   reorder={
@@ -466,22 +466,22 @@ function ProjectSection({
   );
 }
 
-// ── Folders ───────────────────────────────────────────────────────────────
+// ── Projects ───────────────────────────────────────────────────────────────
 //
-// A folder is a sibling of the Space's own projects, not a different kind
+// A project is a sibling of the Space's own projects, not a different kind
 // of thing: same card grid inside, collapsible header outside, rename and
 // delete on the header's overflow menu. Deleting one keeps every project —
-// the server moves them up to the Space (convex/folders.ts).
+// the server moves them up to the Space (convex/projects.ts).
 
 type MoveDest = {
   spaceId: Id<"spaces">;
   spaceName: string;
-  folders: Overview["folders"];
+  projects: Overview["projects"];
 };
 
 function moveOptions(
   dest: MoveDest,
-  parent: { type: "space" | "folder"; id: string },
+  parent: { type: "space" | "project"; id: string },
 ): PickerOption[] {
   const out: PickerOption[] = [];
   if (parent.type !== "space") {
@@ -491,33 +491,33 @@ function moveOptions(
       hint: "space",
     });
   }
-  for (const f of dest.folders) {
-    if (parent.type === "folder" && parent.id === f.folderId) continue;
-    out.push({ id: `folder:${f.folderId}`, label: f.name, hint: "folder" });
+  for (const f of dest.projects) {
+    if (parent.type === "project" && parent.id === f.projectId) continue;
+    out.push({ id: `project:${f.projectId}`, label: f.name, hint: "project" });
   }
   return out;
 }
 
-function FolderSection({
-  folder,
+function ProjectSection({
+  project,
   spaceName,
   hasLists,
   rollupsById,
   fallback,
   dest,
 }: {
-  folder: Overview["folders"][number];
+  project: Overview["projects"][number];
   spaceName: string;
   hasLists: boolean;
   rollupsById: Map<string, ListRollup>;
   fallback: ListRollup[];
   dest: MoveDest;
 }) {
-  const [expanded, setExpanded] = useFolderExpanded(folder.folderId);
+  const [expanded, setExpanded] = useProjectExpanded(project.projectId);
   const [renaming, setRenaming] = useState(false);
   const [hidden, setHidden] = useState(false);
-  const renameFolder = useMutation(api.folders.rename);
-  const removeFolder = useMutation(api.folders.remove);
+  const renameProject = useMutation(api.projects.rename);
+  const removeProject = useMutation(api.projects.remove);
   const { toast } = useToast();
 
   // Deferred delete: the section disappears immediately and the mutation
@@ -526,10 +526,10 @@ function FolderSection({
 
   return (
     <section>
-      <div className="group/folder flex min-w-0 items-center gap-1.5">
+      <div className="group/project flex min-w-0 items-center gap-1.5">
         <button
           type="button"
-          aria-label={expanded ? `Collapse ${folder.name}` : `Expand ${folder.name}`}
+          aria-label={expanded ? `Collapse ${project.name}` : `Expand ${project.name}`}
           aria-expanded={expanded}
           onClick={() => setExpanded()}
           className="tap-target -ml-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -543,16 +543,16 @@ function FolderSection({
         </button>
         {renaming ? (
           <InlineCreate
-            placeholder="Folder name…"
-            initialValue={folder.name}
+            placeholder="Project name…"
+            initialValue={project.name}
             className="min-w-0 flex-1"
             onCancel={() => setRenaming(false)}
             onSubmit={async (name) => {
               try {
-                await renameFolder({ folderId: folder.folderId, name });
+                await renameProject({ projectId: project.projectId, name });
                 setRenaming(false);
               } catch (e) {
-                toast(errorMessage(e, "Couldn't rename folder"), {
+                toast(errorMessage(e, "Couldn't rename project"), {
                   kind: "error",
                 });
                 setRenaming(false);
@@ -562,44 +562,44 @@ function FolderSection({
         ) : (
           <>
             <h2 className="min-w-0 truncate text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              {folder.name}
+              {project.name}
             </h2>
             <span className="flex-shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-              Folder
+              Project
             </span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  aria-label={`Folder actions for ${folder.name}`}
-                  className="tap-target flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-100 transition-opacity hover:bg-muted hover:text-foreground sm:opacity-0 sm:group-focus-within/folder:opacity-100 sm:group-hover/folder:opacity-100 data-[state=open]:opacity-100"
+                  aria-label={`Project actions for ${project.name}`}
+                  className="tap-target flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-100 transition-opacity hover:bg-muted hover:text-foreground sm:opacity-0 sm:group-focus-within/project:opacity-100 sm:group-hover/project:opacity-100 data-[state=open]:opacity-100"
                 >
                   <MoreHorizontal className="h-3.5 w-3.5" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-48">
                 <DropdownMenuItem onSelect={() => setRenaming(true)}>
-                  Rename folder
+                  Rename project
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={() => {
                     setHidden(true);
                     toast(
                       hasLists
-                        ? `"${folder.name}" deleted — its lists moved to ${spaceName}`
-                        : `"${folder.name}" deleted`,
+                        ? `"${project.name}" deleted — its lists moved to ${spaceName}`
+                        : `"${project.name}" deleted`,
                       {
                         action: {
                           label: "Undo",
                           onClick: () => setHidden(false),
                         },
                         onExpire: () =>
-                          void removeFolder({ folderId: folder.folderId }),
+                          void removeProject({ projectId: project.projectId }),
                       },
                     );
                   }}
                 >
-                  Delete folder
+                  Delete project
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -609,14 +609,14 @@ function FolderSection({
 
       {expanded && (
         <div className="mt-1">
-          <ProjectSection
-            parentType="folder"
-            parentId={folder.folderId}
+          <ListSection
+            parentType="project"
+            parentId={project.projectId}
             rollupsById={rollupsById}
             fallback={fallback}
             dest={dest}
-            hideFolderLine
-            emptyMessage={`Nothing in ${folder.name} yet. Add a list here, or move an existing one in from ${spaceName}.`}
+            hideProjectLine
+            emptyMessage={`Nothing in ${project.name} yet. Add a list here, or move an existing one in from ${spaceName}.`}
           />
         </div>
       )}
@@ -624,23 +624,23 @@ function FolderSection({
   );
 }
 
-function NewFolderControl({ spaceId }: { spaceId: Id<"spaces"> }) {
+function NewProjectControl({ spaceId }: { spaceId: Id<"spaces"> }) {
   const [adding, setAdding] = useState(false);
-  const createFolder = useMutation(api.folders.create);
+  const createProject = useMutation(api.projects.create);
   const { toast } = useToast();
 
   if (adding) {
     return (
       <InlineCreate
-        placeholder="Folder name…"
+        placeholder="Project name…"
         className="w-full max-w-xs"
         onCancel={() => setAdding(false)}
         onSubmit={async (name) => {
           try {
-            await createFolder({ spaceId, name });
+            await createProject({ spaceId, name });
             setAdding(false);
           } catch (e) {
-            toast(errorMessage(e, "Couldn't create folder"), { kind: "error" });
+            toast(errorMessage(e, "Couldn't create project"), { kind: "error" });
             setAdding(false);
           }
         }}
@@ -654,21 +654,21 @@ function NewFolderControl({ spaceId }: { spaceId: Id<"spaces"> }) {
       onClick={() => setAdding(true)}
       className="inline-flex min-h-9 items-center gap-1 rounded-full border border-dashed border-border px-3 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
     >
-      <Plus className="h-3.5 w-3.5" /> New folder
+      <Plus className="h-3.5 w-3.5" /> New project
     </button>
   );
 }
 
 function ProjectCard({
   list,
-  hideFolderLine,
+  hideProjectLine,
   parent,
   dest,
   reorder,
 }: {
   list: ListRollup;
-  hideFolderLine?: boolean;
-  parent: { type: "space" | "folder"; id: string };
+  hideProjectLine?: boolean;
+  parent: { type: "space" | "project"; id: string };
   dest: MoveDest;
   reorder?: {
     canUp: boolean;
@@ -700,9 +700,9 @@ function ProjectCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate font-semibold">{list.name}</p>
-          {!hideFolderLine && list.folder !== null && (
+          {!hideProjectLine && list.project !== null && (
             <p className="truncate text-xs text-muted-foreground">
-              in {list.folder}
+              in {list.project}
             </p>
           )}
         </div>
@@ -722,7 +722,7 @@ function ProjectCard({
               {options.length > 0 && (
                 <button
                   type="button"
-                  aria-label={`Move ${list.name} to another folder`}
+                  aria-label={`Move ${list.name} to another project`}
                   title="Move to…"
                   onClick={(e) => {
                     swallow(e);
@@ -780,7 +780,7 @@ function ProjectCard({
               try {
                 await moveList({
                   listId: list.listId,
-                  parentType: type === "folder" ? "folder" : "space",
+                  parentType: type === "project" ? "project" : "space",
                   parentId: id,
                 });
                 toast(`"${list.name}" moved`);
@@ -834,7 +834,7 @@ function NewListControl({
   parentType,
   parentId,
 }: {
-  parentType: "space" | "folder";
+  parentType: "space" | "project";
   parentId: string;
 }) {
   const [adding, setAdding] = useState(false);
@@ -876,7 +876,7 @@ function NewListCard({
   parentType,
   parentId,
 }: {
-  parentType: "space" | "folder";
+  parentType: "space" | "project";
   parentId: string;
 }) {
   const [adding, setAdding] = useState(false);

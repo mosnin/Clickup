@@ -125,7 +125,7 @@ export function RoadmapPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
       spaceName: string;
     }[] = [];
     for (const sp of ws.spaces) {
-      const lists = [...sp.lists, ...sp.folders.flatMap((f) => f.lists)];
+      const lists = [...sp.lists, ...sp.projects.flatMap((f) => f.lists)];
       for (const l of lists) {
         if (l.roadmapId !== undefined) continue;
         rows.push({

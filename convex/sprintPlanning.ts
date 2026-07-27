@@ -63,8 +63,8 @@ function makeSpaceVisibility(
       else if (list.parentType === "space") {
         spaceId = list.parentId as Id<"spaces">;
       } else {
-        const folder = await ctx.db.get(list.parentId as Id<"folders">);
-        spaceId = folder ? folder.spaceId : null;
+        const project = await ctx.db.get(list.parentId as Id<"projects">);
+        spaceId = project ? project.spaceId : null;
       }
       listSpaceCache.set(listId, spaceId);
     }
@@ -176,14 +176,14 @@ export const planning = query({
       .collect();
     outer: for (const space of spaces) {
       if (!(await spaceVisible(space._id))) continue;
-      const parents: { type: "space" | "folder"; id: string }[] = [
+      const parents: { type: "space" | "project"; id: string }[] = [
         { type: "space", id: space._id },
       ];
-      const folders = await ctx.db
-        .query("folders")
+      const projects = await ctx.db
+        .query("projects")
         .withIndex("by_space", (q) => q.eq("spaceId", space._id))
         .collect();
-      for (const f of folders) parents.push({ type: "folder", id: f._id });
+      for (const f of projects) parents.push({ type: "project", id: f._id });
       for (const p of parents) {
         const lists = await ctx.db
           .query("lists")

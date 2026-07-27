@@ -218,13 +218,13 @@ export const overview = query({
     }
 
     const now = Date.now();
-    const folders = (
+    const projects = (
       await ctx.db
-        .query("folders")
+        .query("projects")
         .withIndex("by_space", (q) => q.eq("spaceId", spaceId))
         .collect()
     ).sort((a, b) => a.position - b.position || a.createdAt - b.createdAt);
-    const folderName = new Map(folders.map((f) => [f._id as string, f.name]));
+    const projectName = new Map(projects.map((f) => [f._id as string, f.name]));
 
     const direct = await ctx.db
       .query("lists")
@@ -234,11 +234,11 @@ export const overview = query({
       .collect();
     const nested = (
       await Promise.all(
-        folders.map((f) =>
+        projects.map((f) =>
           ctx.db
             .query("lists")
             .withIndex("by_parent", (q) =>
-              q.eq("parentType", "folder").eq("parentId", f._id),
+              q.eq("parentType", "project").eq("parentId", f._id),
             )
             .collect(),
         ),
@@ -248,9 +248,9 @@ export const overview = query({
     const lists = await Promise.all(
       [...direct, ...nested].map(async (list) => {
         const rollup = await getRollup(ctx, list._id);
-        const folder =
-          list.parentType === "folder"
-            ? folderName.get(list.parentId) ?? null
+        const project =
+          list.parentType === "project"
+            ? projectName.get(list.parentId) ?? null
             : null;
 
         // total/done come from the maintained rollup (convex/rollups.ts,
@@ -263,8 +263,8 @@ export const overview = query({
           return {
             listId: list._id,
             name: list.name,
-            folder,
-            folderId: list.parentType === "folder" ? list.parentId : null,
+            project,
+            projectId: list.parentType === "project" ? list.parentId : null,
             projectStatus: list.projectStatus,
             description: list.description,
             total: rollup.total,
@@ -296,8 +296,8 @@ export const overview = query({
         return {
           listId: list._id,
           name: list.name,
-          folder,
-          folderId: list.parentType === "folder" ? list.parentId : null,
+          project,
+          projectId: list.parentType === "project" ? list.parentId : null,
           projectStatus: list.projectStatus,
           description: list.description,
           total: rollup ? rollup.total : tasks.length,
@@ -340,7 +340,7 @@ export const overview = query({
         whiteboardId: w._id,
         title: w.title,
       })),
-      folders: folders.map((f) => ({ folderId: f._id, name: f.name })),
+      projects: projects.map((f) => ({ projectId: f._id, name: f.name })),
       members: memberNames,
       canGovern:
         space.parentType === "user" ||

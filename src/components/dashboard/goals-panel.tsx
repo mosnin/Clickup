@@ -68,7 +68,7 @@ export function GoalsPanel({
         : (tree.workspaces.find((w) => w._id === parentId)?.spaces ?? []);
     const rows: ProjectOption[] = [];
     for (const sp of spaces) {
-      for (const l of [...sp.lists, ...sp.folders.flatMap((f) => f.lists)]) {
+      for (const l of [...sp.lists, ...sp.projects.flatMap((f) => f.lists)]) {
         rows.push({ id: l._id as string, label: l.name, hint: sp.name });
       }
     }

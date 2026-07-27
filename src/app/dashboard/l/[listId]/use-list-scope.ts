@@ -18,10 +18,10 @@ export function useListScope(listId: Id<"lists">): ListScope | undefined {
     if (!tree) return undefined;
     const containsList = (space: {
       lists: { _id: Id<"lists"> }[];
-      folders: { lists: { _id: Id<"lists"> }[] }[];
+      projects: { lists: { _id: Id<"lists"> }[] }[];
     }) =>
       space.lists.some((l) => l._id === listId) ||
-      space.folders.some((f) => f.lists.some((l) => l._id === listId));
+      space.projects.some((f) => f.lists.some((l) => l._id === listId));
     if (tree.personal && containsList(tree.personal)) {
       return { scopeType: "user", scopeId: tree.currentClerkId };
     }

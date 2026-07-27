@@ -14,7 +14,7 @@ import { errorMessage } from "@/lib/errors";
 // Lightweight modal — no Radix dependency. Backdrop click + Esc close.
 type ParentSpec =
   | { kind: "space"; spaceId: Id<"spaces"> }
-  | { kind: "folder"; folderId: Id<"folders"> };
+  | { kind: "project"; projectId: Id<"projects"> };
 
 // `templates.list` only returns id/name/emoji/description today. If it ever
 // grows richer counts (statuses/fields/sample tasks), surface them here as
@@ -173,7 +173,7 @@ export function TemplatePicker({
                   templateId: chosen.id,
                   name: name.trim() || chosen.name,
                   parentType: parent.kind,
-                  parentId: parent.kind === "space" ? parent.spaceId : parent.folderId,
+                  parentId: parent.kind === "space" ? parent.spaceId : parent.projectId,
                 });
                 onCreated(listId);
               } catch (e) {

@@ -7,7 +7,7 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 // One-shot aggregation behind the workspace Reports tab.
 //
-// Walks workspace -> spaces -> (folders ->) lists -> tasks. For each
+// Walks workspace -> spaces -> (projects ->) lists -> tasks. For each
 // task it folds the open/complete counts and joins time entries into
 // per-user totals for the last 7 days. This is O(tasks + entries) per
 // workspace; fine for the sizes we're targeting in phase 6.
@@ -50,18 +50,18 @@ export const workspaceSummary = query({
         .collect();
       lists.push(...directLists);
 
-      const folders = await ctx.db
-        .query("folders")
+      const projects = await ctx.db
+        .query("projects")
         .withIndex("by_space", (q) => q.eq("spaceId", space._id))
         .collect();
-      for (const folder of folders) {
-        const folderLists = await ctx.db
+      for (const project of projects) {
+        const projectLists = await ctx.db
           .query("lists")
           .withIndex("by_parent", (q) =>
-            q.eq("parentType", "folder").eq("parentId", folder._id),
+            q.eq("parentType", "project").eq("parentId", project._id),
           )
           .collect();
-        lists.push(...folderLists);
+        lists.push(...projectLists);
       }
     }
 

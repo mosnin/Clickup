@@ -207,7 +207,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
               {workspace.spaces.map((space) => {
                 const lists = [
                   ...space.lists,
-                  ...space.folders.flatMap((f) => f.lists),
+                  ...space.projects.flatMap((f) => f.lists),
                 ];
                 return (
                   <StaggerItem key={space._id}>

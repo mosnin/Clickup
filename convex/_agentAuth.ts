@@ -284,7 +284,7 @@ export async function requireAgentByKey(
   return { agent, key };
 }
 
-// Structure-level operations (creating spaces/folders/lists, sprints,
+// Structure-level operations (creating spaces/projects/lists, sprints,
 // webhooks, skills) are off-limits to list-restricted agents — their
 // world is exactly their allowed lists.
 export function requireUnrestricted(agent: Doc<"agents">): void {
@@ -332,21 +332,21 @@ export async function requireSpaceAccessForAgent(
   return { space };
 }
 
-export async function requireFolderAccessForAgent(
+export async function requireProjectAccessForAgent(
   ctx: QueryCtx | MutationCtx,
-  folderId: Id<"folders">,
+  projectId: Id<"projects">,
   agent: Doc<"agents">,
-): Promise<{ folder: Doc<"folders">; space: Doc<"spaces"> }> {
-  const folder = await ctx.db.get(folderId);
-  if (!folder) throw new ConvexError("Folder not found");
-  const space = await ctx.db.get(folder.spaceId);
-  if (!space) throw new ConvexError("Orphan folder");
+): Promise<{ project: Doc<"projects">; space: Doc<"spaces"> }> {
+  const project = await ctx.db.get(projectId);
+  if (!project) throw new ConvexError("Project not found");
+  const space = await ctx.db.get(project.spaceId);
+  if (!space) throw new ConvexError("Orphan project");
   if (!canAgentAccessSpace(space, agent)) {
     throw new ConvexError(
-      "You can't access this folder — it's outside your agent's scope. Call whoami to see your scope, get_tree for what's visible.",
+      "You can't access this project — it's outside your agent's scope. Call whoami to see your scope, get_tree for what's visible.",
     );
   }
-  return { folder, space };
+  return { project, space };
 }
 
 export async function requireListAccessForAgent(

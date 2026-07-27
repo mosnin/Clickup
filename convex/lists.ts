@@ -5,7 +5,7 @@ import type { MutationCtx } from "./_generated/server";
 import {
   canAccessSpace,
   getSpaceForList,
-  requireFolderAccess,
+  requireProjectAccess,
   requireListAccess,
   requireSpaceAccess,
 } from "./_authz";
@@ -19,7 +19,7 @@ import { cleanupTaskArtifacts } from "./tasks";
 
 const parentTypeValidator = v.union(
   v.literal("space"),
-  v.literal("folder"),
+  v.literal("project"),
 );
 
 export const listForParent = query({
@@ -33,9 +33,9 @@ export const listForParent = query({
     if (args.parentType === "space") {
       space = await ctx.db.get(args.parentId as Id<"spaces">);
     } else {
-      const folder = await ctx.db.get(args.parentId as Id<"folders">);
-      if (!folder) return [];
-      space = await ctx.db.get(folder.spaceId);
+      const project = await ctx.db.get(args.parentId as Id<"projects">);
+      if (!project) return [];
+      space = await ctx.db.get(project.spaceId);
     }
     if (!space) return [];
     if (!(await canAccessSpace(ctx, space, { subject: identity.subject }))) {
@@ -61,9 +61,9 @@ export const get = query({
     if (list.parentType === "space") {
       space = await ctx.db.get(list.parentId as Id<"spaces">);
     } else {
-      const folder = await ctx.db.get(list.parentId as Id<"folders">);
-      if (!folder) return null;
-      space = await ctx.db.get(folder.spaceId);
+      const project = await ctx.db.get(list.parentId as Id<"projects">);
+      if (!project) return null;
+      space = await ctx.db.get(project.spaceId);
     }
     if (!space) return null;
     if (!(await canAccessSpace(ctx, space, { subject: identity.subject }))) {
@@ -86,11 +86,11 @@ export const create = mutation({
       await requireSpaceAccess(ctx, args.parentId as Id<"spaces">);
       spaceId = args.parentId as Id<"spaces">;
     } else {
-      const { folder } = await requireFolderAccess(
+      const { project } = await requireProjectAccess(
         ctx,
-        args.parentId as Id<"folders">,
+        args.parentId as Id<"projects">,
       );
-      spaceId = folder.spaceId;
+      spaceId = project.spaceId;
     }
 
     const siblings = await ctx.db
@@ -116,7 +116,7 @@ export const create = mutation({
   },
 });
 
-// Reorder the lists under one parent (space or folder). Takes the full
+// Reorder the lists under one parent (space or project). Takes the full
 // desired order; ids that no longer live under this parent are skipped
 // (stale client state) rather than corrupting positions, and only rows
 // whose position actually changed get patched.
@@ -130,7 +130,7 @@ export const reorder = mutation({
     if (args.parentType === "space") {
       await requireSpaceAccess(ctx, args.parentId as Id<"spaces">);
     } else {
-      await requireFolderAccess(ctx, args.parentId as Id<"folders">);
+      await requireProjectAccess(ctx, args.parentId as Id<"projects">);
     }
     await reorderListsCore(ctx, args.parentType, args.parentId, args.orderedIds);
   },
@@ -220,15 +220,15 @@ export async function updateListMetaCore(
   }
 }
 
-// Move a list between grouping parents inside ONE space: space → folder,
-// folder → space, folder → sibling folder. Crossing a space boundary is
+// Move a list between grouping parents inside ONE space: space → project,
+// project → space, project → sibling project. Crossing a space boundary is
 // refused — a space is an access/visibility boundary (private spaces,
 // per-space members, per-space default statuses), so "moving" a list
 // across one would silently change who can see its tasks.
 export async function moveListCore(
   ctx: MutationCtx,
   list: Doc<"lists">,
-  dest: { parentType: "space" | "folder"; parentId: string },
+  dest: { parentType: "space" | "project"; parentId: string },
   actor: Actor,
 ): Promise<void> {
   if (list.parentType === dest.parentType && list.parentId === dest.parentId) {
@@ -238,17 +238,17 @@ export async function moveListCore(
   const currentSpace = await getSpaceForList(ctx, list);
   if (!currentSpace) throw new ConvexError("Orphan list");
 
-  let destFolder: Doc<"folders"> | null = null;
+  let destProject: Doc<"projects"> | null = null;
   let destSpaceId: Id<"spaces">;
   if (dest.parentType === "space") {
     destSpaceId = dest.parentId as Id<"spaces">;
   } else {
-    destFolder = await ctx.db.get(dest.parentId as Id<"folders">);
-    if (!destFolder) throw new ConvexError("Folder not found");
-    destSpaceId = destFolder.spaceId;
+    destProject = await ctx.db.get(dest.parentId as Id<"projects">);
+    if (!destProject) throw new ConvexError("Project not found");
+    destSpaceId = destProject.spaceId;
   }
   if (destSpaceId !== currentSpace._id) {
-    throw new ConvexError("Pick a folder in this Space");
+    throw new ConvexError("Pick a project in this Space");
   }
 
   // Land at the end of the destination so the move never displaces
@@ -264,9 +264,9 @@ export async function moveListCore(
     0,
   );
 
-  const fromFolder =
-    list.parentType === "folder"
-      ? await ctx.db.get(list.parentId as Id<"folders">)
+  const fromProject =
+    list.parentType === "project"
+      ? await ctx.db.get(list.parentId as Id<"projects">)
       : null;
 
   await ctx.db.patch(list._id, {
@@ -291,17 +291,17 @@ export async function moveListCore(
       spaceId: currentSpace._id,
       fromType: list.parentType,
       fromId: list.parentId,
-      from: fromFolder ? fromFolder.name : currentSpace.name,
+      from: fromProject ? fromProject.name : currentSpace.name,
       toType: dest.parentType,
       toId: dest.parentId,
-      to: destFolder ? destFolder.name : currentSpace.name,
+      to: destProject ? destProject.name : currentSpace.name,
     },
   });
 }
 
 export async function reorderListsCore(
   ctx: MutationCtx,
-  parentType: "space" | "folder",
+  parentType: "space" | "project",
   parentId: string,
   orderedIds: Id<"lists">[],
 ): Promise<void> {
@@ -316,7 +316,7 @@ export async function reorderListsCore(
   }
 }
 
-// Move a list into a folder, or back out to the space. Both ends are
+// Move a list into a project, or back out to the space. Both ends are
 // access-checked independently: the caller must be able to reach the list
 // AND the destination, and moveListCore additionally refuses any
 // destination outside the list's current space.
@@ -331,7 +331,7 @@ export const move = mutation({
     if (args.parentType === "space") {
       await requireSpaceAccess(ctx, args.parentId as Id<"spaces">);
     } else {
-      await requireFolderAccess(ctx, args.parentId as Id<"folders">);
+      await requireProjectAccess(ctx, args.parentId as Id<"projects">);
     }
     const actor = await userActor(ctx, identity.subject);
     await moveListCore(

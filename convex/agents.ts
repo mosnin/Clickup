@@ -294,14 +294,14 @@ export const detail = query({
       )
       .collect();
     for (const space of spaces) {
-      const parents: { type: "space" | "folder"; id: string }[] = [
+      const parents: { type: "space" | "project"; id: string }[] = [
         { type: "space", id: space._id },
       ];
-      const folders = await ctx.db
-        .query("folders")
+      const projects = await ctx.db
+        .query("projects")
         .withIndex("by_space", (q) => q.eq("spaceId", space._id))
         .collect();
-      for (const f of folders) parents.push({ type: "folder", id: f._id });
+      for (const f of projects) parents.push({ type: "project", id: f._id });
       for (const p of parents) {
         const lists = await ctx.db
           .query("lists")
@@ -698,14 +698,14 @@ export const remove = mutation({
       )
       .collect();
     for (const space of spaces) {
-      const parents: { type: "space" | "folder"; id: string }[] = [
+      const parents: { type: "space" | "project"; id: string }[] = [
         { type: "space", id: space._id },
       ];
-      const folders = await ctx.db
-        .query("folders")
+      const projects = await ctx.db
+        .query("projects")
         .withIndex("by_space", (q) => q.eq("spaceId", space._id))
         .collect();
-      for (const f of folders) parents.push({ type: "folder", id: f._id });
+      for (const f of projects) parents.push({ type: "project", id: f._id });
       for (const p of parents) {
         const lists = await ctx.db
           .query("lists")

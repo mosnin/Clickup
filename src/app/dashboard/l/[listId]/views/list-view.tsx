@@ -65,7 +65,7 @@ export function ListView({
   visibleFields?: string[];
   /** taskId → title, for the "show subtask parent names" chip. */
   parentTitles?: Map<string, string>;
-  /** Space › Folder › List breadcrumb; undefined when the toggle is off. */
+  /** Space › Project › List breadcrumb; undefined when the toggle is off. */
   locationLabel?: string;
 }) {
   // Multi-select for bulk actions. A Set of task ids; the bulk bar floats in

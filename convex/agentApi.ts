@@ -12,7 +12,7 @@ import {
   agentActor,
   agentCanTouchList,
   requireAgentByKey,
-  requireFolderAccessForAgent,
+  requireProjectAccessForAgent,
   requireListAccessForAgent,
   requireSpaceAccessForAgent,
   requireTaskAccessForAgent,
@@ -55,11 +55,11 @@ import {
   updateListMetaCore,
 } from "./lists";
 import {
-  createFolderCore,
-  removeFolderCore,
-  renameFolderCore,
-  reorderFoldersCore,
-} from "./folders";
+  createProjectCore,
+  removeProjectCore,
+  renameProjectCore,
+  reorderProjectsCore,
+} from "./projects";
 import {
   createMilestoneCore,
   milestonesWithProgress,
@@ -263,7 +263,7 @@ async function requireDocAccessForAgent(
   return doc;
 }
 
-// Walk every list in the agent's scope (spaces → folders → lists),
+// Walk every list in the agent's scope (spaces → projects → lists),
 // respecting allowedListIds the same way listTasks/nextTask/searchTasks do.
 // Shared by the sprint-planning backlog scan and the portfolio tool so
 // there's exactly one "walk my whole scope" implementation to keep in sync
@@ -282,14 +282,14 @@ async function listsInScope(
     .collect();
   for (const space of spaces) {
     if (opts?.skipArchived && space.archivedAt !== undefined) continue;
-    const parents: { type: "space" | "folder"; id: string }[] = [
+    const parents: { type: "space" | "project"; id: string }[] = [
       { type: "space", id: space._id },
     ];
-    const folders = await ctx.db
-      .query("folders")
+    const projects = await ctx.db
+      .query("projects")
       .withIndex("by_space", (q) => q.eq("spaceId", space._id))
       .collect();
-    for (const f of folders) parents.push({ type: "folder", id: f._id });
+    for (const f of projects) parents.push({ type: "project", id: f._id });
     for (const p of parents) {
       const lists = await ctx.db
         .query("lists")
@@ -669,7 +669,7 @@ export const listWakeInbox = query({
   },
 });
 
-// ── Structure: tree, spaces, folders, lists ────────────────────────────
+// ── Structure: tree, spaces, projects, lists ────────────────────────────
 
 export const getTree = query({
   args: { apiKey: v.string() },
@@ -683,21 +683,21 @@ export const getTree = query({
       .collect();
     const out = [];
     for (const space of spaces.sort((a, b) => a.position - b.position)) {
-      const folders = await ctx.db
-        .query("folders")
+      const projects = await ctx.db
+        .query("projects")
         .withIndex("by_space", (q) => q.eq("spaceId", space._id))
         .collect();
-      const folderNodes = [];
-      for (const folder of folders.sort((a, b) => a.position - b.position)) {
+      const projectNodes = [];
+      for (const project of projects.sort((a, b) => a.position - b.position)) {
         const lists = await ctx.db
           .query("lists")
           .withIndex("by_parent", (q) =>
-            q.eq("parentType", "folder").eq("parentId", folder._id),
+            q.eq("parentType", "project").eq("parentId", project._id),
           )
           .collect();
-        folderNodes.push({
-          folderId: folder._id,
-          name: folder.name,
+        projectNodes.push({
+          projectId: project._id,
+          name: project.name,
           lists: lists
             .filter((l) => agentCanTouchList(agent, l._id))
             .map(treeListNode),
@@ -712,7 +712,7 @@ export const getTree = query({
       out.push({
         spaceId: space._id,
         name: space.name,
-        folders: folderNodes,
+        projects: projectNodes,
         lists: lists
           .filter((l) => agentCanTouchList(agent, l._id))
           .map(treeListNode),
@@ -744,17 +744,17 @@ export const createSpace = mutation({
   },
 });
 
-// Routed through createFolderCore, so an agent-created folder lands in the
-// activity feed as `folder.created` exactly like a human-created one — and
+// Routed through createProjectCore, so an agent-created project lands in the
+// activity feed as `project.created` exactly like a human-created one — and
 // picks up the core's append-after-max positioning instead of a row count
-// that collides once a folder has been deleted.
-export const createFolder = mutation({
+// that collides once a project has been deleted.
+export const createProject = mutation({
   args: { apiKey: v.string(), spaceId: v.id("spaces"), name: v.string() },
   handler: async (ctx, { apiKey, spaceId, name }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     requireUnrestricted(agent);
     const { space } = await requireSpaceAccessForAgent(ctx, spaceId, agent);
-    return await createFolderCore(ctx, space, name, agentActor(agent));
+    return await createProjectCore(ctx, space, name, agentActor(agent));
   },
 });
 
@@ -762,7 +762,7 @@ export const createList = mutation({
   args: {
     apiKey: v.string(),
     name: v.string(),
-    parentType: v.union(v.literal("space"), v.literal("folder")),
+    parentType: v.union(v.literal("space"), v.literal("project")),
     parentId: v.string(),
   },
   handler: async (ctx, args) => {
@@ -776,9 +776,9 @@ export const createList = mutation({
         agent,
       );
     } else {
-      const folder = await ctx.db.get(args.parentId as Id<"folders">);
-      if (!folder) throw new ConvexError("Folder not found");
-      await requireSpaceAccessForAgent(ctx, folder.spaceId, agent);
+      const project = await ctx.db.get(args.parentId as Id<"projects">);
+      if (!project) throw new ConvexError("Project not found");
+      await requireSpaceAccessForAgent(ctx, project.spaceId, agent);
     }
     const siblings = await ctx.db
       .query("lists")
@@ -855,14 +855,14 @@ export const listTasks = query({
         )
         .collect();
       for (const space of spaces) {
-        const listParents: { type: "space" | "folder"; id: string }[] = [
+        const listParents: { type: "space" | "project"; id: string }[] = [
           { type: "space", id: space._id },
         ];
-        const folders = await ctx.db
-          .query("folders")
+        const projects = await ctx.db
+          .query("projects")
           .withIndex("by_space", (q) => q.eq("spaceId", space._id))
           .collect();
-        for (const f of folders) listParents.push({ type: "folder", id: f._id });
+        for (const f of projects) listParents.push({ type: "project", id: f._id });
         for (const p of listParents) {
           const lists = await ctx.db
             .query("lists")
@@ -2476,14 +2476,14 @@ export const searchTasks = query({
       )
       .collect();
     outer: for (const space of spaces) {
-      const parents: { type: "space" | "folder"; id: string }[] = [
+      const parents: { type: "space" | "project"; id: string }[] = [
         { type: "space", id: space._id },
       ];
-      const folders = await ctx.db
-        .query("folders")
+      const projects = await ctx.db
+        .query("projects")
         .withIndex("by_space", (q) => q.eq("spaceId", space._id))
         .collect();
-      for (const f of folders) parents.push({ type: "folder", id: f._id });
+      for (const f of projects) parents.push({ type: "project", id: f._id });
       for (const p of parents) {
         const lists = await ctx.db
           .query("lists")
@@ -2613,14 +2613,14 @@ export const nextTask = query({
       )
       .collect();
     for (const space of spaces) {
-      const parents: { type: "space" | "folder"; id: string }[] = [
+      const parents: { type: "space" | "project"; id: string }[] = [
         { type: "space", id: space._id },
       ];
-      const folders = await ctx.db
-        .query("folders")
+      const projects = await ctx.db
+        .query("projects")
         .withIndex("by_space", (q) => q.eq("spaceId", space._id))
         .collect();
-      for (const f of folders) parents.push({ type: "folder", id: f._id });
+      for (const f of projects) parents.push({ type: "project", id: f._id });
       for (const p of parents) {
         const lists = await ctx.db
           .query("lists")
@@ -3429,8 +3429,8 @@ export const applySprintTemplate = mutation({
 // cores the human Template Center calls.
 
 /** The destination shape each entity type accepts. */
-const TEMPLATE_DESTINATIONS: Record<string, ("space" | "folder" | "list")[]> = {
-  list: ["space", "folder"],
+const TEMPLATE_DESTINATIONS: Record<string, ("space" | "project" | "list")[]> = {
+  list: ["space", "project"],
   task: ["list"],
   doc: ["space"],
   whiteboard: ["space"],
@@ -3504,7 +3504,7 @@ export const applyCatalogTemplate = mutation({
     name: v.optional(v.string()),
     destinationType: v.union(
       v.literal("space"),
-      v.literal("folder"),
+      v.literal("project"),
       v.literal("list"),
     ),
     destinationId: v.string(),
@@ -3545,10 +3545,10 @@ export const applyCatalogTemplate = mutation({
         args.destinationId as Id<"spaces">,
         agent,
       );
-    } else if (args.destinationType === "folder") {
-      await requireFolderAccessForAgent(
+    } else if (args.destinationType === "project") {
+      await requireProjectAccessForAgent(
         ctx,
-        args.destinationId as Id<"folders">,
+        args.destinationId as Id<"projects">,
         agent,
       );
     } else {
@@ -3567,7 +3567,7 @@ export const applyCatalogTemplate = mutation({
         {
           slug: args.slug,
           name: args.name,
-          parentType: args.destinationType === "space" ? "space" : "folder",
+          parentType: args.destinationType === "space" ? "space" : "project",
           parentId: args.destinationId,
         },
         actor,
@@ -3664,7 +3664,7 @@ export const applyTemplate = mutation({
     apiKey: v.string(),
     templateId: v.string(),
     name: v.string(),
-    parentType: v.union(v.literal("space"), v.literal("folder")),
+    parentType: v.union(v.literal("space"), v.literal("project")),
     parentId: v.string(),
   },
   handler: async (ctx, args) => {
@@ -3677,9 +3677,9 @@ export const applyTemplate = mutation({
         agent,
       );
     } else {
-      const folder = await ctx.db.get(args.parentId as Id<"folders">);
-      if (!folder) throw new ConvexError("Folder not found");
-      await requireSpaceAccessForAgent(ctx, folder.spaceId, agent);
+      const project = await ctx.db.get(args.parentId as Id<"projects">);
+      if (!project) throw new ConvexError("Project not found");
+      await requireSpaceAccessForAgent(ctx, project.spaceId, agent);
     }
     return await applyListTemplateCore(
       ctx,
@@ -4260,7 +4260,7 @@ export const removeRoadmapPhase = mutation({
 });
 
 // ── Structure lifecycle parity (Phase N) ───────────────────────────────
-// Agents could create spaces/folders/lists but never fix or annotate
+// Agents could create spaces/projects/lists but never fix or annotate
 // them — a typo at creation was permanent garbage. These give create's
 // missing other half. All structure-level: requireUnrestricted.
 
@@ -4315,7 +4315,7 @@ export const deleteList = mutation({
 export const reorderLists = mutation({
   args: {
     apiKey: v.string(),
-    parentType: v.union(v.literal("space"), v.literal("folder")),
+    parentType: v.union(v.literal("space"), v.literal("project")),
     parentId: v.string(),
     orderedIds: v.array(v.id("lists")),
   },
@@ -4329,16 +4329,16 @@ export const reorderLists = mutation({
         agent,
       );
     } else {
-      const folder = await ctx.db.get(args.parentId as Id<"folders">);
-      if (!folder) throw new ConvexError("Folder not found");
-      await requireSpaceAccessForAgent(ctx, folder.spaceId, agent);
+      const project = await ctx.db.get(args.parentId as Id<"projects">);
+      if (!project) throw new ConvexError("Project not found");
+      await requireSpaceAccessForAgent(ctx, project.spaceId, agent);
     }
     await reorderListsCore(ctx, args.parentType, args.parentId, args.orderedIds);
   },
 });
 
-// Regroup a list inside its space: space → folder, folder → space, folder →
-// sibling folder. Both ends are access-checked independently, and
+// Regroup a list inside its space: space → project, project → space, project →
+// sibling project. Both ends are access-checked independently, and
 // moveListCore itself refuses any destination outside the list's current
 // space — a space is a visibility boundary, so "moving" across one would
 // silently change who can see the tasks.
@@ -4346,7 +4346,7 @@ export const moveList = mutation({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
-    parentType: v.union(v.literal("space"), v.literal("folder")),
+    parentType: v.union(v.literal("space"), v.literal("project")),
     parentId: v.string(),
   },
   handler: async (ctx, args) => {
@@ -4360,9 +4360,9 @@ export const moveList = mutation({
         agent,
       );
     } else {
-      await requireFolderAccessForAgent(
+      await requireProjectAccessForAgent(
         ctx,
-        args.parentId as Id<"folders">,
+        args.parentId as Id<"projects">,
         agent,
       );
     }
@@ -4375,52 +4375,52 @@ export const moveList = mutation({
   },
 });
 
-// ── Folder lifecycle ───────────────────────────────────────────────────
-// Agents could create folders but never fix or unpick them. Same cores the
-// human sidebar calls, so renames/deletes emit `folder.renamed` /
-// `folder.deleted` with the agent as the actor. Structure-level throughout.
+// ── Project lifecycle ───────────────────────────────────────────────────
+// Agents could create projects but never fix or unpick them. Same cores the
+// human sidebar calls, so renames/deletes emit `project.renamed` /
+// `project.deleted` with the agent as the actor. Structure-level throughout.
 
-export const renameFolder = mutation({
-  args: { apiKey: v.string(), folderId: v.id("folders"), name: v.string() },
+export const renameProject = mutation({
+  args: { apiKey: v.string(), projectId: v.id("projects"), name: v.string() },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     requireUnrestricted(agent);
-    const { folder, space } = await requireFolderAccessForAgent(
+    const { project, space } = await requireProjectAccessForAgent(
       ctx,
-      args.folderId,
+      args.projectId,
       agent,
     );
-    await renameFolderCore(ctx, folder, space, args.name, agentActor(agent));
+    await renameProjectCore(ctx, project, space, args.name, agentActor(agent));
   },
 });
 
-// Deleting a folder is a grouping change, not a content deletion: every list
+// Deleting a project is a grouping change, not a content deletion: every list
 // inside it moves up to the parent space with its tasks intact.
-export const deleteFolder = mutation({
-  args: { apiKey: v.string(), folderId: v.id("folders") },
+export const deleteProject = mutation({
+  args: { apiKey: v.string(), projectId: v.id("projects") },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     requireUnrestricted(agent);
-    const { folder, space } = await requireFolderAccessForAgent(
+    const { project, space } = await requireProjectAccessForAgent(
       ctx,
-      args.folderId,
+      args.projectId,
       agent,
     );
-    await removeFolderCore(ctx, folder, space, agentActor(agent));
+    await removeProjectCore(ctx, project, space, agentActor(agent));
   },
 });
 
-export const reorderFolders = mutation({
+export const reorderProjects = mutation({
   args: {
     apiKey: v.string(),
     spaceId: v.id("spaces"),
-    orderedIds: v.array(v.id("folders")),
+    orderedIds: v.array(v.id("projects")),
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     requireUnrestricted(agent);
     await requireSpaceAccessForAgent(ctx, args.spaceId, agent);
-    await reorderFoldersCore(ctx, args.spaceId, args.orderedIds);
+    await reorderProjectsCore(ctx, args.spaceId, args.orderedIds);
   },
 });
 

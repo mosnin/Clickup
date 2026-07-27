@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 
-// Space › Folder › List breadcrumb for a list, resolved client-side from the
+// Space › Project › List breadcrumb for a list, resolved client-side from the
 // sidebar tree the app is already subscribed to (the same trick as
 // use-list-scope.ts — there's no dedicated path resolver query, and adding
 // one would mean a second round-trip for data we already hold).
@@ -13,8 +13,8 @@ import type { Id } from "@convex/_generated/dataModel";
 // Returns undefined while the tree loads or when the list isn't in it.
 
 type ListNode = { _id: Id<"lists"> };
-type FolderNode = { name: string; lists: ListNode[] };
-type SpaceNode = { name: string; folders: FolderNode[]; lists: ListNode[] };
+type ProjectNode = { name: string; lists: ListNode[] };
+type SpaceNode = { name: string; projects: ProjectNode[]; lists: ListNode[] };
 
 export function useListPath(listId: Id<"lists">): string[] | undefined {
   const tree = useQuery(api.sidebar.tree, {});
@@ -23,9 +23,9 @@ export function useListPath(listId: Id<"lists">): string[] | undefined {
 
     const pathIn = (space: SpaceNode): string[] | null => {
       if (space.lists.some((l) => l._id === listId)) return [space.name];
-      for (const folder of space.folders) {
-        if (folder.lists.some((l) => l._id === listId)) {
-          return [space.name, folder.name];
+      for (const project of space.projects) {
+        if (project.lists.some((l) => l._id === listId)) {
+          return [space.name, project.name];
         }
       }
       return null;

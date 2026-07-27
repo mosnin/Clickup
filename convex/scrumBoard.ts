@@ -98,8 +98,8 @@ export const board = query({
       if (list.parentType === "space") {
         return await spaceVisible(list.parentId as Id<"spaces">);
       }
-      const folder = await ctx.db.get(list.parentId as Id<"folders">);
-      return !!folder && (await spaceVisible(folder.spaceId));
+      const project = await ctx.db.get(list.parentId as Id<"projects">);
+      return !!project && (await spaceVisible(project.spaceId));
     }
 
     const out: ScrumBoardTask[] = [];

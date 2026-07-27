@@ -241,7 +241,7 @@ export const RESOURCES: Resource[] = [
         tag: "Phases 1–11",
         title: "The workspace foundation",
         items: [
-          "Spaces, folders, lists, tasks with custom statuses and fields",
+          "Spaces, projects, lists, tasks with custom statuses and fields",
           "List, Board, Calendar, and Gantt views",
           "Threaded comments, @mentions, inbox; docs and whiteboards",
           "Time tracking, goals, reports; automations and recurring tasks",

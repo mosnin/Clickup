@@ -59,7 +59,7 @@ export function FieldLibraryPanel({
     if (!ws) return [];
     const rows: { id: string; label: string; hint?: string }[] = [];
     for (const sp of ws.spaces) {
-      for (const l of [...sp.lists, ...sp.folders.flatMap((f) => f.lists)]) {
+      for (const l of [...sp.lists, ...sp.projects.flatMap((f) => f.lists)]) {
         rows.push({ id: l._id as string, label: l.name, hint: sp.name });
       }
     }
