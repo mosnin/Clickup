@@ -9,6 +9,7 @@ import {
 } from "./_authz";
 import type { Actor } from "./_agentAuth";
 import { emitEvent, userActor } from "./events";
+import { getRollup } from "./rollups";
 
 // Projects group lists inside a Space: Workspace → Space → Project → List →
 // Task. A project is the unit of work people name ("the billing migration");
@@ -284,6 +285,52 @@ export async function reorderProjectsCore(
 }
 
 // ── Public mutations ────────────────────────────────────────────────────
+
+/**
+ * The task rollup for every list in a project.
+ *
+ * Reads the maintained per-list snapshot rather than counting tasks: a panel
+ * that walks every task in a project is a panel that stops loading, and the
+ * snapshot is already kept current by the task write paths.
+ */
+export const rollupsForProject = query({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, { projectId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const project = await ctx.db.get(projectId);
+    if (!project) return [];
+    const space = await ctx.db.get(project.spaceId);
+    if (!space) return [];
+    if (!(await canAccessSpace(ctx, space, { subject: identity.subject }))) {
+      return [];
+    }
+    const lists = await ctx.db
+      .query("lists")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", "project").eq("parentId", projectId),
+      )
+      .collect();
+    const out: {
+      listId: Id<"lists">;
+      name: string;
+      total: number;
+      completed: number;
+      inProgress: number;
+    }[] = [];
+    for (const list of lists) {
+      const rollup = await getRollup(ctx, list._id);
+      out.push({
+        listId: list._id,
+        name: list.name,
+        total: rollup?.total ?? 0,
+        completed: rollup?.done ?? 0,
+        inProgress: rollup?.inProgress ?? 0,
+      });
+    }
+    return out;
+  },
+});
 
 export const create = mutation({
   args: {

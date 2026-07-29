@@ -1316,6 +1316,25 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_user", ["userClerkId"]),
 
+  // A screen someone has composed for themselves.
+  //
+  // Keyed by `screenKey` ("project:<id>", "space:<id>", …) so this generalises
+  // to any surface without a migration — a new customisable screen is a new
+  // key, not a new table. Per-user rather than per-project: how you want to
+  // read a project is a fact about you, and one person rearranging their view
+  // must not rearrange everyone else's.
+  screenLayouts: defineTable({
+    userClerkId: v.string(),
+    screenKey: v.string(),
+    /** `{ widgets: [{ id, span }] }`, normalized on read. `v.any()` for the
+     *  same reason uiPreferences uses it: a layout written by a newer build
+     *  must degrade, never fail validation. */
+    layout: v.any(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userClerkId"])
+    .index("by_user_and_screen", ["userClerkId", "screenKey"]),
+
   // ── Phase 12: AI agent collaboration ────────────────────────────────
 
   // First-class AI agent principals. An agent belongs to either a user's

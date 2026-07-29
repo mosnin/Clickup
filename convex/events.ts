@@ -3,7 +3,7 @@ import { query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
-import { getSpaceForList } from "./_authz";
+import { canAccessSpace, getSpaceForList } from "./_authz";
 import type { Actor } from "./_agentAuth";
 
 // Append-only activity log. emitEvent() is called from inside mutations
@@ -128,6 +128,64 @@ const MAX_FEED = 100;
 // Activity feed across everything the current user can see: their personal
 // scope plus every workspace they belong to. Optionally narrowed to one
 // scope. Newest first.
+/**
+ * One project's slice of the activity log.
+ *
+ * Events are recorded against a scope with an optional `listId`, so a
+ * project's activity is the union of its lists' events plus anything recorded
+ * against the project itself. Bounded by a scope-index read and then filtered
+ * — there is no by-project index, and adding one would mean backfilling every
+ * historical row for a panel that shows twelve lines.
+ */
+export const forProject = query({
+  args: { projectId: v.id("projects"), limit: v.optional(v.number()) },
+  handler: async (ctx, { projectId, limit }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const project = await ctx.db.get(projectId);
+    if (!project) return [];
+    const space = await ctx.db.get(project.spaceId);
+    if (!space) return [];
+    if (!(await canAccessSpace(ctx, space, { subject: identity.subject }))) {
+      return [];
+    }
+
+    const lists = await ctx.db
+      .query("lists")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", "project").eq("parentId", projectId),
+      )
+      .collect();
+    const listIds = new Set<string>(lists.map((l) => l._id));
+
+    const want = Math.min(limit ?? 12, 50);
+    // Over-read then filter: most of a scope's events belong to other
+    // projects, so a window of `want` would usually come back empty.
+    const recent = await ctx.db
+      .query("events")
+      .withIndex("by_scope", (q) =>
+        q.eq("scopeType", space.parentType).eq("scopeId", space.parentId),
+      )
+      .order("desc")
+      .take(Math.max(want * 20, 200));
+
+    return recent
+      .filter(
+        (e) =>
+          (e.listId !== undefined && listIds.has(e.listId)) ||
+          (e.entityType === "project" && e.entityId === projectId),
+      )
+      .slice(0, want)
+      .map((e) => ({
+        eventId: e._id,
+        type: e.type,
+        actorName: e.actorName,
+        entityTitle: e.entityTitle,
+        createdAt: e.createdAt,
+      }));
+  },
+});
+
 export const feed = query({
   args: {
     scopeType: v.optional(v.union(v.literal("user"), v.literal("workspace"))),

@@ -86,6 +86,7 @@ import type * as roadmaps from "../roadmaps.js";
 import type * as rollups from "../rollups.js";
 import type * as savedViews from "../savedViews.js";
 import type * as scheduledTasks from "../scheduledTasks.js";
+import type * as screens from "../screens.js";
 import type * as scrumBoard from "../scrumBoard.js";
 import type * as search from "../search.js";
 import type * as sidebar from "../sidebar.js";
@@ -196,6 +197,7 @@ declare const fullApi: ApiFromModules<{
   rollups: typeof rollups;
   savedViews: typeof savedViews;
   scheduledTasks: typeof scheduledTasks;
+  screens: typeof screens;
   scrumBoard: typeof scrumBoard;
   search: typeof search;
   sidebar: typeof sidebar;
