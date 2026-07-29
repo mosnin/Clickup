@@ -9,6 +9,8 @@ import { AgentOnlineWatcher } from "@/components/dashboard/agent-online-watcher"
 import { NoSupportWidget } from "@/components/dashboard/no-support-widget";
 import { RequireBackend } from "@/components/require-backend";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { AppearanceProvider } from "@/components/appearance/appearance-provider";
+import { FloatingNavToggle } from "@/components/appearance/floating-nav-toggle";
 
 export default async function DashboardLayout({
   children,
@@ -35,6 +37,10 @@ export default async function DashboardLayout({
   // and content padding; this shell only owns the scroll container.
   return (
     <RequireBackend>
+      {/* Appearance wraps everything: it writes the per-user design tokens
+          onto :root, so every surface below it — including the toasts and the
+          command palette — renders in the user's own UI. */}
+      <AppearanceProvider>
       <ToastProvider>
         <SidebarProvider defaultOpen={defaultOpen} className="h-svh overflow-hidden">
           <EnsureUser />
@@ -56,8 +62,15 @@ export default async function DashboardLayout({
             aria-hidden
             className="gradient-strip pointer-events-none fixed inset-x-0 bottom-0 z-50"
           />
+          {/* The way back to the nav when it is floating and hidden. A
+              floating sidebar that can be dismissed with no visible way to
+              return is a trap, and the shell's own trigger lives inside the
+              page headers — which is exactly what a full-bleed surface
+              doesn't have. */}
+          <FloatingNavToggle />
         </SidebarProvider>
       </ToastProvider>
+      </AppearanceProvider>
     </RequireBackend>
   );
 }

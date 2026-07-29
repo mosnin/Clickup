@@ -28,6 +28,7 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  Sparkles,
   Star,
   Trash2,
   X,
@@ -1245,6 +1246,7 @@ function SidebarFooterBody() {
         <RunningTimerChip />
       </div>
       <AdminMenuItem />
+      <AppearanceMenuItem />
       <div className="px-1">
         <ThemeToggle collapsed={collapsed} />
       </div>
@@ -1262,6 +1264,26 @@ function SidebarFooterBody() {
         />
       </div>
     </SidebarFooter>
+  );
+}
+
+function AppearanceMenuItem() {
+  const pathname = usePathname();
+  const active = pathname === "/dashboard/settings/appearance";
+  return (
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <SidebarMenuButton asChild isActive={active} tooltip="Appearance">
+          <Link
+            href="/dashboard/settings/appearance"
+            aria-current={active ? "page" : undefined}
+          >
+            <Sparkles className="text-muted-foreground" />
+            <span className="flex-1 truncate">Appearance</span>
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }
 

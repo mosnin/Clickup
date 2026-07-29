@@ -1296,6 +1296,26 @@ export default defineSchema({
     .index("by_parent", ["parentType", "parentId"])
     .index("by_source", ["sourceListId"]),
 
+  // One person's UI, as data.
+  //
+  // Per-user rather than per-workspace: how dense you want your rows is a fact
+  // about you, not about the team, and it should follow you between
+  // workspaces. Stored as one row so a change is one patch and every open tab
+  // re-renders from the same Convex subscription — that is what makes this
+  // save in real time without a save button.
+  uiPreferences: defineTable({
+    userClerkId: v.string(),
+    /**
+     * The appearance settings blob, normalized on read by
+     * src/lib/appearance.ts. Deliberately `v.any()`: this shape changes
+     * whenever the design system grows a new lever, and a stored row written
+     * by an older build must never fail schema validation and lock someone
+     * out of their own account.
+     */
+    appearance: v.any(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userClerkId"]),
+
   // ── Phase 12: AI agent collaboration ────────────────────────────────
 
   // First-class AI agent principals. An agent belongs to either a user's

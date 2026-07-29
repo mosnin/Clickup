@@ -116,6 +116,46 @@
   --radius-pill: 9999px;
 }
 
+/* ── Per-user UI tokens ───────────────────────────────────────────────────
+   The appearance engine (src/lib/appearance.ts) writes these onto :root for
+   the signed-in user. Every one has a fallback here, so the shipped design is
+   what renders when nothing has been personalised, when the provider hasn't
+   run yet, and on the logged-out site — which is why personalising is
+   additive rather than a second theme to maintain. */
+:root {
+  --ui-radius-card: 1rem;
+  --ui-radius-control: 0.5rem;
+  --ui-radius-tile: 0.75rem;
+  --ui-radius-pill: 9999px;
+  --ui-gap: 0.75rem;
+  --ui-pad: 1.25rem;
+  --ui-row-height: 2.25rem;
+  --ui-surface-shadow: 0 1px 2px rgb(16 16 16 / 0.04),
+    0 8px 24px -12px rgb(16 16 16 / 0.1);
+  --ui-surface-tile-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6);
+  --ui-surface-border: 1px solid transparent;
+  --ui-font-scale: 1;
+  --ui-motion-scale: 1;
+  --ui-heading-weight: 700;
+  --ui-sidebar-width: 16rem;
+}
+
+/* The widest-reaching single lever: everything in the app is sized in rem, so
+   one multiplier on the root font size scales the entire interface without a
+   media query or a component change. */
+html {
+  font-size: calc(100% * var(--ui-font-scale));
+}
+
+/* Headings take their weight from the user, within a range that stays
+   legible at both ends. */
+.title-rule,
+h1,
+h2,
+h3 {
+  font-weight: var(--ui-heading-weight);
+}
+
 /* The template's base border rule (Square UI ships the same): Tailwind v4
    defaults bare `border` utilities to currentColor, which reads as a harsh
    near-black frame around every vendored Card/Table/Input. Restore the
@@ -137,6 +177,72 @@ body {
      created and position: sticky keeps working. */
   overflow-x: clip;
   overscroll-behavior-x: none;
+}
+
+/* ── Shell layout, per user ───────────────────────────────────────────────
+   Where the sidebar lives is a structural choice, so it rides on a data
+   attribute rather than an interpolated token — but the *width* is a token, so
+   dragging it is smooth and anime.js can morph it.
+
+   `floating` is the interesting one: the sidebar leaves the flow entirely and
+   becomes an overlay panel, which is what makes a wide screen feel like a
+   canvas instead of a form. The shell reserves no space for it, so the content
+   is genuinely full-width. */
+/* Right-hand sidebar: the shell wrapper is a flex row, so reversing it moves
+   the nav without a single component knowing where it lives. */
+[data-sidebar="right"] [data-slot="sidebar-wrapper"] {
+  flex-direction: row-reverse;
+}
+[data-sidebar="floating"] [data-slot="sidebar-container"] {
+  position: fixed;
+  inset-block: 0.75rem;
+  inset-inline-start: 0.75rem;
+  z-index: 40;
+  height: auto;
+  border-radius: var(--ui-radius-card);
+  box-shadow:
+    0 2px 8px rgb(16 16 18 / 0.08),
+    0 24px 60px -24px rgb(16 16 18 / 0.35);
+  overflow: hidden;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.25s ease;
+}
+/* Collapsed-to-nothing while floating: the panel slides out of view rather
+   than shrinking to a rail, because a floating rail is neither one thing nor
+   the other. */
+[data-sidebar="floating"] [data-state="collapsed"] [data-slot="sidebar-container"],
+[data-sidebar="floating"] [data-slot="sidebar"][data-state="collapsed"] [data-slot="sidebar-container"] {
+  transform: translateX(calc(-100% - 1rem));
+  opacity: 0;
+  pointer-events: none;
+}
+/* No gap reserved in the flow — that is the whole point of floating. */
+[data-sidebar="floating"] [data-slot="sidebar-gap"] {
+  display: none;
+}
+
+/* The width the sidebar takes, wherever it is. */
+[data-slot="sidebar"],
+[data-slot="sidebar-gap"],
+[data-slot="sidebar-container"] {
+  --sidebar-width: var(--ui-sidebar-width);
+}
+
+/* Density is opt-in per surface, never a blanket override: a rule broad
+   enough to re-pad `.panel` would outrank the `p-4`/`p-5` utilities already on
+   those cards and silently change layouts nobody asked to change. Surfaces
+   that want to respond to density say so.
+
+   The sidebar does, because a nav list is exactly where row height is felt. */
+.ui-dense-pad {
+  padding: var(--ui-pad);
+}
+.ui-dense-gap {
+  gap: var(--ui-gap);
+}
+[data-slot="sidebar-menu-button"],
+[data-slot="sidebar-menu-sub-button"] {
+  min-height: var(--ui-row-height);
 }
 
 /* Thin brand gradient strip — product flair on shell edges (PageHeader top,
@@ -486,7 +592,8 @@ body {
    wells). Soft inset feel, no border. */
 .bento-tile {
   background: var(--color-muted);
-  border-radius: 1rem;
+  border-radius: var(--ui-radius-tile);
+  box-shadow: var(--ui-surface-tile-shadow);
 }
 /* Functional icon well — a thin-line glyph in a soft rounded square, the
    only place an icon rides its own surface (per the reference's people/link
@@ -506,7 +613,7 @@ body {
    border and a gentle focus ring rather than a color outline. */
 .soft-field {
   background: var(--color-muted);
-  border-radius: 0.9rem;
+  border-radius: var(--ui-radius-control);
   transition:
     box-shadow 0.2s ease,
     background-color 0.2s ease;
@@ -565,10 +672,12 @@ body {
    surface treatment for shell panels that aren't a vendored Card. */
 .panel {
   background: var(--color-card);
-  border: 1px solid var(--color-border);
-  box-shadow:
-    0 1px 2px rgb(16 16 18 / 0.03),
-    0 6px 20px -14px rgb(16 16 18 / 0.1);
+  /* Surface + radius come from the user's appearance settings; the fallbacks
+     in :root are the shipped values, so this is identical until someone
+     changes it. */
+  border: var(--ui-surface-border);
+  border-radius: var(--ui-radius-card);
+  box-shadow: var(--ui-surface-shadow);
 }
 :root[data-theme="dark"] .panel {
   box-shadow: none;
