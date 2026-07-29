@@ -322,6 +322,7 @@ const IDEMPOTENT_TOOLS = new Set([
   "create_channel", // create-by-name returns the existing channel
   "mark_channel_read", // moving a read cursor to now is safely repeatable
   "set_channel_topic",
+  "pin_page", // setting a flag to a given value is safely repeatable
 ]);
 
 function titleFor(name: string): string {
@@ -1851,31 +1852,34 @@ const TOOLS: ToolDef[] = [
       }),
   },
 
-  // ── Docs ─────────────────────────────────────────────────────────
+  // ── Docs (deprecated: one writing primitive, see Pages) ──────────
   {
     name: "list_docs",
-    description: "Documents in my scope (id, title, updatedAt).",
+    description:
+      "DEPRECATED — use list_pages. Docs and Pages were one thing all along; this reads pages and returns both `pageId` and `docId` so an older prompt keeps working.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.listDocs), { apiKey: k }),
   },
   {
     name: "get_doc",
-    description: "Read a document as plain text.",
-    shape: { docId: z.string() },
+    description:
+      "DEPRECATED — use read_page. Returns the page's markdown as `text`. Accepts a pageId or the id of a doc that became one.",
+    shape: { docId: z.string().describe("a pageId, or a legacy docId") },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.getDoc), { apiKey: k, ...a }),
   },
   {
     name: "create_doc",
     description:
-      "Create a document from plain text/markdown (blank line = paragraph break).",
+      "DEPRECATED — use write_page, which speaks markdown directly and can attach the page where the work is.",
     shape: { title: z.string(), text: z.string().optional() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.createDoc), { apiKey: k, ...a }),
   },
   {
     name: "update_doc",
-    description: "Replace a document's title and/or text.",
+    description:
+      "DEPRECATED — use write_page. Accepts a pageId or the id of a doc that became one.",
     shape: {
       docId: z.string(),
       title: z.string().optional(),
@@ -2443,7 +2447,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_project_docs",
     description:
-      "The context documents attached to a project: the brief, decisions, constraints, references — everything a task description has no room for. Pinned docs are the canonical ones. Read these before planning work in an unfamiliar project.",
+      "The pages attached to a project: the brief, decisions, constraints, references — everything a task description has no room for. `pinnedContext: true` marks the canonical ones, which get_task hands you automatically. Read these before planning work in an unfamiliar project.",
     shape: { listId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listProjectDocs), { apiKey: k, ...a }),
@@ -2451,12 +2455,12 @@ const TOOLS: ToolDef[] = [
   {
     name: "write_project_doc",
     description:
-      "Create or update a project context document. Plain text in, one paragraph per line; it opens and edits like any doc a person wrote. Pass docId to update an existing one. Set pinnedContext to mark it as canonical, so it travels automatically with every get_task on that project.",
+      "Create or update a page attached to a project, in markdown. Pass pageId to rewrite an existing one. Set pinnedContext to mark it canonical, so it travels automatically with every get_task on that project — that flag is the difference between context someone has to go looking for and context they are handed.",
     shape: {
       listId: z.string(),
       title: z.string(),
-      text: z.string(),
-      docId: z.string().optional(),
+      text: z.string().describe("markdown"),
+      pageId: z.string().optional(),
       pinnedContext: z.boolean().optional(),
     },
     run: (c, k, a) =>
@@ -2476,6 +2480,28 @@ const TOOLS: ToolDef[] = [
     },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listPages), { apiKey: k, ...a }),
+  },
+  {
+    name: "pin_page",
+    description:
+      "Mark a page as the canonical context for something it is attached to — or unpin it. A pinned page is handed to whoever works on that thing instead of being something they have to know to go looking for. Attach first with write_page's attachTo.",
+    shape: {
+      pageId: z.string(),
+      targetType: z.enum([
+        "workspace",
+        "space",
+        "project",
+        "list",
+        "task",
+        "agent",
+        "goal",
+        "sprint",
+      ]),
+      targetId: z.string(),
+      pinned: z.boolean(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.pinPage), { apiKey: k, ...a }),
   },
   {
     name: "read_page",

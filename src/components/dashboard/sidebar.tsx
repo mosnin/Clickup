@@ -153,7 +153,7 @@ function useCurrentContext(tree: SidebarTree | null | undefined) {
       for (const space of workspace.spaces) {
         map.set(space._id, workspace);
         for (const list of space.lists) map.set(list._id, workspace);
-        for (const doc of space.docs) map.set(doc._id, workspace);
+        for (const page of space.pages) map.set(page._id, workspace);
         for (const wb of space.whiteboards) map.set(wb._id, workspace);
         for (const project of space.projects) {
           map.set(project._id, workspace);
@@ -609,13 +609,13 @@ function WorkspaceTreeGroup({
 const ADD_LABEL: Record<string, string> = {
   project: "project",
   list: "list",
-  doc: "doc",
+  page: "page",
   board: "whiteboard",
 };
 
 const SPACE_CREATE_ITEMS = [
   { k: "list" as const, icon: ListIcon, label: "List" },
-  { k: "doc" as const, icon: FileText, label: "Doc" },
+  { k: "page" as const, icon: FileText, label: "Page" },
   { k: "board" as const, icon: LayoutGrid, label: "Whiteboard" },
   {
     k: "template" as const,
@@ -630,7 +630,7 @@ function SpaceCreateMenu({
   onPick,
 }: {
   spaceName: string;
-  onPick: (kind: "list" | "doc" | "board" | "template" | "project") => void;
+  onPick: (kind: "list" | "page" | "board" | "template" | "project") => void;
 }) {
   return (
     <DropdownMenu>
@@ -672,10 +672,12 @@ function SpaceTree({
   const router = useRouter();
   const [expanded, setExpanded] = useState(true);
   const [templateOpen, setTemplateOpen] = useState(false);
-  const [adding, setAdding] = useState<"project" | "list" | "doc" | "board" | null>(null);
+  const [adding, setAdding] = useState<
+    "project" | "list" | "page" | "board" | null
+  >(null);
   const createProject = useMutation(api.projects.create);
   const createList = useMutation(api.lists.create);
-  const createDoc = useMutation(api.docs.create);
+  const createPage = useMutation(api.pages.create);
   const createWhiteboard = useMutation(api.whiteboards.create);
   const { toast } = useToast();
 
@@ -686,9 +688,16 @@ function SpaceTree({
       } else if (adding === "list") {
         const listId = await createList({ name, parentType: "space", parentId: space._id });
         router.push(`/dashboard/l/${listId}`);
-      } else if (adding === "doc") {
-        const docId = await createDoc({ parentType: "space", parentId: space._id, title: name });
-        router.push(`/dashboard/d/${docId}`);
+      } else if (adding === "page") {
+        // Started from this space, so it belongs to this space — the place
+        // you started decides, and there is no second choice to get wrong.
+        const pageId = await createPage({
+          scopeType: space.scopeType,
+          scopeId: space.scopeId,
+          title: name,
+          attachTo: { targetType: "space", targetId: space._id },
+        });
+        router.push(`/dashboard/pages/${pageId}`);
       } else if (adding === "board") {
         const wbId = await createWhiteboard({
           parentType: "space",
@@ -709,14 +718,14 @@ function SpaceTree({
   const ADD_PLACEHOLDER: Record<string, string> = {
     project: "Project name…",
     list: "List name…",
-    doc: "Doc title…",
+    page: "Page title…",
     board: "Whiteboard title…",
   };
 
   const isEmpty =
     space.projects.length === 0 &&
     space.lists.length === 0 &&
-    space.docs.length === 0 &&
+    space.pages.length === 0 &&
     space.whiteboards.length === 0;
 
   const active = pathname === linkHref;
@@ -808,8 +817,13 @@ function SpaceTree({
               parent={{ type: "space", id: space._id }}
             />
           ))}
-          {space.docs.map((doc) => (
-            <DocSubItem key={doc._id} docId={doc._id} title={doc.title} />
+          {space.pages.map((page) => (
+            <PageSubItem
+              key={page._id}
+              pageId={page._id}
+              title={page.title}
+              pinned={page.pinned}
+            />
           ))}
           {space.whiteboards.map((wb) => (
             <WhiteboardSubItem key={wb._id} whiteboardId={wb._id} title={wb.title} />
@@ -1161,15 +1175,34 @@ function ListSubItem({
   );
 }
 
-function DocSubItem({ docId, title }: { docId: Id<"docs">; title: string }) {
+function PageSubItem({
+  pageId,
+  title,
+  pinned,
+}: {
+  pageId: Id<"pages">;
+  title: string;
+  pinned: boolean;
+}) {
   const pathname = usePathname();
-  const active = pathname === `/dashboard/d/${docId}`;
+  const active = pathname === `/dashboard/pages/${pageId}`;
   return (
     <SidebarMenuSubItem>
       <SidebarMenuSubButton asChild isActive={active}>
-        <Link href={`/dashboard/d/${docId}`} aria-current={active ? "page" : undefined}>
+        <Link
+          href={`/dashboard/pages/${pageId}`}
+          aria-current={active ? "page" : undefined}
+          // The one thing worth signifying about a page: whether an agent is
+          // handed it with the work.
+          title={pinned ? `${title} — agents get this with the work` : title}
+        >
           <FileText aria-hidden />
           <span className="truncate">{title}</span>
+          {pinned && (
+            <span className="ml-auto flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+              context
+            </span>
+          )}
         </Link>
       </SidebarMenuSubButton>
     </SidebarMenuSubItem>

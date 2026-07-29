@@ -1047,7 +1047,13 @@ export default defineSchema({
   // Rich-text documents. Belong to a workspace, a space, or a personal
   // user (same `parentType` discriminant pattern as spaces). `content`
   // is Tiptap/ProseMirror JSON.
+  // DEPRECATED — folded into `pages`. Retained because Convex validates every
+  // stored document against the schema, so the table cannot be dropped while
+  // rows exist; `migrations.docsToPages` converts them and marks each row
+  // `migratedToPageId`. Nothing new should read or write this table.
   docs: defineTable({
+    /** Set once this doc has become a page; the row is history after that. */
+    migratedToPageId: v.optional(v.id("pages")),
     // Wiki nesting: a doc may live under another doc as a subpage.
     parentDocId: v.optional(v.id("docs")),
     // "list" is a project. A doc attached to a project holds the detailed
@@ -1164,9 +1170,18 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     archivedAt: v.optional(v.number()),
+    // ── Provenance, for pages that used to be docs ──
+    // The original Tiptap JSON is kept, not discarded. Converting someone's
+    // writing on a guess is the kind of migration you can't apologise your
+    // way out of; keeping the source means an imperfect conversion is a bug
+    // to fix rather than data that's gone.
+    importedFromDocId: v.optional(v.id("docs")),
+    importedDocContent: v.optional(v.any()),
+    importedLossless: v.optional(v.boolean()),
   })
     .index("by_scope", ["scopeType", "scopeId"])
     .index("by_parent_page", ["parentPageId"])
+    .index("by_imported_doc", ["importedFromDocId"])
     .searchIndex("by_text", {
       searchField: "markdown",
       filterFields: ["scopeType", "scopeId"],
@@ -1193,6 +1208,11 @@ export default defineSchema({
       v.literal("sprint"),
     ),
     targetId: v.string(),
+    // "This is the canonical context for this work" — the one distinction
+    // worth signifying, and the successor to docs.pinnedContext. A pinned
+    // page is handed to an agent with the task instead of being something the
+    // agent has to know to go looking for.
+    pinned: v.optional(v.boolean()),
     createdByActorId: v.string(),
     createdAt: v.number(),
   })

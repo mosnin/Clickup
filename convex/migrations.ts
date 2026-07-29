@@ -2,6 +2,8 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { docToMarkdown } from "./_docToMarkdown";
+import { getSpaceForList } from "./_authz";
 
 // One-shot data migrations, run by hand against a deployment.
 //
@@ -335,6 +337,234 @@ export const auditProjectLayer = internalQuery({
       },
       healthy: problems.length === 0,
       problems,
+    };
+  },
+});
+
+// ── docs → pages ────────────────────────────────────────────────────────
+//
+// One writing primitive. Two features with the same icon, the same affordance
+// and no rule for choosing between them is a description-error factory: users
+// pick at random and their context scatters. Docs is absorbed rather than
+// differentiated, because markdown is the format both humans and agents read
+// and Tiptap JSON is a format only this app can read.
+//
+// Three properties this migration holds to:
+//
+//   1. Idempotent. A doc that has already become a page is skipped by its
+//      `migratedToPageId`, so a re-run reports zeros rather than duplicating
+//      anyone's writing.
+//   2. Non-destructive. The original JSON is copied onto the page. An
+//      imperfect conversion is then a bug to fix, not data that's gone.
+//   3. Honest. Every node type the converter didn't recognise is reported, per
+//      doc, so "lossless" is a measurement rather than a hope.
+
+/** Where a doc's parent maps to in the pages world. */
+function pageScopeForDocParent(
+  doc: Doc<"docs">,
+  listScope: { scopeType: "user" | "workspace"; scopeId: string } | null,
+): { scopeType: "user" | "workspace"; scopeId: string } | null {
+  if (doc.parentType === "user") {
+    return { scopeType: "user", scopeId: doc.parentId };
+  }
+  if (doc.parentType === "workspace") {
+    return { scopeType: "workspace", scopeId: doc.parentId };
+  }
+  // space and list both resolve through their own hierarchy.
+  return listScope;
+}
+
+export const docsToPages = internalMutation({
+  args: { dryRun: v.optional(v.boolean()) },
+  handler: async (ctx, { dryRun }) => {
+    const docs = await ctx.db.query("docs").collect();
+
+    const report = {
+      docsSeen: 0,
+      converted: 0,
+      alreadyMigrated: 0,
+      skippedNoScope: 0,
+      lossy: 0,
+      pinnedAttachmentsCreated: 0,
+      parentLinksRestored: 0,
+      unknownNodeTypes: [] as string[],
+      lossyDocs: [] as { docId: string; title: string; unknown: string[] }[],
+    };
+    const unknownAll = new Set<string>();
+    // doc id → page id, so nesting and redirects can be rebuilt afterwards.
+    const pageForDoc = new Map<string, Id<"pages">>();
+
+    for (const doc of docs) {
+      report.docsSeen += 1;
+      if (doc.migratedToPageId) {
+        report.alreadyMigrated += 1;
+        pageForDoc.set(doc._id, doc.migratedToPageId);
+        continue;
+      }
+
+      // Resolve the scope. A space/list doc whose parent has been deleted has
+      // nowhere to land — count it and leave it alone rather than guessing.
+      let scope: { scopeType: "user" | "workspace"; scopeId: string } | null =
+        null;
+      if (doc.parentType === "space") {
+        const space = await ctx.db.get(doc.parentId as Id<"spaces">);
+        scope = space
+          ? { scopeType: space.parentType, scopeId: space.parentId }
+          : null;
+      } else if (doc.parentType === "list") {
+        const list = await ctx.db.get(doc.parentId as Id<"lists">);
+        if (list) {
+          const space = await getSpaceForList(ctx, list);
+          scope = space
+            ? { scopeType: space.parentType, scopeId: space.parentId }
+            : null;
+        }
+      }
+      scope = pageScopeForDocParent(doc, scope);
+      if (!scope) {
+        report.skippedNoScope += 1;
+        continue;
+      }
+
+      const converted = docToMarkdown(doc.content);
+      for (const type of converted.unknownNodes) unknownAll.add(type);
+      if (!converted.lossless) {
+        report.lossy += 1;
+        report.lossyDocs.push({
+          docId: doc._id,
+          title: doc.title,
+          unknown: converted.unknownNodes,
+        });
+      }
+
+      if (dryRun) {
+        report.converted += 1;
+        continue;
+      }
+
+      const siblings = await ctx.db
+        .query("pages")
+        .withIndex("by_scope", (q) =>
+          q.eq("scopeType", scope!.scopeType).eq("scopeId", scope!.scopeId),
+        )
+        .collect();
+      const position = siblings.reduce(
+        (max, p) => Math.max(max, p.position + 1),
+        0,
+      );
+
+      const pageId = await ctx.db.insert("pages", {
+        title: doc.title || "Untitled",
+        markdown: converted.markdown,
+        scopeType: scope.scopeType,
+        scopeId: scope.scopeId,
+        position,
+        createdByActorId: doc.createdByClerkId,
+        createdByName: "",
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt,
+        importedFromDocId: doc._id,
+        importedDocContent: doc.content,
+        importedLossless: converted.lossless,
+      });
+      pageForDoc.set(doc._id, pageId);
+      await ctx.db.patch(doc._id, { migratedToPageId: pageId });
+      report.converted += 1;
+
+      // A doc that was a project's canonical context becomes a *pinned*
+      // attachment — the same idea, now visible and on the one primitive.
+      if (doc.parentType === "list") {
+        const list = await ctx.db.get(doc.parentId as Id<"lists">);
+        if (list) {
+          await ctx.db.insert("pageAttachments", {
+            pageId,
+            targetType: "list",
+            targetId: doc.parentId,
+            pinned: doc.pinnedContext === true,
+            createdByActorId: doc.createdByClerkId,
+            createdAt: doc.createdAt,
+          });
+          report.pinnedAttachmentsCreated += 1;
+        }
+      } else if (doc.parentType === "space") {
+        const space = await ctx.db.get(doc.parentId as Id<"spaces">);
+        if (space) {
+          await ctx.db.insert("pageAttachments", {
+            pageId,
+            targetType: "space",
+            targetId: doc.parentId,
+            createdByActorId: doc.createdByClerkId,
+            createdAt: doc.createdAt,
+          });
+          report.pinnedAttachmentsCreated += 1;
+        }
+      }
+    }
+
+    // Second pass: doc nesting becomes page nesting. Has to be second — a
+    // child can be converted before its parent exists as a page.
+    if (!dryRun) {
+      for (const doc of docs) {
+        if (!doc.parentDocId) continue;
+        const pageId = pageForDoc.get(doc._id);
+        const parentPageId = pageForDoc.get(doc.parentDocId);
+        if (!pageId || !parentPageId) continue;
+        const page = await ctx.db.get(pageId);
+        if (!page || page.parentPageId) continue;
+        await ctx.db.patch(pageId, { parentPageId });
+        report.parentLinksRestored += 1;
+      }
+    }
+
+    report.unknownNodeTypes = [...unknownAll].sort();
+    return report;
+  },
+});
+
+/** Read-only: is the fold complete and consistent? */
+export const auditDocsToPages = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const docs = await ctx.db.query("docs").collect();
+    const problems: string[] = [];
+
+    const unmigrated = docs.filter((d) => !d.migratedToPageId);
+    for (const doc of unmigrated) {
+      problems.push(`doc ${doc._id} ("${doc.title}") has no page`);
+    }
+
+    let lossy = 0;
+    let danglingPointer = 0;
+    for (const doc of docs) {
+      if (!doc.migratedToPageId) continue;
+      const page = await ctx.db.get(doc.migratedToPageId);
+      if (!page) {
+        danglingPointer += 1;
+        problems.push(`doc ${doc._id} points at a page that no longer exists`);
+        continue;
+      }
+      if (page.importedLossless === false) lossy += 1;
+      if (page.importedFromDocId !== doc._id) {
+        problems.push(`page ${page._id} disagrees about which doc it came from`);
+      }
+    }
+
+    const pinned = await ctx.db
+      .query("pageAttachments")
+      .collect()
+      .then((rows) => rows.filter((r) => r.pinned === true).length);
+
+    return {
+      healthy: problems.length === 0,
+      problems: problems.slice(0, 50),
+      counts: {
+        docs: docs.length,
+        migrated: docs.length - unmigrated.length,
+        unmigrated: unmigrated.length,
+        lossyConversions: lossy,
+        danglingPointer,
+        pinnedAttachments: pinned,
+      },
     };
   },
 });

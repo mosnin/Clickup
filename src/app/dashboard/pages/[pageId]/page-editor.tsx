@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
-import { ChevronRight, FileText, Plus, Trash2, X } from "lucide-react";
+import { ChevronRight, FileText, Pin, Plus, Trash2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
@@ -40,6 +40,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
   const update = useMutation(api.pages.update);
   const remove = useMutation(api.pages.remove);
   const detach = useMutation(api.pages.detach);
+  const setPinned = useMutation(api.pages.setPinned);
   const createPage = useMutation(api.pages.create);
   const getUploadUrl = useMutation(api.pages.generateUploadUrl);
   const urlForUpload = useMutation(api.pages.urlForUpload);
@@ -419,14 +420,14 @@ export function PageEditor({ pageId }: { pageId: string }) {
           <Card className="rounded-2xl p-5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                Pinned to
+                Where this appears
               </span>
               <AttachPageButton pageId={id} scopeId={page.scopeId} />
             </div>
             {attachments.length === 0 ? (
               <p className="mt-3 text-xs text-muted-foreground">
-                Pin this page to a project, list or task so it shows up where
-                the work is — and travels to agents with it.
+                Attach this page to a project, list or task so it shows up
+                where the work is.
               </p>
             ) : (
               <ul className="mt-3 space-y-1.5">
@@ -445,8 +446,54 @@ export function PageEditor({ pageId }: { pageId: string }) {
                     ) : (
                       <span className="min-w-0 flex-1 truncate">{a.label}</span>
                     )}
+                    {/* The one distinction worth signifying about a page:
+                        whether it travels to whoever picks up the work. Saying
+                        so, rather than leaving it to be inferred, is what
+                        makes "did I put the context somewhere useful?"
+                        answerable. */}
+                    <button
+                      type="button"
+                      aria-pressed={a.pinned}
+                      aria-label={
+                        a.pinned
+                          ? `Stop handing this to anyone working on ${a.label}`
+                          : `Hand this to anyone working on ${a.label}`
+                      }
+                      title={
+                        a.pinned
+                          ? "Agents and teammates get this with the work. Click to stop."
+                          : "Click to hand this to agents and teammates with the work."
+                      }
+                      onClick={() => {
+                        void setPinned({
+                          attachmentId:
+                            a.attachmentId as Id<"pageAttachments">,
+                          pinned: !a.pinned,
+                        })
+                          .then(() =>
+                            toast(
+                              a.pinned
+                                ? "No longer sent with the work"
+                                : "Now sent with the work",
+                            ),
+                          )
+                          .catch((e) =>
+                            toast(errorMessage(e, "Couldn't change that"), {
+                              kind: "error",
+                            }),
+                          );
+                      }}
+                      className={cn(
+                        "tap-target flex-shrink-0 transition-opacity",
+                        a.pinned
+                          ? "text-foreground"
+                          : "text-muted-foreground opacity-0 group-hover:opacity-100",
+                      )}
+                    >
+                      <Pin className="h-3 w-3" />
+                    </button>
                     <span className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {a.targetType}
+                      {a.pinned ? "context" : a.targetType}
                     </span>
                     <button
                       type="button"

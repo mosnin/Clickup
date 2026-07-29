@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { useUser } from "@clerk/nextjs";
 import {
   Bot,
   LayoutTemplate,
@@ -51,8 +52,8 @@ export function CommandPalette() {
   // null = normal mode; a string = "new task" mode with that title,
   // where the input now filters lists to create the task in.
   const [createTitle, setCreateTitle] = useState<string | null>(null);
-  // "New doc/whiteboard/list" flows: pick a space, then (lists only) a name.
-  const [spacePick, setSpacePick] = useState<"doc" | "board" | "list" | null>(
+  // "New page/whiteboard/list" flows: pick a space, then (lists only) a name.
+  const [spacePick, setSpacePick] = useState<"page" | "board" | "list" | null>(
     null,
   );
   const [listNameSpace, setListNameSpace] = useState<Id<"spaces"> | null>(null);
@@ -68,7 +69,9 @@ export function CommandPalette() {
       : "skip",
   );
   const createTask = useMutation(api.tasks.create);
-  const createDoc = useMutation(api.docs.create);
+  const createPage = useMutation(api.pages.create);
+  const { user } = useUser();
+  const currentUserId = user?.id ?? null;
   const createWhiteboard = useMutation(api.whiteboards.create);
   const createList = useMutation(api.lists.create);
 
@@ -142,14 +145,35 @@ export function CommandPalette() {
 
   const allSpaces = useMemo(() => {
     if (!tree) return [];
-    const out: { id: Id<"spaces">; name: string; place: string }[] = [];
-    if (tree.personal)
-      out.push({ id: tree.personal._id, name: tree.personal.name, place: "Personal" });
+    // The scope travels with the space: a page lives in a scope (a person or
+    // a workspace) and shows up wherever it is attached, so creating one from
+    // a space needs both.
+    const out: {
+      id: Id<"spaces">;
+      name: string;
+      place: string;
+      scopeType: "user" | "workspace";
+      scopeId: string;
+    }[] = [];
+    if (tree.personal && currentUserId)
+      out.push({
+        id: tree.personal._id,
+        name: tree.personal.name,
+        place: "Personal",
+        scopeType: "user",
+        scopeId: currentUserId,
+      });
     for (const w of tree.workspaces)
       for (const sp of w.spaces)
-        out.push({ id: sp._id, name: sp.name, place: w.name });
+        out.push({
+          id: sp._id,
+          name: sp.name,
+          place: w.name,
+          scopeType: "workspace",
+          scopeId: w._id,
+        });
     return out;
-  }, [tree]);
+  }, [tree, currentUserId]);
 
   const items = useMemo<Item[]>(() => {
     const q = query.trim().toLowerCase();
@@ -194,11 +218,11 @@ export function CommandPalette() {
         }));
     }
 
-    // ── Space picker for New doc / whiteboard / list ──
+    // ── Space picker for New page / whiteboard / list ──
     if (spacePick !== null) {
       const label =
-        spacePick === "doc"
-          ? "New doc in…"
+        spacePick === "page"
+          ? "New page in…"
           : spacePick === "board"
             ? "New whiteboard in…"
             : "New list in…";
@@ -212,17 +236,21 @@ export function CommandPalette() {
           hint: sp.place,
           icon: Home,
           run: async () => {
-            if (spacePick === "doc") {
+            if (spacePick === "page") {
               try {
-                const docId = await createDoc({
-                  parentType: "space",
-                  parentId: sp.id,
+                // Created *and attached* in one step: starting from a space
+                // means the page belongs to that space, so there is no
+                // second decision to get wrong.
+                const pageId = await createPage({
+                  scopeType: sp.scopeType,
+                  scopeId: sp.scopeId,
                   title: "Untitled",
+                  attachTo: { targetType: "space", targetId: sp.id },
                 });
                 close();
-                router.push(`/dashboard/d/${docId}`);
+                router.push(`/dashboard/pages/${pageId}`);
               } catch (e) {
-                toast(errorMessage(e, "Couldn't create doc"), {
+                toast(errorMessage(e, "Couldn't create the page"), {
                   kind: "error",
                 });
               }
@@ -294,15 +322,15 @@ export function CommandPalette() {
       ...(tree?.workspaces.flatMap((w) => w.spaces) ?? []),
     ];
     for (const s of spaces) {
-      for (const d of s.docs) {
+      for (const d of s.pages) {
         if (!match(d.title)) continue;
         out.push({
-          key: `doc-${d._id}`,
-          group: "Docs",
+          key: `page-${d._id}`,
+          group: "Pages",
           label: d.title,
           hint: s.name,
           icon: FileText,
-          run: nav(`/dashboard/d/${d._id}`),
+          run: nav(`/dashboard/pages/${d._id}`),
         });
       }
       for (const wb of s.whiteboards) {
@@ -359,12 +387,12 @@ export function CommandPalette() {
         },
       },
       {
-        key: "new-doc",
+        key: "new-page",
         group: "Actions",
-        label: "New doc…",
+        label: "New page…",
         icon: FileText,
         run: () => {
-          setSpacePick("doc");
+          setSpacePick("page");
           setQuery("");
         },
       },
@@ -479,7 +507,7 @@ export function CommandPalette() {
     router,
     close,
     createTask,
-    createDoc,
+    createPage,
     createWhiteboard,
     toast,
   ]);

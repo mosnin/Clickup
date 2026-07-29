@@ -60,7 +60,7 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
   const results = useQuery(api.search.everything, active ? { text: debounced } : "skip");
 
   const total = results
-    ? results.tasks.length + results.docs.length + results.lists.length + results.spaces.length
+    ? results.tasks.length + results.pages.length + results.lists.length + results.spaces.length
     : 0;
 
   return (
@@ -148,11 +148,11 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
             })}
           </ResultSection>
 
-          <ResultSection title="Docs">
-            {results.docs.map((d) => (
-              <StaggerItem key={d.docId}>
+          <ResultSection title="Pages">
+            {results.pages.map((d) => (
+              <StaggerItem key={d.pageId}>
                 <Link
-                  href={`/dashboard/d/${d.docId}`}
+                  href={`/dashboard/pages/${d.pageId}`}
                   className="lift flex items-center justify-between gap-3 rounded-2xl panel px-4 py-3"
                 >
                   <span className="min-w-0 truncate text-sm font-medium">{d.title}</span>

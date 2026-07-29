@@ -30,7 +30,9 @@ const TREE = {
     name: "Personal",
     projects: [],
     lists: [],
-    docs: [],
+    pages: [],
+    scopeType: "workspace" as const,
+    scopeId: "w1",
     whiteboards: [],
   },
   workspaces: [
@@ -55,7 +57,9 @@ const TREE = {
           // A list living straight in the Space, which the model still
           // allows — it must not disappear now that projects exist.
           lists: [{ _id: "l2", name: "Loose ends", position: 0 }],
-          docs: [],
+          pages: [],
+          scopeType: "workspace" as const,
+          scopeId: "w1",
           whiteboards: [],
         },
       ],

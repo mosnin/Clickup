@@ -126,7 +126,7 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
     );
   }
 
-  const { space, lists, projects, docs, whiteboards, members, canGovern } =
+  const { space, lists, projects, pages, whiteboards, members, canGovern } =
     overview;
   const spaceName = space.name;
   const showWhiteboards = space.features?.whiteboards !== false;
@@ -204,7 +204,9 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
           spaceName={spaceName}
           lists={lists}
           projects={projects}
-          docs={docs}
+          pages={pages}
+          scopeType={space.parentType}
+          scopeId={space.parentId}
           whiteboards={whiteboards}
           showWhiteboards={showWhiteboards}
         />
@@ -236,7 +238,9 @@ function OverviewTab({
   spaceName,
   lists,
   projects,
-  docs,
+  pages,
+  scopeType,
+  scopeId,
   whiteboards,
   showWhiteboards,
 }: {
@@ -244,7 +248,9 @@ function OverviewTab({
   spaceName: string;
   lists: Overview["lists"];
   projects: Overview["projects"];
-  docs: Overview["docs"];
+  pages: Overview["pages"];
+  scopeType: "user" | "workspace";
+  scopeId: string;
   whiteboards: Overview["whiteboards"];
   showWhiteboards: boolean;
 }) {
@@ -293,17 +299,17 @@ function OverviewTab({
 
       <section>
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          {showWhiteboards ? "Docs & whiteboards" : "Docs"}
+          {showWhiteboards ? "Pages & boards" : "Pages"}
         </h2>
-        {docs.length === 0 && (!showWhiteboards || whiteboards.length === 0) ? (
+        {pages.length === 0 && (!showWhiteboards || whiteboards.length === 0) ? (
           <div className="mt-3 rounded-2xl panel">
             <EmptyState
               compact
               title="Nothing here yet"
               message={
                 showWhiteboards
-                  ? "Create a doc or whiteboard to start writing or sketching inside this Space."
-                  : "Create a doc to start writing inside this Space."
+                  ? "Write a page or sketch a board to start capturing what this Space is for."
+                  : "Write a page to start capturing what this Space is for."
               }
             />
           </div>
@@ -314,7 +320,12 @@ function OverviewTab({
               showWhiteboards && "sm:grid-cols-2",
             )}
           >
-            <DocList spaceId={spaceId} docs={docs} />
+            <PageList
+              spaceId={spaceId}
+              scopeType={scopeType}
+              scopeId={scopeId}
+              pages={pages}
+            />
             {showWhiteboards && (
               <WhiteboardList spaceId={spaceId} whiteboards={whiteboards} />
             )}
@@ -927,28 +938,32 @@ function NewListCard({
   );
 }
 
-function DocList({
+function PageList({
   spaceId,
-  docs,
+  scopeType,
+  scopeId,
+  pages,
 }: {
   spaceId: Id<"spaces">;
-  docs: Overview["docs"];
+  scopeType: "user" | "workspace";
+  scopeId: string;
+  pages: Overview["pages"];
 }) {
   const [adding, setAdding] = useState(false);
-  const createDoc = useMutation(api.docs.create);
+  const createPage = useMutation(api.pages.create);
   const router = useRouter();
   const { toast } = useToast();
 
   return (
     <div className="rounded-2xl panel p-4">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Docs
+        Pages
       </h3>
       <ul className="mt-2 space-y-0.5">
-        {docs.map((d) => (
-          <li key={d.docId}>
+        {pages.map((d) => (
+          <li key={d.pageId}>
             <Link
-              href={`/dashboard/d/${d.docId}`}
+              href={`/dashboard/pages/${d.pageId}`}
               className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted"
             >
               <FileText
@@ -956,30 +971,38 @@ function DocList({
                 aria-hidden
               />
               <span className="truncate">{d.title}</span>
+              {d.pinned && (
+                <span className="ml-auto flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  context
+                </span>
+              )}
             </Link>
           </li>
         ))}
-        {docs.length === 0 && !adding && (
+        {pages.length === 0 && !adding && (
           <li className="px-2 py-1.5 text-xs text-muted-foreground">
-            No docs yet.
+            No pages yet.
           </li>
         )}
       </ul>
       {adding ? (
         <div className="mt-1.5">
           <InlineCreate
-            placeholder="Doc title…"
+            placeholder="Page title…"
             onCancel={() => setAdding(false)}
             onSubmit={async (title) => {
               try {
-                const docId = await createDoc({
-                  parentType: "space",
-                  parentId: spaceId,
+                // Started from this space, so it belongs to this space —
+                // the starting point decides, not a second dialog.
+                const pageId = await createPage({
+                  scopeType,
+                  scopeId,
                   title,
+                  attachTo: { targetType: "space", targetId: spaceId },
                 });
-                router.push(`/dashboard/d/${docId}`);
+                router.push(`/dashboard/pages/${pageId}`);
               } catch (e) {
-                toast(errorMessage(e, "Couldn't create doc"), {
+                toast(errorMessage(e, "Couldn't create the page"), {
                   kind: "error",
                 });
                 setAdding(false);
@@ -993,7 +1016,7 @@ function DocList({
           onClick={() => setAdding(true)}
           className="mt-1.5 flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
         >
-          <Plus className="h-3 w-3" /> New doc
+          <Plus className="h-3 w-3" /> New page
         </button>
       )}
     </div>

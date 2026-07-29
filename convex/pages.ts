@@ -564,7 +564,7 @@ export async function attachPageCore(
   targetType: TargetType,
   targetId: string,
   actor: Actor,
-): Promise<void> {
+): Promise<Id<"pageAttachments">> {
   const existing = await ctx.db
     .query("pageAttachments")
     .withIndex("by_page_and_target", (q) =>
@@ -574,9 +574,11 @@ export async function attachPageCore(
         .eq("targetId", targetId),
     )
     .unique();
-  if (existing) return; // idempotent — attaching twice is a no-op
+  // Idempotent — attaching twice is a no-op, and returns the row that already
+  // exists so the caller can still pin it.
+  if (existing) return existing._id;
 
-  await ctx.db.insert("pageAttachments", {
+  return await ctx.db.insert("pageAttachments", {
     pageId: page._id,
     targetType,
     targetId,
@@ -726,6 +728,7 @@ export const get = query({
           targetId: att.targetId,
           label: label.label,
           href: label.href,
+          pinned: att.pinned === true,
         });
       }
     }
@@ -770,7 +773,10 @@ export const forTarget = query({
         q.eq("targetType", targetType).eq("targetId", targetId),
       )
       .collect();
-    const out: PageRow[] = [];
+    const out: (PageRow & {
+      attachmentId: Id<"pageAttachments">;
+      pinned: boolean;
+    })[] = [];
     for (const row of rows) {
       const page = await ctx.db.get(row.pageId);
       if (!page || page.archivedAt !== undefined) continue;
@@ -782,9 +788,15 @@ export const forTarget = query({
         updatedAt: page.updatedAt,
         updatedByName: page.updatedByName,
         attachmentCount: 0,
+        attachmentId: row._id,
+        pinned: row.pinned === true,
       });
     }
-    out.sort((a, b) => b.updatedAt - a.updatedAt);
+    // Pinned first: "what an agent gets" is the thing you came here to check.
+    out.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return b.updatedAt - a.updatedAt;
+    });
     return out;
   },
 });
@@ -945,8 +957,9 @@ export const attach = mutation({
     pageId: v.id("pages"),
     targetType: targetTypeValidator,
     targetId: v.string(),
+    pinned: v.optional(v.boolean()),
   },
-  handler: async (ctx, { pageId, targetType, targetId }) => {
+  handler: async (ctx, { pageId, targetType, targetId, pinned }) => {
     const { page, subject } = await requirePageAccess(ctx, pageId);
     const targetScope = await requireTargetAccess(ctx, targetType, targetId);
     if (
@@ -958,7 +971,79 @@ export const attach = mutation({
       );
     }
     const actor = await userActor(ctx, subject);
-    await attachPageCore(ctx, page, targetType, targetId, actor);
+    const attachmentId = await attachPageCore(
+      ctx,
+      page,
+      targetType,
+      targetId,
+      actor,
+    );
+    if (pinned && attachmentId) {
+      await ctx.db.patch(attachmentId, { pinned: true });
+    }
+    return attachmentId;
+  },
+});
+
+/**
+ * Mark an attachment as the canonical context for its target — or unmark it.
+ *
+ * This is the one distinction worth signifying about a page: not "which of
+ * two document types is this" but "will an agent be handed this with the
+ * work". Making it visible is what closes the gap between writing the context
+ * and knowing the agent will actually get it.
+ */
+export const setPinned = mutation({
+  args: { attachmentId: v.id("pageAttachments"), pinned: v.boolean() },
+  handler: async (ctx, { attachmentId, pinned }) => {
+    const att = await ctx.db.get(attachmentId);
+    if (!att) throw new ConvexError("Attachment not found");
+    await requirePageAccess(ctx, att.pageId);
+    await requireTargetAccess(ctx, att.targetType, att.targetId);
+    await ctx.db.patch(attachmentId, { pinned });
+  },
+});
+
+/**
+ * The pages pinned to a target, for the panel that says what an agent gets.
+ *
+ * Soft-fails to empty like every other read here: a route transition should
+ * not throw, and a caller who can't see the target sees nothing.
+ */
+export const pinnedForTarget = query({
+  args: { targetType: targetTypeValidator, targetId: v.string() },
+  handler: async (ctx, { targetType, targetId }) => {
+    try {
+      await requireTargetAccess(ctx, targetType, targetId);
+    } catch {
+      return [];
+    }
+    const rows = await ctx.db
+      .query("pageAttachments")
+      .withIndex("by_target", (q) =>
+        q.eq("targetType", targetType).eq("targetId", targetId),
+      )
+      .collect();
+    const out: {
+      pageId: Id<"pages">;
+      attachmentId: Id<"pageAttachments">;
+      title: string;
+      excerpt: string;
+      updatedAt: number;
+    }[] = [];
+    for (const row of rows) {
+      if (row.pinned !== true) continue;
+      const page = await ctx.db.get(row.pageId);
+      if (!page || page.archivedAt !== undefined) continue;
+      out.push({
+        pageId: page._id,
+        attachmentId: row._id,
+        title: page.title,
+        excerpt: markdownExcerpt(page.markdown, 140),
+        updatedAt: page.updatedAt,
+      });
+    }
+    return out.sort((a, b) => b.updatedAt - a.updatedAt);
   },
 });
 
@@ -1174,3 +1259,28 @@ export const titlesForScope = query({
 
 // Re-exported so agentApi can resolve a scope without duplicating the walk.
 export { requireScopeAccess, requireTargetAccess, getSpaceForList, canAccessSpace };
+
+/**
+ * The page a legacy doc became, for redirecting old `/dashboard/d/:id` links.
+ *
+ * Returns null rather than throwing on anything unresolvable, so a stale
+ * bookmark lands on an explanation instead of an error boundary.
+ */
+export const pageForLegacyDoc = query({
+  args: { docId: v.string() },
+  handler: async (ctx, { docId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const id = ctx.db.normalizeId("docs", docId);
+    if (!id) return null;
+    const doc = await ctx.db.get(id);
+    if (!doc?.migratedToPageId) return null;
+    // Access is the page's access, not the doc's — the doc row is history.
+    try {
+      await requirePageAccess(ctx, doc.migratedToPageId);
+    } catch {
+      return null;
+    }
+    return doc.migratedToPageId;
+  },
+});

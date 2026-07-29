@@ -307,12 +307,26 @@ export const overview = query({
       }),
     );
 
-    const docs = await ctx.db
-      .query("docs")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "space").eq("parentId", spaceId),
+    // Pages attached to this space. Read through attachments rather than
+    // owned by the space: a page lives in a scope and appears wherever it is
+    // attached, which is what keeps one object with one mapping.
+    const pageAttachments = await ctx.db
+      .query("pageAttachments")
+      .withIndex("by_target", (q) =>
+        q.eq("targetType", "space").eq("targetId", spaceId),
       )
       .collect();
+    const pages: { pageId: Id<"pages">; title: string; pinned: boolean }[] = [];
+    for (const att of pageAttachments) {
+      const page = await ctx.db.get(att.pageId);
+      if (!page || page.archivedAt !== undefined) continue;
+      if (page.parentPageId !== undefined) continue;
+      pages.push({
+        pageId: page._id,
+        title: page.title,
+        pinned: att.pinned === true,
+      });
+    }
     const whiteboards = await ctx.db
       .query("whiteboards")
       .withIndex("by_parent", (q) =>
@@ -333,9 +347,10 @@ export const overview = query({
     return {
       space,
       lists,
-      docs: docs
-        .filter((d) => d.parentDocId === undefined)
-        .map((d) => ({ docId: d._id, title: d.title })),
+      pages: pages.sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return a.title.localeCompare(b.title);
+      }),
       whiteboards: whiteboards.map((w) => ({
         whiteboardId: w._id,
         title: w.title,

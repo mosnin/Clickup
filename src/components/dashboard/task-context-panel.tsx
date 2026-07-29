@@ -5,53 +5,57 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 
 // The project's standing context, shown on every task in it.
 //
 // This is the human half of the thing agents get automatically: `get_task`
-// returns pinned project docs in its payload, and this panel puts the same docs
-// in front of the person doing the work. Two audiences, one source — the
+// returns pinned pages in its payload, and this panel puts the same pages in
+// front of the person doing the work. Two audiences, one source — the
 // alternative is a brief the agents follow and the humans never see.
+//
+// The heading says what pinning *does* rather than what it is. "Will the agent
+// actually get this?" is the question someone writing context has, and it was
+// previously unanswerable from any surface — you pinned a doc and hoped.
 //
 // Collapsed by default and previewed in one line, because it repeats on every
 // task in the project: expanded-by-default context would push the actual task
 // below the fold on the tenth read.
 
 export function TaskContextPanel({ listId }: { listId: string }) {
-  const docs = useQuery(api.docs.pinnedContextForList, {
-    listId: listId as Id<"lists">,
+  const pages = useQuery(api.pages.pinnedForTarget, {
+    targetType: "list",
+    targetId: listId,
   });
   const [openId, setOpenId] = useState<string | null>(null);
 
   // Nothing pinned is the common case and needs no empty state — an unused
-  // panel on every task would be noise. The project page is where you pin one.
-  if (!docs || docs.length === 0) return null;
+  // panel on every task would be noise. The page itself is where you pin one.
+  if (!pages || pages.length === 0) return null;
 
   return (
     <section>
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Project context
+        Context agents get with this task
       </h2>
       <ul className="space-y-2">
-        {docs.map((doc) => {
-          const expanded = openId === doc._id;
+        {pages.map((page) => {
+          const expanded = openId === page.pageId;
           return (
-            <li key={doc._id} className="bento rounded-xl">
+            <li key={page.pageId} className="bento rounded-xl">
               <button
                 type="button"
                 aria-expanded={expanded}
-                onClick={() => setOpenId(expanded ? null : doc._id)}
+                onClick={() => setOpenId(expanded ? null : page.pageId)}
                 className="tap-target flex w-full items-center gap-3 px-3 py-2.5 text-left"
               >
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-foreground">
-                    {doc.title}
+                    {page.title}
                   </span>
                   {!expanded && (
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                      {previewOf(doc.content)}
+                      {page.excerpt}
                     </span>
                   )}
                 </span>
@@ -66,16 +70,16 @@ export function TaskContextPanel({ listId }: { listId: string }) {
 
               {expanded && (
                 <div className="border-t border-border px-3 py-3">
-                  {/* Plain text, not a second rich-text renderer: this is a
-                      reference read. The full editor is one click away. */}
+                  {/* The excerpt, not a second editor: this is a reference
+                      read, and the real page is one click away. */}
                   <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
-                    {plainText(doc.content) || "This document is empty."}
+                    {page.excerpt || "This page is empty."}
                   </p>
                   <Link
-                    href={`/dashboard/d/${doc._id}`}
+                    href={`/dashboard/pages/${page.pageId}`}
                     className="mt-3 inline-block text-xs font-medium text-foreground underline-offset-4 hover:underline"
                   >
-                    Open document
+                    Open page
                   </Link>
                 </div>
               )}
@@ -85,26 +89,4 @@ export function TaskContextPanel({ listId }: { listId: string }) {
       </ul>
     </section>
   );
-}
-
-/**
- * Plain text out of Tiptap JSON. Mirrors convex/_docText.ts — that module is
- * server-side (Convex build graph), so the client keeps its own tiny copy
- * rather than importing across the boundary.
- */
-function plainText(content: unknown): string {
-  const parts: string[] = [];
-  function walk(node: unknown): void {
-    if (!node || typeof node !== "object") return;
-    const n = node as Record<string, unknown>;
-    if (typeof n.text === "string") parts.push(n.text);
-    if (Array.isArray(n.content)) for (const child of n.content) walk(child);
-  }
-  walk(content);
-  return parts.join(" ").trim();
-}
-
-function previewOf(content: unknown): string {
-  const text = plainText(content);
-  return text.length > 120 ? `${text.slice(0, 117)}…` : text;
 }

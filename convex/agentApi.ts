@@ -1178,26 +1178,53 @@ export const getTask = query({
         requestedBy: r.requestedByName,
         requestedAt: r.createdAt,
       })),
-      // The project's pinned context docs, flattened to text. Same reasoning:
-      // "read the brief first" should not depend on the agent choosing to.
-      context: (
-        await ctx.db
-          .query("docs")
-          .withIndex("by_parent", (q) =>
-            q.eq("parentType", "list").eq("parentId", task.listId),
-          )
-          .collect()
-      )
-        .filter((d) => d.pinnedContext === true)
-        .sort((a, b) => a.createdAt - b.createdAt)
-        .map((d) => ({
-          docId: d._id,
-          title: d.title,
-          text: clipText(tiptapToText(d.content), 8000),
-        })),
+      // The project's pinned pages, as markdown. Same reasoning as the rest
+      // of this payload: "read the brief first" should not depend on the
+      // agent choosing to. Pinning is what a person does to say "this is the
+      // canonical context", and this is where that promise is kept.
+      context: await pinnedContextForList(ctx, task.listId),
     };
   },
 });
+
+/**
+ * The pages pinned to a project, as markdown, oldest first.
+ *
+ * Clipped per page: an agent's context window is finite, and silently
+ * truncating the whole payload would drop the last page entirely rather than
+ * trimming each one.
+ */
+async function pinnedContextForList(
+  ctx: QueryCtx,
+  listId: Id<"lists">,
+): Promise<{ pageId: Id<"pages">; title: string; text: string }[]> {
+  const attachments = await ctx.db
+    .query("pageAttachments")
+    .withIndex("by_target", (q) =>
+      q.eq("targetType", "list").eq("targetId", listId),
+    )
+    .collect();
+  const out: {
+    pageId: Id<"pages">;
+    title: string;
+    text: string;
+    createdAt: number;
+  }[] = [];
+  for (const att of attachments) {
+    if (att.pinned !== true) continue;
+    const page = await ctx.db.get(att.pageId);
+    if (!page || page.archivedAt !== undefined) continue;
+    out.push({
+      pageId: page._id,
+      title: page.title,
+      text: clipText(page.markdown, 8000),
+      createdAt: att.createdAt,
+    });
+  }
+  return out
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map(({ pageId, title, text }) => ({ pageId, title, text }));
+}
 
 // ── Shared project context ─────────────────────────────────────────────
 
@@ -2494,50 +2521,73 @@ export const createSkill = mutation({
 
 // ── Docs ───────────────────────────────────────────────────────────────
 
+// ── Legacy doc adapters ────────────────────────────────────────────────
+//
+// Docs were folded into pages: one writing primitive, because two tools that
+// both mean "write long-form context" gave an agent no rule for choosing and
+// its output scattered across both. These four keep their names and their
+// argument shapes so an existing agent prompt keeps working, and read/write
+// pages underneath. New prompts should use list_pages / read_page /
+// write_page, which speak markdown directly.
+
+/** A page id, from either a page id or the id of a doc that became one. */
+async function resolveLegacyPageId(
+  ctx: QueryCtx | MutationCtx,
+  id: string,
+): Promise<Id<"pages"> | null> {
+  const asPage = ctx.db.normalizeId("pages", id);
+  if (asPage) return asPage;
+  const asDoc = ctx.db.normalizeId("docs", id);
+  if (!asDoc) return null;
+  const doc = await ctx.db.get(asDoc);
+  return doc?.migratedToPageId ?? null;
+}
+
 export const listDocs = query({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
-    const docs = await ctx.db
-      .query("docs")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", agent.parentType).eq("parentId", agent.parentId),
+    const pages = await ctx.db
+      .query("pages")
+      .withIndex("by_scope", (q) =>
+        q.eq("scopeType", agent.parentType).eq("scopeId", agent.parentId),
       )
       .collect();
-    // Docs attached to spaces inside the scope, too.
-    const spaces = await ctx.db
-      .query("spaces")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", agent.parentType).eq("parentId", agent.parentId),
-      )
-      .collect();
-    for (const space of spaces) {
-      const spaceDocs = await ctx.db
-        .query("docs")
-        .withIndex("by_parent", (q) =>
-          q.eq("parentType", "space").eq("parentId", space._id),
-        )
-        .collect();
-      docs.push(...spaceDocs);
-    }
-    return docs.map((d) => ({
-      docId: d._id,
-      title: d.title,
-      updatedAt: d.updatedAt,
-    }));
+    return pages
+      .filter((p) => p.archivedAt === undefined)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .map((p) => ({
+        // Both keys, so a prompt written against either name still works.
+        docId: p._id,
+        pageId: p._id,
+        title: p.title,
+        updatedAt: p.updatedAt,
+      }));
   },
 });
 
 export const getDoc = query({
-  args: { apiKey: v.string(), docId: v.id("docs") },
+  args: { apiKey: v.string(), docId: v.string() },
   handler: async (ctx, { apiKey, docId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
-    const doc = await requireDocAccessForAgent(ctx, docId, agent);
+    const pageId = await resolveLegacyPageId(ctx, docId);
+    if (!pageId) throw new ConvexError("Document not found");
+    const page = await ctx.db.get(pageId);
+    if (
+      !page ||
+      page.scopeType !== agent.parentType ||
+      page.scopeId !== agent.parentId
+    ) {
+      throw new ConvexError("Document not found in your scope");
+    }
     return {
-      docId: doc._id,
-      title: doc.title,
-      text: tiptapToText(doc.content),
-      updatedAt: doc.updatedAt,
+      docId: page._id,
+      pageId: page._id,
+      title: page.title,
+      // Markdown is the stored form now, so this is the document, not a
+      // flattening of it.
+      text: page.markdown,
+      updatedAt: page.updatedAt,
     };
   },
 });
@@ -2547,35 +2597,41 @@ export const createDoc = mutation({
   handler: async (ctx, { apiKey, title, text }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     requireUnrestricted(agent);
-    const docId = await ctx.db.insert("docs", {
-      parentType: agent.parentType,
-      parentId: agent.parentId,
-      title,
-      content: textToTiptap(text ?? ""),
-      createdByClerkId: agent._id,
-      updatedAt: Date.now(),
-      createdAt: Date.now(),
-    });
-    await ctx.scheduler.runAfter(0, internal.ai.indexDocument, { docId });
-    return docId;
+    const scope = scopeOf(agent);
+    return await createPageCore(
+      ctx,
+      { scopeType: scope.scopeType, scopeId: scope.scopeId },
+      { title, markdown: text ?? "" },
+      agentActor(agent),
+    );
   },
 });
 
 export const updateDoc = mutation({
   args: {
     apiKey: v.string(),
-    docId: v.id("docs"),
+    docId: v.string(),
     title: v.optional(v.string()),
     text: v.optional(v.string()),
   },
   handler: async (ctx, { apiKey, docId, title, text }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
-    await requireDocAccessForAgent(ctx, docId, agent);
-    const patch: Record<string, unknown> = { updatedAt: Date.now() };
-    if (title !== undefined) patch.title = title;
-    if (text !== undefined) patch.content = textToTiptap(text);
-    await ctx.db.patch(docId, patch);
-    await ctx.scheduler.runAfter(0, internal.ai.indexDocument, { docId });
+    const pageId = await resolveLegacyPageId(ctx, docId);
+    if (!pageId) throw new ConvexError("Document not found");
+    const page = await ctx.db.get(pageId);
+    if (
+      !page ||
+      page.scopeType !== agent.parentType ||
+      page.scopeId !== agent.parentId
+    ) {
+      throw new ConvexError("Document not found in your scope");
+    }
+    await updatePageCore(
+      ctx,
+      page,
+      { title, markdown: text },
+      agentActor(agent),
+    );
   },
 });
 
@@ -6895,33 +6951,51 @@ export const requestRevision = mutation({
 });
 
 /** Every context doc on a project, with full text. */
+/**
+ * Pages attached to a project, pinned ones first.
+ *
+ * Keeps its old name — an agent's prompt shouldn't break because the product
+ * consolidated — but it reads `pages` now. There is one writing primitive.
+ */
 export const listProjectDocs = query({
   args: { apiKey: v.string(), listId: v.id("lists") },
   handler: async (ctx, { apiKey, listId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
     await requireListAccessForAgent(ctx, listId, agent);
-    const docs = await ctx.db
-      .query("docs")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "list").eq("parentId", listId),
+    const attachments = await ctx.db
+      .query("pageAttachments")
+      .withIndex("by_target", (q) =>
+        q.eq("targetType", "list").eq("targetId", listId),
       )
       .collect();
-    return docs
-      .sort((a, b) => a.createdAt - b.createdAt)
-      .map((d) => ({
-        docId: d._id,
-        title: d.title,
-        pinnedContext: d.pinnedContext === true,
-        updatedAt: d.updatedAt,
-        text: clipText(tiptapToText(d.content), 20000),
-      }));
+    const out: {
+      pageId: Id<"pages">;
+      title: string;
+      markdown: string;
+      pinnedContext: boolean;
+      updatedAt: number;
+    }[] = [];
+    for (const att of attachments) {
+      const page = await ctx.db.get(att.pageId);
+      if (!page || page.archivedAt !== undefined) continue;
+      out.push({
+        pageId: page._id,
+        title: page.title,
+        markdown: page.markdown,
+        pinnedContext: att.pinned === true,
+        updatedAt: page.updatedAt,
+      });
+    }
+    return out.sort((a, b) => {
+      if (a.pinnedContext !== b.pinnedContext) return a.pinnedContext ? -1 : 1;
+      return b.updatedAt - a.updatedAt;
+    });
   },
 });
 
 /**
- * Write a project context doc. Markdown-ish plain text in, stored as the same
- * Tiptap document shape the human editor reads — one paragraph per line, so a
- * doc an agent wrote opens and edits like any other.
+ * Create or update a page attached to a project, optionally as its canonical
+ * context — the successor to a pinned doc, on the one primitive.
  */
 export const writeProjectDoc = mutation({
   args: {
@@ -6929,75 +7003,56 @@ export const writeProjectDoc = mutation({
     listId: v.id("lists"),
     title: v.string(),
     text: v.string(),
-    docId: v.optional(v.id("docs")),
+    pageId: v.optional(v.id("pages")),
     pinnedContext: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    await requireListAccessForAgent(ctx, args.listId, agent);
-    const content = {
-      type: "doc",
-      content: args.text.split("\n").map((line) => ({
-        type: "paragraph",
-        content: line ? [{ type: "text", text: line }] : [],
-      })),
-    };
-    const now = Date.now();
+    const list = await requireListAccessForAgent(ctx, args.listId, agent);
+    const scope = scopeOf(agent);
+    const actor = agentActor(agent);
 
-    if (args.docId) {
-      const existing = await ctx.db.get(args.docId);
-      if (!existing) throw new ConvexError("Doc not found");
+    let pageId = args.pageId;
+    if (pageId) {
+      const page = await ctx.db.get(pageId);
       if (
-        existing.parentType !== "list" ||
-        existing.parentId !== args.listId
+        !page ||
+        page.scopeType !== scope.scopeType ||
+        page.scopeId !== scope.scopeId
       ) {
-        throw new ConvexError("That doc belongs to a different project");
+        throw new ConvexError("Page not found in your scope");
       }
-      await ctx.db.patch(args.docId, {
-        title: args.title,
-        content,
-        updatedAt: now,
-        ...(args.pinnedContext === undefined
-          ? {}
-          : { pinnedContext: args.pinnedContext }),
-      });
-      return { docId: args.docId };
+      await updatePageCore(
+        ctx,
+        page,
+        { title: args.title, markdown: args.text },
+        actor,
+      );
+    } else {
+      pageId = await createPageCore(
+        ctx,
+        { scopeType: scope.scopeType, scopeId: scope.scopeId },
+        { title: args.title, markdown: args.text },
+        actor,
+      );
     }
 
-    const docId = await ctx.db.insert("docs", {
-      parentType: "list",
-      parentId: args.listId,
-      title: args.title,
-      content,
-      pinnedContext: args.pinnedContext ?? false,
-      createdByClerkId: agent._id,
-      updatedAt: now,
-      createdAt: now,
-    });
-    return { docId };
+    const page = (await ctx.db.get(pageId))!;
+    const attachmentId = await attachPageCore(
+      ctx,
+      page,
+      "list",
+      args.listId,
+      actor,
+    );
+    if (args.pinnedContext !== undefined) {
+      await ctx.db.patch(attachmentId, { pinned: args.pinnedContext });
+    }
+    void list;
+    return { pageId, attachmentId };
   },
 });
 
-// ── Project updates ──────────────────────────────────────────────────────
-
-/**
- * "What changed in my projects since I last looked."
- *
- * listEvents already returns the whole scope's raw feed, which is the right
- * primitive and the wrong ergonomics: an agent working two projects has to
- * pull every event in the account and filter client-side, and it gets no sense
- * of what is *waiting* on it versus what merely happened.
- *
- * This returns a digest instead, grouped per project, restricted to projects
- * the agent is actually involved in — one it has a task assigned on, or one
- * inside its allowedListIds. Along with the events it reports the two things
- * that need action: revisions still open, and gated tasks it cannot finish
- * without a human.
- *
- * `cursor` is the value to pass as `since` next time. It is the newest event
- * timestamp actually returned, not "now" — so an event committed between the
- * read and the next poll can never be skipped.
- */
 export const getProjectUpdates = query({
   args: {
     apiKey: v.string(),
@@ -7141,6 +7196,7 @@ export const getProjectUpdates = query({
   },
 });
 
+
 /**
  * The scope a page target lives in, resolved agent-side.
  *
@@ -7237,6 +7293,65 @@ async function scopeOfTarget(
 // natively, and it is exactly what the page stores — so an agent drafting a
 // spec and a human editing it afterwards are touching the same bytes, with
 // no conversion step in between to lose anyone's work.
+
+/**
+ * Pin or unpin a page as the canonical context for something.
+ *
+ * Attachment and pinning are separate on purpose: attaching says "this page
+ * is relevant here", pinning says "hand this to whoever works on it". Merging
+ * them would make every reference mandatory reading.
+ */
+export const pinPage = mutation({
+  args: {
+    apiKey: v.string(),
+    pageId: v.id("pages"),
+    targetType: v.union(
+      v.literal("workspace"),
+      v.literal("space"),
+      v.literal("project"),
+      v.literal("list"),
+      v.literal("task"),
+      v.literal("agent"),
+      v.literal("goal"),
+      v.literal("sprint"),
+    ),
+    targetId: v.string(),
+    pinned: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const page = await ctx.db.get(args.pageId);
+    if (
+      !page ||
+      page.scopeType !== agent.parentType ||
+      page.scopeId !== agent.parentId
+    ) {
+      throw new ConvexError("Page not found in your scope");
+    }
+    await requireTargetAccessForAgent(
+      ctx,
+      args.targetType,
+      args.targetId,
+      agent,
+    );
+    const attachment = await ctx.db
+      .query("pageAttachments")
+      .withIndex("by_page_and_target", (q) =>
+        q
+          .eq("pageId", args.pageId)
+          .eq("targetType", args.targetType)
+          .eq("targetId", args.targetId),
+      )
+      .unique();
+    if (!attachment) {
+      throw new ConvexError(
+        "That page isn't attached there yet — attach it first with write_page's attachTo.",
+      );
+    }
+    await ctx.db.patch(attachment._id, { pinned: args.pinned });
+    return null;
+  },
+});
 
 export const listPages = query({
   args: {

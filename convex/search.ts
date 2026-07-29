@@ -1,4 +1,4 @@
-// Global search across tasks, docs, lists, and spaces (access-checked).
+// Global search across tasks, pages, lists, and spaces (access-checked).
 //
 // Walks the same accessible-space set as myWork.ts/sidebar.ts (personal
 // space + every member workspace's spaces, private-space-checked via
@@ -41,7 +41,7 @@ async function listsForSpace(
   return [...direct, ...nested.flat()];
 }
 
-const EMPTY = { tasks: [], docs: [], lists: [], spaces: [] } as const;
+const EMPTY = { tasks: [], pages: [], lists: [], spaces: [] } as const;
 
 export const everything = query({
   args: { text: v.string() },
@@ -95,8 +95,8 @@ export const everything = query({
       spaceName: string;
       projectStatus?: Doc<"lists">["projectStatus"];
     }[] = [];
-    const docsOut: {
-      docId: Id<"docs">;
+    const pagesOut: {
+      pageId: Id<"pages">;
       title: string;
       spaceName: string;
     }[] = [];
@@ -114,21 +114,6 @@ export const everything = query({
           name: space.name,
           private: space.private ?? false,
         });
-      }
-
-      if (docsOut.length < CAP) {
-        const docs = await ctx.db
-          .query("docs")
-          .withIndex("by_parent", (q) =>
-            q.eq("parentType", "space").eq("parentId", space._id),
-          )
-          .collect();
-        for (const d of docs) {
-          if (docsOut.length >= CAP) break;
-          if (matches(d.title)) {
-            docsOut.push({ docId: d._id, title: d.title, spaceName: space.name });
-          }
-        }
       }
 
       const lists = await listsForSpace(ctx, space._id);
@@ -162,44 +147,60 @@ export const everything = query({
       }
     }
 
-    // Docs also attach directly to the user or a workspace (not just to
-    // spaces) — cover both so personal and workspace-level docs are
-    // findable too.
-    if (docsOut.length < CAP) {
-      const personalDocs = await ctx.db
-        .query("docs")
-        .withIndex("by_parent", (q) =>
-          q.eq("parentType", "user").eq("parentId", subject),
-        )
-        .collect();
-      for (const d of personalDocs) {
-        if (docsOut.length >= CAP) break;
-        if (matches(d.title)) {
-          docsOut.push({ docId: d._id, title: d.title, spaceName: "Personal" });
-        }
+    // Pages — the writing primitive. They live in a scope (a person or a
+    // workspace) rather than in a space, so this is one sweep per scope
+    // rather than a walk of the tree.
+    //
+    // Consolidating onto pages while leaving them out of search would make
+    // the surviving primitive the one the app can't find, which is the worst
+    // possible outcome of a consolidation. Both search indexes are used:
+    // titles carry most searches, bodies catch the rest.
+    const scopes: { scopeType: "user" | "workspace"; scopeId: string; name: string }[] =
+      [{ scopeType: "user", scopeId: subject, name: "Personal" }];
+    for (const m of memberships) {
+      const ws = await ctx.db.get(m.workspaceId);
+      if (ws) {
+        scopes.push({
+          scopeType: "workspace",
+          scopeId: ws._id,
+          name: ws.name,
+        });
       }
     }
-    for (const m of memberships) {
-      if (docsOut.length >= CAP) break;
-      const ws = await ctx.db.get(m.workspaceId);
-      if (!ws) continue;
-      const wsDocs = await ctx.db
-        .query("docs")
-        .withIndex("by_parent", (q) =>
-          q.eq("parentType", "workspace").eq("parentId", m.workspaceId),
-        )
-        .collect();
-      for (const d of wsDocs) {
-        if (docsOut.length >= CAP) break;
-        if (matches(d.title)) {
-          docsOut.push({ docId: d._id, title: d.title, spaceName: ws.name });
+
+    const seenPages = new Set<string>();
+    for (const scope of scopes) {
+      if (pagesOut.length >= CAP) break;
+      for (const field of ["title", "markdown"] as const) {
+        if (pagesOut.length >= CAP) break;
+        const hits = await ctx.db
+          .query("pages")
+          .withSearchIndex(
+            field === "title" ? "by_title" : "by_text",
+            (q) =>
+              q
+                .search(field, needle)
+                .eq("scopeType", scope.scopeType)
+                .eq("scopeId", scope.scopeId),
+          )
+          .take(CAP);
+        for (const page of hits) {
+          if (pagesOut.length >= CAP) break;
+          if (page.archivedAt !== undefined) continue;
+          if (seenPages.has(page._id)) continue;
+          seenPages.add(page._id);
+          pagesOut.push({
+            pageId: page._id,
+            title: page.title,
+            spaceName: scope.name,
+          });
         }
       }
     }
 
     return {
       tasks: tasksOut,
-      docs: docsOut,
+      pages: pagesOut,
       lists: listsOut,
       spaces: spacesOut,
     };
