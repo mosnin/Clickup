@@ -1335,6 +1335,28 @@ export default defineSchema({
     .index("by_user", ["userClerkId"])
     .index("by_user_and_screen", ["userClerkId", "screenKey"]),
 
+  // What a page used to say.
+  //
+  // A page autosaves every ~700ms while someone types, so a naive snapshot per
+  // write would produce hundreds of near-identical rows for one paragraph.
+  // Revisions are therefore *coalesced*: one row per author per window, patched
+  // in place while that window is open, so the history reads as "Ada rewrote
+  // the migration section" rather than as a keystroke log.
+  pageRevisions: defineTable({
+    pageId: v.id("pages"),
+    /** The page's content *before* the edit this revision closes. */
+    title: v.string(),
+    markdown: v.string(),
+    // clerkId or agent document id — the same actor shape as everywhere else.
+    actorId: v.string(),
+    actorName: v.string(),
+    createdAt: v.number(),
+    /** Extended while this author keeps editing inside the coalesce window. */
+    updatedAt: v.number(),
+  })
+    .index("by_page", ["pageId"])
+    .index("by_page_and_time", ["pageId", "createdAt"]),
+
   // ── Phase 12: AI agent collaboration ────────────────────────────────
 
   // First-class AI agent principals. An agent belongs to either a user's

@@ -358,6 +358,76 @@ async function removeMentions(
   }
 }
 
+// ── History ─────────────────────────────────────────────────────────────
+
+/**
+ * How long one author's edits collapse into a single revision.
+ *
+ * A page saves every ~700ms while someone types. Snapshotting each write would
+ * produce hundreds of rows for one paragraph and a history nobody can read, so
+ * a revision stays open for this long and is extended in place while the same
+ * author keeps editing. A different author always opens a new one — "who
+ * changed this" is the question history exists to answer, and merging two
+ * people's edits into one row destroys it.
+ */
+const REVISION_WINDOW_MS = 5 * 60 * 1000;
+
+/** How many revisions a page keeps. Older ones are pruned on write. */
+const REVISION_LIMIT = 50;
+
+/**
+ * Record what the page said *before* this edit.
+ *
+ * Called with the pre-edit content, so revision N is what you get back if you
+ * restore it — the alternative (snapshotting the new state) means the newest
+ * revision is always identical to the live page and restoring it does nothing.
+ */
+async function recordRevision(
+  ctx: MutationCtx,
+  page: Doc<"pages">,
+  actor: Actor,
+): Promise<void> {
+  const now = Date.now();
+  const recent = await ctx.db
+    .query("pageRevisions")
+    .withIndex("by_page_and_time", (q) => q.eq("pageId", page._id))
+    .order("desc")
+    .take(1);
+  const open = recent[0];
+
+  if (
+    open &&
+    open.actorId === actor.id &&
+    now - open.updatedAt < REVISION_WINDOW_MS
+  ) {
+    // Same author, still inside the window: the open revision already holds
+    // the "before" state from the start of this editing session, which is
+    // exactly what should be preserved. Only extend it.
+    await ctx.db.patch(open._id, { updatedAt: now });
+    return;
+  }
+
+  await ctx.db.insert("pageRevisions", {
+    pageId: page._id,
+    title: page.title,
+    markdown: page.markdown,
+    actorId: actor.id,
+    actorName: actor.name,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // Prune past the cap. Bounded work per write: at most one row falls off.
+  const all = await ctx.db
+    .query("pageRevisions")
+    .withIndex("by_page_and_time", (q) => q.eq("pageId", page._id))
+    .order("desc")
+    .collect();
+  for (const old of all.slice(REVISION_LIMIT)) {
+    await ctx.db.delete(old._id);
+  }
+}
+
 async function publishChange(
   ctx: MutationCtx,
   page: Doc<"pages">,
@@ -471,6 +541,16 @@ export async function updatePageCore(
     patch.title = title.slice(0, 200);
   }
   if (args.markdown !== undefined) patch.markdown = args.markdown;
+
+  // Snapshot the *previous* content before overwriting it, and only when the
+  // content is actually changing — a title-only edit or a no-op save should
+  // not create a revision that looks like someone rewrote the page.
+  const contentChanging =
+    (args.markdown !== undefined && args.markdown !== page.markdown) ||
+    (patch.title !== undefined && patch.title !== page.title);
+  if (contentChanging) {
+    await recordRevision(ctx, page, actor);
+  }
   if (args.parentPageId !== undefined) {
     if (args.parentPageId === null) {
       patch.parentPageId = undefined;
@@ -533,6 +613,12 @@ export async function removePageCore(
     await ctx.db.delete(att._id);
   }
   await removeMentions(ctx, page._id);
+  for (const revision of await ctx.db
+    .query("pageRevisions")
+    .withIndex("by_page", (q) => q.eq("pageId", page._id))
+    .collect()) {
+    await ctx.db.delete(revision._id);
+  }
   // The discussion about a page goes with it — a comment thread whose subject
   // no longer exists is unreachable, not preserved.
   for (const message of await ctx.db
@@ -1259,6 +1345,88 @@ export const titlesForScope = query({
 
 // Re-exported so agentApi can resolve a scope without duplicating the walk.
 export { requireScopeAccess, requireTargetAccess, getSpaceForList, canAccessSpace };
+
+/**
+ * A page's history, newest first.
+ *
+ * Excerpts rather than full markdown: a list of fifty revisions of a long page
+ * is megabytes, and the list only needs to say who changed what and when. The
+ * full text comes from `readRevision` when someone actually looks at one.
+ */
+export const history = query({
+  args: { pageId: v.id("pages"), limit: v.optional(v.number()) },
+  handler: async (ctx, { pageId, limit }) => {
+    try {
+      await requirePageAccess(ctx, pageId);
+    } catch {
+      return [];
+    }
+    const rows = await ctx.db
+      .query("pageRevisions")
+      .withIndex("by_page_and_time", (q) => q.eq("pageId", pageId))
+      .order("desc")
+      .take(Math.min(limit ?? 30, 50));
+    return rows.map((r) => ({
+      revisionId: r._id,
+      title: r.title,
+      excerpt: markdownExcerpt(r.markdown, 140),
+      actorId: r.actorId,
+      actorName: r.actorName,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      /** Characters — enough to show "grew by 400" without sending the text. */
+      size: r.markdown.length,
+    }));
+  },
+});
+
+/** One revision in full, for previewing before restoring it. */
+export const readRevision = query({
+  args: { revisionId: v.id("pageRevisions") },
+  handler: async (ctx, { revisionId }) => {
+    const revision = await ctx.db.get(revisionId);
+    if (!revision) return null;
+    try {
+      await requirePageAccess(ctx, revision.pageId);
+    } catch {
+      return null;
+    }
+    return {
+      revisionId: revision._id,
+      pageId: revision.pageId,
+      title: revision.title,
+      markdown: revision.markdown,
+      actorName: revision.actorName,
+      createdAt: revision.createdAt,
+    };
+  },
+});
+
+/**
+ * Put a previous version back.
+ *
+ * Restoring is an ordinary edit, not a rewind: it goes through
+ * `updatePageCore`, which means the version being replaced is itself recorded
+ * first. So restoring is undoable by restoring again, links and mentions
+ * re-sync, and the page's history stays a straight line rather than a tree
+ * nobody can reason about.
+ */
+export const restoreRevision = mutation({
+  args: { revisionId: v.id("pageRevisions") },
+  handler: async (ctx, { revisionId }) => {
+    const revision = await ctx.db.get(revisionId);
+    if (!revision) throw new ConvexError("That version is no longer available");
+    const { page, subject } = await requirePageAccess(ctx, revision.pageId);
+    const actor = await userActor(ctx, subject);
+    await updatePageCore(
+      ctx,
+      page,
+      { title: revision.title, markdown: revision.markdown },
+      actor,
+    );
+    return { pageId: page._id };
+  },
+});
 
 /**
  * The page a legacy doc became, for redirecting old `/dashboard/d/:id` links.

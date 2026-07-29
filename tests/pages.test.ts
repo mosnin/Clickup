@@ -1026,3 +1026,255 @@ describe("discussion on a page", () => {
     expect(orphans).toHaveLength(0);
   });
 });
+
+describe("page history", () => {
+  const BOB = { subject: "user_bob" };
+
+  /** Add a second workspace member, since "who changed this" needs two people. */
+  async function addBob(
+    t: Awaited<ReturnType<typeof seed>>["t"],
+    workspaceId: Id<"workspaces">,
+  ) {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        clerkId: BOB.subject,
+        email: "bob@example.com",
+        name: "user_bob",
+      });
+      await ctx.db.insert("memberships", {
+        userClerkId: BOB.subject,
+        workspaceId,
+        role: "member",
+        joinedAt: Date.now(),
+      });
+    });
+  }
+
+  async function countRevisions(
+    t: Awaited<ReturnType<typeof seed>>["t"],
+    pageId: Id<"pages">,
+  ) {
+    return await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query("pageRevisions")
+        .withIndex("by_page", (q) => q.eq("pageId", pageId))
+        .collect();
+      return rows.length;
+    });
+  }
+
+  it("collapses one author's burst of saves into a single restorable version", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Spec",
+      markdown: "the original",
+    });
+
+    // The editor saves every ~700ms. Three saves is one editing session.
+    await alice.mutation(api.pages.update, { pageId, markdown: "the o" });
+    await alice.mutation(api.pages.update, { pageId, markdown: "the or" });
+    await alice.mutation(api.pages.update, { pageId, markdown: "rewritten" });
+
+    const history = await alice.query(api.pages.history, { pageId });
+    expect(history).toHaveLength(1);
+
+    // And the one version kept is the state before the session started, not
+    // the half-typed middle of it — otherwise restoring undoes one keystroke.
+    const full = await alice.query(api.pages.readRevision, {
+      revisionId: history[0].revisionId,
+    });
+    expect(full!.markdown).toBe("the original");
+  });
+
+  it("opens a new version when a different author edits", async () => {
+    const { t, workspaceId } = await seed();
+    await addBob(t, workspaceId);
+    const alice = t.withIdentity(ALICE);
+    const bob = t.withIdentity(BOB);
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Spec",
+      markdown: "alice wrote this",
+    });
+
+    await alice.mutation(api.pages.update, { pageId, markdown: "alice again" });
+    await bob.mutation(api.pages.update, { pageId, markdown: "bob's turn" });
+
+    const history = await alice.query(api.pages.history, { pageId });
+    expect(history).toHaveLength(2);
+    // Newest first, and each row is attributed to whoever displaced it.
+    expect(history[0].actorId).toBe(BOB.subject);
+    expect(history[1].actorId).toBe(ALICE.subject);
+
+    const displacedByBob = await alice.query(api.pages.readRevision, {
+      revisionId: history[0].revisionId,
+    });
+    expect(displacedByBob!.markdown).toBe("alice again");
+  });
+
+  it("records a version for a title-only rename", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Draft",
+      markdown: "body",
+    });
+    await alice.mutation(api.pages.update, { pageId, title: "Final" });
+
+    const history = await alice.query(api.pages.history, { pageId });
+    expect(history).toHaveLength(1);
+    const full = await alice.query(api.pages.readRevision, {
+      revisionId: history[0].revisionId,
+    });
+    expect(full!.title).toBe("Draft");
+  });
+
+  it("records nothing for a save that changes nothing", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Spec",
+      markdown: "unchanged",
+    });
+
+    // The editor re-sends the same bytes on focus/blur. That is not an edit,
+    // and a history full of no-op rows is a history nobody scrolls.
+    await alice.mutation(api.pages.update, { pageId, markdown: "unchanged" });
+    await alice.mutation(api.pages.update, { pageId, title: "Spec" });
+
+    expect(await alice.query(api.pages.history, { pageId })).toHaveLength(0);
+  });
+
+  it("keeps at most fifty versions, dropping the oldest", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Spec",
+      markdown: "current",
+    });
+
+    // Seed past the cap directly: coalescing means a real burst can't produce
+    // 60 rows, and the prune has to hold regardless of how they got there.
+    // Stamped in the past so the next write opens a new revision rather than
+    // extending one of these.
+    await t.run(async (ctx) => {
+      const old = Date.now() - 24 * 60 * 60 * 1000;
+      for (let i = 0; i < 60; i += 1) {
+        await ctx.db.insert("pageRevisions", {
+          pageId,
+          title: "Spec",
+          markdown: `version ${i}`,
+          actorId: ALICE.subject,
+          actorName: "user_alice",
+          createdAt: old + i,
+          updatedAt: old + i,
+        });
+      }
+    });
+
+    await alice.mutation(api.pages.update, { pageId, markdown: "newest" });
+
+    expect(await countRevisions(t, pageId)).toBe(50);
+    const history = await alice.query(api.pages.history, { pageId, limit: 50 });
+    // The newest row is the one just written; the oldest seeded ones are gone.
+    const kept = await Promise.all(
+      history.map((h) =>
+        alice.query(api.pages.readRevision, { revisionId: h.revisionId }),
+      ),
+    );
+    const bodies = kept.map((k) => k!.markdown);
+    expect(bodies[0]).toBe("current");
+    expect(bodies).toContain("version 59");
+    expect(bodies).not.toContain("version 0");
+  });
+
+  it("makes restoring itself undoable", async () => {
+    const { t, workspaceId } = await seed();
+    await addBob(t, workspaceId);
+    const alice = t.withIdentity(ALICE);
+    const bob = t.withIdentity(BOB);
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Spec",
+      markdown: "the good version",
+    });
+    await bob.mutation(api.pages.update, { pageId, markdown: "the mistake" });
+
+    const history = await alice.query(api.pages.history, { pageId });
+    await alice.mutation(api.pages.restoreRevision, {
+      revisionId: history[0].revisionId,
+    });
+
+    const restored = await alice.query(api.pages.get, { pageId });
+    expect(restored!.page.markdown).toBe("the good version");
+
+    // Restoring went through the ordinary update path, so what it replaced is
+    // in history too — which is the whole reason this needs no confirmation.
+    const after = await alice.query(api.pages.history, { pageId });
+    const newest = await alice.query(api.pages.readRevision, {
+      revisionId: after[0].revisionId,
+    });
+    expect(newest!.markdown).toBe("the mistake");
+
+    await alice.mutation(api.pages.restoreRevision, {
+      revisionId: after[0].revisionId,
+    });
+    const back = await alice.query(api.pages.get, { pageId });
+    expect(back!.page.markdown).toBe("the mistake");
+  });
+
+  it("deletes a page's versions with the page", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Spec",
+      markdown: "one",
+    });
+    await alice.mutation(api.pages.update, { pageId, markdown: "two" });
+    expect(await countRevisions(t, pageId)).toBe(1);
+
+    await alice.mutation(api.pages.remove, { pageId });
+    expect(await countRevisions(t, pageId)).toBe(0);
+  });
+
+  it("keeps history inside the workspace", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Spec",
+      markdown: "internal",
+    });
+    await alice.mutation(api.pages.update, { pageId, markdown: "still internal" });
+    const history = await alice.query(api.pages.history, { pageId });
+
+    const outsider = t.withIdentity(OUTSIDER);
+    expect(await outsider.query(api.pages.history, { pageId })).toEqual([]);
+    // Not just the list — an old version is page content and leaks the same
+    // text, so reading one by id is access-checked on the page, not the row.
+    expect(
+      await outsider.query(api.pages.readRevision, {
+        revisionId: history[0].revisionId,
+      }),
+    ).toBeNull();
+    await expect(
+      outsider.mutation(api.pages.restoreRevision, {
+        revisionId: history[0].revisionId,
+      }),
+    ).rejects.toThrow();
+  });
+});

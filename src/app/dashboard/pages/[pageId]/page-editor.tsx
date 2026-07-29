@@ -18,6 +18,7 @@ import { errorMessage } from "@/lib/errors";
 import { timeAgo } from "@/lib/time";
 import { PageBodyEditor } from "@/components/dashboard/page-editor";
 import { Comments } from "@/components/dashboard/comments";
+import { PageHistory } from "@/components/dashboard/page-history";
 import { cn } from "@/lib/utils";
 
 // The page editor.
@@ -562,6 +563,10 @@ export function PageEditor({ pageId }: { pageId: string }) {
               </ul>
             )}
           </Card>
+
+          {/* Last, and collapsed: history is the answer to "can I undo this?",
+              which is a question you ask rarely and never while writing. */}
+          <PageHistory pageId={id} />
         </div>
       </div>
     </div>
