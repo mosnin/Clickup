@@ -21,7 +21,7 @@ import {
   type MessagePart,
 } from "@/lib/mentions";
 
-type ParentType = "task" | "space" | "workspace" | "channel";
+type ParentType = "task" | "space" | "workspace" | "channel" | "page";
 
 // Shape returned by messages.listMentionableUsers: workspace members plus
 // AI agents (agents carry their id in clerkId and isAgent: true).

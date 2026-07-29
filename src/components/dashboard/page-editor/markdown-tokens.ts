@@ -100,3 +100,97 @@ export function installPageTokens(md: MarkdownIt): void {
     return `<span data-page-link="${safe}">${safe}</span>`;
   };
 }
+
+// ── Block-level app constructs ──────────────────────────────────────────
+//
+// Toggles and callouts are restored from the *rendered DOM* rather than by
+// teaching markdown-it new syntax, and deliberately so.
+//
+// The parser runs with `html: false` — that is the security posture, because
+// page markdown is written by agents that may have read a malicious document.
+// So `<details>` arrives as escaped text, not markup. Rebuilding it here means
+// exactly one construct is un-escaped, by code that builds DOM nodes and sets
+// `textContent`; there is no path where author text becomes markup.
+
+const DETAILS_OPEN = /^<details><summary>([\s\S]*)<\/summary>$/;
+const DETAILS_CLOSE = /^<\/details>$/;
+const CALLOUT_FIRST = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/;
+
+/**
+ * Rebuild `<details>` blocks and `> [!NOTE]` callouts in the parsed DOM.
+ *
+ * Called from the PageLink node's `parse.updateDOM`, so it runs once per
+ * parse alongside the inline token rules.
+ */
+export function restorePageBlocks(root: HTMLElement): void {
+  restoreToggles(root);
+  restoreCallouts(root);
+}
+
+function restoreToggles(root: HTMLElement): void {
+  // Walk a snapshot: the loop restructures the tree as it goes.
+  for (const opener of Array.from(root.querySelectorAll("p"))) {
+    const text = (opener.textContent ?? "").trim();
+    const match = DETAILS_OPEN.exec(text);
+    if (!match) continue;
+
+    const details = root.ownerDocument.createElement("details");
+    details.setAttribute("open", "");
+    const summary = root.ownerDocument.createElement("summary");
+    summary.textContent = match[1];
+    details.appendChild(summary);
+
+    // Everything up to the closing marker is the toggle's body. An unclosed
+    // toggle takes the rest of its parent rather than swallowing the page.
+    let cursor = opener.nextElementSibling;
+    let closed = false;
+    while (cursor) {
+      const next: Element | null = cursor.nextElementSibling;
+      if (DETAILS_CLOSE.test((cursor.textContent ?? "").trim())) {
+        cursor.remove();
+        closed = true;
+        break;
+      }
+      details.appendChild(cursor);
+      cursor = next;
+    }
+    if (!closed && details.childElementCount === 1) {
+      // Nothing to hold — leave the text alone rather than making an empty
+      // toggle out of a line that merely looked like one.
+      continue;
+    }
+    if (details.childElementCount === 1) {
+      details.appendChild(root.ownerDocument.createElement("p"));
+    }
+    opener.replaceWith(details);
+  }
+}
+
+function restoreCallouts(root: HTMLElement): void {
+  for (const quote of Array.from(root.querySelectorAll("blockquote"))) {
+    const first = quote.firstElementChild;
+    if (!first) continue;
+    const match = CALLOUT_FIRST.exec((first.textContent ?? "").trim());
+    if (!match) continue;
+
+    const callout = root.ownerDocument.createElement("div");
+    callout.setAttribute("data-callout", match[1].toLowerCase());
+
+    // Drop the marker from the first line; keep the words that followed it on
+    // the same line, because `> [!NOTE] Heads up` is how people write it.
+    const remainder = (first.textContent ?? "").trim().replace(CALLOUT_FIRST, "");
+    if (remainder) {
+      const p = root.ownerDocument.createElement("p");
+      p.textContent = remainder;
+      callout.appendChild(p);
+    }
+    first.remove();
+    while (quote.firstElementChild) {
+      callout.appendChild(quote.firstElementChild);
+    }
+    if (callout.childElementCount === 0) {
+      callout.appendChild(root.ownerDocument.createElement("p"));
+    }
+    quote.replaceWith(callout);
+  }
+}

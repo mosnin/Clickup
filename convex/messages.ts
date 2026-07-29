@@ -8,6 +8,8 @@ import type { Actor } from "./_agentAuth";
 import { emitEvent, scopeForList } from "./events";
 import { notify } from "./notificationCenter";
 import { enqueueAgentPingDelivery } from "./agentPingDeliveries";
+import { bodyPreview, extractRefs } from "./_refs";
+import { scopeChannel } from "./realtime";
 
 async function describeMessageContext(
   ctx: MutationCtx,
@@ -25,6 +27,10 @@ async function describeMessageContext(
     const ch = await ctx.db.get(msg.parentId as Id<"channels">);
     return ch ? `#${ch.name}` : "a channel";
   }
+  if (msg.parentType === "page") {
+    const page = await ctx.db.get(msg.parentId as Id<"pages">);
+    return page ? `the page "${page.title}"` : "a page";
+  }
   return "a space";
 }
 
@@ -39,17 +45,23 @@ const parentTypeValidator = v.union(
   v.literal("space"),
   v.literal("workspace"),
   v.literal("channel"),
+  v.literal("page"),
 );
 
 // Scope (personal user / workspace) that a message parent lives in, for
 // event emission.
 export async function scopeForMessageParent(
   ctx: QueryCtx | MutationCtx,
-  parentType: "task" | "space" | "workspace" | "channel",
+  parentType: "task" | "space" | "workspace" | "channel" | "page",
   parentId: string,
 ): Promise<{ scopeType: "user" | "workspace"; scopeId: string } | null> {
   if (parentType === "workspace") {
     return { scopeType: "workspace", scopeId: parentId };
+  }
+  if (parentType === "page") {
+    const page = await ctx.db.get(parentId as Id<"pages">);
+    if (!page) return null;
+    return { scopeType: page.scopeType, scopeId: page.scopeId };
   }
   if (parentType === "channel") {
     const channel = await ctx.db.get(parentId as Id<"channels">);
@@ -203,7 +215,7 @@ export async function canBeMentioned(
 // ── Core write path (shared with the agent API) ────────────────────────
 
 export type CreateMessageArgs = {
-  parentType: "task" | "space" | "workspace" | "channel";
+  parentType: "task" | "space" | "workspace" | "channel" | "page";
   parentId: string;
   body: string;
   parentMessageId?: Id<"messages">;
@@ -230,6 +242,11 @@ export async function createMessageCore(
     }
   }
 
+  // References are parsed from the body, never passed in: the tokens are the
+  // source of truth, so a client that forgets to send a refs array can't
+  // produce a message whose stored references disagree with its own text.
+  const refs = extractRefs(args.body);
+
   const messageId = await ctx.db.insert("messages", {
     parentType: args.parentType,
     parentId: args.parentId,
@@ -237,6 +254,7 @@ export async function createMessageCore(
     body: args.body,
     parentMessageId: args.parentMessageId,
     assigneeClerkId: args.assigneeClerkId,
+    refs: refs.length > 0 ? refs : undefined,
     createdAt: Date.now(),
   });
 
@@ -378,7 +396,68 @@ export async function createMessageCore(
     }
   }
 
+  // Channel bookkeeping: the rail sorts by activity and shows a preview, and
+  // reading either from the messages table would mean a query per channel.
+  if (args.parentType === "channel") {
+    const channelId = ctx.db.normalizeId("channels", args.parentId);
+    if (channelId) {
+      await ctx.db.patch(channelId, {
+        lastMessageAt: Date.now(),
+        lastMessagePreview: bodyPreview(args.body),
+        lastMessageByName: actor.name,
+      });
+      // The author has by definition read their own message.
+      await markChannelReadCore(ctx, channelId, actor.id);
+    }
+  }
+
+  // Ably carries the nudge. Convex subscriptions already deliver the message
+  // itself to anyone with the query open — this is for the things a query
+  // can't answer: a client that wants to know *now*, and every subscriber
+  // that isn't a Convex client at all (agent runtimes, external listeners).
+  if (scope) {
+    await ctx.scheduler.runAfter(0, internal.realtime.publish, {
+      channel: scopeChannel(scope.scopeType, scope.scopeId),
+      name: "message.created",
+      data: {
+        messageId,
+        parentType: args.parentType,
+        parentId: args.parentId,
+        byName: actor.name,
+        byId: actor.id,
+        snippet,
+        refs,
+      },
+    });
+  }
+
   return messageId;
+}
+
+/**
+ * Move a participant's read cursor to now.
+ *
+ * Exported because both the human mutation and the write path use it — an
+ * author who has to mark their own message read is an unread badge that
+ * lights up for the person who just typed.
+ */
+export async function markChannelReadCore(
+  ctx: MutationCtx,
+  channelId: Id<"channels">,
+  actorId: string,
+): Promise<void> {
+  const existing = await ctx.db
+    .query("channelReads")
+    .withIndex("by_channel_and_actor", (q) =>
+      q.eq("channelId", channelId).eq("actorId", actorId),
+    )
+    .unique();
+  const lastReadAt = Date.now();
+  if (existing) {
+    await ctx.db.patch(existing._id, { lastReadAt });
+  } else {
+    await ctx.db.insert("channelReads", { channelId, actorId, lastReadAt });
+  }
 }
 
 // Best-effort deep link for a mention notification. Task mentions resolve
@@ -393,6 +472,8 @@ function mentionHref(
     return `/dashboard/l/${taskListId}/t/${parentId}`;
   if (parentType === "workspace")
     return `/dashboard/w/${parentId}?tab=chat`;
+  if (parentType === "channel") return `/dashboard/chat?channel=${parentId}`;
+  if (parentType === "page") return `/dashboard/pages/${parentId}`;
   return "/dashboard/inbox";
 }
 

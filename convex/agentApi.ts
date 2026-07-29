@@ -90,6 +90,7 @@ import {
   createTaskBlueprintCore,
 } from "./taskBlueprints";
 import { createChannelCore } from "./channels";
+import { markChannelReadCore } from "./messages";
 import {
   applyCatalogDocTemplateCore,
   applyCatalogListTemplateCore,
@@ -231,7 +232,7 @@ async function workspaceIdForMessageParent(
 // Agents may touch a message parent when it resolves into their scope.
 async function requireMessageParentAccessForAgent(
   ctx: QueryCtx | MutationCtx,
-  parentType: "task" | "space" | "workspace" | "channel",
+  parentType: "task" | "space" | "workspace" | "channel" | "page",
   parentId: string,
   agent: Doc<"agents">,
 ): Promise<void> {
@@ -3229,7 +3230,236 @@ export const listChannels = query({
         q.eq("scopeType", agent.parentType).eq("scopeId", agent.parentId),
       )
       .collect();
-    return channels.map((c) => ({ channelId: c._id, name: c.name }));
+
+    // An agent needs the same answer the human rail needs: is there anything
+    // here I haven't seen. Without it, "catch up on chat" means re-reading
+    // every channel from the top on every wake.
+    const reads = await ctx.db
+      .query("channelReads")
+      .withIndex("by_actor", (q) => q.eq("actorId", agent._id))
+      .collect();
+    const readAt = new Map(
+      reads.map((r) => [r.channelId as string, r.lastReadAt]),
+    );
+
+    const out = [];
+    for (const c of channels) {
+      if (c.archivedAt !== undefined) continue;
+      const since = readAt.get(c._id) ?? 0;
+      let unread = 0;
+      if ((c.lastMessageAt ?? 0) > since) {
+        const messages = await ctx.db
+          .query("messages")
+          .withIndex("by_parent", (q) =>
+            q.eq("parentType", "channel").eq("parentId", c._id),
+          )
+          .collect();
+        unread = messages.filter(
+          (m) => m.createdAt > since && m.authorClerkId !== agent._id,
+        ).length;
+      }
+      out.push({
+        channelId: c._id,
+        name: c.name,
+        topic: c.topic,
+        lastMessageAt: c.lastMessageAt,
+        lastMessagePreview: c.lastMessagePreview,
+        unread,
+      });
+    }
+    out.sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0));
+    return out;
+  },
+});
+
+/**
+ * One channel's transcript, with authors and references resolved.
+ *
+ * Distinct from list_comments because a channel read should also move the
+ * agent's read cursor and hand back the structured `refs` — otherwise the
+ * agent has to re-parse prose to learn which project is being discussed,
+ * which is exactly what messages.refs exists to avoid.
+ */
+export const readChannel = query({
+  args: {
+    apiKey: v.string(),
+    channelId: v.id("channels"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { apiKey, channelId, limit }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const channel = await ctx.db.get(channelId);
+    if (
+      !channel ||
+      channel.scopeType !== agent.parentType ||
+      channel.scopeId !== agent.parentId
+    ) {
+      throw new ConvexError("Channel not found in your scope");
+    }
+    const all = await ctx.db
+      .query("messages")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", "channel").eq("parentId", channelId),
+      )
+      .collect();
+    const window = all
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .slice(-Math.min(limit ?? 100, 300));
+
+    const messages = [];
+    for (const m of window) {
+      let authorName = "Someone";
+      let authorIsAgent = false;
+      const authorAgentId = ctx.db.normalizeId("agents", m.authorClerkId);
+      if (authorAgentId) {
+        const a = await ctx.db.get(authorAgentId);
+        if (a) {
+          authorName = a.name;
+          authorIsAgent = true;
+        }
+      } else {
+        const u = await ctx.db
+          .query("users")
+          .withIndex("by_clerk_id", (q) => q.eq("clerkId", m.authorClerkId))
+          .unique();
+        if (u) authorName = u.name ?? u.email;
+      }
+      messages.push({
+        messageId: m._id,
+        body: m.body,
+        authorId: m.authorClerkId,
+        authorName,
+        authorIsAgent,
+        refs: m.refs ?? [],
+        createdAt: m.createdAt,
+      });
+    }
+    return {
+      channelId: channel._id,
+      name: channel.name,
+      topic: channel.topic,
+      messages,
+      truncated: all.length > messages.length,
+    };
+  },
+});
+
+export const markChannelRead = mutation({
+  args: { apiKey: v.string(), channelId: v.id("channels") },
+  handler: async (ctx, { apiKey, channelId }) => {
+    // "presence" rather than "write": catching up on reading is not a
+    // metered action and must not consume an agent's daily budget.
+    const { agent } = await requireAgentByKey(ctx, apiKey, "presence");
+    const channel = await ctx.db.get(channelId);
+    if (
+      !channel ||
+      channel.scopeType !== agent.parentType ||
+      channel.scopeId !== agent.parentId
+    ) {
+      throw new ConvexError("Channel not found in your scope");
+    }
+    await markChannelReadCore(ctx, channelId, agent._id);
+    return null;
+  },
+});
+
+export const setChannelTopic = mutation({
+  args: {
+    apiKey: v.string(),
+    channelId: v.id("channels"),
+    topic: v.string(),
+  },
+  handler: async (ctx, { apiKey, channelId, topic }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey, "write");
+    const channel = await ctx.db.get(channelId);
+    if (
+      !channel ||
+      channel.scopeType !== agent.parentType ||
+      channel.scopeId !== agent.parentId
+    ) {
+      throw new ConvexError("Channel not found in your scope");
+    }
+    const trimmed = topic.trim().slice(0, 280);
+    await ctx.db.patch(channelId, {
+      topic: trimmed.length > 0 ? trimmed : undefined,
+    });
+    return null;
+  },
+});
+
+/**
+ * Everything an agent can point a `#[Label](kind:id)` reference at.
+ *
+ * Same set the human composer's `#` menu reads, so a person and an agent
+ * writing about the same project produce the same token.
+ */
+export const referenceTargets = query({
+  args: { apiKey: v.string() },
+  handler: async (ctx, { apiKey }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const out: { kind: string; id: string; label: string; context?: string }[] =
+      [];
+    const spaces = await ctx.db
+      .query("spaces")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", agent.parentType).eq("parentId", agent.parentId),
+      )
+      .collect();
+    for (const space of spaces) {
+      if (space.archivedAt !== undefined) continue;
+      const projects = await ctx.db
+        .query("projects")
+        .withIndex("by_space", (q) => q.eq("spaceId", space._id))
+        .collect();
+      for (const project of projects) {
+        if (project.archivedAt !== undefined) continue;
+        out.push({
+          kind: "project",
+          id: project._id,
+          label: project.name,
+          context: space.name,
+        });
+        const lists = await ctx.db
+          .query("lists")
+          .withIndex("by_parent", (q) =>
+            q.eq("parentType", "project").eq("parentId", project._id),
+          )
+          .collect();
+        for (const list of lists) {
+          out.push({
+            kind: "list",
+            id: list._id,
+            label: list.name,
+            context: project.name,
+          });
+        }
+      }
+      const bare = await ctx.db
+        .query("lists")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "space").eq("parentId", space._id),
+        )
+        .collect();
+      for (const list of bare) {
+        out.push({
+          kind: "list",
+          id: list._id,
+          label: list.name,
+          context: space.name,
+        });
+      }
+    }
+    const pages = await ctx.db
+      .query("pages")
+      .withIndex("by_scope", (q) =>
+        q.eq("scopeType", agent.parentType).eq("scopeId", agent.parentId),
+      )
+      .collect();
+    for (const page of pages) {
+      if (page.archivedAt !== undefined) continue;
+      out.push({ kind: "page", id: page._id, label: page.title });
+    }
+    return out;
   },
 });
 

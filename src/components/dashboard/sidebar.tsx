@@ -18,6 +18,7 @@ import {
   LayoutTemplate,
   Home,
   Inbox,
+  MessagesSquare,
   LayoutGrid,
   List as ListIcon,
   ListTodo,
@@ -264,6 +265,7 @@ function SidebarContentBody() {
               exact
             />
             <InboxMenuItem />
+            <ChatMenuItem />
             <NavMenuItem
               href="/dashboard/my-work"
               label="My work"
@@ -382,6 +384,35 @@ function InboxMenuItem() {
         <Link href="/dashboard/inbox" aria-current={active ? "page" : undefined}>
           <Inbox className="text-cyan-500" />
           <span>Inbox</span>
+        </Link>
+      </SidebarMenuButton>
+      {unread > 0 && (
+        <SidebarMenuBadge>{unread > 99 ? "99+" : unread}</SidebarMenuBadge>
+      )}
+    </SidebarMenuItem>
+  );
+}
+
+function ChatMenuItem() {
+  const pathname = usePathname();
+  // Unread across every scope the person can chat in, so the badge answers
+  // "is anyone waiting on me" without opening the page.
+  const scopes = useQuery(api.chat.scopesForCurrentUser, {});
+  const first = useQuery(
+    api.chat.channels,
+    scopes?.[0]
+      ? { scopeType: scopes[0].scopeType, scopeId: scopes[0].scopeId }
+      : "skip",
+  );
+  const unread = (first ?? []).reduce((sum, c) => sum + c.unread, 0);
+  const active = pathname === "/dashboard/chat";
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild isActive={active} tooltip="Chat">
+        <Link href="/dashboard/chat" aria-current={active ? "page" : undefined}>
+          <MessagesSquare className="text-violet-500" />
+          <span>Chat</span>
         </Link>
       </SidebarMenuButton>
       {unread > 0 && (

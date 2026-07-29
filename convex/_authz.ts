@@ -228,9 +228,27 @@ export async function requireDocLikeParentAccess(
 // so callers can validate that mentioned users are members.
 export async function requireMessageParentAccess(
   ctx: QueryCtx | MutationCtx,
-  parentType: "task" | "space" | "workspace" | "channel",
+  parentType: "task" | "space" | "workspace" | "channel" | "page",
   parentId: string,
 ): Promise<{ identity: Identity; workspaceId: Id<"workspaces"> | null }> {
+  if (parentType === "page") {
+    const identity = await requireIdentity(ctx);
+    const page = await ctx.db.get(parentId as Id<"pages">);
+    if (!page) throw new ConvexError("Page not found");
+    if (page.scopeType === "user") {
+      if (page.scopeId !== identity.subject) throw new ConvexError("Forbidden");
+      return { identity, workspaceId: null };
+    }
+    const workspaceId = page.scopeId as Id<"workspaces">;
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_user_and_workspace", (q) =>
+        q.eq("userClerkId", identity.subject).eq("workspaceId", workspaceId),
+      )
+      .unique();
+    if (!membership) throw new ConvexError("Forbidden");
+    return { identity, workspaceId };
+  }
   if (parentType === "channel") {
     const identity = await requireIdentity(ctx);
     const channel = await ctx.db.get(parentId as Id<"channels">);

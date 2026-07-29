@@ -6,7 +6,9 @@ import { PluginKey } from "@tiptap/pm/state";
 import type { Editor, Range } from "@tiptap/core";
 import type { LucideIcon } from "lucide-react";
 import {
+  AlertTriangle,
   CheckSquare,
+  ChevronRight,
   Code2,
   FileText,
   Heading1,
@@ -18,6 +20,7 @@ import {
   ListOrdered,
   Minus,
   Quote,
+  Info,
   Table as TableIcon,
   Type,
 } from "lucide-react";
@@ -141,6 +144,60 @@ export const SLASH_ITEMS: SlashItem[] = [
     hint: "---",
     run: (editor, range) =>
       editor.chain().focus().deleteRange(range).setHorizontalRule().run(),
+  },
+
+  {
+    title: "Toggle",
+    group: "Basic blocks",
+    keywords: "collapse collapsible details accordion fold hide",
+    icon: ChevronRight,
+    run: (editor, range) =>
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertContent({
+          type: "toggleBlock",
+          content: [
+            { type: "toggleSummary", content: [{ type: "text", text: "Toggle" }] },
+            { type: "paragraph" },
+          ],
+        })
+        .run(),
+  },
+  {
+    title: "Callout",
+    group: "Basic blocks",
+    keywords: "note aside panel info highlight admonition",
+    icon: Info,
+    run: (editor, range) =>
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertContent({
+          type: "callout",
+          attrs: { kind: "note" },
+          content: [{ type: "paragraph" }],
+        })
+        .run(),
+  },
+  {
+    title: "Warning",
+    group: "Basic blocks",
+    keywords: "callout caution danger alert important",
+    icon: AlertTriangle,
+    run: (editor, range) =>
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertContent({
+          type: "callout",
+          attrs: { kind: "warning" },
+          content: [{ type: "paragraph" }],
+        })
+        .run(),
   },
 
   {

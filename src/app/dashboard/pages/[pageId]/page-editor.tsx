@@ -17,6 +17,7 @@ import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
 import { timeAgo } from "@/lib/time";
 import { PageBodyEditor } from "@/components/dashboard/page-editor";
+import { Comments } from "@/components/dashboard/comments";
 import { cn } from "@/lib/utils";
 
 // The page editor.
@@ -468,6 +469,18 @@ export function PageEditor({ pageId }: { pageId: string }) {
                 ))}
               </ul>
             )}
+          </Card>
+
+          {/* The discussion about the document, deliberately beside it rather
+              than inside it: an agent reading the page should get the decision,
+              not the argument that produced it. */}
+          <Card className="rounded-2xl p-5">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Discussion
+            </span>
+            <div className="mt-3">
+              <Comments parentType="page" parentId={id} />
+            </div>
           </Card>
 
           <Card className="rounded-2xl p-5">

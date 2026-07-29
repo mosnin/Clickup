@@ -972,6 +972,10 @@ export default defineSchema({
       v.literal("space"),
       v.literal("workspace"),
       v.literal("channel"),
+      // A comment on a page — the discussion *about* the document, kept out
+      // of the document itself so an agent reading the page gets the decision
+      // and not the argument that produced it.
+      v.literal("page"),
     ),
     parentId: v.string(),
     authorClerkId: v.string(),
@@ -985,6 +989,28 @@ export default defineSchema({
     resolvedAt: v.optional(v.number()),
     resolvedByClerkId: v.optional(v.string()),
     editedAt: v.optional(v.number()),
+    // Structured references parsed out of the body at write time.
+    //
+    // The tokens live inline in `body` (that is the source of truth, the same
+    // way mentions do), but an agent reading a message over MCP should not
+    // have to re-parse prose to learn which project is being discussed — so
+    // the resolved set is denormalized here.
+    refs: v.optional(
+      v.array(
+        v.object({
+          kind: v.union(
+            v.literal("project"),
+            v.literal("list"),
+            v.literal("task"),
+            v.literal("page"),
+            v.literal("sprint"),
+            v.literal("goal"),
+          ),
+          id: v.string(),
+          label: v.string(),
+        }),
+      ),
+    ),
     createdAt: v.number(),
   })
     .index("by_parent", ["parentType", "parentId"])
@@ -1143,6 +1169,12 @@ export default defineSchema({
     .index("by_parent_page", ["parentPageId"])
     .searchIndex("by_text", {
       searchField: "markdown",
+      filterFields: ["scopeType", "scopeId"],
+    })
+    // Separate from by_text: a Convex search index covers one field, and
+    // "the page called X" is the search people actually run.
+    .searchIndex("by_title", {
+      searchField: "title",
       filterFields: ["scopeType", "scopeId"],
     }),
 
@@ -1425,9 +1457,31 @@ export default defineSchema({
     scopeType: v.union(v.literal("user"), v.literal("workspace")),
     scopeId: v.string(),
     name: v.string(),
+    // What the channel is for, shown under its name. Optional because a
+    // channel created by an agent mid-conversation shouldn't be blocked on
+    // writing a description first.
+    topic: v.optional(v.string()),
     createdByActorId: v.string(),
     createdAt: v.number(),
+    // Denormalized so the channel rail can sort by activity and show a
+    // preview without reading every channel's messages.
+    lastMessageAt: v.optional(v.number()),
+    lastMessagePreview: v.optional(v.string()),
+    lastMessageByName: v.optional(v.string()),
+    archivedAt: v.optional(v.number()),
   }).index("by_scope", ["scopeType", "scopeId"]),
+
+  // How far each participant has read. One row per (channel, actor) — the
+  // alternative is a per-message read receipt table, which is an order of
+  // magnitude more rows for a worse answer to "is there anything new".
+  channelReads: defineTable({
+    channelId: v.id("channels"),
+    // clerkId (human) or agent document id.
+    actorId: v.string(),
+    lastReadAt: v.number(),
+  })
+    .index("by_actor", ["actorId"])
+    .index("by_channel_and_actor", ["channelId", "actorId"]),
 
   // Outbound webhook endpoints. Owned by a user (configured in the UI) or
   // an agent (registered over MCP — this is how agents get pushed events

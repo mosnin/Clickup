@@ -1172,6 +1172,10 @@ h3,
    that drift. These add only what editing needs on top. */
 .page-editor-surface {
   min-height: 24rem;
+  /* A gutter for the drag handle, the way every block editor reserves one.
+     Only where there is a pointer to hover with — on touch it would be
+     28px of dead space. */
+  padding-left: 0;
   /* The measure is set by .page-prose; this keeps the caret from sitting
      flush against the left edge on wide screens. */
   padding-bottom: 30vh;
@@ -1219,6 +1223,151 @@ h3,
 .page-wikilink-missing {
   color: var(--color-muted-foreground);
   border-bottom-style: dashed;
+}
+
+/* Toggles: a details/summary pair. Open by default in the editor, because a
+   collapsed block you can't see is a block you forget you wrote. */
+.page-toggle {
+  margin: 0.75em 0;
+  border-radius: 0.5rem;
+  background: var(--color-muted);
+  padding: 0.5em 0.75em;
+}
+.page-toggle-summary {
+  cursor: pointer;
+  font-weight: 500;
+  list-style: none;
+}
+.page-toggle-summary::-webkit-details-marker {
+  display: none;
+}
+.page-toggle-summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  color: var(--color-muted-foreground);
+  transition: transform 120ms ease;
+}
+.page-toggle[open] > .page-toggle-summary::before {
+  transform: rotate(90deg);
+}
+.page-toggle > :not(.page-toggle-summary) {
+  margin-left: 1em;
+}
+
+/* Callouts: an aside that says how to read it. The kind is a left rule and a
+   tint, never a decorative icon. */
+.page-callout {
+  margin: 1em 0;
+  border-left: 3px solid var(--color-border);
+  border-radius: 0 0.5rem 0.5rem 0;
+  background: var(--color-muted);
+  padding: 0.75em 1em;
+}
+.page-callout > *:first-child {
+  margin-top: 0;
+}
+.page-callout > *:last-child {
+  margin-bottom: 0;
+}
+.page-callout::before {
+  content: attr(data-callout);
+  display: block;
+  margin-bottom: 0.35em;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+.page-callout-note {
+  border-left-color: #7aa7e0;
+  background: var(--color-pastel-blue);
+}
+.page-callout-tip {
+  border-left-color: #6bb894;
+  background: var(--color-pastel-green);
+}
+.page-callout-important {
+  border-left-color: #9b83d9;
+  background: var(--color-pastel-purple);
+}
+.page-callout-warning {
+  border-left-color: #d9b45c;
+  background: var(--color-pastel-yellow);
+}
+.page-callout-caution {
+  border-left-color: #d08277;
+  background: var(--color-pastel-red);
+}
+
+/* The block drag handle, parked in the gutter beside whatever block the
+   pointer is over. Fades rather than appears, so it doesn't flicker as the
+   cursor crosses block boundaries. */
+.page-drag-handle {
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  height: 1.5rem;
+  width: 1.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  color: var(--color-muted-foreground);
+  cursor: grab;
+  font-size: 0.9rem;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.page-drag-handle:hover {
+  background: var(--color-accent);
+  color: var(--color-foreground);
+}
+.page-drag-handle:active {
+  cursor: grabbing;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-drag-handle,
+  .page-toggle-summary::before {
+    transition: none;
+  }
+}
+/* Dragging is a pointer gesture; a touch device gets no handle and no gutter
+   (reordering there is a follow-up, not a broken affordance). */
+@media (pointer: coarse) {
+  .page-drag-handle {
+    display: none;
+  }
+}
+@media (pointer: fine) {
+  .page-editor-surface {
+    padding-left: 1.75rem;
+  }
+}
+
+/* A reference chip in a message: the thing being discussed, inline in the
+   sentence. The kind rides on the chip because "Billing" is a project, a list
+   and a page in most workspaces. */
+.message-ref {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  border-radius: 0.35rem;
+  background: var(--color-accent);
+  padding: 0.05em 0.4em;
+  font-size: 0.9em;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.message-ref-kind {
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted-foreground);
+}
+a:hover > .message-ref {
+  background: var(--color-muted);
 }
 
 /* Images sit as their own block, capped so a large screenshot doesn't

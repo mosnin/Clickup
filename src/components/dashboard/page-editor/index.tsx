@@ -250,7 +250,8 @@ export function PageBodyEditor({
   return (
     <>
       <SelectionToolbar editor={editor} />
-      <EditorContent editor={editor} />
+      {/* relative: the drag handle positions itself against this wrapper. */}
+      <EditorContent editor={editor} className="relative" />
     </>
   );
 }

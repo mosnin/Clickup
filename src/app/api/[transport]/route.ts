@@ -195,6 +195,8 @@ const READ_TOOLS = new Set([
   "get_doc",
   "next_task",
   "list_channels",
+  "read_channel",
+  "list_reference_targets",
   "list_time_entries",
   "list_goals",
   "list_automations",
@@ -318,6 +320,8 @@ const IDEMPOTENT_TOOLS = new Set([
   "update_comment",
   "resolve_comment",
   "create_channel", // create-by-name returns the existing channel
+  "mark_channel_read", // moving a read cursor to now is safely repeatable
+  "set_channel_topic",
 ]);
 
 function titleFor(name: string): string {
@@ -1106,7 +1110,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "add_comment",
     description:
-      "Post a comment (task) or chat message (workspace). Mention someone by putting @[Name](id) in the body AND listing the id in mentionIds, they'll be notified.",
+      "Post a comment (task) or chat message (workspace/channel). Three inline tokens work in the body: @[Name](id) mentions someone (also list the id in mentionIds so they're notified), #[Label](kind:id) references a project/list/task/page/sprint/goal (see list_reference_targets — this renders as a working link and comes back to you as structured refs), and [[Page title]] names a page.",
     shape: {
       parentType: z.enum(["task", "space", "workspace", "channel"]),
       parentId: z.string(),
@@ -1963,6 +1967,38 @@ const TOOLS: ToolDef[] = [
     shape: { name: z.string() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.createChannel), { apiKey: k, ...a }),
+  },
+  {
+    name: "read_channel",
+    description:
+      "A channel's transcript with authors and structured references resolved. Prefer this over list_comments for channels: it returns each message's `refs` array, so you learn which project/list/page is being discussed without re-parsing prose. Call mark_channel_read afterwards so you don't re-read it next wake.",
+    shape: { channelId: z.string(), limit: z.number().optional() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.readChannel), { apiKey: k, ...a }),
+  },
+  {
+    name: "mark_channel_read",
+    description:
+      "Move your read cursor in a channel to now, so list_channels stops reporting it unread. Not metered against your action budget.",
+    shape: { channelId: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.markChannelRead), { apiKey: k, ...a }),
+  },
+  {
+    name: "set_channel_topic",
+    description:
+      "Set what a channel is for, shown under its name. Pass an empty string to clear it.",
+    shape: { channelId: z.string(), topic: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.setChannelTopic), { apiKey: k, ...a }),
+  },
+  {
+    name: "list_reference_targets",
+    description:
+      "Everything you can reference inline in a message or comment, with the id to use. Reference grammar is `#[Label](kind:id)` — e.g. `#[Billing migration](project:abc123)`. Kinds: project, list, task, page, sprint, goal. A reference renders as a working link for humans and is returned to you as structured `refs`, so prefer it over naming things in bare prose.",
+    shape: {},
+    run: (c, k) =>
+      c.query(asQuery(api.agentApi.referenceTargets), { apiKey: k }),
   },
 
   // ── Time tracking ────────────────────────────────────────────────

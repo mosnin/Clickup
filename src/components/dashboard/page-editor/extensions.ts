@@ -15,6 +15,8 @@ import type { AnyExtension } from "@tiptap/react";
 import { SlashCommands } from "./slash-commands";
 import { PageLink, type PageLinkOptions } from "./page-link";
 import { ImageDrop, PageImage, type ImageUploader } from "./image";
+import { Callout, ToggleBlock, ToggleSummary } from "./blocks";
+import { DragHandle } from "./drag-handle";
 
 // The editor's schema.
 //
@@ -101,6 +103,10 @@ export function buildExtensions(opts: {
     TaskItem.configure({ nested: true }),
     PageImage,
     ImageDrop.configure({ upload: opts.uploadImage }),
+    ToggleBlock,
+    ToggleSummary,
+    Callout,
+    DragHandle,
     PageLink.configure(opts.pageLink),
     SlashCommands.configure({ suggestion: opts.slashSuggestion as never }),
   ] as AnyExtension[];

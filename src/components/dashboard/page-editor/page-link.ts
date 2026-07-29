@@ -4,7 +4,7 @@ import { Extension, Node, mergeAttributes } from "@tiptap/core";
 import Suggestion from "@tiptap/suggestion";
 import { PluginKey } from "@tiptap/pm/state";
 import type { Editor, Range } from "@tiptap/core";
-import { installPageTokens } from "./markdown-tokens";
+import { installPageTokens, restorePageBlocks } from "./markdown-tokens";
 
 // `[[Page title]]` — the app's internal link.
 //
@@ -96,9 +96,9 @@ export const PageLink = Node.create<PageLinkOptions>({
   addStorage() {
     return {
       markdown: {
-        // Registers the mention and wiki-link rules for the whole document —
-        // both tokens are installed together by one guarded call.
-        parse: { setup: installPageTokens },
+        // One node owns the document-wide parse hooks: the inline token
+        // rules, and the DOM pass that rebuilds toggles and callouts.
+        parse: { setup: installPageTokens, updateDOM: restorePageBlocks },
         serialize(
           state: { write: (text: string) => void },
           node: { attrs: { title?: string } },

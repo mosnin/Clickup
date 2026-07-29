@@ -262,7 +262,14 @@ async function syncMentions(
       q.eq("parentType", "page").eq("parentId", page._id),
     )
     .collect();
-  const already = new Set(existing.map((m) => m.mentionedClerkId));
+  // Only body mentions count for dedupe. A comment on this page produces a
+  // mention row with the same parent, and letting that suppress a later
+  // mention written into the page itself would silently drop a notification.
+  const already = new Set(
+    existing
+      .filter((m) => m.messageId === undefined)
+      .map((m) => m.mentionedClerkId),
+  );
 
   const workspaceId =
     page.scopeType === "workspace" ? (page.scopeId as Id<"workspaces">) : null;
@@ -526,6 +533,16 @@ export async function removePageCore(
     await ctx.db.delete(att._id);
   }
   await removeMentions(ctx, page._id);
+  // The discussion about a page goes with it — a comment thread whose subject
+  // no longer exists is unreachable, not preserved.
+  for (const message of await ctx.db
+    .query("messages")
+    .withIndex("by_parent", (q) =>
+      q.eq("parentType", "page").eq("parentId", page._id),
+    )
+    .collect()) {
+    await ctx.db.delete(message._id);
+  }
   // Nested pages are promoted to top level rather than deleted with the
   // parent: losing a tree of writing to one click is not recoverable.
   for (const child of await ctx.db
@@ -594,21 +611,51 @@ export const listForScope = query({
       return [];
     }
 
-    const needle = search?.trim().toLowerCase();
-    const pages = await ctx.db
-      .query("pages")
-      .withIndex("by_scope", (q) =>
-        q.eq("scopeType", scopeType).eq("scopeId", scopeId),
-      )
-      .collect();
+    const needle = search?.trim();
+
+    // Searching goes through the full-text index; browsing walks the scope.
+    //
+    // These are genuinely different reads. Browsing has to enumerate the
+    // scope anyway to render the list, so an index would buy nothing. A
+    // search over a workspace with thousands of pages must not load every
+    // page's markdown into a JS `includes()` — that is the read that stops
+    // working first. Titles are matched separately because the search index
+    // covers `markdown` only, and "the page called X" is the most common
+    // search there is.
+    let pages: Doc<"pages">[];
+    if (needle) {
+      const byBody = await ctx.db
+        .query("pages")
+        .withSearchIndex("by_text", (q) =>
+          q
+            .search("markdown", needle)
+            .eq("scopeType", scopeType)
+            .eq("scopeId", scopeId),
+        )
+        .take(100);
+      const byTitle = await ctx.db
+        .query("pages")
+        .withSearchIndex("by_title", (q) =>
+          q
+            .search("title", needle)
+            .eq("scopeType", scopeType)
+            .eq("scopeId", scopeId),
+        )
+        .take(50);
+      const seen = new Set(byBody.map((p) => p._id as string));
+      pages = [...byBody, ...byTitle.filter((p) => !seen.has(p._id))];
+    } else {
+      pages = await ctx.db
+        .query("pages")
+        .withIndex("by_scope", (q) =>
+          q.eq("scopeType", scopeType).eq("scopeId", scopeId),
+        )
+        .collect();
+    }
 
     const rows: PageRow[] = [];
     for (const p of pages) {
       if (p.archivedAt !== undefined) continue;
-      if (needle) {
-        const haystack = `${p.title} ${p.markdown}`.toLowerCase();
-        if (!haystack.includes(needle)) continue;
-      }
       const attachments = await ctx.db
         .query("pageAttachments")
         .withIndex("by_page", (q) => q.eq("pageId", p._id))

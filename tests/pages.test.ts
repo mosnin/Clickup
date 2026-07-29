@@ -837,3 +837,192 @@ describe("concurrent edits", () => {
     expect(now!.page.markdown).toBe("mine");
   });
 });
+
+describe("search", () => {
+  it("finds a page by a word in its body and by its title", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Runbook",
+      markdown: "Restart the ingest worker when the queue backs up.",
+    });
+    await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Billing migration",
+      markdown: "Moving off the legacy provider.",
+    });
+
+    const byBody = await alice.query(api.pages.listForScope, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      search: "ingest",
+    });
+    expect(byBody.map((p) => p.title)).toEqual(["Runbook"]);
+
+    // The body index covers `markdown` only, so a title-only match has to
+    // come from somewhere — and "the page called X" is the search people
+    // actually run.
+    const byTitle = await alice.query(api.pages.listForScope, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      search: "Billing",
+    });
+    expect(byTitle.map((p) => p.title)).toEqual(["Billing migration"]);
+  });
+
+  it("returns a page once when both its title and body match", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Runbook",
+      markdown: "This runbook covers restarts.",
+    });
+    const hits = await alice.query(api.pages.listForScope, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      search: "runbook",
+    });
+    expect(hits).toHaveLength(1);
+  });
+
+  it("never reaches outside the scope", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Team secret",
+      markdown: "shibboleth",
+    });
+    await alice.mutation(api.pages.create, {
+      scopeType: "user",
+      scopeId: ALICE.subject,
+      title: "My note",
+      markdown: "shibboleth",
+    });
+    const personal = await alice.query(api.pages.listForScope, {
+      scopeType: "user",
+      scopeId: ALICE.subject,
+      search: "shibboleth",
+    });
+    expect(personal.map((p) => p.title)).toEqual(["My note"]);
+  });
+});
+
+describe("discussion on a page", () => {
+  it("keeps the conversation beside the document, not inside it", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Architecture",
+      markdown: "# Architecture",
+    });
+    await alice.mutation(api.messages.create, {
+      parentType: "page",
+      parentId: pageId,
+      body: "Should we split the storage section out?",
+    });
+
+    const thread = await alice.query(api.messages.listForParent, {
+      parentType: "page",
+      parentId: pageId,
+    });
+    expect(thread).toHaveLength(1);
+    // The page's own bytes are untouched — an agent reading it gets the
+    // decision, not the argument.
+    const page = await alice.query(api.pages.get, { pageId });
+    expect(page!.page.markdown).toBe("# Architecture");
+  });
+
+  it("refuses a comment from someone who can't read the page", async () => {
+    const { t, workspaceId } = await seed();
+    const pageId = await t.withIdentity(ALICE).mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Team only",
+    });
+    await expect(
+      t.withIdentity(OUTSIDER).mutation(api.messages.create, {
+        parentType: "page",
+        parentId: pageId,
+        body: "let me in",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("a comment mention does not suppress a later mention in the page body", async () => {
+    const { t, workspaceId } = await seed();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("memberships", {
+        userClerkId: OUTSIDER.subject,
+        workspaceId,
+        role: "member",
+        joinedAt: Date.now(),
+      });
+    });
+    const alice = t.withIdentity(ALICE);
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Architecture",
+    });
+
+    // Both land on parentType "page" with the same parentId, so the body
+    // dedupe has to distinguish them or this notification vanishes.
+    await alice.mutation(api.messages.create, {
+      parentType: "page",
+      parentId: pageId,
+      body: `@[Outsider](${OUTSIDER.subject}) thoughts?`,
+      mentionClerkIds: [OUTSIDER.subject],
+    });
+    await alice.mutation(api.pages.update, {
+      pageId,
+      markdown: `Owner: @[Outsider](${OUTSIDER.subject})`,
+    });
+
+    const rows = await t.run(async (ctx) =>
+      await ctx.db
+        .query("mentions")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "page").eq("parentId", pageId),
+        )
+        .collect(),
+    );
+    // One from the comment (has a messageId), one from the body (doesn't).
+    expect(rows.filter((r) => r.messageId !== undefined)).toHaveLength(1);
+    expect(rows.filter((r) => r.messageId === undefined)).toHaveLength(1);
+  });
+
+  it("takes the discussion with it when the page is deleted", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Architecture",
+    });
+    await alice.mutation(api.messages.create, {
+      parentType: "page",
+      parentId: pageId,
+      body: "a thought",
+    });
+    await alice.mutation(api.pages.remove, { pageId });
+
+    const orphans = await t.run(async (ctx) =>
+      await ctx.db
+        .query("messages")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "page").eq("parentId", pageId),
+        )
+        .collect(),
+    );
+    expect(orphans).toHaveLength(0);
+  });
+});
