@@ -803,6 +803,74 @@ export const scopeForTarget = query({
   },
 });
 
+/**
+ * Everyone a page in this scope can mention: workspace members and the
+ * agents scoped to it.
+ *
+ * Deliberately the same actor shape and the same `@[Name](id)` token the
+ * comment composer already uses (src/lib/mentions.ts). A page mentioning
+ * someone should mean exactly what a comment mentioning them means.
+ */
+export const mentionableActors = query({
+  args: { scopeType: scopeValidator, scopeId: v.string() },
+  handler: async (ctx, { scopeType, scopeId }) => {
+    try {
+      await requireScopeAccess(ctx, { scopeType, scopeId });
+    } catch {
+      return [];
+    }
+
+    const out: { id: string; name: string; kind: "user" | "agent" }[] = [];
+
+    if (scopeType === "workspace") {
+      const memberships = await ctx.db
+        .query("memberships")
+        .withIndex("by_workspace", (q) =>
+          q.eq("workspaceId", scopeId as Id<"workspaces">),
+        )
+        .collect();
+      for (const m of memberships) {
+        const user = await ctx.db
+          .query("users")
+          .withIndex("by_clerk_id", (q) => q.eq("clerkId", m.userClerkId))
+          .unique();
+        if (user) {
+          out.push({
+            id: user.clerkId,
+            name: user.name ?? user.email,
+            kind: "user",
+          });
+        }
+      }
+    } else {
+      const me = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", scopeId))
+        .unique();
+      if (me) {
+        out.push({
+          id: me.clerkId,
+          name: me.name ?? me.email,
+          kind: "user",
+        });
+      }
+    }
+
+    const agents = await ctx.db
+      .query("agents")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", scopeType).eq("parentId", scopeId),
+      )
+      .collect();
+    for (const a of agents) {
+      if (a.status === "paused") continue;
+      out.push({ id: a._id, name: a.name, kind: "agent" });
+    }
+
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  },
+});
+
 /** Titles in a scope, so the editor can autocomplete [[wikilinks]]. */
 export const titlesForScope = query({
   args: { scopeType: scopeValidator, scopeId: v.string() },

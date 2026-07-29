@@ -1165,3 +1165,127 @@ h3,
   border-bottom: 1px dashed var(--color-border);
   cursor: help;
 }
+
+/* ── Page editor ──────────────────────────────────────────────────────────
+   The editing surface reuses .page-prose so what you type looks exactly like
+   what you read — one type scale, not an editor theme and a reader theme
+   that drift. These add only what editing needs on top. */
+.page-editor-surface {
+  min-height: 24rem;
+  /* The measure is set by .page-prose; this keeps the caret from sitting
+     flush against the left edge on wide screens. */
+  padding-bottom: 30vh;
+}
+.page-editor-surface:focus-visible {
+  outline: none;
+}
+
+/* Tiptap's empty-node placeholder. Shown per-block, so an empty heading
+   says "Heading" and an empty paragraph gives the /-and-@ hint. */
+.page-prose p.is-editor-empty:first-child::before,
+.page-prose h1.is-empty::before,
+.page-prose h2.is-empty::before,
+.page-prose h3.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--color-muted-foreground);
+  opacity: 0.55;
+}
+
+/* A mention is a person, so it reads as a chip rather than as body text. */
+.page-mention {
+  border-radius: 0.35rem;
+  background: var(--color-accent);
+  padding: 0.05em 0.35em;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* A [[page link]] is a destination, so it reads as a link — but underlined
+   with a dotted rule to separate "another page here" from an external URL. */
+.page-wikilink {
+  cursor: pointer;
+  border-bottom: 1px dotted var(--color-muted-foreground);
+  font-weight: 500;
+}
+.page-wikilink:hover {
+  background: var(--color-accent);
+}
+
+/* Tables: bordered grid, header row tinted, and horizontally scrollable so
+   a wide table never widens the page itself. */
+.page-prose .tableWrapper {
+  overflow-x: auto;
+}
+.page-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.page-table td,
+.page-table th {
+  position: relative;
+  min-width: 6rem;
+  border: 1px solid var(--color-border);
+  padding: 0.4rem 0.65rem;
+  vertical-align: top;
+}
+.page-table th {
+  background: var(--color-muted);
+  font-weight: 600;
+  text-align: left;
+}
+.page-table .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--color-accent);
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Checkboxes sit outside the text column so the copy stays aligned with the
+   paragraphs above and below it. */
+.page-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+.page-task-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+.page-task-list li > label {
+  margin-top: 0.28em;
+  flex-shrink: 0;
+}
+.page-task-list li > div {
+  min-width: 0;
+  flex: 1;
+}
+.page-task-list li[data-checked="true"] > div {
+  color: var(--color-muted-foreground);
+  text-decoration: line-through;
+}
+
+.page-code-block {
+  background: var(--color-muted);
+  border-radius: 0.75rem;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+/* ProseMirror's gap cursor, so you can put the caret before/after a table. */
+.ProseMirror-gapcursor {
+  position: relative;
+}
+.ProseMirror-gapcursor::after {
+  content: "";
+  display: block;
+  border-top: 1px solid var(--color-foreground);
+  width: 1.5rem;
+}

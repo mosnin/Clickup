@@ -60,24 +60,24 @@ describe("PageEditor", () => {
     queryResults["pages.viewers"] = [];
   }
 
-  it("renders markdown as formatted HTML in Read mode", () => {
+  it("opens on the rich editor with the markdown already structured", () => {
     seed();
     const { container } = render(<PageEditor pageId="pg1" />, {
       wrapper: DashboardShell,
     });
     const prose = container.querySelector(".page-prose")!;
     expect(prose).toBeTruthy();
-    // Structure, not raw syntax: this is the whole claim of the reading view.
+    // Structure, not raw syntax: this is the whole claim of the editor.
     expect(prose.querySelector("h1")?.textContent).toBe("Architecture");
     expect(prose.querySelector("strong")?.textContent).toBe("Convex");
     expect(prose.querySelectorAll("li")).toHaveLength(2);
     expect(prose.textContent).not.toContain("**");
   });
 
-  it("shows the raw markdown in Write mode, byte for byte", () => {
+  it("shows the stored markdown byte for byte behind the Markdown tab", () => {
     seed();
     render(<PageEditor pageId="pg1" />, { wrapper: DashboardShell });
-    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    fireEvent.click(screen.getByRole("button", { name: "Markdown" }));
     const editor = screen.getByLabelText("Page markdown") as HTMLTextAreaElement;
     expect(editor.value).toBe(PAGE.markdown);
   });
@@ -86,7 +86,7 @@ describe("PageEditor", () => {
     vi.useFakeTimers();
     seed();
     render(<PageEditor pageId="pg1" />, { wrapper: DashboardShell });
-    fireEvent.click(screen.getByRole("button", { name: "write" }));
+    fireEvent.click(screen.getByRole("button", { name: "Markdown" }));
     fireEvent.change(screen.getByLabelText("Page markdown"), {
       target: { value: "# Architecture\n\nrewritten" },
     });
@@ -106,8 +106,15 @@ describe("PageEditor", () => {
 
   it("invites the first sentence when the page is empty", () => {
     seed({ page: { ...PAGE, markdown: "" } });
-    render(<PageEditor pageId="pg1" />, { wrapper: DashboardShell });
-    expect(screen.getByText("Nothing written yet")).toBeDefined();
+    const { container } = render(<PageEditor pageId="pg1" />, {
+      wrapper: DashboardShell,
+    });
+    // An empty page teaches its own two shortcuts rather than sitting blank.
+    const placeholder = container
+      .querySelector(".page-editor-surface [data-placeholder]")
+      ?.getAttribute("data-placeholder");
+    expect(placeholder).toContain("/");
+    expect(placeholder).toContain("@");
   });
 
   it("lists backlinks and where the page is pinned", () => {

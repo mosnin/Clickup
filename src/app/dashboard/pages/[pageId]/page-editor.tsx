@@ -16,15 +16,17 @@ import { Monogram } from "@/components/dashboard/monogram";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
 import { timeAgo } from "@/lib/time";
-import { renderMarkdown } from "@/lib/markdown";
+import { PageBodyEditor } from "@/components/dashboard/page-editor";
 import { cn } from "@/lib/utils";
 
 // The page editor.
 //
-// One representation, two ways to look at it. "Read" renders the markdown;
-// "Write" shows the markdown itself. There is no rich-text model underneath
-// converting between them, which is the whole reason an agent and a person
-// can edit the same page without either one destroying the other's work.
+// A rich editing surface over a markdown document. Tiptap handles the
+// typing — slash commands, mentions, tables, formatting — and what gets
+// stored is still markdown, so an agent writing `## Heading` and a person
+// pressing the H2 button are editing the same bytes. That is the whole
+// design: no rich-text model underneath doing a lossy conversion, and
+// therefore no way for one side's edit to destroy the other's.
 //
 // Saving is debounced and quiet — no save button, matching every other
 // blur-persisted field in the app.
@@ -41,7 +43,9 @@ export function PageEditor({ pageId }: { pageId: string }) {
   const { toast } = useToast();
   const { user } = useUser();
 
-  const [mode, setMode] = useState<"read" | "write">("read");
+  // "Markdown" is not a fallback — it is the stored format, and being
+  // able to see it is how you verify what an agent will read.
+  const [mode, setMode] = useState<"rich" | "markdown">("rich");
   const [draft, setDraft] = useState<string | null>(null);
   const [title, setTitle] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -74,9 +78,11 @@ export function PageEditor({ pageId }: { pageId: string }) {
   }, [heartbeat, id, myName, dirty]);
 
   const markdown = draft ?? data?.page.markdown ?? "";
-  const html = useMemo(
-    () => renderMarkdown(markdown, titles ?? []),
-    [markdown, titles],
+  const mentionables = useQuery(
+    api.pages.mentionableActors,
+    data
+      ? { scopeType: data.page.scopeType, scopeId: data.page.scopeId }
+      : "skip",
   );
 
   // Flush any pending edit when the component goes away, so navigating off
@@ -149,7 +155,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
         actions={
           <div className="flex items-center gap-2">
             <div className="segmented">
-              {(["read", "write"] as const).map((m) => (
+              {(["rich", "markdown"] as const).map((m) => (
                 <button
                   key={m}
                   type="button"
@@ -160,7 +166,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
                     mode === m && "segmented-on",
                   )}
                 >
-                  {m}
+                  {m === "rich" ? "Editor" : "Markdown"}
                 </button>
               ))}
             </div>
@@ -189,51 +195,40 @@ export function PageEditor({ pageId }: { pageId: string }) {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
         <div className="min-w-0 space-y-4">
+          {/* The title is the page's identity, so it reads like one: big,
+              borderless, and ghosted until it has a name. */}
           <input
             value={title ?? page.title}
             aria-label="Page title"
+            placeholder="Untitled"
             onChange={(e) => {
               setTitle(e.currentTarget.value);
               queueSave({ title: e.currentTarget.value });
             }}
-            className="w-full bg-transparent text-2xl font-semibold tracking-tight focus:outline-none"
+            className="w-full bg-transparent text-4xl font-bold tracking-tight placeholder:text-muted-foreground/35 focus:outline-none"
           />
 
-          {mode === "write" ? (
+          {mode === "markdown" ? (
             <textarea
               value={markdown}
               aria-label="Page markdown"
-              spellCheck
+              spellCheck={false}
               onChange={(e) => {
                 setDraft(e.currentTarget.value);
                 queueSave({ markdown: e.currentTarget.value });
               }}
-              placeholder={
-                "Write in markdown.\n\n# A heading\n- a point\n[[Link to another page]]"
-              }
-              className="soft-field min-h-[24rem] w-full resize-y px-4 py-3 font-mono text-[13px] leading-relaxed"
-            />
-          ) : markdown.trim() ? (
-            <article
-              className="page-prose"
-              // Safe by construction: renderMarkdown runs markdown-it with
-              // html:false, so author text can never become markup.
-              dangerouslySetInnerHTML={{ __html: html }}
+              placeholder={"# A heading\n- a point\n[[Link to another page]]"}
+              className="soft-field min-h-[28rem] w-full resize-y px-4 py-3 font-mono text-[13px] leading-relaxed"
             />
           ) : (
-            <EmptyState
-              compact
-              title="Nothing written yet"
-              message="Switch to Write and start typing. Markdown is the stored format, so an agent can pick this up and continue it."
-              action={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setMode("write")}
-                >
-                  Start writing
-                </Button>
-              }
+            <PageBodyEditor
+              markdown={markdown}
+              mentionables={mentionables ?? []}
+              pageTitles={titles ?? []}
+              onChange={(next) => {
+                setDraft(next);
+                queueSave({ markdown: next });
+              }}
             />
           )}
         </div>
