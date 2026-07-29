@@ -56,10 +56,14 @@ export const feedForCurrent = query({
 
     return await Promise.all(
       sorted.map(async (mention) => {
-        const message = await ctx.db.get(mention.messageId);
+        // Page mentions have no message: the tag lives in the page's own
+        // markdown, and the snippet was captured at write time.
+        const message = mention.messageId
+          ? await ctx.db.get(mention.messageId)
+          : null;
 
         let href: string | null = null;
-        let contextLabel = "Comment";
+        let contextLabel = mention.parentType === "page" ? "Page" : "Comment";
         if (mention.parentType === "workspace") {
           href = `/dashboard/w/${mention.parentId}?tab=chat`;
           const ws = await ctx.db.get(mention.parentId as Id<"workspaces">);
@@ -83,6 +87,12 @@ export const feedForCurrent = query({
             href = "/dashboard/inbox";
           }
           contextLabel = channel ? `#${channel.name}` : "Channel";
+        } else if (mention.parentType === "page") {
+          const page = await ctx.db.get(mention.parentId as Id<"pages">);
+          if (page) {
+            href = `/dashboard/pages/${page._id}`;
+            contextLabel = page.title;
+          }
         } else if (mention.parentType === "space") {
           // Space chat has no dedicated page yet — fall back to the inbox
           // so the card is still clickable (mirrors messages.ts
@@ -97,10 +107,10 @@ export const feedForCurrent = query({
           createdAt: mention.createdAt,
           readAt: mention.readAt,
           parentType: mention.parentType as Doc<"mentions">["parentType"],
-          body: message?.body ?? "",
+          body: message?.body ?? mention.snippet ?? "",
           authorName: message
             ? await resolveAuthor(message.authorClerkId)
-            : "",
+            : (mention.byName ?? ""),
           href,
           contextLabel,
         };

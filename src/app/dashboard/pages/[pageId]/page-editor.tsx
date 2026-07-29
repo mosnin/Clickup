@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
-import { FileText, Plus, Trash2, X } from "lucide-react";
+import { ChevronRight, FileText, Plus, Trash2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Card } from "@/components/ui/card";
@@ -39,6 +39,9 @@ export function PageEditor({ pageId }: { pageId: string }) {
   const update = useMutation(api.pages.update);
   const remove = useMutation(api.pages.remove);
   const detach = useMutation(api.pages.detach);
+  const createPage = useMutation(api.pages.create);
+  const getUploadUrl = useMutation(api.pages.generateUploadUrl);
+  const urlForUpload = useMutation(api.pages.urlForUpload);
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useUser();
@@ -49,6 +52,11 @@ export function PageEditor({ pageId }: { pageId: string }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [title, setTitle] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  // Who wrote the version this draft is based on. A save carries it, and
+  // the server refuses if the page has moved on since — the alternative is
+  // silently overwriting someone else's paragraph.
+  const [conflict, setConflict] = useState<string | null>(null);
+  const baseUpdatedAt = useRef<number | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const titles = useQuery(
@@ -97,12 +105,101 @@ export function PageEditor({ pageId }: { pageId: string }) {
     setDirty(true);
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      void update({ pageId: id, ...next })
-        .then(() => setDirty(false))
-        .catch((e) =>
-          toast(errorMessage(e, "Couldn't save the page"), { kind: "error" }),
-        );
+      void update({
+        pageId: id,
+        ...next,
+        // undefined on the very first save of a freshly loaded page, which
+        // the server reads as "don't check" — by then we always have one.
+        expectedUpdatedAt: baseUpdatedAt.current ?? undefined,
+      })
+        .then((res) => {
+          if (res?.updatedAt) baseUpdatedAt.current = res.updatedAt;
+          setDirty(false);
+          setConflict(null);
+        })
+        .catch((e) => {
+          const message = errorMessage(e, "Couldn't save the page");
+          setDirty(false);
+          // A refused save is not a lost one: the text stays in the editor
+          // until the reader decides whose version wins.
+          setConflict(message);
+        });
     }, SAVE_DEBOUNCE_MS);
+  }
+
+  // Adopt the server's version number for a page we haven't edited yet, and
+  // notice when it moves under us.
+  useEffect(() => {
+    if (!data) return;
+    if (baseUpdatedAt.current === null) {
+      baseUpdatedAt.current = data.page.updatedAt;
+      return;
+    }
+    if (data.page.updatedAt === baseUpdatedAt.current) return;
+    if (!dirty) {
+      // Nothing local to lose — take theirs.
+      baseUpdatedAt.current = data.page.updatedAt;
+      setDraft(null);
+      setConflict(null);
+    } else {
+      setConflict(
+        `${data.page.updatedByName ?? "Someone else"} edited this page while you were writing`,
+      );
+    }
+  }, [data, dirty]);
+
+  /** Discard the local draft and take the stored version. */
+  function takeTheirs() {
+    if (!data) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    baseUpdatedAt.current = data.page.updatedAt;
+    setDraft(null);
+    setTitle(null);
+    setDirty(false);
+    setConflict(null);
+  }
+
+  /** Force the local draft over the stored version. */
+  function keepMine() {
+    if (!data) return;
+    baseUpdatedAt.current = data.page.updatedAt;
+    setConflict(null);
+    queueSave({ markdown, title: title ?? data.page.title });
+  }
+
+  async function uploadImage(file: File): Promise<string | null> {
+    try {
+      const uploadUrl = await getUploadUrl({});
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+      const { storageId } = (await res.json()) as { storageId: string };
+      return await urlForUpload({ storageId: storageId as Id<"_storage"> });
+    } catch (e) {
+      toast(errorMessage(e, "Couldn't upload that image"), { kind: "error" });
+      return null;
+    }
+  }
+
+  /** Follow a [[link]] — creating the page first when it doesn't exist. */
+  function openPageLink(linkTitle: string, linkedPageId: string | null) {
+    if (linkedPageId) {
+      router.push(`/dashboard/pages/${linkedPageId}`);
+      return;
+    }
+    if (!data) return;
+    void createPage({
+      scopeType: data.page.scopeType,
+      scopeId: data.page.scopeId,
+      title: linkTitle,
+    })
+      .then((newId) => router.push(`/dashboard/pages/${newId}`))
+      .catch((e) =>
+        toast(errorMessage(e, "Couldn't create that page"), { kind: "error" }),
+      );
   }
 
   if (data === undefined) return <EditorSkeleton />;
@@ -115,7 +212,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
     );
   }
 
-  const { page, backlinks, attachments } = data;
+  const { page, backlinks, attachments, ancestors, children } = data;
 
   return (
     <div className="space-y-6">
@@ -195,6 +292,40 @@ export function PageEditor({ pageId }: { pageId: string }) {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
         <div className="min-w-0 space-y-4">
+          {ancestors.length > 0 && (
+            <nav
+              aria-label="Breadcrumb"
+              className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground"
+            >
+              {ancestors.map((a) => (
+                <span key={a.pageId} className="flex items-center gap-1">
+                  <Link
+                    href={`/dashboard/pages/${a.pageId}`}
+                    className="max-w-[12rem] truncate hover:text-foreground hover:underline"
+                  >
+                    {a.title}
+                  </Link>
+                  <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                </span>
+              ))}
+            </nav>
+          )}
+
+          {conflict && (
+            <div
+              role="alert"
+              className="bento-tile flex flex-wrap items-center gap-3 rounded-xl px-4 py-3 text-sm"
+            >
+              <span className="min-w-0 flex-1">{conflict}</span>
+              <Button variant="outline" size="sm" onClick={takeTheirs}>
+                Take theirs
+              </Button>
+              <Button size="sm" onClick={keepMine}>
+                Keep mine
+              </Button>
+            </div>
+          )}
+
           {/* The title is the page's identity, so it reads like one: big,
               borderless, and ghosted until it has a name. */}
           <input
@@ -225,6 +356,8 @@ export function PageEditor({ pageId }: { pageId: string }) {
               markdown={markdown}
               mentionables={mentionables ?? []}
               pageTitles={titles ?? []}
+              onOpenPageLink={openPageLink}
+              uploadImage={uploadImage}
               onChange={(next) => {
                 setDraft(next);
                 queueSave({ markdown: next });
@@ -234,6 +367,54 @@ export function PageEditor({ pageId }: { pageId: string }) {
         </div>
 
         <div className="space-y-4">
+          <Card className="rounded-2xl p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Inside this page
+              </span>
+              <button
+                type="button"
+                aria-label="New subpage"
+                onClick={() => {
+                  void createPage({
+                    scopeType: page.scopeType,
+                    scopeId: page.scopeId,
+                    title: "Untitled",
+                    parentPageId: id,
+                  })
+                    .then((newId) => router.push(`/dashboard/pages/${newId}`))
+                    .catch((e) =>
+                      toast(errorMessage(e, "Couldn't create the subpage"), {
+                        kind: "error",
+                      }),
+                    );
+                }}
+                className="tap-target inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {children.length === 0 ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Long pages get unreadable. Break a section out into a subpage
+                and it stays linked from here.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-1.5">
+                {children.map((c) => (
+                  <li key={c.pageId}>
+                    <Link
+                      href={`/dashboard/pages/${c.pageId}`}
+                      className="block truncate text-sm hover:underline"
+                    >
+                      {c.title}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
           <Card className="rounded-2xl p-5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">

@@ -1823,13 +1823,16 @@ export const listMyMentions = query({
     const out = [];
     for (const m of mentions.sort((a, b) => b.createdAt - a.createdAt)) {
       if (unreadOnly && m.readAt !== undefined) continue;
-      const message = await ctx.db.get(m.messageId);
+      // A page mention has no message behind it — the tag lives in the
+      // page's markdown and the snippet was captured when it was written.
+      const message = m.messageId ? await ctx.db.get(m.messageId) : null;
       out.push({
         mentionId: m._id,
         parentType: m.parentType,
         parentId: m.parentId,
-        body: message?.body ?? "",
+        body: message?.body ?? m.snippet ?? "",
         authorId: message?.authorClerkId,
+        authorName: message ? undefined : m.byName,
         readAt: m.readAt,
         createdAt: m.createdAt,
       });

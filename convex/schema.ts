@@ -991,7 +991,9 @@ export default defineSchema({
     .index("by_parent_message", ["parentMessageId"]),
 
   mentions: defineTable({
-    messageId: v.id("messages"),
+    // Absent for mentions that don't come from a comment — a page mention
+    // lives in the page's own markdown, so there is no message to point at.
+    messageId: v.optional(v.id("messages")),
     mentionedClerkId: v.string(),
     // Materialized so the inbox query doesn't have to walk back through
     // the message + parent + workspace chain for every unread mention.
@@ -1000,13 +1002,21 @@ export default defineSchema({
       v.literal("space"),
       v.literal("workspace"),
       v.literal("channel"),
+      v.literal("page"),
     ),
     parentId: v.string(),
+    // Carried on the row for message-less sources, so the inbox still has
+    // something to show and someone to attribute it to.
+    snippet: v.optional(v.string()),
+    byName: v.optional(v.string()),
     readAt: v.optional(v.number()),
     createdAt: v.number(),
   })
     .index("by_user", ["mentionedClerkId"])
-    .index("by_message", ["messageId"]),
+    .index("by_message", ["messageId"])
+    // "Is this person already mentioned on this page?" — a page saves every
+    // 700ms while someone types, so the write path must be idempotent.
+    .index("by_parent", ["parentType", "parentId"]),
 
   // Rich-text documents. Belong to a workspace, a space, or a personal
   // user (same `parentType` discriminant pattern as spaces). `content`

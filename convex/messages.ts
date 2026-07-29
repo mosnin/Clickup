@@ -161,7 +161,13 @@ export const listMentionableUsers = query({
 
 // Is this id mentionable in the given scope? Members are; so are agents
 // that live in the scope.
-async function canBeMentioned(
+/**
+ * Can this principal be mentioned in this scope?
+ *
+ * Shared with pages.ts: a mention that the mentioned party can't read is a
+ * notification pointing at a 404, so both write paths check the same way.
+ */
+export async function canBeMentioned(
   ctx: MutationCtx,
   id: string,
   workspaceId: Id<"workspaces"> | null,

@@ -13,7 +13,8 @@ import TaskItem from "@tiptap/extension-task-item";
 import { Markdown } from "tiptap-markdown";
 import type { AnyExtension } from "@tiptap/react";
 import { SlashCommands } from "./slash-commands";
-import { PageLink } from "./page-link";
+import { PageLink, type PageLinkOptions } from "./page-link";
+import { ImageDrop, PageImage, type ImageUploader } from "./image";
 
 // The editor's schema.
 //
@@ -57,6 +58,8 @@ export function buildExtensions(opts: {
   placeholder: string;
   mentionSuggestion: Record<string, unknown>;
   slashSuggestion: Record<string, unknown>;
+  pageLink: PageLinkOptions;
+  uploadImage: ImageUploader | null;
 }): AnyExtension[] {
   return [
     StarterKit.configure({
@@ -96,7 +99,9 @@ export function buildExtensions(opts: {
     TableCell,
     TaskList.configure({ HTMLAttributes: { class: "page-task-list" } }),
     TaskItem.configure({ nested: true }),
-    PageLink,
+    PageImage,
+    ImageDrop.configure({ upload: opts.uploadImage }),
+    PageLink.configure(opts.pageLink),
     SlashCommands.configure({ suggestion: opts.slashSuggestion as never }),
   ] as AnyExtension[];
 }

@@ -41,6 +41,38 @@ export type SlashItem = {
   run: (editor: Editor, range: Range) => void;
 };
 
+/**
+ * Opens the OS file picker and hands the chosen image to the editor.
+ *
+ * The alternative — inserting `![alt](https://)` for someone to fill in — is
+ * what this block used to do, and it produced markdown for an image that
+ * doesn't exist. Picking a file is the only version of this that works.
+ */
+function pickImage(editor: Editor, range: Range): void {
+  editor.chain().focus().deleteRange(range).run();
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.multiple = true;
+  input.addEventListener("change", () => {
+    const files = Array.from(input.files ?? []);
+    if (files.length === 0) return;
+    // The upload path lives on the ImageDrop plugin, so the slash command,
+    // a paste and a drop all go through exactly one uploader.
+    const upload = editor.extensionManager.extensions.find(
+      (e) => e.name === "pageImageDrop",
+    )?.options?.upload as ((file: File) => Promise<string | null>) | undefined;
+    if (!upload) return;
+    void (async () => {
+      for (const file of files) {
+        const url = await upload(file);
+        if (url) editor.chain().focus().setImage({ src: url, alt: file.name }).run();
+      }
+    })();
+  });
+  input.click();
+}
+
 export const SLASH_ITEMS: SlashItem[] = [
   {
     title: "Text",
@@ -190,15 +222,9 @@ export const SLASH_ITEMS: SlashItem[] = [
   {
     title: "Image",
     group: "Insert",
-    keywords: "picture photo embed media",
+    keywords: "picture photo embed media upload screenshot",
     icon: ImageIcon,
-    run: (editor, range) =>
-      editor
-        .chain()
-        .focus()
-        .deleteRange(range)
-        .insertContent("![alt](https://)")
-        .run(),
+    run: pickImage,
   },
 ];
 

@@ -54,6 +54,8 @@ describe("PageEditor", () => {
       backlinks: [],
       outgoing: [],
       attachments: [],
+      ancestors: [],
+      children: [],
       ...overrides,
     };
     queryResults["pages.titlesForScope"] = [];

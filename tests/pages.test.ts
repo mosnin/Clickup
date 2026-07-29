@@ -9,6 +9,8 @@ import {
   inferTitle,
   markdownExcerpt,
   markdownToText,
+  mentionContext,
+  mentionedActorIds,
 } from "../convex/_markdown";
 
 // Pages are the long-form layer. The rules worth pinning down:
@@ -571,5 +573,267 @@ describe("roadmap ↔ workstream connection", () => {
     const project = await t.run(async (ctx) => await ctx.db.get(projectId));
     expect(project?.roadmapId).toBe(roadmap.roadmapId);
     expect(project?.roadmapPhaseId).toBe(roadmap.phases[1].id);
+  });
+});
+
+describe("mentions in a page", () => {
+  it("finds the tokens an agent wrote, and the sentence around them", () => {
+    const md = [
+      "# Handoff",
+      "",
+      "@[Ada Lovelace](user_alice) owns the schema change; ping",
+      "@[Scout](ag_1) once the migration lands.",
+    ].join("\n");
+
+    expect(mentionedActorIds(md)).toEqual(["user_alice", "ag_1"]);
+    // Not the first 180 characters of the page — the part that says why.
+    const context = mentionContext(md, "ag_1");
+    expect(context).toContain("Scout");
+    expect(context).toContain("migration lands");
+  });
+
+  it("ignores a bare markdown link that only looks like a mention", () => {
+    expect(mentionedActorIds("See [the RFC](https://x.test).")).toEqual([]);
+  });
+
+  it("notifies a tagged teammate and reaches their inbox", async () => {
+    const { t, workspaceId } = await seed();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("memberships", {
+        userClerkId: OUTSIDER.subject,
+        workspaceId,
+        role: "member",
+        joinedAt: Date.now(),
+      });
+    });
+    const alice = t.withIdentity(ALICE);
+
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Handoff",
+      markdown: `Please review, @[Outsider](${OUTSIDER.subject}).`,
+    });
+
+    const inbox = await t
+      .withIdentity(OUTSIDER)
+      .query(api.mentions.feedForCurrent, {});
+    expect(inbox).toHaveLength(1);
+    expect(inbox[0]).toMatchObject({
+      parentType: "page",
+      href: `/dashboard/pages/${pageId}`,
+      contextLabel: "Handoff",
+    });
+    // A page mention has no message behind it, so the row carries its own
+    // snippet and author or the inbox card renders blank.
+    expect(inbox[0].body).toContain("Please review");
+    expect(inbox[0].authorName).toBe(ALICE.subject);
+  });
+
+  it("does not re-notify on every keystroke", async () => {
+    const { t, workspaceId } = await seed();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("memberships", {
+        userClerkId: OUTSIDER.subject,
+        workspaceId,
+        role: "member",
+        joinedAt: Date.now(),
+      });
+    });
+    const alice = t.withIdentity(ALICE);
+    const token = `@[Outsider](${OUTSIDER.subject})`;
+
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Handoff",
+      markdown: token,
+    });
+    // A page saves every few hundred milliseconds while someone types.
+    for (const suffix of [" a", " ab", " abc"]) {
+      await alice.mutation(api.pages.update, {
+        pageId,
+        markdown: token + suffix,
+      });
+    }
+
+    const rows = await t.run(async (ctx) =>
+      await ctx.db
+        .query("mentions")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "page").eq("parentId", pageId),
+        )
+        .collect(),
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it("refuses to notify someone who can't read the page", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    // OUTSIDER is not a member of this workspace.
+    await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      markdown: `@[Outsider](${OUTSIDER.subject}) take a look`,
+    });
+    const inbox = await t
+      .withIdentity(OUTSIDER)
+      .query(api.mentions.feedForCurrent, {});
+    expect(inbox).toHaveLength(0);
+  });
+
+  it("takes its mentions with it when the page is deleted", async () => {
+    const { t, workspaceId } = await seed();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("memberships", {
+        userClerkId: OUTSIDER.subject,
+        workspaceId,
+        role: "member",
+        joinedAt: Date.now(),
+      });
+    });
+    const alice = t.withIdentity(ALICE);
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      markdown: `@[Outsider](${OUTSIDER.subject}) hello`,
+    });
+    await alice.mutation(api.pages.remove, { pageId });
+
+    const inbox = await t
+      .withIdentity(OUTSIDER)
+      .query(api.mentions.feedForCurrent, {});
+    expect(inbox).toHaveLength(0);
+  });
+});
+
+describe("nesting", () => {
+  it("reports the trail up and the pages inside", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    const rootId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Architecture",
+    });
+    const childId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Storage",
+      parentPageId: rootId,
+    });
+    const grandchildId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Blob layout",
+      parentPageId: childId,
+    });
+
+    const deep = await alice.query(api.pages.get, { pageId: grandchildId });
+    expect(deep?.ancestors.map((a) => a.title)).toEqual([
+      "Architecture",
+      "Storage",
+    ]);
+
+    const middle = await alice.query(api.pages.get, { pageId: childId });
+    expect(middle?.children.map((c) => c.title)).toEqual(["Blob layout"]);
+  });
+
+  it("refuses a move that would make a page its own ancestor", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    const parentId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Parent",
+    });
+    const childId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Child",
+      parentPageId: parentId,
+    });
+
+    // A cycle would detach both from every root: the index only walks down.
+    await expect(
+      alice.mutation(api.pages.update, {
+        pageId: parentId,
+        parentPageId: childId,
+      }),
+    ).rejects.toThrow(/inside itself/);
+  });
+
+  it("keeps nesting inside one workspace", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    const inWorkspace = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Team page",
+    });
+    const personal = await alice.mutation(api.pages.create, {
+      scopeType: "user",
+      scopeId: ALICE.subject,
+      title: "My page",
+    });
+    await expect(
+      alice.mutation(api.pages.update, {
+        pageId: personal,
+        parentPageId: inWorkspace,
+      }),
+    ).rejects.toThrow(/different workspace/);
+  });
+});
+
+describe("concurrent edits", () => {
+  it("refuses a save built on a version someone else has replaced", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      title: "Spec",
+      markdown: "original",
+    });
+    const loaded = await alice.query(api.pages.get, { pageId });
+    const base = loaded!.page.updatedAt;
+
+    // An agent writes while the person is still typing.
+    const after = await alice.mutation(api.pages.update, {
+      pageId,
+      markdown: "the agent's version",
+    });
+    expect(after.updatedAt).not.toBe(base);
+
+    await expect(
+      alice.mutation(api.pages.update, {
+        pageId,
+        markdown: "the person's version",
+        expectedUpdatedAt: base,
+      }),
+    ).rejects.toThrow(/edited this page while you were writing/);
+
+    // And the refusal is a refusal: the stored text is untouched.
+    const now = await alice.query(api.pages.get, { pageId });
+    expect(now!.page.markdown).toBe("the agent's version");
+  });
+
+  it("lets a save through when nothing has moved", async () => {
+    const { t, workspaceId } = await seed();
+    const alice = t.withIdentity(ALICE);
+    const pageId = await alice.mutation(api.pages.create, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+      markdown: "original",
+    });
+    const loaded = await alice.query(api.pages.get, { pageId });
+    await alice.mutation(api.pages.update, {
+      pageId,
+      markdown: "mine",
+      expectedUpdatedAt: loaded!.page.updatedAt,
+    });
+    const now = await alice.query(api.pages.get, { pageId });
+    expect(now!.page.markdown).toBe("mine");
   });
 });

@@ -55,6 +55,31 @@ export function PagesIndex() {
       : "skip",
   );
 
+  // Pages nest. The index shows roots with their subpages underneath —
+  // except while searching, where hiding a match under a parent that didn't
+  // match is exactly the wrong answer.
+  const searching = search.trim().length > 0;
+  const childrenOf = useMemo(() => {
+    const map = new Map<string, typeof pages>();
+    if (!pages || searching) return map;
+    for (const p of pages) {
+      if (!p.parentPageId) continue;
+      const bucket = map.get(p.parentPageId) ?? [];
+      bucket.push(p);
+      map.set(p.parentPageId, bucket);
+    }
+    return map;
+  }, [pages, searching]);
+
+  const roots = useMemo(() => {
+    if (!pages) return [];
+    if (searching) return pages;
+    const ids = new Set(pages.map((p) => p.pageId));
+    // A page whose parent is outside this scope (or archived) would
+    // otherwise vanish from the index entirely.
+    return pages.filter((p) => !p.parentPageId || !ids.has(p.parentPageId));
+  }, [pages, searching]);
+
   async function newPage() {
     if (!active) return;
     try {
@@ -145,35 +170,77 @@ export function PagesIndex() {
         />
       ) : (
         <Stagger className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {pages.map((p) => (
+          {roots.map((p) => (
             <StaggerItem key={p.pageId}>
-              <Link href={`/dashboard/pages/${p.pageId}`} className="lift block">
-                <Card className="h-full rounded-2xl p-5">
-                  <h2 className="truncate text-sm font-medium">{p.title}</h2>
-                  {p.excerpt && (
-                    <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
-                      {p.excerpt}
-                    </p>
-                  )}
-                  <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <span>
-                      {p.updatedByName
-                        ? `${p.updatedByName} · ${timeAgo(p.updatedAt)}`
-                        : timeAgo(p.updatedAt)}
-                    </span>
-                    {p.attachmentCount > 0 && (
-                      <span className="ml-auto">
-                        pinned to {p.attachmentCount}
-                      </span>
-                    )}
-                  </div>
-                </Card>
-              </Link>
+              <PageCard page={p} childrenOf={childrenOf} />
             </StaggerItem>
           ))}
         </Stagger>
       )}
     </div>
+  );
+}
+
+type PageRow = {
+  pageId: string;
+  title: string;
+  excerpt: string;
+  parentPageId?: string;
+  updatedAt: number;
+  updatedByName?: string;
+  attachmentCount: number;
+};
+
+function PageCard({
+  page,
+  childrenOf,
+}: {
+  page: PageRow;
+  childrenOf: Map<string, PageRow[] | undefined>;
+}) {
+  const kids = childrenOf.get(page.pageId) ?? [];
+  return (
+    <Card className="h-full rounded-2xl p-5">
+      <Link href={`/dashboard/pages/${page.pageId}`} className="block">
+        <h2 className="truncate text-sm font-medium hover:underline">
+          {page.title}
+        </h2>
+        {page.excerpt && (
+          <p className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
+            {page.excerpt}
+          </p>
+        )}
+      </Link>
+      {kids.length > 0 && (
+        <ul className="mt-3 space-y-1 border-l border-border pl-3">
+          {kids.slice(0, 4).map((k) => (
+            <li key={k.pageId}>
+              <Link
+                href={`/dashboard/pages/${k.pageId}`}
+                className="block truncate text-xs text-muted-foreground hover:text-foreground hover:underline"
+              >
+                {k.title}
+              </Link>
+            </li>
+          ))}
+          {kids.length > 4 && (
+            <li className="text-xs text-muted-foreground">
+              +{kids.length - 4} more
+            </li>
+          )}
+        </ul>
+      )}
+      <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <span>
+          {page.updatedByName
+            ? `${page.updatedByName} · ${timeAgo(page.updatedAt)}`
+            : timeAgo(page.updatedAt)}
+        </span>
+        {page.attachmentCount > 0 && (
+          <span className="ml-auto">pinned to {page.attachmentCount}</span>
+        )}
+      </div>
+    </Card>
   );
 }
 

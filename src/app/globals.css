@@ -1213,6 +1213,27 @@ h3,
 .page-wikilink:hover {
   background: var(--color-accent);
 }
+/* A link to a page that doesn't exist yet. Writing the name before the page
+   exists is the point of a wiki link — but only if you can tell which is
+   which, so this one reads as unfinished rather than broken. */
+.page-wikilink-missing {
+  color: var(--color-muted-foreground);
+  border-bottom-style: dashed;
+}
+
+/* Images sit as their own block, capped so a large screenshot doesn't
+   dominate the column. */
+.page-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.25em 0;
+  border-radius: 0.75rem;
+}
+.page-prose img.ProseMirror-selectednode {
+  outline: 2px solid var(--color-foreground);
+  outline-offset: 2px;
+}
 
 /* Tables: bordered grid, header row tinted, and horizontally scrollable so
    a wide table never widens the page itself. */

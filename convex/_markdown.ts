@@ -37,6 +37,58 @@ export function linkTargets(markdown: string): string[] {
   return [...seen];
 }
 
+const MENTION = /@\[([^\]\n]+)\]\(([^)\s]+)\)/g;
+
+/** A mention occurrence: the display name and the actor id it points at. */
+export type MentionToken = { name: string; actorId: string };
+
+/**
+ * Every `@[Name](actorId)` token in a page's markdown.
+ *
+ * The same token `src/lib/mentions.ts` parses on the client — but a page's
+ * mentions have to be found server-side, because the markdown is the source
+ * of truth and an agent writing over MCP never goes near the composer.
+ */
+export function extractMentions(markdown: string): MentionToken[] {
+  const out: MentionToken[] = [];
+  for (const m of markdown.matchAll(MENTION)) {
+    const name = m[1].trim();
+    const actorId = m[2].trim();
+    if (!name || !actorId) continue;
+    out.push({ name, actorId });
+  }
+  return out;
+}
+
+/** Distinct actor ids mentioned, in first-appearance order. */
+export function mentionedActorIds(markdown: string): string[] {
+  const seen = new Set<string>();
+  for (const token of extractMentions(markdown)) seen.add(token.actorId);
+  return [...seen];
+}
+
+/**
+ * The sentence a mention sits in, for the inbox preview.
+ *
+ * A page can be thousands of words; showing the first 180 characters of it
+ * tells the reader nothing about why they were tagged.
+ */
+export function mentionContext(
+  markdown: string,
+  actorId: string,
+  max = 180,
+): string {
+  for (const m of markdown.matchAll(MENTION)) {
+    if (m[2].trim() !== actorId) continue;
+    const at = m.index ?? 0;
+    const text = markdownToText(
+      markdown.slice(Math.max(0, at - max), at + m[0].length + max),
+    );
+    return text.length > max ? `…${text.slice(0, max)}…` : text;
+  }
+  return markdownExcerpt(markdown, max);
+}
+
 /**
  * Markdown reduced to plain prose, for embeddings and previews.
  *

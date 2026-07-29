@@ -32,6 +32,8 @@ export function PageBodyEditor({
   onChange,
   onFocusChange,
   onReady,
+  onOpenPageLink,
+  uploadImage,
 }: {
   markdown: string;
   editable?: boolean;
@@ -41,6 +43,10 @@ export function PageBodyEditor({
   onFocusChange?: (focused: boolean) => void;
   /** The Tiptap instance, once it exists — for callers that need to drive it. */
   onReady?: (editor: Editor) => void;
+  /** Follow a [[link]]. `pageId` is null when no page has that title yet. */
+  onOpenPageLink?: (title: string, pageId: string | null) => void;
+  /** Store an image and return its URL, or null if the upload failed. */
+  uploadImage?: (file: File) => Promise<string | null>;
 }) {
   // The suggestion menus read these on every keystroke. Refs, not closure
   // captures, because the extensions are built once and would otherwise
@@ -51,6 +57,10 @@ export function PageBodyEditor({
   titlesRef.current = pageTitles;
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const openLinkRef = useRef(onOpenPageLink);
+  openLinkRef.current = onOpenPageLink;
+  const uploadRef = useRef(uploadImage);
+  uploadRef.current = uploadImage;
 
   const extensions = useMemo(() => {
     const mentionSuggestion = {
@@ -178,6 +188,17 @@ export function PageBodyEditor({
         placeholder: PLACEHOLDER,
         mentionSuggestion,
         slashSuggestion,
+        pageLink: {
+          // Read through the refs on every call: the title index changes as
+          // pages are created, and the extensions are built once.
+          resolve: (title) =>
+            titlesRef.current.find(
+              (p) => p.title.toLowerCase() === title.toLowerCase(),
+            )?.pageId ?? null,
+          onOpen: (title, pageId) => openLinkRef.current?.(title, pageId),
+        },
+        uploadImage: (file) =>
+          uploadRef.current?.(file) ?? Promise.resolve(null),
       }),
       PageLinkSuggestion.configure({ suggestion: pageLinkSuggestion }),
     ];

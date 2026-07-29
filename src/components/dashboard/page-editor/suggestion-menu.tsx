@@ -113,9 +113,13 @@ export function createSuggestionRenderer<T>(config: {
     let flat: MenuRow<T>[] = [];
     let index = 0;
     let command: ((value: T) => void) | null = null;
+    // Escape dismisses the popup, but Tiptap's suggestion plugin keeps
+    // matching until the caret leaves the token — so "closed" is our state
+    // to hold, and it resets when the plugin exits.
+    let dismissed = false;
 
     function draw() {
-      if (!root) return;
+      if (!root || dismissed) return;
       root.render(
         <SuggestionMenu
           sections={sections}
@@ -148,6 +152,7 @@ export function createSuggestionRenderer<T>(config: {
       flat = sections.flatMap((s) => s.rows);
       if (index >= flat.length) index = 0;
       command = props.command;
+      if (dismissed) return;
       place(props.clientRect?.());
       draw();
     }
@@ -165,6 +170,7 @@ export function createSuggestionRenderer<T>(config: {
         document.body.appendChild(host);
         root = createRoot(host);
         index = 0;
+        dismissed = false;
         update(props);
       },
       onUpdate(props: {
@@ -176,6 +182,9 @@ export function createSuggestionRenderer<T>(config: {
       },
       onKeyDown(props: { event: KeyboardEvent }) {
         const { key } = props.event;
+        // Once dismissed, the keys belong to the document again — otherwise
+        // Enter would still insert a block from an invisible menu.
+        if (dismissed) return false;
         if (key === "ArrowDown") {
           index = flat.length === 0 ? 0 : (index + 1) % flat.length;
           draw();
@@ -192,7 +201,11 @@ export function createSuggestionRenderer<T>(config: {
           command?.(row.value);
           return true;
         }
-        if (key === "Escape") return true;
+        if (key === "Escape") {
+          dismissed = true;
+          root?.render(null);
+          return true;
+        }
         return false;
       },
       onExit() {
@@ -202,6 +215,7 @@ export function createSuggestionRenderer<T>(config: {
         const dyingHost = host;
         root = null;
         host = null;
+        dismissed = false;
         setTimeout(() => {
           dyingRoot?.unmount();
           dyingHost?.remove();

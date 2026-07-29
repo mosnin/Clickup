@@ -13,8 +13,17 @@ import {
   requireTaskAccess,
 } from "./_authz";
 import type { Actor } from "./_agentAuth";
-import { userActor } from "./events";
-import { inferTitle, linkTargets, markdownExcerpt } from "./_markdown";
+import { emitEvent, userActor } from "./events";
+import {
+  inferTitle,
+  linkTargets,
+  markdownExcerpt,
+  mentionContext,
+  mentionedActorIds,
+} from "./_markdown";
+import { canBeMentioned } from "./messages";
+import { notify } from "./notificationCenter";
+import { enqueueAgentPingDelivery } from "./agentPingDeliveries";
 import { scopeChannel } from "./realtime";
 
 // Pages: the long-form layer.
@@ -229,6 +238,119 @@ async function reindex(
 }
 
 /** Nudges anyone watching this scope that a page changed. */
+/**
+ * Turn `@[Name](actorId)` tokens in a page's markdown into real mentions.
+ *
+ * A page is saved every few hundred milliseconds while someone types, so
+ * this is idempotent by construction: it only inserts a row for a principal
+ * who is not already mentioned on this page. Removing a mention does NOT
+ * retract the notification — being told "you were tagged" and then having
+ * that quietly vanish is worse than a stale row.
+ */
+async function syncMentions(
+  ctx: MutationCtx,
+  page: Doc<"pages">,
+  markdown: string,
+  actor: Actor,
+): Promise<void> {
+  const ids = mentionedActorIds(markdown).filter((id) => id !== actor.id);
+  if (ids.length === 0) return;
+
+  const existing = await ctx.db
+    .query("mentions")
+    .withIndex("by_parent", (q) =>
+      q.eq("parentType", "page").eq("parentId", page._id),
+    )
+    .collect();
+  const already = new Set(existing.map((m) => m.mentionedClerkId));
+
+  const workspaceId =
+    page.scopeType === "workspace" ? (page.scopeId as Id<"workspaces">) : null;
+  const personalOwner = page.scopeType === "user" ? page.scopeId : null;
+
+  for (const id of ids) {
+    if (already.has(id)) continue;
+    if (!(await canBeMentioned(ctx, id, workspaceId, personalOwner))) continue;
+
+    const snippet = mentionContext(markdown, id);
+    await ctx.db.insert("mentions", {
+      mentionedClerkId: id,
+      parentType: "page",
+      parentId: page._id,
+      snippet,
+      byName: actor.name,
+      createdAt: Date.now(),
+    });
+
+    await emitEvent(ctx, {
+      scopeType: page.scopeType,
+      scopeId: page.scopeId,
+      type: "mention.created",
+      actor,
+      entityType: "page",
+      entityId: page._id,
+      entityTitle: page.title,
+      payload: { mentionedId: id, snippet, parentType: "page" },
+    });
+
+    // Mentioned agents get pushed at directly; mentioned people get an
+    // inbox row. Same two channels a comment mention uses.
+    const agentId = ctx.db.normalizeId("agents", id);
+    if (agentId) {
+      const agent = await ctx.db.get(agentId);
+      if (agent) {
+        await enqueueAgentPingDelivery(ctx, {
+          scopeType: page.scopeType,
+          scopeId: page.scopeId,
+          workspaceId: workspaceId ?? undefined,
+          sourceKind: "mention",
+          sourceId: page._id,
+          agentId,
+          push: agent.notifyUrl !== undefined,
+          type: "mention.created",
+          payload: {
+            parentType: "page",
+            parentId: page._id,
+            pageTitle: page.title,
+            snippet,
+            byName: actor.name,
+          },
+        });
+      }
+      continue;
+    }
+
+    const recipient = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", id))
+      .unique();
+    if (recipient?.email) {
+      await notify(ctx, {
+        userClerkId: id,
+        type: "mention",
+        title: `${actor.name} mentioned you in ${page.title}`,
+        body: snippet,
+        href: `/dashboard/pages/${page._id}`,
+      });
+    }
+  }
+}
+
+/** Mentions die with the page — nothing to click through to any more. */
+async function removeMentions(
+  ctx: MutationCtx,
+  pageId: Id<"pages">,
+): Promise<void> {
+  for (const m of await ctx.db
+    .query("mentions")
+    .withIndex("by_parent", (q) =>
+      q.eq("parentType", "page").eq("parentId", pageId),
+    )
+    .collect()) {
+    await ctx.db.delete(m._id);
+  }
+}
+
 async function publishChange(
   ctx: MutationCtx,
   page: Doc<"pages">,
@@ -280,17 +402,61 @@ export async function createPageCore(
 
   const page = (await ctx.db.get(pageId))!;
   await syncLinks(ctx, page, markdown);
+  await syncMentions(ctx, page, markdown, actor);
   if (markdown.trim()) await reindex(ctx, page, markdown);
   await publishChange(ctx, page, "page.created");
   return pageId;
 }
 
+/**
+ * Refuses a move that would make a page its own ancestor.
+ *
+ * Without this a two-click mistake ("put A under B", "put B under A")
+ * detaches a whole subtree from every root and makes it unreachable — the
+ * index only ever walks down.
+ */
+async function assertNoCycle(
+  ctx: MutationCtx,
+  pageId: Id<"pages">,
+  parentId: Id<"pages">,
+): Promise<void> {
+  let cursor: Id<"pages"> | undefined = parentId;
+  // Bounded so a pre-existing cycle can't spin here forever.
+  for (let hops = 0; cursor && hops < 64; hops += 1) {
+    if (cursor === pageId) {
+      throw new ConvexError("A page can't be nested inside itself");
+    }
+    const node: Doc<"pages"> | null = await ctx.db.get(cursor);
+    cursor = node?.parentPageId;
+  }
+}
+
 export async function updatePageCore(
   ctx: MutationCtx,
   page: Doc<"pages">,
-  args: { title?: string; markdown?: string },
+  args: {
+    title?: string;
+    markdown?: string;
+    /** null moves the page to the top level; undefined leaves it alone. */
+    parentPageId?: Id<"pages"> | null;
+    /**
+     * The `updatedAt` the caller's copy was based on. When it no longer
+     * matches, someone else has written since — refuse rather than
+     * overwrite. Optional so agents and one-shot edits opt in.
+     */
+    expectedUpdatedAt?: number;
+  },
   actor: Actor,
-): Promise<void> {
+): Promise<{ updatedAt: number }> {
+  if (
+    args.expectedUpdatedAt !== undefined &&
+    args.expectedUpdatedAt !== page.updatedAt
+  ) {
+    throw new ConvexError(
+      `${page.updatedByName ?? "Someone else"} edited this page while you were writing`,
+    );
+  }
+
   const patch: Record<string, unknown> = {};
   if (args.title !== undefined) {
     const title = args.title.trim();
@@ -298,9 +464,26 @@ export async function updatePageCore(
     patch.title = title.slice(0, 200);
   }
   if (args.markdown !== undefined) patch.markdown = args.markdown;
-  if (Object.keys(patch).length === 0) return;
+  if (args.parentPageId !== undefined) {
+    if (args.parentPageId === null) {
+      patch.parentPageId = undefined;
+    } else {
+      const parent = await ctx.db.get(args.parentPageId);
+      if (
+        !parent ||
+        parent.scopeType !== page.scopeType ||
+        parent.scopeId !== page.scopeId
+      ) {
+        throw new ConvexError("That page is in a different workspace");
+      }
+      await assertNoCycle(ctx, page._id, args.parentPageId);
+      patch.parentPageId = args.parentPageId;
+    }
+  }
+  if (Object.keys(patch).length === 0) return { updatedAt: page.updatedAt };
 
-  patch.updatedAt = Date.now();
+  const updatedAt = Date.now();
+  patch.updatedAt = updatedAt;
   patch.updatedByActorId = actor.id;
   patch.updatedByName = actor.name;
   await ctx.db.patch(page._id, patch);
@@ -308,9 +491,11 @@ export async function updatePageCore(
   const next = (await ctx.db.get(page._id))!;
   if (args.markdown !== undefined) {
     await syncLinks(ctx, next, args.markdown);
+    await syncMentions(ctx, next, args.markdown, actor);
     await reindex(ctx, next, args.markdown);
   }
   await publishChange(ctx, next, "page.updated");
+  return { updatedAt };
 }
 
 /**
@@ -340,6 +525,7 @@ export async function removePageCore(
     .collect()) {
     await ctx.db.delete(att._id);
   }
+  await removeMentions(ctx, page._id);
   // Nested pages are promoted to top level rather than deleted with the
   // parent: losing a tree of writing to one click is not recoverable.
   for (const child of await ctx.db
@@ -497,7 +683,28 @@ export const get = query({
       }
     }
 
-    return { page, backlinks, outgoing, attachments };
+    // The trail back to the top, so a nested page says where it sits
+    // instead of appearing to float free.
+    const ancestors: { pageId: Id<"pages">; title: string }[] = [];
+    let cursor = page.parentPageId;
+    for (let hops = 0; cursor && hops < 16; hops += 1) {
+      const parent: Doc<"pages"> | null = await ctx.db.get(cursor);
+      if (!parent) break;
+      ancestors.unshift({ pageId: parent._id, title: parent.title });
+      cursor = parent.parentPageId;
+    }
+
+    const children = (
+      await ctx.db
+        .query("pages")
+        .withIndex("by_parent_page", (q) => q.eq("parentPageId", pageId))
+        .collect()
+    )
+      .filter((c) => c.archivedAt === undefined)
+      .sort((a, b) => a.position - b.position)
+      .map((c) => ({ pageId: c._id, title: c.title }));
+
+    return { page, backlinks, outgoing, attachments, ancestors, children };
   },
 });
 
@@ -644,11 +851,37 @@ export const update = mutation({
     pageId: v.id("pages"),
     title: v.optional(v.string()),
     markdown: v.optional(v.string()),
+    parentPageId: v.optional(v.union(v.id("pages"), v.null())),
+    expectedUpdatedAt: v.optional(v.number()),
   },
   handler: async (ctx, { pageId, ...patch }) => {
     const { page, subject } = await requirePageAccess(ctx, pageId);
     const actor = await userActor(ctx, subject);
-    await updatePageCore(ctx, page, patch, actor);
+    return await updatePageCore(ctx, page, patch, actor);
+  },
+});
+
+/**
+ * Where an image dropped into a page goes.
+ *
+ * The bytes live in Convex file storage and the markdown holds the storage
+ * URL, so an image is still a plain `![alt](url)` an agent can read and a
+ * person can paste elsewhere.
+ */
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireIdentity(ctx);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/** The public URL for something just uploaded, to write into the markdown. */
+export const urlForUpload = mutation({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, { storageId }) => {
+    await requireIdentity(ctx);
+    return await ctx.storage.getUrl(storageId);
   },
 });
 
