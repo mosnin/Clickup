@@ -18,7 +18,6 @@ import { timeAgo } from "@/lib/time";
 import { eventLabel } from "@/lib/event-labels";
 import { agentPresence } from "@/lib/agent-presence";
 import { useToast } from "@/components/toast";
-import { Orb } from "@/components/dashboard/orb";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +37,7 @@ import {
   Stagger,
   StaggerItem,
 } from "@/components/motion";
+import { ActorGlyph } from "@/components/appearance/actor-glyph";
 
 // Per-agent drill-down: live status, governance controls (role, budget,
 // notify URL), run history, current claims/assignments, and the agent's
@@ -144,7 +144,7 @@ export function AgentDetail({ agentId }: { agentId: string }) {
       />
 
       <header className="flex items-start gap-3">
-        <Orb seed={agent._id} label={agent.name} size="lg" />
+        <ActorGlyph seed={agent._id} name={agent.name} size="lg" isAgent />
         <div className="min-w-0 flex-1">
           {agent.description && (
             <p className="text-sm text-muted-foreground">

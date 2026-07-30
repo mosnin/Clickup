@@ -7,6 +7,7 @@ import {
   useSpring,
   useTransform,
 } from "motion/react";
+import { useAppearance } from "@/components/appearance/appearance-provider";
 
 // Motion primitives for the brand's animation language. One easing, one
 // spring, used everywhere so the whole app moves as a single object:
@@ -123,7 +124,19 @@ export function AnimatedNumber({
   return <motion.span className={className}>{display}</motion.span>;
 }
 
-// Progress bar whose fill springs to its new width instead of jumping.
+// A value against a target, whose fill springs to its new width.
+//
+// The drawing is the reader's (or the room's) choice, not this function's:
+// `chartStyle` decides between the bar, a hairline, a dial and no graphic at
+// all. Putting the branch here rather than at the call sites is what makes the
+// setting mean anything — there are a dozen of these across sprints, goals,
+// roadmaps and list overviews, and a preference that only reached one of them
+// would be a preference in name.
+//
+// `className`/`barClassName` describe a bar (its height, its colour), so they
+// apply to the two bar-shaped answers and are ignored by the other two. Outside
+// an AppearanceProvider `useAppearance` returns the shipped defaults, so this
+// stays safe on the marketing site and in tests.
 export function AnimatedBar({
   pct,
   className,
@@ -133,12 +146,36 @@ export function AnimatedBar({
   className?: string;
   barClassName?: string;
 }) {
+  const { appearance } = useAppearance();
+  const clamped = Math.min(100, Math.max(0, pct));
+
+  if (appearance.chartStyle === "numeric") {
+    return (
+      <span className="block text-xs tabular-nums text-muted-foreground">
+        <AnimatedNumber value={Math.round(clamped)} />%
+      </span>
+    );
+  }
+
+  if (appearance.chartStyle === "ring") {
+    return (
+      <span
+        className="meter-ring relative inline-flex h-9 w-9 items-center justify-center align-middle"
+        style={{ ["--meter-turn" as string]: `${clamped / 100}turn` }}
+      >
+        <span className="relative text-[10px] font-medium tabular-nums">
+          {Math.round(clamped)}
+        </span>
+      </span>
+    );
+  }
+
   return (
-    <div className={className}>
+    <div className={className} data-chart-line={appearance.chartStyle === "line" || undefined}>
       <motion.div
         className={barClassName}
         initial={{ width: 0 }}
-        animate={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+        animate={{ width: `${clamped}%` }}
         transition={{ type: "spring", stiffness: 90, damping: 24, mass: 0.8 }}
       />
     </div>

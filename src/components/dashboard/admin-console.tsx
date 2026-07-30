@@ -40,7 +40,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { Orb } from "@/components/dashboard/orb";
 import { cn } from "@/lib/utils";
 import { identityFill } from "@/lib/identity-color";
 import { timeAgo } from "@/lib/time";
@@ -52,6 +51,7 @@ import {
   Stagger,
   StaggerItem,
 } from "@/components/motion";
+import { ActorGlyph } from "@/components/appearance/actor-glyph";
 
 // Platform admin console. A single cohesive surface with sub-tabs (like
 // the workspace + agents views) instead of many routes. Every data call
@@ -463,7 +463,7 @@ function AgentsTab({ isSuper }: { isSuper: boolean }) {
             <TableRow key={a._id}>
               <TableCell className="whitespace-normal">
                 <div className="flex items-center gap-3">
-                  <Orb seed={a._id} label={a.name} size="sm" />
+                  <ActorGlyph seed={a._id} name={a.name} size="sm" isAgent />
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-1.5 truncate text-sm font-medium">
                       {a.name}

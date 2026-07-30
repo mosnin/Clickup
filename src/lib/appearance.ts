@@ -32,6 +32,41 @@ export type SurfaceStyle = "flat" | "soft" | "raised" | "bordered";
 export type SidebarPosition = "left" | "right" | "floating" | "dock";
 export type AccentMode = "ink" | "hue";
 
+/**
+ * The body typeface.
+ *
+ * Every option here is either bundled with the app or already on the reader's
+ * machine. Nothing is fetched from a CDN — a preference that costs a
+ * third-party request on every page load is not a preference worth having, and
+ * the repo forbids it besides. "system" is the reader's own interface font,
+ * which on a Mac is San Francisco and on Windows is Segoe: the app looking
+ * like the rest of the machine is a legitimate thing to want.
+ */
+export type FontFamily =
+  | "instrument"
+  | "system"
+  | "serif"
+  | "mono"
+  | "rounded";
+
+/**
+ * The heading typeface, chosen separately.
+ *
+ * "match" is the interesting value: it means "stop having a display face at
+ * all", which is what someone reaching for a plainer app actually wants. A
+ * pairing is a decision, and this is where it is made.
+ */
+export type DisplayFont = "grotesque" | "match" | "serif" | "mono";
+
+/** How a repeating row of things is drawn. */
+export type ListStyle = "rows" | "lines" | "cards" | "condensed";
+
+/** How a single number-over-time or number-against-target is drawn. */
+export type ChartStyle = "bar" | "ring" | "line" | "numeric";
+
+/** How a teammate — person or agent — is represented next to their name. */
+export type AgentIconStyle = "orb" | "monogram" | "dot" | "glyph";
+
 export type Appearance = {
   /** Where the primary navigation lives. */
   sidebarPosition: SidebarPosition;
@@ -54,6 +89,27 @@ export type Appearance = {
   motionScale: number;
   /** Extra weight on headings, for people who want more or less contrast. */
   headingWeight: number;
+  /** The body typeface. */
+  fontFamily: FontFamily;
+  /** The heading typeface, which may be "the same as the body". */
+  displayFont: DisplayFont;
+  /**
+   * How hard secondary text works.
+   *
+   * 1 is the shipped grey. Above 1 it walks toward the foreground, which is
+   * the single most requested legibility change in any interface with a lot of
+   * muted metadata; below 1 it recedes, for people who want the labels quieter
+   * than the content.
+   */
+  contrast: number;
+  /** How a repeating row of things is drawn. */
+  listStyle: ListStyle;
+  /** How a number-against-a-target is drawn. */
+  chartStyle: ChartStyle;
+  /** How a teammate is represented next to their name. */
+  agentIcon: AgentIconStyle;
+  /** Stroke width for every line icon in the app. */
+  iconStroke: number;
 };
 
 export const DEFAULT_APPEARANCE: Appearance = {
@@ -68,6 +124,13 @@ export const DEFAULT_APPEARANCE: Appearance = {
   fontScale: 1,
   motionScale: 1,
   headingWeight: 700,
+  fontFamily: "instrument",
+  displayFont: "grotesque",
+  contrast: 1,
+  listStyle: "rows",
+  chartStyle: "bar",
+  agentIcon: "orb",
+  iconStroke: 2,
 };
 
 const RANGES = {
@@ -78,6 +141,8 @@ const RANGES = {
   fontScale: [0.85, 1.25] as const,
   motionScale: [0, 1.5] as const,
   headingWeight: [500, 800] as const,
+  contrast: [0.7, 1.5] as const,
+  iconStroke: [1, 2.75] as const,
 };
 
 export const APPEARANCE_RANGES = RANGES;
@@ -92,6 +157,29 @@ function pick<T extends string>(value: unknown, allowed: readonly T[], fallback:
 }
 
 /**
+ * The allowed values for each choice-shaped key.
+ *
+ * Declared once and read by both `normalizeAppearance` and `normalizePatch`.
+ * They used to keep their own copies of these lists, which is a bug waiting for
+ * the next option to be added to one and not the other — a value the full
+ * normalizer accepts and the patch normalizer silently drops is a setting that
+ * saves and then doesn't.
+ */
+const ENUM_VALUES = {
+  sidebarPosition: ["left", "right", "floating", "dock"],
+  accentMode: ["ink", "hue"],
+  density: ["compact", "comfortable", "spacious"],
+  surface: ["flat", "soft", "raised", "bordered"],
+  fontFamily: ["instrument", "system", "serif", "mono", "rounded"],
+  displayFont: ["grotesque", "match", "serif", "mono"],
+  listStyle: ["rows", "lines", "cards", "condensed"],
+  chartStyle: ["bar", "ring", "line", "numeric"],
+  agentIcon: ["orb", "monogram", "dot", "glyph"],
+} as const;
+
+export const APPEARANCE_ENUMS = ENUM_VALUES;
+
+/**
  * Coerce anything into a usable Appearance.
  *
  * Deliberately total: a row written by an older build, a partial patch from a
@@ -103,11 +191,11 @@ export function normalizeAppearance(input: unknown): Appearance {
   return {
     sidebarPosition: pick(
       raw.sidebarPosition,
-      ["left", "right", "floating", "dock"] as const,
+      ENUM_VALUES.sidebarPosition,
       d.sidebarPosition,
     ),
     sidebarWidth: clampNumber(raw.sidebarWidth, RANGES.sidebarWidth, d.sidebarWidth),
-    accentMode: pick(raw.accentMode, ["ink", "hue"] as const, d.accentMode),
+    accentMode: pick(raw.accentMode, ENUM_VALUES.accentMode, d.accentMode),
     accentHue: clampNumber(raw.accentHue, RANGES.accentHue, d.accentHue),
     accentSaturation: clampNumber(
       raw.accentSaturation,
@@ -115,16 +203,8 @@ export function normalizeAppearance(input: unknown): Appearance {
       d.accentSaturation,
     ),
     radiusScale: clampNumber(raw.radiusScale, RANGES.radiusScale, d.radiusScale),
-    density: pick(
-      raw.density,
-      ["compact", "comfortable", "spacious"] as const,
-      d.density,
-    ),
-    surface: pick(
-      raw.surface,
-      ["flat", "soft", "raised", "bordered"] as const,
-      d.surface,
-    ),
+    density: pick(raw.density, ENUM_VALUES.density, d.density),
+    surface: pick(raw.surface, ENUM_VALUES.surface, d.surface),
     fontScale: clampNumber(raw.fontScale, RANGES.fontScale, d.fontScale),
     motionScale: clampNumber(raw.motionScale, RANGES.motionScale, d.motionScale),
     headingWeight: clampNumber(
@@ -132,6 +212,13 @@ export function normalizeAppearance(input: unknown): Appearance {
       RANGES.headingWeight,
       d.headingWeight,
     ),
+    fontFamily: pick(raw.fontFamily, ENUM_VALUES.fontFamily, d.fontFamily),
+    displayFont: pick(raw.displayFont, ENUM_VALUES.displayFont, d.displayFont),
+    contrast: clampNumber(raw.contrast, RANGES.contrast, d.contrast),
+    listStyle: pick(raw.listStyle, ENUM_VALUES.listStyle, d.listStyle),
+    chartStyle: pick(raw.chartStyle, ENUM_VALUES.chartStyle, d.chartStyle),
+    agentIcon: pick(raw.agentIcon, ENUM_VALUES.agentIcon, d.agentIcon),
+    iconStroke: clampNumber(raw.iconStroke, RANGES.iconStroke, d.iconStroke),
   };
 }
 
@@ -166,6 +253,16 @@ export const PLACE_KEYS = [
   "accentSaturation",
   "radiusScale",
   "surface",
+  // How a list of things is drawn, how a number is charted, and how a teammate
+  // is pictured are all decisions about the room's visual language. A team that
+  // agrees its lists are cards should get cards, the same way it gets its
+  // accent — and someone who disagrees still overrides it for themselves.
+  "listStyle",
+  "chartStyle",
+  "agentIcon",
+  "iconStroke",
+  // The display face is the room's voice. The body face is not: see below.
+  "displayFont",
 ] as const satisfies readonly AppearanceKey[];
 
 /** Keys only the person may set, because they describe how they read. */
@@ -176,19 +273,18 @@ export const PERSONAL_KEYS = [
   "fontScale",
   "motionScale",
   "headingWeight",
+  // The face you read paragraphs in, and how hard the secondary text works,
+  // are accessibility settings wearing a style costume. Someone who switched
+  // to a system font because it renders better for them, or raised the
+  // contrast because the grey was too light, must not have a workspace put it
+  // back — that is the same class of harm as a space shrinking your type.
+  "fontFamily",
+  "contrast",
 ] as const satisfies readonly AppearanceKey[];
 
 export const APPEARANCE_KEYS = Object.keys(
   DEFAULT_APPEARANCE,
 ) as AppearanceKey[];
-
-/** The allowed values for each choice-shaped key. */
-const ENUM_VALUES = {
-  sidebarPosition: ["left", "right", "floating", "dock"],
-  accentMode: ["ink", "hue"],
-  density: ["compact", "comfortable", "spacious"],
-  surface: ["flat", "soft", "raised", "bordered"],
-} as const;
 
 /**
  * A partial set of settings: only the keys someone explicitly chose.
@@ -390,6 +486,48 @@ const INK_RAMP: Record<string, string> = {
   "700": "#000000",
 };
 
+/**
+ * The font stacks.
+ *
+ * `--font-instrument` and `--font-darker-grotesque` are the two faces the app
+ * actually ships (next/font/local, in `src/app/fonts`). Everything else is a
+ * generic family plus the names of faces that are already installed on the
+ * reader's machine, so switching typeface costs zero bytes and works offline.
+ * `ui-serif`/`ui-monospace`/`ui-rounded` lead each stack because they resolve
+ * to whatever the platform considers its own, which is the point of asking.
+ */
+const FONT_STACKS: Record<FontFamily, string> = {
+  instrument:
+    'var(--font-instrument), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  system:
+    'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  serif: 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif',
+  mono: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+  rounded:
+    'ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", Quicksand, system-ui, sans-serif',
+};
+
+/** "match" resolves against the body face, so it is applied separately. */
+const DISPLAY_STACKS: Record<Exclude<DisplayFont, "match">, string> = {
+  grotesque:
+    'var(--font-darker-grotesque), var(--font-instrument), "Inter", sans-serif',
+  serif: FONT_STACKS.serif,
+  mono: FONT_STACKS.mono,
+};
+
+/** The CSS stack for a body face — so a specimen can render in it. */
+export function fontStackFor(family: FontFamily): string {
+  return FONT_STACKS[family];
+}
+
+/** The CSS stack for a heading face, resolving "match" against the body. */
+export function displayStackFor(
+  display: DisplayFont,
+  family: FontFamily,
+): string {
+  return display === "match" ? FONT_STACKS[family] : DISPLAY_STACKS[display];
+}
+
 const DENSITY_TOKENS: Record<Density, { gap: string; row: string; pad: string }> = {
   compact: { gap: "0.5rem", row: "1.75rem", pad: "0.75rem" },
   comfortable: { gap: "0.75rem", row: "2.25rem", pad: "1.25rem" },
@@ -472,6 +610,29 @@ export function resolveTokens(input: Appearance): Record<string, string> {
   tokens["--ui-heading-weight"] = String(Math.round(a.headingWeight));
   tokens["--ui-sidebar-width"] = `${a.sidebarWidth.toFixed(2)}rem`;
 
+  const body = FONT_STACKS[a.fontFamily];
+  tokens["--ui-font-body"] = body;
+  tokens["--ui-font-display"] =
+    a.displayFont === "match" ? body : DISPLAY_STACKS[a.displayFont];
+  // Darker Grotesque is condensed with a small x-height, so headings carry a
+  // font-size-adjust to restore their optical size. Every other face has an
+  // ordinary x-height and would be rendered a third too large by that same
+  // number — the correction belongs to the face, not to the heading.
+  tokens["--ui-display-size-adjust"] =
+    a.displayFont === "grotesque" ? "0.5" : "none";
+
+  // Contrast is expressed as two mix percentages rather than a finished
+  // colour, because `applyTokens` writes inline on the root element and an
+  // inline `--color-muted-foreground` would outrank the dark-theme rule that
+  // sets it — the setting would look right in light mode and break dark mode.
+  // The stylesheet owns the base colour per theme; this only says how far to
+  // push it and in which direction. Exactly one of these is ever non-zero.
+  const shift = a.contrast - 1;
+  tokens["--ui-muted-toward-fg"] = `${(Math.max(0, shift) * 100).toFixed(1)}%`;
+  tokens["--ui-muted-toward-bg"] = `${(Math.max(0, -shift) * 100).toFixed(1)}%`;
+
+  tokens["--ui-icon-stroke"] = a.iconStroke.toFixed(2);
+
   return tokens;
 }
 
@@ -485,6 +646,9 @@ export const ANIMATABLE_TOKENS = [
   "--ui-gap",
   "--ui-pad",
   "--ui-row-height",
+  "--ui-icon-stroke",
+  "--ui-muted-toward-fg",
+  "--ui-muted-toward-bg",
 ] as const;
 
 // ── Presets ─────────────────────────────────────────────────────────────
@@ -519,6 +683,10 @@ export const APPEARANCE_PRESETS: AppearancePreset[] = [
     fontScale: 0.92,
     radiusScale: 0.75,
     surface: "flat",
+    listStyle: "condensed",
+    chartStyle: "numeric",
+    agentIcon: "dot",
+    iconStroke: 1.75,
   }),
   preset("focus", "Focus", "Roomy and quiet, with the sidebar out of the way.", {
     density: "spacious",
@@ -526,6 +694,9 @@ export const APPEARANCE_PRESETS: AppearancePreset[] = [
     sidebarPosition: "floating",
     surface: "flat",
     motionScale: 0.75,
+    listStyle: "lines",
+    chartStyle: "line",
+    contrast: 1.15,
   }),
   preset("vivid", "Vivid", "A coloured accent and stronger surfaces.", {
     accentMode: "hue",
@@ -533,6 +704,9 @@ export const APPEARANCE_PRESETS: AppearancePreset[] = [
     accentSaturation: 72,
     surface: "raised",
     radiusScale: 1.25,
+    listStyle: "cards",
+    chartStyle: "ring",
+    agentIcon: "orb",
   }),
   preset("terminal", "Terminal", "Square, bordered, no shadows, no motion.", {
     radiusScale: 0,
@@ -540,6 +714,13 @@ export const APPEARANCE_PRESETS: AppearancePreset[] = [
     density: "compact",
     motionScale: 0,
     fontScale: 0.95,
+    fontFamily: "mono",
+    displayFont: "mono",
+    listStyle: "condensed",
+    chartStyle: "numeric",
+    agentIcon: "glyph",
+    iconStroke: 1.5,
+    contrast: 1.2,
   }),
   preset("calm", "Calm", "Slow, round, generous.", {
     radiusScale: 1.6,
@@ -547,6 +728,21 @@ export const APPEARANCE_PRESETS: AppearancePreset[] = [
     motionScale: 1.35,
     surface: "soft",
     fontScale: 1.08,
+    fontFamily: "rounded",
+    displayFont: "match",
+    listStyle: "cards",
+    iconStroke: 1.6,
+  }),
+  preset("broadsheet", "Broadsheet", "Serif throughout, ruled lists, quiet marks.", {
+    fontFamily: "serif",
+    displayFont: "serif",
+    listStyle: "lines",
+    chartStyle: "line",
+    agentIcon: "monogram",
+    surface: "flat",
+    radiusScale: 0.4,
+    headingWeight: 600,
+    contrast: 1.1,
   }),
 ];
 

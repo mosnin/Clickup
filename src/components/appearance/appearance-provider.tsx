@@ -249,7 +249,17 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     root.dataset.sidebar = effective.sidebarPosition;
     root.dataset.density = effective.density;
     root.dataset.surface = effective.surface;
-  }, [effective.sidebarPosition, effective.density, effective.surface]);
+    // How a repeating row is drawn is a CSS question — dividers, gaps, whether
+    // each row is its own surface — so it rides an attribute like the others.
+    // Chart style and agent icon are not: they change which element gets
+    // rendered, so components read them from this context instead.
+    root.dataset.listStyle = effective.listStyle;
+  }, [
+    effective.sidebarPosition,
+    effective.density,
+    effective.surface,
+    effective.listStyle,
+  ]);
 
   useEffect(
     () => () => {

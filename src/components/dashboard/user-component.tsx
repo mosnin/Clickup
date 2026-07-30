@@ -160,16 +160,17 @@ function RowTitle({ row }: { row: Row }) {
 }
 
 function ListRows({ def, rows }: { def: UiComponentDef; rows: Row[] }) {
+  // `.ui-list` hands the spacing to the room's list style (ruled lines, tiles,
+  // condensed, or the default rows) — see globals.css. The panel's own density
+  // is a second, narrower knob and stays a modifier on top of it.
   return (
     <Stagger
-      className={cn("mt-3", def.density === "compact" ? "space-y-1" : "space-y-2")}
+      className={cn("ui-list mt-3", def.density === "compact" && "ui-list-tight")}
     >
       {rows.map((row) => (
-        <StaggerItem key={row.id}>
-          <div className="min-w-0">
-            <RowTitle row={row} />
-            <MetaLine def={def} row={row} />
-          </div>
+        <StaggerItem key={row.id} className="min-w-0">
+          <RowTitle row={row} />
+          <MetaLine def={def} row={row} />
         </StaggerItem>
       ))}
     </Stagger>

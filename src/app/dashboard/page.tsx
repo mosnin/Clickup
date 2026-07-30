@@ -34,7 +34,6 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { InviteCards } from "@/components/dashboard/invite-cards";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { PriorityDot } from "@/components/dashboard/priority";
-import { Orb } from "@/components/dashboard/orb";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -61,6 +60,7 @@ import {
   EditableGrid,
   TrayTile,
 } from "@/components/dashboard/screen/editable-grid";
+import { ActorGlyph } from "@/components/appearance/actor-glyph";
 
 // Home: the Square dashboard-5 shell's page composition (Phase H), wired to
 // live Convex data. Two reactive queries drive every tile — homeOverview.get
@@ -307,7 +307,7 @@ export default function DashboardHome() {
               className="lift relative flex items-center gap-4 rounded-2xl panel p-5"
             >
               <span className="relative inline-flex h-12 w-12 flex-shrink-0" aria-hidden>
-                <Orb seed={waiting[0]._id} size="lg" />
+                <ActorGlyph seed={waiting[0]._id} name={waiting[0].name} size="lg" isAgent />
                 {/* Small pending dot — the "dot" the copy references, which
                     turns green on first heartbeat. A gentle pulse signals
                     waiting without the whole avatar strobing. */}
@@ -1000,7 +1000,7 @@ function AgentsCard({ agents }: { agents: Overview["agents"] }) {
                   href={`/dashboard/agents/${a.agentId}`}
                   className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted"
                 >
-                  <Orb seed={a.agentId} size="sm" />
+                  <ActorGlyph seed={a.agentId} name={a.name} size="sm" isAgent />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5">
                       <span className="truncate text-sm font-medium">

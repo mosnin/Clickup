@@ -53,6 +53,7 @@ import {
   Stagger,
   StaggerItem,
 } from "@/components/motion";
+import { ActorGlyph } from "@/components/appearance/actor-glyph";
 
 // Agents HQ ("Mission Control"): manage agent principals + API keys, watch
 // a live activity feed of everything agents and humans are doing, and
@@ -414,7 +415,7 @@ function FleetSpend() {
               key={a.name}
               className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs"
             >
-              <Orb seed={a.name} label={a.name} size="xs" />
+              <ActorGlyph seed={a.name} name={a.name} size="xs" isAgent />
               {a.name}
               <span className="tabular-nums text-muted-foreground">
                 ${a.cost.toFixed(2)}
@@ -841,7 +842,7 @@ function AgentCard({
   return (
     <Card className="lift gap-3 rounded-2xl p-4">
       <div className="flex items-start gap-3">
-        <Orb seed={agent._id} label={agent.name} size="lg" />
+        <ActorGlyph seed={agent._id} name={agent.name} size="lg" isAgent />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Link
