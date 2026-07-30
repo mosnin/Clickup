@@ -12,6 +12,7 @@ import {
   type ScreenLayout,
   slotForPointer,
   insertWidget,
+  describeLayoutChange,
 } from "../src/lib/screen-layout";
 
 // The layout engine. The property that shapes all of it:
@@ -294,5 +295,48 @@ describe("inserting from the tray", () => {
 
   it("ignores a duplicate, because a panel exists once", () => {
     expect(insertWidget(base, "a", 1, 0)).toBe(base);
+  });
+});
+
+
+describe("describing a proposed change", () => {
+  const current = {
+    widgets: [
+      { id: "about", span: 2 as const },
+      { id: "lists", span: 2 as const },
+      { id: "notes", span: 1 as const },
+    ],
+  };
+
+  it("names what appears, what goes, and what changes size", () => {
+    const d = describeLayoutChange(current, {
+      widgets: [
+        { id: "progress", span: 1 },
+        { id: "lists", span: 3 },
+        { id: "about", span: 2 },
+      ],
+    });
+    expect(d.added).toEqual(["progress"]);
+    expect(d.removed).toEqual(["notes"]);
+    expect(d.resized).toEqual(["lists"]);
+    expect(d.reordered).toBe(true);
+  });
+
+  it("reports nothing for an identical layout", () => {
+    expect(describeLayoutChange(current, current)).toEqual({
+      added: [],
+      removed: [],
+      resized: [],
+      reordered: false,
+    });
+  });
+
+  it("doesn't call an addition a reorder", () => {
+    // Shared panels kept their relative order; only something new arrived.
+    const d = describeLayoutChange(current, {
+      widgets: [...current.widgets, { id: "activity", span: 1 }],
+    });
+    expect(d.reordered).toBe(false);
+    expect(d.added).toEqual(["activity"]);
   });
 });

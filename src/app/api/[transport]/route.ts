@@ -287,6 +287,7 @@ const IDEMPOTENT_TOOLS = new Set([
   "reconcile_execution_plan",
   "heartbeat",
   "set_focus",
+  "propose_screen",
   "acknowledge_wake",
   "acknowledge_task_context",
   "update_task",
@@ -388,6 +389,28 @@ const TOOLS: ToolDef[] = [
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.heartbeat), { apiKey: k, ...a }),
+  },
+  {
+    name: "propose_screen",
+    description:
+      "Suggest a better arrangement of a project's screen — which panels, in what order, at what width — with a reason. Humans see it as a suggestion they can preview, accept, or dismiss; it NEVER changes anyone's screen by itself. Panel ids: about, progress, lists, status, owner, target-date, pages, notes, activity. A newer proposal replaces my previous pending one.",
+    shape: {
+      projectId: z.string(),
+      layout: z.object({
+        widgets: z.array(
+          z.object({
+            id: z.string(),
+            span: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+          }),
+        ),
+      }),
+      reason: z
+        .string()
+        .max(500)
+        .describe("why this arrangement serves the current state of the work"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.proposeScreen), { apiKey: k, ...a }),
   },
   {
     name: "set_focus",

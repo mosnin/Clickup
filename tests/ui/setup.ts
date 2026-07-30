@@ -4,7 +4,15 @@ import { cleanup } from "@testing-library/react";
 // jsdom lacks the browser APIs the dashboard's motion and layout primitives
 // reach for. Stubbing them here rather than in each test keeps the tests
 // about the component instead of about the environment.
-afterEach(() => cleanup());
+afterEach(async () => {
+  cleanup();
+  // React's concurrent scheduler flushes remaining work on a later macrotask
+  // (setImmediate under jsdom). Unmounting queues that flush; if the test file
+  // ends first, the scheduler wakes up after the environment is gone and dies
+  // on `window is not defined`. One tick here lets it land while the window
+  // still exists.
+  await new Promise((resolve) => setImmediate(resolve));
+});
 
 if (!window.matchMedia) {
   window.matchMedia = ((query: string) => ({

@@ -221,3 +221,43 @@ export function insertWidget(
   widgets.splice(slot, 0, { id, span: clampSpan(span) });
   return { widgets };
 }
+
+
+/**
+ * What a proposed layout would change, in words a banner can use.
+ *
+ * The diff is the consent surface: "Accept" is only meaningful if the person
+ * can see what they are accepting without playing spot-the-difference between
+ * two grids. Compared over the ids both sides know; a proposal is judged on
+ * what it does, not on panels this build can't render anyway.
+ */
+export function describeLayoutChange(
+  current: ScreenLayout,
+  proposed: ScreenLayout,
+): { added: string[]; removed: string[]; resized: string[]; reordered: boolean } {
+  const currentById = new Map(current.widgets.map((w) => [w.id, w]));
+  const proposedById = new Map(proposed.widgets.map((w) => [w.id, w]));
+
+  const added = proposed.widgets
+    .filter((w) => !currentById.has(w.id))
+    .map((w) => w.id);
+  const removed = current.widgets
+    .filter((w) => !proposedById.has(w.id))
+    .map((w) => w.id);
+  const resized = proposed.widgets
+    .filter((w) => {
+      const before = currentById.get(w.id);
+      return before !== undefined && before.span !== w.span;
+    })
+    .map((w) => w.id);
+
+  const sharedBefore = current.widgets
+    .filter((w) => proposedById.has(w.id))
+    .map((w) => w.id);
+  const sharedAfter = proposed.widgets
+    .filter((w) => currentById.has(w.id))
+    .map((w) => w.id);
+  const reordered = sharedBefore.join(" ") !== sharedAfter.join(" ");
+
+  return { added, removed, resized, reordered };
+}

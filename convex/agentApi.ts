@@ -742,6 +742,86 @@ async function requireSurfaceAccessForAgent(
  * action budget nor bills against the wallet. Presence you have to pay for is
  * presence an agent will skip.
  */
+/**
+ * Suggest an arrangement for a project's screen.
+ *
+ * Never a write to anyone's layout. The naive version of "the UI adapts to
+ * the work" is an agent silently rearranging a person's screen, which breaks
+ * the stability that makes an interface learnable. So the agent authors a
+ * proposal with a reason, and a person previews, accepts, or dismisses it —
+ * the approval-gate consent shape, pointed at the interface.
+ *
+ * One pending proposal per agent per screen: a newer suggestion replaces the
+ * older one rather than queueing, because "here are four layouts I've thought
+ * of" is noise where "here is my current best suggestion" is signal.
+ */
+export const proposeScreen = mutation({
+  args: {
+    apiKey: v.string(),
+    projectId: v.id("projects"),
+    /** { widgets: [{ id, span }] } — the same shape layouts are stored in. */
+    layout: v.object({
+      widgets: v.array(
+        v.object({
+          id: v.string(),
+          span: v.union(v.literal(1), v.literal(2), v.literal(3)),
+        }),
+      ),
+    }),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    // Shaping how a whole project is read is a structure-level act, and a
+    // list-restricted agent is fenced out of those entirely — same rule as
+    // creating lists or moving projects.
+    requireUnrestricted(agent);
+    await requireProjectAccessForAgent(ctx, args.projectId, agent);
+
+    const reason = args.reason.trim();
+    if (!reason) {
+      throw new ConvexError(
+        "A proposal needs a reason — without one it is an instruction",
+      );
+    }
+    if (args.layout.widgets.length > 20) {
+      throw new ConvexError("A screen holds at most 20 panels");
+    }
+    // Unknown widget ids are fine (the client drops what it can't render) but
+    // duplicates would make the layout ill-formed on every client.
+    const ids = new Set<string>();
+    for (const w of args.layout.widgets) {
+      if (ids.has(w.id)) {
+        throw new ConvexError(`Panel "${w.id}" appears twice`);
+      }
+      ids.add(w.id);
+    }
+
+    const screenKey = `project:${args.projectId}`;
+    // Replace this agent's previous pending suggestion for the same screen.
+    const pending = await ctx.db
+      .query("screenProposals")
+      .withIndex("by_screen_and_status", (q) =>
+        q.eq("screenKey", screenKey).eq("status", "pending"),
+      )
+      .collect();
+    for (const prior of pending) {
+      if (prior.agentId === agent._id) await ctx.db.delete(prior._id);
+    }
+
+    const proposalId = await ctx.db.insert("screenProposals", {
+      screenKey,
+      agentId: agent._id,
+      agentName: agent.name,
+      layout: args.layout,
+      reason: reason.slice(0, 500),
+      status: "pending",
+      createdAt: Date.now(),
+    });
+    return { proposalId };
+  },
+});
+
 export const setFocus = mutation({
   args: {
     apiKey: v.string(),

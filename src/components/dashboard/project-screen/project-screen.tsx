@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Plus } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { EASE } from "@/components/motion";
 import { api } from "@convex/_generated/api";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
 import { morphLayout, wake } from "@/lib/anime";
 import {
   addWidget,
+  describeLayoutChange,
   insertWidget,
   normalizeLayout,
   screenKey,
@@ -46,13 +49,62 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
   // `null` from the server means "never arranged", which is not the same as an
   // arranged layout that happens to be empty — someone who cleared the screen
   // should keep a clear screen rather than get the defaults back.
-  const layout = useMemo<ScreenLayout>(() => {
+  const ownLayout = useMemo<ScreenLayout>(() => {
     if (stored === undefined || stored === null) return DEFAULT_PROJECT_LAYOUT;
     return normalizeLayout(stored.layout, PROJECT_WIDGET_IDS);
   }, [stored]);
 
+  // ── A suggestion from an agent ──
+  //
+  // Previewing swaps the proposed layout in as what the grid renders — the
+  // same grid, morphed, not a mockup beside it — and nothing is written until
+  // Accept. The preview is honest because it IS the result.
+  const proposals = useQuery(api.screens.proposalsFor, { screenKey: key });
+  const resolveProposal = useMutation(api.screens.resolveProposal);
+  const [previewingProposal, setPreviewingProposal] = useState<string | null>(
+    null,
+  );
+  const proposal = (proposals ?? [])[0] ?? null;
+  const proposedLayout = useMemo<ScreenLayout | null>(
+    () =>
+      proposal
+        ? normalizeLayout(proposal.layout, PROJECT_WIDGET_IDS)
+        : null,
+    [proposal],
+  );
+  const previewing =
+    proposal !== null &&
+    proposedLayout !== null &&
+    previewingProposal === proposal.proposalId;
+  const layout = previewing && proposedLayout ? proposedLayout : ownLayout;
+
+  function resolve(accept: boolean) {
+    if (!proposal) return;
+    setPreviewingProposal(null);
+    // Accepting from preview: the grid is already showing the result, so the
+    // resolution lands without a second reflow. Dismissing from preview morphs
+    // back to your own arrangement.
+    if (!accept && previewing) {
+      morphLayout(`#${GRID_ID}`, () => {});
+    }
+    void resolveProposal({
+      proposalId: proposal.proposalId as Parameters<
+        typeof resolveProposal
+      >[0]["proposalId"],
+      accept,
+    }).catch((e) =>
+      toast(errorMessage(e, "Couldn't resolve the suggestion"), {
+        kind: "error",
+      }),
+    );
+  }
+
   const persist = useCallback(
     (next: ScreenLayout, opts?: { droppedAt?: number }) => {
+      // While previewing a suggestion the grid renders the proposal; an edit
+      // made in that state would silently save the agent's layout as yours.
+      // Accepting is the only way a proposal becomes your arrangement.
+      if (previewingProposal !== null) return;
       void saveLayout({ screenKey: key, layout: next }).catch((e) =>
         toast(errorMessage(e, "Couldn't save the arrangement"), {
           kind: "error",
@@ -67,7 +119,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
         }
       }
     },
-    [key, saveLayout, toast],
+    [key, previewingProposal, saveLayout, toast],
   );
 
   const tiles = useMemo<EditableTile[]>(
@@ -92,7 +144,84 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
 
   const unplaced = unusedWidgets(layout, PROJECT_WIDGET_IDS);
 
+  const diff =
+    proposal && proposedLayout
+      ? describeLayoutChange(ownLayout, proposedLayout)
+      : null;
+  const diffSentence = diff
+    ? [
+        diff.added.length > 0 && `adds ${nameList(diff.added)}`,
+        diff.removed.length > 0 && `removes ${nameList(diff.removed)}`,
+        diff.resized.length > 0 && `resizes ${nameList(diff.resized)}`,
+        diff.reordered && "reorders the rest",
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : "";
+
   return (
+    <div className="space-y-4">
+      <AnimatePresence initial={false}>
+        {proposal && (
+          <motion.div
+            key={proposal.proposalId}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3, ease: EASE }}
+            className="bento-tile flex flex-wrap items-center gap-3 rounded-2xl p-4"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-sm">
+                <span className="font-medium">{proposal.agentName}</span>{" "}
+                suggests a different arrangement
+                {diffSentence ? (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    — {diffSentence}
+                  </span>
+                ) : null}
+              </p>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                {proposal.reason}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-pressed={previewing}
+                onClick={() => {
+                  const next = previewing ? null : proposal.proposalId;
+                  morphLayout(`#${GRID_ID}`, () =>
+                    setPreviewingProposal(next),
+                  );
+                }}
+                className="rounded-full px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                {previewing ? "Show mine" : "Preview"}
+              </button>
+              <button
+                type="button"
+                onClick={() => resolve(false)}
+                className="rounded-full px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                Dismiss
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (previewing) resolve(true);
+                  else morphLayout(`#${GRID_ID}`, () => resolve(true));
+                }}
+                className="rounded-full bg-foreground px-3 py-1.5 text-xs text-background"
+              >
+                Accept
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     <EditableGrid
       gridId={GRID_ID}
       tiles={tiles}
@@ -154,5 +283,13 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
         ) : null
       }
     </EditableGrid>
+    </div>
   );
+}
+
+/** Panel ids as readable names, from the registry so labels never drift. */
+function nameList(ids: string[]): string {
+  return ids
+    .map((id) => widgetById(id)?.title.toLowerCase() ?? id)
+    .join(", ");
 }

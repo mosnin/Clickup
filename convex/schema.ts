@@ -1426,6 +1426,35 @@ export default defineSchema({
     .index("by_page", ["pageId"])
     .index("by_page_and_time", ["pageId", "createdAt"]),
 
+  // An agent's suggestion for how a screen could be arranged.
+  //
+  // Never a mutation of anyone's layout. The naive version of "the UI adapts
+  // to the work" is an AI silently rearranging your screen, which violates
+  // every stability property that makes an interface learnable. So the agent
+  // authors a PROPOSAL — a first-class object with a reason attached — and a
+  // person previews it, accepts it, or dismisses it. The same consent shape as
+  // task approval gates, pointed at the interface instead of the work.
+  screenProposals: defineTable({
+    /** Same key screenLayouts uses: "project:<id>". */
+    screenKey: v.string(),
+    agentId: v.id("agents"),
+    agentName: v.string(),
+    /** The proposed ScreenLayout, normalized client-side like every layout. */
+    layout: v.any(),
+    /** Why — a proposal without a reason is an instruction. */
+    reason: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("dismissed"),
+    ),
+    createdAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+    resolvedByClerkId: v.optional(v.string()),
+  })
+    .index("by_screen_and_status", ["screenKey", "status"])
+    .index("by_agent", ["agentId"]),
+
   // ── Phase 12: AI agent collaboration ────────────────────────────────
 
   // First-class AI agent principals. An agent belongs to either a user's
