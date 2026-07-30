@@ -104,6 +104,7 @@ import type * as team from "../team.js";
 import type * as templateCatalog from "../templateCatalog.js";
 import type * as templates from "../templates.js";
 import type * as timeEntries from "../timeEntries.js";
+import type * as uiComponents from "../uiComponents.js";
 import type * as userSettings from "../userSettings.js";
 import type * as users from "../users.js";
 import type * as webhookDelivery from "../webhookDelivery.js";
@@ -216,6 +217,7 @@ declare const fullApi: ApiFromModules<{
   templateCatalog: typeof templateCatalog;
   templates: typeof templates;
   timeEntries: typeof timeEntries;
+  uiComponents: typeof uiComponents;
   userSettings: typeof userSettings;
   users: typeof users;
   webhookDelivery: typeof webhookDelivery;

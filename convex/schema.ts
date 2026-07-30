@@ -1426,6 +1426,35 @@ export default defineSchema({
     .index("by_page", ["pageId"])
     .index("by_page_and_time", ["pageId", "createdAt"]),
 
+  // A panel somebody authored, rather than one we shipped.
+  //
+  // The whole point: panels were a hardcoded registry, so "customising the UI"
+  // could only mean choosing which of nine to show. A row here is a DEFINITION
+  // — what data, filtered how, drawn as what — and a generic renderer turns it
+  // into a panel, so adding a kind of panel needs no code. Two people in one
+  // workspace can end up looking at applications that don't resemble each other
+  // over identical primitives.
+  //
+  // `definition` is v.any() and validated on read by src/lib/ui-components.ts
+  // against a CLOSED vocabulary. That validation is a security boundary, not a
+  // formatting step: agents author these, and the answer to "what can an agent
+  // put on my screen" has to be "only combinations the normalizer will emit".
+  uiComponents: defineTable({
+    /** Who authored it — components are personal unless shared to a scope. */
+    ownerClerkId: v.string(),
+    /** Where it is offered: a workspace or a user's personal space. */
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    definition: v.any(),
+    /** Set when an agent wrote it, so provenance survives on the panel. */
+    authoredByAgentId: v.optional(v.id("agents")),
+    authoredByName: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_owner_and_scope", ["ownerClerkId", "scopeType", "scopeId"])
+    .index("by_scope", ["scopeType", "scopeId"]),
+
   // An agent's suggestion for how a screen could be arranged.
   //
   // Never a mutation of anyone's layout. The naive version of "the UI adapts

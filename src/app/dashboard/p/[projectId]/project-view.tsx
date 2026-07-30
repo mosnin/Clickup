@@ -37,6 +37,12 @@ export function ProjectView({ projectId }: { projectId: string }) {
   }
 
   const { project, lists, spaceName, spaceId } = data;
+  // The scope the project's space belongs to — already carried by
+  // `projects.get`, and what user-authored panels are offered against.
+  const scope = {
+    scopeType: data.scopeType as "user" | "workspace",
+    scopeId: data.scopeParentId as string,
+  };
   const favorited = (favorites ?? []).some(
     (f) => f.entityType === "project" && f.entityId === project._id,
   );
@@ -96,6 +102,7 @@ export function ProjectView({ projectId }: { projectId: string }) {
         lists={lists}
         spaceId={spaceId}
         spaceName={spaceName}
+        scope={scope}
       />
     </div>
   );

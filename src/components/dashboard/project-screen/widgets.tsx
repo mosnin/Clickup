@@ -42,6 +42,15 @@ export type ProjectWidgetContext = {
   lists: Doc<"lists">[];
   spaceId: Id<"spaces">;
   spaceName: string;
+  /**
+   * The user or workspace this project ultimately belongs to.
+   *
+   * User-authored panels are offered per scope rather than per project — a
+   * panel you wrote for one project is almost always one you want on the next,
+   * and scoping them per project would mean rebuilding the same panel per
+   * board.
+   */
+  scope: { scopeType: "user" | "workspace"; scopeId: string };
 };
 
 export type ProjectWidget = {

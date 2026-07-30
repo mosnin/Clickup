@@ -29,6 +29,14 @@ import {
   widgetById,
   type ProjectWidgetContext,
 } from "./widgets";
+import { UserComponent } from "@/components/dashboard/user-component";
+import { ComponentBuilder } from "@/components/dashboard/component-builder";
+import {
+  componentIdFromWidgetId,
+  componentWidgetId,
+  describeComponent,
+  normalizeComponent,
+} from "@/lib/ui-components";
 
 // A project screen, arranged by the person reading it.
 //
@@ -46,13 +54,32 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
   const saveLayout = useMutation(api.screens.saveLayout);
   const { toast } = useToast();
 
+  // Panels this person authored. Merged into the registry the same way custom
+  // skills merge with built-in ones: the screen doesn't care which is which.
+  const scope = ctx.scope;
+  const customQuery = useQuery(api.uiComponents.listForScope, scope);
+  // Held stable: `?? []` mints a new array every render, which would make the
+  // layout memo below recompute on every render and re-derive every tile.
+  const custom = useMemo(() => customQuery ?? [], [customQuery]);
+  const customById = useMemo(
+    () => new Map(custom.map((c) => [c.componentId as string, c])),
+    [custom],
+  );
+  const availableIds = useMemo(
+    () => [
+      ...PROJECT_WIDGET_IDS,
+      ...custom.map((c) => componentWidgetId(c.componentId as string)),
+    ],
+    [custom],
+  );
+
   // `null` from the server means "never arranged", which is not the same as an
   // arranged layout that happens to be empty — someone who cleared the screen
   // should keep a clear screen rather than get the defaults back.
   const ownLayout = useMemo<ScreenLayout>(() => {
     if (stored === undefined || stored === null) return DEFAULT_PROJECT_LAYOUT;
-    return normalizeLayout(stored.layout, PROJECT_WIDGET_IDS);
-  }, [stored]);
+    return normalizeLayout(stored.layout, availableIds);
+  }, [stored, availableIds]);
 
   // ── A suggestion from an agent ──
   //
@@ -68,9 +95,9 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
   const proposedLayout = useMemo<ScreenLayout | null>(
     () =>
       proposal
-        ? normalizeLayout(proposal.layout, PROJECT_WIDGET_IDS)
+        ? normalizeLayout(proposal.layout, availableIds)
         : null,
-    [proposal],
+    [availableIds, proposal],
   );
   const previewing =
     proposal !== null &&
@@ -124,7 +151,32 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
 
   const tiles = useMemo<EditableTile[]>(
     () =>
-      layout.widgets.flatMap((w) => {
+      layout.widgets.flatMap((w): EditableTile[] => {
+        const customId = componentIdFromWidgetId(w.id);
+        if (customId) {
+          const row = customById.get(customId);
+          if (!row) return [];
+          const def = normalizeComponent(row.definition);
+          return [
+            {
+              id: w.id,
+              span: w.span,
+              title: def.title,
+              // A user-authored panel can be any width; it was written to be
+              // whatever its author wanted rather than to a designed size.
+              minSpan: 1 as const,
+              maxSpan: 3 as const,
+              rows: (def.shape === "metric" ? 1 : 2) as 1 | 2,
+              content: (
+                <UserComponent
+                  definition={row.definition}
+                  scopeType={scope.scopeType}
+                  scopeId={scope.scopeId}
+                />
+              ),
+            },
+          ];
+        }
         const widget = widgetById(w.id);
         if (!widget) return [];
         return [
@@ -139,10 +191,10 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
           },
         ];
       }),
-    [ctx, layout.widgets],
+    [ctx, customById, layout.widgets, scope],
   );
 
-  const unplaced = unusedWidgets(layout, PROJECT_WIDGET_IDS);
+  const unplaced = unusedWidgets(layout, availableIds);
 
   const diff =
     proposal && proposedLayout
@@ -243,6 +295,46 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
             </span>
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {unplaced.map((id) => {
+                const customId = componentIdFromWidgetId(id);
+                if (customId) {
+                  const row = customById.get(customId);
+                  if (!row) return null;
+                  const def = normalizeComponent(row.definition);
+                  return (
+                    <TrayTile
+                      key={id}
+                      gridId={GRID_ID}
+                      onDrop={(slot) =>
+                        morphLayout(`#${GRID_ID}`, () =>
+                          persist(insertWidget(layout, id, 1, slot), {
+                            droppedAt: slot,
+                          }),
+                        )
+                      }
+                      onClick={() =>
+                        morphLayout(`#${GRID_ID}`, () =>
+                          persist(addWidget(layout, id, 1), {
+                            droppedAt: layout.widgets.length,
+                          }),
+                        )
+                      }
+                      className="bento-tile flex cursor-grab items-start gap-2 p-3 text-left transition-colors hover:bg-accent active:cursor-grabbing"
+                    >
+                      <Plus className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium">
+                          {def.title}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                          {describeComponent(def)}
+                          {row.authoredByName
+                            ? ` — by ${row.authoredByName}`
+                            : ""}
+                        </span>
+                      </span>
+                    </TrayTile>
+                  );
+                }
                 const widget = widgetById(id);
                 if (!widget) return null;
                 return (
@@ -278,6 +370,22 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
                   </TrayTile>
                 );
               })}
+            </div>
+            {/* The ceiling this whole system exists to remove: you are no
+                longer choosing from what we shipped. */}
+            <div className="mt-4 border-t border-border/60 pt-4">
+              <ComponentBuilder
+                scopeType={scope.scopeType}
+                scopeId={scope.scopeId}
+                onCreated={(componentId: string) =>
+                  morphLayout(`#${GRID_ID}`, () =>
+                    persist(
+                      addWidget(layout, componentWidgetId(componentId), 1),
+                      { droppedAt: layout.widgets.length },
+                    ),
+                  )
+                }
+              />
             </div>
           </div>
         ) : null
