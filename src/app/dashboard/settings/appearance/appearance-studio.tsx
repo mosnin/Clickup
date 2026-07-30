@@ -31,7 +31,13 @@ import {
   type SidebarPosition,
   type SurfaceStyle,
 } from "@/lib/appearance";
-import { animate, morphLayout, scaled, stagger } from "@/lib/anime";
+import {
+  animate,
+  morphLayout,
+  scaled,
+  stagger,
+  SHELL_PARTS,
+} from "@/lib/anime";
 import { cn } from "@/lib/utils";
 
 // The appearance studio.
@@ -375,8 +381,10 @@ export function AppearanceStudio() {
                   type="button"
                   aria-pressed={appearance.sidebarPosition === v}
                   onClick={() =>
-                    morphLayout("body", () =>
-                      commit({ sidebarPosition: v }, scope),
+                    morphLayout(
+                      "body",
+                      () => commit({ sidebarPosition: v }, scope),
+                      { children: SHELL_PARTS },
                     )
                   }
                   className={cn(

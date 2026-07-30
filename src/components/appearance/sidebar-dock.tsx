@@ -6,7 +6,13 @@ import {
   useAppearance,
 } from "@/components/appearance/appearance-provider";
 import { EASE } from "@/components/motion";
-import { animate, animeUtils, morphLayout, scaled } from "@/lib/anime";
+import {
+  animate,
+  animeUtils,
+  morphLayout,
+  scaled,
+  SHELL_PARTS,
+} from "@/lib/anime";
 import type { SidebarPosition } from "@/lib/appearance";
 import { dropZoneFor, dropZones } from "@/lib/nav-dock";
 import { cn } from "@/lib/utils";
@@ -253,8 +259,11 @@ export function SidebarDock() {
       settle();
       if (target && target !== positionRef.current) {
         // The one real layout change, as one movement of the whole shell.
-        morphLayout("body", () =>
-          commitRef.current({ sidebarPosition: target }, "personal"),
+        morphLayout(
+          "body",
+          () => commitRef.current({ sidebarPosition: target }, "personal"),
+          // Only the three boxes that actually move; see SHELL_PARTS.
+          { children: SHELL_PARTS },
         );
       }
     };

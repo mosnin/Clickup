@@ -248,8 +248,54 @@ export function createShellLayout(
     ease: EASE_OUT,
     // Boxes and position: what changes when the sidebar swaps sides.
     properties: ["width", "height", "opacity"],
+    // An element that appears in the new layout has no old box to travel from,
+    // so without these it simply pops into place while everything around it
+    // glides. `enterFrom`/`leaveTo` are the states anime.js interpolates
+    // to and from for exactly that case — adding a panel, removing one,
+    // switching a screen's whole contents.
+    enterFrom: { opacity: 0, scale: 0.96 },
+    leaveTo: { opacity: 0, scale: 0.96 },
     ...(children ? { children } : {}),
   });
+}
+
+/**
+ * The layout currently animating a given root.
+ *
+ * This registry is the fix for a real bug, not bookkeeping. `AutoLayout`
+ * stamps a `data-layout-id` attribute on every element it records and holds
+ * them in a Map keyed by that id; `revert()` is what removes the attributes,
+ * completes the timeline and un-mutes the CSS transitions it silenced while
+ * measuring. We never called it — so every morph leaked an instance, and two
+ * overlapping morphs (a sidebar drop while the grid reflows, a scope switch
+ * mid-resize) each read `data-layout-id` values written by the other and
+ * looked them up in their own map, where they do not exist. The result is
+ * elements left mid-flight with a stale transform: panels overlapping, the
+ * shell offset by a sidebar's width, exactly the jumble that shows up in a
+ * screenshot and in nothing else.
+ */
+const activeLayouts = new WeakMap<Element, AutoLayout>();
+
+/**
+ * The parts of the shell that actually move when the navigation does.
+ *
+ * Without a `children` scope, a layout rooted at `body` records *every*
+ * descendant — every tile, row, chip and icon on screen — to animate a change
+ * that only three boxes participate in. That is a needless measure of the whole
+ * document on every sidebar move, and every one of those elements is a chance
+ * to be left holding a transform. The content inside the inset does not need
+ * to be recorded: it travels with the inset.
+ */
+export const SHELL_PARTS =
+  '[data-slot="sidebar-container"], [data-slot="sidebar-gap"], [data-slot="sidebar-inset"]';
+
+function resolveRoot(root: string | HTMLElement): Element | null {
+  if (typeof root !== "string") return root;
+  try {
+    return document.querySelector(root);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -277,21 +323,61 @@ export function morphLayout(
     change();
     return;
   }
+
+  const el = resolveRoot(root);
+  if (!el) {
+    change();
+    return;
+  }
+
+  // Whatever was animating this root is finished with, one way or another.
+  // Reverting rather than abandoning is what puts the `data-layout-id`
+  // attributes and the muted CSS transitions back.
+  const previous = activeLayouts.get(el);
+  if (previous) {
+    try {
+      previous.revert();
+    } catch {
+      // Already reverted, or its elements are gone. Either is fine.
+    }
+    activeLayouts.delete(el);
+  }
+
   let layout: AutoLayout;
   try {
-    layout = createShellLayout(root, opts?.children);
+    layout = createShellLayout(el as HTMLElement, opts?.children);
   } catch {
     // A root that isn't in the document yet is not worth throwing over.
     change();
     return;
   }
+  activeLayouts.set(el, layout);
+
+  const finish = () => {
+    // Only clear the registry if we are still the current occupant — a newer
+    // morph may have replaced us, and it owns the cleanup from here.
+    if (activeLayouts.get(el) !== layout) return;
+    activeLayouts.delete(el);
+    try {
+      layout.revert();
+    } catch {
+      // Nothing to undo.
+    }
+  };
+
   layout.record();
   change();
+  // The `requestAnimationFrame` is load-bearing and cannot be replaced by
+  // `layout.update()`: update() is `record(); callback(); animate()` run
+  // synchronously, and React will not have committed the new layout by the
+  // time animate() measures the end state.
   requestAnimationFrame(() => {
+    if (activeLayouts.get(el) !== layout) return;
     try {
-      layout.animate();
+      layout.animate({ onComplete: finish });
     } catch {
       // The change landed either way; only the transition is lost.
+      finish();
     }
   });
 }
