@@ -1287,13 +1287,13 @@ function SidebarFooterBody() {
 
 function AppearanceMenuItem() {
   const pathname = usePathname();
-  const active = pathname === "/dashboard/settings/appearance";
+  const active = pathname.startsWith("/dashboard/appearance");
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton asChild isActive={active} tooltip="Appearance">
           <Link
-            href="/dashboard/settings/appearance"
+            href="/dashboard/appearance"
             aria-current={active ? "page" : undefined}
           >
             <Sparkles className="text-muted-foreground" />

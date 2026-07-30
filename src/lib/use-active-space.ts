@@ -20,6 +20,8 @@ export type ActiveSpace = {
   name: string;
   color: string | null;
   theme: unknown;
+  /** How this space draws its panels — src/lib/component-style.ts. */
+  componentStyle: unknown;
   mayTheme: boolean;
 };
 

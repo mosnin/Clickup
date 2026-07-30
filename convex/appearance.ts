@@ -42,9 +42,22 @@ export const forCurrentUser = query({
       .query("uiPreferences")
       .withIndex("by_user", (q) => q.eq("userClerkId", identity.subject))
       .unique();
-    if (!row) return { personal: null, patchVersion: PATCH_VERSION, spaceOverrides: {} };
+    if (!row) {
+      return {
+        personal: null,
+        patchVersion: PATCH_VERSION,
+        spaceOverrides: {},
+        componentStyle: null,
+        componentStyleBySpace: {},
+      };
+    }
     return {
       personal: row.appearance ?? null,
+      componentStyle: row.componentStyle ?? null,
+      componentStyleBySpace: (row.componentStyleBySpace ?? {}) as Record<
+        string,
+        unknown
+      >,
       // The client needs this to know whether it is holding a sparse patch or
       // a legacy snapshot it has to interpret.
       patchVersion: row.patchVersion ?? 1,
@@ -223,6 +236,8 @@ export const spaceContext = query({
       name: space.name,
       color: space.color ?? null,
       theme: space.theme ?? null,
+      /** How this space draws its panels — src/lib/component-style.ts. */
+      componentStyle: space.componentStyle ?? null,
       /** Whether this viewer may change the look for everyone in the space. */
       mayTheme: await mayGovernSpace(ctx, space, identity.subject),
     };
@@ -249,6 +264,88 @@ export const setSpaceTheme = mutation({
     const empty =
       !theme || typeof theme !== "object" || Object.keys(theme).length === 0;
     await ctx.db.patch(space._id, { theme: empty ? undefined : theme });
+    return { cleared: empty };
+  },
+});
+
+
+// ── Panel style ─────────────────────────────────────────────────────────
+//
+// Stored beside appearance rather than inside it, because it answers a
+// different question — what does a *panel* look like, not what does the app
+// look like — and because a space may set every key of it. None of these is an
+// accessibility setting; they are all about how one panel is drawn.
+
+/** Save the person's panel style, globally or for one space. */
+export const saveComponentStyle = mutation({
+  args: { patch: v.any(), spaceId: v.optional(v.id("spaces")) },
+  handler: async (ctx, { patch, spaceId }) => {
+    const identity = await requireIdentity(ctx);
+    const row = await ctx.db
+      .query("uiPreferences")
+      .withIndex("by_user", (q) => q.eq("userClerkId", identity.subject))
+      .unique();
+
+    const empty =
+      !patch || typeof patch !== "object" || Object.keys(patch).length === 0;
+
+    if (spaceId) {
+      // Confirms the space exists and is visible before writing a key for it,
+      // so a preferences row cannot accumulate ids its owner cannot see.
+      await requireSpaceAccess(ctx, spaceId);
+      const current = ((row?.componentStyleBySpace ?? {}) as Record<
+        string,
+        unknown
+      >);
+      const next = { ...current };
+      // An empty patch deletes the key rather than storing `{}`: absence is
+      // what means "inherit", and an empty object is a pinned nothing.
+      if (empty) delete next[spaceId];
+      else next[spaceId] = patch;
+      if (row) {
+        await ctx.db.patch(row._id, { componentStyleBySpace: next });
+      } else {
+        await ctx.db.insert("uiPreferences", {
+          userClerkId: identity.subject,
+          appearance: {},
+          updatedAt: Date.now(),
+          patchVersion: PATCH_VERSION,
+          componentStyleBySpace: next,
+        });
+      }
+      return;
+    }
+
+    if (row) {
+      await ctx.db.patch(row._id, {
+        componentStyle: empty ? undefined : patch,
+        patchVersion: PATCH_VERSION,
+      });
+    } else if (!empty) {
+      await ctx.db.insert("uiPreferences", {
+        userClerkId: identity.subject,
+        appearance: {},
+        updatedAt: Date.now(),
+        patchVersion: PATCH_VERSION,
+        componentStyle: patch,
+      });
+    }
+  },
+});
+
+/** Set how a space draws its panels, for everyone in it. */
+export const setSpaceComponentStyle = mutation({
+  args: { spaceId: v.id("spaces"), style: v.any() },
+  handler: async (ctx, { spaceId, style }) => {
+    const { space, identity } = await requireSpaceAccess(ctx, spaceId);
+    if (!(await mayGovernSpace(ctx, space, identity.subject))) {
+      throw new ConvexError(
+        "Only the space creator or workspace owner can change how this space looks",
+      );
+    }
+    const empty =
+      !style || typeof style !== "object" || Object.keys(style).length === 0;
+    await ctx.db.patch(space._id, { componentStyle: empty ? undefined : style });
     return { cleared: empty };
   },
 });

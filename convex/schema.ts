@@ -111,6 +111,12 @@ export default defineSchema({
      * rather than fail validation.
      */
     theme: v.optional(v.any()),
+    /**
+     * How this space draws its panels — src/lib/component-style.ts. Unlike
+     * `theme`, a space may set every key here: none of them is an
+     * accessibility setting, they are all about how one panel is drawn.
+     */
+    componentStyle: v.optional(v.any()),
     // ClickApps-style feature toggles: when a key is explicitly false the
     // matching surface hides for this space's lists (UI-gated; data stays).
     features: v.optional(
@@ -1383,7 +1389,16 @@ export default defineSchema({
      */
     spaceOverrides: v.optional(v.any()),
     updatedAt: v.number(),
-  }).index("by_user", ["userClerkId"]),
+    /**
+     * How this person's panels are drawn — src/lib/component-style.ts.
+     * A separate field from `appearance` because it answers a different
+     * question (what does a panel look like, not what does the app look
+     * like) and because a space may set all of it, unlike appearance.
+     */
+    componentStyle: v.optional(v.any()),
+    /** Per-space overrides of the above, keyed by space id. */
+    componentStyleBySpace: v.optional(v.any()),
+}).index("by_user", ["userClerkId"]),
 
   // A screen someone has composed for themselves.
   //
