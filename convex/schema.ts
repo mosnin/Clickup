@@ -1961,6 +1961,8 @@ export default defineSchema({
      * so this stays empty for anyone who has never dragged a corner.
      */
     homeWidgetSpans: v.optional(v.any()),
+    /** Heights by widget id, set by dragging a panel taller. */
+    homeWidgetRows: v.optional(v.any()),
     // Per-list "Customize view" preferences, so a saved setup follows the
     // user across devices instead of living only in that browser's
     // localStorage. `settings` is the same compact `vs`/`vf` query-string

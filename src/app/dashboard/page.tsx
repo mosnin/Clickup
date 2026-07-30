@@ -173,6 +173,9 @@ export default function DashboardHome() {
   const [spanDraft, setSpanDraft] = useState<Partial<
     Record<WidgetId, 1 | 2 | 3>
   > | null>(null);
+  const [rowDraft, setRowDraft] = useState<Partial<
+    Record<WidgetId, 1 | 2 | 3>
+  > | null>(null);
 
   const order = useMemo<WidgetId[]>(() => {
     const source = draft ?? settings?.homeWidgets ?? null;
@@ -201,12 +204,19 @@ export default function DashboardHome() {
   const spans: Partial<Record<WidgetId, 1 | 2 | 3>> =
     spanDraft ??
     ((settings?.homeWidgetSpans ?? {}) as Partial<Record<WidgetId, 1 | 2 | 3>>);
+  // How tall each block is. Absent means "whatever it was designed at", which
+  // is what keeps a layout sparse and lets a redesign of a block still reach
+  // someone who never resized it.
+  const rows: Partial<Record<WidgetId, 1 | 2 | 3>> =
+    rowDraft ??
+    ((settings?.homeWidgetRows ?? {}) as Partial<Record<WidgetId, 1 | 2 | 3>>);
 
   function persist(
     next: WidgetId[] | null,
     nextSpans?: Partial<Record<WidgetId, 1 | 2 | 3>> | null,
+    nextRows?: Partial<Record<WidgetId, 1 | 2 | 3>> | null,
   ) {
-    void setHomeWidgets({ homeWidgets: next, spans: nextSpans })
+    void setHomeWidgets({ homeWidgets: next, spans: nextSpans, rows: nextRows })
       .then(() => {
         // The mutation result is reflected in `settings` by the time this
         // resolves — dropping the draft lets layout changes from other
@@ -214,10 +224,12 @@ export default function DashboardHome() {
         // if no newer edit superseded this one mid-flight.
         setDraft((cur) => (cur === next ? null : cur));
         setSpanDraft((cur) => (cur === nextSpans ? null : cur));
+        setRowDraft((cur) => (cur === nextRows ? null : cur));
       })
       .catch((e) => {
         setDraft(null); // fall back to the server's layout
         setSpanDraft(null);
+        setRowDraft(null);
         toast(errorMessage(e, "Couldn't save your Home layout"), {
           kind: "error",
         });
@@ -226,15 +238,18 @@ export default function DashboardHome() {
   function applyLayout(
     next: WidgetId[],
     nextSpans?: Partial<Record<WidgetId, 1 | 2 | 3>>,
+    nextRows?: Partial<Record<WidgetId, 1 | 2 | 3>>,
   ) {
     setDraft(next);
     if (nextSpans) setSpanDraft(nextSpans);
-    persist(next, nextSpans);
+    if (nextRows) setRowDraft(nextRows);
+    persist(next, nextSpans, nextRows);
   }
   function resetLayout() {
     setDraft([...DEFAULT_LAYOUT]);
     setSpanDraft(null);
-    persist(null, null);
+    setRowDraft(null);
+    persist(null, null, null);
   }
 
   const hidden = DEFAULT_LAYOUT.filter((id) => !order.includes(id));
@@ -356,13 +371,23 @@ export default function DashboardHome() {
           ];
         })}
         layout={{
-          widgets: order.map((id) => ({ id, span: spans[id] ?? SPAN_OF[id] })),
+          widgets: order.map((id) => ({
+            id,
+            span: spans[id] ?? SPAN_OF[id],
+            ...(rows[id] ? { rows: rows[id] } : {}),
+          })),
         }}
         onChange={(next, opts) => {
           applyLayout(
             next.widgets.map((w) => w.id as WidgetId),
             Object.fromEntries(
               next.widgets.map((w) => [w.id, w.span]),
+            ) as Partial<Record<WidgetId, 1 | 2 | 3>>,
+            // Heights travel with widths, or dragging a block taller is
+            // dropped on the way to the server and snaps back on the next
+            // subscription update.
+            Object.fromEntries(
+              next.widgets.flatMap((w) => (w.rows ? [[w.id, w.rows]] : [])),
             ) as Partial<Record<WidgetId, 1 | 2 | 3>>,
           );
           if (opts?.droppedAt !== undefined) {

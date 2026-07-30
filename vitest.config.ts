@@ -13,6 +13,16 @@ export default defineConfig({
   test: {
     projects: [
       {
+        // The same path aliases the app uses. Modules under src/ import each
+        // other through `@/`, so a pure unit test of one of them cannot
+        // resolve its dependencies without this — and the failure looks like
+        // a missing package rather than like missing config.
+        resolve: {
+          alias: {
+            "@": fileURLToPath(new URL("./src", import.meta.url)),
+            "@convex": fileURLToPath(new URL("./convex", import.meta.url)),
+          },
+        },
         test: {
           name: "backend",
           environment: "edge-runtime",

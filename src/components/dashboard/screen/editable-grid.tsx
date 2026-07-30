@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Minus, Plus, X } from "lucide-react";
+import { X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { SPRING } from "@/components/motion";
 import {
@@ -373,7 +373,13 @@ export function EditableGrid({
     else drop();
   }
 
-  const sized = tiles.some((t) => t.rows !== undefined);
+  // Sized when *anything* has a height — declared by the panel's author, or
+  // set by the reader. Looking only at the tile definitions meant a screen
+  // whose panels ship at natural height could never be given fixed rows, so
+  // dragging a tile taller did nothing at all: the grid had no rows to span.
+  const sized =
+    tiles.some((t) => t.rows !== undefined) ||
+    layout.widgets.some((w) => w.rows !== undefined);
 
   return (
     <div className="space-y-4">
@@ -533,41 +539,22 @@ export function EditableGrid({
                   and stays up while its own drag is in flight. */}
               {editing && (
                 <>
+                  {/* One control, not three.
+
+                      The stepper was a number picker hung off every tile —
+                      a second way to do what the corner already does, taking
+                      up more room than the thing it adjusted and reading as
+                      chrome rather than as a handle. Direct manipulation is
+                      the whole model here: you drag the corner, the grid
+                      reflows under your hand, you stop when it looks right.
+                      A number is what you use when you cannot see the result,
+                      and here you can.
+
+                      The keyboard path is not lost — it moved onto the tile
+                      itself, where +/- resize and arrows reorder (see the
+                      key handler above). That is one place to learn instead
+                      of a control per axis. */}
                   <div className="pointer-events-none absolute -top-2.5 right-2 z-20 flex items-center gap-1">
-                    {tile.minSpan !== tile.maxSpan && (
-                      <div
-                        className={cn(
-                          "pointer-events-auto flex items-center gap-0.5 rounded-full bg-card p-0.5 text-foreground shadow-md ring-1 ring-border transition-opacity duration-150",
-                          preview?.id === w.id
-                            ? "opacity-100"
-                            : "opacity-0 group-hover/tile:opacity-100 group-focus-within/tile:opacity-100",
-                        )}
-                      >
-                        <button
-                          type="button"
-                          aria-label={`Make ${tile.title} narrower`}
-                          disabled={span <= tile.minSpan}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() => resize(w.id, -1)}
-                          className="tap-target flex h-5 w-5 items-center justify-center rounded-full hover:bg-muted disabled:opacity-30"
-                        >
-                          <Minus className="h-3 w-3" />
-                        </button>
-                        <span className="min-w-7 px-0.5 text-center text-[10px] tabular-nums text-muted-foreground">
-                          {span}/{tile.maxSpan}
-                        </span>
-                        <button
-                          type="button"
-                          aria-label={`Make ${tile.title} wider`}
-                          disabled={span >= tile.maxSpan}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() => resize(w.id, 1)}
-                          className="tap-target flex h-5 w-5 items-center justify-center rounded-full hover:bg-muted disabled:opacity-30"
-                        >
-                          <Plus className="h-3 w-3" />
-                        </button>
-                      </div>
-                    )}
                     <button
                       type="button"
                       aria-label={`Remove ${tile.title}`}

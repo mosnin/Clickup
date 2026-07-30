@@ -69,7 +69,24 @@ type Row = {
   meta: Record<string, unknown>;
 };
 
-const EMPTY = {
+/**
+ * The one shape every source returns.
+ *
+ * Annotated rather than inferred, because inference gives each branch its own
+ * literal `meta` type and the union of those is not indexable — which defeats
+ * the entire point of having one envelope. A renderer that has to narrow by
+ * source is a renderer with a branch per source.
+ */
+type Envelope = {
+  rows: Row[];
+  series: Series[];
+  scalar: number;
+  total: number;
+  truncated: boolean;
+  meta: { unit: string; dimensionLabel: string; measureLabel: string };
+};
+
+const EMPTY: Envelope = {
   rows: [] as Row[],
   series: [] as Series[],
   scalar: 0,
@@ -391,7 +408,7 @@ export const resolve = query({
      */
     tzOffsetMinutes: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<Envelope> => {
     let subject: string;
     try {
       ({ subject } = await requireScopeAccess(ctx, {
@@ -718,7 +735,7 @@ async function resolveOther(
     limit: number;
     meta: { unit: string; dimensionLabel: string; measureLabel: string };
   },
-) {
+): Promise<Envelope> {
   const { now, tz, limit, meta } = ctxo;
   const search = q.filter.search.toLowerCase();
   const from = windowStart(q.filter.window, now);

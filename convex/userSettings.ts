@@ -26,6 +26,8 @@ export const setHomeWidgets = mutation({
     homeWidgets: v.union(v.array(v.string()), v.null()),
     /** Widths by widget id. Omitted leaves them alone; null clears them. */
     spans: v.optional(v.union(v.any(), v.null())),
+    /** Heights by widget id, same contract as spans. */
+    rows: v.optional(v.union(v.any(), v.null())),
   },
   handler: async (ctx, args) => {
     const identity = await requireIdentity(ctx);
@@ -47,10 +49,25 @@ export const setHomeWidgets = mutation({
         if (span === 1 || span === 2 || span === 3) homeWidgetSpans[id] = span;
       }
     }
-    const patch =
-      args.spans === undefined
-        ? { homeWidgets }
-        : { homeWidgets, homeWidgetSpans };
+    // Same shape as spans: only widths this build understands, so a row
+    // written by a newer one cannot put a panel at nine rows tall.
+    let homeWidgetRows: Record<string, number> | undefined;
+    if (args.rows === null) {
+      homeWidgetRows = undefined;
+    } else if (args.rows && typeof args.rows === "object") {
+      homeWidgetRows = {};
+      for (const [id, value] of Object.entries(
+        args.rows as Record<string, unknown>,
+      )) {
+        if (value === 1 || value === 2 || value === 3) homeWidgetRows[id] = value;
+      }
+    }
+
+    const patch = {
+      homeWidgets,
+      ...(args.spans === undefined ? {} : { homeWidgetSpans }),
+      ...(args.rows === undefined ? {} : { homeWidgetRows }),
+    };
     if (existing) {
       await ctx.db.patch(existing._id, patch);
     } else {

@@ -250,7 +250,7 @@ export function fieldsFor(from: SourceKind): { key: string; label: string }[] {
  * screen is worse than a panel showing the wrong thing.
  */
 export function normalizePanel(input: unknown): PanelDef {
-  const raw = (input ?? {}) as Partial<PanelDef>;
+  const raw = liftLegacy(input) as Partial<PanelDef>;
   const query = normalizeQuery(raw.query);
   const allowed = shapesFor(query.from);
   const shape = allowed.includes(raw.shape as PanelShape)
@@ -279,6 +279,46 @@ export function normalizePanel(input: unknown): PanelDef {
     style: normalizeStylePatch(raw.style),
     caption:
       typeof raw.caption === "string" ? raw.caption.trim().slice(0, 140) : "",
+  };
+}
+
+/**
+ * Read a definition written before the query moved into its own object.
+ *
+ * The first component builder stored `from`, `filter`, `sort` and `limit` at
+ * the top level. Read literally by the current normalizer those keys are
+ * ignored and `query` is absent, so every panel anyone had authored would
+ * quietly come back as "open tasks" — the filter silently gone, the panel
+ * still rendering, nobody any the wiser. That is the worst kind of data loss
+ * because it looks like the feature working.
+ *
+ * Detected by shape rather than by a version flag, because the old rows have
+ * no flag to read. Lifting rather than migrating: the row is rewritten the
+ * next time somebody saves it, and until then it renders correctly.
+ */
+function liftLegacy(input: unknown): Record<string, unknown> {
+  const raw = (input ?? {}) as Record<string, unknown>;
+  const looksLegacy =
+    raw.query === undefined &&
+    (raw.from !== undefined || raw.filter !== undefined);
+  if (!looksLegacy) return raw;
+
+  const legacyFilter = (raw.filter ?? {}) as Record<string, unknown>;
+  return {
+    ...raw,
+    query: {
+      from: raw.from,
+      sort: raw.sort,
+      limit: raw.limit,
+      // `group` was the old name for what is now the dimension, and the old
+      // vocabulary is a subset of the new one — so the value carries across
+      // unchanged and `normalizeQuery` drops anything this build dropped.
+      dimension: raw.group,
+      // The old metric lived beside the shape rather than inside the query;
+      // as a measure it is the same idea under a better name.
+      measure: raw.metric,
+      filter: legacyFilter,
+    },
   };
 }
 

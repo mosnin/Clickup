@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 // The editable grid's edit chrome.
 //
@@ -274,7 +274,11 @@ describe("resizing", () => {
     expect(tile.className).toContain("lg:col-span-1");
   });
 
-  it("still resizes from the keyboard-reachable buttons", () => {
+  it("is still reachable without a pointer", () => {
+    // The number stepper is gone — it was a second way to do what the corner
+    // already does, and a number is what you reach for when you cannot see
+    // the result. The keyboard path moved onto the tile itself, which is one
+    // place to learn rather than a control per axis.
     const onChange = vi.fn();
     render(
       <EditableGrid
@@ -286,7 +290,10 @@ describe("resizing", () => {
         onEditingChange={() => {}}
       />,
     );
-    screen.getByLabelText(/wider/i).click();
+    expect(screen.queryByLabelText(/wider/i)).toBeNull();
+
+    const tile = document.querySelector<HTMLElement>('[data-tile="a"]')!;
+    fireEvent.keyDown(tile, { key: "+" });
     expect(onChange).toHaveBeenCalledWith(
       { widgets: [{ id: "a", span: 2 }] },
       undefined,

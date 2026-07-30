@@ -29,7 +29,7 @@ import {
   widgetById,
   type ProjectWidgetContext,
 } from "./widgets";
-import { UserComponent } from "@/components/dashboard/user-component";
+import { Panel } from "@/components/dashboard/panel";
 import { ComponentBuilder } from "@/components/dashboard/component-builder";
 import {
   componentIdFromWidgetId,
@@ -37,6 +37,7 @@ import {
   describeComponent,
   normalizeComponent,
 } from "@/lib/ui-components";
+import { isMetricShape, normalizePanel } from "@/lib/panel";
 
 // A project screen, arranged by the person reading it.
 //
@@ -156,7 +157,10 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
         if (customId) {
           const row = customById.get(customId);
           if (!row) return [];
-          const def = normalizeComponent(row.definition);
+          // Read through the panel model rather than the old component one:
+          // it understands both shapes (see `liftLegacy`) and it is what the
+          // renderer draws, so the title and height agree with what appears.
+          const def = normalizePanel(row.definition);
           return [
             {
               id: w.id,
@@ -166,9 +170,9 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
               // whatever its author wanted rather than to a designed size.
               minSpan: 1 as const,
               maxSpan: 3 as const,
-              rows: (def.shape === "metric" ? 1 : 2) as 1 | 2,
+              rows: (isMetricShape(def.shape) ? 1 : 2) as 1 | 2,
               content: (
-                <UserComponent
+                <Panel
                   definition={row.definition}
                   scopeType={scope.scopeType}
                   scopeId={scope.scopeId}
