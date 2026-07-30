@@ -13,6 +13,7 @@ import {
   slotForPointer,
   insertWidget,
   describeLayoutChange,
+  hoveredIndex,
 } from "../src/lib/screen-layout";
 
 // The layout engine. The property that shapes all of it:
@@ -338,5 +339,40 @@ describe("describing a proposed change", () => {
     });
     expect(d.reordered).toBe(false);
     expect(d.added).toEqual(["activity"]);
+  });
+});
+
+
+describe("which tile a drag is over", () => {
+  // Two rows of two 100x100 tiles with a 20px gap.
+  const boxes = [
+    { left: 0, top: 0, right: 100, bottom: 100 },
+    { left: 120, top: 0, right: 220, bottom: 100 },
+    { left: 0, top: 120, right: 100, bottom: 220 },
+    { left: 120, top: 120, right: 220, bottom: 220 },
+  ];
+
+  it("finds the tile containing the pointer", () => {
+    expect(hoveredIndex(boxes, { x: 150, y: 50 }, 0)).toBe(1);
+    expect(hoveredIndex(boxes, { x: 50, y: 150 }, 0)).toBe(2);
+  });
+
+  it("never answers with the dragged tile itself", () => {
+    // The bug this test pins down: the dragged tile's box follows the pointer,
+    // so including it means it is always its own nearest target and the grid
+    // never reorders.
+    expect(hoveredIndex(boxes, { x: 50, y: 50 }, 0)).toBe(-1);
+    expect(hoveredIndex(boxes, { x: 150, y: 50 }, 1)).toBe(-1);
+  });
+
+  it("answers nobody in the gaps between tiles", () => {
+    expect(hoveredIndex(boxes, { x: 110, y: 50 }, 0)).toBe(-1);
+    expect(hoveredIndex(boxes, { x: 50, y: 110 }, 3)).toBe(-1);
+  });
+
+  it("skips holes left by unmeasurable tiles", () => {
+    expect(
+      hoveredIndex([boxes[0], null, boxes[2]], { x: 50, y: 150 }, 0),
+    ).toBe(2);
   });
 });

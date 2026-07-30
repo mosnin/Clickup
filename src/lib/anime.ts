@@ -319,33 +319,87 @@ export const RELEASE = {
 /**
  * The wobble that means "you can move this".
  *
- * Deliberately desynchronised: a grid of tiles rocking in phase reads as the
- * whole page vibrating, which is alarming. Phones stagger the phase per icon so
- * the field looks *alive* rather than broken, and the amplitude has to stay
- * under about a degree and a half or the text becomes hard to read while you
- * are trying to decide where something goes.
+ * Three things separate a wobble that feels alive from one that reads as a CSS
+ * animation, and the first is the one everybody gets wrong:
+ *
+ * **Amplitude is compensated for size.** Rotation displaces a corner by roughly
+ * (width / 2) x sin(angle), so a fixed angle makes a wide card flap while a
+ * small tile barely stirs. Phones get away with one angle because every icon is
+ * the same size; a grid of 1-, 2- and 3-column panels does not. So the angle is
+ * solved backwards from a constant corner displacement — every panel, whatever
+ * its width, moves its corners the same ~2px, which is what makes a mixed grid
+ * look like one material rather than several.
+ *
+ * **The motion is quasi-periodic.** Rotation, x and y each run on a different
+ * period, so the composite never exactly repeats. A single sine is a metronome;
+ * three incommensurate ones read as something idling under its own power.
+ *
+ * **Phases are desynchronised.** A grid rocking in step looks like the page is
+ * vibrating, which is alarming rather than inviting.
  *
  * Returns a stop function; calling it settles every element back to rest rather
  * than freezing it mid-tilt.
  */
+
+/** How far a corner should travel, in px, regardless of panel size. */
+const WOBBLE_CORNER_PX = 2.1;
+
 export function jiggle(elements: Element[]): () => void {
   if (elements.length === 0 || scaled(1) === 0) return () => {};
-  const animations = elements.map((el, i) =>
-    animate(el, {
-      rotate: [-1.15, 1.15],
-      duration: scaled(260 + ((i * 37) % 90)),
-      loop: true,
-      alternate: true,
-      ease: "inOutSine",
-      // A fractional start so no two tiles cross zero together.
-      delay: (i * 53) % 180,
-    }),
-  );
+
+  const animations = elements.flatMap((el, i) => {
+    const width = (el as HTMLElement).offsetWidth || 240;
+    // Solve the angle that moves a corner WOBBLE_CORNER_PX for this width, then
+    // clamp: a very narrow tile shouldn't spin, a very wide one still needs to
+    // register at all.
+    const radians = Math.asin(
+      Math.min(1, WOBBLE_CORNER_PX / Math.max(width / 2, 1)),
+    );
+    const degrees = utils.clamp((radians * 180) / Math.PI, 0.16, 1.05);
+
+    // Deterministic per-element jitter — same tile, same character every time,
+    // so entering edit mode twice doesn't look like two different screens.
+    const seed = (i * 2654435761) % 1000;
+    const vary = (base: number, spread: number) =>
+      base + ((seed % 97) / 97) * spread;
+
+    return [
+      animate(el, {
+        rotate: [-degrees, degrees],
+        duration: scaled(vary(270, 70)),
+        loop: true,
+        alternate: true,
+        ease: "inOutSine",
+        delay: (seed % 180),
+      }),
+      animate(el, {
+        // Translation carries the weight rotation can't on a wide panel, and
+        // on its own period so the pair never phase-locks.
+        x: [-1.1, 1.1],
+        duration: scaled(vary(340, 90)),
+        loop: true,
+        alternate: true,
+        ease: "inOutSine",
+        delay: (seed % 130),
+      }),
+      animate(el, {
+        y: [-0.8, 0.8],
+        duration: scaled(vary(410, 110)),
+        loop: true,
+        alternate: true,
+        ease: "inOutSine",
+        delay: (seed % 220),
+      }),
+    ];
+  });
+
   return () => {
     for (const a of animations) a.pause();
     animate(elements, {
       rotate: 0,
-      duration: scaled(220),
+      x: 0,
+      y: 0,
+      duration: scaled(240),
       ease: EASE_OUT,
     });
   };

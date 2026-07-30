@@ -22,7 +22,11 @@ export const current = query({
 
 // Ordered list of visible Home widgets; null restores the default layout.
 export const setHomeWidgets = mutation({
-  args: { homeWidgets: v.union(v.array(v.string()), v.null()) },
+  args: {
+    homeWidgets: v.union(v.array(v.string()), v.null()),
+    /** Widths by widget id. Omitted leaves them alone; null clears them. */
+    spans: v.optional(v.union(v.any(), v.null())),
+  },
   handler: async (ctx, args) => {
     const identity = await requireIdentity(ctx);
     const existing = await ctx.db
@@ -30,12 +34,29 @@ export const setHomeWidgets = mutation({
       .withIndex("by_clerk", (q) => q.eq("clerkId", identity.subject))
       .first();
     const homeWidgets = args.homeWidgets ?? undefined;
+    // Only widths this build understands, so a row written by a newer one
+    // can't put a widget at span 7.
+    let homeWidgetSpans: Record<string, number> | undefined;
+    if (args.spans === null) {
+      homeWidgetSpans = undefined;
+    } else if (args.spans && typeof args.spans === "object") {
+      homeWidgetSpans = {};
+      for (const [id, span] of Object.entries(
+        args.spans as Record<string, unknown>,
+      )) {
+        if (span === 1 || span === 2 || span === 3) homeWidgetSpans[id] = span;
+      }
+    }
+    const patch =
+      args.spans === undefined
+        ? { homeWidgets }
+        : { homeWidgets, homeWidgetSpans };
     if (existing) {
-      await ctx.db.patch(existing._id, { homeWidgets });
+      await ctx.db.patch(existing._id, patch);
     } else {
       await ctx.db.insert("userSettings", {
         clerkId: identity.subject,
-        homeWidgets,
+        ...patch,
       });
     }
   },

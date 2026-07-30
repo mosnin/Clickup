@@ -261,3 +261,38 @@ export function describeLayoutChange(
 
   return { added, removed, resized, reordered };
 }
+
+
+/** An axis-aligned box, as getBoundingClientRect gives it. */
+export type Box = { left: number; top: number; right: number; bottom: number };
+
+/**
+ * Which OTHER tile the pointer is inside, for drag reordering.
+ *
+ * The subtle bug this exists to prevent: computing "nearest slot" over ALL
+ * tiles includes the dragged tile itself, whose centre is glued to the pointer
+ * at distance zero — so it is always its own nearest slot and no reorder can
+ * ever happen. The dragged tile must be excluded, and containment (not
+ * nearest-centre) is the right test between non-overlapping boxes: it is
+ * naturally hysteretic, because the gaps between tiles belong to nobody.
+ */
+export function hoveredIndex(
+  boxes: readonly (Box | null)[],
+  pointer: Point,
+  exclude: number,
+): number {
+  for (let i = 0; i < boxes.length; i += 1) {
+    if (i === exclude) continue;
+    const b = boxes[i];
+    if (!b) continue;
+    if (
+      pointer.x >= b.left &&
+      pointer.x <= b.right &&
+      pointer.y >= b.top &&
+      pointer.y <= b.bottom
+    ) {
+      return i;
+    }
+  }
+  return -1;
+}

@@ -170,6 +170,9 @@ export default function DashboardHome() {
   // Local optimistic layout: render the just-clicked order immediately;
   // the server round-trip (settings) reconciles behind it.
   const [draft, setDraft] = useState<WidgetId[] | null>(null);
+  const [spanDraft, setSpanDraft] = useState<Partial<
+    Record<WidgetId, 1 | 2 | 3>
+  > | null>(null);
 
   const order = useMemo<WidgetId[]>(() => {
     const source = draft ?? settings?.homeWidgets ?? null;
@@ -195,29 +198,43 @@ export default function DashboardHome() {
     return null;
   }
 
-  function persist(next: WidgetId[] | null) {
-    void setHomeWidgets({ homeWidgets: next })
+  const spans: Partial<Record<WidgetId, 1 | 2 | 3>> =
+    spanDraft ??
+    ((settings?.homeWidgetSpans ?? {}) as Partial<Record<WidgetId, 1 | 2 | 3>>);
+
+  function persist(
+    next: WidgetId[] | null,
+    nextSpans?: Partial<Record<WidgetId, 1 | 2 | 3>> | null,
+  ) {
+    void setHomeWidgets({ homeWidgets: next, spans: nextSpans })
       .then(() => {
         // The mutation result is reflected in `settings` by the time this
         // resolves — dropping the draft lets layout changes from other
         // tabs/devices show up instead of being masked forever. Only clear
         // if no newer edit superseded this one mid-flight.
         setDraft((cur) => (cur === next ? null : cur));
+        setSpanDraft((cur) => (cur === nextSpans ? null : cur));
       })
       .catch((e) => {
         setDraft(null); // fall back to the server's layout
+        setSpanDraft(null);
         toast(errorMessage(e, "Couldn't save your Home layout"), {
           kind: "error",
         });
       });
   }
-  function applyLayout(next: WidgetId[]) {
+  function applyLayout(
+    next: WidgetId[],
+    nextSpans?: Partial<Record<WidgetId, 1 | 2 | 3>>,
+  ) {
     setDraft(next);
-    persist(next);
+    if (nextSpans) setSpanDraft(nextSpans);
+    persist(next, nextSpans);
   }
   function resetLayout() {
     setDraft([...DEFAULT_LAYOUT]);
-    persist(null);
+    setSpanDraft(null);
+    persist(null, null);
   }
 
   const hidden = DEFAULT_LAYOUT.filter((id) => !order.includes(id));
@@ -324,23 +341,30 @@ export default function DashboardHome() {
         tiles={order.flatMap((id) => {
           const def = WIDGET_BY_ID.get(id);
           if (!def) return [];
-          const span = SPAN_OF[id];
+          const span = spans[id] ?? SPAN_OF[id];
           return [
             {
               id,
               span,
               title: def.title,
-              // Home blocks keep their designed widths — the freedom that
-              // matters here is order and presence, not shape.
-              minSpan: span,
-              maxSpan: span,
+              // Every block can be narrowed to one column or run the full
+              // width. The designed span is only where it starts.
+              minSpan: 1 as const,
+              maxSpan: 3 as const,
               content: widgetContent(id),
             },
           ];
         })}
-        layout={{ widgets: order.map((id) => ({ id, span: SPAN_OF[id] })) }}
+        layout={{
+          widgets: order.map((id) => ({ id, span: spans[id] ?? SPAN_OF[id] })),
+        }}
         onChange={(next, opts) => {
-          applyLayout(next.widgets.map((w) => w.id as WidgetId));
+          applyLayout(
+            next.widgets.map((w) => w.id as WidgetId),
+            Object.fromEntries(
+              next.widgets.map((w) => [w.id, w.span]),
+            ) as Partial<Record<WidgetId, 1 | 2 | 3>>,
+          );
           if (opts?.droppedAt !== undefined) {
             const grid = document.getElementById(HOME_GRID_ID);
             if (grid) {

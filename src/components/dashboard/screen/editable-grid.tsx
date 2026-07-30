@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Minus, Plus, X } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { SPRING } from "@/components/motion";
 import {
   RELEASE,
   createDraggable,
@@ -17,6 +19,7 @@ import {
 } from "@/lib/anime";
 import {
   centersOf,
+  hoveredIndex,
   slotForPointer,
   type ScreenLayout,
   type WidgetSpan,
@@ -193,16 +196,26 @@ export function EditableGrid({
           velocityDeform(el, self.velocity, self.angle);
           field.current?.pull(pointer.x, pointer.y, el);
 
-          const others = Array.from(
-            grid.querySelectorAll<HTMLElement>("[data-tile]"),
-          );
-          const current = orderRef.current.indexOf(id);
-          const slot = slotForPointer(centersOf(others), pointer, current);
-          if (slot === current || slot < 0) return;
+          // The bug this shape exists to avoid: measuring "nearest slot" over
+          // ALL tiles includes the dragged one, whose box is glued to the
+          // pointer at distance zero — so it is always its own nearest target
+          // and the grid can never reorder. Exclude self, and test containment
+          // rather than proximity: the gaps between tiles belong to nobody,
+          // which makes the rule naturally hysteretic.
+          const order = orderRef.current;
+          const current = order.indexOf(id);
+          const boxes = order.map((wid) => {
+            const node = grid.querySelector<HTMLElement>(
+              `[data-tile="${wid}"]`,
+            );
+            return node ? node.getBoundingClientRect() : null;
+          });
+          const over = hoveredIndex(boxes, pointer, current);
+          if (over < 0 || over === current) return;
 
-          const next = [...orderRef.current];
+          const next = [...order];
           next.splice(current, 1);
-          next.splice(slot, 0, id);
+          next.splice(over, 0, id);
           orderRef.current = next;
           // Reflow everything except the tile under the finger — that one is
           // already where the pointer says it is.
@@ -280,6 +293,24 @@ export function EditableGrid({
     widgets.splice(to, 0, moved);
     morphLayout(gridRef.current ?? `#${gridId}`, () =>
       commit({ widgets }, { droppedAt: to }),
+    );
+  }
+
+  /** Set a width directly — what a drag reports, unlike the +/- delta. */
+  function setSpan(id: string, span: WidgetSpan) {
+    const tile = tileById.get(id);
+    if (!tile) return;
+    const clamped = Math.min(
+      Math.max(span, tile.minSpan),
+      tile.maxSpan,
+    ) as WidgetSpan;
+    if (layout.widgets.find((w) => w.id === id)?.span === clamped) return;
+    morphLayout(gridRef.current ?? `#${gridId}`, () =>
+      commit({
+        widgets: layout.widgets.map((w) =>
+          w.id === id ? { ...w, span: clamped } : w,
+        ),
+      }),
     );
   }
 
@@ -444,31 +475,44 @@ export function EditableGrid({
                       <X className="h-3 w-3" />
                     </button>
                     {tile.minSpan !== tile.maxSpan && (
-                      <div className="absolute -bottom-2 -right-2 z-10 flex items-center gap-0.5 rounded-full bg-foreground px-1 py-0.5 text-background shadow-lg">
-                        <button
-                          type="button"
-                          aria-label={`Make ${tile.title} narrower`}
-                          disabled={w.span <= tile.minSpan}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() => resize(w.id, -1)}
-                          className="flex h-5 w-5 items-center justify-center rounded-full disabled:opacity-40"
-                        >
-                          <Minus className="h-3 w-3" />
-                        </button>
-                        <span className="px-0.5 text-[10px] tabular-nums">
-                          {w.span}
-                        </span>
-                        <button
-                          type="button"
-                          aria-label={`Make ${tile.title} wider`}
-                          disabled={w.span >= tile.maxSpan}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={() => resize(w.id, 1)}
-                          className="flex h-5 w-5 items-center justify-center rounded-full disabled:opacity-40"
-                        >
-                          <Plus className="h-3 w-3" />
-                        </button>
-                      </div>
+                      <>
+                        {/* Drag the corner to resize — the direct-manipulation
+                            path, matching how everything else here works. */}
+                        <ResizeGrip
+                          label={tile.title}
+                          span={w.span}
+                          min={tile.minSpan}
+                          max={tile.maxSpan}
+                          gridId={gridId}
+                          onResize={(next: WidgetSpan) => setSpan(w.id, next)}
+                        />
+                        {/* The same change, reachable without a pointer. */}
+                        <div className="absolute -bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-foreground px-1 py-0.5 text-background shadow-lg">
+                          <button
+                            type="button"
+                            aria-label={`Make ${tile.title} narrower`}
+                            disabled={w.span <= tile.minSpan}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={() => resize(w.id, -1)}
+                            className="flex h-5 w-5 items-center justify-center rounded-full disabled:opacity-40"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                          <span className="px-0.5 text-[10px] tabular-nums">
+                            {w.span}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`Make ${tile.title} wider`}
+                            disabled={w.span >= tile.maxSpan}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={() => resize(w.id, 1)}
+                            className="flex h-5 w-5 items-center justify-center rounded-full disabled:opacity-40"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </>
                     )}
                   </>
                 )}
@@ -481,6 +525,35 @@ export function EditableGrid({
       {layout.widgets.length === 0 && !editing && emptyMessage}
 
       {children?.(editing)}
+
+      {/* The way out. A text link at the top of a long screen is not an exit —
+          by the time you have dragged three panels you have scrolled past it,
+          and a mode you cannot leave is a trap. This floats above everything,
+          bottom-centre, wherever you are on the page. */}
+      <AnimatePresence>
+        {editing && (
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.9 }}
+            transition={SPRING}
+            className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4"
+          >
+            <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-foreground px-4 py-2 text-background shadow-xl">
+              <span className="text-xs">
+                Hold and drag to move. Drag a corner to resize.
+              </span>
+              <button
+                type="button"
+                onClick={() => setEditing(false)}
+                className="rounded-full bg-background px-3 py-1 text-xs font-medium text-foreground"
+              >
+                Done
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -590,5 +663,121 @@ export function TrayTile({
     >
       {children}
     </div>
+  );
+}
+
+
+/**
+ * Drag the corner to resize.
+ *
+ * The width is a column count, so the gesture has to translate pixels into
+ * columns: measure one column from the grid's own box, then report the span the
+ * pointer's total width implies. Reporting on every threshold crossing rather
+ * than on release is what makes it feel like resizing rather than like
+ * submitting a form — the grid reflows under your hand and you stop when it
+ * looks right.
+ *
+ * The grip does not move with the drag. It is a control being held, not an
+ * object being thrown, and animating it away from the corner it labels would
+ * break the one thing it is telling you.
+ */
+function ResizeGrip({
+  label,
+  span,
+  min,
+  max,
+  gridId,
+  onResize,
+}: {
+  label: string;
+  span: WidgetSpan;
+  min: WidgetSpan;
+  max: WidgetSpan;
+  gridId: string;
+  onResize: (span: WidgetSpan) => void;
+}) {
+  const ref = useRef<HTMLButtonElement | null>(null);
+  const spanRef = useRef(span);
+  spanRef.current = span;
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let startX = 0;
+    let startSpan: WidgetSpan = span;
+    let column = 0;
+    let dragging = false;
+
+    const onDown = (e: PointerEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragging = true;
+      startX = e.clientX;
+      startSpan = spanRef.current;
+      const grid = document.getElementById(gridId);
+      // One column, derived from the live grid rather than assumed: the shell
+      // is resizable and the sidebar can move, so a hardcoded width would
+      // drift out of agreement with what is on screen.
+      const gridWidth = grid?.getBoundingClientRect().width ?? 0;
+      column = gridWidth > 0 ? gridWidth / 3 : 320;
+      el.setPointerCapture(e.pointerId);
+      document.body.style.cursor = "ew-resize";
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      e.preventDefault();
+      const columns = Math.round((e.clientX - startX) / column);
+      const next = Math.min(
+        Math.max(startSpan + columns, min),
+        max,
+      ) as WidgetSpan;
+      if (next !== spanRef.current) onResize(next);
+    };
+
+    const onUp = (e: PointerEvent) => {
+      if (!dragging) return;
+      dragging = false;
+      document.body.style.cursor = "";
+      try {
+        el.releasePointerCapture(e.pointerId);
+      } catch {
+        // The pointer already went away; nothing to release.
+      }
+    };
+
+    el.addEventListener("pointerdown", onDown);
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerup", onUp);
+    el.addEventListener("pointercancel", onUp);
+    return () => {
+      el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("pointercancel", onUp);
+      document.body.style.cursor = "";
+    };
+  }, [gridId, max, min, onResize, span]);
+
+  return (
+    <button
+      ref={ref}
+      type="button"
+      aria-label={`Resize ${label}. ${span} of 3 columns. Drag, or use the plus and minus buttons.`}
+      className="absolute -bottom-2.5 -right-2.5 z-20 hidden h-7 w-7 cursor-ew-resize touch-none items-center justify-center rounded-full bg-foreground text-background shadow-lg lg:flex"
+    >
+      <svg viewBox="0 0 12 12" className="h-3.5 w-3.5" aria-hidden>
+        {/* Two corner strokes: the universal "pull me" mark, and it points
+            along the axis the drag actually works on. */}
+        <path
+          d="M11 4v7H4M11 8v3H8"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
   );
 }

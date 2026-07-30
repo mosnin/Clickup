@@ -1887,6 +1887,16 @@ export default defineSchema({
   userSettings: defineTable({
     clerkId: v.string(),
     homeWidgets: v.optional(v.array(v.string())),
+    /**
+     * Per-widget column width on Home, keyed by widget id.
+     *
+     * Separate from `homeWidgets` because they answer different questions —
+     * which blocks are on the screen and in what order, versus how wide each
+     * one is — and folding a width into an ordered id list would mean parsing
+     * a composite key. Sparse: a widget with no entry uses its designed width,
+     * so this stays empty for anyone who has never dragged a corner.
+     */
+    homeWidgetSpans: v.optional(v.any()),
     // Per-list "Customize view" preferences, so a saved setup follows the
     // user across devices instead of living only in that browser's
     // localStorage. `settings` is the same compact `vs`/`vf` query-string
