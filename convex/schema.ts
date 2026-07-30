@@ -1543,7 +1543,38 @@ export default defineSchema({
     costUsd: v.optional(v.number()),
     startedAt: v.number(),
     finishedAt: v.optional(v.number()),
-  }).index("by_agent", ["agentId"]),
+    // ── The live half (AG-UI-shaped) ──
+    //
+    // A run used to be two bookends: start_run, then finish_run with a
+    // summary. Everything between was invisible, which is exactly the part a
+    // person watching wants. These fields make the run document itself the
+    // stream — Convex pushes every patch to subscribers, so emitting a step is
+    // publishing it, with no second transport.
+    /** The run's story so far: bounded, ordered, keyed steps. */
+    steps: v.optional(
+      v.array(
+        v.object({
+          key: v.string(),
+          title: v.string(),
+          status: v.union(
+            v.literal("running"),
+            v.literal("done"),
+            v.literal("failed"),
+          ),
+          detail: v.optional(v.string()),
+          startedAt: v.number(),
+          finishedAt: v.optional(v.number()),
+        }),
+      ),
+    ),
+    /** Small structured state the UI renders live (tests passed, files touched). */
+    liveState: v.optional(v.any()),
+    /** The agent's current sentence — one line, replaced, never a transcript. */
+    lastNarration: v.optional(v.string()),
+    narratedAt: v.optional(v.number()),
+  })
+    .index("by_agent", ["agentId"])
+    .index("by_task", ["taskId"]),
 
   // API keys for agents. We store only a SHA-256 hash — the plaintext key
   // is shown once at creation time. `keyPrefix` keeps the first characters

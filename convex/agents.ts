@@ -445,6 +445,44 @@ export const listForWorkspace = query({
 
 // Last-7-days analytics for one agent: throughput, run outcomes, cost,
 // and time logged. Powers the stat tiles on the agent detail page.
+/**
+ * The run currently unfolding on a task, for the person watching it.
+ *
+ * This is the read side of the AG-UI-shaped stream: the run document carries
+ * its steps, live state and narration, and because this is an ordinary Convex
+ * subscription, every event the agent emits repaints the watcher without any
+ * further machinery. Null when nothing is live — the theater simply isn't
+ * there when there is no performance.
+ */
+export const liveRunForTask = query({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    try {
+      await requireTaskAccess(ctx, taskId);
+    } catch {
+      return null;
+    }
+    const runs = await ctx.db
+      .query("agentRuns")
+      .withIndex("by_task", (q) => q.eq("taskId", taskId))
+      .order("desc")
+      .take(5);
+    const live = runs.find((r) => r.status === "running");
+    if (!live) return null;
+    const agent = await ctx.db.get(live.agentId);
+    return {
+      runId: live._id,
+      agentName: agent?.name ?? "An agent",
+      title: live.title,
+      startedAt: live.startedAt,
+      steps: live.steps ?? [],
+      liveState: (live.liveState ?? null) as Record<string, unknown> | null,
+      lastNarration: live.lastNarration ?? null,
+      narratedAt: live.narratedAt ?? null,
+    };
+  },
+});
+
 export const stats = query({
   args: { agentId: v.id("agents") },
   handler: async (ctx, { agentId }) => {

@@ -3289,6 +3289,155 @@ export const startRun = mutation({
   },
 });
 
+/**
+ * One event in a running run's live stream.
+ *
+ * The AG-UI insight, mapped onto this stack: an agent's run should be a typed
+ * event stream the UI renders as it unfolds — steps starting and finishing,
+ * a line of narration, structured state deltas — not two bookends with silence
+ * between. Here the run *document* is the stream: Convex pushes every patch to
+ * subscribers, so emitting is publishing, and there is no second transport to
+ * authenticate or replay.
+ *
+ * Event types (their AG-UI ancestors in parens):
+ *   step_started / step_finished / step_failed  (STEP_*)
+ *   narration                                    (TEXT_MESSAGE_*, one line)
+ *   state_snapshot / state_delta                 (STATE_SNAPSHOT / STATE_DELTA)
+ *
+ * Presence-classified: telling people what you are doing must never consume
+ * the budget for doing it. The discipline is on granularity instead — steps
+ * are chapters, narration is a sentence replaced in place, state is small.
+ */
+export const emitRunEvent = mutation({
+  args: {
+    apiKey: v.string(),
+    runId: v.id("agentRuns"),
+    type: v.union(
+      v.literal("step_started"),
+      v.literal("step_finished"),
+      v.literal("step_failed"),
+      v.literal("narration"),
+      v.literal("state_snapshot"),
+      v.literal("state_delta"),
+    ),
+    /** step_* events: which step, by stable key. */
+    step: v.optional(
+      v.object({
+        key: v.string(),
+        title: v.optional(v.string()),
+        detail: v.optional(v.string()),
+      }),
+    ),
+    /** narration: the sentence. */
+    text: v.optional(v.string()),
+    /** state_*: the object (snapshot replaces, delta shallow-merges). */
+    state: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
+    const run = await ctx.db.get(args.runId);
+    // "Not found" for another agent's run, not "forbidden": a run id is an
+    // enumerable handle and its existence is itself information.
+    if (!run || run.agentId !== agent._id) {
+      throw new ConvexError("Run not found");
+    }
+    if (run.status !== "running") {
+      throw new ConvexError("This run has finished; start a new one");
+    }
+    const now = Date.now();
+
+    if (args.type === "narration") {
+      const text = (args.text ?? "").trim();
+      if (!text) throw new ConvexError("Narration needs text");
+      await ctx.db.patch(run._id, {
+        lastNarration: text.slice(0, 280),
+        narratedAt: now,
+      });
+      return { ok: true };
+    }
+
+    if (args.type === "state_snapshot" || args.type === "state_delta") {
+      const incoming = args.state;
+      if (
+        incoming === null ||
+        typeof incoming !== "object" ||
+        Array.isArray(incoming)
+      ) {
+        throw new ConvexError("State must be a plain object");
+      }
+      let next: Record<string, unknown>;
+      if (args.type === "state_snapshot") {
+        next = incoming as Record<string, unknown>;
+      } else {
+        // Shallow merge; an explicit null deletes the key, which is how a
+        // delta can retract without resending the world.
+        next = { ...((run.liveState ?? {}) as Record<string, unknown>) };
+        for (const [k, v2] of Object.entries(
+          incoming as Record<string, unknown>,
+        )) {
+          if (v2 === null) delete next[k];
+          else next[k] = v2;
+        }
+      }
+      // Small on purpose: this is a dashboard's worth of numbers, not a data
+      // channel. A cap the agent hits is a design smell it should hear about.
+      if (JSON.stringify(next).length > 4000) {
+        throw new ConvexError(
+          "Live state is capped at ~4KB — keep it to what a person watches",
+        );
+      }
+      await ctx.db.patch(run._id, { liveState: next });
+      return { ok: true };
+    }
+
+    // step_* events.
+    const key = args.step?.key.trim();
+    if (!key) throw new ConvexError("Step events need step.key");
+    const steps = [...(run.steps ?? [])];
+    const at = steps.findIndex((s) => s.key === key);
+
+    if (args.type === "step_started") {
+      if (at >= 0) {
+        // Idempotent re-start refreshes the label rather than duplicating the
+        // chapter — retried calls are the normal case for an LLM runtime.
+        steps[at] = {
+          ...steps[at],
+          title: args.step?.title?.slice(0, 120) ?? steps[at].title,
+          detail: args.step?.detail?.slice(0, 200) ?? steps[at].detail,
+          status: "running",
+        };
+      } else {
+        if (steps.length >= 50) {
+          throw new ConvexError(
+            "A run tells its story in at most 50 steps — finish this one and start another",
+          );
+        }
+        steps.push({
+          key,
+          title: args.step?.title?.slice(0, 120) ?? key,
+          detail: args.step?.detail?.slice(0, 200),
+          status: "running",
+          startedAt: now,
+        });
+      }
+    } else {
+      if (at < 0) {
+        throw new ConvexError(
+          `No step "${key}" was started in this run — start it first`,
+        );
+      }
+      steps[at] = {
+        ...steps[at],
+        status: args.type === "step_finished" ? "done" : "failed",
+        detail: args.step?.detail?.slice(0, 200) ?? steps[at].detail,
+        finishedAt: now,
+      };
+    }
+    await ctx.db.patch(run._id, { steps });
+    return { ok: true };
+  },
+});
+
 export const finishRun = mutation({
   args: {
     apiKey: v.string(),

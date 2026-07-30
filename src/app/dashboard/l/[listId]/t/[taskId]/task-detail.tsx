@@ -16,6 +16,7 @@ import {
   PresenceRail,
   usePresence,
 } from "@/components/dashboard/presence-rail";
+import { RunTheater } from "@/components/dashboard/run-theater";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { Clips } from "@/components/dashboard/clips";
 import { Attachments } from "@/components/dashboard/attachments";
@@ -257,6 +258,10 @@ function TaskEditor({
       />
 
       <PresenceNote surfaceType="task" surfaceId={task._id} />
+
+      {/* The run unfolding, when one is: chapters, the agent's current
+          sentence, and live numbers — instead of a pulsing dot and silence. */}
+      <RunTheater taskId={task._id} />
 
       {parentTask && (
         <Link

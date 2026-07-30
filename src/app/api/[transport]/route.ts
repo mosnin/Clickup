@@ -288,6 +288,7 @@ const IDEMPOTENT_TOOLS = new Set([
   "heartbeat",
   "set_focus",
   "propose_screen",
+  "emit_run_event",
   "acknowledge_wake",
   "acknowledge_task_context",
   "update_task",
@@ -389,6 +390,36 @@ const TOOLS: ToolDef[] = [
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.heartbeat), { apiKey: k, ...a }),
+  },
+  {
+    name: "emit_run_event",
+    description:
+      "Stream my run's progress so humans watching the task see it unfold live. AG-UI-shaped: step_started/step_finished/step_failed build a checklist of chapters (stable step.key, human title); narration replaces my one-line 'what I am doing right now' sentence; state_snapshot/state_delta maintain a small object of live numbers (tests passed, files changed) the UI renders as they move. Call between start_run and finish_run. Presence-budget exempt. Steps are chapters, not tokens — a run tells its story in at most 50.",
+    shape: {
+      runId: z.string(),
+      type: z.enum([
+        "step_started",
+        "step_finished",
+        "step_failed",
+        "narration",
+        "state_snapshot",
+        "state_delta",
+      ]),
+      step: z
+        .object({
+          key: z.string().describe("stable id for this step within the run"),
+          title: z.string().max(120).optional(),
+          detail: z.string().max(200).optional(),
+        })
+        .optional(),
+      text: z.string().max(280).optional().describe("narration text"),
+      state: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe("small object; in a delta, null deletes a key"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.emitRunEvent), { apiKey: k, ...a }),
   },
   {
     name: "propose_screen",
