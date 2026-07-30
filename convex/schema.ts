@@ -1399,6 +1399,18 @@ export default defineSchema({
     /** Per-space overrides of the above, keyed by space id. */
     componentStyleBySpace: v.optional(v.any()),
     /**
+     * What each panel last showed this person, keyed by widget id.
+     *
+     * This is what lets a panel answer "what changed since I last looked" —
+     * the question every dashboard is asked and none can answer, because a
+     * dashboard is pull and has no memory of ever having shown you anything.
+     * Necessarily per person: "since *you* last looked" cannot be derived from
+     * the data, only from who was looking.
+     */
+    panelMemory: v.optional(v.any()),
+    /** Conditions panels watch for on their own readings, keyed by widget id. */
+    panelWatches: v.optional(v.any()),
+    /**
      * Per-panel overrides, keyed by the panel's widget id.
      *
      * The most specific layer there is: "this panel, in particular, is a

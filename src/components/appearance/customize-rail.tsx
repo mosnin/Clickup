@@ -10,6 +10,7 @@ import {
 } from "@/components/appearance/use-component-style";
 import { styleFrom } from "@/components/appearance/style-gallery";
 import { IntentComposer } from "@/components/appearance/intent-composer";
+import { WatchControl } from "@/components/appearance/watch-control";
 import { Chart, type ChartKind } from "@/components/charts/chart";
 import {
   DEFAULT_STYLE,
@@ -150,6 +151,10 @@ export function CustomizeRail() {
         {/* The fastest path for anyone who does not want to learn nineteen
             axes: describe it. Same vocabulary, same result as the pickers —
             neither is the "advanced" one. */}
+        {/* A panel can be asked to keep an eye on itself. Only offered for a
+            selected panel — "watch everything" is not a thing anyone means. */}
+        {selection && <WatchControl panelId={selection.id} />}
+
         <IntentComposer
           style={style}
           panelLabel={selection ? selection.label : "your panels"}

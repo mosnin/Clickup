@@ -13,6 +13,10 @@ import {
   type UiComponentDef,
 } from "@/lib/ui-components";
 import { cn } from "@/lib/utils";
+import {
+  PanelDelta,
+  usePanelAttention,
+} from "@/components/dashboard/panel-memory";
 
 // One renderer, any definition.
 //
@@ -28,10 +32,16 @@ export function UserComponent({
   definition,
   scopeType,
   scopeId,
+  panelId,
 }: {
   definition: unknown;
   scopeType: "user" | "workspace";
   scopeId: string;
+  /**
+   * Identity for this panel on this screen — what its memory is keyed by.
+   * Without it the panel still renders; it just cannot tell you what changed.
+   */
+  panelId?: string;
 }) {
   const def = normalizeComponent(definition);
   const data = useQuery(api.uiComponents.resolve, {
@@ -50,7 +60,9 @@ export function UserComponent({
   }
 
   if (def.shape === "metric") {
-    return <MetricPanel def={def} value={data.metric ?? 0} />;
+    return (
+      <MetricPanel def={def} value={data.metric ?? 0} panelId={panelId ?? null} />
+    );
   }
 
   return (
@@ -100,10 +112,28 @@ function Header({ def, total }: { def: UiComponentDef; total: number }) {
  * nobody reads. The digits resolve when the value moves, so a number that
  * changed because an agent finished something announces itself.
  */
-function MetricPanel({ def, value }: { def: UiComponentDef; value: number }) {
+function MetricPanel({
+  def,
+  value,
+  panelId,
+}: {
+  def: UiComponentDef;
+  value: number;
+  panelId: string | null;
+}) {
   const suffix = def.metric === "completion" ? "%" : "";
+  // What this panel last told *this reader*, and whether anything it was asked
+  // to watch for has happened. See lib/panel-memory: a dashboard that cannot
+  // answer "what changed since I last looked" is answering the wrong question.
+  const { state, attentionClass } = usePanelAttention(panelId, value);
+
   return (
-    <Card className="flex h-full flex-col justify-between rounded-2xl p-5">
+    <Card
+      className={cn(
+        "flex h-full flex-col justify-between rounded-2xl p-5 transition-shadow",
+        attentionClass,
+      )}
+    >
       <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         {def.title}
       </span>
@@ -111,6 +141,10 @@ function MetricPanel({ def, value }: { def: UiComponentDef; value: number }) {
         <LiveNumber value={value} />
         {suffix}
       </p>
+      {/* The delta sits where the explanation belongs — under the number it
+          explains, not in an inbox on another screen. Absent when nothing
+          moved, which is most of the time and the point. */}
+      <PanelDelta state={state} className="mt-1" />
       <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
         {describeComponent(def)}
       </p>

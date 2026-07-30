@@ -172,6 +172,10 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
                   definition={row.definition}
                   scopeType={scope.scopeType}
                   scopeId={scope.scopeId}
+                  // Scoped to the screen as well as the panel: the same panel
+                  // on two screens is two places you look, and "since I last
+                  // looked" is a fact about the looking.
+                  panelId={`${GRID_ID}:${w.id}`}
                 />
               ),
             },

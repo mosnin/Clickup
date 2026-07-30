@@ -50,6 +50,8 @@ export const forCurrentUser = query({
         componentStyle: null,
         componentStyleBySpace: {},
         panelStyles: {},
+        panelMemory: {},
+        panelWatches: {},
       };
     }
     return {
@@ -60,6 +62,8 @@ export const forCurrentUser = query({
         unknown
       >,
       panelStyles: (row.panelStyles ?? {}) as Record<string, unknown>,
+      panelMemory: (row.panelMemory ?? {}) as Record<string, unknown>,
+      panelWatches: (row.panelWatches ?? {}) as Record<string, unknown>,
       // The client needs this to know whether it is holding a sparse patch or
       // a legacy snapshot it has to interpret.
       patchVersion: row.patchVersion ?? 1,
@@ -392,6 +396,92 @@ export const savePanelStyle = mutation({
         updatedAt: Date.now(),
         patchVersion: PATCH_VERSION,
         panelStyles: next,
+      });
+    }
+  },
+});
+
+
+// ── Panel memory ────────────────────────────────────────────────────────
+//
+// A dashboard is pull: it shows you a number and has no idea it ever showed
+// you one before, so "what changed since I last looked" — the question people
+// actually arrive with — is the one it cannot answer. The workaround
+// everywhere else is a separate notifications inbox, disconnected from the
+// panel that would have explained it.
+//
+// The fix is memory, and it is necessarily per person: "since *you* last
+// looked" is not derivable from the data, only from who was looking.
+
+/** Record what a panel showed this person, so it can report the delta later. */
+export const rememberPanel = mutation({
+  args: { panelId: v.string(), value: v.number(), seenAt: v.number() },
+  handler: async (ctx, { panelId, value, seenAt }) => {
+    const identity = await requireIdentity(ctx);
+    const key = panelId.trim().slice(0, 120);
+    if (!key || !Number.isFinite(value)) return;
+
+    const row = await ctx.db
+      .query("uiPreferences")
+      .withIndex("by_user", (q) => q.eq("userClerkId", identity.subject))
+      .unique();
+
+    const current = (row?.panelMemory ?? {}) as Record<string, unknown>;
+    // Bounded: a person who visits a lot of screens would otherwise grow this
+    // map forever inside one document. 200 panels is far more than anyone
+    // actively reads, and the oldest memory falling off costs one delta.
+    const entries = Object.entries(current).filter(([k]) => k !== key);
+    entries.sort(
+      (a, b) =>
+        ((b[1] as { seenAt?: number })?.seenAt ?? 0) -
+        ((a[1] as { seenAt?: number })?.seenAt ?? 0),
+    );
+    const next: Record<string, unknown> = { [key]: { value, seenAt } };
+    for (const [k, v2] of entries.slice(0, 199)) next[k] = v2;
+
+    if (row) {
+      await ctx.db.patch(row._id, { panelMemory: next });
+    } else {
+      await ctx.db.insert("uiPreferences", {
+        userClerkId: identity.subject,
+        appearance: {},
+        updatedAt: Date.now(),
+        patchVersion: PATCH_VERSION,
+        panelMemory: next,
+      });
+    }
+  },
+});
+
+/** Set (or clear) the condition a panel watches for on its own readings. */
+export const setPanelWatch = mutation({
+  args: { panelId: v.string(), watch: v.optional(v.any()) },
+  handler: async (ctx, { panelId, watch }) => {
+    const identity = await requireIdentity(ctx);
+    const key = panelId.trim().slice(0, 120);
+    if (!key) return;
+
+    const row = await ctx.db
+      .query("uiPreferences")
+      .withIndex("by_user", (q) => q.eq("userClerkId", identity.subject))
+      .unique();
+
+    const current = (row?.panelWatches ?? {}) as Record<string, unknown>;
+    const next = { ...current };
+    // Absent means "not watching", which is the normal state — storing an
+    // empty object here would make every panel that ever had a watch keep one.
+    if (!watch || typeof watch !== "object") delete next[key];
+    else next[key] = watch;
+
+    if (row) {
+      await ctx.db.patch(row._id, { panelWatches: next });
+    } else if (watch) {
+      await ctx.db.insert("uiPreferences", {
+        userClerkId: identity.subject,
+        appearance: {},
+        updatedAt: Date.now(),
+        patchVersion: PATCH_VERSION,
+        panelWatches: next,
       });
     }
   },
