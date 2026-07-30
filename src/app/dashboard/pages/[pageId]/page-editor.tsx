@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { ChevronRight, FileText, Pin, Plus, Trash2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -12,13 +11,17 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState } from "@/components/dashboard/empty-state";
-import { Monogram } from "@/components/dashboard/monogram";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
 import { timeAgo } from "@/lib/time";
 import { PageBodyEditor } from "@/components/dashboard/page-editor";
 import { Comments } from "@/components/dashboard/comments";
 import { PageHistory } from "@/components/dashboard/page-history";
+import {
+  PresenceNote,
+  PresenceRail,
+  usePresence,
+} from "@/components/dashboard/presence-rail";
 import { cn } from "@/lib/utils";
 
 // The page editor.
@@ -47,7 +50,6 @@ export function PageEditor({ pageId }: { pageId: string }) {
   const urlForUpload = useMutation(api.pages.urlForUpload);
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useUser();
 
   // "Markdown" is not a fallback — it is the stored format, and being
   // able to see it is how you verify what an agent will read.
@@ -69,24 +71,10 @@ export function PageEditor({ pageId }: { pageId: string }) {
       : "skip",
   );
 
-  // Live co-viewers. A heartbeat row refreshed on a timer, read back through
-  // an ordinary Convex subscription — so it is pushed, not polled, and a
-  // closed tab ages out on its own.
-  const myName =
-    user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? null;
-  const heartbeat = useMutation(api.pages.heartbeat);
-  const others = useQuery(api.pages.viewers, { pageId: id }) ?? [];
-
-  useEffect(() => {
-    if (!myName) return;
-    const beat = () =>
-      void heartbeat({ pageId: id, name: myName, editing: dirty }).catch(
-        () => {},
-      );
-    beat();
-    const timer = setInterval(beat, 20_000);
-    return () => clearInterval(timer);
-  }, [heartbeat, id, myName, dirty]);
+  // Announce that we are here. The rail reads it back through an ordinary
+  // Convex subscription, so it is pushed rather than polled and a closed tab
+  // empties its seat on the way out.
+  usePresence("page", id, dirty);
 
   const markdown = draft ?? data?.page.markdown ?? "";
   const mentionables = useQuery(
@@ -231,25 +219,8 @@ export function PageEditor({ pageId }: { pageId: string }) {
                   ? `${page.updatedByName} · ${timeAgo(page.updatedAt)}`
                   : timeAgo(page.updatedAt)}
             </span>
-            {others.length > 0 && (
-              <span className="flex items-center gap-1">
-                {others.slice(0, 3).map((m) => (
-                  <span
-                    key={m.actorId}
-                    title={m.editing ? `${m.name} is editing` : `${m.name} is here`}
-                    className={cn(
-                      "inline-flex rounded-full ring-2",
-                      m.editing ? "ring-brand-500" : "ring-transparent",
-                    )}
-                  >
-                    <Monogram name={m.name} size="sm" />
-                  </span>
-                ))}
-                {others.length > 3 && (
-                  <span className="text-[11px]">+{others.length - 3}</span>
-                )}
-              </span>
-            )}
+            <PresenceRail surfaceType="page" surfaceId={id} />
+            <PresenceNote surfaceType="page" surfaceId={id} />
           </span>
         }
         actions={

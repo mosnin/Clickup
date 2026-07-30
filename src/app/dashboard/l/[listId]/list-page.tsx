@@ -12,6 +12,10 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/dashboard/page-header";
+import {
+  PresenceRail,
+  usePresence,
+} from "@/components/dashboard/presence-rail";
 import { ViewTabs, type ViewKey, isViewKey } from "./view-tabs";
 import { OverviewView } from "./views/overview-view";
 import { ListView } from "./views/list-view";
@@ -78,6 +82,9 @@ export function ListPage({
 }) {
   const id = listId as Id<"lists">;
   const list = useQuery(api.lists.get, { listId: id });
+  // A list is a place people pass through, so the rail without the sentence:
+  // "who else is in here" is useful, a running commentary is not.
+  usePresence("list", listId);
   const tasks = useQuery(api.tasks.listForList, { listId: id });
   const statuses = useQuery(api.listStatuses.listForList, { listId: id });
   const fields = useQuery(api.customFields.listForList, { listId: id });
@@ -208,6 +215,7 @@ export function ListPage({
         title={list.name}
         context={
           <>
+            <PresenceRail surfaceType="list" surfaceId={listId} />
             {list.projectStatus && (
               <Badge
                 variant="outline"

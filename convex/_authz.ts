@@ -322,3 +322,49 @@ export async function mayGovernSpace(
   const workspace = await ctx.db.get(space.parentId as Id<"workspaces">);
   return workspace?.ownerClerkId === subject;
 }
+
+// ── Pages ───────────────────────────────────────────────────────────────
+//
+// A page is scoped to a person or a workspace rather than nested in the
+// space/project/list hierarchy, so its check is its own — but it belongs here
+// with the others rather than in pages.ts, because presence, search and the
+// agent surface all need it and a rule that lives in a feature file becomes a
+// rule that gets re-implemented.
+
+/**
+ * A page's scope is a person or a workspace, exactly like a doc's top-level
+ * parent — so this is the same check, not a new one.
+ */
+export async function requireScopeAccess(
+  ctx: QueryCtx | MutationCtx,
+  scope: { scopeType: "user" | "workspace"; scopeId: string },
+): Promise<{ subject: string }> {
+  const identity = await requireIdentity(ctx);
+  if (scope.scopeType === "user") {
+    if (scope.scopeId !== identity.subject) throw new ConvexError("Forbidden");
+    return { subject: identity.subject };
+  }
+  const membership = await ctx.db
+    .query("memberships")
+    .withIndex("by_user_and_workspace", (q) =>
+      q
+        .eq("userClerkId", identity.subject)
+        .eq("workspaceId", scope.scopeId as Id<"workspaces">),
+    )
+    .unique();
+  if (!membership) throw new ConvexError("Forbidden");
+  return { subject: identity.subject };
+}
+
+export async function requirePageAccess(
+  ctx: QueryCtx | MutationCtx,
+  pageId: Id<"pages">,
+): Promise<{ page: Doc<"pages">; subject: string }> {
+  const page = await ctx.db.get(pageId);
+  if (!page) throw new ConvexError("Page not found");
+  const { subject } = await requireScopeAccess(ctx, {
+    scopeType: page.scopeType,
+    scopeId: page.scopeId,
+  });
+  return { page, subject };
+}

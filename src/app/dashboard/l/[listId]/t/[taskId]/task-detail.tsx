@@ -10,6 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Picker } from "@/components/ui/picker";
 import { PageHeader } from "@/components/dashboard/page-header";
+import {
+  PresenceNote,
+  PresenceRail,
+  usePresence,
+} from "@/components/dashboard/presence-rail";
 import { CustomFieldInput } from "@/components/dashboard/custom-field-input";
 import { Clips } from "@/components/dashboard/clips";
 import { Attachments } from "@/components/dashboard/attachments";
@@ -57,6 +62,9 @@ export function TaskDetail({
   const tid = taskId as Id<"tasks">;
   const list = useQuery(api.lists.get, { listId: lid });
   const task = useQuery(api.tasks.get, { taskId: tid });
+  // Being on a task is worth announcing even while only reading it: two people
+  // about to edit the same task is the collision this prevents.
+  usePresence("task", taskId);
   const statuses = useQuery(api.listStatuses.listForList, { listId: lid });
   const fields = useQuery(api.customFields.listForList, { listId: lid });
   const values = useQuery(api.taskFieldValues.listForTask, { taskId: tid });
@@ -228,6 +236,7 @@ function TaskEditor({
             >
               {listName}
             </Link>
+            <PresenceRail surfaceType="task" surfaceId={task._id} />
             {currentStatus && (
               <Badge
                 variant="secondary"
@@ -245,6 +254,8 @@ function TaskEditor({
           </>
         }
       />
+
+      <PresenceNote surfaceType="task" surfaceId={task._id} />
 
       {parentTask && (
         <Link

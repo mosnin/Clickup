@@ -4,6 +4,12 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import {
+  clearPresence,
+  markPresence,
+  readViewers as presenceViewers,
+} from "./presence";
+import { requirePageAccess, requireScopeAccess } from "./_authz";
+import {
   canAccessSpace,
   getSpaceForList,
   requireIdentity,
@@ -57,44 +63,6 @@ const targetTypeValidator = v.union(
 type TargetType = (typeof targetTypeValidator)["type"];
 
 // ── Access ──────────────────────────────────────────────────────────────
-
-/**
- * A page's scope is a person or a workspace, exactly like a doc's top-level
- * parent — so this is the same check, not a new one.
- */
-async function requireScopeAccess(
-  ctx: QueryCtx | MutationCtx,
-  scope: PageScope,
-): Promise<{ subject: string }> {
-  const identity = await requireIdentity(ctx);
-  if (scope.scopeType === "user") {
-    if (scope.scopeId !== identity.subject) throw new ConvexError("Forbidden");
-    return { subject: identity.subject };
-  }
-  const membership = await ctx.db
-    .query("memberships")
-    .withIndex("by_user_and_workspace", (q) =>
-      q
-        .eq("userClerkId", identity.subject)
-        .eq("workspaceId", scope.scopeId as Id<"workspaces">),
-    )
-    .unique();
-  if (!membership) throw new ConvexError("Forbidden");
-  return { subject: identity.subject };
-}
-
-async function requirePageAccess(
-  ctx: QueryCtx | MutationCtx,
-  pageId: Id<"pages">,
-): Promise<{ page: Doc<"pages">; subject: string }> {
-  const page = await ctx.db.get(pageId);
-  if (!page) throw new ConvexError("Page not found");
-  const { subject } = await requireScopeAccess(ctx, {
-    scopeType: page.scopeType,
-    scopeId: page.scopeId,
-  });
-  return { page, subject };
-}
 
 /**
  * Confirms the caller can open whatever a page is being attached to, and
@@ -619,6 +587,7 @@ export async function removePageCore(
     .collect()) {
     await ctx.db.delete(revision._id);
   }
+  await clearPresence(ctx, "page", page._id);
   // The discussion about a page goes with it — a comment thread whose subject
   // no longer exists is unreachable, not preserved.
   for (const message of await ctx.db
@@ -1174,13 +1143,11 @@ export const scopesForCurrentUser = query({
 
 // ── Presence ────────────────────────────────────────────────────────────
 //
-// "Who else is on this page." Deliberately a plain table with a freshness
-// window rather than a separate realtime service: Convex already pushes
-// query results to every subscriber, so a heartbeat row IS a live feed, and
-// there is no second system to authenticate, pay for, or keep in sync.
-
-/** A row older than this is treated as gone. Two missed heartbeats. */
-const PRESENCE_TTL_MS = 45_000;
+// Kept as thin adapters over `convex/presence.ts`, which covers every surface
+// and both kinds of principal. The page editor was the only caller and there is
+// no reason for a second implementation of "who is here" — an agent rewriting a
+// page has to appear in the same rail a person does, which a page-only table
+// with no actorType could never express.
 
 export const heartbeat = mutation({
   args: {
@@ -1190,30 +1157,13 @@ export const heartbeat = mutation({
   },
   handler: async (ctx, { pageId, name, editing }) => {
     const { subject } = await requirePageAccess(ctx, pageId);
-    const existing = await ctx.db
-      .query("pagePresence")
-      .withIndex("by_page_and_actor", (q) =>
-        q.eq("pageId", pageId).eq("actorId", subject),
-      )
-      .unique();
-    const row = { pageId, actorId: subject, name, editing, updatedAt: Date.now() };
-    if (existing) {
-      await ctx.db.patch(existing._id, row);
-    } else {
-      await ctx.db.insert("pagePresence", row);
-    }
-
-    // Opportunistic cleanup: whoever writes also clears out anyone who has
-    // aged out, so stale rows never accumulate and no cron is needed.
-    const stale = await ctx.db
-      .query("pagePresence")
-      .withIndex("by_page", (q) => q.eq("pageId", pageId))
-      .collect();
-    for (const r of stale) {
-      if (r._id !== existing?._id && Date.now() - r.updatedAt > PRESENCE_TTL_MS * 4) {
-        await ctx.db.delete(r._id);
-      }
-    }
+    await markPresence(
+      ctx,
+      "page",
+      pageId,
+      { type: "user", id: subject, name },
+      { editing },
+    );
   },
 });
 
@@ -1221,20 +1171,12 @@ export const heartbeat = mutation({
 export const viewers = query({
   args: { pageId: v.id("pages") },
   handler: async (ctx, { pageId }) => {
-    let subject: string;
     try {
-      ({ subject } = await requirePageAccess(ctx, pageId));
+      await requirePageAccess(ctx, pageId);
     } catch {
       return [];
     }
-    const cutoff = Date.now() - PRESENCE_TTL_MS;
-    const rows = await ctx.db
-      .query("pagePresence")
-      .withIndex("by_page", (q) => q.eq("pageId", pageId))
-      .collect();
-    return rows
-      .filter((r) => r.updatedAt > cutoff && r.actorId !== subject)
-      .map((r) => ({ actorId: r.actorId, name: r.name, editing: r.editing }));
+    return await presenceViewers(ctx, "page", pageId);
   },
 });
 

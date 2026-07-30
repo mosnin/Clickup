@@ -25,6 +25,12 @@ import {
 } from "./_agentAuth";
 import { getSpaceForList } from "./_authz";
 import {
+  SURFACE_TYPE as PRESENCE_SURFACE,
+  clearActorPresence,
+  markPresence,
+  type SurfaceType,
+} from "./presence";
+import {
   assertValueReferences,
   computeDerivedValues,
   fieldConfigValidator,
@@ -668,6 +674,100 @@ export const heartbeat = mutation({
         entityTitle: agent.name,
       });
     }
+  },
+});
+
+/**
+ * Can this agent be on this surface?
+ *
+ * Routed through the agent-side checks rather than the human ones, so an agent
+ * restricted to certain lists cannot appear on a surface it has no business
+ * touching — presence is visible to the whole team, and a machine showing up
+ * somewhere it was fenced out of is a governance leak even if it changes nothing.
+ */
+async function requireSurfaceAccessForAgent(
+  ctx: MutationCtx,
+  surfaceType: SurfaceType,
+  surfaceId: string,
+  agent: Doc<"agents">,
+): Promise<void> {
+  if (surfaceType === "task") {
+    const id = ctx.db.normalizeId("tasks", surfaceId);
+    if (!id) throw new ConvexError("Task not found");
+    await requireTaskAccessForAgent(ctx, id, agent);
+    return;
+  }
+  if (surfaceType === "list") {
+    const id = ctx.db.normalizeId("lists", surfaceId);
+    if (!id) throw new ConvexError("List not found");
+    await requireListAccessForAgent(ctx, id, agent);
+    return;
+  }
+  if (surfaceType === "project") {
+    const id = ctx.db.normalizeId("projects", surfaceId);
+    if (!id) throw new ConvexError("Project not found");
+    await requireProjectAccessForAgent(ctx, id, agent);
+    return;
+  }
+  if (surfaceType === "space") {
+    const id = ctx.db.normalizeId("spaces", surfaceId);
+    if (!id) throw new ConvexError("Space not found");
+    await requireSpaceAccessForAgent(ctx, id, agent);
+    return;
+  }
+  // A page is scoped rather than nested, so scope equality is the whole check —
+  // the same rule `writePage` applies.
+  const id = ctx.db.normalizeId("pages", surfaceId);
+  if (!id) throw new ConvexError("Page not found");
+  const page = await ctx.db.get(id);
+  if (
+    !page ||
+    page.scopeType !== agent.parentType ||
+    page.scopeId !== agent.parentId
+  ) {
+    throw new ConvexError("Forbidden");
+  }
+}
+
+/**
+ * "I am on this surface, and here is what I am doing."
+ *
+ * An explicit tool rather than something inferred from reads, because a Convex
+ * query cannot write and most of what an agent does while thinking is reading.
+ * Writes announce themselves automatically (claiming a task, editing a page);
+ * this is how an agent says it is *studying* something, which is exactly the
+ * moment a person wondering "is anything happening?" needs to see a dot.
+ *
+ * Cheap on purpose — classified as a presence call, so it neither consumes an
+ * action budget nor bills against the wallet. Presence you have to pay for is
+ * presence an agent will skip.
+ */
+export const setFocus = mutation({
+  args: {
+    apiKey: v.string(),
+    surfaceType: PRESENCE_SURFACE,
+    surfaceId: v.string(),
+    /** Writing rather than reading — a caret instead of a dot. */
+    editing: v.optional(v.boolean()),
+    /** In the agent's own words: "reading the migration runbook". */
+    detail: v.optional(v.string()),
+    /** Put it down: leave the surface without waiting out the window. */
+    leaving: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
+    // The agent's own scope check, not the human one: an agent restricted to
+    // certain lists must not be able to appear on a surface it can't touch.
+    await requireSurfaceAccessForAgent(ctx, args.surfaceType, args.surfaceId, agent);
+    if (args.leaving) {
+      await clearActorPresence(ctx, args.surfaceType, args.surfaceId, agent._id);
+      return { present: false };
+    }
+    await markPresence(ctx, args.surfaceType, args.surfaceId, agentActor(agent), {
+      editing: args.editing ?? false,
+      detail: args.detail ?? agent.statusText ?? undefined,
+    });
+    return { present: true };
   },
 });
 
@@ -1594,6 +1694,10 @@ export const updateTask = mutation({
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    await markPresence(ctx, "task", args.taskId, agentActor(agent), {
+      editing: true,
+      detail: agent.statusText ?? undefined,
+    });
     if (args.statusId) {
       const status = await ctx.db.get(args.statusId);
       if (
@@ -1687,6 +1791,12 @@ export const claimTask = mutation({
     await requireTaskExecutionReady(ctx, taskId, agent._id);
     await claimTaskCore(ctx, taskId, agentActor(agent));
     await markExecutionAssignmentClaimed(ctx, taskId, agent._id);
+    // Claiming is the clearest "I am working on this" there is, so it puts the
+    // agent in the task's rail without waiting for a heartbeat.
+    await markPresence(ctx, "task", taskId, agentActor(agent), {
+      editing: true,
+      detail: agent.statusText ?? undefined,
+    });
   },
 });
 
@@ -1702,6 +1812,7 @@ export const releaseTask = mutation({
       "Released by assigned agent",
     );
     await releaseTaskCore(ctx, taskId, agentActor(agent));
+    await clearActorPresence(ctx, "task", taskId, agent._id);
   },
 });
 
@@ -7461,6 +7572,12 @@ export const writePage = mutation({
         { title: args.title, markdown: args.markdown },
         actor,
       );
+      // Writing a page puts the agent in that page's rail, so someone reading
+      // it sees who is changing it under them.
+      await markPresence(ctx, "page", pageId, actor, {
+        editing: true,
+        detail: agent.statusText ?? undefined,
+      });
     } else {
       pageId = await createPageCore(
         ctx,

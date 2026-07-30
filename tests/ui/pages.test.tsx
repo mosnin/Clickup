@@ -20,6 +20,7 @@ vi.mock("@/components/motion", () => ({
   motion: { div: "div" },
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
   EASE: [0, 0, 1, 1],
+  SPRING: { duration: 0 },
 }));
 
 const { PageEditor } = await import(
@@ -143,13 +144,44 @@ describe("PageEditor", () => {
 
   it("shows other viewers but never the reader themselves", () => {
     seed();
-    queryResults["pages.viewers"] = [
-      { actorId: "u2", name: "Grace Hopper", editing: true },
+    queryResults["presence.viewers"] = [
+      {
+        actorId: "u2",
+        actorType: "user",
+        name: "Grace Hopper",
+        editing: true,
+        detail: null,
+        age: 2,
+      },
     ];
     render(<PageEditor pageId="pg1" />, { wrapper: DashboardShell });
-    expect(screen.getByTitle("Grace Hopper is editing")).toBeDefined();
+    expect(screen.getByTitle("Grace Hopper is writing")).toBeDefined();
     // The server already excludes the caller; nothing should render for Ada.
     expect(screen.queryByTitle(/Ada Lovelace/)).toBeNull();
+  });
+
+  it("puts an agent in the same rail, saying what it is doing", () => {
+    // The whole point of generalising presence: a machine rewriting the page
+    // you are reading has to be visible *here*, in its own words, rather than
+    // on a dashboard about machines somewhere else.
+    seed();
+    queryResults["presence.viewers"] = [
+      {
+        actorId: "ag1",
+        actorType: "agent",
+        name: "Ada Agent",
+        editing: true,
+        detail: "drafting the migration section",
+        age: 1,
+      },
+    ];
+    render(<PageEditor pageId="pg1" />, { wrapper: DashboardShell });
+    expect(
+      screen.getByTitle("Ada Agent — drafting the migration section"),
+    ).toBeDefined();
+    expect(
+      screen.getByText("Ada Agent — drafting the migration section"),
+    ).toBeDefined();
   });
 
   it("explains a missing page instead of crashing", () => {

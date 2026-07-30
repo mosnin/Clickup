@@ -1,4 +1,5 @@
 import { internalMutation } from "./_generated/server";
+import { presenceIsStale } from "./presence";
 import type { Doc } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { emitEvent, scopeForList } from "./events";
@@ -292,6 +293,26 @@ export const prune = internalMutation({
     for (const u of oldUsage) {
       if (u.day < cutoffDay) await ctx.db.delete(u._id);
     }
+
+    // Presence is swept opportunistically by whoever writes it, so this only
+    // catches surfaces nobody has visited since — a page two people left at
+    // once leaves rows with nobody to clear them.
+    const stalePresence = await ctx.db
+      .query("presence")
+      .order("asc")
+      .take(PRUNE_BATCH);
+    for (const row of stalePresence) {
+      if (presenceIsStale(row, now)) await ctx.db.delete(row._id);
+    }
+
+    // The page-only presence table this replaced. Drained rather than migrated
+    // (a row is worthless after 45 seconds), and the definition comes out of the
+    // schema once this has run everywhere.
+    const legacyPresence = await ctx.db
+      .query("pagePresence")
+      .order("asc")
+      .take(PRUNE_BATCH);
+    for (const row of legacyPresence) await ctx.db.delete(row._id);
 
     const oldCodes = await ctx.db
       .query("oauthAuthorizationCodes")

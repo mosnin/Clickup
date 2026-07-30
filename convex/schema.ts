@@ -1239,6 +1239,10 @@ export default defineSchema({
   // client refreshes its row on a timer and readers ignore anything stale.
   // A tab that crashes stops refreshing and simply ages out — which is why
   // this can live in the database at all without leaving ghosts behind.
+  // Superseded by `presence` below, which covers every surface and both kinds
+  // of principal. Kept declared only so the rows already in flight validate;
+  // they age out in 45 seconds and the retention pass drains the remainder, at
+  // which point this definition can go.
   pagePresence: defineTable({
     pageId: v.id("pages"),
     actorId: v.string(),
@@ -1248,6 +1252,41 @@ export default defineSchema({
   })
     .index("by_page", ["pageId"])
     .index("by_page_and_actor", ["pageId", "actorId"]),
+
+  // Who is on a surface right now — people and agents in the same table.
+  //
+  // One table rather than one per surface, because "who else is here" is the
+  // same question everywhere and the alternative is five near-identical
+  // implementations that drift. A plain table with a freshness window rather
+  // than a realtime service, because Convex already pushes query results to
+  // every subscriber: a heartbeat row IS a live feed, with no second system to
+  // authenticate or keep in sync.
+  //
+  // `actorType` is the point of the whole thing. An agent that appears in the
+  // same rail as a person, on the surface it is actually working on, is present
+  // rather than merely reported somewhere else.
+  presence: defineTable({
+    surfaceType: v.union(
+      v.literal("page"),
+      v.literal("task"),
+      v.literal("list"),
+      v.literal("project"),
+      v.literal("space"),
+    ),
+    surfaceId: v.string(),
+    /** clerkId for a person, agent document id for an agent. */
+    actorId: v.string(),
+    actorType: v.union(v.literal("user"), v.literal("agent")),
+    name: v.string(),
+    /** Writing rather than reading — what draws a caret instead of a dot. */
+    editing: v.boolean(),
+    /** In its own words: "drafting the migration section". */
+    detail: v.optional(v.string()),
+    updatedAt: v.number(),
+  })
+    .index("by_surface", ["surfaceType", "surfaceId"])
+    .index("by_surface_and_actor", ["surfaceType", "surfaceId", "actorId"])
+    .index("by_actor", ["actorId"]),
 
   // Resolved [[wikilinks]] between pages, rewritten on every save. Stored
   // rather than derived so backlinks are an index range instead of a scan of

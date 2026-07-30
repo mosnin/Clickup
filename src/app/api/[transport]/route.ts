@@ -286,6 +286,7 @@ const IDEMPOTENT_TOOLS = new Set([
   "dispatch_execution_wave",
   "reconcile_execution_plan",
   "heartbeat",
+  "set_focus",
   "acknowledge_wake",
   "acknowledge_task_context",
   "update_task",
@@ -387,6 +388,24 @@ const TOOLS: ToolDef[] = [
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.heartbeat), { apiKey: k, ...a }),
+  },
+  {
+    name: "set_focus",
+    description:
+      "Announce which surface I am on, so humans watching that page/task see me there live. Reads cannot announce themselves (a query cannot write), so call this when you START studying something and again if what you are doing changes. Set editing:true while writing, and leaving:true when you move on. Presence-budget exempt.",
+    shape: {
+      surfaceType: z.enum(["page", "task", "list", "project", "space"]),
+      surfaceId: z.string(),
+      editing: z.boolean().optional(),
+      detail: z
+        .string()
+        .max(120)
+        .optional()
+        .describe("what I am doing here, in my own words"),
+      leaving: z.boolean().optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.setFocus), { apiKey: k, ...a }),
   },
   {
     name: "acknowledge_wake",
