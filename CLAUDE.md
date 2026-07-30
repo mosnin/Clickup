@@ -247,6 +247,69 @@ User (personal) ──┘
 - Public mutations: anything end-user invokable (`workspaces.create`, `tasks.update`, etc.).
 - Internal mutations: `users.upsertFromClerk`, `users.deleteFromClerk` — only callable from `convex/http.ts`. Never expose them.
 
+## How to think about this product
+
+**Reason from first principles, not from what other products do.** What we are
+building — an interface a non-programmer reshapes in place, that agents and
+people co-author, where two people over identical primitives end up with
+applications that do not resemble each other — has not been built before. There
+is no reference implementation to copy, so "how does Notion/Linear/ClickUp do
+it" is a dead end at exactly the moments that matter. Start from the job
+somebody is trying to do, name what makes it hard, and design the shortest path
+from one to the other. When a solution feels familiar, that is a signal to check
+whether it is actually right or merely available.
+
+Three consequences that come up constantly:
+
+- **Never make someone leave their work to change their work.** A settings page
+  is the generic answer and it is almost always the wrong one: it shows fake
+  data, so a look is judged against numbers that are not yours; it is remote
+  from context, so you cannot see the change land on the thing you were reading;
+  and it forces a translation from an option's *name* to its *effect*. If
+  something can be changed by pointing at it, it should be.
+- **Nobody is a CSS expert, and nobody should have to be.** Every choice is a
+  visual pick over real content, never a value typed into a field. If an option
+  can be drawn it must be drawn, using the real renderer over the reader's own
+  data — a specimen that is a *picture of* the thing cannot tell you what
+  choosing it does, and it drifts the moment the renderer changes.
+- **Customisation is the product, not a preference panel.** Layout, data,
+  shape and style are all data, all authored the same way, all reachable from
+  wherever you are standing. A feature that can only be configured from one
+  special screen has not been built dynamically; it has been built statically
+  with a settings page bolted on.
+
+The test for any customisation surface: *can somebody who has never opened a
+stylesheet change this, while looking at their own work, and see the result
+immediately?* If not, it is not finished.
+
+**The dashboard is a canvas, not a page.** This is the mental model to hold
+whenever you touch a logged-in surface, and most of the reasoning above follows
+from it. A page is something a developer composed and a user reads. A canvas is
+a surface whose contents, arrangement, sizes and drawing are all the reader's —
+authored by them, by their teammates, or by an agent on their behalf, and
+changed in place while they are standing on it.
+
+What that rules out, concretely:
+
+- **No hardcoded arrangement.** If a surface renders a fixed sequence of
+  components, it is a page. Panels are entries in a layout the reader owns, and
+  the layout is data.
+- **No component that only one screen can hold.** A panel is a definition —
+  what data, filtered how, drawn as what — so it can be moved, copied,
+  restyled, or authored fresh. "Adding a panel type" must not mean a deploy.
+- **No edit surface separate from the thing being edited.** The canvas is its
+  own editor: select a panel on the canvas, change it on the canvas, see it on
+  the canvas. Modes are fine (an inspector that appears); *places* are not (a
+  settings route that replaces what you were looking at).
+- **No single correct look.** Two people in one workspace, over identical
+  primitives, should be able to end up with screens that do not resemble each
+  other — and both should be right. Defaults are a starting point, never the
+  intended destination.
+
+When adding anything to a logged-in surface, ask where it sits on that line. A
+feature that can only exist as a fixed component in a fixed slot is a feature
+that has been designed for a page, and it will have to be rebuilt.
+
 ## Conventions
 
 - **TypeScript everywhere.** No `any` unless you can explain why in a comment.

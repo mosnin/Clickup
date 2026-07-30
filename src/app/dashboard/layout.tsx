@@ -13,6 +13,8 @@ import { AppearanceProvider } from "@/components/appearance/appearance-provider"
 import { FloatingNavToggle } from "@/components/appearance/floating-nav-toggle";
 import { SidebarDock } from "@/components/appearance/sidebar-dock";
 import { DockSlot } from "@/components/appearance/dock-slot";
+import { CustomizeProvider } from "@/components/appearance/customize-provider";
+import { CustomizeRail } from "@/components/appearance/customize-rail";
 
 export default async function DashboardLayout({
   children,
@@ -43,6 +45,7 @@ export default async function DashboardLayout({
           onto :root, so every surface below it — including the toasts and the
           command palette — renders in the user's own UI. */}
       <AppearanceProvider>
+      <CustomizeProvider>
       <ToastProvider>
         <SidebarProvider defaultOpen={defaultOpen} className="h-svh overflow-hidden">
           <EnsureUser />
@@ -76,8 +79,11 @@ export default async function DashboardLayout({
           {/* Dragged to the bottom, the nav stops being a sidebar and becomes
               a dock — a different shape, not the same one rotated. */}
           <DockSlot />
+          {/* The inspector. Beside the work, never instead of it. */}
+          <CustomizeRail />
         </SidebarProvider>
       </ToastProvider>
+      </CustomizeProvider>
       </AppearanceProvider>
     </RequireBackend>
   );

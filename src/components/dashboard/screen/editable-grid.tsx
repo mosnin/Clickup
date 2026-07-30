@@ -26,6 +26,10 @@ import {
   type WidgetRows,
 } from "@/lib/screen-layout";
 import { cn } from "@/lib/utils";
+import {
+  customizable,
+  useCustomize,
+} from "@/components/appearance/customize-provider";
 
 // The screen, edited the way a phone's home screen is edited.
 //
@@ -130,6 +134,10 @@ export function EditableGrid({
     [controlled, editing, onEditingChange],
   );
   const gridRef = useRef<HTMLDivElement | null>(null);
+  // Customise mode makes every tile pointable. The grid does not have to know
+  // what happens next — it announces what each tile *is* and the inspector
+  // takes it from there.
+  const { active: customizing, selection } = useCustomize();
   // The width a resize drag has reached, before it commits. Local only: the
   // tile must move under the finger, but a width is not saved until you let go.
   const [preview, setPreview] = useState<{
@@ -419,6 +427,17 @@ export function EditableGrid({
             <div
               key={w.id}
               data-tile={w.id}
+              {...(customizing
+                ? {
+                    ...customizable({
+                      id: `${gridId}:${w.id}`,
+                      label: tile.title,
+                      screenKey: gridId,
+                    }),
+                    "data-customize-selected":
+                      selection?.id === `${gridId}:${w.id}` ? "true" : undefined,
+                  }
+                : {})}
               className={cn(
                 // `group/tile` is what lets the width control reveal itself on
                 // hover without every tile's chrome shouting at once.

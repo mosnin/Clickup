@@ -49,6 +49,7 @@ export const forCurrentUser = query({
         spaceOverrides: {},
         componentStyle: null,
         componentStyleBySpace: {},
+        panelStyles: {},
       };
     }
     return {
@@ -58,6 +59,7 @@ export const forCurrentUser = query({
         string,
         unknown
       >,
+      panelStyles: (row.panelStyles ?? {}) as Record<string, unknown>,
       // The client needs this to know whether it is holding a sparse patch or
       // a legacy snapshot it has to interpret.
       patchVersion: row.patchVersion ?? 1,
@@ -347,5 +349,50 @@ export const setSpaceComponentStyle = mutation({
       !style || typeof style !== "object" || Object.keys(style).length === 0;
     await ctx.db.patch(space._id, { componentStyle: empty ? undefined : style });
     return { cleared: empty };
+  },
+});
+
+
+/**
+ * Override how one panel is drawn.
+ *
+ * The narrowest layer, and the one the in-place inspector writes: you point at
+ * a panel on your own screen and change that panel. Keyed by widget id and
+ * sparse — an empty patch deletes the key rather than storing `{}`, because
+ * absence is what lets a later change to the space's look still reach it.
+ *
+ * Per person, deliberately. Two people looking at the same screen may want
+ * different things from the same panel, and that divergence is the product.
+ */
+export const savePanelStyle = mutation({
+  args: { panelId: v.string(), patch: v.any() },
+  handler: async (ctx, { panelId, patch }) => {
+    const identity = await requireIdentity(ctx);
+    const key = panelId.trim().slice(0, 120);
+    if (!key) return;
+
+    const row = await ctx.db
+      .query("uiPreferences")
+      .withIndex("by_user", (q) => q.eq("userClerkId", identity.subject))
+      .unique();
+
+    const empty =
+      !patch || typeof patch !== "object" || Object.keys(patch).length === 0;
+    const current = (row?.panelStyles ?? {}) as Record<string, unknown>;
+    const next = { ...current };
+    if (empty) delete next[key];
+    else next[key] = patch;
+
+    if (row) {
+      await ctx.db.patch(row._id, { panelStyles: next });
+    } else if (!empty) {
+      await ctx.db.insert("uiPreferences", {
+        userClerkId: identity.subject,
+        appearance: {},
+        updatedAt: Date.now(),
+        patchVersion: PATCH_VERSION,
+        panelStyles: next,
+      });
+    }
   },
 });

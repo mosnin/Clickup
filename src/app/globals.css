@@ -209,6 +209,50 @@
   );
 }
 
+/* ── Customise mode ───────────────────────────────────────────────────────
+   The inspector sits beside your work rather than on top of it. A panel hidden
+   behind the rail is a panel you are editing blind, so the shell gives up the
+   width instead of the rail taking it — that is the whole difference between
+   an inspector and a modal.
+
+   Below `lg` the rail would leave nothing to look at, so it becomes a sheet
+   over the bottom half and the canvas keeps the top. */
+[data-customizing="true"] [data-slot="sidebar-inset"] {
+  padding-right: min(21rem, 100vw);
+  transition: padding-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (max-width: 1023px) {
+  [data-customizing="true"] [data-slot="sidebar-inset"] {
+    padding-right: 0;
+    padding-bottom: 60vh;
+  }
+  [data-customize-rail] {
+    inset: auto 0 0 0 !important;
+    width: 100% !important;
+    height: 60vh;
+    border-left: 0;
+    border-top: 1px solid var(--color-border);
+  }
+}
+
+/* Anything that can be pointed at says so — but quietly, because the canvas
+   is still the thing being read. The affordance arrives on approach. */
+[data-customizing="true"] [data-customize-id] {
+  cursor: pointer;
+  outline: 1px dashed var(--color-border);
+  outline-offset: 3px;
+  border-radius: var(--ui-radius-card);
+}
+[data-customizing="true"] [data-customize-id]:hover {
+  outline: 2px solid var(--color-muted-foreground);
+}
+/* The selected one is unmistakable: the inspector is about this, and nothing
+   else on the page should be able to be mistaken for it. */
+[data-customizing="true"] [data-customize-id][data-customize-selected="true"] {
+  outline: 2px solid var(--color-foreground);
+  outline-offset: 4px;
+}
+
 /* ── Row lists, in the room's chosen style ────────────────────────────────
    A list of things is the most repeated shape in the product, so how it is
    drawn is worth being a choice — and it is a choice about the *place*, which

@@ -1398,6 +1398,14 @@ export default defineSchema({
     componentStyle: v.optional(v.any()),
     /** Per-space overrides of the above, keyed by space id. */
     componentStyleBySpace: v.optional(v.any()),
+    /**
+     * Per-panel overrides, keyed by the panel's widget id.
+     *
+     * The most specific layer there is: "this panel, in particular, is a
+     * dial." Sparse like the rest — a panel with no entry inherits, which is
+     * what lets a change to the space's look still reach it.
+     */
+    panelStyles: v.optional(v.any()),
 }).index("by_user", ["userClerkId"]),
 
   // A screen someone has composed for themselves.

@@ -26,7 +26,11 @@ import {
 // must not write sixty times a second. Everything else comes off the
 // subscription, so a change lands in every tab.
 
-export type ComponentStyleScope = "personal" | "space" | "personalSpace";
+export type ComponentStyleScope =
+  | "personal"
+  | "space"
+  | "personalSpace"
+  | "panel";
 
 export type ComponentStyleContext = {
   /** What panels are drawn with right now, preview included. */
@@ -50,11 +54,18 @@ export type ComponentStyleContext = {
   dirty: boolean;
 };
 
-export function useComponentStyle(): ComponentStyleContext {
+/**
+ * @param panelId When given, resolves the narrowest layer too — this panel's
+ * own override — and lets `commit` write to it. That is what the in-place
+ * inspector edits: you point at a panel on your own screen and change that
+ * panel, without touching anything else that looks like it.
+ */
+export function useComponentStyle(panelId?: string | null): ComponentStyleContext {
   const { space } = useAppearance();
   const remote = useQuery(api.appearance.forCurrentUser, {});
   const save = useMutation(api.appearance.saveComponentStyle);
   const setSpaceStyle = useMutation(api.appearance.setSpaceComponentStyle);
+  const savePanel = useMutation(api.appearance.savePanelStyle);
   const [previewPatch, setPreviewPatch] = useState<StylePatch | null>(null);
 
   const spaceId = space?.spaceId ?? null;
@@ -73,9 +84,21 @@ export function useComponentStyle(): ComponentStyleContext {
     return normalizeStylePatch(stored);
   }, [remote, spaceId]);
 
+  const panel = useMemo(() => {
+    if (!remote || !panelId) return {};
+    const stored = (remote.panelStyles ?? {})[panelId];
+    return normalizeStylePatch(stored);
+  }, [remote, panelId]);
+
   const resolved = useMemo(
-    () => resolveStyle({ personal, space: spacePatch, personalSpace }),
-    [personal, spacePatch, personalSpace],
+    () =>
+      resolveStyle({
+        personal,
+        space: spacePatch,
+        personalSpace,
+        component: panel,
+      }),
+    [personal, spacePatch, personalSpace, panel],
   );
 
   // The preview sits on top of everything, so a control always visibly moves
@@ -90,9 +113,10 @@ export function useComponentStyle(): ComponentStyleContext {
     (scope: ComponentStyleScope): StylePatch => {
       if (scope === "personal") return personal;
       if (scope === "space") return spacePatch;
+      if (scope === "panel") return panel;
       return personalSpace;
     },
-    [personal, spacePatch, personalSpace],
+    [personal, spacePatch, personalSpace, panel],
   );
 
   const persist = useCallback(
@@ -101,6 +125,10 @@ export function useComponentStyle(): ComponentStyleContext {
         // A preference that didn't stick is not a broken app. The preview
         // stays so nothing appears lost, and the next change tries again.
       };
+      if (scope === "panel") {
+        if (panelId) void savePanel({ panelId, patch }).catch(failed);
+        return;
+      }
       if (scope === "personal") {
         void save({ patch }).catch(failed);
       } else if (!spaceId) {
@@ -117,7 +145,7 @@ export function useComponentStyle(): ComponentStyleContext {
         }).catch(failed);
       }
     },
-    [save, setSpaceStyle, spaceId],
+    [save, savePanel, setSpaceStyle, spaceId, panelId],
   );
 
   const preview = useCallback((patch: StylePatch) => {
@@ -154,12 +182,18 @@ export function useComponentStyle(): ComponentStyleContext {
   const revert = useCallback(() => setPreviewPatch(null), []);
 
   const scopes = useMemo<ComponentStyleScope[]>(() => {
-    if (!space) return ["personal"];
-    const out: ComponentStyleScope[] = ["personal"];
-    if (space.mayTheme) out.push("space");
-    out.push("personalSpace");
+    const out: ComponentStyleScope[] = [];
+    // Narrowest first, because it is the one you reached for by pointing at a
+    // panel — offering "everywhere" ahead of "this one" invites the change
+    // nobody asked for.
+    if (panelId) out.push("panel");
+    out.push("personal");
+    if (space) {
+      if (space.mayTheme) out.push("space");
+      out.push("personalSpace");
+    }
     return out;
-  }, [space]);
+  }, [space, panelId]);
 
   return {
     style,

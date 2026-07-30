@@ -36,6 +36,7 @@ import {
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
+import { useCustomize } from "@/components/appearance/customize-provider";
 import {
   Sidebar,
   SidebarContent,
@@ -1285,20 +1286,32 @@ function SidebarFooterBody() {
   );
 }
 
+/**
+ * The way into customise mode.
+ *
+ * A button rather than a link, because customising is not somewhere you go.
+ * It turns the screen you are already on into its own editor — your projects,
+ * your tasks, your numbers stay exactly where they are and gain an inspector.
+ * Nobody has to imagine the result of a change or judge a look against
+ * somebody else's sample data.
+ *
+ * The full studio still exists for the wider settings (typefaces, navigation,
+ * motion) and is one click further in, from the inspector.
+ */
 function AppearanceMenuItem() {
-  const pathname = usePathname();
-  const active = pathname.startsWith("/dashboard/appearance");
+  const { active, setActive } = useCustomize();
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <SidebarMenuButton asChild isActive={active} tooltip="Appearance">
-          <Link
-            href="/dashboard/appearance"
-            aria-current={active ? "page" : undefined}
-          >
-            <Sparkles className="text-muted-foreground" />
-            <span className="flex-1 truncate">Appearance</span>
-          </Link>
+        <SidebarMenuButton
+          isActive={active}
+          tooltip="Customise this screen"
+          onClick={() => setActive(!active)}
+        >
+          <Sparkles className="text-muted-foreground" />
+          <span className="flex-1 truncate">
+            {active ? "Done customising" : "Customise"}
+          </span>
         </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
