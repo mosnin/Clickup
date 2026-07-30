@@ -147,3 +147,58 @@ export function unusedWidgets(
 export function screenKey(kind: "project" | "space" | "home", id: string): string {
   return `${kind}:${id}`;
 }
+
+// ── Direct manipulation ─────────────────────────────────────────────────
+
+export type Point = { x: number; y: number };
+
+/**
+ * Which slot a dragged tile should occupy, given where the pointer is.
+ *
+ * Nearest centre wins, but only if it wins by enough. Without the hysteresis
+ * band a pointer resting near a boundary flips between two slots on sub-pixel
+ * movement, and every flip reorders the grid — so the tiles under your finger
+ * shudder back and forth and the drop lands wherever the jitter happened to
+ * leave things. Requiring the new slot to be meaningfully closer makes the
+ * reorder feel decisive, which is the same reason a real home screen only
+ * displaces an icon once you are properly over its neighbour.
+ *
+ * Pure so the rule can be tested without a browser: this is arithmetic about
+ * boxes, not a question about React.
+ */
+export function slotForPointer(
+  centers: readonly Point[],
+  pointer: Point,
+  current: number,
+  hysteresis = 16,
+): number {
+  if (centers.length === 0) return current;
+  const distanceTo = (i: number) =>
+    Math.hypot(centers[i].x - pointer.x, centers[i].y - pointer.y);
+
+  let best = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < centers.length; i += 1) {
+    const d = distanceTo(i);
+    if (d < bestDistance) {
+      bestDistance = d;
+      best = i;
+    }
+  }
+  if (best === current) return current;
+
+  // Staying put is the default, so the challenger has to earn the swap.
+  const currentDistance =
+    current >= 0 && current < centers.length
+      ? distanceTo(current)
+      : Number.POSITIVE_INFINITY;
+  return currentDistance - bestDistance > hysteresis ? best : current;
+}
+
+/** Centres of a set of tiles, in document coordinates. */
+export function centersOf(elements: readonly Element[]): Point[] {
+  return elements.map((el) => {
+    const box = el.getBoundingClientRect();
+    return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  });
+}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { PanelLeft, PanelRight, Sparkles, Square } from "lucide-react";
+import { PanelLeft, PanelRight, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
@@ -144,7 +144,6 @@ export function AppearanceStudio() {
   return (
     <div className="space-y-8">
       <PageHeader
-        icon={Sparkles}
         title={copy.title}
         context={
           space && editingPlaceOnly

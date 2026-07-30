@@ -10,6 +10,7 @@ import {
   screenKey,
   unusedWidgets,
   type ScreenLayout,
+  slotForPointer,
 } from "../src/lib/screen-layout";
 
 // The layout engine. The property that shapes all of it:
@@ -216,5 +217,47 @@ describe("screenKey", () => {
     expect(screenKey("space", "p1")).toBe("space:p1");
     // Two different screens, never the same row.
     expect(screenKey("project", "x")).not.toBe(screenKey("home", "x"));
+  });
+});
+
+describe("dragging a tile to a slot", () => {
+  // A flat 3-wide row of 120x80 tiles at y=100.
+  const centers = [
+    { x: 60, y: 100 },
+    { x: 180, y: 100 },
+    { x: 300, y: 100 },
+  ];
+
+  it("picks the slot the pointer is actually over", () => {
+    expect(slotForPointer(centers, { x: 300, y: 100 }, 0)).toBe(2);
+    expect(slotForPointer(centers, { x: 175, y: 105 }, 0)).toBe(1);
+  });
+
+  it("stays put when no other slot is meaningfully closer", () => {
+    // Dead on the boundary between slots 0 and 1. Without hysteresis this flips
+    // on sub-pixel movement, reordering the grid under the finger every frame.
+    expect(slotForPointer(centers, { x: 120, y: 100 }, 0)).toBe(0);
+    expect(slotForPointer(centers, { x: 120, y: 100 }, 1)).toBe(1);
+    // A pointer barely past the midpoint hasn't earned the swap either.
+    expect(slotForPointer(centers, { x: 126, y: 100 }, 0)).toBe(0);
+  });
+
+  it("swaps once the pointer is properly over the neighbour", () => {
+    expect(slotForPointer(centers, { x: 150, y: 100 }, 0)).toBe(1);
+  });
+
+  it("is stable when the pointer hasn't moved", () => {
+    // The property that matters during a drag: same input, same answer, so a
+    // frame with no movement never produces a reorder.
+    for (const current of [0, 1, 2]) {
+      const first = slotForPointer(centers, { x: 190, y: 90 }, current);
+      expect(slotForPointer(centers, { x: 190, y: 90 }, first)).toBe(first);
+    }
+  });
+
+  it("survives an empty grid and an out-of-range current slot", () => {
+    expect(slotForPointer([], { x: 0, y: 0 }, 3)).toBe(3);
+    // A stale index (the tile was removed mid-drag) must not pin the answer.
+    expect(slotForPointer(centers, { x: 300, y: 100 }, 99)).toBe(2);
   });
 });

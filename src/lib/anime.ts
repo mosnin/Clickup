@@ -3,12 +3,19 @@
 import { useEffect, useRef } from "react";
 import {
   animate,
+  createAnimatable,
+  createDraggable,
   createLayout,
+  svg,
   createScope,
   createSpring,
   stagger,
+  text,
   utils,
+  type AnimatableObject,
   type AutoLayout,
+  type Draggable,
+  type DraggableParams,
   type Scope,
 } from "animejs";
 
@@ -232,12 +239,16 @@ export function applyTokens(tokens: Tokens): void {
  * sidebar. Without this, going from left to floating is a hard cut, and a hard
  * cut reads as "the page reloaded" rather than "that panel moved".
  */
-export function createShellLayout(root: string | HTMLElement): AutoLayout {
+export function createShellLayout(
+  root: string | HTMLElement,
+  children?: string,
+): AutoLayout {
   return createLayout(root as never, {
     duration: scaled(520),
     ease: EASE_OUT,
     // Boxes and position: what changes when the sidebar swaps sides.
     properties: ["width", "height", "opacity"],
+    ...(children ? { children } : {}),
   });
 }
 
@@ -251,6 +262,16 @@ export function createShellLayout(root: string | HTMLElement): AutoLayout {
 export function morphLayout(
   root: string | HTMLElement,
   change: () => void,
+  opts?: {
+    /**
+     * Which children to animate. The one case that needs it: reflowing a grid
+     * around a tile that is being dragged, where the dragged tile's transform
+     * belongs to the pointer and must not also be animated by the layout — two
+     * things writing one transform is a jitter bug that only shows up under
+     * the finger.
+     */
+    children?: string;
+  },
 ): void {
   if (typeof document === "undefined" || scaled(1) === 0) {
     change();
@@ -258,7 +279,7 @@ export function morphLayout(
   }
   let layout: AutoLayout;
   try {
-    layout = createShellLayout(root);
+    layout = createShellLayout(root, opts?.children);
   } catch {
     // A root that isn't in the document yet is not worth throwing over.
     change();
@@ -274,3 +295,260 @@ export function morphLayout(
     }
   });
 }
+
+// ── Direct manipulation ─────────────────────────────────────────────────
+//
+// The home-screen vocabulary. Nobody configures a phone's home screen through
+// a settings page: you hold a thing until it wobbles, then you move it. That is
+// the whole model — there is no separate mode to learn, the surface you are
+// looking at *is* the editor — and it needs physics rather than transitions,
+// which is what `createDraggable` and `createAnimatable` are for.
+//
+// Every effect below is load-bearing. The wobble is the signifier that the
+// screen is editable. The lean shows which neighbours are about to move. The
+// skew is the tile's own momentum. The wake shows the grid settling. None of it
+// is ornament, and all of it disappears when motion is turned down.
+
+/** iOS-ish release physics: fast, slightly overshooting, never bouncy. */
+export const RELEASE = {
+  releaseMass: 0.7,
+  releaseStiffness: 140,
+  releaseDamping: 14,
+} satisfies Partial<DraggableParams>;
+
+/**
+ * The wobble that means "you can move this".
+ *
+ * Deliberately desynchronised: a grid of tiles rocking in phase reads as the
+ * whole page vibrating, which is alarming. Phones stagger the phase per icon so
+ * the field looks *alive* rather than broken, and the amplitude has to stay
+ * under about a degree and a half or the text becomes hard to read while you
+ * are trying to decide where something goes.
+ *
+ * Returns a stop function; calling it settles every element back to rest rather
+ * than freezing it mid-tilt.
+ */
+export function jiggle(elements: Element[]): () => void {
+  if (elements.length === 0 || scaled(1) === 0) return () => {};
+  const animations = elements.map((el, i) =>
+    animate(el, {
+      rotate: [-1.15, 1.15],
+      duration: scaled(260 + ((i * 37) % 90)),
+      loop: true,
+      alternate: true,
+      ease: "inOutSine",
+      // A fractional start so no two tiles cross zero together.
+      delay: (i * 53) % 180,
+    }),
+  );
+  return () => {
+    for (const a of animations) a.pause();
+    animate(elements, {
+      rotate: 0,
+      duration: scaled(220),
+      ease: EASE_OUT,
+    });
+  };
+}
+
+/**
+ * The screen making room.
+ *
+ * Entering edit mode shrinks every tile a few percent. It is not decoration: it
+ * is the moment the surface stops being a document and becomes a set of objects,
+ * and a scale change is the cheapest way to say "these are now things rather
+ * than content". Leaving reverses it.
+ */
+export function inhale(elements: Element[], entering: boolean): void {
+  if (elements.length === 0) return;
+  animate(elements, {
+    scale: entering ? 0.965 : 1,
+    duration: scaled(entering ? 320 : 260),
+    ease: entering ? SPRING : EASE_OUT,
+    delay: stagger(scaled(12), { from: "center" }),
+  });
+}
+
+/**
+ * Neighbours leaning toward whatever is being dragged.
+ *
+ * The strange one, and the most useful. A tile under the finger has mass, and
+ * the tiles it is passing lean a few pixels toward it — so before you let go you
+ * can already see which ones are about to be displaced. Falls off with distance,
+ * so the effect stays local instead of the whole grid drifting.
+ *
+ * Built on `createAnimatable` rather than `animate` because this is driven by a
+ * pointer, not by a timeline: every frame sets a new target and the animatable
+ * eases toward it, which is what makes it feel like weight instead of a series
+ * of tweens fighting each other.
+ */
+export function createMagneticField(elements: Element[]): {
+  pull: (x: number, y: number, exclude?: Element | null) => void;
+  release: () => void;
+  revert: () => void;
+} {
+  if (scaled(1) === 0) {
+    return { pull: () => {}, release: () => {}, revert: () => {} };
+  }
+  const handles: { el: Element; anim: AnimatableObject }[] = elements.map(
+    (el) => ({
+      el,
+      anim: createAnimatable(el, {
+        x: scaled(260),
+        y: scaled(260),
+        ease: "outQuad",
+      }),
+    }),
+  );
+
+  /** Beyond this many pixels a tile is not a neighbour and shouldn't move. */
+  const REACH = 260;
+  /** How far a tile is willing to lean, at most. */
+  const MAX_LEAN = 10;
+
+  return {
+    pull(x, y, exclude) {
+      for (const { el, anim } of handles) {
+        if (el === exclude) continue;
+        const box = el.getBoundingClientRect();
+        const dx = x - (box.left + box.width / 2);
+        const dy = y - (box.top + box.height / 2);
+        const distance = Math.hypot(dx, dy);
+        if (distance > REACH || distance === 0) {
+          anim.x(0);
+          anim.y(0);
+          continue;
+        }
+        // Inverse falloff, clamped: close tiles lean noticeably, far ones don't.
+        const strength = (1 - distance / REACH) ** 2 * MAX_LEAN;
+        anim.x(utils.clamp((dx / distance) * strength, -MAX_LEAN, MAX_LEAN));
+        anim.y(utils.clamp((dy / distance) * strength, -MAX_LEAN, MAX_LEAN));
+      }
+    },
+    release() {
+      for (const { anim } of handles) {
+        anim.x(0);
+        anim.y(0);
+      }
+    },
+    revert() {
+      for (const { anim } of handles) anim.revert();
+    },
+  };
+}
+
+/**
+ * A tile's own momentum, as shape.
+ *
+ * Anything with mass deforms slightly when it is thrown. Skewing the dragged
+ * tile against its velocity is what separates "an element whose left and top
+ * are changing" from "an object being moved", and it costs one transform.
+ */
+export function velocityDeform(el: Element, velocity: number, angle: number) {
+  if (scaled(1) === 0) return;
+  const amount = utils.clamp(velocity * 0.5, 0, 7);
+  utils.set(el, {
+    rotate: `${Math.cos(angle) * amount * 0.35}deg`,
+    skewX: `${Math.cos(angle) * amount * -0.5}deg`,
+    skewY: `${Math.sin(angle) * amount * -0.5}deg`,
+  });
+}
+
+/** Put a deformed tile back to rest. */
+export function settleDeform(el: Element) {
+  animate(el, {
+    rotate: 0,
+    skewX: 0,
+    skewY: 0,
+    duration: scaled(420),
+    ease: SPRING,
+  });
+}
+
+/**
+ * The grid settling after something lands.
+ *
+ * A ripple of scale spreading outward from where a tile was dropped, in grid
+ * order. What it buys is confirmation: the drop registered, and *these* are the
+ * tiles that moved because of it. A single bounce on the dropped tile alone
+ * would confirm the drop but say nothing about the consequences.
+ */
+export function wake(elements: Element[], fromIndex: number): void {
+  if (elements.length === 0 || scaled(1) === 0) return;
+  animate(elements, {
+    scale: [
+      { to: 1.022, duration: scaled(130), ease: "outQuad" },
+      { to: 1, duration: scaled(320), ease: SPRING },
+    ],
+    delay: stagger(scaled(26), { from: Math.max(0, fromIndex) }),
+  });
+}
+
+/**
+ * Removing a tile: stretch, then gone.
+ *
+ * Scaling to zero is a tile disappearing. Stretching it first makes it a tile
+ * being *pulled out*, which is the difference between "it vanished" and "I did
+ * that" — and the distinction matters most for the one action people fear.
+ */
+export function tearOut(el: Element, done: () => void): void {
+  if (scaled(1) === 0) {
+    done();
+    return;
+  }
+  animate(el, {
+    scale: [
+      { to: 1.06, duration: scaled(110), ease: "outQuad" },
+      { to: 0.72, duration: scaled(200), ease: "inQuad" },
+    ],
+    opacity: { to: 0, duration: scaled(240), ease: "inQuad" },
+    onComplete: done,
+  });
+}
+
+/**
+ * A value resolving into place, character by character.
+ *
+ * For numbers and labels that change because something *happened* — an agent
+ * completed work, a rollup moved. A number that silently becomes a different
+ * number is a number nobody notices changed; scrambling it for a fifth of a
+ * second is the smallest possible way to say "this is new", and it reads as the
+ * value settling rather than as an effect being applied to it.
+ */
+export function scrambleTo(el: Element, value: string): void {
+  if (scaled(1) === 0) {
+    el.textContent = value;
+    return;
+  }
+  animate(el, {
+    duration: scaled(560),
+    ease: "outQuad",
+    text: text.scrambleText({ text: value, chars: "0-9" }),
+  });
+}
+
+/**
+ * A line running the perimeter of a panel.
+ *
+ * For a surface an agent is currently inside. A pulsing dot says "something is
+ * happening somewhere"; a line travelling the edge of *this* panel says the
+ * machine is working in here. Uses the SVG drawable so the stroke is drawn
+ * rather than faded, which is why it reads as travel instead of a glow.
+ *
+ * Returns a stop function.
+ */
+export function traceEdge(svgPath: SVGGeometryElement): () => void {
+  if (scaled(1) === 0) return () => {};
+  const [drawable] = svg.createDrawable(svgPath, 0, 0.18);
+  const running = animate(drawable, {
+    draw: ["0 0.18", "0.82 1"],
+    duration: scaled(2600),
+    loop: true,
+    ease: "linear",
+  });
+  return () => running.revert();
+}
+
+/** Re-exported so callers build draggables through this module's tuning. */
+export { createDraggable, utils as animeUtils };
+export type { Draggable };
