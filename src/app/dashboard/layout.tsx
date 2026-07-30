@@ -11,6 +11,7 @@ import { RequireBackend } from "@/components/require-backend";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppearanceProvider } from "@/components/appearance/appearance-provider";
 import { FloatingNavToggle } from "@/components/appearance/floating-nav-toggle";
+import { SidebarDock } from "@/components/appearance/sidebar-dock";
 
 export default async function DashboardLayout({
   children,
@@ -68,6 +69,9 @@ export default async function DashboardLayout({
               page headers — which is exactly what a full-bleed surface
               doesn't have. */}
           <FloatingNavToggle />
+          {/* Hold the sidebar for a moment and drag it: dock left, dock
+              right, or tear it out to float. The setting IS the drag. */}
+          <SidebarDock />
         </SidebarProvider>
       </ToastProvider>
       </AppearanceProvider>

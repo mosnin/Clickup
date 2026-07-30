@@ -12,6 +12,10 @@ afterEach(async () => {
   // on `window is not defined`. One tick here lets it land while the window
   // still exists.
   await new Promise((resolve) => setImmediate(resolve));
+  // Twice: the first flush can itself schedule a continuation (React yields
+  // long work across multiple macrotasks), and a single tick still lost the
+  // race under a loaded worker pool.
+  await new Promise((resolve) => setImmediate(resolve));
 });
 
 if (!window.matchMedia) {
