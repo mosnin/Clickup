@@ -12,6 +12,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppearanceProvider } from "@/components/appearance/appearance-provider";
 import { FloatingNavToggle } from "@/components/appearance/floating-nav-toggle";
 import { SidebarDock } from "@/components/appearance/sidebar-dock";
+import { DockSlot } from "@/components/appearance/dock-slot";
 
 export default async function DashboardLayout({
   children,
@@ -72,6 +73,9 @@ export default async function DashboardLayout({
           {/* Hold the sidebar for a moment and drag it: dock left, dock
               right, or tear it out to float. The setting IS the drag. */}
           <SidebarDock />
+          {/* Dragged to the bottom, the nav stops being a sidebar and becomes
+              a dock — a different shape, not the same one rotated. */}
+          <DockSlot />
         </SidebarProvider>
       </ToastProvider>
       </AppearanceProvider>

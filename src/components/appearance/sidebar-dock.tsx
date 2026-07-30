@@ -35,9 +35,17 @@ import { cn } from "@/lib/utils";
 const HOLD_MS = 650;
 const HOLD_SLOP = 8;
 
-/** Which dock the pointer is over: left third, right third, middle floats. */
-function zoneFor(x: number): SidebarPosition {
+/**
+ * Which dock the pointer is over.
+ *
+ * The bottom band wins before the horizontal thirds do: a pointer near the
+ * bottom-left is heading for the dock, not back to where it started, and
+ * checking x first would make the dock unreachable from the left half.
+ */
+function zoneFor(x: number, y: number): SidebarPosition {
   const w = window.innerWidth;
+  const h = window.innerHeight;
+  if (y > h * 0.78) return "dock";
   if (x < w * 0.3) return "left";
   if (x > w * 0.7) return "right";
   return "floating";
@@ -104,6 +112,7 @@ export function SidebarDock() {
       container.style.cursor = "";
       animate(container, {
         x: 0,
+        y: 0,
         scale: 1,
         rotate: 0,
         duration: scaled(360),
@@ -144,6 +153,7 @@ export function SidebarDock() {
       }
       e.preventDefault();
       const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
       // The proxy translation: the sidebar follows the hand with a slight
       // trailing tilt, and the real layout stays put until the drop. Written
       // through anime's transform cache (utils.set), not style.transform —
@@ -151,10 +161,13 @@ export function SidebarDock() {
       // string would leave it animating from stale values.
       animeSet(container, {
         x: dx * 0.85,
+        // Vertical follow is damped harder: the dock is a large target and a
+        // sidebar tracking the hand 1:1 downward leaves the viewport.
+        y: dy * 0.35,
         scale: 0.96,
         rotate: Math.max(-2.5, Math.min(2.5, dx * 0.008)),
       });
-      const z = zoneFor(e.clientX);
+      const z = zoneFor(e.clientX, e.clientY);
       if (z !== zoneRef.current) {
         setZoneBoth(z);
         if (typeof navigator !== "undefined" && navigator.vibrate) {
@@ -233,13 +246,25 @@ export function SidebarDock() {
           <DockGuide side="right" active={zone === "right"} label="Dock right" />
           <div
             className={cn(
-              "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 border-dashed px-8 py-6 text-sm font-medium transition-all duration-150",
+              "absolute left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 border-dashed px-8 py-6 text-sm font-medium transition-all duration-150",
               zone === "floating"
                 ? "scale-105 border-foreground bg-foreground/5 text-foreground"
                 : "border-border text-muted-foreground",
             )}
           >
             Float
+          </div>
+          {/* The dock guide is the shape of the dock, so the drop is a
+              promise about what you are about to get. */}
+          <div
+            className={cn(
+              "absolute inset-x-1/4 bottom-4 flex h-16 items-center justify-center rounded-2xl border-2 border-dashed text-sm font-medium transition-all duration-150",
+              zone === "dock"
+                ? "scale-105 border-foreground bg-foreground/5 text-foreground"
+                : "border-border text-muted-foreground",
+            )}
+          >
+            Dock at the bottom
           </div>
         </motion.div>
       )}

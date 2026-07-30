@@ -604,5 +604,5 @@ export function traceEdge(svgPath: SVGGeometryElement): () => void {
 }
 
 /** Re-exported so callers build draggables through this module's tuning. */
-export { createDraggable, utils as animeUtils };
-export type { Draggable };
+export { createAnimatable, createDraggable, utils as animeUtils };
+export type { AnimatableObject, Draggable };

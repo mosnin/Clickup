@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { PanelLeft, PanelRight, Square } from "lucide-react";
+import { PanelBottom, PanelLeft, PanelRight, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
@@ -250,12 +250,13 @@ export function AppearanceStudio() {
           {!editingPlaceOnly && (
             <>
               <Field label="Navigation" {...field("sidebarPosition")}>
-                <div className="mt-1 grid grid-cols-3 gap-2">
+                <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {(
                     [
                       { v: "left", label: "Left", icon: PanelLeft },
                       { v: "right", label: "Right", icon: PanelRight },
                       { v: "floating", label: "Floating", icon: Square },
+                      { v: "dock", label: "Dock", icon: PanelBottom },
                     ] as {
                       v: SidebarPosition;
                       label: string;
@@ -282,9 +283,12 @@ export function AppearanceStudio() {
                     </button>
                   ))}
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                   Floating lifts the sidebar out of the layout entirely — the
-                  content runs full width and the nav slides in over it.
+                  content runs full width and the nav slides in over it. Dock
+                  moves it to the bottom edge as a row of glyphs that magnify
+                  under the cursor. You can also just hold the sidebar and throw
+                  it where you want it.
                 </p>
               </Field>
 

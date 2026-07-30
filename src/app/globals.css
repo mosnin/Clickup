@@ -193,6 +193,18 @@ body {
 [data-sidebar="right"] [data-slot="sidebar-wrapper"] {
   flex-direction: row-reverse;
 }
+/* ── Docked navigation ───────────────────────────────────────────────
+   The sidebar is gone entirely — not collapsed, not narrowed — because the
+   dock has taken over its job. The content runs full width with room at the
+   bottom for the dock to float over without ever covering the last row. */
+[data-sidebar="dock"] [data-slot="sidebar-container"],
+[data-sidebar="dock"] [data-slot="sidebar-gap"] {
+  display: none;
+}
+[data-sidebar="dock"] [data-slot="sidebar-inset"] {
+  padding-bottom: 6.5rem;
+}
+
 [data-sidebar="floating"] [data-slot="sidebar-container"] {
   position: fixed;
   inset-block: 0.75rem;

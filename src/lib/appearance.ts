@@ -20,7 +20,16 @@
 
 export type Density = "compact" | "comfortable" | "spacious";
 export type SurfaceStyle = "flat" | "soft" | "raised" | "bordered";
-export type SidebarPosition = "left" | "right" | "floating";
+/**
+ * Where the navigation lives.
+ *
+ * "dock" is the bottom-edge Apple-style dock: the nav stops being a column of
+ * labels and becomes a row of glyphs that magnify under the cursor, with the
+ * detail moving into panels that rise from the item you pressed. It is a
+ * genuinely different shape rather than the sidebar rotated, which is why it is
+ * a position rather than a style.
+ */
+export type SidebarPosition = "left" | "right" | "floating" | "dock";
 export type AccentMode = "ink" | "hue";
 
 export type Appearance = {
@@ -94,7 +103,7 @@ export function normalizeAppearance(input: unknown): Appearance {
   return {
     sidebarPosition: pick(
       raw.sidebarPosition,
-      ["left", "right", "floating"] as const,
+      ["left", "right", "floating", "dock"] as const,
       d.sidebarPosition,
     ),
     sidebarWidth: clampNumber(raw.sidebarWidth, RANGES.sidebarWidth, d.sidebarWidth),
@@ -175,7 +184,7 @@ export const APPEARANCE_KEYS = Object.keys(
 
 /** The allowed values for each choice-shaped key. */
 const ENUM_VALUES = {
-  sidebarPosition: ["left", "right", "floating"],
+  sidebarPosition: ["left", "right", "floating", "dock"],
   accentMode: ["ink", "hue"],
   density: ["compact", "comfortable", "spacious"],
   surface: ["flat", "soft", "raised", "bordered"],
