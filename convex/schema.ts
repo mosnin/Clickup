@@ -98,6 +98,19 @@ export default defineSchema({
     // Archived spaces disappear from the sidebar/home but keep their data;
     // un-archive from space settings.
     archivedAt: v.optional(v.number()),
+    /**
+     * How this space looks, for everyone in it.
+     *
+     * A sparse appearance patch restricted to the "place" keys — accent,
+     * radius, surface. Personal keys (type size, motion, density, sidebar
+     * position) are dropped when this is resolved, so a space can give itself
+     * an identity without being able to change how anyone reads.
+     *
+     * `v.any()` for the same reason `uiPreferences.appearance` is: the design
+     * system grows levers, and a row written by a newer build must degrade
+     * rather than fail validation.
+     */
+    theme: v.optional(v.any()),
     // ClickApps-style feature toggles: when a key is explicitly false the
     // matching surface hides for this space's lists (UI-gated; data stays).
     features: v.optional(
@@ -1313,6 +1326,23 @@ export default defineSchema({
      * out of their own account.
      */
     appearance: v.any(),
+    /**
+     * How to read `appearance`.
+     *
+     * Absent (or 1) means a full eleven-key snapshot, which is what every row
+     * written before space themes existed holds. Read literally those rows pin
+     * every setting, so a space's look could never reach anyone who had once
+     * opened the settings panel — `prunePatch` drops the keys equal to the
+     * shipped default to recover what the person actually chose. Version 2
+     * rows are already sparse and are taken at face value.
+     */
+    patchVersion: v.optional(v.number()),
+    /**
+     * Per-space divergences, keyed by space id: "this space, but for me".
+     * Place keys only — the resolver drops anything else, so this can never
+     * become a way to have a different font size in one space.
+     */
+    spaceOverrides: v.optional(v.any()),
     updatedAt: v.number(),
   }).index("by_user", ["userClerkId"]),
 

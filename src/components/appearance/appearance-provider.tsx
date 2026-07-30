@@ -13,73 +13,130 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import {
   DEFAULT_APPEARANCE,
-  normalizeAppearance,
+  PLACE_KEYS,
+  clearKeys,
+  normalizePatch,
+  prunePatch,
+  resolveLayered,
   resolveTokens,
   type Appearance,
+  type AppearanceKey,
+  type AppearanceLayerId,
+  type AppearancePatch,
 } from "@/lib/appearance";
 import { applyTokens, morphTokens } from "@/lib/anime";
+import { useActiveSpace, type ActiveSpace } from "@/lib/use-active-space";
 
-// The bridge between one person's stored preferences and the running app.
+// The bridge between stored preferences and the running app.
 //
-// Three states, deliberately distinct:
+// Three writers decide what you see — the product's defaults, the space you are
+// standing in, and you — and this holds all three at once. What it adds on top
+// of `resolveLayered` is time: which layer an edit is aimed at, what a slider is
+// doing mid-drag, and the fact that a change of room should look like a change
+// of room rather than a cut.
 //
-//   - **stored** — what Convex has. Arrives over a live subscription, so a
-//     change made in another tab or on another device lands here without a
-//     reload. This is the value that persists.
-//   - **preview** — what a slider is currently showing. Not saved, applied
-//     instantly, and thrown away on cancel. Dragging a slider must repaint the
-//     app on the same frame; it must not write to the database sixty times a
-//     second.
-//   - **effective** — preview ?? stored ?? defaults. What the tokens are
-//     resolved from.
+// Four states, deliberately distinct:
 //
-// Saving is debounced and coalesced: someone who drags four sliders produces
-// one write, not four hundred. And because the write lands back through the
-// same subscription, the final state always comes from the server rather than
-// from whatever the client happened to be holding.
+//   - **stored** — what Convex has, arriving over a live subscription. A change
+//     made in another tab, on another device, or by an admin re-theming the
+//     space lands here without a reload.
+//   - **space** — the room you are in, resolved from the URL.
+//   - **preview** — what a slider is currently showing. Never written. Dragging
+//     must repaint on the same frame and must not write sixty times a second.
+//   - **effective** — the resolution of all of it, which the tokens come from.
+//
+// Saving is debounced and coalesced: someone dragging four sliders produces one
+// write. Because the write lands back through the subscription, the final state
+// always comes from the server rather than from whatever the client was holding.
 
 const SAVE_DEBOUNCE_MS = 450;
 
-type AppearanceContextValue = {
-  /** What the UI is currently rendering with. */
+/** Which layer an edit is aimed at. */
+export type AppearanceScope = "personal" | "space" | "personalSpace";
+
+export type AppearanceContextValue = {
+  /** What the UI is rendering with, preview included. */
   appearance: Appearance;
-  /** What is actually saved — what a reload would give you. */
-  stored: Appearance;
-  /** True while a preview differs from what is stored. */
-  dirty: boolean;
-  /** Apply immediately without saving. For sliders. */
-  preview: (patch: Partial<Appearance>) => void;
-  /** Apply and persist. For presets, toggles, and the end of a drag. */
-  commit: (patch: Partial<Appearance>) => void;
-  /** Throw the preview away and go back to what's stored. */
+  /** Which layer each value came from — what makes the controls legible. */
+  sources: Record<AppearanceKey, AppearanceLayerId>;
+  /** The room, or null on a surface that belongs to no space. */
+  space: ActiveSpace | null;
+  /** The stored patch for one scope: exactly what has been set *there*. */
+  patchFor: (scope: AppearanceScope) => AppearancePatch;
+  /** Can this person change what everyone in the space sees? */
+  mayThemeSpace: boolean;
+  /** Which scopes are available to edit right now. */
+  availableScopes: AppearanceScope[];
+  /** Apply immediately without saving. For sliders mid-drag. */
+  preview: (patch: AppearancePatch) => void;
+  /** Apply and persist to one layer. For presets, toggles, end of a drag. */
+  commit: (patch: AppearancePatch, scope: AppearanceScope) => void;
+  /** Stop setting these keys here, so they inherit again. */
+  clear: (keys: readonly AppearanceKey[], scope: AppearanceScope) => void;
+  /** Clear a whole layer. */
+  reset: (scope: AppearanceScope) => void;
+  /** Throw the preview away. */
   revert: () => void;
-  /** Back to the shipped design. */
-  reset: () => void;
+  dirty: boolean;
 };
 
 const AppearanceContext = createContext<AppearanceContextValue | null>(null);
 
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
   const remote = useQuery(api.appearance.forCurrentUser, {});
+  const space = useActiveSpace();
   const save = useMutation(api.appearance.save);
   const resetRemote = useMutation(api.appearance.reset);
+  const setSpaceTheme = useMutation(api.appearance.setSpaceTheme);
 
-  const [previewState, setPreviewState] = useState<Appearance | null>(null);
+  const [previewPatch, setPreviewPatch] = useState<AppearancePatch | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The last value we wrote. Without it, our own echo coming back through the
-  // subscription would look like a remote change and re-morph the whole UI.
-  const lastWritten = useRef<string | null>(null);
 
-  const stored = useMemo(
-    () => (remote ? normalizeAppearance(remote) : DEFAULT_APPEARANCE),
-    [remote],
+  // ── The stored layers ──
+  const personalPatch = useMemo<AppearancePatch>(() => {
+    if (!remote) return {};
+    // A row written before space themes existed holds all eleven keys whether
+    // or not the person chose them. Taken literally it would pin everything and
+    // make space themes invisible to every existing user.
+    return remote.patchVersion >= 2
+      ? normalizePatch(remote.personal)
+      : prunePatch(remote.personal);
+  }, [remote]);
+
+  const spacePatch = useMemo<AppearancePatch>(
+    () => normalizePatch(space?.theme, PLACE_KEYS),
+    [space?.theme],
   );
-  const effective = previewState ?? stored;
+
+  const personalSpacePatch = useMemo<AppearancePatch>(() => {
+    if (!remote || !space) return {};
+    const stored = (remote.spaceOverrides ?? {})[space.spaceId];
+    return normalizePatch(stored, PLACE_KEYS);
+  }, [remote, space]);
+
+  const resolved = useMemo(
+    () =>
+      resolveLayered({
+        personal: personalPatch,
+        space: spacePatch,
+        personalSpace: personalSpacePatch,
+      }),
+    [personalPatch, personalSpacePatch, spacePatch],
+  );
+
+  // A preview sits on top of everything, so a drag always visibly moves even
+  // when the value being dragged is shadowed by a narrower layer. The studio is
+  // responsible for saying so; the slider is not responsible for feeling dead.
+  const effective = useMemo<Appearance>(() => {
+    if (!previewPatch) return resolved.appearance;
+    return { ...resolved.appearance, ...normalizePatch(previewPatch) };
+  }, [previewPatch, resolved.appearance]);
 
   // ── Apply ──
-  // The first application is instant (no morph on page load — the app should
-  // not animate itself into existence every navigation), and every subsequent
-  // change is morphed.
+  // The first application is instant: the app should not animate itself into
+  // existence on every navigation. Everything after is morphed, which is what
+  // makes walking into a differently-themed space read as one room becoming
+  // another rather than as a page reload.
   const applied = useRef(false);
   useEffect(() => {
     const tokens = resolveTokens(effective);
@@ -91,9 +148,9 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     morphTokens(tokens);
   }, [effective]);
 
-  // The layout half: attributes rather than tokens, because "where is the
-  // sidebar" is a structural question the shell answers with CSS, not a value
-  // to interpolate.
+  // The structural half: attributes rather than tokens, because "where is the
+  // sidebar" is a question the shell answers with CSS, not a value to
+  // interpolate.
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.sidebar = effective.sidebarPosition;
@@ -101,79 +158,161 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     root.dataset.surface = effective.surface;
   }, [effective.sidebarPosition, effective.density, effective.surface]);
 
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
-  }, []);
+    },
+    [],
+  );
+
+  // ── Write ──
+  const patchFor = useCallback(
+    (scope: AppearanceScope): AppearancePatch => {
+      if (scope === "personal") return personalPatch;
+      if (scope === "space") return spacePatch;
+      return personalSpacePatch;
+    },
+    [personalPatch, personalSpacePatch, spacePatch],
+  );
 
   const persist = useCallback(
-    (next: Appearance) => {
+    (scope: AppearanceScope, patch: AppearancePatch) => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
+      const spaceId = space?.spaceId;
       saveTimer.current = setTimeout(() => {
-        lastWritten.current = JSON.stringify(next);
-        void save({ appearance: next }).catch(() => {
+        const failed = () => {
           // A failed save is a preference that didn't stick, not a broken app.
-          // The preview stays, so nothing appears to have been lost, and the
-          // next change tries again.
-        });
+          // The preview stays, so nothing appears lost, and the next change
+          // tries again.
+        };
+        if (scope === "personal") {
+          void save({ patch }).catch(failed);
+        } else if (!spaceId) {
+          // Nothing to scope it to; the studio hides these scopes off a space.
+        } else if (scope === "space") {
+          void setSpaceTheme({
+            spaceId: spaceId as Parameters<typeof setSpaceTheme>[0]["spaceId"],
+            theme: patch,
+          }).catch(failed);
+        } else {
+          void save({
+            patch,
+            spaceId: spaceId as Parameters<typeof save>[0]["spaceId"],
+          }).catch(failed);
+        }
       }, SAVE_DEBOUNCE_MS);
     },
-    [save],
+    [save, setSpaceTheme, space?.spaceId],
   );
 
-  const preview = useCallback(
-    (patch: Partial<Appearance>) => {
-      setPreviewState((current) =>
-        normalizeAppearance({ ...(current ?? stored), ...patch }),
-      );
-    },
-    [stored],
-  );
+  const preview = useCallback((patch: AppearancePatch) => {
+    setPreviewPatch((current) => ({ ...(current ?? {}), ...patch }));
+  }, []);
 
   const commit = useCallback(
-    (patch: Partial<Appearance>) => {
-      const next = normalizeAppearance({ ...(previewState ?? stored), ...patch });
-      setPreviewState(next);
-      persist(next);
+    (patch: AppearancePatch, scope: AppearanceScope) => {
+      // A space may only be given place keys. Dropping them here as well as in
+      // the resolver keeps a mis-wired control from writing a row that quietly
+      // never applies.
+      const allowed =
+        scope === "personal" ? normalizePatch(patch) : normalizePatch(patch, PLACE_KEYS);
+      setPreviewPatch((current) => ({ ...(current ?? {}), ...allowed }));
+      persist(scope, { ...patchFor(scope), ...allowed });
     },
-    [persist, previewState, stored],
+    [patchFor, persist],
+  );
+
+  const clear = useCallback(
+    (keys: readonly AppearanceKey[], scope: AppearanceScope) => {
+      // Clearing the preview for these keys too, or the slider would keep
+      // showing the value that was just given back to the layer beneath.
+      setPreviewPatch((current) =>
+        current ? clearKeys(current, keys) : current,
+      );
+      persist(scope, clearKeys(patchFor(scope), keys));
+    },
+    [patchFor, persist],
+  );
+
+  const reset = useCallback(
+    (scope: AppearanceScope) => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      setPreviewPatch(null);
+      const spaceId = space?.spaceId;
+      if (scope === "personal") {
+        void resetRemote({}).catch(() => {});
+        return;
+      }
+      if (!spaceId) return;
+      if (scope === "space") {
+        void setSpaceTheme({
+          spaceId: spaceId as Parameters<typeof setSpaceTheme>[0]["spaceId"],
+          theme: {},
+        }).catch(() => {});
+        return;
+      }
+      void resetRemote({
+        spaceId: spaceId as Parameters<typeof resetRemote>[0]["spaceId"],
+      }).catch(() => {});
+    },
+    [resetRemote, setSpaceTheme, space?.spaceId],
   );
 
   const revert = useCallback(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    setPreviewState(null);
+    setPreviewPatch(null);
   }, []);
 
-  const reset = useCallback(() => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    setPreviewState(null);
-    lastWritten.current = null;
-    void resetRemote({}).catch(() => {});
-  }, [resetRemote]);
-
-  // Once the server agrees with the preview, drop the preview — from then on
-  // the subscription is the source of truth again.
+  // Once the server agrees with the preview, drop it — from then on the
+  // subscription is the source of truth again, which is what lets a change made
+  // elsewhere take over cleanly.
+  const storedJson = JSON.stringify(resolved.appearance);
   useEffect(() => {
-    if (!previewState || remote === undefined) return;
-    if (JSON.stringify(stored) === JSON.stringify(previewState)) {
-      setPreviewState(null);
-    }
-  }, [previewState, remote, stored]);
+    if (!previewPatch || remote === undefined) return;
+    const merged = JSON.stringify({
+      ...resolved.appearance,
+      ...normalizePatch(previewPatch),
+    });
+    if (merged === storedJson) setPreviewPatch(null);
+  }, [previewPatch, remote, resolved.appearance, storedJson]);
+
+  const availableScopes = useMemo<AppearanceScope[]>(() => {
+    if (!space) return ["personal"];
+    const scopes: AppearanceScope[] = ["personal"];
+    if (space.mayTheme) scopes.push("space");
+    scopes.push("personalSpace");
+    return scopes;
+  }, [space]);
 
   const value = useMemo<AppearanceContextValue>(
     () => ({
       appearance: effective,
-      stored,
-      dirty:
-        previewState !== null &&
-        JSON.stringify(previewState) !== JSON.stringify(stored),
+      sources: resolved.sources,
+      space,
+      patchFor,
+      mayThemeSpace: space?.mayTheme ?? false,
+      availableScopes,
       preview,
       commit,
-      revert,
+      clear,
       reset,
+      revert,
+      dirty: previewPatch !== null && JSON.stringify(effective) !== storedJson,
     }),
-    [commit, effective, preview, previewState, reset, revert, stored],
+    [
+      availableScopes,
+      clear,
+      commit,
+      effective,
+      patchFor,
+      preview,
+      previewPatch,
+      reset,
+      resolved.sources,
+      revert,
+      space,
+      storedJson,
+    ],
   );
 
   return (
@@ -186,21 +325,30 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
 /**
  * The current appearance.
  *
- * Falls back to the defaults outside a provider rather than throwing: a
- * component rendered in a test or in a surface that has no provider should
- * render the shipped design, not crash.
+ * Falls back to the shipped design outside a provider rather than throwing: a
+ * component rendered in a test, or on a surface with no provider, should render
+ * the design we ship, not crash.
  */
 export function useAppearance(): AppearanceContextValue {
   const ctx = useContext(AppearanceContext);
   if (ctx) return ctx;
   const noop = () => {};
+  const sources = {} as Record<AppearanceKey, AppearanceLayerId>;
+  for (const key of Object.keys(DEFAULT_APPEARANCE) as AppearanceKey[]) {
+    sources[key] = "default";
+  }
   return {
     appearance: DEFAULT_APPEARANCE,
-    stored: DEFAULT_APPEARANCE,
-    dirty: false,
+    sources,
+    space: null,
+    patchFor: () => ({}),
+    mayThemeSpace: false,
+    availableScopes: ["personal"],
     preview: noop,
     commit: noop,
-    revert: noop,
+    clear: noop,
     reset: noop,
+    revert: noop,
+    dirty: false,
   };
 }

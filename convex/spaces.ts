@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import {
   canAccessSpace,
+  mayGovernSpace,
   requireIdentity,
   requireSpaceAccess,
 } from "./_authz";
@@ -161,15 +162,7 @@ export const updateMeta = mutation({
     // Only the creator or the workspace owner may change privacy, so a
     // member can't lock teammates out of a shared space.
     if (args.private !== undefined || args.memberClerkIds !== undefined) {
-      const ws =
-        space.parentType === "workspace"
-          ? await ctx.db.get(space.parentId as Id<"workspaces">)
-          : null;
-      const mayGovern =
-        space.createdByClerkId === identity.subject ||
-        ws?.ownerClerkId === identity.subject ||
-        space.createdByClerkId === undefined; // legacy spaces: any member
-      if (!mayGovern) {
+      if (!(await mayGovernSpace(ctx, space, identity.subject))) {
         throw new ConvexError("Only the space creator or workspace owner can change privacy");
       }
     }

@@ -126,6 +126,217 @@ export function normalizeAppearance(input: unknown): Appearance {
   };
 }
 
+// ── Layers ──────────────────────────────────────────────────────────────
+//
+// One person's settings are not the only thing that decides what the app looks
+// like. A space has a look of its own that everyone in it sees, and a person
+// can still diverge from it for themselves. That is three writers for one set
+// of tokens, so the model needs a precedence rule — and the rule is not "last
+// writer wins", it is **a setting belongs to whoever it is about**.
+//
+//   - Keys about the *place* — the accent, the corner radius, the surface —
+//     are what makes walking into a space feel like a different room. A space
+//     sets these for everyone in it.
+//   - Keys about the *person* — type size, motion, density, where the sidebar
+//     lives — belong to the person and nothing else may set them. A workspace
+//     that shrinks your type, or re-enables motion you turned off, is hostile.
+//     This is enforced by the allow-list below rather than by convention, so
+//     there is no code path that can write a personal key into a space theme.
+//
+// Resolution runs general → specific: defaults, then the person's preferences,
+// then the space's theme, then the person's override for that space. A space
+// theme beating your global accent is the entire point of a space theme; the
+// last layer exists for when you disagree with it.
+
+export type AppearanceKey = keyof Appearance;
+
+/** Keys a space may set, because they describe the place rather than you. */
+export const PLACE_KEYS = [
+  "accentMode",
+  "accentHue",
+  "accentSaturation",
+  "radiusScale",
+  "surface",
+] as const satisfies readonly AppearanceKey[];
+
+/** Keys only the person may set, because they describe how they read. */
+export const PERSONAL_KEYS = [
+  "sidebarPosition",
+  "sidebarWidth",
+  "density",
+  "fontScale",
+  "motionScale",
+  "headingWeight",
+] as const satisfies readonly AppearanceKey[];
+
+export const APPEARANCE_KEYS = Object.keys(
+  DEFAULT_APPEARANCE,
+) as AppearanceKey[];
+
+/** The allowed values for each choice-shaped key. */
+const ENUM_VALUES = {
+  sidebarPosition: ["left", "right", "floating"],
+  accentMode: ["ink", "hue"],
+  density: ["compact", "comfortable", "spacious"],
+  surface: ["flat", "soft", "raised", "bordered"],
+} as const;
+
+/**
+ * A partial set of settings: only the keys someone explicitly chose.
+ *
+ * Sparseness is what makes layering work at all. A stored row holding all
+ * eleven keys is indistinguishable from someone having deliberately pinned all
+ * eleven, so a space theme could never reach anyone who had once opened the
+ * settings panel. What is *absent* from a patch is as meaningful as what is in
+ * it: absent means "whatever the layer under me says".
+ */
+export type AppearancePatch = Partial<Appearance>;
+
+/**
+ * Coerce anything into a sparse patch, keeping only keys in `allow`.
+ *
+ * Out-of-range numbers are clamped, because "as large as possible" is a real
+ * intention badly expressed. Values of the wrong *kind* — a colour where a
+ * number belongs, an enum member this build has never heard of — are dropped
+ * rather than coerced to the default: coercing them would silently promote
+ * garbage into an explicit override that shadows the layer beneath it.
+ */
+export function normalizePatch(
+  input: unknown,
+  allow: readonly AppearanceKey[] = APPEARANCE_KEYS,
+): AppearancePatch {
+  const raw = (input ?? {}) as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of allow) {
+    const value = raw[key];
+    if (value === undefined || value === null) continue;
+    if (key in ENUM_VALUES) {
+      const allowed: readonly string[] =
+        ENUM_VALUES[key as keyof typeof ENUM_VALUES];
+      if (typeof value !== "string" || !allowed.includes(value)) continue;
+    } else {
+      if (typeof value !== "number" || !Number.isFinite(value)) continue;
+    }
+    // Clamp in isolation, so one key in gives the same key out and nothing
+    // else is invented.
+    out[key] = normalizeAppearance({ [key]: value })[key as AppearanceKey];
+  }
+  return out as AppearancePatch;
+}
+
+/** Which layer a resolved value came from. */
+export type AppearanceLayerId =
+  | "default"
+  | "personal"
+  | "space"
+  | "personalSpace";
+
+export type AppearanceLayer = {
+  id: AppearanceLayerId;
+  patch: AppearancePatch;
+};
+
+export type ResolvedAppearance = {
+  appearance: Appearance;
+  /**
+   * Where each value came from.
+   *
+   * This is not diagnostics — it is what lets a control say "this is the
+   * space's value, not yours" and offer to stop overriding it. Without it the
+   * customiser is a set of sliders whose numbers arrive from nowhere.
+   */
+  sources: Record<AppearanceKey, AppearanceLayerId>;
+};
+
+/** Fold layers in order — later layers win, key by key. */
+export function resolveAppearance(
+  layers: readonly AppearanceLayer[],
+): ResolvedAppearance {
+  const appearance = { ...DEFAULT_APPEARANCE };
+  const sources = {} as Record<AppearanceKey, AppearanceLayerId>;
+  for (const key of APPEARANCE_KEYS) sources[key] = "default";
+
+  for (const layer of layers) {
+    for (const key of APPEARANCE_KEYS) {
+      const value = layer.patch[key];
+      if (value === undefined) continue;
+      // The cast is the one place this file gives up on the key-by-key type
+      // relation; the patch is already normalized against the same key.
+      (appearance[key] as unknown) = value;
+      sources[key] = layer.id;
+    }
+  }
+  return { appearance, sources };
+}
+
+/**
+ * The canonical layer stack, with each source held to what it may set.
+ *
+ * Everything that resolves appearance goes through here rather than assembling
+ * its own order, so "can a space change my font size" has exactly one answer
+ * in exactly one place.
+ */
+export function appearanceLayers(input: {
+  /** The person's preferences, everywhere. */
+  personal?: unknown;
+  /** The space's own look, shared by everyone in it. */
+  space?: unknown;
+  /** The person's divergence from that space's look. */
+  personalSpace?: unknown;
+}): AppearanceLayer[] {
+  return [
+    { id: "personal", patch: normalizePatch(input.personal) },
+    { id: "space", patch: normalizePatch(input.space, PLACE_KEYS) },
+    { id: "personalSpace", patch: normalizePatch(input.personalSpace, PLACE_KEYS) },
+  ];
+}
+
+/** Resolve straight from stored rows — the shape the provider holds. */
+export function resolveLayered(input: {
+  personal?: unknown;
+  space?: unknown;
+  personalSpace?: unknown;
+}): ResolvedAppearance {
+  return resolveAppearance(appearanceLayers(input));
+}
+
+/**
+ * Stop overriding these keys at this layer.
+ *
+ * Deleting the key rather than writing the parent's current value is the whole
+ * point: copying the parent's value looks identical today and stops tracking
+ * it tomorrow, so a space that gets re-themed would leave everyone who had
+ * ever "matched the space" frozen on the old accent.
+ */
+export function clearKeys(
+  patch: AppearancePatch,
+  keys: readonly AppearanceKey[],
+): AppearancePatch {
+  const out: AppearancePatch = { ...patch };
+  for (const key of keys) delete out[key];
+  return out;
+}
+
+/**
+ * Read a legacy row — a full eleven-key snapshot — as a patch.
+ *
+ * Before layering existed, saving wrote every key whether or not the person
+ * had chosen it. Interpreted as a patch that pins everything, which would make
+ * space themes invisible to every existing user. A key equal to the default is
+ * indistinguishable from one that was never set, so dropping those recovers
+ * the sparse intent without a migration.
+ */
+export function prunePatch(input: unknown): AppearancePatch {
+  const patch = normalizePatch(input);
+  const out: AppearancePatch = {};
+  for (const key of APPEARANCE_KEYS) {
+    const value = patch[key];
+    if (value === undefined || value === DEFAULT_APPEARANCE[key]) continue;
+    (out[key] as unknown) = value;
+  }
+  return out;
+}
+
 // ── Colour ──────────────────────────────────────────────────────────────
 
 /**

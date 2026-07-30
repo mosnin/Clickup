@@ -154,14 +154,21 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
         }
         actions={
           tab === "overview" && !space.archivedAt ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setTemplateOpen(true)}
-            >
-              <LayoutTemplate className="h-4 w-4" />
-              Use template
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* The customiser lives at a route inside the space, so opening
+                  it previews this space's look across the whole shell. */}
+              <Button size="sm" variant="outline" asChild>
+                <Link href={`/dashboard/s/${space._id}/appearance`}>Look</Link>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setTemplateOpen(true)}
+              >
+                <LayoutTemplate className="h-4 w-4" />
+                Use template
+              </Button>
+            </div>
           ) : undefined
         }
       >

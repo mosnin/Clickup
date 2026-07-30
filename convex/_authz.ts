@@ -301,3 +301,24 @@ export async function requireMessageParentAccess(
   if (!membership) throw new ConvexError("Forbidden");
   return { identity, workspaceId };
 }
+
+/**
+ * May this person change things everyone in the space sees?
+ *
+ * The same bar privacy uses, for the same reason: a space's look is shared, so
+ * changing it is a governance act rather than a preference. Exported so the
+ * space mutations and this query can never drift apart on the answer.
+ */
+export async function mayGovernSpace(
+  ctx: QueryCtx | MutationCtx,
+  space: Doc<"spaces">,
+  subject: string,
+): Promise<boolean> {
+  if (space.parentType === "user") return space.parentId === subject;
+  if (space.createdByClerkId === subject) return true;
+  // Legacy spaces predate creator attribution; any member may govern them,
+  // which is what shipped and what those spaces' members already rely on.
+  if (space.createdByClerkId === undefined) return true;
+  const workspace = await ctx.db.get(space.parentId as Id<"workspaces">);
+  return workspace?.ownerClerkId === subject;
+}

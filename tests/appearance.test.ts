@@ -7,7 +7,15 @@ import {
   matchingPresetId,
   normalizeAppearance,
   resolveTokens,
+  APPEARANCE_KEYS,
+  PERSONAL_KEYS,
+  PLACE_KEYS,
+  clearKeys,
+  normalizePatch,
+  prunePatch,
+  resolveLayered,
 } from "../src/lib/appearance";
+import { spaceTargetForPath } from "../src/lib/space-route";
 
 // The appearance model. Two properties matter more than anything else here:
 //
@@ -196,6 +204,217 @@ describe("hslToHex", () => {
           expect(hslToHex(h, s, l)).toMatch(/^#[0-9a-f]{6}$/);
         }
       }
+    }
+  });
+});
+
+// ── Layers ──────────────────────────────────────────────────────────────
+//
+// Three writers, one set of tokens. The properties that keep that honest:
+//
+//  1. The place/person partition is TOTAL and DISJOINT. If someone adds a
+//     setting and forgets to classify it, that is a setting no layer can set,
+//     or one a space can set when it shouldn't. The first test below is the
+//     one that catches it.
+//  2. Patches are sparse, and absence means "ask the layer below me".
+//  3. A space theme physically cannot carry a personal key.
+
+describe("the place / person partition", () => {
+  it("covers every setting exactly once", () => {
+    const classified = [...PLACE_KEYS, ...PERSONAL_KEYS];
+    expect([...classified].sort()).toEqual([...APPEARANCE_KEYS].sort());
+    expect(new Set(classified).size).toBe(classified.length);
+  });
+
+  it("keeps how someone reads out of a space's hands", () => {
+    // The specific hostile cases: a space must not be able to shrink your
+    // type, re-enable motion you turned off, or move your navigation.
+    for (const key of ["fontScale", "motionScale", "sidebarPosition", "density"] as const) {
+      expect(PERSONAL_KEYS).toContain(key);
+      expect(PLACE_KEYS).not.toContain(key);
+    }
+  });
+});
+
+describe("patches", () => {
+  it("keeps only what was explicitly set", () => {
+    expect(normalizePatch({ radiusScale: 1.5 })).toEqual({ radiusScale: 1.5 });
+    expect(normalizePatch({})).toEqual({});
+    expect(normalizePatch(null)).toEqual({});
+    expect(normalizePatch(undefined)).toEqual({});
+  });
+
+  it("clamps an out-of-range number rather than dropping it", () => {
+    // "As big as possible" is a real intention, badly expressed.
+    expect(normalizePatch({ fontScale: 40 })).toEqual({
+      fontScale: APPEARANCE_RANGES.fontScale[1],
+    });
+  });
+
+  it("drops a value of the wrong kind instead of coercing it", () => {
+    // Coercing would promote garbage into an explicit override that shadows
+    // whatever the layer beneath it says.
+    expect(normalizePatch({ surface: "banana" })).toEqual({});
+    expect(normalizePatch({ fontScale: "big" })).toEqual({});
+    expect(normalizePatch({ fontScale: Number.NaN })).toEqual({});
+    expect(normalizePatch({ nonsense: 3 })).toEqual({});
+  });
+
+  it("agrees with the whole-object normalizer", () => {
+    // Whatever route a value takes, it lands on the same setting.
+    for (const input of [
+      { fontScale: 40 },
+      { surface: "banana" },
+      { radiusScale: 1.5, accentMode: "hue", accentHue: 12 },
+      { sidebarWidth: -3 },
+      {},
+    ]) {
+      expect(normalizeAppearance(normalizePatch(input))).toEqual(
+        normalizeAppearance(input),
+      );
+    }
+  });
+
+  it("reads a legacy full snapshot as only what differs from the shipped look", () => {
+    // Every row written before layering existed holds all eleven keys. Read
+    // literally, those users would be immune to space themes forever.
+    const legacy = { ...DEFAULT_APPEARANCE, radiusScale: 1.6, fontScale: 1.1 };
+    expect(prunePatch(legacy)).toEqual({ radiusScale: 1.6, fontScale: 1.1 });
+    expect(prunePatch(DEFAULT_APPEARANCE)).toEqual({});
+  });
+});
+
+describe("resolution", () => {
+  it("is the shipped design when nobody has chosen anything", () => {
+    const { appearance, sources } = resolveLayered({});
+    expect(appearance).toEqual(DEFAULT_APPEARANCE);
+    expect(new Set(Object.values(sources))).toEqual(new Set(["default"]));
+  });
+
+  it("lets a space's look beat your global one, and your override beat the space", () => {
+    const { appearance, sources } = resolveLayered({
+      personal: { radiusScale: 0.5, fontScale: 1.1 },
+      space: { radiusScale: 1.6, surface: "raised" },
+      personalSpace: { surface: "flat" },
+    });
+    // The space wins over the person's global preference for a place key…
+    expect(appearance.radiusScale).toBe(1.6);
+    expect(sources.radiusScale).toBe("space");
+    // …and the person's override of *this* space wins over the space.
+    expect(appearance.surface).toBe("flat");
+    expect(sources.surface).toBe("personalSpace");
+    // A personal key is untouched by any of it.
+    expect(appearance.fontScale).toBe(1.1);
+    expect(sources.fontScale).toBe("personal");
+  });
+
+  it("ignores a personal key smuggled into a space's theme", () => {
+    const { appearance, sources } = resolveLayered({
+      personal: { fontScale: 1.2 },
+      // A space admin — or an agent with the space's key — writing this must
+      // not be able to change how anyone reads.
+      space: {
+        fontScale: 0.85,
+        motionScale: 1.5,
+        sidebarPosition: "right",
+        density: "compact",
+        accentMode: "hue",
+      },
+    });
+    expect(appearance.fontScale).toBe(1.2);
+    expect(appearance.motionScale).toBe(DEFAULT_APPEARANCE.motionScale);
+    expect(appearance.sidebarPosition).toBe(DEFAULT_APPEARANCE.sidebarPosition);
+    expect(appearance.density).toBe(DEFAULT_APPEARANCE.density);
+    // The place key it was entitled to set still lands.
+    expect(appearance.accentMode).toBe("hue");
+    expect(sources.accentMode).toBe("space");
+  });
+
+  it("ignores a personal key in a per-space override too", () => {
+    // The narrower layer is per-space, and "my font size, but only in this
+    // space" is a setting that would follow you around by surprise.
+    const { appearance } = resolveLayered({
+      personalSpace: { fontScale: 0.85, radiusScale: 0.25 },
+    });
+    expect(appearance.fontScale).toBe(DEFAULT_APPEARANCE.fontScale);
+    expect(appearance.radiusScale).toBe(0.25);
+  });
+
+  it("falls back to the layer beneath when an override is cleared", () => {
+    const mine = { surface: "flat" as const, radiusScale: 0.5 };
+    const cleared = clearKeys(mine, ["surface"]);
+    expect(cleared).toEqual({ radiusScale: 0.5 });
+
+    const { appearance, sources } = resolveLayered({
+      space: { surface: "raised" },
+      personalSpace: cleared,
+    });
+    // Falling back means tracking the space again, not freezing on the value
+    // the space happened to have when you stopped overriding it.
+    expect(appearance.surface).toBe("raised");
+    expect(sources.surface).toBe("space");
+  });
+
+  it("still resolves when a stored layer is garbage", () => {
+    // A row written by a newer build, or by hand, must not be able to lock
+    // anyone out of their own app.
+    const { appearance } = resolveLayered({
+      personal: "not an object",
+      space: 42,
+      personalSpace: [{ surface: "flat" }],
+    });
+    expect(appearance).toEqual(DEFAULT_APPEARANCE);
+  });
+
+  it("resolves to tokens that globals.css can render", () => {
+    const { appearance } = resolveLayered({
+      personal: { fontScale: 1.1 },
+      space: { accentMode: "hue", accentHue: 200, accentSaturation: 60 },
+    });
+    const tokens = resolveTokens(appearance);
+    expect(tokens["--ui-font-scale"]).toBe("1.100");
+    expect(tokens["--color-brand-600"]).toMatch(/^#[0-9a-f]{6}$/);
+  });
+});
+
+describe("which space a path is in", () => {
+  it("recognises the space-shaped routes", () => {
+    expect(spaceTargetForPath("/dashboard/s/abc123")).toEqual({
+      kind: "space",
+      id: "abc123",
+    });
+    expect(spaceTargetForPath("/dashboard/p/proj1")).toEqual({
+      kind: "project",
+      id: "proj1",
+    });
+    // A task page carries its list, and a list is one hop from the space.
+    expect(spaceTargetForPath("/dashboard/l/list1/t/task1")).toEqual({
+      kind: "list",
+      id: "list1",
+    });
+    // Nested routes inside a space still resolve to that space, which is what
+    // lets the customiser live at a space path.
+    expect(spaceTargetForPath("/dashboard/s/abc123/appearance")).toEqual({
+      kind: "space",
+      id: "abc123",
+    });
+  });
+
+  it("says nothing for surfaces that belong to no space", () => {
+    // A page, a doc and a whiteboard hang off a user or a workspace, and Home
+    // hangs off nothing. Those render the person's own look.
+    for (const path of [
+      "/dashboard",
+      "/dashboard/pages/xyz",
+      "/dashboard/d/doc1",
+      "/dashboard/wb/board1",
+      "/dashboard/w/ws1",
+      "/dashboard/settings/appearance",
+      "/dashboard/spaces",
+      "/dashboard/agents/a1",
+      null,
+    ]) {
+      expect(spaceTargetForPath(path)).toBeNull();
     }
   });
 });
