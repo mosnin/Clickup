@@ -202,3 +202,22 @@ export function centersOf(elements: readonly Element[]): Point[] {
     return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
   });
 }
+
+/**
+ * Insert a widget at a specific slot — what dragging out of the tray needs.
+ *
+ * Appending and then moving would fire two layout changes and two animations
+ * for one gesture; landing it directly where the pointer let go is one.
+ */
+export function insertWidget(
+  layout: ScreenLayout,
+  id: string,
+  span: WidgetSpan,
+  at: number,
+): ScreenLayout {
+  if (layout.widgets.some((w) => w.id === id)) return layout;
+  const widgets = [...layout.widgets];
+  const slot = Math.min(Math.max(at, 0), widgets.length);
+  widgets.splice(slot, 0, { id, span: clampSpan(span) });
+  return { widgets };
+}

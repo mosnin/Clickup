@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "motion/react";
 import { api } from "@convex/_generated/api";
 import { EASE, SPRING } from "@/components/motion";
+import { traceEdge } from "@/lib/anime";
 import { cn } from "@/lib/utils";
 
 // Who else is here — people and agents in one rail.
@@ -185,4 +186,57 @@ function initials(name: string): string {
   const parts = name.trim().split(/\s+/).slice(0, 2);
   const letters = parts.map((p) => p[0]).join("");
   return (letters || "?").toUpperCase();
+}
+
+/**
+ * A line running the edge of a surface a machine is working inside.
+ *
+ * Mounted inside any `relative` container. While an agent on this surface is
+ * editing, a short stroke travels the perimeter — which says something a
+ * pulsing dot cannot: not "an agent is somewhere", but "the machine is working
+ * *in this panel*, now". The border it rides doesn't exist otherwise; the
+ * surface stays clean when nothing is happening.
+ */
+export function AgentEdge({
+  surfaceType,
+  surfaceId,
+}: {
+  surfaceType: PresenceSurface;
+  surfaceId: string;
+}) {
+  const viewers = useQuery(api.presence.viewers, { surfaceType, surfaceId });
+  const active = (viewers ?? []).some(
+    (v) => v.actorType === "agent" && v.editing,
+  );
+  const pathRef = useRef<SVGRectElement | null>(null);
+
+  useEffect(() => {
+    if (!active || !pathRef.current) return;
+    return traceEdge(pathRef.current);
+  }, [active]);
+
+  if (!active) return null;
+  return (
+    <svg
+      aria-hidden
+      className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+    >
+      <rect
+        ref={pathRef}
+        rx="16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="text-foreground/50"
+        // calc() is CSS, not SVG-attribute syntax: geometry has to come in as
+        // style or the rect silently renders at 0x0 and nothing traces.
+        style={{
+          x: 1,
+          y: 1,
+          width: "calc(100% - 2px)",
+          height: "calc(100% - 2px)",
+        }}
+      />
+    </svg>
+  );
 }

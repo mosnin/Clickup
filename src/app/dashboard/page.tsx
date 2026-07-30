@@ -9,13 +9,10 @@ import {
   AlertTriangle,
   ArrowRight,
   Bot,
-  ChevronDown,
-  ChevronUp,
   Clock,
   LayoutDashboard,
   ListChecks,
   Plus,
-  X,
   type LucideIcon,
 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -59,6 +56,11 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { errorMessage } from "@/lib/errors";
+import { wake } from "@/lib/anime";
+import {
+  EditableGrid,
+  TrayTile,
+} from "@/components/dashboard/screen/editable-grid";
 
 // Home: the Square dashboard-5 shell's page composition (Phase H), wired to
 // live Convex data. Two reactive queries drive every tile — homeOverview.get
@@ -119,6 +121,16 @@ const DEFAULT_LAYOUT: WidgetId[] = WIDGETS.map((w) => w.id);
 const WIDGET_BY_ID = new Map<WidgetId, (typeof WIDGETS)[number]>(
   WIDGETS.map((w) => [w.id, w]),
 );
+const HOME_GRID_ID = "home-grid";
+/** The registry's span strings, as the numbers the shared grid speaks. */
+const SPAN_OF: Record<WidgetId, 1 | 2 | 3> = {
+  stats: 3,
+  today: 2,
+  activity: 1,
+  projects: 3,
+  live: 2,
+  agents: 1,
+};
 
 function startOfToday(): number {
   const d = new Date();
@@ -202,19 +214,6 @@ export default function DashboardHome() {
   function applyLayout(next: WidgetId[]) {
     setDraft(next);
     persist(next);
-  }
-  function hideWidget(id: WidgetId) {
-    applyLayout(order.filter((w) => w !== id));
-  }
-  function showWidget(id: WidgetId) {
-    applyLayout([...order, id]);
-  }
-  function moveWidget(index: number, dir: -1 | 1) {
-    const j = index + dir;
-    if (j < 0 || j >= order.length) return;
-    const next = [...order];
-    [next[index], next[j]] = [next[j], next[index]];
-    applyLayout(next);
   }
   function resetLayout() {
     setDraft([...DEFAULT_LAYOUT]);
@@ -315,128 +314,98 @@ export default function DashboardHome() {
         )}
       </AnimatePresence>
 
-      {/* Customize bar: reorder/hide happens on the widgets themselves;
-          this strip holds the hidden-widget shelf + reset/done. */}
-      <AnimatePresence initial={false}>
-        {customizing && (
-          <motion.div
-            key="customize-bar"
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.3, ease: EASE }}
-            className="rounded-2xl panel p-4"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="min-w-0 flex-1 text-sm text-muted-foreground">
-                Reorder or hide the blocks on your Home. Changes save as you
-                go.
-              </p>
-              <button
-                type="button"
-                onClick={resetLayout}
-                className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-              >
-                Reset layout
-              </button>
-              <Button size="sm" onClick={() => setCustomizing(false)}>
-                Done
-              </Button>
-            </div>
-            {hidden.length > 0 && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Hidden
-                </span>
-                {hidden.map((id) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => showWidget(id)}
-                    className="rounded-full border border-dashed border-border px-3 py-1 text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-                  >
-                    + {WIDGET_BY_ID.get(id)?.title}
-                  </button>
-                ))}
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {order.length === 0 && !customizing ? (
-        <div className="rounded-2xl panel px-6 py-12 text-center">
-          <p className="text-sm text-muted-foreground">
-            Every Home block is hidden.
-          </p>
-          <button
-            type="button"
-            onClick={() => setCustomizing(true)}
-            className="mt-2 text-sm font-medium underline-offset-2 hover:underline"
-          >
-            Customize your Home
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
-          <AnimatePresence initial={false}>
-            {order.map((id, i) => {
-              const def = WIDGET_BY_ID.get(id);
-              if (!def) return null;
-              return (
-                <motion.section
-                  key={id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.97 }}
-                  transition={{ duration: 0.3, ease: EASE }}
-                  className={cn(
-                    def.span,
-                    customizing &&
-                      "rounded-2xl border border-dashed border-border p-2",
-                  )}
-                >
-                  {customizing && (
-                    <div className="mb-2 flex items-center gap-0.5 px-1">
-                      <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        {def.title}
-                      </span>
-                      <button
-                        type="button"
-                        aria-label={`Move ${def.title} up`}
-                        disabled={i === 0}
-                        onClick={() => moveWidget(i, -1)}
-                        className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
-                      >
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Move ${def.title} down`}
-                        disabled={i === order.length - 1}
-                        onClick={() => moveWidget(i, 1)}
-                        className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
-                      >
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Hide ${def.title}`}
-                        onClick={() => hideWidget(id)}
-                        className="tap-target inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  )}
-                  {widgetContent(id)}
-                </motion.section>
+      {/* The blocks, on the same physical grid every screen uses: hold one
+          until the grid wobbles (or hit Customize) and move it. Hidden blocks
+          wait on a shelf below and are dragged back on. */}
+      <EditableGrid
+        gridId={HOME_GRID_ID}
+        editing={customizing}
+        onEditingChange={setCustomizing}
+        tiles={order.flatMap((id) => {
+          const def = WIDGET_BY_ID.get(id);
+          if (!def) return [];
+          const span = SPAN_OF[id];
+          return [
+            {
+              id,
+              span,
+              title: def.title,
+              // Home blocks keep their designed widths — the freedom that
+              // matters here is order and presence, not shape.
+              minSpan: span,
+              maxSpan: span,
+              content: widgetContent(id),
+            },
+          ];
+        })}
+        layout={{ widgets: order.map((id) => ({ id, span: SPAN_OF[id] })) }}
+        onChange={(next, opts) => {
+          applyLayout(next.widgets.map((w) => w.id as WidgetId));
+          if (opts?.droppedAt !== undefined) {
+            const grid = document.getElementById(HOME_GRID_ID);
+            if (grid) {
+              wake(
+                Array.from(grid.querySelectorAll("[data-tile]")),
+                opts.droppedAt,
               );
-            })}
-          </AnimatePresence>
-        </div>
-      )}
+            }
+          }
+        }}
+        emptyMessage={
+          <div className="rounded-2xl panel px-6 py-12 text-center">
+            <p className="text-sm text-muted-foreground">
+              Every Home block is hidden.
+            </p>
+            <button
+              type="button"
+              onClick={() => setCustomizing(true)}
+              className="mt-2 text-sm font-medium underline-offset-2 hover:underline"
+            >
+              Customize your Home
+            </button>
+          </div>
+        }
+      >
+        {(editing) =>
+          editing ? (
+            <div className="rounded-2xl panel p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="min-w-0 flex-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  {hidden.length > 0
+                    ? "Drag a block back onto your Home"
+                    : "Everything is on your Home"}
+                </span>
+                <button
+                  type="button"
+                  onClick={resetLayout}
+                  className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                >
+                  Reset layout
+                </button>
+              </div>
+              {hidden.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {hidden.map((id) => (
+                    <TrayTile
+                      key={id}
+                      gridId={HOME_GRID_ID}
+                      onDrop={(slot) => {
+                        const next = [...order];
+                        next.splice(slot, 0, id);
+                        applyLayout(next);
+                      }}
+                      onClick={() => applyLayout([...order, id])}
+                      className="bento-tile cursor-grab px-3 py-2 text-sm active:cursor-grabbing"
+                    >
+                      + {WIDGET_BY_ID.get(id)?.title}
+                    </TrayTile>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null
+        }
+      </EditableGrid>
     </div>
   );
 }

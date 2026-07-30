@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { AttachedPages } from "@/components/dashboard/attached-pages";
+import { LiveNumber } from "@/components/dashboard/live-number";
 import {
   ProjectNotesCard,
   ProjectOwnerCard,
@@ -51,6 +52,8 @@ export type ProjectWidget = {
   defaultSpan: WidgetSpan;
   minSpan: WidgetSpan;
   maxSpan: WidgetSpan;
+  /** Height in grid rows. Real sizes are what make the screen look composed. */
+  rows: 1 | 2;
   render: (ctx: ProjectWidgetContext) => React.ReactNode;
 };
 
@@ -200,7 +203,11 @@ function ProgressWidget({ project, lists }: ProjectWidgetContext) {
       ) : (
         <>
           <p className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl">{pct}%</span>
+            <span className="text-3xl tabular-nums">
+              {/* When an agent completes work this number changes under you —
+                  digits resolving is how a change you didn't make gets seen. */}
+              <LiveNumber value={pct} />%
+            </span>
             <span className="text-xs text-muted-foreground">
               {done} of {total} done
             </span>
@@ -277,6 +284,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 2,
     minSpan: 1,
     maxSpan: 3,
+    rows: 1,
     render: (ctx) => <AboutWidget {...ctx} />,
   },
   {
@@ -286,6 +294,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 3,
+    rows: 1,
     render: (ctx) => <ProgressWidget {...ctx} />,
   },
   {
@@ -297,6 +306,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     // is a worse list than a list.
     minSpan: 2,
     maxSpan: 3,
+    rows: 2,
     render: (ctx) => <ListsWidget {...ctx} />,
   },
   {
@@ -306,6 +316,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 2,
+    rows: 1,
     render: ({ project }) => <ProjectStatusCard project={project} />,
   },
   {
@@ -315,6 +326,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 2,
+    rows: 1,
     render: ({ project, lists }) => (
       <ProjectOwnerCard project={project} anyListId={lists[0]?._id} />
     ),
@@ -326,6 +338,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 2,
+    rows: 1,
     render: ({ project }) => <ProjectTargetDateCard project={project} />,
   },
   {
@@ -335,6 +348,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 3,
+    rows: 2,
     render: (ctx) => <PagesWidget {...ctx} />,
   },
   {
@@ -344,6 +358,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 3,
+    rows: 1,
     render: ({ project }) => <ProjectNotesCard project={project} />,
   },
   {
@@ -353,6 +368,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 3,
+    rows: 2,
     render: (ctx) => <ActivityWidget {...ctx} />,
   },
 ];

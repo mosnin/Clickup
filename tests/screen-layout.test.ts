@@ -11,6 +11,7 @@ import {
   unusedWidgets,
   type ScreenLayout,
   slotForPointer,
+  insertWidget,
 } from "../src/lib/screen-layout";
 
 // The layout engine. The property that shapes all of it:
@@ -259,5 +260,39 @@ describe("dragging a tile to a slot", () => {
     expect(slotForPointer([], { x: 0, y: 0 }, 3)).toBe(3);
     // A stale index (the tile was removed mid-drag) must not pin the answer.
     expect(slotForPointer(centers, { x: 300, y: 100 }, 99)).toBe(2);
+  });
+});
+
+describe("inserting from the tray", () => {
+  const base = {
+    widgets: [
+      { id: "a", span: 1 as const },
+      { id: "b", span: 2 as const },
+    ],
+  };
+
+  it("lands the widget at the slot the drag ended on", () => {
+    expect(insertWidget(base, "c", 1, 1).widgets.map((w) => w.id)).toEqual([
+      "a",
+      "c",
+      "b",
+    ]);
+  });
+
+  it("clamps an out-of-range slot instead of dropping the widget", () => {
+    expect(insertWidget(base, "c", 1, 99).widgets.map((w) => w.id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+    expect(insertWidget(base, "c", 1, -5).widgets.map((w) => w.id)).toEqual([
+      "c",
+      "a",
+      "b",
+    ]);
+  });
+
+  it("ignores a duplicate, because a panel exists once", () => {
+    expect(insertWidget(base, "a", 1, 0)).toBe(base);
   });
 });

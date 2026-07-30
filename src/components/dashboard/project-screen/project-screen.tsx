@@ -9,6 +9,7 @@ import { errorMessage } from "@/lib/errors";
 import { morphLayout, wake } from "@/lib/anime";
 import {
   addWidget,
+  insertWidget,
   normalizeLayout,
   screenKey,
   unusedWidgets,
@@ -16,6 +17,7 @@ import {
 } from "@/lib/screen-layout";
 import {
   EditableGrid,
+  TrayTile,
   type EditableTile,
 } from "@/components/dashboard/screen/editable-grid";
 import {
@@ -80,6 +82,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
             title: widget.title,
             minSpan: widget.minSpan,
             maxSpan: widget.maxSpan,
+            rows: widget.rows,
             content: widget.render(ctx),
           },
         ];
@@ -107,16 +110,24 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
         editing && unplaced.length > 0 ? (
           <div className="panel rounded-2xl p-4">
             <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Add a panel
+              Drag a panel onto the screen
             </span>
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {unplaced.map((id) => {
                 const widget = widgetById(id);
                 if (!widget) return null;
                 return (
-                  <button
+                  <TrayTile
                     key={id}
-                    type="button"
+                    gridId={GRID_ID}
+                    onDrop={(slot) =>
+                      morphLayout(`#${GRID_ID}`, () =>
+                        persist(
+                          insertWidget(layout, id, widget.defaultSpan, slot),
+                          { droppedAt: slot },
+                        ),
+                      )
+                    }
                     onClick={() =>
                       morphLayout(`#${GRID_ID}`, () =>
                         persist(addWidget(layout, id, widget.defaultSpan), {
@@ -124,7 +135,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
                         }),
                       )
                     }
-                    className="bento-tile flex items-start gap-2 p-3 text-left transition-colors hover:bg-accent"
+                    className="bento-tile flex cursor-grab items-start gap-2 p-3 text-left transition-colors hover:bg-accent active:cursor-grabbing"
                   >
                     <Plus className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
                     <span className="min-w-0">
@@ -135,7 +146,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
                         {widget.description}
                       </span>
                     </span>
-                  </button>
+                  </TrayTile>
                 );
               })}
             </div>

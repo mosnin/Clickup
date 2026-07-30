@@ -18,6 +18,7 @@ import { PageBodyEditor } from "@/components/dashboard/page-editor";
 import { Comments } from "@/components/dashboard/comments";
 import { PageHistory } from "@/components/dashboard/page-history";
 import {
+  AgentEdge,
   PresenceNote,
   PresenceRail,
   usePresence,
@@ -265,7 +266,10 @@ export function PageEditor({ pageId }: { pageId: string }) {
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
-        <div className="min-w-0 space-y-4">
+        <div className="relative min-w-0 space-y-4 rounded-2xl">
+          {/* The stroke travelling this column's edge while an agent writes:
+              the document is being changed under you, and by a machine. */}
+          <AgentEdge surfaceType="page" surfaceId={id} />
           {ancestors.length > 0 && (
             <nav
               aria-label="Breadcrumb"

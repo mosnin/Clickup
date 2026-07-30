@@ -59,6 +59,13 @@ export type EditableTile = {
   title: string;
   minSpan: WidgetSpan;
   maxSpan: WidgetSpan;
+  /**
+   * Height in grid rows (1 or 2). What makes the screen look composed rather
+   * than accidental: a home screen works because widgets have real sizes, not
+   * whatever height their content happened to be. Omitted = natural height,
+   * for surfaces whose panels are genuinely content-shaped.
+   */
+  rows?: 1 | 2;
   content: React.ReactNode;
 };
 
@@ -68,6 +75,11 @@ const SPAN_CLASS: Record<number, string> = {
   3: "lg:col-span-3",
 };
 
+const ROW_CLASS: Record<number, string> = {
+  1: "lg:row-span-1",
+  2: "lg:row-span-2",
+};
+
 export function EditableGrid({
   tiles,
   layout,
@@ -75,6 +87,8 @@ export function EditableGrid({
   gridId,
   emptyMessage,
   children,
+  editing: controlledEditing,
+  onEditingChange,
 }: {
   tiles: EditableTile[];
   layout: ScreenLayout;
@@ -84,8 +98,25 @@ export function EditableGrid({
   emptyMessage?: React.ReactNode;
   /** The tray, rendered below the grid while editing. */
   children?: (editing: boolean) => React.ReactNode;
+  /**
+   * Controlled mode, for surfaces that already own an edit toggle. The
+   * long-press and Escape still work — they report through onEditingChange —
+   * and the built-in pill hides so there is one switch, not two.
+   */
+  editing?: boolean;
+  onEditingChange?: (editing: boolean) => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [selfEditing, setSelfEditing] = useState(false);
+  const controlled = controlledEditing !== undefined;
+  const editing = controlled ? controlledEditing : selfEditing;
+  const setEditing = useCallback(
+    (next: boolean | ((current: boolean) => boolean)) => {
+      const value = typeof next === "function" ? next(editing) : next;
+      if (controlled) onEditingChange?.(value);
+      else setSelfEditing(value);
+    },
+    [controlled, editing, onEditingChange],
+  );
   const gridRef = useRef<HTMLDivElement | null>(null);
   const draggables = useRef<Draggable[]>([]);
   const stopJiggle = useRef<(() => void) | null>(null);
@@ -238,7 +269,7 @@ export function EditableGrid({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editing]);
+  }, [editing, setEditing]);
 
   function reorderBy(id: string, delta: number) {
     const from = layout.widgets.findIndex((w) => w.id === id);
@@ -278,6 +309,8 @@ export function EditableGrid({
     else drop();
   }
 
+  const sized = tiles.some((t) => t.rows !== undefined);
+
   return (
     <div className="space-y-4">
       {/* The only chrome in reading mode: nothing. Editing announces itself with
@@ -289,25 +322,34 @@ export function EditableGrid({
         >
           {editing ? "Hold and drag to rearrange" : ""}
         </span>
-        <button
-          type="button"
-          aria-pressed={editing}
-          onClick={() => setEditing((e) => !e)}
-          className={cn(
-            "rounded-full px-3 py-1 text-xs transition-colors",
-            editing
-              ? "bg-foreground text-background"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {editing ? "Done" : "Arrange"}
-        </button>
+        {!controlled && (
+          <button
+            type="button"
+            aria-pressed={editing}
+            onClick={() => setEditing((e) => !e)}
+            className={cn(
+              "rounded-full px-3 py-1 text-xs transition-colors",
+              editing
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {editing ? "Done" : "Arrange"}
+          </button>
+        )}
       </div>
 
       <div
         id={gridId}
         ref={gridRef}
-        className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start"
+        className={cn(
+          "grid grid-cols-1 gap-6 lg:grid-cols-3",
+          // Sized tiles get a fixed row height, which is what makes the screen
+          // read as composed: every panel is a real size, aligned to a shared
+          // grid, instead of whatever its content happened to measure. Only at
+          // lg — on a phone the panels stack and natural height is right.
+          sized ? "lg:auto-rows-[10.5rem]" : "lg:items-start",
+        )}
       >
         {layout.widgets.map((w) => {
           const tile = tileById.get(w.id);
@@ -319,6 +361,7 @@ export function EditableGrid({
               className={cn(
                 "relative min-w-0",
                 SPAN_CLASS[w.span] ?? SPAN_CLASS[1],
+                sized && ROW_CLASS[tile.rows ?? 1],
                 editing && "touch-none select-none",
               )}
               onPointerDown={(e) => {
@@ -377,7 +420,15 @@ export function EditableGrid({
                   : undefined
               }
             >
-              <div data-tile-inner className="relative">
+              <div
+                data-tile-inner
+                className={cn(
+                  "relative",
+                  // Fill the fixed cell; content that outgrows a real size
+                  // scrolls inside it, exactly as a widget does on a phone.
+                  sized && "lg:h-full lg:overflow-y-auto lg:[&>*]:h-full",
+                )}
+              >
                 {tile.content}
 
                 {editing && (
@@ -430,6 +481,114 @@ export function EditableGrid({
       {layout.widgets.length === 0 && !editing && emptyMessage}
 
       {children?.(editing)}
+    </div>
+  );
+}
+
+/**
+ * A panel waiting in the tray, added by dragging it into the grid.
+ *
+ * The tray is a shelf, not a settings list: you pull a panel out of it and drop
+ * it where it should live, and it lands in that slot — one gesture, one
+ * animation. Click still works (it appends), because drag-out cannot be the
+ * only path any more than long-press can.
+ *
+ * On release the tile's centre is tested against the grid: over it → insert at
+ * the nearest slot; anywhere else → spring back to the shelf, which is how a
+ * gesture gets cancelled without a cancel button.
+ */
+export function TrayTile({
+  gridId,
+  onDrop,
+  onClick,
+  children,
+  className,
+}: {
+  gridId: string;
+  /** slot is where in the grid order the drop landed. */
+  onDrop: (slot: number) => void;
+  onClick: () => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const dragging = useRef(false);
+  // Suppress the click that fires after a real drag, so a pull-out doesn't
+  // also append a second copy.
+  const moved = useRef(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const draggable = createDraggable(el, {
+      ...RELEASE,
+      cursor: false,
+      dragThreshold: 6,
+      onGrab: () => {
+        dragging.current = true;
+        moved.current = false;
+        el.style.zIndex = "40";
+      },
+      onDrag: (self) => {
+        moved.current = true;
+        velocityDeform(el, self.velocity, self.angle);
+      },
+      onRelease: (self) => {
+        dragging.current = false;
+        settleDeform(el);
+        el.style.zIndex = "";
+        if (!moved.current) {
+          self.reset();
+          return;
+        }
+        const grid = document.getElementById(gridId);
+        const box = el.getBoundingClientRect();
+        const center = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        const gridBox = grid?.getBoundingClientRect();
+        const overGrid =
+          gridBox !== undefined &&
+          center.x >= gridBox.left &&
+          center.x <= gridBox.right &&
+          center.y >= gridBox.top - 40 &&
+          center.y <= gridBox.bottom + 40;
+        if (grid && overGrid) {
+          const tiles = Array.from(grid.querySelectorAll("[data-tile]"));
+          const slot =
+            tiles.length === 0
+              ? 0
+              : slotForPointer(centersOf(tiles), center, -1, 0);
+          // Snap the ghost home instantly; the real panel appears in the grid.
+          self.reset();
+          onDrop(Math.max(0, slot));
+        } else {
+          // Not a drop — a change of mind. Spring back to the shelf.
+          self.reset();
+        }
+      },
+    });
+    return () => {
+      draggable.revert();
+    };
+  }, [gridId, onDrop]);
+
+  return (
+    <div
+      ref={ref}
+      role="button"
+      tabIndex={0}
+      onClick={() => {
+        if (!moved.current) onClick();
+        moved.current = false;
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={cn("touch-none", className)}
+    >
+      {children}
     </div>
   );
 }

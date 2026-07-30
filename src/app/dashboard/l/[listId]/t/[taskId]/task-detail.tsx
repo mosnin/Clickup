@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Picker } from "@/components/ui/picker";
 import { PageHeader } from "@/components/dashboard/page-header";
 import {
+  AgentEdge,
   PresenceNote,
   PresenceRail,
   usePresence,
@@ -319,7 +320,11 @@ function TaskEditor({
 
       <TaskBanners task={task} listId={listId} />
 
-      <div className="gap-10 lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+      <div className="relative gap-10 rounded-2xl lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+        {/* The machine's edge: a stroke travels this container's perimeter
+            while an agent is writing to the task, so "something is changing
+            this" is visible from across the room. */}
+        <AgentEdge surfaceType="task" surfaceId={task._id} />
         {/* ── Content column ── */}
         <div className="min-w-0 space-y-8">
           <div>
