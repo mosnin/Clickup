@@ -154,6 +154,32 @@
   --ui-muted-toward-bg: 0%;
 }
 
+/* ── Light and shade, per theme ───────────────────────────────────────────
+   The surface treatments in lib/appearance.ts are written against these two
+   tokens rather than against hard-coded rgb, because that file runs once and
+   writes inline custom properties — it cannot know which theme is on, and an
+   inline colour would outrank the theme rule if it tried. A near-black shadow
+   on a near-black surface is invisible, which is why "raised" appeared to do
+   nothing in dark mode.
+
+   `--ui-glint` is the lit edge and `--ui-shade` the cast one; together they
+   are what makes the raised treatment read as extruded from the canvas rather
+   than floating above it. */
+:root {
+  --ui-shade: rgb(16 16 18 / 0.16);
+  --ui-shade-weak: rgb(16 16 18 / 0.06);
+  --ui-glint: rgb(255 255 255 / 0.7);
+  --ui-glint-strong: rgb(255 255 255 / 0.95);
+}
+:root[data-theme="dark"] {
+  /* Dark surfaces need a much heavier cast shadow and only a whisper of
+     glint — a 70%-white edge on charcoal reads as a bug, not a highlight. */
+  --ui-shade: rgb(0 0 0 / 0.62);
+  --ui-shade-weak: rgb(0 0 0 / 0.35);
+  --ui-glint: rgb(255 255 255 / 0.045);
+  --ui-glint-strong: rgb(255 255 255 / 0.06);
+}
+
 /* ── Secondary text, at the reader's contrast ─────────────────────────────
    The base grey is owned by the stylesheet (and differs per theme); the
    preference only says how far to push it. Done this way round because the
@@ -384,9 +410,24 @@ body {
   opacity: 0;
   pointer-events: none;
 }
-/* No gap reserved in the flow — that is the whole point of floating. */
+/* The gap stays.
+
+   It used to be `display: none`, on the theory that floating means the content
+   runs genuinely full width with the nav over it. In practice the nav is
+   always on screen, so "over it" means "permanently covering the leftmost
+   column of every page" — the first item of every list sat underneath the
+   sidebar and could not be read or clicked. Floating is a *look*: a detached
+   panel with air around it. It still occupies its column. */
 [data-sidebar="floating"] [data-slot="sidebar-gap"] {
-  display: none;
+  display: block;
+  /* The panel is inset by 0.75rem on each side, so the flow needs that much
+     more than the panel's own width or the gutter closes up. */
+  width: calc(var(--sidebar-width) + 1.5rem);
+}
+/* Collapsed, it gives the space back rather than leaving a hole. */
+[data-sidebar="floating"] [data-state="collapsed"] [data-slot="sidebar-gap"],
+[data-sidebar="floating"] [data-slot="sidebar"][data-state="collapsed"] [data-slot="sidebar-gap"] {
+  width: 0;
 }
 
 /* The width the sidebar takes, wherever it is. */

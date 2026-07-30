@@ -536,6 +536,21 @@ const DENSITY_TOKENS: Record<Density, { gap: string; row: string; pad: string }>
 
 // Written out rather than generated: these are design decisions, and a loop
 // that produced them would be a loop nobody could read.
+/**
+ * The surface treatments.
+ *
+ * Shadows are expressed against two tokens the *stylesheet* owns —
+ * `--ui-shade` (the dark side) and `--ui-glint` (the lit side) — rather than
+ * hard-coded rgb. That is the fix for "raised does nothing in dark mode": a
+ * near-black shadow on a near-black surface is invisible, and this file cannot
+ * know which theme is on because it runs once and writes inline tokens that
+ * would outrank the theme rule anyway. globals.css sets the two per theme.
+ *
+ * `raised` is genuinely neomorphic — light from the top-left, shade to the
+ * bottom-right — rather than a drop shadow with more blur. That is what makes
+ * it read as extruded from the canvas instead of floating above it, and it is
+ * the one treatment that needs both sides to exist.
+ */
 const SURFACES: Record<SurfaceStyle, { shadow: string; tile: string; border: string }> = {
   flat: {
     shadow: "none",
@@ -543,13 +558,14 @@ const SURFACES: Record<SurfaceStyle, { shadow: string; tile: string; border: str
     border: "1px solid var(--color-border)",
   },
   soft: {
-    shadow: "0 1px 2px rgb(16 16 16 / 0.04), 0 8px 24px -12px rgb(16 16 16 / 0.10)",
-    tile: "inset 0 1px 0 rgb(255 255 255 / 0.6)",
+    shadow: "0 1px 2px var(--ui-shade-weak), 0 8px 24px -12px var(--ui-shade)",
+    tile: "inset 0 1px 0 var(--ui-glint)",
     border: "1px solid transparent",
   },
   raised: {
-    shadow: "0 2px 4px rgb(16 16 16 / 0.06), 0 18px 40px -16px rgb(16 16 16 / 0.22)",
-    tile: "inset 0 1px 0 rgb(255 255 255 / 0.7)",
+    shadow:
+      "7px 7px 16px var(--ui-shade), -7px -7px 16px var(--ui-glint-strong), inset 0 1px 0 var(--ui-glint)",
+    tile: "inset 2px 2px 5px var(--ui-shade-weak), inset -2px -2px 5px var(--ui-glint)",
     border: "1px solid transparent",
   },
   bordered: {

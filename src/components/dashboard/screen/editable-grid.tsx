@@ -23,6 +23,7 @@ import {
   slotForPointer,
   type ScreenLayout,
   type WidgetSpan,
+  type WidgetRows,
 } from "@/lib/screen-layout";
 import { cn } from "@/lib/utils";
 
@@ -78,9 +79,17 @@ const SPAN_CLASS: Record<number, string> = {
   3: "lg:col-span-3",
 };
 
+/** Columns in the desktop grid. The one place that number lives. */
+const GRID_COLUMNS = 3;
+/** Tallest a panel can be made. Past three rows it is a page, not a panel. */
+const MAX_ROWS = 3;
+/** Matches `lg:auto-rows-[10.5rem]`, for the first frame before measuring. */
+const ROW_HEIGHT_FALLBACK = 168;
+
 const ROW_CLASS: Record<number, string> = {
   1: "lg:row-span-1",
   2: "lg:row-span-2",
+  3: "lg:row-span-3",
 };
 
 export function EditableGrid({
@@ -123,9 +132,11 @@ export function EditableGrid({
   const gridRef = useRef<HTMLDivElement | null>(null);
   // The width a resize drag has reached, before it commits. Local only: the
   // tile must move under the finger, but a width is not saved until you let go.
-  const [preview, setPreview] = useState<{ id: string; span: WidgetSpan } | null>(
-    null,
-  );
+  const [preview, setPreview] = useState<{
+    id: string;
+    span: WidgetSpan;
+    rows: WidgetRows;
+  } | null>(null);
   const draggables = useRef<Draggable[]>([]);
   const stopJiggle = useRef<(() => void) | null>(null);
   const field = useRef<ReturnType<typeof createMagneticField> | null>(null);
@@ -307,19 +318,22 @@ export function EditableGrid({
     );
   }
 
-  /** Set a width directly — what a drag reports, unlike the +/- delta. */
-  function setSpan(id: string, span: WidgetSpan) {
+  /** Set a size directly — what a drag reports, unlike the +/- delta. */
+  function setSize(id: string, span: WidgetSpan, rows: WidgetRows) {
     const tile = tileById.get(id);
     if (!tile) return;
-    const clamped = Math.min(
+    const clampedSpan = Math.min(
       Math.max(span, tile.minSpan),
       tile.maxSpan,
     ) as WidgetSpan;
-    if (layout.widgets.find((w) => w.id === id)?.span === clamped) return;
+    const clampedRows = Math.min(Math.max(rows, 1), MAX_ROWS) as WidgetRows;
+    const current = layout.widgets.find((w) => w.id === id);
+    const currentRows = current?.rows ?? tile.rows ?? 1;
+    if (current?.span === clampedSpan && currentRows === clampedRows) return;
     morphLayout(gridRef.current ?? `#${gridId}`, () =>
       commit({
         widgets: layout.widgets.map((w) =>
-          w.id === id ? { ...w, span: clamped } : w,
+          w.id === id ? { ...w, span: clampedSpan, rows: clampedRows } : w,
         ),
       }),
     );
@@ -396,10 +410,11 @@ export function EditableGrid({
         {layout.widgets.map((w) => {
           const tile = tileById.get(w.id);
           if (!tile) return null;
-          // A drag in progress shows its own width; everything else shows the
-          // saved one.
-          const span =
-            preview && preview.id === w.id ? preview.span : w.span;
+          // A drag in progress shows its own size; everything else shows the
+          // saved one, falling back to the height the panel was designed at.
+          const live = preview && preview.id === w.id ? preview : null;
+          const span = live ? live.span : w.span;
+          const rows = live ? live.rows : (w.rows ?? tile.rows ?? 1);
           return (
             <div
               key={w.id}
@@ -409,7 +424,7 @@ export function EditableGrid({
                 // hover without every tile's chrome shouting at once.
                 "group/tile relative min-w-0",
                 SPAN_CLASS[span] ?? SPAN_CLASS[1],
-                sized && ROW_CLASS[tile.rows ?? 1],
+                sized && (ROW_CLASS[rows] ?? ROW_CLASS[1]),
                 editing && "touch-none select-none",
               )}
               onPointerDown={(e) => {
@@ -551,12 +566,15 @@ export function EditableGrid({
                     <ResizeGrip
                       label={tile.title}
                       span={w.span}
+                      rows={rows}
                       min={tile.minSpan}
                       max={tile.maxSpan}
                       gridId={gridId}
-                      onResize={(next: WidgetSpan) => setSpan(w.id, next)}
+                      onResize={(nextSpan, nextRows) =>
+                        setSize(w.id, nextSpan, nextRows)
+                      }
                       onPreview={(next) =>
-                        setPreview(next === null ? null : { id: w.id, span: next })
+                        setPreview(next === null ? null : { id: w.id, ...next })
                       }
                     />
                   )}
@@ -729,6 +747,7 @@ export function TrayTile({
 function ResizeGrip({
   label,
   span,
+  rows,
   min,
   max,
   gridId,
@@ -737,12 +756,13 @@ function ResizeGrip({
 }: {
   label: string;
   span: WidgetSpan;
+  rows: WidgetRows;
   min: WidgetSpan;
   max: WidgetSpan;
   gridId: string;
-  onResize: (span: WidgetSpan) => void;
-  /** Live width during the drag; null when the gesture ends. Never persisted. */
-  onPreview: (span: WidgetSpan | null) => void;
+  onResize: (span: WidgetSpan, rows: WidgetRows) => void;
+  /** Live size during the drag; null when the gesture ends. Never persisted. */
+  onPreview: (size: { span: WidgetSpan; rows: WidgetRows } | null) => void;
 }) {
   const ref = useRef<HTMLButtonElement | null>(null);
   // Everything the drag reads lives in refs. The previous version listed
@@ -753,6 +773,8 @@ function ResizeGrip({
   // for the whole gesture.
   const spanRef = useRef(span);
   spanRef.current = span;
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
   const boundsRef = useRef({ min, max });
   boundsRef.current = { min, max };
   const onResizeRef = useRef(onResize);
@@ -764,11 +786,14 @@ function ResizeGrip({
     const el = ref.current;
     if (!el) return;
     let startX = 0;
+    let startY = 0;
     let startSpan: WidgetSpan = 1;
+    let startRows: WidgetRows = 1;
     let column = 0;
+    let rowHeight = 0;
     let dragging = false;
-    /** The width the drag has reached, or null when nothing has changed. */
-    let lastReported: WidgetSpan | null = null;
+    /** The size the drag has reached, or null when nothing has changed. */
+    let lastReported: { span: WidgetSpan; rows: WidgetRows } | null = null;
 
     const onDown = (e: PointerEvent) => {
       // Native listener, and it stops the event here: the tile above is an
@@ -778,36 +803,56 @@ function ResizeGrip({
       e.stopPropagation();
       dragging = true;
       startX = e.clientX;
+      startY = e.clientY;
       startSpan = spanRef.current;
+      startRows = rowsRef.current;
       const grid = document.getElementById(gridId);
-      // One column, measured from the live grid rather than assumed: the shell
-      // is resizable and the sidebar can move or dock, so a hardcoded width
-      // would drift out of agreement with what is on screen.
+      // One column and one row, measured from the live grid rather than
+      // assumed: the shell is resizable and the sidebar can move or dock, so
+      // hardcoded sizes would drift out of agreement with what is on screen.
       const gridWidth = grid?.getBoundingClientRect().width ?? 0;
-      column = gridWidth > 0 ? gridWidth / 3 : 320;
+      column = gridWidth > 0 ? gridWidth / GRID_COLUMNS : 320;
+      // The row height comes from the tile being dragged rather than from the
+      // grid, because the grid's height is however many rows happen to exist.
+      const tileBox = el.closest("[data-tile]")?.getBoundingClientRect();
+      rowHeight =
+        tileBox && tileBox.height > 0
+          ? tileBox.height / Math.max(1, startRows)
+          : ROW_HEIGHT_FALLBACK;
       try {
         el.setPointerCapture(e.pointerId);
       } catch {
         // A synthetic or already-released pointer; the window listeners below
         // still carry the gesture.
       }
-      document.body.style.cursor = "ew-resize";
+      document.body.style.cursor = "nwse-resize";
     };
 
     const onMove = (e: PointerEvent) => {
       if (!dragging) return;
       e.preventDefault();
       const columns = Math.round((e.clientX - startX) / column);
+      const rowDelta = Math.round((e.clientY - startY) / rowHeight);
       const { min: lo, max: hi } = boundsRef.current;
-      const next = Math.min(
+      const nextSpan = Math.min(
         Math.max(startSpan + columns, lo),
         hi,
       ) as WidgetSpan;
-      if (next === lastReported) return;
-      lastReported = next;
+      const nextRows = Math.min(
+        Math.max(startRows + rowDelta, 1),
+        MAX_ROWS,
+      ) as WidgetRows;
+      if (
+        lastReported &&
+        lastReported.span === nextSpan &&
+        lastReported.rows === nextRows
+      ) {
+        return;
+      }
+      lastReported = { span: nextSpan, rows: nextRows };
       // Preview locally on every threshold crossing — the tile has to move
-      // under the finger or this isn't resizing, it's submitting a width.
-      onPreviewRef.current(next);
+      // under the finger or this isn't resizing, it's submitting a size.
+      onPreviewRef.current(lastReported);
     };
 
     const onUp = () => {
@@ -825,8 +870,11 @@ function ResizeGrip({
       const settled = lastReported;
       lastReported = null;
       onPreviewRef.current(null);
-      if (settled !== null && settled !== spanRef.current) {
-        onResizeRef.current(settled);
+      if (
+        settled !== null &&
+        (settled.span !== spanRef.current || settled.rows !== rowsRef.current)
+      ) {
+        onResizeRef.current(settled.span, settled.rows);
       }
     };
 
@@ -852,12 +900,12 @@ function ResizeGrip({
     <button
       ref={ref}
       type="button"
-      aria-label={`Resize ${label}. ${span} of 3 columns. Drag sideways, or use the plus and minus buttons.`}
+      aria-label={`Resize ${label}. ${span} of ${GRID_COLUMNS} columns, ${rows} rows tall. Drag to resize, or use the plus and minus buttons for width.`}
       // A generous invisible hit area with a quiet mark inside it: the target
       // needs to be easy to hit, the graphic does not need to be loud. Sits
       // inside the tile's corner rather than hanging off it, so it can never
       // be clipped by a neighbour or land in the gutter.
-      className="absolute bottom-0 right-0 z-20 flex h-9 w-9 cursor-ew-resize touch-none items-end justify-end rounded-br-2xl p-1.5 text-muted-foreground opacity-60 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover/tile:opacity-100"
+      className="absolute bottom-0 right-0 z-20 flex h-9 w-9 cursor-nwse-resize touch-none items-end justify-end rounded-br-2xl p-1.5 text-muted-foreground opacity-60 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover/tile:opacity-100"
     >
       <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden>
         {/* Two corner strokes: the universal "pull me" mark, pointing along

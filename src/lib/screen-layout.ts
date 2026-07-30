@@ -14,15 +14,38 @@
 /** How many columns of the 3-wide grid a widget occupies. */
 export type WidgetSpan = 1 | 2 | 3;
 
-export type ScreenWidget = { id: string; span: WidgetSpan };
+/**
+ * How many grid rows tall a widget is.
+ *
+ * Height used to be a property of the *widget definition* — whoever wrote the
+ * panel decided how tall it was, forever, for everyone. That is the wrong
+ * owner: how much room a chart deserves on your screen is your judgement, not
+ * the judgement of the person who wrote the chart. Absent means "the height
+ * the panel was designed at", which is what keeps a layout sparse.
+ */
+export type WidgetRows = 1 | 2 | 3;
+
+export type ScreenWidget = {
+  id: string;
+  span: WidgetSpan;
+  rows?: WidgetRows;
+};
 
 export type ScreenLayout = { widgets: ScreenWidget[] };
 
 const SPANS: WidgetSpan[] = [1, 2, 3];
+const ROWS: WidgetRows[] = [1, 2, 3];
 
 function clampSpan(value: unknown, fallback: WidgetSpan = 1): WidgetSpan {
   const n = typeof value === "number" ? Math.round(value) : Number.NaN;
   return (SPANS as number[]).includes(n) ? (n as WidgetSpan) : fallback;
+}
+
+/** Undefined stays undefined: absence means "whatever it was designed at". */
+function clampRows(value: unknown): WidgetRows | undefined {
+  if (value === undefined || value === null) return undefined;
+  const n = typeof value === "number" ? Math.round(value) : Number.NaN;
+  return (ROWS as number[]).includes(n) ? (n as WidgetRows) : undefined;
 }
 
 /**
@@ -47,7 +70,14 @@ export function normalizeLayout(
     const id = (entry as { id?: unknown })?.id;
     if (typeof id !== "string" || !known.has(id) || seen.has(id)) continue;
     seen.add(id);
-    widgets.push({ id, span: clampSpan((entry as { span?: unknown }).span) });
+    const rows = clampRows((entry as { rows?: unknown }).rows);
+    widgets.push({
+      id,
+      span: clampSpan((entry as { span?: unknown }).span),
+      // Only carried when it was actually set. A layout that stored every
+      // widget's designed height could never track a redesign of that widget.
+      ...(rows === undefined ? {} : { rows }),
+    });
   }
   return { widgets };
 }

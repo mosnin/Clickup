@@ -207,8 +207,9 @@ describe("resizing", () => {
 
     window.dispatchEvent(pointerEvent("pointerup", { clientX: 620, clientY: 0 }));
     expect(onChange).toHaveBeenCalledTimes(1);
+    // Height comes back too: a resize sets a size, not a width.
     expect(onChange.mock.calls[0][0]).toEqual({
-      widgets: [{ id: "a", span: 3 }],
+      widgets: [{ id: "a", span: 3, rows: 1 }],
     });
   });
 

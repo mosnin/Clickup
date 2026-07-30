@@ -38,7 +38,11 @@ describe("defaults", () => {
     expect(tokens["--ui-motion-scale"]).toBe("1.000");
     expect(tokens["--ui-pad"]).toBe("1.25rem");
     expect(tokens["--ui-sidebar-width"]).toBe("16.00rem");
-    expect(tokens["--ui-surface-shadow"]).toContain("rgb(16 16 16 / 0.04)");
+    // Shadows are written against tokens the stylesheet owns per theme, not
+    // against literal rgb: a near-black shadow on a near-black surface is
+    // invisible, and this function cannot know which theme is on.
+    expect(tokens["--ui-surface-shadow"]).toContain("var(--ui-shade)");
+    expect(tokens["--ui-surface-shadow"]).not.toMatch(/rgb\(/);
   });
 
   it("is the Editorial preset", () => {
