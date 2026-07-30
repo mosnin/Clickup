@@ -93,6 +93,8 @@ export function SidebarDock() {
     let startX = 0;
     let startY = 0;
     let engaged = false;
+    /** Whether this binding has written a transform that needs undoing. */
+    let touched = false;
     let pointerId: number | null = null;
     // The click event arrives AFTER pointerup, by which time the drag state is
     // already cleared — so suppression needs its own flag or the nav link
@@ -106,6 +108,7 @@ export function SidebarDock() {
 
     const lift = () => {
       engaged = true;
+      touched = true;
       if (pointerId !== null) {
         try {
           container.setPointerCapture(pointerId);
@@ -147,8 +150,17 @@ export function SidebarDock() {
      * that made the sidebar impossible to put back.
      */
     const settle = () => {
+      // Only undo a transform we actually wrote. Writing an identity transform
+      // unconditionally looks harmless and is not: an inline
+      // `transform: translateX(0)` outranks the stylesheet, and the floating
+      // sidebar collapses by way of a CSS `translateX(calc(-100% - 1rem))` —
+      // so an untouched sidebar that had merely been re-bound could never
+      // slide away again.
+      if (!touched) return;
+      touched = false;
       container.style.cursor = "";
       animeSet(container, { x: 0, y: 0, scale: 1, rotate: 0 });
+      container.style.transform = "";
       container.style.willChange = "";
       container.style.zIndex = "";
       container.style.transition = "";
@@ -175,6 +187,19 @@ export function SidebarDock() {
       startX = e.clientX;
       startY = e.clientY;
       pointerId = e.pointerId;
+
+      // The handle drags on contact.
+      //
+      // The long-press exists to disambiguate a grab from clicking the nav
+      // link under your finger. A handle that does nothing else needs no
+      // disambiguation — and asking someone to hold 650ms without moving more
+      // than 8px on a rail with twelve pixels of padding is not a gesture,
+      // it's a lottery. That is why the dock "could not be grabbed".
+      if ((e.target as HTMLElement | null)?.closest("[data-nav-grab]")) {
+        e.preventDefault();
+        lift();
+        return;
+      }
       holdTimer = setTimeout(lift, HOLD_MS);
     };
 

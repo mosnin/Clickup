@@ -121,6 +121,11 @@ export function EditableGrid({
     [controlled, editing, onEditingChange],
   );
   const gridRef = useRef<HTMLDivElement | null>(null);
+  // The width a resize drag has reached, before it commits. Local only: the
+  // tile must move under the finger, but a width is not saved until you let go.
+  const [preview, setPreview] = useState<{ id: string; span: WidgetSpan } | null>(
+    null,
+  );
   const draggables = useRef<Draggable[]>([]);
   const stopJiggle = useRef<(() => void) | null>(null);
   const field = useRef<ReturnType<typeof createMagneticField> | null>(null);
@@ -391,13 +396,19 @@ export function EditableGrid({
         {layout.widgets.map((w) => {
           const tile = tileById.get(w.id);
           if (!tile) return null;
+          // A drag in progress shows its own width; everything else shows the
+          // saved one.
+          const span =
+            preview && preview.id === w.id ? preview.span : w.span;
           return (
             <div
               key={w.id}
               data-tile={w.id}
               className={cn(
-                "relative min-w-0",
-                SPAN_CLASS[w.span] ?? SPAN_CLASS[1],
+                // `group/tile` is what lets the width control reveal itself on
+                // hover without every tile's chrome shouting at once.
+                "group/tile relative min-w-0",
+                SPAN_CLASS[span] ?? SPAN_CLASS[1],
                 sized && ROW_CLASS[tile.rows ?? 1],
                 editing && "touch-none select-none",
               )}
@@ -473,57 +484,81 @@ export function EditableGrid({
                   tile scrolls its content, and a scroll container clips
                   its overflowing children — badges hung off the corners
                   would simply be invisible on every sized screen. */}
+              {/* The edit chrome.
+
+                  It used to be three solid-black blobs hung off every tile —
+                  a remove circle, a resize circle and a width pill — which on
+                  a four-tile row is twelve black dots reading as holes punched
+                  in the screen, and on a dark theme they disappear into it.
+
+                  One control cluster now, on one edge, in the surface colour
+                  with a hairline: chrome should look like it sits ON the app
+                  rather than like the app is missing pieces. Remove stays
+                  permanently visible (it is the one thing you must be able to
+                  find); the width control fades up on hover or keyboard focus,
+                  and stays up while its own drag is in flight. */}
               {editing && (
                 <>
-                  {/* Badges, phone-style: on the tile, not in a panel. */}
-                  <button
-                    type="button"
-                    aria-label={`Remove ${tile.title}`}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={() => remove(w.id)}
-                    className="absolute -left-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-foreground text-background shadow-lg"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                  {tile.minSpan !== tile.maxSpan && (
-                    <>
-                      {/* Drag the corner to resize — the direct-manipulation
-                          path, matching how everything else here works. */}
-                      <ResizeGrip
-                        label={tile.title}
-                        span={w.span}
-                        min={tile.minSpan}
-                        max={tile.maxSpan}
-                        gridId={gridId}
-                        onResize={(next: WidgetSpan) => setSpan(w.id, next)}
-                      />
-                      {/* The same change, reachable without a pointer. */}
-                      <div className="absolute -bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-foreground px-1 py-0.5 text-background shadow-lg">
+                  <div className="pointer-events-none absolute -top-2.5 right-2 z-20 flex items-center gap-1">
+                    {tile.minSpan !== tile.maxSpan && (
+                      <div
+                        className={cn(
+                          "pointer-events-auto flex items-center gap-0.5 rounded-full bg-card p-0.5 text-foreground shadow-md ring-1 ring-border transition-opacity duration-150",
+                          preview?.id === w.id
+                            ? "opacity-100"
+                            : "opacity-0 group-hover/tile:opacity-100 group-focus-within/tile:opacity-100",
+                        )}
+                      >
                         <button
                           type="button"
                           aria-label={`Make ${tile.title} narrower`}
-                          disabled={w.span <= tile.minSpan}
+                          disabled={span <= tile.minSpan}
                           onPointerDown={(e) => e.stopPropagation()}
                           onClick={() => resize(w.id, -1)}
-                          className="flex h-5 w-5 items-center justify-center rounded-full disabled:opacity-40"
+                          className="tap-target flex h-5 w-5 items-center justify-center rounded-full hover:bg-muted disabled:opacity-30"
                         >
                           <Minus className="h-3 w-3" />
                         </button>
-                        <span className="px-0.5 text-[10px] tabular-nums">
-                          {w.span}
+                        <span className="min-w-7 px-0.5 text-center text-[10px] tabular-nums text-muted-foreground">
+                          {span}/{tile.maxSpan}
                         </span>
                         <button
                           type="button"
                           aria-label={`Make ${tile.title} wider`}
-                          disabled={w.span >= tile.maxSpan}
+                          disabled={span >= tile.maxSpan}
                           onPointerDown={(e) => e.stopPropagation()}
                           onClick={() => resize(w.id, 1)}
-                          className="flex h-5 w-5 items-center justify-center rounded-full disabled:opacity-40"
+                          className="tap-target flex h-5 w-5 items-center justify-center rounded-full hover:bg-muted disabled:opacity-30"
                         >
                           <Plus className="h-3 w-3" />
                         </button>
                       </div>
-                    </>
+                    )}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${tile.title}`}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => remove(w.id)}
+                      className="tap-target pointer-events-auto flex h-6 w-6 items-center justify-center rounded-full bg-card text-foreground shadow-md ring-1 ring-border hover:bg-muted"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+
+                  {tile.minSpan !== tile.maxSpan && (
+                    /* Drag the corner to resize — the direct-manipulation
+                       path, matching how everything else here works. */
+                    <ResizeGrip
+                      label={tile.title}
+                      span={w.span}
+                      min={tile.minSpan}
+                      max={tile.maxSpan}
+                      gridId={gridId}
+                      onResize={(next: WidgetSpan) => setSpan(w.id, next)}
+                      onPreview={(next) =>
+                        setPreview(next === null ? null : { id: w.id, span: next })
+                      }
+                    />
                   )}
                 </>
               )}
@@ -698,6 +733,7 @@ function ResizeGrip({
   max,
   gridId,
   onResize,
+  onPreview,
 }: {
   label: string;
   span: WidgetSpan;
@@ -705,6 +741,8 @@ function ResizeGrip({
   max: WidgetSpan;
   gridId: string;
   onResize: (span: WidgetSpan) => void;
+  /** Live width during the drag; null when the gesture ends. Never persisted. */
+  onPreview: (span: WidgetSpan | null) => void;
 }) {
   const ref = useRef<HTMLButtonElement | null>(null);
   // Everything the drag reads lives in refs. The previous version listed
@@ -719,6 +757,8 @@ function ResizeGrip({
   boundsRef.current = { min, max };
   const onResizeRef = useRef(onResize);
   onResizeRef.current = onResize;
+  const onPreviewRef = useRef(onPreview);
+  onPreviewRef.current = onPreview;
 
   useEffect(() => {
     const el = ref.current;
@@ -727,6 +767,8 @@ function ResizeGrip({
     let startSpan: WidgetSpan = 1;
     let column = 0;
     let dragging = false;
+    /** The width the drag has reached, or null when nothing has changed. */
+    let lastReported: WidgetSpan | null = null;
 
     const onDown = (e: PointerEvent) => {
       // Native listener, and it stops the event here: the tile above is an
@@ -761,15 +803,31 @@ function ResizeGrip({
         Math.max(startSpan + columns, lo),
         hi,
       ) as WidgetSpan;
-      // Reporting on every threshold crossing rather than on release is what
-      // makes it feel like resizing rather than submitting a width.
-      if (next !== spanRef.current) onResizeRef.current(next);
+      if (next === lastReported) return;
+      lastReported = next;
+      // Preview locally on every threshold crossing — the tile has to move
+      // under the finger or this isn't resizing, it's submitting a width.
+      onPreviewRef.current(next);
     };
 
     const onUp = () => {
       if (!dragging) return;
       dragging = false;
       document.body.style.cursor = "";
+      // Commit ONCE, on release.
+      //
+      // This used to call the real onResize on every column crossed, and on
+      // Home each of those is a Convex mutation whose resolution clears the
+      // optimistic draft. A drag from one column to three fired two racing
+      // writes that fought the local preview, so the tile snapped back and
+      // resizing looked broken — while the maths underneath was correct the
+      // whole time. One gesture is one intention, so it is one write.
+      const settled = lastReported;
+      lastReported = null;
+      onPreviewRef.current(null);
+      if (settled !== null && settled !== spanRef.current) {
+        onResizeRef.current(settled);
+      }
     };
 
     el.addEventListener("pointerdown", onDown);
@@ -795,9 +853,13 @@ function ResizeGrip({
       ref={ref}
       type="button"
       aria-label={`Resize ${label}. ${span} of 3 columns. Drag sideways, or use the plus and minus buttons.`}
-      className="absolute -bottom-2.5 -right-2.5 z-20 flex h-7 w-7 cursor-ew-resize touch-none items-center justify-center rounded-full bg-foreground text-background shadow-lg"
+      // A generous invisible hit area with a quiet mark inside it: the target
+      // needs to be easy to hit, the graphic does not need to be loud. Sits
+      // inside the tile's corner rather than hanging off it, so it can never
+      // be clipped by a neighbour or land in the gutter.
+      className="absolute bottom-0 right-0 z-20 flex h-9 w-9 cursor-ew-resize touch-none items-end justify-end rounded-br-2xl p-1.5 text-muted-foreground opacity-60 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover/tile:opacity-100"
     >
-      <svg viewBox="0 0 12 12" className="h-3.5 w-3.5" aria-hidden>
+      <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden>
         {/* Two corner strokes: the universal "pull me" mark, pointing along
             the axis the drag actually works on. */}
         <path

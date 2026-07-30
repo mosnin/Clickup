@@ -187,6 +187,24 @@ function SidebarHeaderSwitcher() {
 
   return (
     <SidebarHeader>
+      {/* The grab handle for the whole navigation.
+          Holding the sidebar body still works — it has to, because that is the
+          gesture the dock teaches — but a hold is undiscoverable and easy to
+          fumble, so there is also a target that says what it does and starts
+          dragging on contact. Handled in components/appearance/sidebar-dock.tsx,
+          which listens on the container and looks for this attribute. */}
+      <span
+        data-nav-grab
+        title="Drag to move the navigation"
+        aria-hidden
+        className="mx-auto mb-1 hidden h-3 w-8 cursor-grab touch-none items-center justify-center rounded-full text-muted-foreground/40 transition-colors hover:bg-sidebar-accent hover:text-foreground active:cursor-grabbing md:flex"
+      >
+        <svg viewBox="0 0 16 4" className="h-1 w-4" aria-hidden>
+          {[2, 8, 14].map((x) => (
+            <circle key={x} cx={x} cy="2" r="1" fill="currentColor" />
+          ))}
+        </svg>
+      </span>
       <DropdownMenu>
         <DropdownMenuTrigger className="flex w-full min-w-0 items-center gap-2 rounded-lg p-1 text-left outline-none hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center">
           <Orb seed={currentSeed} label={currentName} shape="squircle" size="sm" />

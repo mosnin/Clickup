@@ -335,6 +335,20 @@ body {
 [data-sidebar="right"] [data-slot="sidebar-wrapper"] {
   flex-direction: row-reverse;
 }
+/* Reversing the flow moves the *spacer*, not the panel. The vendored sidebar
+   pins its container with `position: fixed; left: 0`, chosen from a React
+   `side` prop we don't control — so without this rule the nav stayed welded to
+   the left edge while the gap it reserves jumped to the right, and "drag it to
+   the right" appeared to do nothing at all. The panel has to be un-pinned and
+   re-pinned on the other edge. */
+[data-sidebar="right"] [data-slot="sidebar-container"] {
+  left: auto;
+  right: 0;
+}
+[data-sidebar="right"] [data-slot="sidebar-inner"] {
+  border-left: 1px solid var(--color-border);
+  border-right: 0;
+}
 /* ── Docked navigation ───────────────────────────────────────────────
    The sidebar is gone entirely — not collapsed, not narrowed — because the
    dock has taken over its job. The content runs full width with room at the

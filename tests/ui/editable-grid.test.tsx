@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 
 // The editable grid's edit chrome.
 //
@@ -139,5 +139,156 @@ describe("edit chrome", () => {
     // A mode with no exit is a trap, and the exit cannot be at the top of a
     // screen you have scrolled down.
     expect(screen.getByRole("button", { name: "Done" })).toBeDefined();
+  });
+});
+
+// ── Resize ──────────────────────────────────────────────────────────────
+//
+// Resizing looked broken in production while the maths underneath was
+// correct the whole time: the grip reported every column it crossed, and on
+// Home each of those reports is a Convex mutation whose resolution clears the
+// optimistic draft. Two racing writes fought the local preview and the tile
+// snapped back. One gesture is one intention, so it is one write — and the
+// preview in between is local, never persisted.
+
+function pointerEvent(type: string, init: Record<string, unknown>) {
+  const e = new MouseEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    ...init,
+  }) as unknown as PointerEvent;
+  Object.defineProperty(e, "pointerId", { value: 1 });
+  return e;
+}
+
+/** Pin the grid's width so a column is a known number of pixels. */
+function stubGridWidth(width: number) {
+  const grid = document.getElementById("g")!;
+  Object.defineProperty(grid, "getBoundingClientRect", {
+    configurable: true,
+    value: () => ({
+      width,
+      height: 400,
+      left: 0,
+      top: 0,
+      right: width,
+      bottom: 400,
+      x: 0,
+      y: 0,
+      toJSON() {},
+    }),
+  });
+}
+
+describe("resizing", () => {
+  it("writes once for a whole drag, not once per column crossed", () => {
+    const onChange = vi.fn();
+    render(
+      <EditableGrid
+        gridId="g"
+        tiles={TILES}
+        layout={LAYOUT}
+        onChange={onChange}
+        editing
+        onEditingChange={() => {}}
+      />,
+    );
+    stubGridWidth(900); // one column = 300px
+
+    const grip = screen.getByLabelText(/Resize Progress/i);
+    grip.dispatchEvent(pointerEvent("pointerdown", { clientX: 0, clientY: 0 }));
+    // Cross two column boundaries on the way out: 1 -> 2 -> 3.
+    window.dispatchEvent(pointerEvent("pointermove", { clientX: 300, clientY: 0 }));
+    window.dispatchEvent(pointerEvent("pointermove", { clientX: 620, clientY: 0 }));
+    expect(
+      onChange,
+      "nothing may be written while the gesture is still in flight",
+    ).not.toHaveBeenCalled();
+
+    window.dispatchEvent(pointerEvent("pointerup", { clientX: 620, clientY: 0 }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0]).toEqual({
+      widgets: [{ id: "a", span: 3 }],
+    });
+  });
+
+  it("shows the width under the finger before it is saved", () => {
+    const onChange = vi.fn();
+    render(
+      <EditableGrid
+        gridId="g"
+        tiles={TILES}
+        layout={LAYOUT}
+        onChange={onChange}
+        editing
+        onEditingChange={() => {}}
+      />,
+    );
+    stubGridWidth(900);
+    const tile = document.querySelector<HTMLElement>('[data-tile="a"]')!;
+    expect(tile.className).toContain("lg:col-span-1");
+
+    const grip = screen.getByLabelText(/Resize Progress/i);
+    act(() => {
+      grip.dispatchEvent(pointerEvent("pointerdown", { clientX: 0, clientY: 0 }));
+      window.dispatchEvent(
+        pointerEvent("pointermove", { clientX: 310, clientY: 0 }),
+      );
+    });
+
+    // The tile moved without anything being saved: that is the whole point of
+    // a preview, and it is what makes a resize feel like resizing.
+    const live = document.querySelector<HTMLElement>('[data-tile="a"]')!;
+    expect(live.className).toContain("lg:col-span-2");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("returns to the saved width when a drag ends where it started", () => {
+    const onChange = vi.fn();
+    render(
+      <EditableGrid
+        gridId="g"
+        tiles={TILES}
+        layout={LAYOUT}
+        onChange={onChange}
+        editing
+        onEditingChange={() => {}}
+      />,
+    );
+    stubGridWidth(900);
+    const grip = screen.getByLabelText(/Resize Progress/i);
+    act(() => {
+      grip.dispatchEvent(pointerEvent("pointerdown", { clientX: 0, clientY: 0 }));
+      window.dispatchEvent(
+        pointerEvent("pointermove", { clientX: 310, clientY: 0 }),
+      );
+      window.dispatchEvent(
+        pointerEvent("pointermove", { clientX: 10, clientY: 0 }),
+      );
+      window.dispatchEvent(pointerEvent("pointerup", { clientX: 10, clientY: 0 }));
+    });
+
+    expect(onChange).not.toHaveBeenCalled();
+    const tile = document.querySelector<HTMLElement>('[data-tile="a"]')!;
+    expect(tile.className).toContain("lg:col-span-1");
+  });
+
+  it("still resizes from the keyboard-reachable buttons", () => {
+    const onChange = vi.fn();
+    render(
+      <EditableGrid
+        gridId="g"
+        tiles={TILES}
+        layout={LAYOUT}
+        onChange={onChange}
+        editing
+        onEditingChange={() => {}}
+      />,
+    );
+    screen.getByLabelText(/wider/i).click();
+    expect(onChange).toHaveBeenCalledWith(
+      { widgets: [{ id: "a", span: 2 }] },
+      undefined,
+    );
   });
 });

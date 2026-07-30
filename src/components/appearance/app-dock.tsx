@@ -271,14 +271,26 @@ export function AppDock() {
           title="Hold the rail to move the navigation"
           className="pointer-events-auto flex items-end gap-1 rounded-2xl bg-card/90 py-2 pl-2 pr-3 shadow-2xl backdrop-blur-xl"
         >
-          {/* The grab handle. The rail is draggable anywhere that isn't an
-              item, but "anywhere that isn't an item" is 12px of padding —
-              invisible, and therefore not a target. This says out loud that
-              the dock is a thing you can pick up and put somewhere else. */}
+          {/* The grab handle.
+              The rail is draggable anywhere that isn't an item, but "anywhere
+              that isn't an item" was 12px of invisible padding — not a target.
+              This is a real one: wide enough to hit, marked so you know what it
+              does, and it starts the drag on contact rather than after a
+              650ms hold (see sidebar-dock.tsx). */}
           <span
-            aria-hidden
-            className="mb-1.5 mr-1 h-6 w-1 flex-shrink-0 cursor-grab rounded-full bg-muted-foreground/25"
-          />
+            data-nav-grab
+            title="Drag to move the navigation"
+            className="mb-0.5 flex h-10 w-5 flex-shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground active:cursor-grabbing"
+          >
+            <svg viewBox="0 0 6 16" className="h-4 w-1.5" aria-hidden>
+              {[2, 8, 14].map((y) => (
+                <g key={y}>
+                  <circle cx="1" cy={y} r="1" fill="currentColor" />
+                  <circle cx="5" cy={y} r="1" fill="currentColor" />
+                </g>
+              ))}
+            </svg>
+          </span>
           {order.map((id) => {
             const item = ITEM_BY_ID.get(id);
             if (!item) return null;
