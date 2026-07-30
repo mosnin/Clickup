@@ -9,6 +9,7 @@ import {
   type ComponentStyleScope,
 } from "@/components/appearance/use-component-style";
 import { styleFrom } from "@/components/appearance/style-gallery";
+import { IntentComposer } from "@/components/appearance/intent-composer";
 import { Chart, type ChartKind } from "@/components/charts/chart";
 import {
   DEFAULT_STYLE,
@@ -145,6 +146,15 @@ export function CustomizeRail() {
             </p>
           </section>
         )}
+
+        {/* The fastest path for anyone who does not want to learn nineteen
+            axes: describe it. Same vocabulary, same result as the pickers —
+            neither is the "advanced" one. */}
+        <IntentComposer
+          style={style}
+          panelLabel={selection ? selection.label : "your panels"}
+          onApply={(patch) => set(patch)}
+        />
 
         <section>
           <Label>Start from</Label>
