@@ -145,6 +145,10 @@ export function AppDock() {
     }
 
     const apply = (cursorX: number | null) => {
+      // While the whole rail is being dragged to a new edge of the screen,
+      // items ballooning under the cursor is a second gesture arguing with the
+      // first. The nav drag sets this flag; magnification defers to it.
+      if (rail.dataset.navDragging) cursorX = null;
       for (const el of rail.querySelectorAll<HTMLElement>("[data-dock-item]")) {
         const anim = map.get(el.dataset.dockItem!);
         if (!anim) continue;
@@ -263,8 +267,18 @@ export function AppDock() {
       <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
         <div
           ref={railRef}
-          className="pointer-events-auto flex items-end gap-1 rounded-2xl bg-card/90 px-3 py-2 shadow-2xl backdrop-blur-xl"
+          data-slot="dock-rail"
+          title="Hold the rail to move the navigation"
+          className="pointer-events-auto flex items-end gap-1 rounded-2xl bg-card/90 py-2 pl-2 pr-3 shadow-2xl backdrop-blur-xl"
         >
+          {/* The grab handle. The rail is draggable anywhere that isn't an
+              item, but "anywhere that isn't an item" is 12px of padding —
+              invisible, and therefore not a target. This says out loud that
+              the dock is a thing you can pick up and put somewhere else. */}
+          <span
+            aria-hidden
+            className="mb-1.5 mr-1 h-6 w-1 flex-shrink-0 cursor-grab rounded-full bg-muted-foreground/25"
+          />
           {order.map((id) => {
             const item = ITEM_BY_ID.get(id);
             if (!item) return null;

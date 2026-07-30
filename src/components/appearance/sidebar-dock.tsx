@@ -8,6 +8,7 @@ import {
 import { EASE } from "@/components/motion";
 import { animate, animeUtils, morphLayout, scaled } from "@/lib/anime";
 import type { SidebarPosition } from "@/lib/appearance";
+import { dropZoneFor, dropZones } from "@/lib/nav-dock";
 import { cn } from "@/lib/utils";
 
 // Grab the shell itself.
@@ -35,21 +36,10 @@ import { cn } from "@/lib/utils";
 const HOLD_MS = 650;
 const HOLD_SLOP = 8;
 
-/**
- * Which dock the pointer is over.
- *
- * The bottom band wins before the horizontal thirds do: a pointer near the
- * bottom-left is heading for the dock, not back to where it started, and
- * checking x first would make the dock unreachable from the left half.
- */
-function zoneFor(x: number, y: number): SidebarPosition {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  if (y > h * 0.78) return "dock";
-  if (x < w * 0.3) return "left";
-  if (x > w * 0.7) return "right";
-  return "floating";
-}
+/** The drawn guides and the hit test, from one source (see `lib/nav-dock`). */
+const zoneRects = () => dropZones(window.innerWidth, window.innerHeight);
+const zoneFor = (x: number, y: number) =>
+  dropZoneFor(x, y, window.innerWidth, window.innerHeight);
 
 const animeSet = animeUtils.set;
 
@@ -58,18 +48,47 @@ export function SidebarDock() {
   // Which dock the drag is currently over; null = not dragging. This is the
   // only React state — the per-frame transform goes straight to the element.
   const [zone, setZone] = useState<SidebarPosition | null>(null);
+  const [guides, setGuides] = useState<ReturnType<typeof zoneRects>>([]);
   const zoneRef = useRef<SidebarPosition | null>(null);
-  const positionRef = useRef(appearance.sidebarPosition);
-  positionRef.current = appearance.sidebarPosition;
+  const position = appearance.sidebarPosition;
+  const positionRef = useRef(position);
+  positionRef.current = position;
   const commitRef = useRef(commit);
   commitRef.current = commit;
 
   useEffect(() => {
-    const container = document.querySelector<HTMLElement>(
-      '[data-slot="sidebar-container"]',
-    );
-    if (!container) return;
+    // Grab whichever nav is actually on screen.
+    //
+    // This used to bind unconditionally to the sidebar container, which is
+    // `display: none` once the nav becomes a dock — so the gesture that moved
+    // it to the bottom stopped existing the moment it succeeded, and there was
+    // no way to bring it back. The nav is one object in two costumes; the drag
+    // follows the costume that is currently worn.
+    const docked = position === "dock";
+    const selector = docked
+      ? '[data-slot="dock-rail"]'
+      : '[data-slot="sidebar-container"]';
 
+    let disposed = false;
+    let detach: (() => void) | null = null;
+
+    // The rail and the sidebar are siblings under the provider, so a position
+    // change re-renders both — but effect order between siblings is document
+    // order, and the costume being put on may not be in the DOM yet when this
+    // runs. Wait for it rather than binding to nothing and silently losing the
+    // gesture until the next reload.
+    let frames = 0;
+    const attempt = () => {
+      if (disposed) return;
+      const found = document.querySelector<HTMLElement>(selector);
+      if (!found) {
+        if (frames++ < 60) requestAnimationFrame(attempt);
+        return;
+      }
+      detach = bind(found);
+    };
+
+    function bind(container: HTMLElement) {
     let holdTimer: ReturnType<typeof setTimeout> | null = null;
     let startX = 0;
     let startY = 0;
@@ -97,6 +116,14 @@ export function SidebarDock() {
       container.style.willChange = "transform";
       container.style.zIndex = "60";
       container.style.cursor = "grabbing";
+      // The floating sidebar carries a CSS `transition: transform` so its
+      // collapse animates. Left on during a drag it lags every frame behind the
+      // hand by 350ms, which reads as the panel being stuck in treacle.
+      container.style.transition = "none";
+      // Tell the dock's magnification loop to stand down: items ballooning
+      // under the cursor while the whole rail is in your hand is two gestures
+      // arguing over one pointer.
+      container.dataset.navDragging = "true";
       animate(container, {
         scale: 0.96,
         duration: scaled(220),
@@ -105,23 +132,27 @@ export function SidebarDock() {
       if (typeof navigator !== "undefined" && navigator.vibrate) {
         navigator.vibrate(8);
       }
+      setGuides(zoneRects());
       setZoneBoth(positionRef.current);
     };
 
+    /**
+     * Put the element back where CSS wants it — instantly.
+     *
+     * Deliberately not an animation. The drop triggers a layout change through
+     * morphLayout, which measures boxes before and after and animates the
+     * difference; a spring running on the same element's transform at the same
+     * time fights it, and when the new position is "dock" the element is
+     * display:none before the spring finishes, leaving a stale transform behind
+     * that made the sidebar impossible to put back.
+     */
     const settle = () => {
       container.style.cursor = "";
-      animate(container, {
-        x: 0,
-        y: 0,
-        scale: 1,
-        rotate: 0,
-        duration: scaled(360),
-        ease: "cubicBezier(0.16, 1, 0.3, 1)",
-        onComplete: () => {
-          container.style.willChange = "";
-          container.style.zIndex = "";
-        },
-      });
+      animeSet(container, { x: 0, y: 0, scale: 1, rotate: 0 });
+      container.style.willChange = "";
+      container.style.zIndex = "";
+      container.style.transition = "";
+      delete container.dataset.navDragging;
     };
 
     const cancelHold = () => {
@@ -132,6 +163,15 @@ export function SidebarDock() {
     const onPointerDown = (e: PointerEvent) => {
       // Left button / primary touch, desktop widths only.
       if (e.button !== 0 || window.innerWidth < 768) return;
+      // Inside the dock, a held item is being *reordered* — that gesture is
+      // shorter (400ms) and belongs to the dock. Only the rail itself, between
+      // and around its items, moves the whole nav.
+      if (
+        docked &&
+        (e.target as HTMLElement | null)?.closest("[data-dock-item]")
+      ) {
+        return;
+      }
       startX = e.clientX;
       startY = e.clientY;
       pointerId = e.pointerId;
@@ -161,9 +201,11 @@ export function SidebarDock() {
       // string would leave it animating from stale values.
       animeSet(container, {
         x: dx * 0.85,
-        // Vertical follow is damped harder: the dock is a large target and a
-        // sidebar tracking the hand 1:1 downward leaves the viewport.
-        y: dy * 0.35,
+        // Vertical follow is damped when the nav is a tall column — a sidebar
+        // tracking the hand 1:1 downward walks straight out of the viewport —
+        // but a dock has to travel the full height of the screen to reach a
+        // side rail, so it follows honestly.
+        y: dy * (docked ? 0.85 : 0.35),
         scale: 0.96,
         rotate: Math.max(-2.5, Math.min(2.5, dx * 0.008)),
       });
@@ -224,8 +266,18 @@ export function SidebarDock() {
       container.removeEventListener("pointercancel", onPointerUp);
       container.removeEventListener("click", onClickCapture, true);
       window.removeEventListener("keydown", onKeyDown);
+      // A drag interrupted by the element going away must not leave a
+      // transform on it — that is exactly how the nav got stranded mid-screen.
+      settle();
     };
-  }, []);
+    }
+
+    attempt();
+    return () => {
+      disposed = true;
+      detach?.();
+    };
+  }, [position]);
 
   // The docking guides: visible only mid-drag, naming what a drop would do.
   // Without them the gesture is a secret; with them, the first accidental
@@ -242,58 +294,44 @@ export function SidebarDock() {
           className="pointer-events-none fixed inset-0 z-50"
           aria-hidden
         >
-          <DockGuide side="left" active={zone === "left"} label="Dock left" />
-          <DockGuide side="right" active={zone === "right"} label="Dock right" />
+          {/* Drawn from the same rectangles the hit test uses, so the target
+              you aim at is the target you hit. */}
+          {guides.map(({ id, x, y, width, height, label }) => (
+            <div
+              key={id}
+              style={{ position: "absolute", left: x, top: y, width, height }}
+              className={cn(
+                "flex items-center justify-center rounded-2xl border-2 border-dashed text-sm font-medium transition-colors duration-150",
+                zone === id
+                  ? "border-foreground bg-foreground/10 text-foreground"
+                  : "border-border/70 text-muted-foreground",
+              )}
+            >
+              <span
+                className={cn(
+                  id === "left" && "-rotate-90",
+                  id === "right" && "rotate-90",
+                )}
+              >
+                {label}
+              </span>
+            </div>
+          ))}
+
+          {/* Not a rectangle, because floating is the absence of a dock: the
+              hint sits in the middle where nothing else claims. */}
           <div
             className={cn(
-              "absolute left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 border-dashed px-8 py-6 text-sm font-medium transition-all duration-150",
+              "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl px-6 py-4 text-sm font-medium transition-colors duration-150",
               zone === "floating"
-                ? "scale-105 border-foreground bg-foreground/5 text-foreground"
-                : "border-border text-muted-foreground",
+                ? "bg-foreground/10 text-foreground"
+                : "text-muted-foreground/60",
             )}
           >
-            Float
-          </div>
-          {/* The dock guide is the shape of the dock, so the drop is a
-              promise about what you are about to get. */}
-          <div
-            className={cn(
-              "absolute inset-x-1/4 bottom-4 flex h-16 items-center justify-center rounded-2xl border-2 border-dashed text-sm font-medium transition-all duration-150",
-              zone === "dock"
-                ? "scale-105 border-foreground bg-foreground/5 text-foreground"
-                : "border-border text-muted-foreground",
-            )}
-          >
-            Dock at the bottom
+            Let go anywhere else to float
           </div>
         </motion.div>
       )}
     </AnimatePresence>
-  );
-}
-
-function DockGuide({
-  side,
-  active,
-  label,
-}: {
-  side: "left" | "right";
-  active: boolean;
-  label: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "absolute bottom-6 top-6 flex w-24 items-center justify-center rounded-2xl border-2 border-dashed text-sm font-medium transition-all duration-150",
-        side === "left" ? "left-3" : "right-3",
-        active
-          ? "border-foreground bg-foreground/5 text-foreground"
-          : "border-border text-muted-foreground",
-      )}
-    >
-      <span className={cn(side === "right" && "rotate-90", side === "left" && "-rotate-90")}>
-        {label}
-      </span>
-    </div>
   );
 }
