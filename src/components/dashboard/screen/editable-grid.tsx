@@ -172,6 +172,12 @@ export function EditableGrid({
     draggables.current = elements.map((el) => {
       const id = el.dataset.tile!;
       return createDraggable(el, {
+        // Only the CONTENT starts a drag, never the edit chrome hung off the
+        // corners. Those buttons stop propagation in React handlers, which run
+        // at the root — long after anime's native listener on the tile has
+        // already begun a drag. Scoping the trigger fixes remove, resize and
+        // the width buttons in one move rather than three.
+        trigger: el.querySelector<HTMLElement>("[data-tile-inner]") ?? el,
         // Free movement; the grid decides where it lands, not an axis lock.
         container: grid,
         containerFriction: 0.35,
@@ -461,62 +467,66 @@ export function EditableGrid({
                 )}
               >
                 {tile.content}
-
-                {editing && (
-                  <>
-                    {/* Badges, phone-style: on the tile, not in a panel. */}
-                    <button
-                      type="button"
-                      aria-label={`Remove ${tile.title}`}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      onClick={() => remove(w.id)}
-                      className="absolute -left-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-foreground text-background shadow-lg"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                    {tile.minSpan !== tile.maxSpan && (
-                      <>
-                        {/* Drag the corner to resize — the direct-manipulation
-                            path, matching how everything else here works. */}
-                        <ResizeGrip
-                          label={tile.title}
-                          span={w.span}
-                          min={tile.minSpan}
-                          max={tile.maxSpan}
-                          gridId={gridId}
-                          onResize={(next: WidgetSpan) => setSpan(w.id, next)}
-                        />
-                        {/* The same change, reachable without a pointer. */}
-                        <div className="absolute -bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-foreground px-1 py-0.5 text-background shadow-lg">
-                          <button
-                            type="button"
-                            aria-label={`Make ${tile.title} narrower`}
-                            disabled={w.span <= tile.minSpan}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={() => resize(w.id, -1)}
-                            className="flex h-5 w-5 items-center justify-center rounded-full disabled:opacity-40"
-                          >
-                            <Minus className="h-3 w-3" />
-                          </button>
-                          <span className="px-0.5 text-[10px] tabular-nums">
-                            {w.span}
-                          </span>
-                          <button
-                            type="button"
-                            aria-label={`Make ${tile.title} wider`}
-                            disabled={w.span >= tile.maxSpan}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            onClick={() => resize(w.id, 1)}
-                            className="flex h-5 w-5 items-center justify-center rounded-full disabled:opacity-40"
-                          >
-                            <Plus className="h-3 w-3" />
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
               </div>
+
+              {/* The edit chrome lives OUTSIDE the inner wrapper. A sized
+                  tile scrolls its content, and a scroll container clips
+                  its overflowing children — badges hung off the corners
+                  would simply be invisible on every sized screen. */}
+              {editing && (
+                <>
+                  {/* Badges, phone-style: on the tile, not in a panel. */}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${tile.title}`}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => remove(w.id)}
+                    className="absolute -left-2 -top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-foreground text-background shadow-lg"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                  {tile.minSpan !== tile.maxSpan && (
+                    <>
+                      {/* Drag the corner to resize — the direct-manipulation
+                          path, matching how everything else here works. */}
+                      <ResizeGrip
+                        label={tile.title}
+                        span={w.span}
+                        min={tile.minSpan}
+                        max={tile.maxSpan}
+                        gridId={gridId}
+                        onResize={(next: WidgetSpan) => setSpan(w.id, next)}
+                      />
+                      {/* The same change, reachable without a pointer. */}
+                      <div className="absolute -bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-full bg-foreground px-1 py-0.5 text-background shadow-lg">
+                        <button
+                          type="button"
+                          aria-label={`Make ${tile.title} narrower`}
+                          disabled={w.span <= tile.minSpan}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => resize(w.id, -1)}
+                          className="flex h-5 w-5 items-center justify-center rounded-full disabled:opacity-40"
+                        >
+                          <Minus className="h-3 w-3" />
+                        </button>
+                        <span className="px-0.5 text-[10px] tabular-nums">
+                          {w.span}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={`Make ${tile.title} wider`}
+                          disabled={w.span >= tile.maxSpan}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => resize(w.id, 1)}
+                          className="flex h-5 w-5 items-center justify-center rounded-full disabled:opacity-40"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
             </div>
           );
         })}
@@ -697,30 +707,48 @@ function ResizeGrip({
   onResize: (span: WidgetSpan) => void;
 }) {
   const ref = useRef<HTMLButtonElement | null>(null);
+  // Everything the drag reads lives in refs. The previous version listed
+  // `span` and `onResize` in the effect's dependencies, and both change the
+  // instant the first column is crossed — so the effect tore down its own
+  // listeners mid-gesture, `dragging` reset to false in the fresh closure, and
+  // the drag died after exactly one column. Refs keep one long-lived listener
+  // for the whole gesture.
   const spanRef = useRef(span);
   spanRef.current = span;
+  const boundsRef = useRef({ min, max });
+  boundsRef.current = { min, max };
+  const onResizeRef = useRef(onResize);
+  onResizeRef.current = onResize;
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     let startX = 0;
-    let startSpan: WidgetSpan = span;
+    let startSpan: WidgetSpan = 1;
     let column = 0;
     let dragging = false;
 
     const onDown = (e: PointerEvent) => {
+      // Native listener, and it stops the event here: the tile above is an
+      // anime draggable with its own native pointerdown, and letting this
+      // bubble means the panel gets thrown across the grid instead of resized.
       e.preventDefault();
       e.stopPropagation();
       dragging = true;
       startX = e.clientX;
       startSpan = spanRef.current;
       const grid = document.getElementById(gridId);
-      // One column, derived from the live grid rather than assumed: the shell
-      // is resizable and the sidebar can move, so a hardcoded width would
-      // drift out of agreement with what is on screen.
+      // One column, measured from the live grid rather than assumed: the shell
+      // is resizable and the sidebar can move or dock, so a hardcoded width
+      // would drift out of agreement with what is on screen.
       const gridWidth = grid?.getBoundingClientRect().width ?? 0;
       column = gridWidth > 0 ? gridWidth / 3 : 320;
-      el.setPointerCapture(e.pointerId);
+      try {
+        el.setPointerCapture(e.pointerId);
+      } catch {
+        // A synthetic or already-released pointer; the window listeners below
+        // still carry the gesture.
+      }
       document.body.style.cursor = "ew-resize";
     };
 
@@ -728,47 +756,50 @@ function ResizeGrip({
       if (!dragging) return;
       e.preventDefault();
       const columns = Math.round((e.clientX - startX) / column);
+      const { min: lo, max: hi } = boundsRef.current;
       const next = Math.min(
-        Math.max(startSpan + columns, min),
-        max,
+        Math.max(startSpan + columns, lo),
+        hi,
       ) as WidgetSpan;
-      if (next !== spanRef.current) onResize(next);
+      // Reporting on every threshold crossing rather than on release is what
+      // makes it feel like resizing rather than submitting a width.
+      if (next !== spanRef.current) onResizeRef.current(next);
     };
 
-    const onUp = (e: PointerEvent) => {
+    const onUp = () => {
       if (!dragging) return;
       dragging = false;
       document.body.style.cursor = "";
-      try {
-        el.releasePointerCapture(e.pointerId);
-      } catch {
-        // The pointer already went away; nothing to release.
-      }
     };
 
     el.addEventListener("pointerdown", onDown);
-    el.addEventListener("pointermove", onMove);
-    el.addEventListener("pointerup", onUp);
-    el.addEventListener("pointercancel", onUp);
+    // On the window, not the element: pointer capture can be lost (a re-render
+    // that replaces the node, a browser that drops it), and a resize that
+    // stops tracking halfway is worse than one that never started.
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
     return () => {
       el.removeEventListener("pointerdown", onDown);
-      el.removeEventListener("pointermove", onMove);
-      el.removeEventListener("pointerup", onUp);
-      el.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
       document.body.style.cursor = "";
     };
-  }, [gridId, max, min, onResize, span]);
+    // Only the grid id: everything else is read through a ref, so this
+    // listener survives the whole gesture.
+  }, [gridId]);
 
   return (
     <button
       ref={ref}
       type="button"
-      aria-label={`Resize ${label}. ${span} of 3 columns. Drag, or use the plus and minus buttons.`}
-      className="absolute -bottom-2.5 -right-2.5 z-20 hidden h-7 w-7 cursor-ew-resize touch-none items-center justify-center rounded-full bg-foreground text-background shadow-lg lg:flex"
+      aria-label={`Resize ${label}. ${span} of 3 columns. Drag sideways, or use the plus and minus buttons.`}
+      className="absolute -bottom-2.5 -right-2.5 z-20 flex h-7 w-7 cursor-ew-resize touch-none items-center justify-center rounded-full bg-foreground text-background shadow-lg"
     >
       <svg viewBox="0 0 12 12" className="h-3.5 w-3.5" aria-hidden>
-        {/* Two corner strokes: the universal "pull me" mark, and it points
-            along the axis the drag actually works on. */}
+        {/* Two corner strokes: the universal "pull me" mark, pointing along
+            the axis the drag actually works on. */}
         <path
           d="M11 4v7H4M11 8v3H8"
           fill="none"
