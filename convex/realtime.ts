@@ -44,6 +44,17 @@ export function chatChannel(channelId: string): string {
   return `operate:chat:${channelId}`;
 }
 
+/**
+ * The channel a space's look is negotiated on.
+ *
+ * Its own namespace rather than the space's `scopeChannel`, which already
+ * carries page fan-out — a client that only wants to watch someone drag a
+ * slider should not have to filter document events out of the stream.
+ */
+export function spaceLookChannel(spaceId: string): string {
+  return `operate:look:${spaceId}`;
+}
+
 export const publish = internalAction({
   args: {
     channel: v.string(),
@@ -196,7 +207,10 @@ export const publishFromClient = action({
     // Only ever called by another action in this file, which has done the
     // access check. Guard anyway: an "operate:chat:" prefix is the only
     // namespace a client-reachable publish may touch.
-    if (!args.channel.startsWith("operate:chat:")) {
+    if (
+      !args.channel.startsWith("operate:chat:") &&
+      !args.channel.startsWith("operate:look:")
+    ) {
       throw new ConvexError("Not a client-publishable channel");
     }
     const parts = ablyKeyParts();
@@ -216,6 +230,99 @@ export const publishFromClient = action({
     } catch (err) {
       console.error("[realtime] client publish threw", err);
     }
+    return null;
+  },
+});
+
+// ── Watching someone change how a space looks ───────────────────────────
+//
+// The committed theme needs none of this: it is a Convex row, so a saved change
+// already morphs for everyone standing in the space over the same subscription
+// that renders it. What a query cannot carry is the drag itself — a write per
+// frame is exactly what the debounce exists to prevent — and a shared look being
+// tuned is precisely the moment other people want to watch. So the in-flight
+// value goes over Ably and is never persisted: the worst case of a dropped
+// signal is that a spectator's UI waits for the save, which is where it was
+// heading anyway.
+
+/** A subscribe-only token for one space's look channel. */
+export const spaceLookToken = action({
+  args: { spaceId: v.id("spaces") },
+  handler: async (
+    ctx,
+    { spaceId },
+  ): Promise<{ token: string; channel: string; expiresAt: number } | null> => {
+    // Reuses the access check the themed shell already does, so there is one
+    // definition of "can this person see this space".
+    const context = await ctx.runQuery(api.appearance.spaceContext, {
+      kind: "space",
+      id: spaceId,
+    });
+    if (!context) throw new ConvexError("Space not found");
+
+    const parts = ablyKeyParts();
+    if (!parts) return null; // Unconfigured is a supported state.
+
+    const channel = spaceLookChannel(spaceId);
+    const res = await fetch(
+      `${REST_BASE}/keys/${encodeURIComponent(parts.keyName)}/requestToken`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Basic ${Buffer.from(parts.key).toString("base64")}`,
+        },
+        body: JSON.stringify({
+          capability: JSON.stringify({ [channel]: ["subscribe"] }),
+          ttl: TOKEN_TTL_MS,
+        }),
+      },
+    );
+    if (!res.ok) {
+      console.error(
+        `[realtime] look token request failed: ${res.status} ${await res.text()}`,
+      );
+      return null;
+    }
+    const details = (await res.json()) as { token: string; expires: number };
+    return {
+      token: details.token,
+      channel,
+      expiresAt: details.expires ?? Date.now() + TOKEN_TTL_MS,
+    };
+  },
+});
+
+/**
+ * Broadcast an in-flight change to a space's look.
+ *
+ * Gated on the right to change the space, not merely on membership: a signal
+ * that repaints everyone's UI is a shared act, and letting any member emit one
+ * would hand every member a way to make the room flash for the whole team.
+ */
+export const spaceLookSignal = action({
+  args: {
+    spaceId: v.id("spaces"),
+    /** The in-flight patch, or null to say "I have stopped". */
+    patch: v.union(v.any(), v.null()),
+    /** Which tab is dragging, so a client can ignore its own echo. */
+    origin: v.string(),
+    byName: v.string(),
+  },
+  handler: async (ctx, { spaceId, patch, origin, byName }): Promise<null> => {
+    const context = await ctx.runQuery(api.appearance.spaceContext, {
+      kind: "space",
+      id: spaceId,
+    });
+    if (!context) throw new ConvexError("Space not found");
+    if (!context.mayTheme) {
+      throw new ConvexError("Only the space creator or workspace owner can change how this space looks");
+    }
+    await ctx.runAction(api.realtime.publishFromClient, {
+      channel: spaceLookChannel(spaceId),
+      name: "look.preview",
+      data: { patch, origin, byName, at: Date.now() },
+    });
     return null;
   },
 });

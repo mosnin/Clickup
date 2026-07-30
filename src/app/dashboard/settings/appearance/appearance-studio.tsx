@@ -89,6 +89,7 @@ export function AppearanceStudio() {
     reset,
     dirty,
     revert,
+    liveEditor,
   } = useAppearance();
 
   const [scope, setScope] = useState<AppearanceScope>("personal");
@@ -190,6 +191,13 @@ export function AppearanceStudio() {
         </p>
       )}
 
+      {liveEditor && (
+        <p className="text-xs text-muted-foreground" aria-live="polite">
+          {liveEditor} is changing how this space looks right now. What you are
+          seeing is their work in progress.
+        </p>
+      )}
+
       {editingPlaceOnly && (
         <p className="text-xs leading-relaxed text-muted-foreground">
           A space sets its accent, its corners and its surfaces — that is what
@@ -288,7 +296,7 @@ export function AppearanceStudio() {
                 step={0.5}
                 format={(v) => `${v.toFixed(1)}rem`}
                 status={field("sidebarWidth")}
-                onInput={(v) => preview({ sidebarWidth: v })}
+                onInput={(v) => preview({ sidebarWidth: v }, scope)}
                 onCommit={(v) => commit({ sidebarWidth: v }, scope)}
               />
 
@@ -328,7 +336,7 @@ export function AppearanceStudio() {
             step={0.05}
             format={(v) => `${Math.round(v * 100)}%`}
             status={field("radiusScale")}
-            onInput={(v) => preview({ radiusScale: v })}
+            onInput={(v) => preview({ radiusScale: v }, scope)}
             onCommit={(v) => commit({ radiusScale: v }, scope)}
           />
 
@@ -341,7 +349,7 @@ export function AppearanceStudio() {
                 step={0.01}
                 format={(v) => `${Math.round(v * 100)}%`}
                 status={field("fontScale")}
-                onInput={(v) => preview({ fontScale: v })}
+                onInput={(v) => preview({ fontScale: v }, scope)}
                 onCommit={(v) => commit({ fontScale: v }, scope)}
               />
 
@@ -352,7 +360,7 @@ export function AppearanceStudio() {
                 step={100}
                 format={(v) => String(Math.round(v))}
                 status={field("headingWeight")}
-                onInput={(v) => preview({ headingWeight: v })}
+                onInput={(v) => preview({ headingWeight: v }, scope)}
                 onCommit={(v) => commit({ headingWeight: v }, scope)}
               />
 
@@ -364,7 +372,7 @@ export function AppearanceStudio() {
                 format={(v) => (v === 0 ? "Off" : `${Math.round(v * 100)}%`)}
                 hint="Zero turns animation off without turning anything else off. Your system's reduce-motion setting always wins."
                 status={field("motionScale")}
-                onInput={(v) => preview({ motionScale: v })}
+                onInput={(v) => preview({ motionScale: v }, scope)}
                 onCommit={(v) => commit({ motionScale: v }, scope)}
               />
             </>
@@ -403,7 +411,7 @@ export function AppearanceStudio() {
                   range={APPEARANCE_RANGES.accentHue}
                   step={1}
                   format={(v) => `${Math.round(v)}°`}
-                  onInput={(v) => preview({ accentHue: v })}
+                  onInput={(v) => preview({ accentHue: v }, scope)}
                   onCommit={(v) => commit({ accentHue: v }, scope)}
                 />
                 <Slider
@@ -412,7 +420,7 @@ export function AppearanceStudio() {
                   range={APPEARANCE_RANGES.accentSaturation}
                   step={1}
                   format={(v) => `${Math.round(v)}%`}
-                  onInput={(v) => preview({ accentSaturation: v })}
+                  onInput={(v) => preview({ accentSaturation: v }, scope)}
                   onCommit={(v) => commit({ accentSaturation: v }, scope)}
                 />
               </div>

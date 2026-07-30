@@ -358,3 +358,71 @@ describe("which room am I in", () => {
     expect(ctx!.theme).toEqual({ radiusScale: 1.6 });
   });
 });
+
+describe("watching someone change a space's look", () => {
+  // The committed theme needs no Ably: it is a Convex row and already arrives
+  // live. What goes over Ably is the in-flight drag, and the thing worth pinning
+  // down is who is allowed to emit one — a signal that repaints everyone's UI is
+  // a shared act, so it takes the same right as saving the theme. Ably being
+  // unconfigured in tests is fine: the authorization runs before the publish.
+
+  it("refuses a member who doesn't govern the space", async () => {
+    const { t, spaceId } = await seed();
+    await expect(
+      t.withIdentity(BOB).action(api.realtime.spaceLookSignal, {
+        spaceId,
+        patch: { accentHue: 0 },
+        origin: "tab1",
+        byName: "Bob",
+      }),
+    ).rejects.toThrow(/space creator or workspace owner/);
+  });
+
+  it("refuses someone who can't see the space at all", async () => {
+    const { t, spaceId } = await seed();
+    for (const call of [
+      t.withIdentity(OUTSIDER).action(api.realtime.spaceLookSignal, {
+        spaceId,
+        patch: { accentHue: 0 },
+        origin: "tab1",
+        byName: "Nobody",
+      }),
+      t
+        .withIdentity(OUTSIDER)
+        .action(api.realtime.spaceLookToken, { spaceId }),
+    ]) {
+      await expect(call).rejects.toThrow(/Space not found/);
+    }
+  });
+
+  it("lets a governor emit, and a member listen", async () => {
+    const { t, spaceId } = await seed();
+    // Ably is unconfigured here, so both return null rather than throwing —
+    // which is the supported "realtime is off" state, not a failure.
+    await expect(
+      t.withIdentity(ALICE).action(api.realtime.spaceLookSignal, {
+        spaceId,
+        patch: { accentHue: 200 },
+        origin: "tab1",
+        byName: "Alice",
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      t.withIdentity(BOB).action(api.realtime.spaceLookToken, { spaceId }),
+    ).resolves.toBeNull();
+  });
+
+  it("keeps the look channel out of reach of a caller naming it directly", async () => {
+    // publishFromClient is reachable from a signed-in client, so its namespace
+    // guard is the thing standing between a member and a channel they were
+    // never authorized for.
+    const { t } = await seed();
+    await expect(
+      t.withIdentity(BOB).action(api.realtime.publishFromClient, {
+        channel: "operate:workspace:anything",
+        name: "look.preview",
+        data: {},
+      }),
+    ).rejects.toThrow(/Not a client-publishable channel/);
+  });
+});

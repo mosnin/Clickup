@@ -29,24 +29,37 @@ const REFRESH_MARGIN_MS = 60_000;
 
 export type AblyStatus = "idle" | "connecting" | "live" | "unavailable";
 
+export type ChannelAuth = {
+  token: string;
+  channel: string;
+  expiresAt: number;
+};
+
 /**
- * Subscribe to a chat channel's ephemeral signals.
+ * Subscribe to one Ably channel's ephemeral signals.
  *
- * `onSignal` is held in a ref: a caller that rebuilds its handler every render
- * (all of them) would otherwise tear the stream down and reopen it on every
- * keystroke.
+ * `subject` is what identifies the stream — change it and the stream is torn
+ * down and reopened; null means "not subscribed". `authorize` mints the token
+ * and is held in a ref alongside `onSignal`, because callers rebuild both every
+ * render and a dependency on either would reopen the stream on every keystroke.
+ *
+ * Generic in the channel rather than specific to chat: the access check and the
+ * channel name both live server-side inside `authorize`, so nothing here has to
+ * know what is being subscribed to.
  */
-export function useAblyChannel(
-  channelId: Id<"channels"> | null,
+export function useAblyStream(
+  subject: string | null,
+  authorize: () => Promise<ChannelAuth | null>,
   onSignal: (signal: ChannelSignal) => void,
 ): AblyStatus {
-  const issueToken = useAction(api.realtime.chatSubscribeToken);
   const [status, setStatus] = useState<AblyStatus>("idle");
   const handlerRef = useRef(onSignal);
   handlerRef.current = onSignal;
+  const authorizeRef = useRef(authorize);
+  authorizeRef.current = authorize;
 
   useEffect(() => {
-    if (!channelId) {
+    if (!subject) {
       setStatus("idle");
       return;
     }
@@ -56,9 +69,9 @@ export function useAblyChannel(
 
     async function connect() {
       setStatus("connecting");
-      let auth: { token: string; channel: string; expiresAt: number } | null;
+      let auth: ChannelAuth | null;
       try {
-        auth = await issueToken({ channelId: channelId! });
+        auth = await authorizeRef.current();
       } catch {
         // A refused token is not a broken app: the thread still renders from
         // Convex. Say "unavailable" and stop.
@@ -114,9 +127,28 @@ export function useAblyChannel(
       if (refreshTimer) clearTimeout(refreshTimer);
       source?.close();
     };
-  }, [channelId, issueToken]);
+  }, [subject]);
 
   return status;
+}
+
+/**
+ * Subscribe to a chat channel.
+ *
+ * The thin wrapper that was the whole hook before a second kind of channel
+ * existed. It still owns exactly one thing: which Convex action authorizes a
+ * chat channel.
+ */
+export function useAblyChannel(
+  channelId: Id<"channels"> | null,
+  onSignal: (signal: ChannelSignal) => void,
+): AblyStatus {
+  const issueToken = useAction(api.realtime.chatSubscribeToken);
+  return useAblyStream(
+    channelId,
+    () => issueToken({ channelId: channelId! }),
+    onSignal,
+  );
 }
 
 /** How long a typing indicator survives without a fresh signal. */

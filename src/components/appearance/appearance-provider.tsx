@@ -9,7 +9,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useUser } from "@clerk/nextjs";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import {
   DEFAULT_APPEARANCE,
@@ -26,6 +27,7 @@ import {
 } from "@/lib/appearance";
 import { applyTokens, morphTokens } from "@/lib/anime";
 import { useActiveSpace, type ActiveSpace } from "@/lib/use-active-space";
+import { useAblyStream } from "@/lib/use-ably-channel";
 
 // The bridge between stored preferences and the running app.
 //
@@ -50,6 +52,20 @@ import { useActiveSpace, type ActiveSpace } from "@/lib/use-active-space";
 // always comes from the server rather than from whatever the client was holding.
 
 const SAVE_DEBOUNCE_MS = 450;
+/** How often an in-flight space change is broadcast while someone drags. */
+const LOOK_SIGNAL_THROTTLE_MS = 90;
+/** How long a watched drag survives without a fresh frame. */
+const LOOK_SIGNAL_TTL_MS = 3_000;
+
+/**
+ * This tab, for one session.
+ *
+ * Ably echoes a publisher its own messages, and a publisher already has the
+ * value locally. Without an origin the echo would re-apply after the local
+ * preview had been cleared, so the slider would twitch back at the end of every
+ * drag. Per-tab rather than per-user, because two tabs are two draggers.
+ */
+const ORIGIN = Math.random().toString(36).slice(2);
 
 /** Which layer an edit is aimed at. */
 export type AppearanceScope = "personal" | "space" | "personalSpace";
@@ -67,8 +83,13 @@ export type AppearanceContextValue = {
   mayThemeSpace: boolean;
   /** Which scopes are available to edit right now. */
   availableScopes: AppearanceScope[];
-  /** Apply immediately without saving. For sliders mid-drag. */
-  preview: (patch: AppearancePatch) => void;
+  /**
+   * Apply immediately without saving. For sliders mid-drag.
+   *
+   * The scope is what decides whether the drag is also broadcast: tuning a
+   * shared space is worth watching, tuning your own settings is not.
+   */
+  preview: (patch: AppearancePatch, scope?: AppearanceScope) => void;
   /** Apply and persist to one layer. For presets, toggles, end of a drag. */
   commit: (patch: AppearancePatch, scope: AppearanceScope) => void;
   /** Stop setting these keys here, so they inherit again. */
@@ -78,6 +99,8 @@ export type AppearanceContextValue = {
   /** Throw the preview away. */
   revert: () => void;
   dirty: boolean;
+  /** Who is changing this space's look right now, if anyone. */
+  liveEditor: string | null;
 };
 
 const AppearanceContext = createContext<AppearanceContextValue | null>(null);
@@ -92,6 +115,70 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
   const [previewPatch, setPreviewPatch] = useState<AppearancePatch | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Someone else's drag ──
+  //
+  // The committed theme needs nothing here: it is a Convex row and already
+  // arrives live. This is the in-flight value, which no query can carry.
+  const { user } = useUser();
+  // Spectators are told who is dragging, so a room changing under them reads as
+  // a person doing something rather than as a glitch.
+  const viewerName = user?.firstName || user?.fullName || "Someone";
+  const lookSignal = useAction(api.realtime.spaceLookSignal);
+  const lookToken = useAction(api.realtime.spaceLookToken);
+  const [live, setLive] = useState<{
+    patch: AppearancePatch;
+    byName: string;
+  } | null>(null);
+  const liveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const broadcastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastBroadcast = useRef(0);
+
+  const spaceId = space?.spaceId ?? null;
+  useAblyStream(
+    spaceId,
+    () =>
+      lookToken({
+        spaceId: spaceId as Parameters<typeof lookToken>[0]["spaceId"],
+      }),
+    (signal) => {
+      if (signal.name !== "look.preview") return;
+      const data = signal.data as {
+        patch?: unknown;
+        origin?: string;
+        byName?: string;
+      };
+      // Our own echo. We already have this value locally, and applying it after
+      // the local preview cleared would make the slider twitch.
+      if (data.origin === ORIGIN) return;
+      if (liveTimer.current) clearTimeout(liveTimer.current);
+      if (!data.patch) {
+        setLive(null);
+        return;
+      }
+      setLive({
+        patch: normalizePatch(data.patch, PLACE_KEYS),
+        byName: data.byName || "Someone",
+      });
+      // A drag that stops mid-flight — a closed tab, a dropped connection —
+      // must not leave the room stuck on an uncommitted look.
+      liveTimer.current = setTimeout(() => setLive(null), LOOK_SIGNAL_TTL_MS);
+    },
+  );
+
+  // Leaving the space drops whatever was being watched there.
+  useEffect(() => {
+    setLive(null);
+    if (liveTimer.current) clearTimeout(liveTimer.current);
+  }, [spaceId]);
+
+  useEffect(
+    () => () => {
+      if (liveTimer.current) clearTimeout(liveTimer.current);
+      if (broadcastTimer.current) clearTimeout(broadcastTimer.current);
+    },
+    [],
+  );
+
   // ── The stored layers ──
   const personalPatch = useMemo<AppearancePatch>(() => {
     if (!remote) return {};
@@ -103,10 +190,16 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
       : prunePatch(remote.personal);
   }, [remote]);
 
-  const spacePatch = useMemo<AppearancePatch>(
+  const storedSpacePatch = useMemo<AppearancePatch>(
     () => normalizePatch(space?.theme, PLACE_KEYS),
     [space?.theme],
   );
+
+  // A watched drag stands in for the stored theme at the *space* layer, not on
+  // top of everything. That is what keeps it honest: someone else tuning the
+  // room still loses to your own override of that room, and can no more touch
+  // your type size than the saved theme could.
+  const spacePatch = live ? live.patch : storedSpacePatch;
 
   const personalSpacePatch = useMemo<AppearancePatch>(() => {
     if (!remote || !space) return {};
@@ -169,10 +262,12 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
   const patchFor = useCallback(
     (scope: AppearanceScope): AppearancePatch => {
       if (scope === "personal") return personalPatch;
-      if (scope === "space") return spacePatch;
+      // The stored value, not a teammate's in-flight one: "what is set here"
+      // must not flicker while someone else drags.
+      if (scope === "space") return storedSpacePatch;
       return personalSpacePatch;
     },
-    [personalPatch, personalSpacePatch, spacePatch],
+    [personalPatch, personalSpacePatch, storedSpacePatch],
   );
 
   const persist = useCallback(
@@ -205,9 +300,46 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
     [save, setSpaceTheme, space?.spaceId],
   );
 
-  const preview = useCallback((patch: AppearancePatch) => {
-    setPreviewPatch((current) => ({ ...(current ?? {}), ...patch }));
-  }, []);
+  /**
+   * Broadcast an in-flight space change, at most every ~90ms.
+   *
+   * Throttled with a trailing send rather than dropped frames only: the last
+   * value of a drag is the one a spectator must end on, and a leading-edge
+   * throttle would strand them on whatever the second-to-last frame was.
+   */
+  const broadcast = useCallback(
+    (patch: AppearancePatch | null) => {
+      if (!spaceId || !space?.mayTheme) return;
+      const send = () => {
+        lastBroadcast.current = Date.now();
+        void lookSignal({
+          spaceId: spaceId as Parameters<typeof lookSignal>[0]["spaceId"],
+          patch,
+          origin: ORIGIN,
+          byName: viewerName,
+        }).catch(() => {
+          // Ably unconfigured, or a refused signal. The save still lands, so
+          // spectators simply see the change when it commits.
+        });
+      };
+      if (broadcastTimer.current) clearTimeout(broadcastTimer.current);
+      const since = Date.now() - lastBroadcast.current;
+      if (since >= LOOK_SIGNAL_THROTTLE_MS) {
+        send();
+        return;
+      }
+      broadcastTimer.current = setTimeout(send, LOOK_SIGNAL_THROTTLE_MS - since);
+    },
+    [lookSignal, space?.mayTheme, spaceId, viewerName],
+  );
+
+  const preview = useCallback(
+    (patch: AppearancePatch, scope: AppearanceScope = "personal") => {
+      setPreviewPatch((current) => ({ ...(current ?? {}), ...patch }));
+      if (scope === "space") broadcast(normalizePatch(patch, PLACE_KEYS));
+    },
+    [broadcast],
+  );
 
   const commit = useCallback(
     (patch: AppearancePatch, scope: AppearanceScope) => {
@@ -218,8 +350,11 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         scope === "personal" ? normalizePatch(patch) : normalizePatch(patch, PLACE_KEYS);
       setPreviewPatch((current) => ({ ...(current ?? {}), ...allowed }));
       persist(scope, { ...patchFor(scope), ...allowed });
+      // The committed value arrives on everyone's subscription in a moment, so
+      // retract the in-flight one rather than letting it expire on a timer.
+      if (scope === "space") broadcast(null);
     },
-    [patchFor, persist],
+    [broadcast, patchFor, persist],
   );
 
   const clear = useCallback(
@@ -298,8 +433,10 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
       reset,
       revert,
       dirty: previewPatch !== null && JSON.stringify(effective) !== storedJson,
+      liveEditor: live?.byName ?? null,
     }),
     [
+      live,
       availableScopes,
       clear,
       commit,
@@ -350,5 +487,6 @@ export function useAppearance(): AppearanceContextValue {
     reset: noop,
     revert: noop,
     dirty: false,
+    liveEditor: null,
   };
 }
