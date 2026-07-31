@@ -25,7 +25,15 @@ import {
 
 const SCOPE = v.union(v.literal("user"), v.literal("workspace"));
 
-/** Panels this person can put on a screen in this scope. */
+/**
+ * Panels this person can put on a screen in this scope.
+ *
+ * Theirs, plus anything a teammate has shared. Shared panels are OFFERED —
+ * they appear in the tray and on nobody's screen — because a panel arriving
+ * on your dashboard uninvited is the adaptive-UI mistake in a different hat.
+ * Spreading a good panel and changing someone's screen have to stay separate
+ * acts.
+ */
 export const listForScope = query({
   args: { scopeType: SCOPE, scopeId: v.string() },
   handler: async (ctx, { scopeType, scopeId }) => {
@@ -35,7 +43,7 @@ export const listForScope = query({
     } catch {
       return [];
     }
-    const rows = await ctx.db
+    const mine = await ctx.db
       .query("uiComponents")
       .withIndex("by_owner_and_scope", (q) =>
         q
@@ -44,12 +52,49 @@ export const listForScope = query({
           .eq("scopeId", scopeId),
       )
       .collect();
-    return rows.map((r) => ({
+    // Everything shared into this scope, whoever owns it. Bounded because a
+    // tray is a shelf you scan, not a directory you search.
+    const shared = (
+      await ctx.db
+        .query("uiComponents")
+        .withIndex("by_scope", (q) =>
+          q.eq("scopeType", scopeType).eq("scopeId", scopeId),
+        )
+        .take(200)
+    ).filter((r) => r.sharedAt !== undefined && r.ownerClerkId !== subject);
+
+    return [...mine, ...shared].map((r) => ({
       componentId: r._id,
       definition: r.definition as unknown,
       authoredByName: r.authoredByName ?? null,
       updatedAt: r.updatedAt,
+      mine: r.ownerClerkId === subject,
+      shared: r.sharedAt !== undefined,
     }));
+  },
+});
+
+/**
+ * Offer a panel to everyone in its scope, or stop offering it.
+ *
+ * Only the owner may. Sharing does not copy: the row stays theirs, and a
+ * teammate placing it is placing *that* panel — so when the author improves
+ * it, everyone who took it gets the improvement. A copy would be a fork that
+ * silently stops tracking, which is the same failure as copying down a theme
+ * value instead of inheriting it.
+ */
+export const setShared = mutation({
+  args: { componentId: v.id("uiComponents"), shared: v.boolean() },
+  handler: async (ctx, { componentId, shared }) => {
+    const identity = await requireIdentity(ctx);
+    const row = await ctx.db.get(componentId);
+    if (!row || row.ownerClerkId !== identity.subject) {
+      throw new ConvexError("Panel not found");
+    }
+    await ctx.db.patch(componentId, {
+      sharedAt: shared ? Date.now() : undefined,
+      updatedAt: Date.now(),
+    });
   },
 });
 
@@ -81,6 +126,7 @@ export const get = query({
       definition: row.definition as unknown,
       scopeType: row.scopeType,
       scopeId: row.scopeId,
+      sharedAt: row.sharedAt ?? null,
     };
   },
 });

@@ -13,6 +13,7 @@ import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
 import { timeAgo } from "@/lib/time";
 import {
+  STARTER_QUESTIONS,
   describePlan,
   planView,
   stateLabel,
@@ -118,11 +119,48 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
       )}
 
       {view.questions.length === 0 && !asking && (
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          Nothing has been raised yet. Questions asked here are readable by
-          everyone working on this project — including the agents, which is the
-          point: a decision written down once is a decision nobody re-litigates.
-        </p>
+        <div className="space-y-3">
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Nothing has been raised yet. Questions asked here are readable by
+            everyone working on this project — including the agents, which is
+            the point: a decision written down once is a decision nobody
+            re-litigates.
+          </p>
+          {/* The empty state offers the thing rather than describing it.
+              Each of these is worth keeping after it has done its teaching
+              job, so taking one is not a tutorial step you throw away. */}
+          <div className="bento rounded-2xl p-4">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Worth asking about most projects
+            </span>
+            <ul className="mt-2 space-y-1">
+              {STARTER_QUESTIONS.map((q) => (
+                <li key={q.body}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void ask({
+                        projectId: projectId as Id<"projects">,
+                        body: q.body,
+                        needsHuman: q.needsHuman,
+                      }).catch((e) =>
+                        toast(errorMessage(e, "Couldn't raise that"), {
+                          kind: "error",
+                        }),
+                      )
+                    }
+                    className="flex w-full items-baseline justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
+                  >
+                    <span className="min-w-0">{q.body}</span>
+                    <span className="flex-shrink-0 text-[10px] text-muted-foreground">
+                      {q.needsHuman ? "yours to settle" : "anyone can settle"}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       )}
 
       <Stagger className="space-y-4">

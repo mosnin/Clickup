@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   NODE_KINDS,
+  STARTER_QUESTIONS,
   describeNode,
   describePlan,
   normalizeNode,
@@ -400,5 +401,34 @@ describe("it reads back in words", () => {
     ] as QuestionState[]) {
       expect(stateLabel(state).length, state).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("the empty plan teaches by offering the thing", () => {
+  it("offers questions that are real questions, not tutorial steps", () => {
+    // Each has to be worth keeping after it has done its teaching job,
+    // otherwise the first thing a plan holds is something to delete.
+    expect(STARTER_QUESTIONS.length).toBeGreaterThan(2);
+    for (const q of STARTER_QUESTIONS) {
+      expect(q.body.trim().length, q.body).toBeGreaterThan(10);
+      expect(q.body.endsWith("?"), q.body).toBe(true);
+    }
+  });
+
+  it("reserves the ones that are genuinely a person's call", () => {
+    // "What are we not doing" is a scope decision; a machine proposing one is
+    // fine, a machine closing one is not.
+    expect(STARTER_QUESTIONS.some((q) => q.needsHuman)).toBe(true);
+    expect(STARTER_QUESTIONS.some((q) => !q.needsHuman)).toBe(true);
+  });
+
+  it("produces a real question when taken", () => {
+    const view = planView(
+      STARTER_QUESTIONS.map((q, i) =>
+        node({ kind: "question", body: q.body, needsHuman: q.needsHuman, createdAt: i }),
+      ),
+    );
+    expect(view.questions).toHaveLength(STARTER_QUESTIONS.length);
+    for (const q of view.questions) expect(q.state).toBe("unexplored");
   });
 });

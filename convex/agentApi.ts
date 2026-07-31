@@ -1073,6 +1073,177 @@ export const planRead = query({
   },
 });
 
+/**
+ * Everything an agent needs to be useful here, in one call.
+ *
+ * The problem this removes: a fresh runtime reconnects and re-derives the
+ * workspace from scratch every session, so competence lives in a hand-written
+ * system prompt that goes stale the moment anybody decides anything. Every
+ * part of an answer to "what should I know" already exists in this database —
+ * it was just spread across six calls nobody makes in the right order.
+ *
+ * Assembled rather than authored, which is the whole point: nothing here is a
+ * field somebody has to remember to update. **Decisions come first**, because
+ * a settled question is the highest-value thing an arriving agent can read —
+ * it is the difference between doing the work and relitigating it.
+ *
+ * Read-only and presence-classified: knowing what is expected of you should
+ * never cost budget, or agents will skip it and guess.
+ */
+export const brief = query({
+  args: { apiKey: v.string() },
+  handler: async (ctx, { apiKey }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey, "read");
+    const scopeType = agent.parentType;
+    const scopeId = agent.parentId;
+
+    // What has already been settled. Nothing else an agent reads on arrival
+    // saves as much work as not re-deciding something.
+    const decisionRows = await ctx.db
+      .query("planNodes")
+      .withIndex("by_scope_and_kind", (q) =>
+        q
+          .eq("scopeType", scopeType)
+          .eq("scopeId", scopeId)
+          .eq("kind", "decision"),
+      )
+      .order("desc")
+      .take(80);
+    const decisions: {
+      question: string;
+      decided: string;
+      by: string;
+      projectId: string;
+    }[] = [];
+    for (const row of decisionRows) {
+      if (row.retractedAt !== undefined) continue;
+      // A proposal nobody has signed is not something to act on.
+      if (row.acceptedAt === undefined) continue;
+      const question = row.parentId ? await ctx.db.get(row.parentId) : null;
+      if (!question || question.retractedAt !== undefined) continue;
+      decisions.push({
+        question: question.body,
+        decided: row.body,
+        by: row.acceptedByName ?? row.authorName,
+        projectId: row.projectId as string,
+      });
+      if (decisions.length >= 20) break;
+    }
+
+    // What is still open and waiting on somebody — where an agent can help.
+    const openRows = await ctx.db
+      .query("planNodes")
+      .withIndex("by_scope_and_kind", (q) =>
+        q
+          .eq("scopeType", scopeType)
+          .eq("scopeId", scopeId)
+          .eq("kind", "question"),
+      )
+      .order("desc")
+      .take(60);
+    const openQuestions: {
+      questionId: string;
+      body: string;
+      needsHuman: boolean;
+      projectId: string;
+    }[] = [];
+    for (const row of openRows) {
+      if (row.retractedAt !== undefined) continue;
+      const children = await ctx.db
+        .query("planNodes")
+        .withIndex("by_parent", (q) => q.eq("parentId", row._id))
+        .collect();
+      const settled = children.some(
+        (c) => c.kind === "decision" && c.retractedAt === undefined,
+      );
+      if (settled) continue;
+      openQuestions.push({
+        questionId: row._id as string,
+        body: row.body,
+        needsHuman: row.needsHuman === true,
+        projectId: row.projectId as string,
+      });
+      if (openQuestions.length >= 10) break;
+    }
+
+    return {
+      agent: { id: agent._id as string, name: agent.name },
+      scope: { type: scopeType, id: scopeId },
+      governance: {
+        role: agent.role ?? "member",
+        listRestricted: agent.allowedListIds !== undefined,
+      },
+      decisions,
+      openQuestions,
+      // Deliberately no task list. `next_task` already answers "what should I
+      // work on", with dispatch rules — claims, blockers, sprint, priority —
+      // that would have to be duplicated here to answer it differently. This
+      // is about context; that is about work.
+      nextStep: "Call next_task for something to work on.",
+      // Said out loud so an agent knows the list is a window rather than
+      // everything — a truncated brief read as complete is worse than none.
+      truncated: {
+        decisions: decisionRows.length >= 80,
+        openQuestions: openRows.length >= 60,
+      },
+    };
+  },
+});
+
+/** Settled decisions across every project in my scope. See `plans.decisionsInScope`. */
+export const findDecisions = query({
+  args: {
+    apiKey: v.string(),
+    search: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "read");
+    const limit = Math.min(Math.max(args.limit ?? 25, 1), 100);
+    const needle = (args.search ?? "").trim().toLowerCase();
+
+    const rows = await ctx.db
+      .query("planNodes")
+      .withIndex("by_scope_and_kind", (q) =>
+        q
+          .eq("scopeType", agent.parentType)
+          .eq("scopeId", agent.parentId)
+          .eq("kind", "decision"),
+      )
+      .order("desc")
+      .take(400);
+
+    const out: {
+      body: string;
+      question: string;
+      projectId: string;
+      decidedByName: string;
+      decidedAt: number;
+    }[] = [];
+    for (const row of rows) {
+      if (row.retractedAt !== undefined || row.acceptedAt === undefined) continue;
+      const question = row.parentId ? await ctx.db.get(row.parentId) : null;
+      if (!question || question.retractedAt !== undefined) continue;
+      if (
+        needle &&
+        !row.body.toLowerCase().includes(needle) &&
+        !question.body.toLowerCase().includes(needle)
+      ) {
+        continue;
+      }
+      out.push({
+        body: row.body,
+        question: question.body,
+        projectId: row.projectId as string,
+        decidedByName: row.acceptedByName ?? row.authorName,
+        decidedAt: row.acceptedAt,
+      });
+      if (out.length >= limit) break;
+    }
+    return out;
+  },
+});
+
 export const setFocus = mutation({
   args: {
     apiKey: v.string(),

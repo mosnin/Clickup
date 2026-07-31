@@ -159,7 +159,9 @@ const checklistArg = z
 // irreversible actions, and external side effects are classified independently;
 // safely-retryable mutations also get idempotentHint.
 const READ_TOOLS = new Set([
+  "brief",
   "read_plan",
+  "find_decisions",
   "list_pages",
   "read_page",
   "get_project_updates",
@@ -530,6 +532,28 @@ const TOOLS: ToolDef[] = [
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.proposePanel), { apiKey: k, ...a }),
+  },
+  {
+    name: "brief",
+    description:
+      "Everything I need to be useful in this workspace, in one call: what has already been SETTLED (accepted plan decisions — read these first, they are the difference between doing the work and relitigating it), what is still open and who has to settle it, and my own governance limits. Call this at session start, before next_task. Presence-budget exempt — knowing what is expected of me should never cost budget.",
+    shape: {},
+    run: (c, k) => c.query(asQuery(api.agentApi.brief), { apiKey: k }),
+  },
+  {
+    name: "find_decisions",
+    description:
+      "Search settled decisions across EVERY project in my scope. A decision outlives the project it was made in, and the question is usually 'what did we decide about X' with no idea which project that was. Returns the question, what was decided, who signed it, and where.",
+    shape: {
+      search: z
+        .string()
+        .max(64)
+        .optional()
+        .describe("plain substring over the decision and its question"),
+      limit: z.number().int().min(1).max(100).optional(),
+    },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.findDecisions), { apiKey: k, ...a }),
   },
   {
     name: "read_plan",

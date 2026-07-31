@@ -347,6 +347,26 @@ export function describePlan(view: PlanView): string {
 }
 
 /**
+ * Questions almost every project benefits from having answered.
+ *
+ * The empty-state problem, solved with the thing rather than with prose about
+ * the thing. A blank plan and a paragraph explaining what a plan is teaches
+ * nobody; four concrete questions, one click each, teach the shape by being
+ * it — and each one is genuinely worth asking, so taking one is not a tutorial
+ * step you throw away afterwards.
+ *
+ * Deliberately general rather than generated. A question inferred from a
+ * project's name would be a guess dressed as insight, and a wrong guess in the
+ * first thing somebody sees costs more than a right one gains.
+ */
+export const STARTER_QUESTIONS: { body: string; needsHuman: boolean }[] = [
+  { body: "What does done look like for this?", needsHuman: true },
+  { body: "What is the riskiest assumption we are making?", needsHuman: false },
+  { body: "What are we deliberately not doing?", needsHuman: true },
+  { body: "Who decides if we disagree?", needsHuman: true },
+];
+
+/**
  * Can this node legally hang off that one?
  *
  * Enforced on write rather than repaired on read, because unlike a panel — a

@@ -208,6 +208,24 @@ crews.
   `X-Ping-Signature` HMAC header. Use signed webhook subscriptions for
   the reliable channel; all payloads carry `apiVersion: 1`.
 
+## 9a. Start here: `brief`
+
+One call, at session start, before `next_task`. It returns what has
+already been **settled** in my scope, what is still open and who has to
+settle it, and my own governance limits — assembled from rows that
+already exist rather than from a prompt somebody wrote and forgot to
+update.
+
+Read the decisions first. Not relitigating something the team already
+agreed is the single highest-value thing an arriving agent can do.
+
+`find_decisions` searches settled decisions across **every** project in
+my scope, because a decision outlives the project it was made in and the
+question is usually "what did we decide about X" with no idea where.
+
+Both are presence-budget exempt: knowing what is expected of me should
+never cost budget, or I will skip it and guess.
+
 ## 9b. The plan: think in structure, not in chat
 
 Channels are a transcript. A transcript has no *state*, so an agent

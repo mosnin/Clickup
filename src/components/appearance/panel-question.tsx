@@ -60,6 +60,7 @@ export function PanelQuestion({ selectionId }: { selectionId: string }) {
     componentId ? { componentId } : "skip",
   );
   const update = useMutation(api.uiComponents.update);
+  const setShared = useMutation(api.uiComponents.setShared);
   const { toast } = useToast();
 
   const stored = useMemo<PanelDef | null>(
@@ -134,6 +135,31 @@ export function PanelQuestion({ selectionId }: { selectionId: string }) {
           onCommit={edit}
         />
       </div>
+
+      {/* Offering it, which is not the same as placing it on anybody's
+          screen. A good panel otherwise dies with its author and ten people
+          build ten of the same thing. */}
+      <label className="mt-3 flex items-start gap-2">
+        <input
+          type="checkbox"
+          checked={row.sharedAt !== null && row.sharedAt !== undefined}
+          onChange={(e) =>
+            void setShared({
+              componentId: row.componentId,
+              shared: e.currentTarget.checked,
+            }).catch((err) =>
+              toast(errorMessage(err, "Couldn't change that"), {
+                kind: "error",
+              }),
+            )
+          }
+          className="mt-0.5"
+        />
+        <span className="min-w-0 text-[11px] leading-relaxed text-muted-foreground">
+          Offer this to everyone here. It appears in their tray, never on
+          their screen.
+        </span>
+      </label>
 
       {changes.length > 0 && (
         <div className="mt-3 rounded-lg bg-page p-2.5 ring-1 ring-border">

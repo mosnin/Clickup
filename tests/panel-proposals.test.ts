@@ -419,3 +419,119 @@ describe("accepting", () => {
     ).rejects.toThrow();
   });
 });
+
+// ── X1: circulation ─────────────────────────────────────────────────────
+//
+// A panel is per-person, which is right — a dashboard is a place you stand.
+// But it means a good one dies with its author and ten people build ten of
+// the same thing. Sharing OFFERS: it reaches everyone's tray and nobody's
+// screen, so a panel spreads without ever being a change to someone else's
+// dashboard.
+
+describe("sharing a panel", () => {
+  async function withPanel() {
+    const state = await seed();
+    const componentId = await state.t
+      .withIdentity(ALICE)
+      .mutation(api.uiComponents.create, {
+        scopeType: "workspace",
+        scopeId: state.workspaceId,
+        definition: PANEL,
+      });
+    return { ...state, componentId };
+  }
+
+  it("is invisible to teammates until it is shared", async () => {
+    const { t, workspaceId } = await withPanel();
+    const bobs = await t.withIdentity(BOB).query(api.uiComponents.listForScope, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+    });
+    expect(bobs).toEqual([]);
+  });
+
+  it("reaches a teammate's tray once shared", async () => {
+    const { t, workspaceId, componentId } = await withPanel();
+    await t
+      .withIdentity(ALICE)
+      .mutation(api.uiComponents.setShared, { componentId, shared: true });
+
+    const bobs = await t.withIdentity(BOB).query(api.uiComponents.listForScope, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+    });
+    expect(bobs).toHaveLength(1);
+    expect(bobs[0].mine).toBe(false);
+    expect(bobs[0].shared).toBe(true);
+  });
+
+  it("never lands on a teammate's screen", async () => {
+    // The whole distinction. Spreading a panel and changing somebody's
+    // dashboard have to stay separate acts.
+    const { t, componentId } = await withPanel();
+    await t
+      .withIdentity(ALICE)
+      .mutation(api.uiComponents.setShared, { componentId, shared: true });
+    const layouts = await t.run(async (ctx) =>
+      ctx.db.query("screenLayouts").collect(),
+    );
+    expect(layouts).toEqual([]);
+  });
+
+  it("does not copy — the author keeps improving it for everyone", async () => {
+    const { t, workspaceId, componentId } = await withPanel();
+    await t
+      .withIdentity(ALICE)
+      .mutation(api.uiComponents.setShared, { componentId, shared: true });
+    await t.withIdentity(ALICE).mutation(api.uiComponents.update, {
+      componentId,
+      definition: { ...PANEL, title: "Blocked, now better" },
+    });
+
+    const bobs = await t.withIdentity(BOB).query(api.uiComponents.listForScope, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+    });
+    expect(
+      (bobs[0].definition as { title: string }).title,
+    ).toBe("Blocked, now better");
+  });
+
+  it("can be withdrawn", async () => {
+    const { t, workspaceId, componentId } = await withPanel();
+    await t
+      .withIdentity(ALICE)
+      .mutation(api.uiComponents.setShared, { componentId, shared: true });
+    await t
+      .withIdentity(ALICE)
+      .mutation(api.uiComponents.setShared, { componentId, shared: false });
+    const bobs = await t.withIdentity(BOB).query(api.uiComponents.listForScope, {
+      scopeType: "workspace",
+      scopeId: workspaceId,
+    });
+    expect(bobs).toEqual([]);
+  });
+
+  it("is the owner's call, not a teammate's", async () => {
+    const { t, componentId } = await withPanel();
+    await expect(
+      t
+        .withIdentity(BOB)
+        .mutation(api.uiComponents.setShared, { componentId, shared: true }),
+    ).rejects.toThrow(/not found/i);
+  });
+
+  it("still shows an outsider nothing", async () => {
+    const { t, workspaceId, componentId } = await withPanel();
+    await t
+      .withIdentity(ALICE)
+      .mutation(api.uiComponents.setShared, { componentId, shared: true });
+    const theirs = await t
+      .withIdentity(OUTSIDER)
+      .query(api.uiComponents.listForScope, {
+        scopeType: "workspace",
+        scopeId: workspaceId,
+      });
+    expect(theirs).toEqual([]);
+  });
+});

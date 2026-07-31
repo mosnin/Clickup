@@ -1484,6 +1484,17 @@ export default defineSchema({
     /** Set when an agent wrote it, so provenance survives on the panel. */
     authoredByAgentId: v.optional(v.id("agents")),
     authoredByName: v.optional(v.string()),
+    /**
+     * Offered to everyone in the scope rather than kept.
+     *
+     * Panels are per-person, which is right — a dashboard is a place you
+     * stand. But it means a good panel dies with its author and ten people
+     * build ten of the same thing. Sharing OFFERS: a shared panel appears in
+     * everyone's tray and nobody's screen, so it spreads without ever being
+     * a change to somebody else's dashboard. Same consent shape as every
+     * other agent→human path here.
+     */
+    sharedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -1606,7 +1617,10 @@ export default defineSchema({
     retractedByName: v.optional(v.string()),
   })
     .index("by_project", ["projectId"])
-    .index("by_parent", ["parentId"]),
+    .index("by_parent", ["parentId"])
+    // "What did we decide about X, anywhere" — a decision outlives the
+    // project it was made in, and nobody remembers which one that was.
+    .index("by_scope_and_kind", ["scopeType", "scopeId", "kind"]),
 
   // ── Phase 12: AI agent collaboration ────────────────────────────────
 

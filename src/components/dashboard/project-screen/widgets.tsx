@@ -468,6 +468,11 @@ export const DEFAULT_PROJECT_LAYOUT = {
     { id: "about", span: 2 as WidgetSpan },
     { id: "progress", span: 1 as WidgetSpan },
     { id: "lists", span: 2 as WidgetSpan },
+    // The plan ships in the default arrangement rather than waiting in the
+    // tray. A surface nobody can find is a surface that does not exist, and
+    // "open questions" is the one thing on this screen that is about what
+    // has not happened yet — which is the part people forget.
+    { id: "plan", span: 1 as WidgetSpan },
     { id: "pages", span: 1 as WidgetSpan },
     { id: "status", span: 1 as WidgetSpan },
     { id: "owner", span: 1 as WidgetSpan },

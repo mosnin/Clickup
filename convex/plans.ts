@@ -2,7 +2,11 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireIdentity, requireProjectAccess } from "./_authz";
+import {
+  requireIdentity,
+  requireProjectAccess,
+  requireScopeAccess,
+} from "./_authz";
 import { emitEvent } from "./events";
 
 // The plan: what we don't know, what could be true, what we know, what we chose.
@@ -262,6 +266,90 @@ export const forProject = query({
       retractedAt: r.retractedAt ?? null,
       retractedByName: r.retractedByName ?? null,
     }));
+  },
+});
+
+/**
+ * Settled questions across every project in a scope.
+ *
+ * A plan is per-project because a deliberation is about something. But a
+ * *decision* outlives its project — "we agreed not to support IE", "Ada owns
+ * schema calls" — and the question people actually ask is "what did we decide
+ * about X", with no idea which project it happened in. Without this the plan
+ * is four filing cabinets nobody opens.
+ *
+ * Reads the decisions rather than the questions because a decision is the
+ * durable half; an unsettled question is only interesting where it lives.
+ */
+export const decisionsInScope = query({
+  args: {
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    /** Plain substring over the decision and its question. Never a pattern. */
+    search: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    try {
+      await requireScopeAccess(ctx, {
+        scopeType: args.scopeType,
+        scopeId: args.scopeId,
+      });
+    } catch {
+      return [];
+    }
+    const limit = Math.min(Math.max(args.limit ?? 25, 1), 100);
+    const needle = (args.search ?? "").trim().toLowerCase();
+
+    const rows = await ctx.db
+      .query("planNodes")
+      .withIndex("by_scope_and_kind", (q) =>
+        q
+          .eq("scopeType", args.scopeType)
+          .eq("scopeId", args.scopeId)
+          .eq("kind", "decision"),
+      )
+      .order("desc")
+      .take(400);
+
+    const out: {
+      id: string;
+      body: string;
+      question: string;
+      projectId: string;
+      projectName: string;
+      decidedByName: string;
+      decidedAt: number;
+      accepted: boolean;
+    }[] = [];
+
+    for (const row of rows) {
+      if (row.retractedAt !== undefined) continue;
+      const question = row.parentId ? await ctx.db.get(row.parentId) : null;
+      if (!question || question.retractedAt !== undefined) continue;
+      if (
+        needle &&
+        !row.body.toLowerCase().includes(needle) &&
+        !question.body.toLowerCase().includes(needle)
+      ) {
+        continue;
+      }
+      const project = await ctx.db.get(row.projectId);
+      out.push({
+        id: row._id as string,
+        body: row.body,
+        question: question.body,
+        projectId: row.projectId as string,
+        projectName: project?.name ?? "a project",
+        decidedByName: row.acceptedByName ?? row.authorName,
+        decidedAt: row.acceptedAt ?? row.createdAt,
+        // A proposal a machine made and nobody signed is not yet a decision,
+        // and must not read like one from across the workspace.
+        accepted: row.acceptedAt !== undefined,
+      });
+      if (out.length >= limit) break;
+    }
+    return out;
   },
 });
 

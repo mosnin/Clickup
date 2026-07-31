@@ -18,6 +18,11 @@ import {
   padCss,
 } from "@/components/appearance/style-gallery";
 import { Stagger, StaggerItem } from "@/components/motion";
+import {
+  ProvenanceSheet,
+  ProvenanceToggle,
+  useProvenance,
+} from "@/components/dashboard/provenance-sheet";
 import { formatValue } from "@/lib/chart-math";
 import {
   describePanel,
@@ -108,7 +113,14 @@ export function Panel({
         {data === undefined ? (
           <Skeleton />
         ) : (
-          <Body def={def} data={data} style={style} state={state} />
+          <Body
+            def={def}
+            data={data}
+            style={style}
+            state={state}
+            scopeType={scopeType}
+            scopeId={scopeId}
+          />
         )}
       </div>
       {data?.truncated && (
@@ -171,14 +183,27 @@ function Body({
   data,
   style,
   state,
+  scopeType,
+  scopeId,
 }: {
   def: PanelDef;
   data: Envelope;
   style: ReturnType<typeof useComponentStyle>["style"];
   state: ReturnType<typeof usePanelAttention>["state"];
+  scopeType: "user" | "workspace";
+  scopeId: string;
 }) {
   if (isMetricShape(def.shape)) {
-    return <Metric def={def} data={data} style={style} state={state} />;
+    return (
+      <Metric
+        def={def}
+        data={data}
+        style={style}
+        state={state}
+        scopeType={scopeType}
+        scopeId={scopeId}
+      />
+    );
   }
 
   if (isChartShape(def.shape)) {
@@ -207,15 +232,26 @@ function Metric({
   data,
   style,
   state,
+  scopeType,
+  scopeId,
 }: {
   def: PanelDef;
   data: Envelope;
   style: ReturnType<typeof useComponentStyle>["style"];
   state: ReturnType<typeof usePanelAttention>["state"];
+  scopeType: "user" | "workspace";
+  scopeId: string;
 }) {
+  // A big number is where "why is that what it is" actually gets asked, so
+  // this is where the chain hangs. The number itself is the affordance —
+  // anything else would be chrome competing with the thing it is about.
+  const provenance = useProvenance();
+
   return (
     <div className="flex h-full flex-col justify-between">
-      <p
+      <ProvenanceToggle
+        open={provenance.open}
+        onToggle={provenance.toggle}
         className={cn(
           "text-4xl tabular-nums",
           style.fill === "inverted" && "text-background",
@@ -223,7 +259,25 @@ function Metric({
       >
         <LiveNumber value={data.scalar} />
         {data.meta.unit === "percent" ? "%" : ""}
-      </p>
+      </ProvenanceToggle>
+
+      <provenance.Presence>
+        {provenance.open && (
+          <ProvenanceSheet
+            def={def}
+            total={data.total}
+            truncated={data.truncated}
+            rows={data.rows.map((r) => ({
+              id: r.id,
+              title: r.title,
+              href: r.href,
+            }))}
+            scopeType={scopeType}
+            scopeId={scopeId}
+            onClose={provenance.close}
+          />
+        )}
+      </provenance.Presence>
 
       {/* What changed since you last looked, under the number it explains. */}
       <PanelDelta state={state} className="mt-1" />
