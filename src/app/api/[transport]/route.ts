@@ -618,6 +618,26 @@ const TOOLS: ToolDef[] = [
       c.mutation(asMutation(api.agentApi.planDecide), { apiKey: k, ...a }),
   },
   {
+    name: "record_expectation",
+    description:
+      "Say what I expect a decision to change, in a form that can be checked. The number is read NOW by the server and compared at the horizon — I cannot supply a baseline, and this can only be done at decision time, because a baseline taken later already contains the effect. Use it whenever I settle something I have a view about: an agent whose claims get graded has a track record, which is a stronger signal than 'I finished the task'.",
+    shape: {
+      decisionId: z.string(),
+      query: PANEL_DEFINITION.shape.query,
+      direction: z
+        .enum(["down", "up", "at_most", "at_least", "unchanged"])
+        .describe("which way the number should move"),
+      target: z
+        .number()
+        .optional()
+        .describe("required for at_most / at_least; ignored otherwise"),
+      dueAt: z.number().describe("epoch ms — when to check. Must be in the future."),
+      note: z.string().max(200).optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.planExpect), { apiKey: k, ...a }),
+  },
+  {
     name: "retract_plan_node",
     description:
       "Take back something I wrote in the plan — an option that turned out to be impossible, evidence I got wrong. It stops counting toward the question's state and stays readable as history. I can only retract my own.",

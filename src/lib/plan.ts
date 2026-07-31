@@ -71,6 +71,14 @@ export type PlanNode = {
   acceptedByName: string | null;
   ref: PlanRef;
   /**
+   * Decisions only: what the decider claimed would happen, and how it turned
+   * out. Opaque here — `src/lib/calibration.ts` owns the shape. Carried
+   * through rather than parsed so the plan model does not grow a second
+   * vocabulary it has no use for.
+   */
+  expectation: unknown;
+  outcome: unknown;
+  /**
    * Retracted rather than deleted.
    *
    * "We thought X, then learned better" is the most useful thing a plan holds
@@ -146,6 +154,8 @@ export function normalizeNode(input: unknown): PlanNode {
     acceptedByName:
       kind === "decision" ? text(raw.acceptedByName, 80) || null : null,
     ref: normalizeRef(raw.ref),
+    expectation: kind === "decision" ? (raw.expectation ?? null) : null,
+    outcome: kind === "decision" ? (raw.outcome ?? null) : null,
     retractedAt: stamp(raw.retractedAt),
   };
 }

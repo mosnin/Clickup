@@ -1613,10 +1613,38 @@ export default defineSchema({
     acceptedByName: v.optional(v.string()),
     /** A link back into the work this node is about. */
     ref: v.optional(v.object({ kind: v.string(), id: v.string() })),
+    /**
+     * Decisions only: what the decider expected to happen.
+     *
+     * The claim is stated in the panel vocabulary, so the same resolver that
+     * draws a chart grades the decision — nothing new to invent. `baseline`
+     * is captured at the instant the claim is made and that is the whole
+     * design: a baseline read afterwards already contains the effect, so a
+     * retrofitted expectation compares the world to itself and can never be
+     * wrong. See `src/lib/calibration.ts`.
+     */
+    expectation: v.optional(v.any()),
+    /** Filled in once, when the horizon passes. */
+    outcome: v.optional(
+      v.object({
+        verdict: v.union(
+          v.literal("met"),
+          v.literal("missed"),
+          v.literal("unevaluable"),
+        ),
+        value: v.number(),
+        checkedAt: v.number(),
+      }),
+    ),
+    /** Denormalized from `expectation.dueAt` so the cron can range on it. */
+    expectationDueAt: v.optional(v.number()),
     retractedAt: v.optional(v.number()),
     retractedByName: v.optional(v.string()),
   })
     .index("by_project", ["projectId"])
+    // What is due for grading, cheaply. Only decisions carrying a live
+    // expectation land in this range.
+    .index("by_expectation_due", ["expectationDueAt"])
     .index("by_parent", ["parentId"])
     // "What did we decide about X, anywhere" — a decision outlives the
     // project it was made in, and nobody remembers which one that was.

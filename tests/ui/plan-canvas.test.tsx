@@ -329,3 +329,119 @@ describe("what was taken back is readable", () => {
     expect(screen.queryByText(/taken back/)).toBeNull();
   });
 });
+
+describe("what was expected", () => {
+  function decided(over: Record<string, unknown> = {}) {
+    const q = node({ kind: "question", body: "Do we cut scope?" });
+    const a = node({ kind: "option", parentId: q.id, body: "Yes" });
+    const d = node({
+      kind: "decision",
+      parentId: q.id,
+      chosenOptionId: a.id,
+      body: "Cutting it",
+      acceptedAt: 99,
+      acceptedByName: "Ada",
+      ...over,
+    });
+    show([q, a, d]);
+    // A settled question collapses to one line, so the claim lives inside the
+    // working. Expanding is what a person does before reading it.
+    fireEvent.click(screen.getByText("Do we cut scope?").closest("button")!);
+    return { q, a, d };
+  }
+
+  it("offers a claim on a decision that has none", () => {
+    decided();
+    expect(screen.getByText("What do you expect this to change?")).toBeTruthy();
+  });
+
+  it("sends the claim without a baseline — the server reads that", () => {
+    // The one property the whole feature rests on. A caller-supplied baseline
+    // is a claim about the past nobody can check.
+    const { d } = decided();
+    fireEvent.click(screen.getByText("What do you expect this to change?"));
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "It should" })).getByText(
+        "go down",
+      ),
+    );
+    fireEvent.click(screen.getByText("Record it"));
+
+    const [args] = calls("calibration.attach") as Record<string, unknown>[];
+    expect(args.decisionId).toBe(d.id);
+    expect(args.direction).toBe("down");
+    expect(args.baseline).toBeUndefined();
+    expect(typeof args.dueAt).toBe("number");
+    expect(args.dueAt as number).toBeGreaterThan(Date.now());
+  });
+
+  it("shows a claim that has not been checked yet", () => {
+    decided({
+      expectation: {
+        query: { from: "tasks", filter: { status: "open" } },
+        direction: "down",
+        target: 0,
+        baseline: 20,
+        dueAt: Date.now() + 86_400_000,
+        note: "",
+      },
+    });
+    expect(screen.getByText(/will be lower than 20/)).toBeTruthy();
+    expect(screen.getByText(/Not checked yet/)).toBeTruthy();
+  });
+
+  it("states a miss flatly and offers no way to delete it", () => {
+    // A missed claim is the most valuable row in the system, and deleting one
+    // is how a team quietly stops being wrong.
+    decided({
+      expectation: {
+        query: { from: "tasks", filter: { status: "open" } },
+        direction: "down",
+        target: 0,
+        baseline: 20,
+        dueAt: Date.now() - 1000,
+        note: "",
+      },
+      outcome: { verdict: "missed", value: 31, checkedAt: Date.now() - 500 },
+    });
+    expect(screen.getByText(/did not hold: 31, from 20/)).toBeTruthy();
+    expect(screen.queryByText("Withdraw the claim")).toBeNull();
+  });
+
+  it("lets an unchecked claim be withdrawn", () => {
+    const { d } = decided({
+      expectation: {
+        query: { from: "tasks", filter: { status: "open" } },
+        direction: "down",
+        target: 0,
+        baseline: 20,
+        dueAt: Date.now() + 86_400_000,
+        note: "",
+      },
+    });
+    fireEvent.click(screen.getByText("Withdraw the claim"));
+    expect(calls("calibration.detach")).toEqual([{ decisionId: d.id }]);
+  });
+
+  it("never offers a second claim on a decision that has one", () => {
+    // Re-baselining compares the world to itself.
+    decided({
+      expectation: {
+        query: { from: "tasks" },
+        direction: "down",
+        target: 0,
+        baseline: 5,
+        dueAt: Date.now() + 1000,
+        note: "",
+      },
+    });
+    expect(screen.queryByText("Record it")).toBeNull();
+  });
+
+  it("offers nothing on a question with no decision", () => {
+    show([node({ kind: "question", body: "Still open" })]);
+    expect(
+      screen.queryByText("What do you expect this to change?"),
+    ).toBeNull();
+  });
+});

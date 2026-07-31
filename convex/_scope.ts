@@ -19,6 +19,37 @@ export async function listsInScope(
 ): Promise<Doc<"lists">[]> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return [];
+  return await walk(ctx, scopeType, scopeId, identity);
+}
+
+/**
+ * Every list inside a scope, with no per-space visibility check.
+ *
+ * **The caller must narrow the result to something it has already
+ * authorized.** There is exactly one: grading an expectation, which runs on a
+ * cron with no identity and immediately restricts to the project the decision
+ * was made in.
+ *
+ * That restriction is why this is safe rather than a hole, and it is also the
+ * better product rule: a claim attached to a decision should be about the
+ * thing the decision was about. Measuring it across a whole workspace would
+ * both leak private spaces into an aggregate and let the number move for
+ * reasons nobody claimed anything about.
+ */
+export async function allListsInScope(
+  ctx: QueryCtx,
+  scopeType: "user" | "workspace",
+  scopeId: string,
+): Promise<Doc<"lists">[]> {
+  return await walk(ctx, scopeType, scopeId, null);
+}
+
+async function walk(
+  ctx: QueryCtx,
+  scopeType: "user" | "workspace",
+  scopeId: string,
+  identity: { subject: string } | null,
+): Promise<Doc<"lists">[]> {
 
   const spaces = await ctx.db
     .query("spaces")
@@ -30,7 +61,7 @@ export async function listsInScope(
   const out: Doc<"lists">[] = [];
   for (const space of spaces) {
     if (space.archivedAt) continue;
-    if (!(await canAccessSpace(ctx, space, identity))) continue;
+    if (identity && !(await canAccessSpace(ctx, space, identity))) continue;
 
     out.push(
       ...(await ctx.db

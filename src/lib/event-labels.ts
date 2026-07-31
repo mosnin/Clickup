@@ -18,6 +18,8 @@ export const EVENT_LABEL: Record<string, string> = {
   "question.opened": "raised the question",
   "question.decision_proposed": "proposed settling",
   "question.decided": "settled",
+  "question.claim_held": "was right about",
+  "question.claim_missed": "was wrong about",
   "sprint.created": "created sprint",
   "sprint.started": "started sprint",
   "sprint.completed": "completed sprint",

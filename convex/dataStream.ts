@@ -3,7 +3,7 @@ import { query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireScopeAccess } from "./_authz";
-import { listsInScope } from "./_scope";
+import { allListsInScope, listsInScope } from "./_scope";
 
 // The one resolver.
 //
@@ -434,13 +434,62 @@ export const resolve = query({
       // error: existence is information too.
       return EMPTY;
     }
+    return await resolveEnvelope(ctx, args, subject);
+  },
+});
 
-    const q = args.query as Query;
-    // Belt and braces. Every caller normalizes first (the renderer does it on
-    // every read), but definitions are authored by agents and stored opaque,
-    // so a missing filter must degrade to "no filter" rather than throw and
-    // take a screen down with it.
-    const filter: Filter = { ...EMPTY_FILTER, ...(q.filter ?? {}) };
+/**
+ * Execute a query and return the envelope. The body of `resolve`, lifted.
+ *
+ * Lifted so a cron can run the same code a screen runs. Calibration has to
+ * evaluate an expectation on a schedule, and the alternative — a second
+ * evaluator that handles "just the scalar" — is the drift this codebase keeps
+ * deleting: two implementations of one vocabulary, and the newer one grows a
+ * filter the older one silently ignores.
+ *
+ * `subject` is passed in rather than resolved, because the caller knows how it
+ * got here. A cron has no subject, and a query whose answer depends on who is
+ * asking cannot be evaluated on a schedule — see `normalizeExpectation`, which
+ * refuses "assigned to me" for exactly that reason.
+ */
+export async function resolveEnvelope(
+  ctx: QueryCtx,
+  args: {
+    scopeType: "user" | "workspace";
+    scopeId: string;
+    query: unknown;
+    tzOffsetMinutes?: number;
+    /**
+     * Skip the per-space visibility check.
+     *
+     * Only grading passes it, and only alongside a `scopeTo` filter that
+     * narrows to a project the caller has already been authorized for — see
+     * `allListsInScope`.
+     */
+    unscoped?: boolean;
+  },
+  subject: string,
+): Promise<Envelope> {
+  {
+    // Belt and braces, and now load-bearing. The renderer normalizes before
+    // every read, so for a long time "the caller normalized" was true by
+    // construction. A cron grading an expectation reads a query out of a row
+    // instead, and an absent `dimension` reaches a `startsWith` and takes the
+    // whole pass down. Every scalar gets the same treatment the filter got:
+    // absence means the default, never a crash.
+    const raw = (args.query ?? {}) as Partial<Query>;
+    const q: Query = {
+      from: raw.from ?? "tasks",
+      filter: { ...EMPTY_FILTER, ...(raw.filter ?? {}) },
+      dimension: raw.dimension ?? "none",
+      breakdown: raw.breakdown ?? "none",
+      measure: raw.measure ?? "count",
+      sort: raw.sort ?? "manual",
+      limit: raw.limit ?? 8,
+      dimensionFieldId: raw.dimensionFieldId ?? "",
+      measureFieldId: raw.measureFieldId ?? "",
+    };
+    const filter: Filter = q.filter;
     const now = Date.now();
     const tz = Math.max(-840, Math.min(840, args.tzOffsetMinutes ?? 0));
     const limit = Math.min(Math.max(Number(q.limit) || 8, 1), 60);
@@ -453,6 +502,7 @@ export const resolve = query({
     // Non-task sources: simpler shapes, same envelope.
     if (q.from !== "tasks") {
       return await resolveOther(ctx, args.scopeType, args.scopeId, q, {
+        unscoped: args.unscoped,
         now,
         tz,
         limit,
@@ -461,7 +511,9 @@ export const resolve = query({
     }
 
     // ── Gather ──
-    let lists = await listsInScope(ctx, args.scopeType, args.scopeId);
+    let lists = args.unscoped
+      ? await allListsInScope(ctx, args.scopeType, args.scopeId)
+      : await listsInScope(ctx, args.scopeType, args.scopeId);
     if (filter.scopeToKind === "list") {
       lists = lists.filter((l) => l._id === filter.scopeToId);
     } else if (filter.scopeToKind === "project") {
@@ -732,8 +784,8 @@ export const resolve = query({
 
     void listById;
     return { rows, series, scalar, total: matched.length, truncated, meta };
-  },
-});
+  }
+}
 
 /**
  * The other sources.
@@ -752,9 +804,11 @@ async function resolveOther(
     tz: number;
     limit: number;
     meta: { unit: string; dimensionLabel: string; measureLabel: string };
+    /** See `allListsInScope` — only grading passes it. */
+    unscoped?: boolean;
   },
 ): Promise<Envelope> {
-  const { now, tz, limit, meta } = ctxo;
+  const { now, tz, limit, meta, unscoped } = ctxo;
   const search = q.filter.search.toLowerCase();
   const from = windowStart(q.filter.window, now);
 
@@ -981,7 +1035,9 @@ async function resolveOther(
   }
 
   if (q.from === "time") {
-    const lists = await listsInScope(ctx, scopeType, scopeId);
+    const lists = unscoped
+      ? await allListsInScope(ctx, scopeType, scopeId)
+      : await listsInScope(ctx, scopeType, scopeId);
     const listIds = new Set(lists.map((l) => l._id as string));
     const entries = await ctx.db.query("timeEntries").order("desc").take(1000);
     const matched: { key: string; label: string; at: number; value: number }[] = [];

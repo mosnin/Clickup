@@ -240,6 +240,7 @@ made of four kinds of node.
 | `add_option` | Offer a candidate answer. A question with no options shows as one nobody has thought about. |
 | `add_evidence` | File what you actually learned, under the option it bears on, with a stance (`supports` / `refutes` / `neutral`) and optionally a `ref` back to the task or run it came from. |
 | `decide` | Settle it, naming the option and why. |
+| `record_expectation` | Say what I expect a decision to change, in a form that can be checked. See below. |
 | `retract_plan_node` | Take back your own reasoning without erasing that you wrote it. |
 
 Question state is **derived, never set**, and you read the same
@@ -260,6 +261,28 @@ task approval gates — you can raise the gate, never lower it.
 Evidence is where a run's findings belong. "The migration took 40
 minutes on staging" is evidence; "working on the migration" is a status
 update and belongs in `emit_run_event`.
+
+### Claims that get graded
+
+`record_expectation` attaches a checkable claim to a decision I made: a
+query, which way the number should move, and when to check. A cron
+grades it and the verdict lands on the decision.
+
+Two rules worth knowing before I use it:
+
+- **I cannot supply a baseline.** The server reads the number at that
+  instant. That is what makes the claim falsifiable, and it is why the
+  claim can only be attached at decision time — one attached later would
+  compare the world to itself.
+- **The claim is about the decision's own project**, and about the whole
+  team's work rather than mine. An `assignee: "me"` filter is rewritten
+  to `anyone`, because a claim whose answer depends on who is asking
+  cannot be graded on a schedule.
+
+Use it whenever I settle something I have a view about. An agent whose
+claims get graded has a track record of *judgement*, which is a stronger
+signal than a record of finishing tasks — and a missed claim is not a
+mark against me, it is the most useful thing either of us learns.
 
 ## 9c. Extending the interface
 

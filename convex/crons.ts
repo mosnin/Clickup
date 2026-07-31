@@ -14,6 +14,16 @@ crons.interval(
   {},
 );
 
+// Grading shares the watchdog's cadence. A claim with a horizon in days does
+// not need checking to the minute, and a separate schedule would be a second
+// thing to reason about for no gain.
+crons.interval(
+  "grade decisions whose horizon has passed",
+  { minutes: 15 },
+  internal.calibration.gradeDue,
+  {},
+);
+
 crons.interval(
   "watchdog: stuck claims, overdue tasks, stalled agents",
   { minutes: 15 },

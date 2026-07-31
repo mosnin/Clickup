@@ -32,6 +32,7 @@ import type * as ai from "../ai.js";
 import type * as aiDb from "../aiDb.js";
 import type * as appearance from "../appearance.js";
 import type * as attachments from "../attachments.js";
+import type * as calibration from "../calibration.js";
 import type * as capabilities from "../capabilities.js";
 import type * as channels from "../channels.js";
 import type * as chat from "../chat.js";
@@ -149,6 +150,7 @@ declare const fullApi: ApiFromModules<{
   aiDb: typeof aiDb;
   appearance: typeof appearance;
   attachments: typeof attachments;
+  calibration: typeof calibration;
   capabilities: typeof capabilities;
   channels: typeof channels;
   chat: typeof chat;

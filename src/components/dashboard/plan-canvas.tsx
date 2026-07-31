@@ -12,6 +12,7 @@ import { EASE, Reveal, Stagger, StaggerItem } from "@/components/motion";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
 import { timeAgo } from "@/lib/time";
+import { ExpectationControl } from "@/components/dashboard/expectation";
 import {
   STARTER_QUESTIONS,
   describePlan,
@@ -277,6 +278,13 @@ function OpenQuestion({ question }: { question: QuestionView }) {
             />
           ))}
         </div>
+      )}
+
+      {/* What was claimed, and whether it held. Offered at the moment of
+          deciding because that is the only moment a baseline means anything —
+          one taken later already contains the effect. */}
+      {question.decision && (
+        <ExpectationControl decision={question.decision} />
       )}
 
       {/* What was taken back. The storage decision — retract, never delete —
@@ -545,6 +553,9 @@ function SettledQuestion({ question }: { question: QuestionView }) {
               <p className="text-xs leading-relaxed">
                 {question.decision?.body}
               </p>
+              {question.decision && (
+                <ExpectationControl decision={question.decision} />
+              )}
               <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {question.options.map((option) => (
                   <Option key={option.node.id} option={option} onDecide={() => {}} />

@@ -25,6 +25,7 @@ import {
 } from "./_agentAuth";
 import { getSpaceForList } from "./_authz";
 import { addNodeCore, decideCore } from "./plans";
+import { resolveEnvelope } from "./dataStream";
 import {
   SURFACE_TYPE as PRESENCE_SURFACE,
   clearActorPresence,
@@ -1012,6 +1013,95 @@ export const planDecide = mutation({
       body: args.body,
       actor: agentActor(agent),
     });
+  },
+});
+
+/**
+ * Stake a claim on a decision you made.
+ *
+ * The half of deciding that agents skip and humans forget: saying what you
+ * expect to happen, in a form that can be checked. The baseline is read by
+ * the server at this instant — you cannot supply one — which is what makes it
+ * falsifiable, and why it can only be done at decision time.
+ *
+ * An agent whose claims are graded is an agent whose judgement has a track
+ * record. That is a signal no agent currently has: not "did I finish the
+ * task" but "was the call right".
+ */
+export const planExpect = mutation({
+  args: {
+    apiKey: v.string(),
+    decisionId: v.id("planNodes"),
+    /** A DataQuery — the same vocabulary a panel asks in. */
+    query: v.any(),
+    direction: v.union(
+      v.literal("down"),
+      v.literal("up"),
+      v.literal("at_most"),
+      v.literal("at_least"),
+      v.literal("unchanged"),
+    ),
+    target: v.optional(v.number()),
+    dueAt: v.number(),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const decision = await ctx.db.get(args.decisionId);
+    if (!decision || decision.kind !== "decision") {
+      throw new ConvexError("Decision not found");
+    }
+    await requireProjectAccessForAgent(ctx, decision.projectId, agent);
+    if (decision.expectation !== undefined) {
+      throw new ConvexError(
+        "This decision already has an expectation. Re-baselining it would compare the world to itself.",
+      );
+    }
+    if (args.dueAt <= Date.now()) {
+      throw new ConvexError("A claim has to reach into the future");
+    }
+
+    const project = await ctx.db.get(decision.projectId);
+    if (!project) throw new ConvexError("Project not found");
+    const space = await ctx.db.get(project.spaceId);
+    if (!space) throw new ConvexError("Orphan project");
+    const scopeType: "user" | "workspace" =
+      space.parentType === "workspace" ? "workspace" : "user";
+
+    // Narrowed to the decision's own project, exactly as grading will narrow
+    // it — see `calibration.measure`. A claim about a decision is about the
+    // thing the decision was about.
+    const raw = (args.query ?? {}) as { filter?: Record<string, unknown> };
+    const envelope = await resolveEnvelope(
+      ctx,
+      {
+        scopeType,
+        scopeId: space.parentId,
+        query: {
+          ...raw,
+          filter: {
+            ...(raw.filter ?? {}),
+            scopeToKind: "project",
+            scopeToId: decision.projectId,
+          },
+        },
+        unscoped: true,
+      },
+      "",
+    );
+
+    await ctx.db.patch(args.decisionId, {
+      expectation: {
+        query: args.query,
+        direction: args.direction,
+        target: args.target ?? 0,
+        baseline: envelope.scalar,
+        dueAt: args.dueAt,
+        note: args.note ?? "",
+      },
+      expectationDueAt: args.dueAt,
+    });
+    return { baseline: envelope.scalar };
   },
 });
 

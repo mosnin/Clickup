@@ -263,6 +263,8 @@ export const forProject = query({
       acceptedAt: r.acceptedAt ?? null,
       acceptedByName: r.acceptedByName ?? null,
       ref: r.ref ?? null,
+      expectation: r.expectation ?? null,
+      outcome: r.outcome ?? null,
       retractedAt: r.retractedAt ?? null,
       retractedByName: r.retractedByName ?? null,
     }));
