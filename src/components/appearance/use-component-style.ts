@@ -4,6 +4,8 @@ import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useAppearance } from "@/components/appearance/appearance-provider";
+import { useToast } from "@/components/toast";
+import { errorMessage } from "@/lib/errors";
 import {
   clearStyleKeys,
   normalizeStylePatch,
@@ -68,6 +70,7 @@ export function useComponentStyle(
   panelId?: string | null,
   definitionStyle?: StylePatch,
 ): ComponentStyleContext {
+  const { toast } = useToast();
   const { space } = useAppearance();
   const remote = useQuery(api.appearance.forCurrentUser, {});
   const save = useMutation(api.appearance.saveComponentStyle);
@@ -137,18 +140,32 @@ export function useComponentStyle(
 
   const persist = useCallback(
     (scope: ComponentStyleScope, patch: StylePatch) => {
-      const failed = () => {
-        // A preference that didn't stick is not a broken app. The preview
-        // stays so nothing appears lost, and the next change tries again.
-      };
+      // Say so. This used to be an empty catch with a comment arguing that a
+      // preference which didn't stick is not a broken app — while the preview
+      // stayed on screen, so a failed write looked exactly like a successful
+      // one until the next reload. Hiding a failed save is worse than the
+      // failed save: it is the difference between "that didn't work" and
+      // "this product doesn't work".
+      const failed = (e: unknown) =>
+        toast(errorMessage(e, "That style didn't save"), { kind: "error" });
+
       if (scope === "panel") {
-        if (panelId) void savePanel({ panelId, patch }).catch(failed);
+        if (!panelId) {
+          toast("Pick a panel first", { kind: "error" });
+          return;
+        }
+        void savePanel({ panelId, patch }).catch(failed);
         return;
       }
       if (scope === "personal") {
         void save({ patch }).catch(failed);
       } else if (!spaceId) {
-        // Nothing to scope it to; the studio hides these scopes off a space.
+        // Reachable only if a caller offers a space scope outside a space,
+        // which is a wiring bug rather than something a person can do. It
+        // used to be an empty branch, so the write vanished in silence.
+        toast("Open a space to change how it looks for everyone", {
+          kind: "error",
+        });
       } else if (scope === "space") {
         void setSpaceStyle({
           spaceId: spaceId as Parameters<typeof setSpaceStyle>[0]["spaceId"],
@@ -161,7 +178,7 @@ export function useComponentStyle(
         }).catch(failed);
       }
     },
-    [save, savePanel, setSpaceStyle, spaceId, panelId],
+    [save, savePanel, setSpaceStyle, spaceId, panelId, toast],
   );
 
   const preview = useCallback((patch: StylePatch) => {

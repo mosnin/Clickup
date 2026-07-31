@@ -564,3 +564,84 @@ export function describeStyle(style: ComponentStyle): string {
   if (style.legend !== "none") bits.push(`legend ${style.legend}`);
   return bits.join(", ");
 }
+
+// ── The two things anyone actually picks ────────────────────────────────
+//
+// A style axis is not a choice a person wants to make. "Bar shape: square /
+// rounded / pill" asks somebody to hold a stylesheet in their head and then
+// judge the result on data they can't see. What people ask for is a *look*,
+// already made, that they can recognise and switch to.
+//
+// So there are exactly two galleries, split along the line that is already in
+// this file: `CARD_PRESETS` set the surface a panel sits on (FRAME_KEYS) and
+// `CHART_PRESETS` set how the data inside is drawn (CHART_KEYS). Split rather
+// than combined because they are independent choices — a soft card with a
+// dense report chart is a reasonable thing to want, and one merged gallery
+// would make it unreachable.
+//
+// Each preset is narrowed to its own half, so picking a card look cannot
+// silently change the chart and vice versa. That is what makes the two
+// galleries composable instead of last-one-wins.
+
+/** The surface a panel sits on. */
+export const CARD_PRESETS: StylePreset[] = [
+  {
+    id: "soft",
+    name: "Soft",
+    description: "The shipped card. A floating shadow, no border.",
+    patch: {},
+  },
+  {
+    id: "bordered",
+    name: "Bordered",
+    description: "One hairline, square corners. Reads as a document.",
+    patch: { frame: "flat", corner: "soft", padding: "normal" },
+  },
+  {
+    id: "outlined",
+    name: "Outlined",
+    description: "A heavy ink rule. Loud on purpose.",
+    patch: { frame: "outlined", corner: "square", titleStyle: "plain" },
+  },
+  {
+    id: "glass",
+    name: "Glass",
+    description: "Frosted, for a card over something.",
+    patch: { frame: "glass", corner: "round", padding: "roomy" },
+  },
+  {
+    id: "raised",
+    name: "Raised",
+    description: "Lifted off the page.",
+    patch: { frame: "solid", corner: "round", titleStyle: "large" },
+  },
+  {
+    id: "bare",
+    name: "Bare",
+    description: "No card at all. The numbers sit on the page.",
+    patch: { frame: "none", fill: "surface", padding: "tight" },
+  },
+  {
+    id: "inverted",
+    name: "Inverted",
+    description: "Ink card, light type. One of these on a screen, not six.",
+    patch: { fill: "inverted", corner: "round", titleStyle: "large" },
+  },
+  {
+    id: "banded",
+    name: "Banded",
+    description: "A rule of colour along the top edge.",
+    patch: { accentEdge: "top", frame: "flat", titleAlign: "center" },
+  },
+];
+
+/**
+ * How the data inside is drawn.
+ *
+ * The same named looks the studio has always offered, narrowed to the chart
+ * half so choosing one leaves the card alone.
+ */
+export const CHART_PRESETS: StylePreset[] = STYLE_PRESETS.map((preset) => ({
+  ...preset,
+  patch: normalizeStylePatch(preset.patch, CHART_KEYS),
+}));

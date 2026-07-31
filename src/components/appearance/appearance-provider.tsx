@@ -11,6 +11,8 @@ import {
 } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useAction, useMutation, useQuery } from "convex/react";
+import { useToast } from "@/components/toast";
+import { errorMessage } from "@/lib/errors";
 import { api } from "@convex/_generated/api";
 import {
   DEFAULT_APPEARANCE,
@@ -108,6 +110,7 @@ const AppearanceContext = createContext<AppearanceContextValue | null>(null);
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
   const remote = useQuery(api.appearance.forCurrentUser, {});
   const space = useActiveSpace();
+  const { toast } = useToast();
   const save = useMutation(api.appearance.save);
   const resetRemote = useMutation(api.appearance.reset);
   const setSpaceTheme = useMutation(api.appearance.setSpaceTheme);
@@ -285,15 +288,17 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
       if (saveTimer.current) clearTimeout(saveTimer.current);
       const spaceId = space?.spaceId;
       saveTimer.current = setTimeout(() => {
-        const failed = () => {
-          // A failed save is a preference that didn't stick, not a broken app.
-          // The preview stays, so nothing appears lost, and the next change
-          // tries again.
-        };
+        // Say so, for the same reason the component-style writer does: the
+        // preview stays on screen after a failed write, so silence made a
+        // dropped save indistinguishable from a successful one.
+        const failed = (e: unknown) =>
+          toast(errorMessage(e, "That didn't save"), { kind: "error" });
         if (scope === "personal") {
           void save({ patch }).catch(failed);
         } else if (!spaceId) {
-          // Nothing to scope it to; the studio hides these scopes off a space.
+          // A wiring bug rather than something a person can do — but it used
+          // to drop the write without a word, so it says something now.
+          toast("Open a space to change how it looks there", { kind: "error" });
         } else if (scope === "space") {
           void setSpaceTheme({
             spaceId: spaceId as Parameters<typeof setSpaceTheme>[0]["spaceId"],
@@ -307,7 +312,7 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
         }
       }, SAVE_DEBOUNCE_MS);
     },
-    [save, setSpaceTheme, space?.spaceId],
+    [save, setSpaceTheme, space?.spaceId, toast],
   );
 
   /**

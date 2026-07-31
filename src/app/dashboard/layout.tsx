@@ -44,9 +44,12 @@ export default async function DashboardLayout({
       {/* Appearance wraps everything: it writes the per-user design tokens
           onto :root, so every surface below it — including the toasts and the
           command palette — renders in the user's own UI. */}
+      {/* Toasts wrap appearance, not the other way round: the appearance
+          writer needs to be able to say a save failed, and it cannot reach a
+          provider mounted below it. */}
+      <ToastProvider>
       <AppearanceProvider>
       <CustomizeProvider>
-      <ToastProvider>
         <SidebarProvider defaultOpen={defaultOpen} className="h-svh overflow-hidden">
           <EnsureUser />
           <NoSupportWidget />
@@ -82,9 +85,9 @@ export default async function DashboardLayout({
           {/* The inspector. Beside the work, never instead of it. */}
           <CustomizeRail />
         </SidebarProvider>
-      </ToastProvider>
       </CustomizeProvider>
       </AppearanceProvider>
+      </ToastProvider>
     </RequireBackend>
   );
 }
