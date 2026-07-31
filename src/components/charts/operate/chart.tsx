@@ -1,14 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
+import useMeasure from "react-use-measure";
 import { curveLinear, curveMonotoneX, curveStep } from "@visx/curve";
 
 import { AreaChart } from "../area-chart";
 import { Area } from "../area";
 import { BarChart } from "../bar-chart";
 import { Bar } from "../bar";
-import { BarXAxis } from "../bar-x-axis";
-import { BarYAxis } from "../bar-y-axis";
 import { FunnelChart, type FunnelStage } from "../funnel-chart";
 import { Gauge } from "../gauge";
 import { Grid } from "../grid";
@@ -230,43 +229,50 @@ function Bars({
   horizontal,
 }: BodyProps & { horizontal: boolean }) {
   const rows = useMemo(() => bandRows(series, x), [series, x]);
+  const labels = useMemo(() => rows.map((r) => String(r.label)), [rows]);
   const stacked =
     style.stackMode === "stacked" || style.stackMode === "percent";
+  const axis = style.axes !== "none";
+
+  const plot = (
+    <BarChart
+      aspectRatio="auto"
+      barGap={BAR_GAP[style.barWidth]}
+      className="h-full w-full"
+      data={rows}
+      margin={{ top: 6, right: 4, bottom: 4, left: 4 }}
+      orientation={horizontal ? "horizontal" : "vertical"}
+      stacked={stacked}
+      xDataKey="label"
+    >
+      {style.grid !== "none" && <Grid horizontal vertical={false} />}
+      {series.map((s, i) => (
+        <Bar
+          dataKey={seriesField(i)}
+          fill={seriesColor(style.palette, i)}
+          key={s.key}
+          lineCap={BAR_CAP[style.barShape]}
+        />
+      ))}
+    </BarChart>
+  );
+
+  // Horizontal: the names go beside the bars, in a column that is as wide as
+  // it needs to be and no wider than a third of the panel.
+  if (horizontal) {
+    return (
+      <div className="flex w-full items-stretch" style={{ height }}>
+        {axis && <BandColumn labels={labels} />}
+        <div className="min-w-0 flex-1">{plot}</div>
+      </div>
+    );
+  }
 
   return (
-    <Box height={height}>
-      <BarChart
-        aspectRatio="auto"
-        barGap={BAR_GAP[style.barWidth]}
-        className="h-full w-full"
-        data={rows}
-        margin={marginFor(style, horizontal)}
-        orientation={horizontal ? "horizontal" : "vertical"}
-        stacked={stacked}
-        xDataKey="label"
-      >
-        {style.grid !== "none" && <Grid horizontal vertical={false} />}
-        {series.map((s, i) => (
-          <Bar
-            dataKey={seriesField(i)}
-            fill={seriesColor(style.palette, i)}
-            key={s.key}
-            lineCap={BAR_CAP[style.barShape]}
-          />
-        ))}
-        {/* The library's bar chart has exactly one axis and it is the
-            categories — `BarXAxis` and `BarYAxis` are the same labels on
-            whichever edge the orientation puts them, not an x and a y. So
-            "axes: both" cannot mean two here; asking for either draws the one
-            that exists, on the correct edge. */}
-        {style.axes !== "none" &&
-          (horizontal ? (
-            <BarYAxis maxLabels={BAND_LABELS} />
-          ) : (
-            <BarXAxis maxLabels={BAND_LABELS} />
-          ))}
-      </BarChart>
-    </Box>
+    <div className="flex w-full flex-col" style={{ height }}>
+      <div className="min-h-0 flex-1">{plot}</div>
+      {axis && <BandStrip labels={labels} />}
+    </div>
   );
 }
 
@@ -298,6 +304,10 @@ function Lines({
             <Line
               curve={CURVE[style.curve]}
               dataKey={seriesField(i)}
+              // Off. It fades the stroke toward transparent at the edges, and
+              // at a panel's width that means most of the line is invisible —
+              // a chart that hides its own data to look nice.
+              fadeEdges={false}
               key={s.key}
               markers={{ fill: seriesColor(style.palette, i) }}
               showMarkers={style.markers !== "none"}
@@ -311,7 +321,7 @@ function Lines({
           {!bare && (style.axes === "y" || style.axes === "both") && <YAxis />}
         </LineChart>
       </Box>
-      {!bare && <CategoryStrip axes={style.axes} series={series} x={x} />}
+      {!bare && <BandStrip labels={bandLabels(series, x, style.axes)} />}
     </>
   );
 }
@@ -353,7 +363,7 @@ function Areas({ series, style, height, x }: BodyProps) {
           {(style.axes === "y" || style.axes === "both") && <YAxis />}
         </AreaChart>
       </Box>
-      <CategoryStrip axes={style.axes} series={series} x={x} />
+      <BandStrip labels={bandLabels(series, x, style.axes)} />
     </>
   );
 }
@@ -390,7 +400,7 @@ function Dots({ series, style, height, x }: BodyProps) {
           {(style.axes === "y" || style.axes === "both") && <YAxis />}
         </ScatterChart>
       </Box>
-      <CategoryStrip axes={style.axes} series={series} x={x} />
+      <BandStrip labels={bandLabels(series, x, style.axes)} />
     </>
   );
 }
@@ -554,37 +564,86 @@ function Nothing({ className }: { className?: string }) {
 }
 
 /**
- * The category labels, when the x axis is not time.
+ * The band labels for a cartesian chart.
  *
- * Evenly spaced because the geometry above is: the synthetic instants are one
- * day apart, so a flex row with the same margins lands each label under its
- * point. Stride keeps it readable rather than clipping — six labels is the
- * most a panel-sized chart can carry.
+ * The vendored axes could not do this job. `BarXAxis` thins by label *count*
+ * rather than by available width, so six statuses in a one-column panel come
+ * out as one smear; `BarYAxis` hardcodes a 70px cap, so anybody called
+ * Katherine is "Katherine…" on a 1100px screen. Both are absolutely
+ * positioned inside the plot box, so the labels sit on top of the bars.
+ *
+ * This is the whole fix, and it is three rules:
+ *
+ * **Each label gets exactly its own band and no more** — equal flex cells with
+ * `truncate`. Two labels physically cannot overlap, because neither can leave
+ * its cell. An ellipsis is an honest "there is more here"; an overlap is two
+ * words pretending to be one.
+ *
+ * **Labels thin by measured width, not by count.** Below the width a short
+ * word needs, every other band is labelled — and the ones that stay keep their
+ * own cell, so they stay over the band they name.
+ *
+ * **It lives outside the plot.** The chart is given the remaining height, so
+ * the row is space the bars were never drawn into.
  */
-function CategoryStrip({
-  series,
-  x,
-  axes,
-}: {
-  series: ChartSeries[];
-  x: "time" | "category";
-  axes: ComponentStyle["axes"];
-}) {
-  // One place decides this for every cartesian shape. Three copies of the
-  // condition is three chances for one of them to keep printing dates under a
-  // status breakdown after the other two are fixed.
-  if (x !== "category" || axes === "none" || axes === "y") return null;
-  const points = series[0]?.points ?? [];
-  const stride = Math.max(1, Math.ceil(points.length / 6));
+
+/** Below this, a label cannot say anything, so fewer of them say more. */
+const MIN_BAND_LABEL_PX = 54;
+
+function BandStrip({ labels }: { labels: string[] }) {
+  const [ref, { width }] = useMeasure();
+  if (labels.length === 0) return null;
+
+  // Before the first measurement, show them all: a strip that starts thinned
+  // and fills in reads as a glitch, and one frame of slightly tight labels
+  // does not.
+  const per = width > 0 ? width / labels.length : Infinity;
+  const stride = per >= MIN_BAND_LABEL_PX ? 1 : Math.ceil(MIN_BAND_LABEL_PX / per);
+
   return (
-    <div className="mt-1 flex justify-between px-1 text-[10px] text-muted-foreground">
-      {points.map((p, i) => (
-        <span className="min-w-0 truncate" key={p.key}>
-          {i % stride === 0 ? p.label || p.key : ""}
+    <div className="mt-1 flex w-full shrink-0" ref={ref}>
+      {labels.map((label, i) => (
+        <span
+          className="min-w-0 flex-1 truncate px-0.5 text-center text-[10px] leading-4 text-muted-foreground"
+          key={`${label}-${i}`}
+          title={label}
+        >
+          {i % stride === 0 ? label : ""}
         </span>
       ))}
     </div>
   );
+}
+
+/** The same labels down the side, for a horizontal bar chart. */
+function BandColumn({ labels }: { labels: string[] }) {
+  return (
+    <div className="flex max-w-[38%] shrink-0 flex-col justify-around py-1 pr-2">
+      {labels.map((label, i) => (
+        <span
+          className="truncate text-right text-[10px] leading-4 text-muted-foreground"
+          key={`${label}-${i}`}
+          title={label}
+        >
+          {label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * What to write under each band, or nothing when the axis is off or the x is
+ * time — a time-scaled chart has the library's own date axis and a second row
+ * of labels under it is two answers to one question.
+ */
+function bandLabels(
+  series: ChartSeries[],
+  x: "time" | "category",
+  axes: ComponentStyle["axes"],
+): string[] {
+  if (x !== "category" || axes === "none" || axes === "y") return [];
+  return (series[0]?.points ?? []).map((p) => p.label || p.key);
 }
 
 function SeriesLegend({
@@ -622,15 +681,6 @@ const CURVE = {
   smooth: curveMonotoneX,
   step: curveStep,
 } as const;
-
-/**
- * How many band labels to print.
- *
- * The library thins by count, not by width, and a panel is narrow — fourteen
- * dates in three hundred pixels is a smear rather than an axis. Seven is the
- * most that stays legible at the smallest size a panel is allowed to be.
- */
-const BAND_LABELS = 7;
 
 /** Band padding: a thicker bar is a smaller gap. */
 const BAR_GAP = { thin: 0.55, normal: 0.35, thick: 0.15 } as const;

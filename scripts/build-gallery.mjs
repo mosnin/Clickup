@@ -64,13 +64,14 @@ await build({
       input: {
         index: join(SRC, "index.html"),
         sidebar: join(SRC, "sidebar.html"),
+        labels: join(SRC, "labels.html"),
       },
     },
   },
   logLevel: "warn",
 });
 
-for (const page of ["index.html", "sidebar.html"]) {
+for (const page of ["index.html", "sidebar.html", "labels.html"]) {
   const html = join(OUT, page);
   writeFileSync(
     html,

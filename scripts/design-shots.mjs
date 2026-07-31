@@ -58,6 +58,7 @@ page.on("pageerror", (e) => errors.push(String(e)));
 for (const [url, name] of [
   ["http://127.0.0.1:4599/", "charts"],
   ["http://127.0.0.1:4599/sidebar.html", "sidebar"],
+  ["http://127.0.0.1:4599/labels.html", "labels"],
 ]) {
   await page.goto(url);
   // Long enough for the entrance animations to land — anything caught
