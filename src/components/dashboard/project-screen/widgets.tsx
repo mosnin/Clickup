@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { AttachedPages } from "@/components/dashboard/attached-pages";
+import { AgentStream } from "@/components/dashboard/agent-stream";
 import { LiveNumber } from "@/components/dashboard/live-number";
 import {
   ProjectNotesCard,
@@ -438,6 +439,20 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     maxSpan: 3,
     rows: 2,
     render: (ctx) => <ActivityWidget {...ctx} />,
+  },
+  {
+    id: "agent-stream",
+    title: "Agents, live",
+    description: "What the machines are doing right now, as it lands.",
+    defaultSpan: 1,
+    minSpan: 1,
+    maxSpan: 2,
+    rows: 2,
+    render: ({ scope }) => (
+      <Card className="h-full rounded-2xl p-5">
+        <AgentStream scope={scope} />
+      </Card>
+    ),
   },
   {
     id: "plan",

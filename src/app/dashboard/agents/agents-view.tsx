@@ -24,6 +24,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
 import { Card, CardContent } from "@/components/ui/card";
+import { AgentStream } from "@/components/dashboard/agent-stream";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -179,7 +180,17 @@ export function AgentsView() {
             setTemplating={setTemplating}
           />
         ) : tab === "activity" ? (
-          <ActivityFeed />
+          // The live card first, then the full history. They answer different
+          // questions — "are my agents working right now" and "what happened
+          // here" — and the first one is why anybody opens this tab.
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="order-2 lg:order-1">
+              <ActivityFeed />
+            </div>
+            <Card className="order-1 h-fit max-h-[420px] rounded-2xl p-5 lg:order-2">
+              <AgentStream limit={10} />
+            </Card>
+          </div>
         ) : tab === "billing" ? (
           <BillingTab />
         ) : tab === "webhooks" ? (
