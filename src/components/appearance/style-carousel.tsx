@@ -31,6 +31,8 @@ import { cn } from "@/lib/utils";
 const INFLUENCE = 0.55;
 /** How much the centred item grows. Subtle: these are real components. */
 const LIFT = 0.08;
+/** The hero shelf grows more — one choice at a time earns the emphasis. */
+const HERO_LIFT = 0.22;
 
 export type CarouselItem = {
   id: string;
@@ -46,6 +48,8 @@ export function StyleCarousel({
   itemWidth = 220,
   label,
   tone = "light",
+  hero = false,
+  onCentred,
 }: {
   items: CarouselItem[];
   selectedId?: string;
@@ -55,8 +59,21 @@ export function StyleCarousel({
   label: string;
   /** "dark" when the shelf sits on the ink screen — flips ring and text. */
   tone?: "light" | "dark";
+  /**
+   * One big centred carousel, the way a phone's set-up flow shows one choice
+   * at a time: no per-item captions (the centred item is named once, by the
+   * caller, in one place), dots underneath, side items peeking in at reduced
+   * scale. The default stays the compact captioned shelf.
+   */
+  hero?: boolean;
+  /** Fires as the shelf comes to rest over an item. */
+  onCentred?: (id: string) => void;
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
+  const onCentredRef = useRef(onCentred);
+  onCentredRef.current = onCentred;
+  const heroRef = useRef(hero);
+  heroRef.current = hero;
   const animatables = useRef<Map<string, AnimatableObject>>(new Map());
   const [centred, setCentred] = useState<string | null>(
     selectedId ?? items[0]?.id ?? null,
@@ -85,12 +102,15 @@ export function StyleCarousel({
       const pull = (Math.cos(t * Math.PI) + 1) / 2;
       const anim = animatables.current.get(id);
       if (anim) {
-        anim.scale(1 + LIFT * pull);
-        anim.opacity(0.55 + 0.45 * pull);
+        anim.scale(1 + (heroRef.current ? HERO_LIFT : LIFT) * pull);
+        anim.opacity(0.45 + 0.55 * pull);
       }
     }
 
-    if (nearest && nearest.id !== centred) setCentred(nearest.id);
+    if (nearest && nearest.id !== centred) {
+      setCentred(nearest.id);
+      onCentredRef.current?.(nearest.id);
+    }
   }, [centred]);
 
   useEffect(() => {
@@ -139,7 +159,17 @@ export function StyleCarousel({
   return (
     <section aria-label={label}>
       <div
-        className="flex snap-x snap-mandatory gap-4 overflow-x-auto px-[35%] pb-3 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className={cn(
+          "flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          hero ? "gap-8 py-8" : "gap-4 px-[35%] pb-3 pt-2",
+        )}
+        // Symmetric by construction: exactly the space that centres the first
+        // and last item, so the shelf reads as one object on the page's axis.
+        style={
+          hero
+            ? { paddingInline: `calc(50% - ${itemWidth / 2}px)` }
+            : undefined
+        }
         ref={trackRef}
         role="listbox"
         aria-label={label}
@@ -173,25 +203,55 @@ export function StyleCarousel({
               type="button"
             >
               <span className="pointer-events-none block">{item.render()}</span>
-              <span className="mt-2 block truncate text-[12px] font-medium">
-                {item.label}
-              </span>
-              {item.hint && (
-                <span
-                  className={cn(
-                    "mt-0.5 block truncate text-[11px]",
-                    tone === "dark"
-                      ? "text-background/50"
-                      : "text-muted-foreground",
+              {/* The hero shelf names only the centred item, once, in the
+                  caller's one place — a caption per card is the stacked-list
+                  look this mode exists to not be. */}
+              {!hero && (
+                <>
+                  <span className="mt-2 block truncate text-[12px] font-medium">
+                    {item.label}
+                  </span>
+                  {item.hint && (
+                    <span
+                      className={cn(
+                        "mt-0.5 block truncate text-[11px]",
+                        tone === "dark"
+                          ? "text-background/50"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {item.hint}
+                    </span>
                   )}
-                >
-                  {item.hint}
-                </span>
+                </>
               )}
             </button>
           );
         })}
       </div>
+
+      {hero && (
+        <div
+          aria-hidden
+          className="mt-1 flex items-center justify-center gap-2"
+        >
+          {items.map((item) => (
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full transition-all duration-300",
+                item.id === centred
+                  ? tone === "dark"
+                    ? "w-4 bg-background"
+                    : "w-4 bg-foreground"
+                  : tone === "dark"
+                    ? "bg-background/25"
+                    : "bg-foreground/20",
+              )}
+              key={item.id}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }

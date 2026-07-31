@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
-import Link from "next/link";
+import { useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -26,6 +25,7 @@ import { StyleCarousel } from "@/components/appearance/style-carousel";
 import { Chart, type ChartKind } from "@/components/charts/operate/chart";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
+import { cn } from "@/lib/utils";
 import {
   CARD_PRESETS,
   CHART_PRESETS,
@@ -159,178 +159,254 @@ function StudioIsland() {
   );
 }
 
-/** The expanded state: the island, unfolded into a screen of shelves. */
+/**
+ * The expanded state: one choice at a time.
+ *
+ * The structure is a phone's set-up flow, because that is the only mass-market
+ * pattern that has ever made configuration feel finished: one question on the
+ * screen, one row of full-size options on the centre axis, dots underneath,
+ * and the thing you are choosing named once, large, in one place. Chapters —
+ * colour, cards, chart — are steps you move between, never sections stacked
+ * down a page. Everything sits on one vertical axis; symmetry is the layout
+ * rule, not a styling touch.
+ */
 function StudioScreen() {
   const { selection, select, setActive } = useCustomize();
   const { style, commit, reset, dirty, revert } = useComponentStyle(
     selection?.id ?? null,
   );
   const scope = selection ? ("panel" as const) : ("personal" as const);
+  const [chapter, setChapter] = useState<"colour" | "cards" | "chart">(
+    "colour",
+  );
+  const [centred, setCentred] = useState<string | null>(null);
+
+  const chapters = [
+    { id: "colour" as const, label: "Colour" },
+    { id: "cards" as const, label: "Card" },
+    { id: "chart" as const, label: "Chart" },
+  ];
 
   return (
     <ExpandableScreenContent
       className="bg-foreground text-background"
       showCloseButton={false}
     >
-      <div className="mx-auto flex min-h-full max-w-5xl flex-col gap-2 px-6 py-10">
+      <div className="flex h-full min-h-[calc(100vh-1.5rem)] flex-col items-center px-6 py-8 text-center">
+        {/* The step you are on. Centred, because everything here is. */}
         <Rise delay={0}>
-          <header className="flex items-baseline justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-semibold">
-                {selection ? selection.label : "Every panel"}
-              </h2>
-              <p className="mt-1 text-sm text-background/60">
-                {selection
-                  ? "Everything below lands on this panel the moment you pick it."
-                  : "These set the look of every panel. Close and click one to style it alone."}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              {dirty && <ScreenLink onClick={revert}>Undo</ScreenLink>}
-              {selection && (
-                <ScreenLink onClick={() => select(null)}>All panels</ScreenLink>
-              )}
-              <ScreenLink onClick={() => reset(scope)}>
-                {selection ? "Match the others" : "Defaults"}
-              </ScreenLink>
-              <CollapseButton />
-            </div>
-          </header>
+          <div className="segmented" role="tablist" aria-label="Choosing">
+            {chapters.map((c) => (
+              <button
+                aria-selected={chapter === c.id}
+                className={cn(
+                  "px-4 py-1.5 text-xs",
+                  chapter === c.id && "segmented-on",
+                )}
+                key={c.id}
+                onClick={() => {
+                  setChapter(c.id);
+                  setCentred(null);
+                }}
+                role="tab"
+                type="button"
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-3 text-sm text-background/60">
+            {selection
+              ? `Styling ${selection.label} — picks land on it instantly.`
+              : "Styling every panel. Close and click one to style it alone."}
+          </p>
         </Rise>
 
-        <Rise delay={0.08}>
-          <Shelf title="Colour">
-            <StyleCarousel
-              itemWidth={230}
-              items={STYLE_ENUMS.palette.map((palette) => ({
-                id: palette,
-                label: palette[0].toUpperCase() + palette.slice(1),
-                render: () => (
-                  <span className="pointer-events-none block rounded-2xl bg-background p-3 text-foreground">
-                    <Chart
-                      height={84}
-                      kind="column"
-                      label={palette}
-                      series={SPECIMEN}
-                      style={normalizeStyle({ ...style, palette })}
-                      unit="count"
-                    />
-                    <span
-                      aria-hidden
-                      className="mt-2.5 flex h-3 w-full overflow-hidden rounded-full"
-                    >
-                      {paletteColors(palette).map((color, i) => (
-                        <span
-                          className="flex-1"
-                          key={i}
-                          style={{ background: color }}
-                        />
-                      ))}
+        {/* ONE carousel, filling the middle of the screen. Re-keyed per
+            chapter so switching is an arrival, not a repaint. */}
+        <div className="flex w-full max-w-6xl flex-1 flex-col justify-center">
+          <Rise delay={0.1} key={chapter + (selection?.id ?? "all")}>
+            {chapter === "colour" && (
+              <HeroShelf
+                centred={centred}
+                items={STYLE_ENUMS.palette.map((palette) => ({
+                  id: palette,
+                  label: palette[0].toUpperCase() + palette.slice(1),
+                  render: () => (
+                    <span className="pointer-events-none block rounded-3xl bg-background p-5 text-foreground shadow-2xl">
+                      <Chart
+                        height={150}
+                        kind="column"
+                        label={palette}
+                        series={SPECIMEN}
+                        style={normalizeStyle({ ...style, palette })}
+                        unit="count"
+                      />
+                      <span
+                        aria-hidden
+                        className="mt-4 flex h-3.5 w-full overflow-hidden rounded-full"
+                      >
+                        {paletteColors(palette).map((color, i) => (
+                          <span
+                            className="flex-1"
+                            key={i}
+                            style={{ background: color }}
+                          />
+                        ))}
+                      </span>
                     </span>
-                  </span>
-                ),
-              }))}
-              label="Colour"
-              onPick={(palette) =>
-                commit(
-                  { palette: palette as (typeof STYLE_ENUMS.palette)[number] },
-                  scope,
-                )
-              }
-              selectedId={style.palette}
-              tone="dark"
-            />
-          </Shelf>
-        </Rise>
+                  ),
+                }))}
+                label="Colour"
+                onCentred={setCentred}
+                onPick={(palette) =>
+                  commit(
+                    {
+                      palette:
+                        palette as (typeof STYLE_ENUMS.palette)[number],
+                    },
+                    scope,
+                  )
+                }
+                selectedId={style.palette}
+              />
+            )}
 
-        <Rise delay={0.16}>
-          <Shelf title="Cards">
-            <StyleCarousel
-              itemWidth={250}
-              items={CARD_PRESETS.map((preset) => ({
-                id: preset.id,
-                label: preset.name,
-                hint: preset.description,
-                render: () => (
-                  <span className="pointer-events-none block rounded-2xl bg-background p-3 text-foreground">
-                    <PanelPreview
-                      compact
-                      kind="column"
-                      style={normalizeStyle({
-                        ...style,
-                        ...normalizeStylePatch(preset.patch),
-                      })}
-                      title="Throughput"
-                    />
-                  </span>
-                ),
-              }))}
-              label="Cards"
-              onPick={(id) => {
-                const preset = CARD_PRESETS.find((p) => p.id === id);
-                if (preset) commit(normalizeStylePatch(preset.patch), scope);
-              }}
-              tone="dark"
-            />
-          </Shelf>
-        </Rise>
-
-        <Rise delay={0.24}>
-          {selection ? (
-            <Shelf title="Drawn as">
-              <ShapeShelf selectionId={selection.id} style={style} />
-            </Shelf>
-          ) : (
-            <Shelf title="Charts">
-              <StyleCarousel
-                itemWidth={250}
-                items={CHART_PRESETS.map((preset) => ({
+            {chapter === "cards" && (
+              <HeroShelf
+                centred={centred}
+                items={CARD_PRESETS.map((preset) => ({
                   id: preset.id,
                   label: preset.name,
                   hint: preset.description,
                   render: () => (
-                    <span className="pointer-events-none block rounded-2xl bg-background p-3 text-foreground">
-                      <Chart
-                        height={90}
+                    <span className="pointer-events-none block rounded-3xl bg-background p-5 text-foreground shadow-2xl">
+                      <PanelPreview
                         kind="column"
-                        label={preset.name}
-                        series={SPECIMEN}
                         style={normalizeStyle({
                           ...style,
                           ...normalizeStylePatch(preset.patch),
                         })}
-                        unit="count"
+                        title="Throughput"
                       />
                     </span>
                   ),
                 }))}
-                label="Chart looks"
+                label="Card"
+                onCentred={setCentred}
                 onPick={(id) => {
-                  const preset = CHART_PRESETS.find((p) => p.id === id);
-                  if (preset) commit(normalizeStylePatch(preset.patch), scope);
+                  const preset = CARD_PRESETS.find((p) => p.id === id);
+                  if (preset)
+                    commit(normalizeStylePatch(preset.patch), scope);
                 }}
-                tone="dark"
               />
-            </Shelf>
-          )}
-        </Rise>
+            )}
 
-        <Rise delay={0.3}>
-          <footer className="mt-auto flex items-center justify-between pt-4">
-            <ScreenLink onClick={() => setActive(false)}>
-              Done styling
+            {chapter === "chart" &&
+              (selection ? (
+                <ShapeShelf
+                  centred={centred}
+                  onCentred={setCentred}
+                  selectionId={selection.id}
+                  style={style}
+                />
+              ) : (
+                <HeroShelf
+                  centred={centred}
+                  items={CHART_PRESETS.map((preset) => ({
+                    id: preset.id,
+                    label: preset.name,
+                    hint: preset.description,
+                    render: () => (
+                      <span className="pointer-events-none block rounded-3xl bg-background p-5 text-foreground shadow-2xl">
+                        <Chart
+                          height={170}
+                          kind="column"
+                          label={preset.name}
+                          series={SPECIMEN}
+                          style={normalizeStyle({
+                            ...style,
+                            ...normalizeStylePatch(preset.patch),
+                          })}
+                          unit="count"
+                        />
+                      </span>
+                    ),
+                  }))}
+                  label="Chart"
+                  onCentred={setCentred}
+                  onPick={(id) => {
+                    const preset = CHART_PRESETS.find((p) => p.id === id);
+                    if (preset)
+                      commit(normalizeStylePatch(preset.patch), scope);
+                  }}
+                />
+              ))}
+          </Rise>
+        </div>
+
+        <Rise delay={0.18}>
+          <footer className="flex items-center justify-center gap-5">
+            {dirty && <ScreenLink onClick={revert}>Undo</ScreenLink>}
+            {selection && (
+              <ScreenLink onClick={() => select(null)}>All panels</ScreenLink>
+            )}
+            <ScreenLink onClick={() => reset(scope)}>
+              {selection ? "Match the others" : "Defaults"}
             </ScreenLink>
-            <Link
-              className="text-xs text-background/50 underline decoration-dotted underline-offset-2 hover:text-background"
-              href="/dashboard/appearance"
-              onClick={() => setActive(false)}
-            >
-              Type, navigation and motion →
-            </Link>
+            <CollapseButton />
+            <ScreenLink onClick={() => setActive(false)}>Done</ScreenLink>
           </footer>
         </Rise>
       </div>
     </ExpandableScreenContent>
+  );
+}
+
+/**
+ * One shelf plus the one place its centred item is named.
+ *
+ * The caption lives here, under the dots, large and alone — never on the
+ * cards. Fifty labels moving past is a list; one label that changes as the
+ * shelf settles is a choice.
+ */
+function HeroShelf({
+  items,
+  selectedId,
+  onPick,
+  onCentred,
+  centred,
+  label,
+}: {
+  items: { id: string; label: string; hint?: string; render: () => React.ReactNode }[];
+  selectedId?: string;
+  onPick: (id: string) => void;
+  onCentred: (id: string) => void;
+  centred: string | null;
+  label: string;
+}) {
+  const current = items.find((i) => i.id === centred) ?? items[0];
+  return (
+    <div>
+      <StyleCarousel
+        hero
+        itemWidth={340}
+        items={items}
+        label={label}
+        onCentred={onCentred}
+        onPick={onPick}
+        selectedId={selectedId}
+        tone="dark"
+      />
+      <div aria-live="polite" className="mt-5 min-h-[3.25rem]">
+        <p className="text-lg font-semibold">{current?.label}</p>
+        {current?.hint && (
+          <p className="mx-auto mt-1 max-w-md text-sm text-background/60">
+            {current.hint}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -350,23 +426,6 @@ function Rise({
     >
       {children}
     </motion.div>
-  );
-}
-
-function Shelf({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section>
-      <h3 className="px-1 text-[11px] font-medium uppercase tracking-wider text-background/50">
-        {title}
-      </h3>
-      {children}
-    </section>
   );
 }
 
@@ -411,9 +470,13 @@ function CollapseButton() {
 function ShapeShelf({
   selectionId,
   style,
+  centred,
+  onCentred,
 }: {
   selectionId: string;
   style: ReturnType<typeof useComponentStyle>["style"];
+  centred: string | null;
+  onCentred: (id: string) => void;
 }) {
   const componentId = useMemo(() => {
     const tail = selectionId.slice(selectionId.indexOf(":") + 1);
@@ -434,8 +497,8 @@ function ShapeShelf({
 
   if (!componentId || !row || !stored) {
     return (
-      <p className="px-1 py-4 text-xs leading-relaxed text-background/50">
-        This panel is built in, so its shape is fixed — colour and cards still
+      <p className="mx-auto max-w-md py-8 text-sm leading-relaxed text-background/60">
+        This panel is built in, so its shape is fixed — colour and card still
         change how it looks.
       </p>
     );
@@ -444,15 +507,15 @@ function ShapeShelf({
   const shapes = shapesFor(stored.query.from).filter(isChartShape);
 
   return (
-    <StyleCarousel
-      itemWidth={230}
+    <HeroShelf
+      centred={centred}
       items={shapes.map((shape) => ({
         id: shape,
         label: shapeLabel(shape),
         render: () => (
-          <span className="pointer-events-none block rounded-2xl bg-background p-3 text-foreground">
+          <span className="pointer-events-none block rounded-3xl bg-background p-5 text-foreground shadow-2xl">
             <Chart
-              height={96}
+              height={170}
               kind={shape as ChartKind}
               label={shapeLabel(shape)}
               series={SPECIMEN}
@@ -463,6 +526,7 @@ function ShapeShelf({
         ),
       }))}
       label="Drawn as"
+      onCentred={onCentred}
       onPick={(shape) => {
         const next = normalizePanel({ ...stored, shape: shape as PanelShape });
         void update({ componentId: row.componentId, definition: next }).catch(
@@ -473,7 +537,6 @@ function ShapeShelf({
         );
       }}
       selectedId={stored.shape}
-      tone="dark"
     />
   );
 }
