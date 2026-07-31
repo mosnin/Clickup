@@ -14,7 +14,7 @@ import { FloatingNavToggle } from "@/components/appearance/floating-nav-toggle";
 import { SidebarDock } from "@/components/appearance/sidebar-dock";
 import { DockSlot } from "@/components/appearance/dock-slot";
 import { CustomizeProvider } from "@/components/appearance/customize-provider";
-import { CustomizeRail } from "@/components/appearance/customize-rail";
+import { StyleStudio } from "@/components/appearance/style-studio";
 
 export default async function DashboardLayout({
   children,
@@ -83,7 +83,7 @@ export default async function DashboardLayout({
               a dock — a different shape, not the same one rotated. */}
           <DockSlot />
           {/* The inspector. Beside the work, never instead of it. */}
-          <CustomizeRail />
+          <StyleStudio />
         </SidebarProvider>
       </CustomizeProvider>
       </AppearanceProvider>

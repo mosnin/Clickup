@@ -6,6 +6,9 @@ import { CustomizeProvider } from "@/components/appearance/customize-provider";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { FileTree } from "@/components/ui/file-tree";
 import { galleryData } from "./stubs/convex-react";
+import { StyleStudio } from "@/components/appearance/style-studio";
+import { useCustomize } from "@/components/appearance/customize-provider";
+import { useEffect } from "react";
 
 // The sidebar, on a page I can look at.
 //
@@ -128,15 +131,19 @@ function Page() {
         {/* The same providers the dashboard layout wraps it in, in the same
             order — the sidebar reads appearance tokens and raises toasts, and
             a version of it running without them is a version nobody ships. */}
-        <AppearanceProvider>
-          <CustomizeProvider>
-            <ToastProvider>
+        <ToastProvider>
+          <AppearanceProvider>
+            <CustomizeProvider>
               <SidebarProvider>
                 <DashboardSidebar />
               </SidebarProvider>
-            </ToastProvider>
-          </CustomizeProvider>
-        </AppearanceProvider>
+              {/* The studio, opened by its own switch so what renders is the
+                  real component in its real providers. */}
+              <StudioOpen />
+              <StyleStudio />
+            </CustomizeProvider>
+          </AppearanceProvider>
+        </ToastProvider>
         <div>
           <h2>The primitive on its own</h2>
           <FileTree defaultOpenIds={["src"]} elements={TREE} />
@@ -147,3 +154,9 @@ function Page() {
 }
 
 createRoot(document.getElementById("root")!).render(<Page />);
+
+function StudioOpen() {
+  const { setActive } = useCustomize();
+  useEffect(() => setActive(true), [setActive]);
+  return null;
+}

@@ -89,6 +89,22 @@ for (const [url, name] of [
       clip: { x: 0, y: 600, width: 400, height: 500 },
     });
     console.log("shot sidebar-hover.png");
+
+    // The studio's other two shelves, since a tab that is never opened is a
+    // tab that ships broken.
+    for (const tab of ["Cards", "Charts"]) {
+      await page.getByRole("tab", { name: tab }).click();
+      await page.waitForTimeout(900);
+      const sheet = await page
+        .getByLabel("Style studio")
+        .boundingBox()
+        .catch(() => null);
+      await page.screenshot({
+        path: join(OUT, `studio-${tab.toLowerCase()}.png`),
+        clip: sheet ?? undefined,
+      });
+      console.log(`shot studio-${tab.toLowerCase()}.png`);
+    }
   }
 }
 
