@@ -335,12 +335,24 @@ export function describePanel(def: PanelDef): string {
   return `${shape} — ${describeQuery(def.query)} · ${describeStyle(style)}`;
 }
 
-/** The id a panel takes inside a screen layout. */
+/**
+ * The id a panel takes inside a screen layout.
+ *
+ * The prefix is `custom:` rather than `panel:` because that is what is written
+ * into every `screenLayouts` row that already exists. The word is a leftover
+ * from when authored panels were a separate concept from built-in ones — a
+ * distinction this file removes — but a prefix is a wire format, and renaming
+ * one to match a better word would orphan every screen anybody has arranged.
+ */
 export function panelWidgetId(id: string): string {
-  return `panel:${id}`;
+  return `${PANEL_PREFIX}${id}`;
 }
 
 /** The stored id inside a layout widget id, or null if it is not a panel. */
 export function panelIdFromWidgetId(widgetId: string): string | null {
-  return widgetId.startsWith("panel:") ? widgetId.slice("panel:".length) : null;
+  return widgetId.startsWith(PANEL_PREFIX)
+    ? widgetId.slice(PANEL_PREFIX.length)
+    : null;
 }
+
+const PANEL_PREFIX = "custom:";

@@ -59,8 +59,15 @@ export type ComponentStyleContext = {
  * own override — and lets `commit` write to it. That is what the in-place
  * inspector edits: you point at a panel on your own screen and change that
  * panel, without touching anything else that looks like it.
+ *
+ * @param definitionStyle The look the panel's definition carries. Sits under
+ * the reader's own override, so an authored panel arrives drawn the way its
+ * author meant without ever outranking the person reading it.
  */
-export function useComponentStyle(panelId?: string | null): ComponentStyleContext {
+export function useComponentStyle(
+  panelId?: string | null,
+  definitionStyle?: StylePatch,
+): ComponentStyleContext {
   const { space } = useAppearance();
   const remote = useQuery(api.appearance.forCurrentUser, {});
   const save = useMutation(api.appearance.saveComponentStyle);
@@ -90,15 +97,24 @@ export function useComponentStyle(panelId?: string | null): ComponentStyleContex
     return normalizeStylePatch(stored);
   }, [remote, panelId]);
 
+  // Held by value rather than by reference: callers build this from a
+  // definition and would otherwise hand over a fresh object every render.
+  const definitionKey = JSON.stringify(definitionStyle ?? {});
+  const definition = useMemo(
+    () => normalizeStylePatch(JSON.parse(definitionKey)),
+    [definitionKey],
+  );
+
   const resolved = useMemo(
     () =>
       resolveStyle({
         personal,
         space: spacePatch,
         personalSpace,
+        definition,
         component: panel,
       }),
-    [personal, spacePatch, personalSpace, panel],
+    [personal, spacePatch, personalSpace, definition, panel],
   );
 
   // The preview sits on top of everything, so a control always visibly moves

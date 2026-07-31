@@ -192,9 +192,17 @@ describe("widget ids", () => {
     expect(panelIdFromWidgetId(panelWidgetId("abc123"))).toBe("abc123");
   });
 
-  it("says nothing for an id that is not a panel", () => {
+  it("reads the prefix already written into stored layouts", () => {
+    // A prefix is a wire format. There was briefly a second scheme here
+    // (`panel:`) that nothing wrote and nothing read, and a screen arranged
+    // before it would have lost every authored panel to a renamed prefix.
+    expect(panelWidgetId("abc")).toBe("custom:abc");
+    expect(panelIdFromWidgetId("custom:abc")).toBe("abc");
+  });
+
+  it("says nothing for a built-in", () => {
     expect(panelIdFromWidgetId("overview")).toBeNull();
-    expect(panelIdFromWidgetId("custom:abc")).toBeNull();
+    expect(panelIdFromWidgetId("panel:abc")).toBeNull();
   });
 });
 

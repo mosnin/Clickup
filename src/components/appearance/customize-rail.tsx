@@ -9,7 +9,8 @@ import {
   type ComponentStyleScope,
 } from "@/components/appearance/use-component-style";
 import { styleFrom } from "@/components/appearance/style-gallery";
-import { IntentComposer } from "@/components/appearance/intent-composer";
+import { StyleIntentComposer } from "@/components/appearance/intent-composer";
+import { PanelQuestion } from "@/components/appearance/panel-question";
 import { WatchControl } from "@/components/appearance/watch-control";
 import { Chart, type ChartKind } from "@/components/charts/chart";
 import {
@@ -58,6 +59,7 @@ export function CustomizeRail() {
     scopes,
     spaceName,
     dirty,
+    preview,
     revert,
   } = useComponentStyle(selection?.id ?? null);
 
@@ -148,17 +150,24 @@ export function CustomizeRail() {
           </section>
         )}
 
-        {/* The fastest path for anyone who does not want to learn nineteen
-            axes: describe it. Same vocabulary, same result as the pickers —
-            neither is the "advanced" one. */}
+        {/* What a panel *asks* is editable from beside the panel, not only
+            from the builder that created it. Anything else means changing a
+            question requires leaving the answer. */}
+        {selection && <PanelQuestion selectionId={selection.id} />}
+
         {/* A panel can be asked to keep an eye on itself. Only offered for a
             selected panel — "watch everything" is not a thing anyone means. */}
         {selection && <WatchControl panelId={selection.id} />}
 
-        <IntentComposer
+        {/* The fastest path for anyone who does not want to learn nineteen
+            axes: describe it. Same vocabulary, same result as the pickers —
+            neither is the "advanced" one. The answer is applied to the real
+            panel behind this rail rather than to a specimen inside it. */}
+        <StyleIntentComposer
           style={style}
-          panelLabel={selection ? selection.label : "your panels"}
-          onApply={(patch) => set(patch)}
+          label={selection ? selection.label : "your panels"}
+          onPreview={(patch) => (patch ? preview(patch) : revert())}
+          onCommit={(patch) => set(patch)}
         />
 
         <section>

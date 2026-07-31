@@ -234,6 +234,8 @@ export type StyleLayerId =
   | "personal"
   | "space"
   | "personalSpace"
+  /** The look the panel's own definition carries. */
+  | "definition"
   | "component";
 
 export type ResolvedStyle = {
@@ -251,21 +253,30 @@ export type ResolvedStyle = {
 /**
  * Fold the layers, general → specific.
  *
- * The component's own patch is last because it is the most specific statement
- * anyone made about this panel. Nothing here is filtered by layer: unlike the
- * appearance model, there is no key a space may not set, because none of these
- * is an accessibility setting — they are all about how one panel draws.
+ * The reader's own patch for this panel is last because it is the most
+ * specific statement anyone made about it. Just above it sits the look the
+ * definition carries — how its author drew it. That ordering is what lets a
+ * panel arrive already looking like itself (an agent writes "spend, as a
+ * donut, in red") while still losing to the reader who says "not on my
+ * screen". A definition that outranked the reader would make every shared or
+ * agent-authored panel a change to somebody else's dashboard.
+ *
+ * Nothing here is filtered by layer: unlike the appearance model, there is no
+ * key a space may not set, because none of these is an accessibility setting —
+ * they are all about how one panel draws.
  */
 export function resolveStyle(input: {
   personal?: unknown;
   space?: unknown;
   personalSpace?: unknown;
+  definition?: unknown;
   component?: unknown;
 }): ResolvedStyle {
   const layers: { id: StyleLayerId; patch: StylePatch }[] = [
     { id: "personal", patch: normalizeStylePatch(input.personal) },
     { id: "space", patch: normalizeStylePatch(input.space) },
     { id: "personalSpace", patch: normalizeStylePatch(input.personalSpace) },
+    { id: "definition", patch: normalizeStylePatch(input.definition) },
     { id: "component", patch: normalizeStylePatch(input.component) },
   ];
 

@@ -152,6 +152,41 @@ describe("layering runs general to specific", () => {
     expect(sources.palette).toBe("component");
   });
 
+  it("draws an authored panel the way its author meant", () => {
+    // The look a definition carries is a layer rather than decoration. Before
+    // it was one, `PanelDef.style` was stored, described in the tray, and
+    // never applied to anything — an agent writing "spend, as a donut, in
+    // red" produced a grey donut.
+    const { style, sources } = resolveStyle({
+      personal: { palette: "vivid" },
+      definition: { palette: "neon" },
+    });
+    expect(style.palette).toBe("neon");
+    expect(sources.palette).toBe("definition");
+  });
+
+  it("still lets the reader overrule the panel's author", () => {
+    // Otherwise every shared or agent-authored panel is a change to somebody
+    // else's dashboard that they cannot take back.
+    const { style, sources } = resolveStyle({
+      definition: { palette: "neon" },
+      component: { palette: "ocean" },
+    });
+    expect(style.palette).toBe("ocean");
+    expect(sources.palette).toBe("component");
+  });
+
+  it("puts the author above the room they are standing in", () => {
+    // A space theme says how charts in this room are drawn; a definition says
+    // what this panel *is*. The more specific statement wins.
+    const { style } = resolveStyle({
+      space: { palette: "ocean" },
+      personalSpace: { palette: "ember" },
+      definition: { palette: "neon" },
+    });
+    expect(style.palette).toBe("neon");
+  });
+
   it("lets absence fall through every layer", () => {
     const { style, sources } = resolveStyle({
       personal: { frame: "flat" },

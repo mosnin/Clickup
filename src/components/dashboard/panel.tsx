@@ -71,7 +71,10 @@ export function Panel({
   className?: string;
 }) {
   const def = useMemo(() => normalizePanel(definition), [definition]);
-  const { style } = useComponentStyle(panelId ?? null);
+  // The definition's own look is a layer, not a decoration: it sits under the
+  // reader's override so an authored panel arrives drawn the way its author
+  // meant, and still loses to "not on my screen".
+  const { style } = useComponentStyle(panelId ?? null, def.style);
 
   // The reader's own day boundaries. Convex runs in UTC and a person's "today"
   // is not UTC's; without this every daily chart is wrong at the edges.

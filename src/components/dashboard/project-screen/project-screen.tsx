@@ -30,14 +30,14 @@ import {
   type ProjectWidgetContext,
 } from "./widgets";
 import { Panel } from "@/components/dashboard/panel";
-import { ComponentBuilder } from "@/components/dashboard/component-builder";
+import { PanelBuilder } from "@/components/dashboard/panel-builder";
 import {
-  componentIdFromWidgetId,
-  componentWidgetId,
-  describeComponent,
-  normalizeComponent,
-} from "@/lib/ui-components";
-import { isMetricShape, normalizePanel } from "@/lib/panel";
+  describePanel,
+  isMetricShape,
+  normalizePanel,
+  panelIdFromWidgetId,
+  panelWidgetId,
+} from "@/lib/panel";
 
 // A project screen, arranged by the person reading it.
 //
@@ -69,7 +69,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
   const availableIds = useMemo(
     () => [
       ...PROJECT_WIDGET_IDS,
-      ...custom.map((c) => componentWidgetId(c.componentId as string)),
+      ...custom.map((c) => panelWidgetId(c.componentId as string)),
     ],
     [custom],
   );
@@ -153,7 +153,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
   const tiles = useMemo<EditableTile[]>(
     () =>
       layout.widgets.flatMap((w): EditableTile[] => {
-        const customId = componentIdFromWidgetId(w.id);
+        const customId = panelIdFromWidgetId(w.id);
         if (customId) {
           const row = customById.get(customId);
           if (!row) return [];
@@ -303,11 +303,13 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
             </span>
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {unplaced.map((id) => {
-                const customId = componentIdFromWidgetId(id);
+                const customId = panelIdFromWidgetId(id);
                 if (customId) {
                   const row = customById.get(customId);
                   if (!row) return null;
-                  const def = normalizeComponent(row.definition);
+                  // The panel model, like everywhere else — the tray must
+                  // describe a panel the way the renderer will draw it.
+                  const def = normalizePanel(row.definition);
                   return (
                     <TrayTile
                       key={id}
@@ -334,7 +336,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
                           {def.title}
                         </span>
                         <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
-                          {describeComponent(def)}
+                          {describePanel(def)}
                           {row.authoredByName
                             ? ` — by ${row.authoredByName}`
                             : ""}
@@ -382,13 +384,13 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
             {/* The ceiling this whole system exists to remove: you are no
                 longer choosing from what we shipped. */}
             <div className="mt-4 border-t border-border/60 pt-4">
-              <ComponentBuilder
+              <PanelBuilder
                 scopeType={scope.scopeType}
                 scopeId={scope.scopeId}
                 onCreated={(componentId: string) =>
                   morphLayout(`#${GRID_ID}`, () =>
                     persist(
-                      addWidget(layout, componentWidgetId(componentId), 1),
+                      addWidget(layout, panelWidgetId(componentId), 1),
                       { droppedAt: layout.widgets.length },
                     ),
                   )
