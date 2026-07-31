@@ -212,7 +212,12 @@ function StudioScreen() {
       className="bg-page text-foreground"
       showCloseButton={false}
     >
-      <div className="flex min-h-[calc(100svh-1.5rem)] flex-col items-center px-0 py-6 text-center sm:py-8">
+      {/* Marks everything below as part of customise mode, so the
+          tap-outside-to-leave rule never fires on a tap inside the studio. */}
+      <div
+        className="flex min-h-[calc(100svh-1.5rem)] flex-col items-center px-0 py-6 text-center sm:py-8"
+        data-studio
+      >
         <Rise delay={0}>
           <div className="segmented" role="tablist" aria-label="Choosing">
             {chapters.map((c) => (
@@ -524,6 +529,7 @@ function HeroShelf({
   onCentred,
   centred,
   title,
+  applyOnCentre = true,
 }: {
   items: {
     id: string;
@@ -536,6 +542,18 @@ function HeroShelf({
   onCentred: (id: string) => void;
   centred: string | null;
   title: string;
+  /**
+   * Whether coming to rest on a card applies it.
+   *
+   * True for a *style*, which is a sparse patch that another scroll undoes
+   * just as cheaply. False for anything that rewrites what a panel IS — a
+   * shape change replaces the stored definition, and wiring scroll-to-choose
+   * into that meant flicking past nineteen shapes rewrote the panel nineteen
+   * times. Scroll-to-choose is the right gesture for picking a look and the
+   * wrong one for redefining an object; the difference is whether the last
+   * scroll can be undone by the next one.
+   */
+  applyOnCentre?: boolean;
 }) {
   const restingId = centred ?? selectedId ?? items[0]?.id;
   const current = items.find((i) => i.id === restingId) ?? items[0];
@@ -551,7 +569,7 @@ function HeroShelf({
         label={title}
         onCentred={(id) => {
           onCentred(id);
-          onPick(id);
+          if (applyOnCentre) onPick(id);
         }}
         onPick={onPick}
         selectedId={selectedId}
@@ -562,6 +580,19 @@ function HeroShelf({
           <p className="mx-auto mt-1 max-w-md text-[13px] text-muted-foreground">
             {current.hint}
           </p>
+        )}
+        {/* Scrolling does not apply here, so something has to. A shelf whose
+            centred card looks chosen and isn't is the exact failure this
+            studio already shipped once. */}
+        {!applyOnCentre && current && (
+          <Button
+            className="mt-3"
+            onClick={() => onPick(current.id)}
+            size="sm"
+            type="button"
+          >
+            {current.id === selectedId ? "Current" : `Use ${current.label}`}
+          </Button>
         )}
       </div>
     </div>
@@ -738,6 +769,7 @@ function ShapeShelf({
 
   return (
     <HeroShelf
+      applyOnCentre={false}
       centred={centred}
       items={shapes.map((shape) => ({
         id: shape,

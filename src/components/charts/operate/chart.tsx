@@ -445,7 +445,11 @@ function Dial({ series, style, height, unit }: BodyProps) {
 function Rings({ series, style, height }: BodyProps) {
   const points = series[0]?.points ?? [];
   const max = Math.max(...points.map((p) => p.value), 1);
-  const data = points.slice(0, 6).map((p, i) => ({
+  // Four, not six. Six concentric hairlines is a spirograph — the rings stop
+  // reading as separate quantities and start reading as texture, which is the
+  // opposite of what a chart is for. Fewer and thicker is legible at panel
+  // size; past four, this shape is the wrong shape for the data.
+  const data = points.slice(0, 4).map((p, i) => ({
     label: p.label || p.key,
     value: p.value,
     maxValue: max,
@@ -454,7 +458,7 @@ function Rings({ series, style, height }: BodyProps) {
 
   return (
     <div className="flex items-center justify-center" style={{ height }}>
-      <RingChart data={data} size={height}>
+      <RingChart data={data} ringGap={7} size={height} strokeWidth={13}>
         {data.map((d, i) => (
           <Ring index={i} key={d.label} />
         ))}

@@ -841,7 +841,12 @@ export function EditableGrid({
                       itself, where +/- resize and arrows reorder (see the
                       key handler above). That is one place to learn instead
                       of a control per axis. */}
-                  <div className="pointer-events-none absolute -top-2.5 right-2 z-20 flex items-center gap-1">
+                  {/* Sat at `-top-2.5`, which put it in the gap ABOVE the card
+                      rather than on it — a white circle floating between two
+                      panels, attached to neither, reading as stray UI rather
+                      than as this tile's remove. Inside its own corner it is
+                      unambiguously part of the thing it deletes. */}
+                  <div className="pointer-events-none absolute right-2 top-2 z-20 flex items-center gap-1">
                     <button
                       type="button"
                       aria-label={`Remove ${tile.title}`}

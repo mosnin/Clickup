@@ -239,3 +239,22 @@ describe("a panel reads back as a sentence", () => {
     }
   });
 });
+
+describe("a retired shape keeps its panel's meaning", () => {
+  it("draws an old pie as a donut rather than as the source's default", () => {
+    // `pie` was `donut` with the hole closed, and the hole is already a style
+    // axis — two entries in a closed vocabulary doing one job. Dropping the
+    // value outright would silently redraw somebody's pie as a list, which is
+    // the one thing normalization is not allowed to do.
+    const stored = { title: "Split", query: { from: "tasks" }, shape: "pie" };
+    expect(normalizePanel(stored).shape).toBe("donut");
+    // A shape that was never real is still refused, not guessed at.
+    expect(normalizePanel({ ...stored, shape: "sunburst" }).shape).not.toBe(
+      "donut",
+    );
+  });
+
+  it("no longer offers it", () => {
+    expect(ALL_SHAPES).not.toContain("pie");
+  });
+});

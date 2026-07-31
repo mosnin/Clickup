@@ -55,7 +55,7 @@ function Page() {
             Editing is on. The harness drags tile A&apos;s corner down and
             measures.
           </p>
-          <div style={{ maxWidth: 1100 }}>
+          <div style={{ maxWidth: 1100, minWidth: 0 }}>
             <EditableGrid
               editing
               gridId="demo-grid"
@@ -69,10 +69,21 @@ function Page() {
             />
           </div>
           {/* The committed layout, readable by the harness. */}
-          <pre id="layout-json" style={{ fontSize: 11, opacity: 0.6 }}>
+          <pre
+            id="layout-json"
+            style={{
+              fontSize: 11,
+              opacity: 0.6,
+              // Wrapped, because an unwrapped line of JSON is wider than a
+              // phone and drags the whole page out with it — which is how
+              // every "390px" shot in this harness was really 646px wide.
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+            }}
+          >
             {JSON.stringify(layout)}
           </pre>
-          <pre id="write-count" style={{ fontSize: 11, opacity: 0.6 }}>
+          <pre id="write-count" style={{ fontSize: 11, opacity: 0.6, whiteSpace: "pre-wrap" }}>
             {writes}
           </pre>
         </CustomizeProvider>

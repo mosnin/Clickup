@@ -15,10 +15,16 @@
 
 import { chromium } from "playwright-core";
 import { createServer } from "node:http";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 
+// Where the BUILD lives, and where SHOTS live — deliberately two directories.
+// `build-gallery.mjs` runs Vite with `emptyOutDir`, so writing shots into the
+// build output meant every rebuild deleted the audit's own evidence. Asked for
+// an audit after a rebuild, the harness had three PNGs left.
 const OUT = "/tmp/design-gallery";
+const SHOTS = "/tmp/design-shots";
+mkdirSync(SHOTS, { recursive: true });
 const TYPES = {
   ".html": "text/html",
   ".js": "text/javascript",
@@ -53,6 +59,7 @@ const page = await browser.newPage({
 });
 
 const errors = [];
+const overflows = [];
 page.on("pageerror", (e) => errors.push(String(e)));
 
 for (const [url, name] of [
@@ -64,14 +71,14 @@ for (const [url, name] of [
   // Long enough for the entrance animations to land — anything caught
   // mid-reveal looks broken in a still, which is a false alarm every time.
   await page.waitForTimeout(2500);
-  await page.screenshot({ path: join(OUT, `${name}-light.png`), fullPage: true });
+  await page.screenshot({ path: join(SHOTS, `${name}-light.png`), fullPage: true });
   console.log(`shot ${name}-light.png`);
 
   await page.evaluate(() => {
     document.documentElement.setAttribute("data-theme", "dark");
   });
   await page.waitForTimeout(700);
-  await page.screenshot({ path: join(OUT, `${name}-dark.png`), fullPage: true });
+  await page.screenshot({ path: join(SHOTS, `${name}-dark.png`), fullPage: true });
   console.log(`shot ${name}-dark.png`);
 
   await page.evaluate(() => {
@@ -85,7 +92,7 @@ for (const [url, name] of [
     await page.getByText("In review").hover();
     await page.waitForTimeout(500);
     await page.screenshot({
-      path: join(OUT, "sidebar-hover.png"),
+      path: join(SHOTS, "sidebar-hover.png"),
       clip: { x: 0, y: 600, width: 400, height: 500 },
     });
     console.log("shot sidebar-hover.png");
@@ -98,7 +105,7 @@ for (const [url, name] of [
       .catch(() => null);
     if (island) {
       await page.screenshot({
-        path: join(OUT, "studio-island.png"),
+        path: join(SHOTS, "studio-island.png"),
         clip: {
           x: Math.max(island.x - 120, 0),
           y: Math.max(island.y - 60, 0),
@@ -110,7 +117,7 @@ for (const [url, name] of [
       await page.locator("#style-island button").first().click();
       await page.waitForTimeout(1600);
     }
-    await page.screenshot({ path: join(OUT, "studio-screen.png") });
+    await page.screenshot({ path: join(SHOTS, "studio-screen.png") });
     console.log("shot studio-screen.png");
     // The theme check that was skipped is the theme bug that shipped: the
     // studio in dark mode, which must render dark.
@@ -118,7 +125,7 @@ for (const [url, name] of [
       document.documentElement.setAttribute("data-theme", "dark");
     });
     await page.waitForTimeout(700);
-    await page.screenshot({ path: join(OUT, "studio-screen-dark.png") });
+    await page.screenshot({ path: join(SHOTS, "studio-screen-dark.png") });
     console.log("shot studio-screen-dark.png");
     await page.evaluate(() => {
       document.documentElement.removeAttribute("data-theme");
@@ -128,13 +135,13 @@ for (const [url, name] of [
     // cards — a chapter never opened is a chapter nobody checked.
     await page.getByRole("tab", { name: "Card", exact: true }).click();
     await page.waitForTimeout(1600);
-    await page.screenshot({ path: join(OUT, "studio-cards.png") });
+    await page.screenshot({ path: join(SHOTS, "studio-cards.png") });
     console.log("shot studio-cards.png");
     await page.evaluate(() => {
       document.documentElement.setAttribute("data-theme", "dark");
     });
     await page.waitForTimeout(700);
-    await page.screenshot({ path: join(OUT, "studio-cards-dark.png") });
+    await page.screenshot({ path: join(SHOTS, "studio-cards-dark.png") });
     console.log("shot studio-cards-dark.png");
     await page.evaluate(() => {
       document.documentElement.removeAttribute("data-theme");
@@ -144,11 +151,11 @@ for (const [url, name] of [
     // step that ships broken.
     await page.getByRole("tab", { name: "New card" }).click();
     await page.waitForTimeout(1800);
-    await page.screenshot({ path: join(OUT, "builder-watch.png") });
+    await page.screenshot({ path: join(SHOTS, "builder-watch.png") });
     console.log("shot builder-watch.png");
     await page.locator('[data-item-id]').first().click();
     await page.waitForTimeout(1800);
-    await page.screenshot({ path: join(OUT, "builder-shape.png") });
+    await page.screenshot({ path: join(SHOTS, "builder-shape.png") });
     console.log("shot builder-shape.png");
   }
 }
@@ -169,7 +176,7 @@ const mIsland = await mobile
   .catch(() => null);
 if (mIsland) {
   await mobile.screenshot({
-    path: join(OUT, "studio-island-mobile.png"),
+    path: join(SHOTS, "studio-island-mobile.png"),
     clip: {
       x: 0,
       y: Math.max(mIsland.y - 40, 0),
@@ -180,26 +187,58 @@ if (mIsland) {
   console.log("shot studio-island-mobile.png");
   await mobile.locator("#style-island button").first().click();
   await mobile.waitForTimeout(1600);
-  await mobile.screenshot({ path: join(OUT, "studio-screen-mobile.png") });
+  await mobile.screenshot({ path: join(SHOTS, "studio-screen-mobile.png") });
   console.log("shot studio-screen-mobile.png");
   await mobile.getByRole("tab", { name: "New card" }).click();
   await mobile.waitForTimeout(1800);
-  await mobile.screenshot({ path: join(OUT, "builder-watch-mobile.png") });
+  await mobile.screenshot({ path: join(SHOTS, "builder-watch-mobile.png") });
   console.log("shot builder-watch-mobile.png");
 }
 
 await mobile.goto("http://127.0.0.1:4599/labels.html");
 await mobile.waitForTimeout(1500);
-await mobile.screenshot({ path: join(OUT, "labels-mobile.png"), fullPage: true });
+await mobile.screenshot({ path: join(SHOTS, "labels-mobile.png"), fullPage: true });
 console.log("shot labels-mobile.png");
 
 await mobile.goto("http://127.0.0.1:4599/grid.html");
 await mobile.waitForTimeout(1500);
-await mobile.screenshot({ path: join(OUT, "grid-mobile.png"), fullPage: true });
+await mobile.screenshot({ path: join(SHOTS, "grid-mobile.png"), fullPage: true });
 console.log("shot grid-mobile.png");
+
+// ── Nothing may be wider than the phone ──
+//
+// The single check that would have caught the worst harness bug in this
+// project: the grid fixture printed its layout JSON on one unwrapped line,
+// which forced the page to 646px, so every shot taken at "390px" was a
+// desktop layout wearing a phone's viewport — and every mobile conclusion
+// drawn from those shots was worthless. A shot that silently lies is more
+// expensive than no shot.
+for (const page of ["sidebar.html", "labels.html", "grid.html"]) {
+  await mobile.goto(`http://127.0.0.1:4599/${page}`);
+  await mobile.waitForTimeout(900);
+  const over = await mobile.evaluate(() => ({
+    scroll: document.documentElement.scrollWidth,
+    client: document.documentElement.clientWidth,
+    widest: Array.from(document.querySelectorAll("body *"))
+      .map((el) => ({ w: el.getBoundingClientRect().width, t: el.tagName }))
+      .sort((a, b) => b.w - a.w)[0],
+  }));
+  if (over.scroll > over.client + 1) {
+    overflows.push(
+      `${page}: page is ${over.scroll}px wide in a ${over.client}px viewport ` +
+        `(widest element ${over.widest?.t} at ${Math.round(over.widest?.w)}px)`,
+    );
+  }
+}
 
 await browser.close();
 server.close();
+
+if (overflows.length > 0) {
+  console.error("\nHorizontal overflow at 390px — these shots cannot be trusted:");
+  for (const o of overflows) console.error("  " + o);
+  process.exit(1);
+}
 
 if (errors.length > 0) {
   // A page that threw rendered something, and the something is not what

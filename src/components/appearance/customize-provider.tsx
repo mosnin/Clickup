@@ -104,6 +104,37 @@ export function CustomizeProvider({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("click", onClick, true);
   }, [active]);
 
+  // Tapping the background steps back one level, exactly as Escape does.
+  //
+  // Escape was the only way out that wasn't a specific small control, and a
+  // phone does not have Escape — so on the surface where this mode is hardest
+  // to read, there was no general way to leave it at all. "I cannot tap
+  // outside to stop it" is the accurate report of that.
+  //
+  // Background means: not a panel, not the studio, not any of the chrome the
+  // mode puts on screen. Everything that IS part of the mode opts out by
+  // being inside one of these, so new chrome does not have to remember to
+  // register itself — it only has to live where it belongs.
+  useEffect(() => {
+    if (!active) return;
+    const onDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest(
+          "[data-customize-id],[data-customize-rail],[data-tile],#style-island,[data-studio],[role=dialog],[data-toast]",
+        )
+      ) {
+        return;
+      }
+      if (selection) setSelection(null);
+      else setActive(false);
+    };
+    // Bubble phase, so a control that handles its own tap and stops the event
+    // is never overruled by the background.
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [active, selection, setActive]);
+
   // Escape steps back one level rather than dropping straight out: with a
   // panel selected it deselects, and only then does it leave the mode. Anything
   // else means one stray keypress throws away what you were doing.

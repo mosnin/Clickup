@@ -53,7 +53,6 @@ export type PanelShape =
   | "line"
   | "area"
   | "donut"
-  | "pie"
   | "radial"
   | "scatter"
   | "waterfall"
@@ -92,7 +91,6 @@ const CHART_SHAPES: PanelShape[] = [
   "line",
   "area",
   "donut",
-  "pie",
   "radial",
   "scatter",
   "waterfall",
@@ -143,7 +141,6 @@ const SHAPE_LABELS: Record<PanelShape, string> = {
   line: "Line",
   area: "Area",
   donut: "Donut",
-  pie: "Pie",
   radial: "Dial",
   scatter: "Scatter",
   waterfall: "Waterfall",
@@ -244,13 +241,24 @@ export function fieldsFor(from: SourceKind): { key: string; label: string }[] {
  * drawn must degrade to one that can, never throw — a panel that breaks a
  * screen is worse than a panel showing the wrong thing.
  */
+/**
+ * Shapes that were offered once and are not any more.
+ *
+ * `pie` was `donut` with the hole closed, and the hole is already a style
+ * axis (`donutHole`) — so it was two entries in a closed vocabulary doing one
+ * job, which is the same duplication the palettes carried. Retiring it maps
+ * forward rather than dropping, because dropping an unknown shape silently
+ * redraws someone's panel as the source's default; a stored definition must
+ * never change meaning when it is read.
+ */
+const RETIRED_SHAPES: Record<string, PanelShape> = { pie: "donut" };
+
 export function normalizePanel(input: unknown): PanelDef {
   const raw = liftLegacy(input) as Partial<PanelDef>;
   const query = normalizeQuery(raw.query);
   const allowed = shapesFor(query.from);
-  const shape = allowed.includes(raw.shape as PanelShape)
-    ? (raw.shape as PanelShape)
-    : allowed[0];
+  const asked = RETIRED_SHAPES[raw.shape as string] ?? (raw.shape as PanelShape);
+  const shape = allowed.includes(asked) ? asked : allowed[0];
 
   const catalog = new Set(fieldsFor(query.from).map((f) => f.key));
   const seen = new Set<string>();
