@@ -249,6 +249,25 @@ User (personal) ──┘
 
 ## How to think about this product
 
+**Think like Steve Jobs, constantly.** Before shipping any surface, ask: would
+Apple ship this? Concretely that means: **one choice at a time** — a screen
+asks one question with one row of full-size options on the centre axis, never
+a stacked wall of fifty; **symmetry and cohesion are layout rules**, not
+polish; **mobile is not an afterthought** — if the surface doesn't work at
+390px it doesn't work; and **the founder's references are the spec** — when a
+screenshot or a component link has been provided, match it, don't invent an
+alternative and call it equivalent. A settings page with hundreds of options
+is the failure mode this product exists to replace.
+
+**Never claim something works that you have not watched work.** jsdom cannot
+drag, cannot lay out, and flushes React on a different schedule than a
+browser — a gesture bug lived here for weeks behind green unit tests and was
+found in minutes by `scripts/verify-resize.mjs` driving a real pointer in
+Chromium. For anything visual, run `npm run gallery` and LOOK at the PNGs;
+for anything gestural, drive it with Playwright (`scripts/verify-resize.mjs`
+is the pattern). "Tests pass" is not "it works."
+
+
 **Reason from first principles, not from what other products do.** What we are
 building — an interface a non-programmer reshapes in place, that agents and
 people co-author, where two people over identical primitives end up with

@@ -201,15 +201,25 @@ describe("resizing", () => {
 
     const grip = screen.getByLabelText(/Resize Progress/i);
     grip.dispatchEvent(pointerEvent("pointerdown", { clientX: 0, clientY: 0 }));
-    // Cross two column boundaries on the way out: 1 -> 2 -> 3.
-    window.dispatchEvent(pointerEvent("pointermove", { clientX: 300, clientY: 0 }));
-    window.dispatchEvent(pointerEvent("pointermove", { clientX: 620, clientY: 0 }));
+    // Cross two column boundaries on the way out: 1 -> 2 -> 3. Every event is
+    // flushed (act) before the next, because a browser renders between frames
+    // of a drag. Dispatching them back-to-back let the preview stay unflushed
+    // until release, which hid a release-guard bug that killed every real
+    // height drag while every test stayed green.
+    act(() => {
+      window.dispatchEvent(pointerEvent("pointermove", { clientX: 300, clientY: 0 }));
+    });
+    act(() => {
+      window.dispatchEvent(pointerEvent("pointermove", { clientX: 620, clientY: 0 }));
+    });
     expect(
       onChange,
       "nothing may be written while the gesture is still in flight",
     ).not.toHaveBeenCalled();
 
-    window.dispatchEvent(pointerEvent("pointerup", { clientX: 620, clientY: 0 }));
+    act(() => {
+      window.dispatchEvent(pointerEvent("pointerup", { clientX: 620, clientY: 0 }));
+    });
     expect(onChange).toHaveBeenCalledTimes(1);
     // No `rows`. A purely horizontal drag must not claim a height — writing
     // rows: 1 here is what used to flip every natural-height panel on the
@@ -235,11 +245,16 @@ describe("resizing", () => {
 
     const grip = screen.getByLabelText(/Resize Progress/i);
     grip.dispatchEvent(pointerEvent("pointerdown", { clientX: 0, clientY: 0 }));
-    // Down two row units (unit + gap = 192px each on a natural screen).
-    window.dispatchEvent(
-      pointerEvent("pointermove", { clientX: 0, clientY: 400 }),
-    );
-    window.dispatchEvent(pointerEvent("pointerup", { clientX: 0, clientY: 400 }));
+    // Down two row units (unit + gap = 192px each on a natural screen),
+    // flushed before release like a real drag — see the note above.
+    act(() => {
+      window.dispatchEvent(
+        pointerEvent("pointermove", { clientX: 0, clientY: 400 }),
+      );
+    });
+    act(() => {
+      window.dispatchEvent(pointerEvent("pointerup", { clientX: 0, clientY: 400 }));
+    });
 
     expect(onChange).toHaveBeenCalledTimes(1);
     const widget = (

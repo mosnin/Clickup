@@ -661,7 +661,15 @@ export function EditableGrid({
                     <ResizeGrip
                       label={tile.title}
                       span={w.span}
-                      rows={rows}
+                      // The SAVED rows, never the live preview. The grip's
+                      // release guard asks "did the drag change what is
+                      // stored", and feeding it the preview answers "no" the
+                      // moment the preview flushes — which a real browser
+                      // does mid-gesture and jsdom does not. That one
+                      // difference is why height commits passed every test
+                      // and failed every actual drag, while width — wired to
+                      // `w.span`, the stored value — worked all along.
+                      rows={w.rows ?? tile.rows ?? 1}
                       min={tile.minSpan}
                       max={tile.maxSpan}
                       natural={!sized && w.rows === undefined}
