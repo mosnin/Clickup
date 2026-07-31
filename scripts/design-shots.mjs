@@ -124,6 +124,22 @@ for (const [url, name] of [
       document.documentElement.removeAttribute("data-theme");
     });
 
+    // The Card chapter, which is the one that shipped eight indistinguishable
+    // cards — a chapter never opened is a chapter nobody checked.
+    await page.getByRole("tab", { name: "Card", exact: true }).click();
+    await page.waitForTimeout(1600);
+    await page.screenshot({ path: join(OUT, "studio-cards.png") });
+    console.log("shot studio-cards.png");
+    await page.evaluate(() => {
+      document.documentElement.setAttribute("data-theme", "dark");
+    });
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: join(OUT, "studio-cards-dark.png") });
+    console.log("shot studio-cards-dark.png");
+    await page.evaluate(() => {
+      document.documentElement.removeAttribute("data-theme");
+    });
+
     // The builder chapter — both steps, because a step never opened is a
     // step that ships broken.
     await page.getByRole("tab", { name: "New card" }).click();

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   CHART_KEYS,
@@ -98,13 +99,13 @@ describe("the vocabulary is closed", () => {
 
 describe("patches are sparse", () => {
   it("keeps only what was explicitly set", () => {
-    expect(normalizeStylePatch({ palette: "vivid" })).toEqual({ palette: "vivid" });
-    expect(Object.keys(normalizeStylePatch({ palette: "vivid" }))).toHaveLength(1);
+    expect(normalizeStylePatch({ palette: "grape" })).toEqual({ palette: "grape" });
+    expect(Object.keys(normalizeStylePatch({ palette: "grape" }))).toHaveLength(1);
   });
 
   it("honours an allow-list", () => {
-    const patch = { palette: "vivid", frame: "glass" };
-    expect(normalizeStylePatch(patch, CHART_KEYS)).toEqual({ palette: "vivid" });
+    const patch = { palette: "grape", frame: "glass" };
+    expect(normalizeStylePatch(patch, CHART_KEYS)).toEqual({ palette: "grape" });
     expect(normalizeStylePatch(patch, FRAME_KEYS)).toEqual({ frame: "glass" });
   });
 
@@ -117,19 +118,19 @@ describe("patches are sparse", () => {
 
   it("clears by deleting, not by copying the parent's value down", () => {
     // Copying looks identical today and stops tracking tomorrow.
-    const patch = { palette: "vivid" as const, frame: "glass" as const };
+    const patch = { palette: "grape" as const, frame: "glass" as const };
     const cleared = clearStyleKeys(patch, ["palette"]);
     expect("palette" in cleared).toBe(false);
     expect(cleared.frame).toBe("glass");
     // And it does not mutate its input.
-    expect(patch.palette).toBe("vivid");
+    expect(patch.palette).toBe("grape");
   });
 });
 
 describe("layering runs general to specific", () => {
   it("lets each layer beat the one before it", () => {
     const { style, sources } = resolveStyle({
-      personal: { palette: "vivid", frame: "flat" },
+      personal: { palette: "grape", frame: "flat" },
       space: { palette: "ocean" },
       personalSpace: { frame: "glass" },
     });
@@ -143,12 +144,12 @@ describe("layering runs general to specific", () => {
     // It is the most specific statement anyone made: "this panel, in
     // particular, is a dial."
     const { style, sources } = resolveStyle({
-      personal: { palette: "vivid" },
+      personal: { palette: "grape" },
       space: { palette: "ocean" },
       personalSpace: { palette: "ember" },
-      component: { palette: "neon" },
+      component: { palette: "forest" },
     });
-    expect(style.palette).toBe("neon");
+    expect(style.palette).toBe("forest");
     expect(sources.palette).toBe("component");
   });
 
@@ -158,10 +159,10 @@ describe("layering runs general to specific", () => {
     // never applied to anything — an agent writing "spend, as a donut, in
     // red" produced a grey donut.
     const { style, sources } = resolveStyle({
-      personal: { palette: "vivid" },
-      definition: { palette: "neon" },
+      personal: { palette: "grape" },
+      definition: { palette: "forest" },
     });
-    expect(style.palette).toBe("neon");
+    expect(style.palette).toBe("forest");
     expect(sources.palette).toBe("definition");
   });
 
@@ -169,7 +170,7 @@ describe("layering runs general to specific", () => {
     // Otherwise every shared or agent-authored panel is a change to somebody
     // else's dashboard that they cannot take back.
     const { style, sources } = resolveStyle({
-      definition: { palette: "neon" },
+      definition: { palette: "forest" },
       component: { palette: "ocean" },
     });
     expect(style.palette).toBe("ocean");
@@ -182,15 +183,15 @@ describe("layering runs general to specific", () => {
     const { style } = resolveStyle({
       space: { palette: "ocean" },
       personalSpace: { palette: "ember" },
-      definition: { palette: "neon" },
+      definition: { palette: "forest" },
     });
-    expect(style.palette).toBe("neon");
+    expect(style.palette).toBe("forest");
   });
 
   it("lets absence fall through every layer", () => {
     const { style, sources } = resolveStyle({
       personal: { frame: "flat" },
-      component: { palette: "neon" },
+      component: { palette: "forest" },
     });
     expect(style.frame).toBe("flat");
     expect(style.curve).toBe(DEFAULT_STYLE.curve);
@@ -235,20 +236,47 @@ describe("palettes", () => {
     }
   });
 
-  it("pins the opt-in palettes to fixed hues", () => {
-    // A palette called "vivid" that adapted to the theme would not be vivid.
+  it("never pins a palette stop to a raw colour", () => {
+    // A palette is a set of hues; how light each hue has to be is a question
+    // about what is behind it. Pinning both is how `slate` shipped as
+    // near-black bars on a near-black card, and how the accessibility palette
+    // shipped with a literal #000000 series that vanished in dark mode. Every
+    // stop resolves through a token, so a theme always gets a say.
     for (const p of ALL) {
-      if (p === "mono") continue;
       for (const color of paletteColors(p)) {
-        expect(color, `${p} ${color}`).toMatch(/^#[0-9a-f]{6}$/i);
+        expect(color, `${p} ${color}`).toContain("var(--");
       }
     }
   });
 
+  it("carries a retired palette forward instead of dropping it", () => {
+    // Dropping the value would silently re-style every panel that used it back
+    // to ink, and a stored style must never change meaning when it is read.
+    expect(normalizeStylePatch({ palette: "vivid" })).toEqual({
+      palette: "contrast",
+    });
+    expect(normalizeStylePatch({ palette: "neon" })).toEqual({
+      palette: "pastel",
+    });
+    expect(normalizeStylePatch({ palette: "slate" })).toEqual({
+      palette: "mono",
+    });
+    // A name that was never a palette is still dropped, not guessed at.
+    expect(normalizeStylePatch({ palette: "chartreuse" })).toEqual({});
+  });
+
+  it("offers no palette that a preset needs and cannot have", () => {
+    for (const preset of STYLE_PRESETS) {
+      const wanted = preset.patch.palette;
+      if (wanted === undefined) continue;
+      expect(ALL, `${preset.id} wants ${wanted}`).toContain(wanted);
+    }
+  });
+
   it("wraps rather than running out", () => {
-    expect(seriesColor("vivid", 0)).toBe(seriesColor("vivid", 6));
-    expect(seriesColor("vivid", -1)).toBe(seriesColor("vivid", 5));
-    expect(typeof seriesColor("vivid", 999)).toBe("string");
+    expect(seriesColor("grape", 0)).toBe(seriesColor("grape", 6));
+    expect(seriesColor("grape", -1)).toBe(seriesColor("grape", 5));
+    expect(typeof seriesColor("grape", 999)).toBe("string");
   });
 
   it("never returns undefined for an unknown palette", () => {
@@ -335,7 +363,7 @@ describe("a style reads back in words", () => {
   it("names what is unusual about it and stays quiet otherwise", () => {
     expect(describeStyle(DEFAULT_STYLE)).toBe("ink");
     const loud = normalizeStyle({
-      palette: "neon",
+      palette: "forest",
       frame: "glass",
       axes: "none",
       grid: "none",
@@ -343,9 +371,50 @@ describe("a style reads back in words", () => {
       legend: "right",
     });
     const text = describeStyle(loud);
-    expect(text).toContain("neon");
+    expect(text).toContain("forest");
     expect(text).toContain("glass frame");
     expect(text).toContain("no chrome");
     expect(text).toContain("percent labels");
+  });
+});
+
+describe("every palette survives both themes", () => {
+  // The rule this file exists to keep: a palette is a set of hues, and how
+  // light each hue has to be is the theme's business. `slate` shipped with
+  // `#0f172a` as its first stop and drew near-black bars on a near-black card;
+  // `contrast` — the *accessibility* palette — shipped with a literal
+  // `#000000` series that vanished outright in dark mode. Neither was
+  // catchable by a test that only read TypeScript, because the values were
+  // correct-looking constants. So this reads the stylesheet.
+  const css = readFileSync(
+    new URL("../src/app/globals.css", import.meta.url),
+    "utf8",
+  );
+  const darkBlocks = css
+    .split(':root[data-theme="dark"]')
+    .slice(1)
+    .join("\n");
+
+  it("declares every stop it references, in both themes", () => {
+    for (const palette of STYLE_ENUMS.palette) {
+      for (const color of paletteColors(palette)) {
+        const name = /var\((--[a-z0-9-]+)/i.exec(color)?.[1];
+        expect(name, `${palette}: ${color}`).toBeTruthy();
+        if (!name || !name.startsWith("--chart-")) continue;
+        expect(css, `${name} has no light value`).toContain(`${name}:`);
+        expect(darkBlocks, `${name} has no dark value`).toContain(`${name}:`);
+      }
+    }
+  });
+
+  it("never hands a palette the page's own background as a series colour", () => {
+    // A series drawn *in* the background token is an invisible series — the
+    // same failure as the hex one, expressed in tokens. Mixing toward the
+    // background is how `mono` stays legible and is not this.
+    for (const palette of STYLE_ENUMS.palette) {
+      for (const color of paletteColors(palette)) {
+        expect(color.trim(), palette).not.toBe("var(--color-background)");
+      }
+    }
   });
 });

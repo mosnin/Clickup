@@ -242,6 +242,108 @@
   --ui-glint-strong: rgb(255 255 255 / 0.06);
 }
 
+/* ── Chart palettes, one hue per family, one lightness per theme ──────────
+   A palette's identity is its hue; how light that hue needs to be is a
+   question about what is behind it, which only the theme knows. Pinning both
+   is how a `#0f172a` series shipped as invisible bars on a near-black card.
+
+   So: the light column is tuned to sit on a white card, the dark column on a
+   charcoal one, and the hue is the same in both. Every ramp runs dark→light
+   in the light theme and light→dark in the dark theme, so stop 1 is always
+   the most prominent series.
+
+   `--chart-contrast-1` is the theme's ink rather than black, which is the
+   same colour in daylight and a visible one at night. Adding a palette means
+   adding both columns; `tests/appearance-depth.test.ts` fails if you don't. */
+:root {
+  --chart-pastel-1: #7ba8d8;
+  --chart-pastel-2: #e39586;
+  --chart-pastel-3: #d9bd6a;
+  --chart-pastel-4: #7cc4a1;
+  --chart-pastel-5: #a48fd8;
+  --chart-pastel-6: #d98fc4;
+
+  --chart-ocean-1: #0e7490;
+  --chart-ocean-2: #0891b2;
+  --chart-ocean-3: #22a7c9;
+  --chart-ocean-4: #4cc4dd;
+  --chart-ocean-5: #7dd8e8;
+  --chart-ocean-6: #a5e8f2;
+
+  --chart-ember-1: #9a3412;
+  --chart-ember-2: #c2410c;
+  --chart-ember-3: #ea580c;
+  --chart-ember-4: #f97316;
+  --chart-ember-5: #fb923c;
+  --chart-ember-6: #fdba74;
+
+  --chart-forest-1: #166534;
+  --chart-forest-2: #15803d;
+  --chart-forest-3: #199950;
+  --chart-forest-4: #34b866;
+  --chart-forest-5: #5fce88;
+  --chart-forest-6: #8fdfab;
+
+  --chart-grape-1: #5b21b6;
+  --chart-grape-2: #6d28d9;
+  --chart-grape-3: #8b5cf6;
+  --chart-grape-4: #a78bfa;
+  --chart-grape-5: #c4b5fd;
+  --chart-grape-6: #ddd6fe;
+
+  --chart-contrast-1: var(--color-foreground);
+  --chart-contrast-2: #d1174a;
+  --chart-contrast-3: #1d4ed8;
+  --chart-contrast-4: #b45309;
+  --chart-contrast-5: #047857;
+  --chart-contrast-6: #6d28d9;
+}
+:root[data-theme="dark"] {
+  /* Same hues, lifted so they read on charcoal. The deep end of each ramp
+     would otherwise be indistinguishable from the card it is drawn on. */
+  --chart-pastel-1: #a8c7ea;
+  --chart-pastel-2: #f0b6ab;
+  --chart-pastel-3: #f2dda0;
+  --chart-pastel-4: #a9dcc2;
+  --chart-pastel-5: #c4b3ec;
+  --chart-pastel-6: #efb9e2;
+
+  --chart-ocean-1: #67e8f9;
+  --chart-ocean-2: #38d3ee;
+  --chart-ocean-3: #22b8d8;
+  --chart-ocean-4: #1a9fbe;
+  --chart-ocean-5: #1786a2;
+  --chart-ocean-6: #146e86;
+
+  --chart-ember-1: #fdba74;
+  --chart-ember-2: #fb923c;
+  --chart-ember-3: #f97316;
+  --chart-ember-4: #ea580c;
+  --chart-ember-5: #cf4b0b;
+  --chart-ember-6: #ad3f0c;
+
+  --chart-forest-1: #86efac;
+  --chart-forest-2: #4ade80;
+  --chart-forest-3: #2fc46a;
+  --chart-forest-4: #22a557;
+  --chart-forest-5: #1c8748;
+  --chart-forest-6: #176c3a;
+
+  --chart-grape-1: #ddd6fe;
+  --chart-grape-2: #c4b5fd;
+  --chart-grape-3: #a78bfa;
+  --chart-grape-4: #8b5cf6;
+  --chart-grape-5: #7c3aed;
+  --chart-grape-6: #6d28d9;
+
+  --chart-contrast-1: var(--color-foreground);
+  --chart-contrast-2: #ff5c8a;
+  --chart-contrast-3: #6c9bff;
+  --chart-contrast-4: #ffc14d;
+  --chart-contrast-5: #4ade80;
+  --chart-contrast-6: #c4b5fd;
+}
+
 /* ── Secondary text, at the reader's contrast ─────────────────────────────
    The base grey is owned by the stylesheet (and differs per theme); the
    preference only says how far to push it. Done this way round because the

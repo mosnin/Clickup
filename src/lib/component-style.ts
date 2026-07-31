@@ -48,13 +48,10 @@ export type AccentEdge = "none" | "top" | "left";
 export type Palette =
   | "mono"
   | "pastel"
-  | "vivid"
-  | "neon"
   | "ocean"
   | "ember"
   | "forest"
   | "grape"
-  | "slate"
   | "contrast";
 
 export type ChartFill = "solid" | "gradient" | "soft" | "outline";
@@ -128,18 +125,7 @@ const ENUMS = {
   titleStyle: ["micro", "plain", "large", "hidden"],
   titleAlign: ["left", "center"],
   accentEdge: ["none", "top", "left"],
-  palette: [
-    "mono",
-    "pastel",
-    "vivid",
-    "neon",
-    "ocean",
-    "ember",
-    "forest",
-    "grape",
-    "slate",
-    "contrast",
-  ],
+  palette: ["mono", "pastel", "ocean", "ember", "forest", "grape", "contrast"],
   chartFill: ["solid", "gradient", "soft", "outline"],
   curve: ["linear", "smooth", "step"],
   barShape: ["square", "rounded", "pill"],
@@ -213,8 +199,15 @@ export function normalizeStylePatch(
     if (value === undefined || value === null) continue;
     if (key in ENUMS) {
       const allowed: readonly string[] = ENUMS[key as keyof typeof ENUMS];
-      if (typeof value !== "string" || !allowed.includes(value)) continue;
-      out[key] = value;
+      if (typeof value !== "string") continue;
+      // A retired palette resolves to its successor rather than being dropped:
+      // dropping it would re-style someone's panel back to ink on read.
+      const resolved =
+        key === "palette" && !allowed.includes(value)
+          ? RETIRED_PALETTES[value]
+          : value;
+      if (resolved === undefined || !allowed.includes(resolved)) continue;
+      out[key] = resolved;
     } else {
       if (typeof value !== "number" || !Number.isFinite(value)) continue;
       const [lo, hi] = RANGES[key as keyof typeof RANGES];
@@ -325,16 +318,30 @@ export function pruneStylePatch(input: unknown): StylePatch {
 
 // ── Palettes ────────────────────────────────────────────────────────────
 //
-// The series colours. Two kinds, deliberately:
+// **A palette is a set of hues. Lightness belongs to the theme.**
 //
-// **`mono` is computed from the theme's own tokens** via `color-mix`, so it is
-// correct in light and dark without maintaining two lists — a hard-coded grey
-// ramp would be invisible on one of them. It is also the default, which is how
-// the shipped monochrome design survives this feature: a chart drawn by
-// someone who never opened the settings is drawn in ink.
+// The previous version pinned every non-default palette to fixed hex, on the
+// reasoning that a palette called "vivid" which adapted to the theme would not
+// be vivid. That confuses two properties. Hue is the palette's identity and
+// must not move; lightness is legibility and cannot be decided without knowing
+// what is behind it. Pinning both is how `slate` (`#0f172a` first) shipped as
+// near-black bars on a near-black card, and `contrast` — the accessibility
+// palette — shipped with a literal `#000000` series that vanished in dark
+// mode. A palette that disappears on one theme is not a style, it is a bug
+// with a name.
 //
-// **The rest are fixed hues**, because a palette called "vivid" that adapted
-// itself to the theme would not be vivid. They are opt-in.
+// So every stop resolves through a custom property, and `globals.css` carries
+// one value per theme. The hue stays put across both; only how light it is
+// changes. `tests/component-style.test.ts` asserts no stop is a raw hex, and
+// `tests/appearance-depth.test.ts` asserts every stop has a dark-mode value —
+// there is no way to add a palette that only works in daylight.
+//
+// **The list is short on purpose.** Ten palettes were really one ink ramp,
+// one brand set, four hue families, and four near-duplicates of those: `vivid`
+// and `contrast` differed by one stop, `slate` was `mono` with a blue cast,
+// `neon` was `pastel` turned up. Retired ones still resolve (see
+// `RETIRED_PALETTES`) so a panel styled in 2025 keeps roughly its look; they
+// are simply no longer offered.
 //
 // Six stops each: past six series a chart needs a different shape, not more
 // colours, and cycling produces two identical series in one legend.
@@ -342,20 +349,47 @@ export function pruneStylePatch(input: unknown): StylePatch {
 const MIX = (percent: number) =>
   `color-mix(in srgb, var(--color-foreground) ${percent}%, var(--color-background))`;
 
+/** The six stops of a themed ramp, as custom properties. */
+const RAMP = (name: string) =>
+  Array.from({ length: 6 }, (_, i) => `var(--chart-${name}-${i + 1})`);
+
 const PALETTES: Record<Palette, string[]> = {
   // Ink, stepped so neighbouring series stay distinguishable at small sizes.
+  // Already token-derived, and the reason the shipped monochrome design
+  // survives this feature: a chart nobody styled is drawn in ink.
   mono: [MIX(92), MIX(70), MIX(52), MIX(38), MIX(26), MIX(16)],
   // The product's own chip colours.
-  pastel: ["#a8c7ea", "#f0b6ab", "#f2ddA0", "#a9dcc2", "#c4b3ec", "#efb9e2"],
-  vivid: ["#2563eb", "#e11d48", "#f59e0b", "#10b981", "#8b5cf6", "#ec4899"],
-  neon: ["#22d3ee", "#a3e635", "#f472b6", "#facc15", "#818cf8", "#fb7185"],
-  ocean: ["#0e7490", "#0891b2", "#22d3ee", "#67e8f9", "#155e75", "#a5f3fc"],
-  ember: ["#7c2d12", "#c2410c", "#ea580c", "#f97316", "#fb923c", "#fdba74"],
-  forest: ["#14532d", "#166534", "#15803d", "#22c55e", "#4ade80", "#86efac"],
-  grape: ["#4c1d95", "#6d28d9", "#8b5cf6", "#a78bfa", "#c4b5fd", "#ddd6fe"],
-  slate: ["#0f172a", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1"],
-  // Deliberately maximally separable, for anyone who needs it to be.
-  contrast: ["#000000", "#e11d48", "#2563eb", "#f59e0b", "#10b981", "#8b5cf6"],
+  pastel: RAMP("pastel"),
+  // Four single-hue families. One hue each is what makes them read as a
+  // family rather than as a rainbow — the look the brand actually has.
+  ocean: RAMP("ocean"),
+  ember: RAMP("ember"),
+  forest: RAMP("forest"),
+  grape: RAMP("grape"),
+  // Deliberately maximally separable, for anyone who needs it to be. Its
+  // first stop is the theme's ink rather than black, which is the same
+  // colour in light mode and a visible one in dark.
+  contrast: RAMP("contrast"),
+};
+
+/**
+ * Palettes that were offered once and are not any more.
+ *
+ * Dropping an enum value outright would silently re-style every panel that
+ * used it back to the default — `normalizeStylePatch` drops what it doesn't
+ * recognise, and a stored style must never change meaning on read. Mapping
+ * each to its nearest survivor keeps those panels looking approximately as
+ * their author left them, which is the most a retirement can honestly offer.
+ */
+const RETIRED_PALETTES: Record<string, Palette> = {
+  // A rainbow of primaries; `contrast` is the same idea, kept because it has
+  // an accessibility reason to exist.
+  vivid: "contrast",
+  // Bright multi-hue — that is what `pastel` is, at a volume this product
+  // actually ships at.
+  neon: "pastel",
+  // A grey ramp with a blue cast, i.e. `mono` with worse contrast.
+  slate: "mono",
 };
 
 /** The colours for a palette, in order. */
@@ -465,11 +499,11 @@ export const STYLE_PRESETS: StylePreset[] = [
   {
     id: "console",
     name: "Console",
-    description: "Vivid on dark panels, thin bars, a legend on the right.",
+    description: "Bright series on dark panels, thin bars, a legend on the right.",
     patch: {
       frame: "solid",
       fill: "inverted",
-      palette: "vivid",
+      palette: "contrast",
       barWidth: "thin",
       barShape: "square",
       grid: "horizontal",
@@ -500,7 +534,7 @@ export const STYLE_PRESETS: StylePreset[] = [
       frame: "flat",
       corner: "square",
       padding: "tight",
-      palette: "slate",
+      palette: "mono",
       barShape: "square",
       barWidth: "thick",
       curve: "step",
@@ -510,23 +544,9 @@ export const STYLE_PRESETS: StylePreset[] = [
       titleStyle: "plain",
     },
   },
-  {
-    id: "neon",
-    name: "Neon",
-    description: "High-contrast hues on an inverted card, no grid.",
-    patch: {
-      frame: "solid",
-      fill: "inverted",
-      palette: "neon",
-      chartFill: "gradient",
-      grid: "none",
-      axes: "none",
-      corner: "round",
-      barShape: "pill",
-      markers: "dot",
-      titleStyle: "large",
-    },
-  },
+  // There is no "Neon" preset any more. It was an inverted card with bright
+  // series and no grid, which is what "Console" already is — two names for one
+  // look is how a gallery stops being a set of choices and becomes a list.
   {
     id: "accessible",
     name: "High contrast",

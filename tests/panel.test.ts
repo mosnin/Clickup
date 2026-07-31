@@ -42,7 +42,7 @@ describe("normalization is total", () => {
       query: { from: "tasks", dimension: "assignee", measure: "overdue" },
       shape: "donut",
       fields: ["status", "due"],
-      style: { palette: "vivid" },
+      style: { palette: "contrast" },
     });
     expect(normalizePanel(once)).toEqual(once);
   });
@@ -223,13 +223,13 @@ describe("a panel reads back as a sentence", () => {
       normalizePanel({
         query: { from: "tasks", dimension: "assignee", filter: { due: "overdue" } },
         shape: "donut",
-        style: { palette: "vivid" },
+        style: { palette: "contrast" },
       }),
     );
     expect(text).toContain("donut");
     expect(text).toContain("tasks");
     expect(text).toContain("overdue");
-    expect(text).toContain("vivid");
+    expect(text).toContain("contrast");
   });
 
   it("describes every shape without throwing", () => {

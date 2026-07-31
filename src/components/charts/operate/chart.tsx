@@ -574,14 +574,20 @@ function Nothing({ className }: { className?: string }) {
  *
  * This is the whole fix, and it is three rules:
  *
- * **Each label gets exactly its own band and no more** — equal flex cells with
- * `truncate`. Two labels physically cannot overlap, because neither can leave
- * its cell. An ellipsis is an honest "there is more here"; an overlap is two
- * words pretending to be one.
+ * **A label may never overlap its neighbour**, because two words pretending to
+ * be one is worse than one word. An ellipsis is an honest "there is more
+ * here"; a smear is a lie.
  *
  * **Labels thin by measured width, not by count.** Below the width a short
- * word needs, every other band is labelled — and the ones that stay keep their
- * own cell, so they stay over the band they name.
+ * word needs, every other band is labelled.
+ *
+ * **A thinned label inherits the room the skipped bands freed.** This is the
+ * rule the first version was missing, and it is why a fortnight of days came
+ * out as `J… J… J…`: it correctly dropped three labels in four, then left the
+ * survivor in its own 16px cell, so what it had made room for it refused to
+ * use. Each drawn label now sits over its own band and may spread across the
+ * silent ones on either side — which is exactly the space nothing else is
+ * allowed to occupy.
  *
  * **It lives outside the plot.** The chart is given the remaining height, so
  * the row is space the bars were never drawn into.
@@ -599,18 +605,34 @@ function BandStrip({ labels }: { labels: string[] }) {
   // does not.
   const per = width > 0 ? width / labels.length : Infinity;
   const stride = per >= MIN_BAND_LABEL_PX ? 1 : Math.ceil(MIN_BAND_LABEL_PX / per);
+  const room = Number.isFinite(per) ? per * stride : undefined;
 
   return (
-    <div className="mt-1 flex w-full shrink-0" ref={ref}>
-      {labels.map((label, i) => (
-        <span
-          className="min-w-0 flex-1 truncate px-0.5 text-center text-[10px] leading-4 text-muted-foreground"
-          key={`${label}-${i}`}
-          title={label}
-        >
-          {i % stride === 0 ? label : ""}
-        </span>
-      ))}
+    <div className="relative mt-1 h-4 w-full shrink-0" ref={ref}>
+      {labels.map((label, i) => {
+        if (i % stride !== 0) return null;
+        const centre = ((i + 0.5) / labels.length) * 100;
+        // The first and last drawn labels align to the strip's edges instead
+        // of centring on their band: half of "Jun 1" hanging off the left of
+        // the panel is the same clipping bug in a different place.
+        const first = i === 0;
+        const last = i + stride >= labels.length;
+        return (
+          <span
+            className="absolute top-0 truncate text-[10px] leading-4 text-muted-foreground"
+            key={`${label}-${i}`}
+            style={{
+              left: first ? 0 : last ? undefined : `${centre}%`,
+              right: last && !first ? 0 : undefined,
+              transform: first || last ? undefined : "translateX(-50%)",
+              maxWidth: room,
+            }}
+            title={label}
+          >
+            {label}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -849,13 +871,34 @@ function radarShape(series: ChartSeries[], style: ComponentStyle) {
 }
 
 /** One column per point, one bin per series. */
+/**
+ * Columns of cells, with every value rescaled into the library's five levels.
+ *
+ * The rescale is not decoration. `getHeatmapContributionLevel` is GitHub's
+ * scale hard-coded — 0, 1, 2, 3, 4-or-more — so any measure that isn't a
+ * commit count saturates instantly: eleven open tasks and ninety are both
+ * "4", and the chart draws one flat rectangle of the darkest ink. It looked
+ * like a styling bug and was actually a chart with no scale at all.
+ *
+ * Levelled against the data's own maximum, so the darkest cell is the busiest
+ * one *here* rather than the busiest one at GitHub. Zero keeps level 0 — an
+ * empty day should read as empty, not as "the quietest of the busy ones".
+ */
 function heatColumns(series: ChartSeries[]): HeatmapColumn[] {
   const length = Math.max(...series.map((s) => s.points.length));
+  const max = Math.max(
+    0,
+    ...series.flatMap((s) => s.points.map((p) => p.value)),
+  );
+  const level = (value: number) => {
+    if (!(value > 0) || max <= 0) return 0;
+    return Math.max(1, Math.ceil((value / max) * 4));
+  };
   return Array.from({ length }, (_, pi) => ({
     bin: pi,
     bins: series.map((s, si) => ({
       bin: si,
-      count: s.points[pi]?.value ?? 0,
+      count: level(s.points[pi]?.value ?? 0),
       date: new Date(ANCHOR + pi * DAY),
     })),
   }));

@@ -32,11 +32,11 @@ describe("an answer is read in whatever shape it arrives", () => {
     // all three of these are ignored.
     const lifted = liftAnswer({
       shape: "donut",
-      palette: "vivid",
+      palette: "contrast",
       due: "overdue",
     });
     expect(lifted.shape).toBe("donut");
-    expect((lifted.style as Record<string, unknown>).palette).toBe("vivid");
+    expect((lifted.style as Record<string, unknown>).palette).toBe("contrast");
     expect(
       ((lifted.query as Record<string, unknown>).filter as Record<string, unknown>)
         .due,
@@ -46,12 +46,12 @@ describe("an answer is read in whatever shape it arrives", () => {
   it("leaves a correctly nested answer alone", () => {
     const lifted = liftAnswer({
       query: { from: "pages", filter: { search: "spec" } },
-      style: { palette: "vivid" },
+      style: { palette: "contrast" },
     });
     const query = lifted.query as Record<string, unknown>;
     expect(query.from).toBe("pages");
     expect((query.filter as Record<string, unknown>).search).toBe("spec");
-    expect((lifted.style as Record<string, unknown>).palette).toBe("vivid");
+    expect((lifted.style as Record<string, unknown>).palette).toBe("contrast");
   });
 
   it("accepts `source` as a name for the source", () => {
@@ -94,10 +94,10 @@ describe("merging keeps what the sentence did not mention", () => {
     const styled = normalizePanel({
       query: { from: "tasks" },
       shape: "list",
-      style: { palette: "vivid", grid: "none" },
+      style: { palette: "contrast", grid: "none" },
     });
     const { next } = applyIntent(styled, { due: "overdue" });
-    expect(next.style.palette).toBe("vivid");
+    expect(next.style.palette).toBe("contrast");
     expect(next.style.grid).toBe("none");
   });
 
@@ -106,7 +106,7 @@ describe("merging keeps what the sentence did not mention", () => {
       query: { from: "tasks", filter: { assignee: "me" }, limit: 20 },
       shape: "list",
     });
-    const { next } = applyIntent(asked, { palette: "vivid" });
+    const { next } = applyIntent(asked, { palette: "contrast" });
     expect(next.query.filter.assignee).toBe("me");
     expect(next.query.limit).toBe(20);
   });
@@ -135,7 +135,7 @@ describe("the sentence shown back is computed, not quoted", () => {
     const { changes } = applyIntent(base, {
       shape: "donut",
       due: "overdue",
-      palette: "vivid",
+      palette: "contrast",
     });
     const keys = changes.map((c) => c.key);
     expect(keys).toContain("shape");
