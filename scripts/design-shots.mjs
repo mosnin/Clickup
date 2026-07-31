@@ -115,6 +115,47 @@ for (const [url, name] of [
   }
 }
 
+// ── The mobile pass. Never taken before this audit, which is exactly how a
+// 340px card shipped onto a 390px screen unseen. Every phase re-runs this.
+const mobile = await browser.newPage({
+  viewport: { width: 390, height: 844 },
+  deviceScaleFactor: 2,
+});
+mobile.on("pageerror", (e) => errors.push(String(e)));
+
+await mobile.goto("http://127.0.0.1:4599/sidebar.html");
+await mobile.waitForTimeout(2000);
+const mIsland = await mobile
+  .locator("#style-island")
+  .boundingBox()
+  .catch(() => null);
+if (mIsland) {
+  await mobile.screenshot({
+    path: join(OUT, "studio-island-mobile.png"),
+    clip: {
+      x: 0,
+      y: Math.max(mIsland.y - 40, 0),
+      width: 390,
+      height: mIsland.height + 90,
+    },
+  });
+  console.log("shot studio-island-mobile.png");
+  await mobile.locator("#style-island button").first().click();
+  await mobile.waitForTimeout(1600);
+  await mobile.screenshot({ path: join(OUT, "studio-screen-mobile.png") });
+  console.log("shot studio-screen-mobile.png");
+}
+
+await mobile.goto("http://127.0.0.1:4599/labels.html");
+await mobile.waitForTimeout(1500);
+await mobile.screenshot({ path: join(OUT, "labels-mobile.png"), fullPage: true });
+console.log("shot labels-mobile.png");
+
+await mobile.goto("http://127.0.0.1:4599/grid.html");
+await mobile.waitForTimeout(1500);
+await mobile.screenshot({ path: join(OUT, "grid-mobile.png"), fullPage: true });
+console.log("shot grid-mobile.png");
+
 await browser.close();
 server.close();
 
