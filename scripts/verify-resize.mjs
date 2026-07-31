@@ -101,6 +101,62 @@ console.log(`order: ${beforeOrder.join(",")} -> ${afterOrder.join(",")}`);
 console.log(`order after settling: ${settledOrder.join(",")}`);
 console.log(`drag writes: ${writesDuringDrag}`);
 
+// ── The same gesture under a finger ──
+//
+// Touch is a different event path from mouse, and this grid is used from an
+// installed PWA where there is no mouse at all. What is asserted here is what
+// this harness can honestly see: that a touch actually starts a drag, that the
+// tile moves under the finger, and that the gesture still costs exactly one
+// write. It deliberately does NOT assert a reorder — the gallery page is not
+// width-constrained, so its tiles stay desktop-width at a phone viewport and a
+// vertical drag never enters a neighbour's box. Asserting a reorder here would
+// be a test that passes or fails on the harness's own layout rather than on
+// the app, which is the kind of test that reports a gesture fixed while it is
+// broken.
+const phone = await browser.newPage({
+  viewport: { width: 390, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+});
+await phone.goto("http://127.0.0.1:4599/grid.html");
+await phone.waitForTimeout(1200);
+const phoneWrites = async () =>
+  Number(await phone.locator("#write-count").innerText());
+const wBefore = await phoneWrites();
+const first = await phone.locator('[data-tile="a"]').boundingBox();
+const cdp = await phone.context().newCDPSession(phone);
+await cdp.send("Input.dispatchTouchEvent", {
+  type: "touchStart",
+  touchPoints: [{ x: first.x + first.width / 2, y: first.y + 40 }],
+});
+let touchDragging = false;
+let moved = 0;
+for (let i = 1; i <= 12; i++) {
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [{ x: first.x + first.width / 2, y: first.y + 40 + i * 30 }],
+  });
+  await phone.waitForTimeout(24);
+  const state = await phone.evaluate(() => {
+    const el = document.querySelector('[data-tile="a"]');
+    const m = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+    return { dragging: document.documentElement.dataset.tileDragging === "true", y: m.f };
+  });
+  if (state.dragging) touchDragging = true;
+  moved = Math.max(moved, Math.abs(state.y));
+}
+await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+await phone.waitForTimeout(700);
+const phoneWriteCount = (await phoneWrites()) - wBefore;
+const stranded = await phone.evaluate(
+  () => document.documentElement.dataset.tileDragging ?? null,
+);
+console.log(
+  `touch: drag started ${touchDragging}, tile moved ${Math.round(moved)}px, ` +
+    `writes ${phoneWriteCount}, stranded ${stranded}`,
+);
+await phone.screenshot({ path: join(OUT, "grid-phone-after.png") });
+
 await browser.close();
 server.close();
 
@@ -139,6 +195,25 @@ if (afterOrder.join(",") !== settledOrder.join(",")) {
   console.error(
     `FAIL: the arrangement changed after the drop (${afterOrder.join(",")} -> ` +
       `${settledOrder.join(",")}) — that is the "saves out of place then glitches in"`,
+  );
+  process.exit(1);
+}
+if (!touchDragging) {
+  console.error("FAIL: a touch never started a drag — the grid is mouse-only");
+  process.exit(1);
+}
+if (moved < 100) {
+  console.error(`FAIL: the tile moved ${Math.round(moved)}px under a finger`);
+  process.exit(1);
+}
+if (phoneWriteCount > 1) {
+  console.error(`FAIL: one touch drag produced ${phoneWriteCount} writes`);
+  process.exit(1);
+}
+if (stranded !== null) {
+  console.error(
+    "FAIL: the document is still flagged as dragging after touchend — " +
+      "scrolling stays suppressed and the edge-scroll loop is still running",
   );
   process.exit(1);
 }

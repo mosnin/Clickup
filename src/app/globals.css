@@ -242,6 +242,46 @@
   --ui-glint-strong: rgb(255 255 255 / 0.06);
 }
 
+/* ── While a tile is being dragged ────────────────────────────────────────
+   Set on <html> for the length of a gesture. Everything here is a phone
+   behaviour that is correct for a document and wrong for a direct
+   manipulation — and every one of them is worse in an installed PWA, where
+   there is no browser chrome to absorb it and the rubber-band goes straight
+   to the app's own edge.
+
+   `touch-callout` and `user-select` are the iOS long-press contract: hold
+   anything for half a second and you get a selection magnifier and a share
+   sheet. That is the *same* half-second that puts this screen into edit
+   mode, so entering arrange mode summoned a text-selection UI over the tile
+   you were about to move.
+
+   `overscroll-behavior: none` stops pull-to-refresh and the rubber band.
+   Dragging a panel toward the top of the screen is exactly the gesture that
+   reloads the page, which discards the arrangement you were making. */
+:root[data-tile-dragging="true"] {
+  overscroll-behavior: none;
+}
+:root[data-tile-dragging="true"] body {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: grabbing;
+}
+
+/* Touch has no hover, so chrome that only appears on hover is chrome that
+   does not exist on a phone. The resize grip sat at 60% until a mouse found
+   it; on a coarse pointer it is always fully visible and gets a real target
+   around it — 36px is under everyone's minimum, and this one is in a corner
+   where a thumb is least accurate. */
+@media (pointer: coarse) {
+  [data-tile] [data-resize-grip] {
+    opacity: 1;
+    padding: 0.75rem;
+    height: 2.75rem;
+    width: 2.75rem;
+  }
+}
+
 /* ── Chart palettes, one hue per family, one lightness per theme ──────────
    A palette's identity is its hue; how light that hue needs to be is a
    question about what is behind it, which only the theme knows. Pinning both

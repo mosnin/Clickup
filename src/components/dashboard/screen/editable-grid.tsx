@@ -61,6 +61,75 @@ const LONG_PRESS_MS = 450;
 /** Movement that cancels a long-press, so scrolling never enters edit mode. */
 const LONG_PRESS_SLOP = 8;
 
+// ── Dragging on a phone ────────────────────────────────────────────────────
+//
+// A phone draws this grid in ONE column, so a screen with six panels is taller
+// than the viewport and the panel you want to move is usually off-screen from
+// the panel you want to move it past. On a desktop that never comes up: three
+// columns and a tall window mean everything is visible at once, so the drag
+// worked and the same gesture on a phone was simply impossible — you could
+// pick a tile up and there was nowhere to put it.
+//
+// So the page scrolls itself while you hold a tile near an edge, the way a
+// home screen pages sideways when you hold an app against the side. It runs on
+// its own frame loop rather than off pointer events, because a finger parked
+// at the edge stops producing them — and a gesture that only scrolls while you
+// keep wiggling is worse than one that does not scroll at all.
+
+/** How close to an edge the finger has to be before the page starts moving. */
+const EDGE_ZONE_PX = 96;
+/** Fastest the page pulls, in px per frame, right at the edge. */
+const EDGE_SPEED_PX = 14;
+
+/** The scrolling ancestor a tile actually lives in — the shell, or the page. */
+function scrollParentOf(el: HTMLElement): HTMLElement | Window {
+  let node: HTMLElement | null = el.parentElement;
+  while (node) {
+    const overflow = getComputedStyle(node).overflowY;
+    if (
+      (overflow === "auto" || overflow === "scroll") &&
+      node.scrollHeight > node.clientHeight
+    ) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return window;
+}
+
+/**
+ * Pull the container while the pointer sits near its top or bottom edge.
+ *
+ * Returns a stop function. Speed ramps with depth into the zone so the edge
+ * is a dial rather than a switch — a constant speed means the page either
+ * isn't moving or is flying, and neither lets you land on the slot you want.
+ */
+function edgeScroller(container: HTMLElement | Window, pointerY: () => number) {
+  let frame = 0;
+  const tick = () => {
+    const y = pointerY();
+    const top = container === window ? 0 : (container as HTMLElement).getBoundingClientRect().top;
+    const bottom =
+      container === window
+        ? window.innerHeight
+        : (container as HTMLElement).getBoundingClientRect().bottom;
+
+    let delta = 0;
+    if (y < top + EDGE_ZONE_PX) {
+      delta = -EDGE_SPEED_PX * Math.min(1, (top + EDGE_ZONE_PX - y) / EDGE_ZONE_PX);
+    } else if (y > bottom - EDGE_ZONE_PX) {
+      delta = EDGE_SPEED_PX * Math.min(1, (y - (bottom - EDGE_ZONE_PX)) / EDGE_ZONE_PX);
+    }
+    if (delta !== 0) {
+      if (container === window) window.scrollBy(0, delta);
+      else (container as HTMLElement).scrollTop += delta;
+    }
+    frame = requestAnimationFrame(tick);
+  };
+  frame = requestAnimationFrame(tick);
+  return () => cancelAnimationFrame(frame);
+}
+
 export type EditableTile = {
   id: string;
   span: WidgetSpan;
@@ -199,6 +268,10 @@ export function EditableGrid({
   const draggables = useRef<Draggable[]>([]);
   const stopJiggle = useRef<(() => void) | null>(null);
   const field = useRef<ReturnType<typeof createMagneticField> | null>(null);
+  // Where the dragged tile currently is, read by the edge scroller's frame
+  // loop. A ref because it updates far faster than React should re-render.
+  const pointerY = useRef(0);
+  const stopEdgeScroll = useRef<(() => void) | null>(null);
   // The order being dragged into, which the pointer updates far more often than
   // React should re-render. Held in a ref and only pushed out on a real change.
   const orderRef = useRef<string[]>(layout.widgets.map((w) => w.id));
@@ -330,6 +403,17 @@ export function EditableGrid({
         onGrab: () => {
           el.dataset.dragging = "true";
           el.style.zIndex = "30";
+          // Tells the document a gesture is live. The stylesheet uses it to
+          // suppress the things a phone does to a long press that have nothing
+          // to do with this app — iOS's selection callout and magnifier,
+          // pull-to-refresh, and the rubber-band overscroll that makes a drag
+          // near the top of the screen feel like the page is being torn.
+          document.documentElement.dataset.tileDragging = "true";
+          stopEdgeScroll.current?.();
+          stopEdgeScroll.current = edgeScroller(
+            scrollParentOf(el),
+            () => pointerY.current,
+          );
           // The grabbed tile stops wobbling: it is no longer *offering* to be
           // moved, it is being moved.
           el.querySelector<HTMLElement>("[data-tile-inner]")?.style.setProperty(
@@ -343,6 +427,7 @@ export function EditableGrid({
             x: box.left + box.width / 2,
             y: box.top + box.height / 2,
           };
+          pointerY.current = pointer.y;
           velocityDeform(el, self.velocity, self.angle);
           field.current?.pull(pointer.x, pointer.y, el);
 
@@ -377,6 +462,9 @@ export function EditableGrid({
         },
         onRelease: (self) => {
           delete el.dataset.dragging;
+          delete document.documentElement.dataset.tileDragging;
+          stopEdgeScroll.current?.();
+          stopEdgeScroll.current = null;
           settleDeform(el);
           field.current?.release();
           // Back to the slot the grid has already made for it, rather than
@@ -412,6 +500,11 @@ export function EditableGrid({
       draggables.current = [];
       field.current?.revert();
       field.current = null;
+      // A gesture interrupted by a route change must not strand the document
+      // with scrolling suppressed and a frame loop still running.
+      stopEdgeScroll.current?.();
+      stopEdgeScroll.current = null;
+      delete document.documentElement.dataset.tileDragging;
     };
     // Rebuilt when the SET of tiles changes — a draggable bound to a removed
     // element is a draggable holding a detached node — and deliberately not
@@ -1172,6 +1265,7 @@ function ResizeGrip({
       // needs to be easy to hit, the graphic does not need to be loud. Sits
       // inside the tile's corner rather than hanging off it, so it can never
       // be clipped by a neighbour or land in the gutter.
+      data-resize-grip
       className="absolute bottom-0 right-0 z-20 flex h-9 w-9 cursor-nwse-resize touch-none items-end justify-end rounded-br-2xl p-1.5 text-muted-foreground opacity-60 transition-opacity hover:text-foreground hover:opacity-100 focus-visible:opacity-100 group-hover/tile:opacity-100"
     >
       <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden>
