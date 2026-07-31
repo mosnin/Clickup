@@ -419,12 +419,23 @@ function Dial({ series, style, height, unit }: BodyProps) {
   const pct = clampPercent((total / ceiling) * 100);
 
   return (
+    // Forty hairline notches over a 270° sweep is a car speedometer, which is
+    // what this looked like. Fewer, wider, rounded notches over a shallower
+    // arc reads as one considered object rather than an instrument cluster —
+    // and the notches are what the library IS, so this is a tuning of its
+    // own vocabulary rather than a second gauge drawn beside it.
     <Gauge
       activeFill={seriesColor(style.palette, 0)}
       centerValue={unit === "percent" ? Math.round(pct) : total}
       className="mx-auto"
+      endAngle={390}
       height={height}
+      notchCornerRadius={3}
+      spacing={38}
+      startAngle={150}
       suffix={unit === "percent" ? "%" : ""}
+      totalNotches={26}
+      uniformWidth
       value={pct}
     />
   );
@@ -473,13 +484,19 @@ function Funnel({ series, style, height }: BodyProps) {
   if ((stages[0]?.value ?? 0) <= 0) return <Nothing />;
 
   return (
+    // Always labelled, and always carrying its numbers. A funnel is a
+    // comparison between named stages; unlabelled it is a grey wedge, which
+    // is exactly what shipped — six stages, no names, no values, nothing on
+    // screen to say what narrowed or by how much. The `dataLabels` style
+    // still chooses between the count and the share, but "neither" is not a
+    // legible funnel and is not offered.
     <FunnelChart
       data={stages}
       edges="straight"
       layers={1}
-      showLabels={style.dataLabels !== "none" || stages.length <= 5}
+      showLabels
       showPercentage={style.dataLabels === "percent"}
-      showValues={style.dataLabels === "value"}
+      showValues={style.dataLabels !== "percent"}
       style={{ height }}
     />
   );

@@ -877,11 +877,23 @@ function Treemap({
             {/* A label only where one fits. Clipped text in a treemap reads
                 as a rendering fault rather than as a small tile. */}
             {w > 46 && h > 20 && (
+              // Ink with a card-coloured halo, rather than the background
+              // colour flat. A tile's fill is whatever the palette says, and a
+              // fixed label colour is legible on roughly half of them: this
+              // shipped as white-on-pale in daylight and black-on-charcoal at
+              // night, i.e. a treemap whose labels you could read half of.
+              // `paint-order: stroke` draws the halo first, so the glyph
+              // separates from any fill without anyone having to know which
+              // fill it landed on.
               <text
                 x={tile.x + 6}
                 y={tile.y + 14}
                 fontSize={AXIS_TEXT}
-                fill="var(--color-background)"
+                fill="var(--color-foreground)"
+                paintOrder="stroke"
+                stroke="var(--color-card)"
+                strokeWidth={3}
+                strokeLinejoin="round"
                 className="pointer-events-none"
               >
                 {categoryLabel({ key: tile.key, label: tile.label })}
