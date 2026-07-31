@@ -10,7 +10,7 @@ import {
   specimenFor,
   styleFrom,
 } from "@/components/appearance/style-gallery";
-import { Chart, type ChartKind } from "@/components/charts/chart";
+import { Chart, type ChartKind } from "@/components/charts/operate/chart";
 import { useComponentStyle } from "@/components/appearance/use-component-style";
 import {
   STYLE_ENUMS,
@@ -133,7 +133,6 @@ export function ChartsStudio() {
       series={specimenFor(kind)}
       style={styleFrom(patch, style)}
       unit="count"
-      width={150}
       height={68}
       label="Example"
     />
@@ -322,7 +321,6 @@ export function ChartsStudio() {
                 series={specimenFor("donut")}
                 style={style}
                 unit="count"
-                width={120}
                 height={120}
                 label="Donut"
               />

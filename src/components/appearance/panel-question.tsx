@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
 import { IntentComposer } from "@/components/appearance/intent-composer";
-import { Chart } from "@/components/charts/chart";
+import { Chart } from "@/components/charts/operate/chart";
 import { normalizeStyle } from "@/lib/component-style";
 import {
   describePanel,
@@ -215,7 +215,6 @@ function ShapeMark({ shape }: { shape: PanelDef["shape"] }) {
         series={MARK}
         style={normalizeStyle({ grid: "none", axes: "none" })}
         unit="count"
-        width={48}
         height={24}
         label={shapeLabel(shape)}
       />

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
 import { Panel } from "@/components/dashboard/panel";
-import { Chart, type ChartKind } from "@/components/charts/chart";
+import { Chart, type ChartKind } from "@/components/charts/operate/chart";
 import { IntentComposer } from "@/components/appearance/intent-composer";
 import {
   DEFAULT_STYLE,
@@ -462,7 +462,6 @@ export function PanelBuilder({
                       ...normalizeStylePatch(preset.patch),
                     }}
                     unit="count"
-                    width={110}
                     height={36}
                     label={preset.name}
                   />
@@ -565,7 +564,6 @@ function ShapeSpecimen({ shape }: { shape: PanelShape }) {
         series={MINI}
         style={style}
         unit="count"
-        width={90}
         height={34}
         label={shapeLabel(shape)}
       />

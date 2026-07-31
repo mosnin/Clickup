@@ -57,7 +57,11 @@ export type PanelShape =
   | "radial"
   | "scatter"
   | "waterfall"
-  | "treemap";
+  | "treemap"
+  | "rings"
+  | "funnel"
+  | "radar"
+  | "heatmap";
 
 export type PanelDef = {
   title: string;
@@ -93,6 +97,10 @@ const CHART_SHAPES: PanelShape[] = [
   "scatter",
   "waterfall",
   "treemap",
+  "rings",
+  "funnel",
+  "radar",
+  "heatmap",
 ];
 export const ALL_SHAPES: PanelShape[] = [
   ...RECORD_SHAPES,
@@ -140,6 +148,10 @@ const SHAPE_LABELS: Record<PanelShape, string> = {
   scatter: "Scatter",
   waterfall: "Waterfall",
   treemap: "Treemap",
+  rings: "Progress rings",
+  funnel: "Funnel",
+  radar: "Radar",
+  heatmap: "Heatmap",
 };
 
 export function shapeLabel(shape: PanelShape): string {
@@ -159,17 +171,19 @@ export function shapesFor(from: SourceKind): PanelShape[] {
     case "tasks":
       return [...RECORD_SHAPES, ...METRIC_SHAPES, ...CHART_SHAPES];
     case "time":
-      return ["list", "table", "metric", "metric_spark", "bar", "column", "line", "area", "donut", "treemap"];
+      return ["list", "table", "metric", "metric_spark", "bar", "column", "line", "area", "donut", "treemap", "heatmap"];
     case "goals":
-      return ["list", "cards", "metric", "bar", "column", "radial", "donut"];
+      // Rings before the rest: a goal is a value against its own target, which
+      // is the one thing this shape says and no other shape here says well.
+      return ["list", "cards", "metric", "rings", "radial", "bar", "column", "donut"];
     case "sprints":
-      return ["list", "table", "cards", "metric", "column", "bar"];
+      return ["list", "table", "cards", "metric", "column", "bar", "funnel"];
     case "agents":
-      return ["list", "cards", "table", "metric", "column", "bar", "donut"];
+      return ["list", "cards", "table", "metric", "column", "bar", "donut", "radar"];
     case "pages":
       return ["list", "cards", "table", "metric", "column", "line", "area"];
     case "activity":
-      return ["list", "metric", "column", "line", "area"];
+      return ["list", "metric", "column", "line", "area", "heatmap"];
   }
 }
 

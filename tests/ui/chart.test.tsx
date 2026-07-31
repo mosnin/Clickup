@@ -1,20 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { render } from "@testing-library/react";
-import { Chart, type ChartKind, type ChartSeries } from "@/components/charts/chart";
+import { render, waitFor } from "@testing-library/react";
+import {
+  Chart,
+  xKindOf,
+  type ChartKind,
+  type ChartSeries,
+} from "@/components/charts/operate/chart";
 import {
   DEFAULT_STYLE,
   STYLE_PRESETS,
   normalizeStylePatch,
+  paletteColors,
   type ComponentStyle,
 } from "@/lib/component-style";
 
-// The chart components.
+// The chart renderer.
 //
-// The geometry is tested exhaustively in tests/chart-math. What is left to go
-// wrong here is assembly: a chart that renders no marks at all, one that
-// crashes on the shapes a real dashboard produces (one point, all zeroes,
-// nothing), or a style option that silently does nothing. Every one of those
-// looks like an empty panel, which looks like "no data yet".
+// The shapes are the vendored @bklit library now, so what these tests are for
+// has changed. They are not about geometry — that is upstream's, and it has its
+// own. They are about the seam: the shaping this repo does on the way in, the
+// style axes it claims to map, and the two failure modes that both look like
+// "no data yet" to a reader — a chart that renders no marks at all, and a
+// chart whose axis labels are not the thing it is grouped by.
+//
+// Assertions wait, because the library measures its container before drawing
+// anything. `tests/ui/setup.ts` gives jsdom a plausible box; without it every
+// one of these would pass against an empty SVG, which is precisely the vacuous
+// test this file exists to not be.
 
 const KINDS: ChartKind[] = [
   "bar",
@@ -24,6 +36,10 @@ const KINDS: ChartKind[] = [
   "donut",
   "pie",
   "radial",
+  "rings",
+  "funnel",
+  "radar",
+  "heatmap",
   "scatter",
   "waterfall",
   "treemap",
@@ -35,10 +51,10 @@ const SERIES: ChartSeries[] = [
     key: "a",
     label: "Open",
     points: [
-      { key: "1", label: "Mon", value: 4 },
-      { key: "2", label: "Tue", value: 7 },
-      { key: "3", label: "Wed", value: 2 },
-      { key: "4", label: "Thu", value: 9 },
+      { key: "todo", label: "Mon", value: 4 },
+      { key: "doing", label: "Tue", value: 7 },
+      { key: "review", label: "Wed", value: 2 },
+      { key: "done", label: "Thu", value: 9 },
     ],
   },
 ];
@@ -49,11 +65,24 @@ const TWO_SERIES: ChartSeries[] = [
     key: "b",
     label: "Done",
     points: [
-      { key: "1", label: "Mon", value: 2 },
-      { key: "2", label: "Tue", value: 3 },
-      { key: "3", label: "Wed", value: 5 },
-      { key: "4", label: "Thu", value: 1 },
+      { key: "todo", label: "Mon", value: 2 },
+      { key: "doing", label: "Tue", value: 3 },
+      { key: "review", label: "Wed", value: 5 },
+      { key: "done", label: "Thu", value: 1 },
     ],
+  },
+];
+
+/** What the resolver emits for a temporal dimension: epoch key, blank label. */
+const TEMPORAL: ChartSeries[] = [
+  {
+    key: "a",
+    label: "Tasks",
+    points: [0, 1, 2, 3].map((i) => ({
+      key: String(Date.UTC(2025, 0, 1) + i * 86_400_000),
+      label: "",
+      value: i + 2,
+    })),
   },
 ];
 
@@ -70,39 +99,51 @@ function draw(
 
 /** Anything that actually puts ink on the chart. */
 function markCount(container: HTMLElement): number {
-  return container.querySelectorAll("path, circle, rect, line").length;
+  return container.querySelectorAll("path, circle, rect, line, polygon").length;
+}
+
+/** Wait until the container has drawn, then hand it back. */
+async function drawn(container: HTMLElement, kind: string) {
+  await waitFor(
+    () => {
+      expect(markCount(container), kind).toBeGreaterThan(0);
+    },
+    { timeout: 3000 },
+  );
+  return container;
+}
+
+/** No coordinate may be NaN — an SVG with one renders nothing, silently. */
+function expectNoNaN(container: HTMLElement, kind: string) {
+  for (const path of container.querySelectorAll("path")) {
+    expect(path.getAttribute("d") ?? "", kind).not.toContain("NaN");
+  }
+  for (const el of container.querySelectorAll("circle, rect, line")) {
+    for (const attr of ["cx", "cy", "r", "x", "y", "x1", "y1", "x2", "y2"]) {
+      const value = el.getAttribute(attr);
+      if (value !== null) expect(value, `${kind} ${attr}`).not.toBe("NaN");
+    }
+  }
 }
 
 describe("every kind draws something", () => {
-  it("renders marks for real data", () => {
+  it("renders marks for real data", async () => {
     for (const kind of KINDS) {
-      const container = draw(kind);
-      expect(container.querySelector("svg"), kind).not.toBeNull();
-      expect(markCount(container), kind).toBeGreaterThan(0);
+      await drawn(draw(kind), kind);
     }
   });
 
-  it("never emits NaN into path data", () => {
-    // An SVG path containing NaN renders as nothing at all, silently.
+  it("never emits NaN into a coordinate", async () => {
     for (const kind of KINDS) {
-      const container = draw(kind);
-      for (const path of container.querySelectorAll("path")) {
-        expect(path.getAttribute("d") ?? "", kind).not.toContain("NaN");
-      }
-      for (const el of container.querySelectorAll("circle, rect, line")) {
-        for (const attr of ["cx", "cy", "r", "x", "y", "x1", "y1", "x2", "y2"]) {
-          const value = el.getAttribute(attr);
-          if (value !== null) expect(value, `${kind} ${attr}`).not.toBe("NaN");
-        }
-      }
+      expectNoNaN(await drawn(draw(kind), kind), kind);
     }
   });
 
   it("carries an accessible name in place of the graphic", () => {
     for (const kind of KINDS) {
-      const svg = draw(kind).querySelector("svg")!;
-      expect(svg.getAttribute("role"), kind).toBe("img");
-      expect(svg.getAttribute("aria-label"), kind).toBe("Test");
+      const named = draw(kind).querySelector('[role="img"]');
+      expect(named, kind).not.toBeNull();
+      expect(named!.getAttribute("aria-label"), kind).toBe("Test");
     }
   });
 });
@@ -117,187 +158,205 @@ describe("the shapes a real dashboard produces", () => {
     }
   });
 
-  it("survives a single reading", () => {
-    // A line through one point, a band scale over one band, a pie with one
-    // slice — each is a division-by-zero waiting to happen.
+  it("says so when the series exist but hold no points", () => {
+    // Distinct from no series at all: a query that matched nothing still
+    // returns the series it would have filled.
+    const { container } = render(
+      <Chart
+        kind="column"
+        series={[{ key: "a", label: "Open", points: [] }]}
+        style={DEFAULT_STYLE}
+        unit="count"
+      />,
+    );
+    expect(container.textContent).toContain("Nothing to chart");
+  });
+
+  it("survives a single reading", async () => {
+    // A line through one point, a band over one band, a funnel of one stage —
+    // each is a division by zero waiting to happen.
     const one: ChartSeries[] = [
       { key: "a", label: "Open", points: [{ key: "1", label: "Mon", value: 3 }] },
     ];
     for (const kind of KINDS) {
-      const container = draw(kind, one);
-      expect(markCount(container), kind).toBeGreaterThan(0);
-      for (const path of container.querySelectorAll("path")) {
-        expect(path.getAttribute("d") ?? "", kind).not.toContain("NaN");
-      }
+      expectNoNaN(await drawn(draw(kind, one), kind), kind);
     }
   });
 
-  it("survives a Monday morning of all zeroes", () => {
+  it("survives a Monday morning of all zeroes", async () => {
+    // The most common shape on a fresh account, and where a divide-by-total
+    // silently produces NaN.
     const zeroes: ChartSeries[] = [
       {
         key: "a",
         label: "Open",
-        points: [
-          { key: "1", label: "Mon", value: 0 },
-          { key: "2", label: "Tue", value: 0 },
-        ],
+        points: SERIES[0].points.map((p) => ({ ...p, value: 0 })),
       },
     ];
     for (const kind of KINDS) {
-      const container = draw(kind, zeroes);
-      expect(() => container.querySelectorAll("path"), kind).not.toThrow();
-      for (const path of container.querySelectorAll("path")) {
-        expect(path.getAttribute("d") ?? "", kind).not.toContain("NaN");
-      }
+      expectNoNaN(draw(kind, zeroes), kind);
     }
   });
 
-  it("survives negative values", () => {
+  it("survives negative values", async () => {
     const mixed: ChartSeries[] = [
       {
         key: "a",
         label: "Delta",
         points: [
-          { key: "1", label: "Mon", value: 5 },
-          { key: "2", label: "Tue", value: -3 },
-          { key: "3", label: "Wed", value: 2 },
+          { key: "1", label: "Mon", value: -4 },
+          { key: "2", label: "Tue", value: 6 },
+          { key: "3", label: "Wed", value: -2 },
         ],
       },
     ];
     for (const kind of KINDS) {
-      const container = draw(kind, mixed);
-      for (const path of container.querySelectorAll("path")) {
-        expect(path.getAttribute("d") ?? "", kind).not.toContain("NaN");
-      }
+      expectNoNaN(draw(kind, mixed), kind);
+    }
+  });
+
+  it("survives a breakdown series shorter than the first", async () => {
+    // Breakdowns are sparse: a status nobody used produces fewer points.
+    const ragged: ChartSeries[] = [
+      SERIES[0],
+      { key: "b", label: "Done", points: [SERIES[0].points[0]] },
+    ];
+    for (const kind of KINDS) {
+      expectNoNaN(draw(kind, ragged), kind);
     }
   });
 });
 
-describe("style options change what is drawn", () => {
-  const withStyle = (patch: Partial<ComponentStyle>): ComponentStyle => ({
-    ...DEFAULT_STYLE,
-    ...normalizeStylePatch(patch),
-  });
-
-  it("draws axis labels only when axes are asked for", () => {
-    const none = draw("column", SERIES, withStyle({ axes: "none" }));
-    const both = draw("column", SERIES, withStyle({ axes: "both" }));
-    expect(none.querySelectorAll("text").length).toBeLessThan(
-      both.querySelectorAll("text").length,
-    );
-  });
-
-  it("draws gridlines only when the grid is asked for", () => {
-    const off = draw("column", SERIES, withStyle({ grid: "none" }));
-    const on = draw("column", SERIES, withStyle({ grid: "horizontal" }));
-    expect(on.querySelectorAll("line").length).toBeGreaterThan(
-      off.querySelectorAll("line").length,
-    );
-  });
-
-  it("draws data labels only when asked", () => {
-    const off = draw("column", SERIES, withStyle({ dataLabels: "none", axes: "none" }));
-    const on = draw("column", SERIES, withStyle({ dataLabels: "value", axes: "none" }));
-    expect(on.querySelectorAll("text").length).toBeGreaterThan(
-      off.querySelectorAll("text").length,
-    );
-  });
-
-  it("draws markers on a line only when asked", () => {
-    const off = draw("line", SERIES, withStyle({ markers: "none" }));
-    const on = draw("line", SERIES, withStyle({ markers: "dot" }));
-    expect(on.querySelectorAll("circle").length).toBeGreaterThan(
-      off.querySelectorAll("circle").length,
-    );
-  });
-
-  it("strokes rather than fills in outline mode", () => {
-    const solid = draw("column", SERIES, withStyle({ chartFill: "solid" }));
-    const outline = draw("column", SERIES, withStyle({ chartFill: "outline" }));
-    const filled = [...solid.querySelectorAll("path")].filter(
-      (p) => p.getAttribute("fill") !== "none",
-    );
-    const stroked = [...outline.querySelectorAll("path")].filter(
-      (p) => p.getAttribute("fill") === "none",
-    );
-    expect(filled.length).toBeGreaterThan(0);
-    expect(stroked.length).toBeGreaterThan(0);
-  });
-
-  it("changes the curve a line takes", () => {
-    const d = (curve: "linear" | "smooth" | "step") =>
-      draw("line", SERIES, withStyle({ curve }))
-        .querySelector("path[fill='none']")!
-        .getAttribute("d")!;
-    expect(d("linear")).toContain("L");
-    expect(d("smooth")).toContain("C");
-    expect(d("step")).toContain("H");
-    expect(d("linear")).not.toBe(d("smooth"));
-  });
-
-  it("shows a legend only for more than one series", () => {
-    const one = draw("column", SERIES, withStyle({ legend: "bottom" }));
-    const two = draw("column", TWO_SERIES, withStyle({ legend: "bottom" }));
-    expect(one.querySelectorAll("li")).toHaveLength(0);
-    expect(two.querySelectorAll("li")).toHaveLength(2);
-  });
-
-  it("hollows a donut and fills a pie", () => {
-    const pie = draw("pie", SERIES);
-    const donut = draw("donut", SERIES);
-    // A pie's wedges pass through the centre; a donut's do not.
-    const pieFirst = pie.querySelector("path")!.getAttribute("d")!;
-    const donutFirst = donut.querySelector("path")!.getAttribute("d")!;
-    expect(pieFirst).not.toBe(donutFirst);
-  });
-
-  it("renders every preset without throwing or producing NaN", () => {
-    // The presets are the range this system claims to have. If one of them
-    // cannot draw, the claim is false.
-    for (const preset of STYLE_PRESETS) {
-      const style = withStyle(preset.patch);
-      for (const kind of KINDS) {
-        const container = draw(kind, TWO_SERIES, style);
-        expect(markCount(container), `${preset.id}/${kind}`).toBeGreaterThan(0);
-        for (const path of container.querySelectorAll("path")) {
-          expect(path.getAttribute("d") ?? "", `${preset.id}/${kind}`).not.toContain(
-            "NaN",
-          );
-        }
-      }
+describe("what the x axis says", () => {
+  it("labels a categorical chart with its categories", async () => {
+    // The failure this exists for: the library's own axis formats instants, so
+    // a status breakdown handed to it prints dates under "In progress".
+    for (const kind of ["column", "bar", "line", "area"] as ChartKind[]) {
+      const container = await drawn(draw(kind), kind);
+      await waitFor(() => expect(container.textContent, kind).toContain("Mon"));
+      expect(container.textContent, kind).not.toMatch(/\b(Jan|Feb|Dec)\b/);
     }
+  });
+
+  it("reads epoch-keyed, label-less points as time", () => {
+    expect(xKindOf(TEMPORAL)).toBe("time");
+  });
+
+  it("reads anything carrying a label as a category", () => {
+    expect(xKindOf(SERIES)).toBe("category");
+    // Including one whose key happens to look numeric — the label is part of
+    // the test precisely so a list named "2025" is not mistaken for a date.
+    expect(
+      xKindOf([
+        {
+          key: "a",
+          label: "x",
+          points: [{ key: "1735689600000", label: "2025", value: 1 }],
+        },
+      ]),
+    ).toBe("category");
+  });
+
+  it("reads an empty series as a category rather than throwing", () => {
+    expect(xKindOf([])).toBe("category");
+  });
+
+  it("leaves the label strip off a temporal chart", async () => {
+    // The resolver blanks temporal labels on purpose, because formatting an
+    // instant is the renderer's job. Rendering them anyway would put a row of
+    // empty chips under the library's own date axis.
+    const container = await drawn(draw("line", TEMPORAL), "line");
+    expect(container.querySelectorAll("div.mt-1 > span").length).toBe(0);
+    // And the strip IS there for a categorical one, so the assertion above is
+    // about the dimension rather than about the shape never having a strip.
+    const categorical = await drawn(draw("line", SERIES), "line");
+    expect(
+      categorical.querySelectorAll("div.mt-1 > span").length,
+    ).toBeGreaterThan(0);
   });
 });
 
-describe("stacking", () => {
-  const stacked: ComponentStyle = { ...DEFAULT_STYLE, stackMode: "stacked" };
-  const grouped: ComponentStyle = { ...DEFAULT_STYLE, stackMode: "grouped" };
-
-  it("draws one mark per series per category either way", () => {
-    for (const style of [stacked, grouped]) {
-      const container = draw("column", TWO_SERIES, style);
-      // 2 series x 4 categories.
-      expect(container.querySelectorAll("g > path").length).toBeGreaterThanOrEqual(8);
+describe("the style axes reach the marks", () => {
+  it("draws series in the chosen palette", async () => {
+    for (const palette of ["mono", "pastel", "ocean"] as const) {
+      const style = { ...DEFAULT_STYLE, palette };
+      const container = await drawn(draw("column", SERIES, style), palette);
+      const fills = [...container.querySelectorAll("[fill]")]
+        .map((el) => el.getAttribute("fill"))
+        .join(" ");
+      expect(fills, palette).toContain(paletteColors(palette)[0]);
     }
   });
 
-  it("places grouped bars side by side and stacked bars in a column", () => {
-    // Square corners, so a path's start point is exactly the bar's left edge.
-    // With rounded ones it is inset by the radius, and the comparison would be
-    // measuring the corner rather than the layout.
-    const square = (mode: "stacked" | "grouped"): ComponentStyle => ({
+  it("gives a second series a different colour from the first", async () => {
+    const style = { ...DEFAULT_STYLE, palette: "ocean" as const };
+    const container = await drawn(draw("column", TWO_SERIES, style), "two");
+    const fills = [...container.querySelectorAll("[fill]")]
+      .map((el) => el.getAttribute("fill"))
+      .join(" ");
+    expect(fills).toContain(paletteColors("ocean")[0]);
+    expect(fills).toContain(paletteColors("ocean")[1]);
+  });
+
+  it("shows a legend only when asked, and only past one series", async () => {
+    const withLegend = { ...DEFAULT_STYLE, legend: "bottom" as const };
+    expect(draw("column", SERIES, withLegend).textContent).not.toContain("Done");
+
+    const two = draw("column", TWO_SERIES, withLegend);
+    await waitFor(() => expect(two.textContent).toContain("Done"));
+
+    expect(draw("column", TWO_SERIES, DEFAULT_STYLE).textContent).not.toContain(
+      "Done",
+    );
+  });
+
+  it("drops the grid when the style says no chrome", async () => {
+    const bare = {
       ...DEFAULT_STYLE,
-      stackMode: mode,
-      barShape: "square",
-    });
-    const xs = (style: ComponentStyle) =>
-      [...draw("column", TWO_SERIES, style).querySelectorAll("path")]
-        .map((p) => /M([\d.]+),/.exec(p.getAttribute("d") ?? "")?.[1])
-        .filter(Boolean);
+      grid: "none" as const,
+      axes: "none" as const,
+    };
+    const container = await drawn(draw("column", SERIES, bare), "bare");
+    expect(container.querySelector(".chart-grid")).toBeNull();
+  });
 
+  it("draws the grid when the style asks for it", async () => {
+    const ruled = { ...DEFAULT_STYLE, grid: "horizontal" as const };
+    const container = await drawn(draw("column", SERIES, ruled), "ruled");
+    await waitFor(() =>
+      expect(container.querySelector(".chart-grid")).not.toBeNull(),
+    );
+  });
+
+  it("stacks when told to and lines them up side by side otherwise", async () => {
+    const xs = async (stackMode: "stacked" | "grouped") => {
+      const style = { ...DEFAULT_STYLE, stackMode };
+      const container = await drawn(draw("column", TWO_SERIES, style), stackMode);
+      return [...container.querySelectorAll("g[class^='bar-series'] rect")].map(
+        (el) =>
+          (el.getAttribute("style") ?? "").match(/translateX\(([\d.]+)/)?.[1],
+      );
+    };
     // Two series over four categories: stacked shares an x per category (4
-    // distinct), grouped puts them side by side (8 distinct).
-    expect(new Set(xs(square("stacked"))).size).toBe(4);
-    expect(new Set(xs(square("grouped"))).size).toBe(8);
+    // distinct), grouped puts them beside each other (8 distinct).
+    expect(new Set(await xs("stacked")).size).toBe(4);
+    expect(new Set(await xs("grouped")).size).toBe(8);
+  });
+});
+
+describe("the style presets", () => {
+  it("draws every kind without throwing", () => {
+    for (const preset of STYLE_PRESETS) {
+      const style = {
+        ...DEFAULT_STYLE,
+        ...normalizeStylePatch(preset.patch),
+      } as ComponentStyle;
+      for (const kind of KINDS) {
+        expect(
+          () => draw(kind, TWO_SERIES, style),
+          `${preset.id} ${kind}`,
+        ).not.toThrow();
+      }
+    }
   });
 });

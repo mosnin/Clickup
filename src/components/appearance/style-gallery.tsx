@@ -1,6 +1,6 @@
 "use client";
 
-import { Chart, type ChartKind, type ChartSeries } from "@/components/charts/chart";
+import { Chart, type ChartKind, type ChartSeries } from "@/components/charts/operate/chart";
 import {
   DEFAULT_STYLE,
   normalizeStylePatch,
@@ -159,7 +159,6 @@ export function PaletteTile({
           series={SPECIMEN}
           style={{ ...style, stackMode: "stacked" }}
           unit="count"
-          width={150}
           height={62}
           label={`${palette} palette`}
         />
@@ -200,7 +199,6 @@ export function ChartKindTile({
         series={specimenFor(kind)}
         style={base}
         unit="count"
-        width={150}
         height={72}
         label={label}
       />
@@ -297,7 +295,6 @@ export function PanelPreview({
           series={specimenFor(kind)}
           style={style}
           unit="count"
-          width={200}
           height={compact ? 56 : 80}
           label={title}
         />

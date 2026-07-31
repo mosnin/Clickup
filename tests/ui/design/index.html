@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Charts</title>
+    <!-- Replaced at build time with the app's own compiled stylesheet, so what
+         this renders is what ships. See scripts/build-gallery.mjs. -->
+    <!--APP_CSS-->
+    <style>
+      body {
+        margin: 0;
+        padding: 32px;
+        background: var(--color-page, #f6f6f7);
+        color: var(--color-foreground, #111);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 20px;
+      }
+      .cell {
+        background: var(--color-card, #fff);
+        border-radius: 16px;
+        padding: 16px;
+      }
+      .cap {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        opacity: 0.5;
+        margin-bottom: 10px;
+      }
+      h2 {
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        opacity: 0.45;
+        margin: 36px 0 14px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./gallery-app.tsx"></script>
+  </body>
+</html>

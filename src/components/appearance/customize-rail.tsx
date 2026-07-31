@@ -12,7 +12,7 @@ import { styleFrom } from "@/components/appearance/style-gallery";
 import { StyleIntentComposer } from "@/components/appearance/intent-composer";
 import { PanelQuestion } from "@/components/appearance/panel-question";
 import { WatchControl } from "@/components/appearance/watch-control";
-import { Chart, type ChartKind } from "@/components/charts/chart";
+import { Chart, type ChartKind } from "@/components/charts/operate/chart";
 import {
   DEFAULT_STYLE,
   STYLE_ENUMS,
@@ -193,7 +193,6 @@ export function CustomizeRail() {
                     stackMode: "stacked",
                   }}
                   unit="count"
-                  width={120}
                   height={40}
                   label={preset.name}
                 />
@@ -418,7 +417,6 @@ function MiniRow<T extends string>({
               series={MINI}
               style={styleFrom({ [keyName]: value }, style)}
               unit="count"
-              width={120}
               height={38}
               label={value}
             />

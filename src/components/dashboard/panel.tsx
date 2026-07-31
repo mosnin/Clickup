@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Chart, type ChartKind } from "@/components/charts/chart";
+import { Chart, type ChartKind } from "@/components/charts/operate/chart";
 import { LiveNumber } from "@/components/dashboard/live-number";
 import {
   PanelDelta,

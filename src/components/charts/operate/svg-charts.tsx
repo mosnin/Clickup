@@ -46,7 +46,7 @@ import { cn } from "@/lib/utils";
 // avoided: text inside a stretched SVG is unreadable, so the geometry is
 // computed against a fixed logical box and the SVG scales as a whole.
 
-export type ChartKind =
+export type SvgChartKind =
   | "bar"
   | "column"
   | "line"
@@ -65,8 +65,8 @@ export type ChartSeries = {
   points: { key: string; label: string; value: number; color?: string }[];
 };
 
-export type ChartProps = {
-  kind: ChartKind;
+export type SvgChartProps = {
+  kind: SvgChartKind;
   series: ChartSeries[];
   style: ComponentStyle;
   unit: string;
@@ -81,7 +81,7 @@ export type ChartProps = {
 const AXIS_TEXT = 10;
 
 /** Room for the axes the style asked for, and no more. */
-function paddingFor(style: ComponentStyle, kind: ChartKind) {
+function paddingFor(style: ComponentStyle, kind: SvgChartKind) {
   const wantsY = style.axes === "y" || style.axes === "both";
   const wantsX = style.axes === "x" || style.axes === "both";
   const circular = kind === "donut" || kind === "pie" || kind === "radial";
@@ -96,7 +96,7 @@ function paddingFor(style: ComponentStyle, kind: ChartKind) {
   };
 }
 
-export function Chart({
+export function SvgChart({
   kind,
   series,
   style,
@@ -105,7 +105,7 @@ export function Chart({
   height = 160,
   className,
   label,
-}: ChartProps) {
+}: SvgChartProps) {
   const usable = series.filter((s) => s.points.length > 0);
   if (usable.length === 0) {
     return (
