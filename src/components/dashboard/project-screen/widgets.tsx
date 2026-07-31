@@ -23,6 +23,7 @@ import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
 import { timeAgo } from "@/lib/time";
 import { eventLabel } from "@/lib/event-labels";
+import { describePlan, planView, stateLabel } from "@/lib/plan";
 import type { WidgetSpan } from "@/lib/screen-layout";
 
 // The widget registry.
@@ -285,6 +286,64 @@ function PagesWidget({ project }: ProjectWidgetContext) {
 
 // ── The registry ────────────────────────────────────────────────────────
 
+
+/**
+ * What the project has not decided.
+ *
+ * The plan lives at its own route, but its headline belongs where people are
+ * already standing: "two decisions are waiting on you" is not something anyone
+ * should have to go and look for. What is shown is what is *open* — the settled
+ * questions are the plan's bulk and the least urgent thing on any screen.
+ */
+function PlanWidget({ project }: ProjectWidgetContext) {
+  const rows = useQuery(api.plans.forProject, { projectId: project._id });
+  const view = planView(rows ?? []);
+
+  if (rows === undefined) {
+    return (
+      <Card className="h-full p-4">
+        <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="flex h-full flex-col p-4">
+      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        Open questions
+      </span>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        {describePlan(view)}
+      </p>
+
+      {view.open.length > 0 && (
+        <ul className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto">
+          {view.open.slice(0, 6).map((q) => (
+            <li key={q.node.id} className="min-w-0">
+              <Link
+                href={`/dashboard/p/${project._id}/plan`}
+                className="block text-xs leading-relaxed hover:underline"
+              >
+                {q.node.body}
+              </Link>
+              <span className="text-[10px] text-muted-foreground">
+                {stateLabel(q.state).toLowerCase()}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <Link
+        href={`/dashboard/p/${project._id}/plan`}
+        className="mt-3 text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+      >
+        {view.questions.length === 0 ? "Raise the first one" : "Open the plan"}
+      </Link>
+    </Card>
+  );
+}
+
 export const PROJECT_WIDGETS: ProjectWidget[] = [
   {
     id: "about",
@@ -379,6 +438,16 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     maxSpan: 3,
     rows: 2,
     render: (ctx) => <ActivityWidget {...ctx} />,
+  },
+  {
+    id: "plan",
+    title: "Open questions",
+    description: "What this project hasn't decided, and what's waiting on you.",
+    defaultSpan: 1,
+    minSpan: 1,
+    maxSpan: 2,
+    rows: 2,
+    render: (ctx) => <PlanWidget {...ctx} />,
   },
 ];
 

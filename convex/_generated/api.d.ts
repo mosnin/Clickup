@@ -78,6 +78,7 @@ import type * as opsOverview from "../opsOverview.js";
 import type * as outcomeAssurance from "../outcomeAssurance.js";
 import type * as pages from "../pages.js";
 import type * as panelIntent from "../panelIntent.js";
+import type * as plans from "../plans.js";
 import type * as portfolio from "../portfolio.js";
 import type * as presence from "../presence.js";
 import type * as projects from "../projects.js";
@@ -194,6 +195,7 @@ declare const fullApi: ApiFromModules<{
   outcomeAssurance: typeof outcomeAssurance;
   pages: typeof pages;
   panelIntent: typeof panelIntent;
+  plans: typeof plans;
   portfolio: typeof portfolio;
   presence: typeof presence;
   projects: typeof projects;

@@ -24,6 +24,7 @@ import {
   DEFAULT_DAILY_ACTION_LIMIT,
 } from "./_agentAuth";
 import { getSpaceForList } from "./_authz";
+import { addNodeCore, decideCore } from "./plans";
 import {
   SURFACE_TYPE as PRESENCE_SURFACE,
   clearActorPresence,
@@ -894,6 +895,181 @@ export const proposePanel = mutation({
       createdAt: Date.now(),
     });
     return { proposalId };
+  },
+});
+
+// ── The plan ────────────────────────────────────────────────────────────
+//
+// Where an agent thinks *out loud in a structure* rather than into a channel.
+// The difference is not tone, it is retrievability: a question with two
+// options and evidence under each is a thing the next agent can read in
+// seconds, where four hundred messages is a thing it will read wrong.
+//
+// All four route through the same cores the human mutations use, so consent,
+// shape checks and events cannot drift between the two. The only place the
+// actor changes the outcome is closing a question — see `decideCore`.
+
+/** Raise a question this project has not answered. */
+export const planAsk = mutation({
+  args: {
+    apiKey: v.string(),
+    projectId: v.id("projects"),
+    body: v.string(),
+    /** Ask for a person to be the one who settles it. */
+    needsHuman: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    await requireProjectAccessForAgent(ctx, args.projectId, agent);
+    const nodeId = await addNodeCore(ctx, {
+      projectId: args.projectId,
+      kind: "question",
+      body: args.body,
+      needsHuman: args.needsHuman,
+      actor: agentActor(agent),
+    });
+    return { nodeId };
+  },
+});
+
+/** Offer a candidate answer to a question. */
+export const planOption = mutation({
+  args: {
+    apiKey: v.string(),
+    questionId: v.id("planNodes"),
+    body: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const question = await ctx.db.get(args.questionId);
+    if (!question) throw new ConvexError("Question not found");
+    await requireProjectAccessForAgent(ctx, question.projectId, agent);
+    const nodeId = await addNodeCore(ctx, {
+      projectId: question.projectId,
+      kind: "option",
+      parentId: args.questionId,
+      body: args.body,
+      actor: agentActor(agent),
+    });
+    return { nodeId };
+  },
+});
+
+/** File something you actually learned, under the option it bears on. */
+export const planEvidence = mutation({
+  args: {
+    apiKey: v.string(),
+    optionId: v.id("planNodes"),
+    body: v.string(),
+    stance: v.union(
+      v.literal("supports"),
+      v.literal("refutes"),
+      v.literal("neutral"),
+    ),
+    ref: v.optional(v.object({ kind: v.string(), id: v.string() })),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const option = await ctx.db.get(args.optionId);
+    if (!option) throw new ConvexError("Option not found");
+    await requireProjectAccessForAgent(ctx, option.projectId, agent);
+    const nodeId = await addNodeCore(ctx, {
+      projectId: option.projectId,
+      kind: "evidence",
+      parentId: args.optionId,
+      body: args.body,
+      stance: args.stance,
+      ref: args.ref,
+      actor: agentActor(agent),
+    });
+    return { nodeId };
+  },
+});
+
+/**
+ * Settle a question, or ask to.
+ *
+ * Which of the two this is depends on the question, not on the caller's
+ * intention: one marked `needsHuman` cannot be closed by a machine, and the
+ * decision lands unaccepted, reading as "waiting on you" until a person signs
+ * off. The reply says which happened so the agent knows whether to proceed.
+ */
+export const planDecide = mutation({
+  args: {
+    apiKey: v.string(),
+    questionId: v.id("planNodes"),
+    chosenOptionId: v.optional(v.id("planNodes")),
+    body: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const question = await ctx.db.get(args.questionId);
+    if (!question) throw new ConvexError("Question not found");
+    await requireProjectAccessForAgent(ctx, question.projectId, agent);
+    return await decideCore(ctx, {
+      questionId: args.questionId,
+      chosenOptionId: args.chosenOptionId,
+      body: args.body,
+      actor: agentActor(agent),
+    });
+  },
+});
+
+/** Take back something you wrote, without erasing that you wrote it. */
+export const planRetract = mutation({
+  args: { apiKey: v.string(), nodeId: v.id("planNodes") },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const node = await ctx.db.get(args.nodeId);
+    if (!node) throw new ConvexError("Not found");
+    await requireProjectAccessForAgent(ctx, node.projectId, agent);
+    // An agent retracts its own reasoning, never a person's. Otherwise a plan
+    // is a place your conclusions can be quietly removed from.
+    if (node.authorType !== "agent" || node.authorId !== agent._id) {
+      throw new ConvexError("You can only retract what you wrote");
+    }
+    if (node.retractedAt !== undefined) return { ok: true };
+    await ctx.db.patch(args.nodeId, {
+      retractedAt: Date.now(),
+      retractedByName: agent.name,
+    });
+    return { ok: true };
+  },
+});
+
+/**
+ * Read the plan.
+ *
+ * Flat rows, exactly as the UI gets them — `planView` in the shared lib
+ * derives the state, and an agent runs the same function the screen does, so
+ * the two can never disagree about what is settled.
+ */
+export const planRead = query({
+  args: { apiKey: v.string(), projectId: v.id("projects") },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "read");
+    await requireProjectAccessForAgent(ctx, args.projectId, agent);
+    const rows = await ctx.db
+      .query("planNodes")
+      .withIndex("by_project", (q) => q.eq("projectId", args.projectId))
+      .collect();
+    return rows.map((r) => ({
+      id: r._id as string,
+      kind: r.kind,
+      parentId: (r.parentId as string | undefined) ?? null,
+      body: r.body,
+      authorType: r.authorType,
+      authorId: r.authorId,
+      authorName: r.authorName,
+      createdAt: r.createdAt,
+      needsHuman: r.needsHuman === true,
+      stance: r.stance ?? "neutral",
+      chosenOptionId: (r.chosenOptionId as string | undefined) ?? null,
+      acceptedAt: r.acceptedAt ?? null,
+      acceptedByName: r.acceptedByName ?? null,
+      ref: r.ref ?? null,
+      retractedAt: r.retractedAt ?? null,
+    }));
   },
 });
 

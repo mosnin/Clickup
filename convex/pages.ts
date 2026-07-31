@@ -710,6 +710,17 @@ export const listForScope = query({
         .collect();
     }
 
+    // Newest-edited first, with creation time breaking the tie.
+    //
+    // Without the tiebreak two pages saved in the same millisecond come back
+    // in whatever order the index walk produced — oldest first — so the list
+    // silently contradicts its own heading. It is rare enough in production to
+    // look like nothing and common enough in a test suite to fail one run in
+    // six, which is how it was found.
+    pages.sort(
+      (a, b) => b.updatedAt - a.updatedAt || b._creationTime - a._creationTime,
+    );
+
     const rows: PageRow[] = [];
     for (const p of pages) {
       if (p.archivedAt !== undefined) continue;
@@ -727,7 +738,7 @@ export const listForScope = query({
         attachmentCount: attachments.length,
       });
     }
-    rows.sort((a, b) => b.updatedAt - a.updatedAt);
+
     return rows;
   },
 });

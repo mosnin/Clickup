@@ -159,6 +159,7 @@ const checklistArg = z
 // irreversible actions, and external side effects are classified independently;
 // safely-retryable mutations also get idempotentHint.
 const READ_TOOLS = new Set([
+  "read_plan",
   "list_pages",
   "read_page",
   "get_project_updates",
@@ -292,6 +293,7 @@ const IDEMPOTENT_TOOLS = new Set([
   "set_focus",
   "propose_screen",
   "propose_panel", // a newer proposal replaces this agent's previous one
+  "retract_plan_node", // retracting an already-retracted node is a no-op
   "emit_run_event",
   "acknowledge_wake",
   "acknowledge_task_context",
@@ -528,6 +530,76 @@ const TOOLS: ToolDef[] = [
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.proposePanel), { apiKey: k, ...a }),
+  },
+  {
+    name: "read_plan",
+    description:
+      "Read the project's plan: the open questions, the options under each, the evidence for and against, and what has been settled. Read this BEFORE deliberating in chat — it is the state of the thinking, where a channel is only its transcript. Question states are derived: unexplored (nobody has answered), weighing (an option has nothing said about it), ready (every option argued, someone should decide), awaiting (a machine decided and a person must sign off), decided.",
+    shape: { projectId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.planRead), { apiKey: k, ...a }),
+  },
+  {
+    name: "ask_question",
+    description:
+      "Raise something this project has not decided. Use this instead of saying 'I'm not sure whether to do A or B' in chat: a question is retrievable, a message is not. Set needsHuman when the call should be a person's — I can then offer options and evidence, but my decision will wait for them to sign off.",
+    shape: {
+      projectId: z.string(),
+      body: z.string().max(600).describe("the question, in one sentence"),
+      needsHuman: z.boolean().optional(),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.planAsk), { apiKey: k, ...a }),
+  },
+  {
+    name: "add_option",
+    description:
+      "Offer a candidate answer to a question. Options are what makes a question decidable — a question with none is one nobody has thought about, and shows that way.",
+    shape: {
+      questionId: z.string(),
+      body: z.string().max(600).describe("the candidate answer"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.planOption), { apiKey: k, ...a }),
+  },
+  {
+    name: "add_evidence",
+    description:
+      "File something I actually learned, under the option it bears on, with which way it cuts. This is where a run's findings belong: 'the migration took 40 minutes on staging' is evidence, not a status update. A question is only ready to decide once every option has been argued, so this is what moves it there.",
+    shape: {
+      optionId: z.string(),
+      body: z.string().max(600).describe("what I found"),
+      stance: z.enum(["supports", "refutes", "neutral"]),
+      ref: z
+        .object({
+          kind: z.enum(["task", "page", "list", "project", "run"]),
+          id: z.string(),
+        })
+        .optional()
+        .describe("the thing this came from, so a human can go and look"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.planEvidence), { apiKey: k, ...a }),
+  },
+  {
+    name: "decide",
+    description:
+      "Settle a question, naming the option chosen and why. On a question marked needsHuman this becomes a PROPOSAL and waits for a person — the reply's `accepted` field says which happened, so check it before acting on the decision.",
+    shape: {
+      questionId: z.string(),
+      chosenOptionId: z.string().optional(),
+      body: z.string().max(600).describe("what was decided and why"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.planDecide), { apiKey: k, ...a }),
+  },
+  {
+    name: "retract_plan_node",
+    description:
+      "Take back something I wrote in the plan — an option that turned out to be impossible, evidence I got wrong. It stops counting toward the question's state and stays readable as history. I can only retract my own.",
+    shape: { nodeId: z.string() },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.planRetract), { apiKey: k, ...a }),
   },
   {
     name: "set_focus",

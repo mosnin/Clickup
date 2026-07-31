@@ -1555,6 +1555,59 @@ export default defineSchema({
     .index("by_screen_and_status", ["screenKey", "status"])
     .index("by_agent", ["agentId"]),
 
+  // Deliberation as a place rather than a transcript.
+  //
+  // See `src/lib/plan.ts` for the argument. In short: thinking currently lives
+  // in channels, which are append-only and time-ordered, so the *state* of a
+  // deliberation is nowhere — everyone re-derives the same small answer from
+  // something enormous, and an agent joining late gets it wrong.
+  //
+  // Four kinds, closed, because agents write into this and a free-form canvas
+  // of boxes is unparseable. Every status is DERIVED from the shape
+  // (`planView`) rather than stored, so nothing can be stale about whether a
+  // question is settled. Nodes are retracted, never deleted: "we thought X,
+  // then learned better" is the most useful thing a plan holds.
+  planNodes: defineTable({
+    projectId: v.id("projects"),
+    /** Denormalized from the project's space, for agent-scope checks. */
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    kind: v.union(
+      v.literal("question"),
+      v.literal("option"),
+      v.literal("evidence"),
+      v.literal("decision"),
+    ),
+    /** Options and decisions hang off a question; evidence off an option. */
+    parentId: v.optional(v.id("planNodes")),
+    body: v.string(),
+    authorType: v.union(
+      v.literal("user"),
+      v.literal("agent"),
+      v.literal("system"),
+    ),
+    authorId: v.string(),
+    authorName: v.string(),
+    createdAt: v.number(),
+    /** Questions: a machine may not close this one. */
+    needsHuman: v.optional(v.boolean()),
+    /** Evidence: which way it cuts. */
+    stance: v.optional(
+      v.union(v.literal("supports"), v.literal("refutes"), v.literal("neutral")),
+    ),
+    /** Decisions: which option won, and whether a person has signed off. */
+    chosenOptionId: v.optional(v.id("planNodes")),
+    acceptedAt: v.optional(v.number()),
+    acceptedByClerkId: v.optional(v.string()),
+    acceptedByName: v.optional(v.string()),
+    /** A link back into the work this node is about. */
+    ref: v.optional(v.object({ kind: v.string(), id: v.string() })),
+    retractedAt: v.optional(v.number()),
+    retractedByName: v.optional(v.string()),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_parent", ["parentId"]),
+
   // ── Phase 12: AI agent collaboration ────────────────────────────────
 
   // First-class AI agent principals. An agent belongs to either a user's

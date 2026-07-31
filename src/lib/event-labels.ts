@@ -13,6 +13,11 @@ export const EVENT_LABEL: Record<string, string> = {
   "task.released": "released task",
   "comment.created": "commented on",
   "mention.created": "mentioned someone in",
+  // Distinct from the `plan.*` namespace above, which is about execution
+  // plans — a different concept that happens to share the English word.
+  "question.opened": "raised the question",
+  "question.decision_proposed": "proposed settling",
+  "question.decided": "settled",
   "sprint.created": "created sprint",
   "sprint.started": "started sprint",
   "sprint.completed": "completed sprint",
