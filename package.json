@@ -10,7 +10,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "vercel-build": "convex deploy --cmd 'next build'"
+    "vercel-build": "convex deploy --cmd 'next build'",
+    "gallery": "vitest run tests/ui/design/gallery.test.tsx && node scripts/design-shots.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^6.2.0",
@@ -95,6 +96,7 @@
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.1.0",
     "jsdom": "^29.1.1",
+    "playwright-core": "^1.49.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.2",

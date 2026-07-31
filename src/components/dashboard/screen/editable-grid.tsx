@@ -77,23 +77,56 @@ export type EditableTile = {
   content: React.ReactNode;
 };
 
+// ── Sizing responds to the GRID's width, never the window's ──
+//
+// These were `lg:` viewport variants, and that made the resizer provably dead
+// for anyone whose browser was under 1024px: the drag computed a new span, the
+// write landed, the layout row updated, and the CSS ignored all of it because
+// the grid was still one column. Nothing about the write path was wrong, which
+// is why fixing the write path did not fix the resizer.
+//
+// It is also wrong in a subtler way at every width. The grid does not occupy
+// the window — it sits inside a shell whose sidebar can be open, collapsed,
+// floating, or docked to the bottom. A panel's size should follow the space it
+// actually has, so the same screen at the same window size reflows when you
+// collapse the nav. That is what `@container` gives and a breakpoint cannot.
 const SPAN_CLASS: Record<number, string> = {
-  1: "lg:col-span-1",
-  2: "lg:col-span-2",
-  3: "lg:col-span-3",
+  1: "@3xl:col-span-1",
+  2: "@3xl:col-span-2",
+  3: "@3xl:col-span-3",
 };
 
-/** Columns in the desktop grid. The one place that number lives. */
+/** Most columns the grid ever draws. The one place that number lives. */
 const GRID_COLUMNS = 3;
+
+/**
+ * How many columns the grid is actually drawing right now.
+ *
+ * Read from the grid's measured width against the same thresholds the CSS
+ * uses, because the drag maths has to agree with what is on screen. Dividing
+ * by three while two columns are drawn makes every drag feel like it is
+ * fighting you — the pointer moves one panel's width and the panel grows by
+ * two thirds of one.
+ *
+ * The thresholds mirror Tailwind's container sizes: `@md` is 28rem and `@3xl`
+ * is 48rem. Stated in pixels here because this is arithmetic, not styling, and
+ * a comment is cheaper than a second source of truth.
+ */
+function columnsFor(gridWidth: number): number {
+  const rem = 16;
+  if (gridWidth >= 48 * rem) return 3;
+  if (gridWidth >= 28 * rem) return 2;
+  return 1;
+}
 /** Tallest a panel can be made. Past three rows it is a page, not a panel. */
 const MAX_ROWS = 3;
-/** Matches `lg:auto-rows-[10.5rem]`, for the first frame before measuring. */
+/** Matches the grid's `auto-rows`, for the first frame before measuring. */
 const ROW_HEIGHT_FALLBACK = 168;
 
 const ROW_CLASS: Record<number, string> = {
-  1: "lg:row-span-1",
-  2: "lg:row-span-2",
-  3: "lg:row-span-3",
+  1: "@3xl:row-span-1",
+  2: "@3xl:row-span-2",
+  3: "@3xl:row-span-3",
 };
 
 export function EditableGrid({
@@ -413,12 +446,13 @@ export function EditableGrid({
         id={gridId}
         ref={gridRef}
         className={cn(
-          "grid grid-cols-1 gap-6 lg:grid-cols-3",
+          // `@container` is what the span classes above measure against.
+          "@container grid grid-cols-1 gap-6 @md:grid-cols-2 @3xl:grid-cols-3",
           // Sized tiles get a fixed row height, which is what makes the screen
-          // read as composed: every panel is a real size, aligned to a shared
-          // grid, instead of whatever its content happened to measure. Only at
-          // lg — on a phone the panels stack and natural height is right.
-          sized ? "lg:auto-rows-[10.5rem]" : "lg:items-start",
+          // read as composed: every panel is a real size on a shared grid
+          // rather than whatever its content happened to measure. Only once
+          // there is room for columns — stacked, natural height is right.
+          sized ? "@3xl:auto-rows-[10.5rem]" : "@3xl:items-start",
         )}
       >
         {layout.widgets.map((w) => {
@@ -817,7 +851,9 @@ function ResizeGrip({
       // assumed: the shell is resizable and the sidebar can move or dock, so
       // hardcoded sizes would drift out of agreement with what is on screen.
       const gridWidth = grid?.getBoundingClientRect().width ?? 0;
-      column = gridWidth > 0 ? gridWidth / GRID_COLUMNS : 320;
+      // Divide by the columns actually drawn, not by the maximum. Otherwise
+      // the drag and the layout disagree at every width but the widest.
+      column = gridWidth > 0 ? gridWidth / columnsFor(gridWidth) : 320;
       // The row height comes from the tile being dragged rather than from the
       // grid, because the grid's height is however many rows happen to exist.
       const tileBox = el.closest("[data-tile]")?.getBoundingClientRect();

@@ -193,7 +193,11 @@ describe("resizing", () => {
         onEditingChange={() => {}}
       />,
     );
-    stubGridWidth(900); // one column = 300px
+    // Wide enough for three columns (48rem = 768px), so one column is 400px.
+    // The number matters: the drag divides by the columns actually drawn, not
+    // by the maximum, or the pointer and the panel disagree at every width but
+    // the widest.
+    stubGridWidth(1200);
 
     const grip = screen.getByLabelText(/Resize Progress/i);
     grip.dispatchEvent(pointerEvent("pointerdown", { clientX: 0, clientY: 0 }));
@@ -225,9 +229,9 @@ describe("resizing", () => {
         onEditingChange={() => {}}
       />,
     );
-    stubGridWidth(900);
+    stubGridWidth(1200);
     const tile = document.querySelector<HTMLElement>('[data-tile="a"]')!;
-    expect(tile.className).toContain("lg:col-span-1");
+    expect(tile.className).toContain("@3xl:col-span-1");
 
     const grip = screen.getByLabelText(/Resize Progress/i);
     act(() => {
@@ -240,7 +244,7 @@ describe("resizing", () => {
     // The tile moved without anything being saved: that is the whole point of
     // a preview, and it is what makes a resize feel like resizing.
     const live = document.querySelector<HTMLElement>('[data-tile="a"]')!;
-    expect(live.className).toContain("lg:col-span-2");
+    expect(live.className).toContain("@3xl:col-span-2");
     expect(onChange).not.toHaveBeenCalled();
   });
 
@@ -256,7 +260,7 @@ describe("resizing", () => {
         onEditingChange={() => {}}
       />,
     );
-    stubGridWidth(900);
+    stubGridWidth(1200);
     const grip = screen.getByLabelText(/Resize Progress/i);
     act(() => {
       grip.dispatchEvent(pointerEvent("pointerdown", { clientX: 0, clientY: 0 }));
@@ -271,7 +275,7 @@ describe("resizing", () => {
 
     expect(onChange).not.toHaveBeenCalled();
     const tile = document.querySelector<HTMLElement>('[data-tile="a"]')!;
-    expect(tile.className).toContain("lg:col-span-1");
+    expect(tile.className).toContain("@3xl:col-span-1");
   });
 
   it("is still reachable without a pointer", () => {
@@ -298,5 +302,41 @@ describe("resizing", () => {
       { widgets: [{ id: "a", span: 2 }] },
       undefined,
     );
+  });
+});
+
+describe("the grid measures itself, not the window", () => {
+  it("never sizes a panel off a viewport breakpoint", () => {
+    // This is the resizer bug in its purest form. The maths was correct, the
+    // write landed, the layout row updated — and below 1024px the CSS ignored
+    // all of it, because span and row classes were `lg:` viewport variants and
+    // the grid was still one column. Nothing about the write path was wrong,
+    // which is why fixing the write path did not fix the resizer.
+    //
+    // It is also wrong at every width: the grid sits inside a shell whose
+    // sidebar can be collapsed, floated or docked, so a panel's size has to
+    // follow the space the grid actually has.
+    const { container } = render(
+      <EditableGrid
+        gridId="g"
+        tiles={TILES}
+        layout={LAYOUT}
+        onChange={() => {}}
+        editing
+        onEditingChange={() => {}}
+      />,
+    );
+    const grid = container.querySelector("#g")!;
+    expect(grid.className).toContain("@container");
+
+    const html = container.innerHTML;
+    for (const viewportSized of [
+      "lg:col-span-",
+      "lg:row-span-",
+      "lg:grid-cols-",
+      "lg:auto-rows-",
+    ]) {
+      expect(html, viewportSized).not.toContain(viewportSized);
+    }
   });
 });
