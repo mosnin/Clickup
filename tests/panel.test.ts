@@ -4,7 +4,6 @@ import {
   DEFAULT_PANEL,
   describePanel,
   fieldsFor,
-  isBespokeShape,
   isChartShape,
   isMetricShape,
   isRecordShape,
@@ -49,10 +48,21 @@ describe("normalization is total", () => {
   });
 
   it("refuses a shape the source cannot render", () => {
-    // A sprint board over pages is nothing; offering it is offering a blank.
-    const panel = normalizePanel({ query: { from: "pages" }, shape: "sprint_board" });
+    // A donut of pages by priority is nothing; offering it offers a blank.
+    const panel = normalizePanel({ query: { from: "pages" }, shape: "radial" });
     expect(shapesFor("pages")).toContain(panel.shape);
-    expect(panel.shape).not.toBe("sprint_board");
+    expect(panel.shape).not.toBe("radial");
+  });
+
+  it("degrades a shape this build has retired", () => {
+    // `sprint_board`, `roadmap`, `workload` and `activity_feed` were shape
+    // names with no renderer behind them. A stored panel naming one has to
+    // come back as something drawable rather than as a card saying "open it
+    // from the sidebar".
+    for (const gone of ["sprint_board", "roadmap", "workload", "activity_feed"]) {
+      const panel = normalizePanel({ query: { from: "tasks" }, shape: gone });
+      expect(ALL_SHAPES, gone).toContain(panel.shape);
+    }
   });
 
   it("drops fields the source does not have", () => {
@@ -144,7 +154,6 @@ describe("shapes", () => {
         isRecordShape(shape),
         isMetricShape(shape),
         isChartShape(shape),
-        isBespokeShape(shape),
       ].filter(Boolean);
       expect(kinds.length, shape).toBe(1);
     }

@@ -4,7 +4,9 @@ import schema from "../convex/schema";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { sha256Hex } from "../convex/_agentAuth";
+import { parentKindFor, NODE_KINDS } from "../src/lib/plan";
 import { planView } from "../src/lib/plan";
+import { PARENT_KIND } from "../convex/plans";
 
 // The plan, end to end.
 //
@@ -479,5 +481,20 @@ describe("agents and people write the same rows", () => {
       return events.map((e) => e.type).filter((tp) => tp.startsWith("question."));
     });
     expect(types).toEqual(["question.opened", "question.decided"]);
+  });
+});
+
+describe("the two copies of the shape rule agree", () => {
+  it("says the same thing on both sides of the wire", () => {
+    // The Convex tree cannot import from `src/`, so the parent rule is
+    // written twice. Two copies of a rule drift; this is the only thing
+    // standing between them, and it is cheaper than the bug.
+    for (const kind of NODE_KINDS) {
+      expect(PARENT_KIND[kind], kind).toBe(parentKindFor(kind));
+    }
+  });
+
+  it("covers every kind on both sides", () => {
+    expect(Object.keys(PARENT_KIND).sort()).toEqual([...NODE_KINDS].sort());
   });
 });

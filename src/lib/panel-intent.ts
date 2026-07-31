@@ -360,6 +360,127 @@ export function summarizeChanges(changes: PanelChange[]): string {
 }
 
 /**
+ * Panels worth starting from.
+ *
+ * These replace what used to be four "bespoke" shape names whose bodies were
+ * never written. A preset is strictly better than a shape name for the same
+ * idea: it lands as an ordinary definition, so you can see how it is made,
+ * change one thing about it, and learn the vocabulary by watching it move.
+ * A shape called `workload` teaches nothing and can only be what it is.
+ *
+ * Each is a partial definition run through the same normalizer as everything
+ * else, so a preset can never express something an agent or the pickers could
+ * not.
+ */
+export const PANEL_PRESETS: {
+  id: string;
+  name: string;
+  description: string;
+  def: unknown;
+}[] = [
+  {
+    id: "workload",
+    name: "Workload",
+    description: "Who is carrying how much.",
+    def: {
+      title: "Workload",
+      query: { from: "tasks", dimension: "assignee", measure: "open" },
+      shape: "bar",
+    },
+  },
+  {
+    id: "burn",
+    name: "Finished each day",
+    description: "How much is landing, day by day.",
+    def: {
+      title: "Finished each day",
+      query: {
+        from: "tasks",
+        dimension: "completed_day",
+        measure: "completed",
+        filter: { window: "30d", status: "any" },
+      },
+      shape: "area",
+    },
+  },
+  {
+    id: "overdue",
+    name: "Overdue by owner",
+    description: "What is late, and whose it is.",
+    def: {
+      title: "Overdue",
+      query: {
+        from: "tasks",
+        dimension: "assignee",
+        measure: "overdue",
+        filter: { due: "overdue" },
+      },
+      shape: "column",
+    },
+  },
+  {
+    id: "mine",
+    name: "On my plate",
+    description: "Your open work, soonest first.",
+    def: {
+      title: "On my plate",
+      query: { from: "tasks", filter: { assignee: "me" }, sort: "due" },
+      shape: "list",
+      fields: ["status", "due", "list"],
+    },
+  },
+  {
+    id: "blocked",
+    name: "Blocked",
+    description: "Work that cannot move.",
+    def: {
+      title: "Blocked",
+      query: { from: "tasks", filter: { blocked: true } },
+      shape: "list",
+      fields: ["assigneeName", "blocked", "due"],
+    },
+  },
+  {
+    id: "activity",
+    name: "Activity",
+    description: "What people and agents did lately.",
+    def: {
+      title: "Activity",
+      query: { from: "activity", filter: { window: "7d" }, limit: 12 },
+      shape: "list",
+      fields: ["actor", "when"],
+    },
+  },
+  {
+    id: "spend",
+    name: "Agent spend",
+    description: "What the fleet is costing.",
+    def: {
+      title: "Agent spend",
+      query: { from: "agents", dimension: "none", measure: "spend" },
+      shape: "metric",
+    },
+  },
+  {
+    id: "status",
+    name: "Where everything stands",
+    description: "Every open task by status.",
+    def: {
+      title: "Where everything stands",
+      query: { from: "tasks", dimension: "status", measure: "count" },
+      shape: "donut",
+    },
+  },
+];
+
+/** A preset as a real definition. */
+export function presetPanel(id: string): PanelDef | null {
+  const preset = PANEL_PRESETS.find((p) => p.id === id);
+  if (!preset) return null;
+  return coherePanel(normalizePanel(preset.def));
+}
+
+/**
  * A blank panel to build from, aimed at a source.
  *
  * Starting from "untitled, tasks, list" every time makes the first two clicks

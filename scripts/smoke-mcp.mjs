@@ -65,13 +65,39 @@ console.log(`✓ initialize (server: ${init.serverInfo?.name})`);
 
 const tools = await rpc("tools/list", {});
 console.log(`✓ tools/list (${tools.tools.length} tools)`);
-const expectedToolCount = profile === "openai" ? 140 : 138;
-if (tools.tools.length !== expectedToolCount) {
+// A floor plus a named list, rather than an exact count.
+//
+// This used to assert an exact number, and the number had been wrong for
+// twenty-five tools before anybody noticed — which is what an exact count
+// does: every legitimate addition breaks it, so the reflex becomes bumping
+// the number without reading it, and then it catches nothing. The floor
+// catches a catastrophic loss (a whole family failing to register); the named
+// list catches the loss of anything load-bearing. Losing one obscure tool
+// silently is the honest gap, and it is a smaller gap than a check nobody
+// believes.
+const MIN_TOOLS = 150;
+if (tools.tools.length < MIN_TOOLS) {
   throw new Error(
-    `expected ${expectedToolCount} tools, received ${tools.tools.length}`,
+    `expected at least ${MIN_TOOLS} tools, received ${tools.tools.length}`,
   );
 }
-for (const required of ["whoami", "next_task", "claim_task", "get_skill"]) {
+// One per family, so a family failing to register is caught by name.
+const REQUIRED = [
+  "whoami",
+  "next_task",
+  "claim_task",
+  "get_skill",
+  "read_page",
+  "get_wallet",
+  "emit_run_event",
+  "propose_screen",
+  "propose_panel",
+  "read_plan",
+  "ask_question",
+  "add_evidence",
+  "decide",
+];
+for (const required of REQUIRED) {
   if (!tools.tools.some((t) => t.name === required)) {
     throw new Error(`missing expected tool: ${required}`);
   }

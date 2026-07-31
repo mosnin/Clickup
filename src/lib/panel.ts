@@ -20,13 +20,22 @@ import {
 // There is a registry of *shapes*, and every panel is data pointing at one.
 //
 // That distinction is what makes "convert everything to definitions" honest.
-// Most panels really are a filtered list of tasks drawn some way, and those are
-// fully expressed here. A few genuinely are not: sprint planning has drag
-// targets, a roadmap has a timeline you scrub. Inventing a vocabulary rich
-// enough to express those would be inventing a programming language, so
-// instead they are definitions whose `shape` names a purpose-built renderer.
-// One concept, no second registry, and no pretence that a Gantt chart is a
-// filter expression.
+// Every shape below is one this renderer actually draws.
+//
+// There was briefly a fourth category — "bespoke" shapes (sprint_board,
+// roadmap, workload, activity_feed) whose bodies were meant to be code because
+// sprint planning has drag targets and a roadmap has a timeline you scrub. No
+// renderer was ever wired to them, so picking one produced a card reading
+// "open it from the sidebar". **A control that produces a stub is worse than
+// no control**, so they are gone. Two of them were never bespoke at all —
+// "workload" is tasks grouped by assignee and "activity feed" is a list of
+// activity, both fully expressible here — and those now ship as starting
+// points in the builder (`PANEL_PRESETS`), which is better than a shape name
+// because you can see how they are made and change them.
+//
+// The two that genuinely need code, sprint boards and roadmaps, keep their own
+// pages until somebody builds them a panel body. Naming a shape does not
+// summon a renderer.
 
 /** Every way a panel can be drawn. */
 export type PanelShape =
@@ -48,13 +57,7 @@ export type PanelShape =
   | "radial"
   | "scatter"
   | "waterfall"
-  | "treemap"
-  // Purpose-built. A definition still selects and styles them; their body is
-  // code because what they do cannot be said with a filter.
-  | "sprint_board"
-  | "roadmap"
-  | "workload"
-  | "activity_feed";
+  | "treemap";
 
 export type PanelDef = {
   title: string;
@@ -91,18 +94,10 @@ const CHART_SHAPES: PanelShape[] = [
   "waterfall",
   "treemap",
 ];
-const BESPOKE_SHAPES: PanelShape[] = [
-  "sprint_board",
-  "roadmap",
-  "workload",
-  "activity_feed",
-];
-
 export const ALL_SHAPES: PanelShape[] = [
   ...RECORD_SHAPES,
   ...METRIC_SHAPES,
   ...CHART_SHAPES,
-  ...BESPOKE_SHAPES,
 ];
 
 export function isChartShape(shape: PanelShape): boolean {
@@ -113,9 +108,6 @@ export function isRecordShape(shape: PanelShape): boolean {
 }
 export function isMetricShape(shape: PanelShape): boolean {
   return METRIC_SHAPES.includes(shape);
-}
-export function isBespokeShape(shape: PanelShape): boolean {
-  return BESPOKE_SHAPES.includes(shape);
 }
 
 /**
@@ -148,10 +140,6 @@ const SHAPE_LABELS: Record<PanelShape, string> = {
   scatter: "Scatter",
   waterfall: "Waterfall",
   treemap: "Treemap",
-  sprint_board: "Sprint board",
-  roadmap: "Roadmap",
-  workload: "Workload",
-  activity_feed: "Activity",
 };
 
 export function shapeLabel(shape: PanelShape): string {
@@ -169,26 +157,19 @@ export function shapeLabel(shape: PanelShape): string {
 export function shapesFor(from: SourceKind): PanelShape[] {
   switch (from) {
     case "tasks":
-      return [
-        ...RECORD_SHAPES,
-        ...METRIC_SHAPES,
-        ...CHART_SHAPES,
-        "sprint_board",
-        "roadmap",
-        "workload",
-      ];
+      return [...RECORD_SHAPES, ...METRIC_SHAPES, ...CHART_SHAPES];
     case "time":
       return ["list", "table", "metric", "metric_spark", "bar", "column", "line", "area", "donut", "treemap"];
     case "goals":
       return ["list", "cards", "metric", "bar", "column", "radial", "donut"];
     case "sprints":
-      return ["list", "table", "cards", "metric", "column", "bar", "sprint_board"];
+      return ["list", "table", "cards", "metric", "column", "bar"];
     case "agents":
-      return ["list", "cards", "table", "metric", "column", "bar", "donut", "workload"];
+      return ["list", "cards", "table", "metric", "column", "bar", "donut"];
     case "pages":
       return ["list", "cards", "table", "metric", "column", "line", "area"];
     case "activity":
-      return ["list", "activity_feed", "metric", "column", "line", "area"];
+      return ["list", "metric", "column", "line", "area"];
   }
 }
 

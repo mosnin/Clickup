@@ -28,7 +28,6 @@ import {
   DEFAULT_PANEL,
   describePanel,
   fieldsFor,
-  isBespokeShape,
   isChartShape,
   isMetricShape,
   normalizePanel,
@@ -37,7 +36,12 @@ import {
   type PanelDef,
   type PanelShape,
 } from "@/lib/panel";
-import { blankPanelFor, coherePanel } from "@/lib/panel-intent";
+import {
+  PANEL_PRESETS,
+  blankPanelFor,
+  coherePanel,
+  presetPanel,
+} from "@/lib/panel-intent";
 import { cn } from "@/lib/utils";
 
 // Authoring a panel.
@@ -144,7 +148,7 @@ export function PanelBuilder({
   const catalog = fieldsFor(showing.query.from);
   const wantsSeries = isChartShape(showing.shape);
   const wantsScalar = isMetricShape(showing.shape);
-  const wantsRows = !wantsSeries && !wantsScalar && !isBespokeShape(showing.shape);
+  const wantsRows = !wantsSeries && !wantsScalar;
 
   return (
     <div className="panel rounded-2xl p-4">
@@ -160,6 +164,28 @@ export function PanelBuilder({
             placeholder={UNTITLED}
             className="soft-field w-full px-3 py-2 text-sm"
           />
+
+          {/* Somewhere to land, rather than a blank form. Each one is an
+              ordinary definition, so picking it and then changing one thing is
+              how the vocabulary gets learned. */}
+          <Chapter title="Start from">
+            <div className="flex flex-wrap gap-1.5">
+              {PANEL_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  title={preset.description}
+                  onClick={() => {
+                    const next = presetPanel(preset.id);
+                    if (next) patch(next as unknown as Record<string, unknown>);
+                  }}
+                  className="bento-tile rounded-full px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  {preset.name}
+                </button>
+              ))}
+            </div>
+          </Chapter>
 
           {/* ── What it shows ── */}
           <Chapter title="What it shows">
@@ -581,24 +607,12 @@ function ShapeSpecimen({ shape }: { shape: PanelShape }) {
           <span className="h-[26px] flex-1 rounded bg-muted-foreground/20" />
           <span className="h-[26px] flex-1 rounded bg-muted-foreground/20" />
         </span>
-      ) : shape === "board" || shape === "sprint_board" ? (
+      ) : shape === "board" ? (
         <span className="flex gap-1">
           <span className="h-[26px] flex-1 rounded bg-muted-foreground/25" />
           <span className="h-[26px] flex-1 rounded bg-muted-foreground/15" />
           <span className="h-[26px] flex-1 rounded bg-muted-foreground/20" />
         </span>
-      ) : shape === "roadmap" ? (
-        <>
-          <span className={cn(bar, "h-1.5 w-3/4")} />
-          <span className={cn(bar, "ml-3 h-1.5 w-1/2")} />
-          <span className={cn(bar, "ml-6 h-1.5 w-1/3")} />
-        </>
-      ) : shape === "workload" ? (
-        <>
-          <span className={cn(bar, "h-1.5 w-full")} />
-          <span className={cn(bar, "h-1.5 w-2/3")} />
-          <span className={cn(bar, "h-1.5 w-1/3")} />
-        </>
       ) : (
         <>
           <span className={cn(bar, "h-1 w-full")} />

@@ -34,8 +34,16 @@ const STANCE = v.union(
   v.literal("neutral"),
 );
 
-/** What each kind must hang off. Mirrors `parentKindFor` in the pure lib. */
-const PARENT_KIND = {
+/**
+ * What each kind must hang off.
+ *
+ * The same rule as `parentKindFor` in `src/lib/plan.ts`, restated because the
+ * Convex tree cannot import from `src/`. Two copies of a rule is exactly the
+ * drift this codebase keeps deleting, so `tests/plans-backend.test.ts` imports
+ * both and fails if they ever disagree — the duplication is structural, the
+ * silence about it is not.
+ */
+export const PARENT_KIND: Record<string, string | null> = {
   question: null,
   option: "question",
   evidence: "option",

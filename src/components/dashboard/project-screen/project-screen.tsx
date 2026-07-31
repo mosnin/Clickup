@@ -55,6 +55,9 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
   const stored = useQuery(api.screens.layoutFor, { screenKey: key });
   const saveLayout = useMutation(api.screens.saveLayout);
   const { toast } = useToast();
+  const removePanel = useMutation(api.uiComponents.remove);
+  /** Panels hidden pending an undo window — deleted only when it closes. */
+  const [deleting, setDeleting] = useState<string[]>([]);
 
   // Panels this person authored. Merged into the registry the same way custom
   // skills merge with built-in ones: the screen doesn't care which is which.
@@ -326,6 +329,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
                   // The panel model, like everywhere else — the tray must
                   // describe a panel the way the renderer will draw it.
                   const def = normalizePanel(row.definition);
+                  if (deleting.includes(customId)) return null;
                   return (
                     <TrayTile
                       key={id}
@@ -358,6 +362,47 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
                             : ""}
                         </span>
                       </span>
+                      {/* The only place a panel can be thrown away. It lives
+                          here because deleting the definition is what removes
+                          it from every screen — `normalizeLayout` drops ids
+                          that no longer resolve — and this is the one surface
+                          holding both the layout and the definitions. */}
+                      <button
+                        type="button"
+                        aria-label={`Delete ${def.title}`}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleting((ids) => [...ids, customId]);
+                          toast(`Deleted "${def.title}"`, {
+                            action: {
+                              label: "Undo",
+                              onClick: () =>
+                                setDeleting((ids) =>
+                                  ids.filter((i) => i !== customId),
+                                ),
+                            },
+                            // The mutation only runs once the undo window
+                            // closes, so nothing is destroyed while it can
+                            // still be taken back.
+                            onExpire: () => {
+                              void removePanel({
+                                componentId: customId as Parameters<
+                                  typeof removePanel
+                                >[0]["componentId"],
+                              }).catch((e) =>
+                                toast(
+                                  errorMessage(e, "Couldn't delete that"),
+                                  { kind: "error" },
+                                ),
+                              );
+                            },
+                          });
+                        }}
+                        className="tap-target flex-shrink-0 self-start text-[11px] text-muted-foreground hover:text-foreground"
+                      >
+                        ×
+                      </button>
                     </TrayTile>
                   );
                 }

@@ -21,7 +21,6 @@ import { Stagger, StaggerItem } from "@/components/motion";
 import { formatValue } from "@/lib/chart-math";
 import {
   describePanel,
-  isBespokeShape,
   isChartShape,
   isMetricShape,
   normalizePanel,
@@ -193,19 +192,6 @@ function Body({
         height={style.padding === "tight" ? 110 : 132}
         label={def.title}
       />
-    );
-  }
-
-  if (isBespokeShape(def.shape)) {
-    // Definitions whose body is code rather than a filter — sprint planning
-    // has drag targets, a roadmap has a timeline you scrub. They are still
-    // definitions (selected, styled, placed like anything else); only their
-    // interior is bespoke. Until each is lifted into this renderer it says so
-    // rather than rendering an empty card.
-    return (
-      <p className="text-xs text-muted-foreground">
-        {def.title} is an interactive panel. Open it from the sidebar.
-      </p>
     );
   }
 

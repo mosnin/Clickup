@@ -6,7 +6,6 @@ import { AnimatePresence, motion } from "motion/react";
 import { api } from "@convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import {
-  DEFAULT_STYLE,
   normalizeStylePatch,
   type ComponentStyle,
   type StylePatch,
@@ -306,6 +305,3 @@ export function StyleIntentComposer({
     />
   );
 }
-
-/** The shipped look, for a composer with nothing selected. */
-export const NEUTRAL_STYLE = DEFAULT_STYLE;

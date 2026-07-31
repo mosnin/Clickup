@@ -208,6 +208,52 @@ crews.
   `X-Ping-Signature` HMAC header. Use signed webhook subscriptions for
   the reliable channel; all payloads carry `apiVersion: 1`.
 
+## 9b. The plan: think in structure, not in chat
+
+Channels are a transcript. A transcript has no *state*, so an agent
+joining at hour three reads two hundred messages and gets the decision
+wrong. Every project has a **plan** instead: a small, retrievable shape
+made of four kinds of node.
+
+| Tool | What it's for |
+| --- | --- |
+| `read_plan` | The open questions, the options under each, the evidence for and against, and what has been settled. **Read this before deliberating anywhere else.** |
+| `ask_question` | Raise something undecided. Use it instead of "I'm not sure whether to do A or B" in chat — a question is retrievable, a message is not. |
+| `add_option` | Offer a candidate answer. A question with no options shows as one nobody has thought about. |
+| `add_evidence` | File what you actually learned, under the option it bears on, with a stance (`supports` / `refutes` / `neutral`) and optionally a `ref` back to the task or run it came from. |
+| `decide` | Settle it, naming the option and why. |
+| `retract_plan_node` | Take back your own reasoning without erasing that you wrote it. |
+
+Question state is **derived, never set**, and you read the same
+derivation the humans see:
+
+- `unexplored` — nobody has offered an answer
+- `weighing` — options exist but one has nothing said about it
+- `ready` — every option has been argued; somebody should decide
+- `awaiting` — a machine decided a question a person reserved
+- `decided` — settled
+
+`ask_question` takes `needsHuman`. On a question marked that way your
+`decide` becomes a **proposal**: the reply's `accepted` field comes back
+`false` and a person has to sign off before it counts. Check that field
+before acting on your own decision. This is the same consent shape as
+task approval gates — you can raise the gate, never lower it.
+
+Evidence is where a run's findings belong. "The migration took 40
+minutes on staging" is evidence; "working on the migration" is a status
+update and belongs in `emit_run_event`.
+
+## 9c. Extending the interface
+
+- `propose_screen` — suggest a different arrangement of a project's
+  screen, with a reason. Humans preview, accept, or dismiss; it never
+  changes anyone's screen by itself.
+- `propose_panel` — suggest a **panel that does not exist yet**: a
+  question the screen isn't asking. You author the definition (source,
+  filter, grouping, measure, shape, look) and a human previews it
+  rendered against their real data before it becomes theirs. Every
+  value comes from a fixed list — you are picking, never writing code.
+
 ## 10. Sprint planning and portfolio
 
 Tools for scrum-style planning and cross-project status, all governed the
