@@ -63,72 +63,33 @@ const LONG_PRESS_SLOP = 8;
 
 // ── Dragging on a phone ────────────────────────────────────────────────────
 //
-// A phone draws this grid in ONE column, so a screen with six panels is taller
-// than the viewport and the panel you want to move is usually off-screen from
-// the panel you want to move it past. On a desktop that never comes up: three
-// columns and a tall window mean everything is visible at once, so the drag
-// worked and the same gesture on a phone was simply impossible — you could
-// pick a tile up and there was nowhere to put it.
+// There WAS an edge auto-scroller here — hold a tile near the bottom and the
+// page pulls itself, so a one-column screen taller than the viewport can be
+// rearranged. It is gone, and the reason is worth keeping.
 //
-// So the page scrolls itself while you hold a tile near an edge, the way a
-// home screen pages sideways when you hold an app against the side. It runs on
-// its own frame loop rather than off pointer events, because a finger parked
-// at the edge stops producing them — and a gesture that only scrolls while you
-// keep wiggling is worse than one that does not scroll at all.
-
-/** How close to an edge the finger has to be before the page starts moving. */
-const EDGE_ZONE_PX = 96;
-/** Fastest the page pulls, in px per frame, right at the edge. */
-const EDGE_SPEED_PX = 14;
-
-/** The scrolling ancestor a tile actually lives in — the shell, or the page. */
-function scrollParentOf(el: HTMLElement): HTMLElement | Window {
-  let node: HTMLElement | null = el.parentElement;
-  while (node) {
-    const overflow = getComputedStyle(node).overflowY;
-    if (
-      (overflow === "auto" || overflow === "scroll") &&
-      node.scrollHeight > node.clientHeight
-    ) {
-      return node;
-    }
-    node = node.parentElement;
-  }
-  return window;
-}
-
-/**
- * Pull the container while the pointer sits near its top or bottom edge.
- *
- * Returns a stop function. Speed ramps with depth into the zone so the edge
- * is a dial rather than a switch — a constant speed means the page either
- * isn't moving or is flying, and neither lets you land on the slot you want.
- */
-function edgeScroller(container: HTMLElement | Window, pointerY: () => number) {
-  let frame = 0;
-  const tick = () => {
-    const y = pointerY();
-    const top = container === window ? 0 : (container as HTMLElement).getBoundingClientRect().top;
-    const bottom =
-      container === window
-        ? window.innerHeight
-        : (container as HTMLElement).getBoundingClientRect().bottom;
-
-    let delta = 0;
-    if (y < top + EDGE_ZONE_PX) {
-      delta = -EDGE_SPEED_PX * Math.min(1, (top + EDGE_ZONE_PX - y) / EDGE_ZONE_PX);
-    } else if (y > bottom - EDGE_ZONE_PX) {
-      delta = EDGE_SPEED_PX * Math.min(1, (y - (bottom - EDGE_ZONE_PX)) / EDGE_ZONE_PX);
-    }
-    if (delta !== 0) {
-      if (container === window) window.scrollBy(0, delta);
-      else (container as HTMLElement).scrollTop += delta;
-    }
-    frame = requestAnimationFrame(tick);
-  };
-  frame = requestAnimationFrame(tick);
-  return () => cancelAnimationFrame(frame);
-}
+// It shipped unproven. The harness run that was supposed to exercise it
+// reported `scrolled 0px`, I noted that in an audit as "implemented but not
+// observed", and shipped it anyway. It then broke mobile dragging outright:
+// scrolling the page mid-gesture moves the draggable's own container, so the
+// tile's transform — which anime computes against that container — no longer
+// agrees with where the finger is. The tile leaves the finger, and every box
+// `hoveredIndex` measures is shifting underneath it at the same time, so the
+// reorder thrashes. "The scroll glitches all over the place and the elements
+// move all around" is precisely that, and it is worse than the problem it was
+// added to solve, because the old failure was "cannot reach the far end of a
+// long screen" and the new one was "cannot drag at all".
+//
+// Doing it properly means compensating the drag transform by the scroll delta
+// every frame so the tile stays glued to the finger while the world moves
+// underneath. That is real work and it needs a fixture that can prove it — a
+// mobile-width screen taller than the viewport, asserting that the tile
+// tracks the pointer while the container scrolls. Until that exists this stays
+// out, because shipping the same unverifiable fix twice is not a fix.
+//
+// What survives is the part that was never speculative: the phone behaviours
+// that interfere with a direct manipulation (see `data-tile-dragging` in
+// globals.css). Those are suppressions of documented platform defaults, not a
+// mechanism of our own that has to be watched to be believed.
 
 export type EditableTile = {
   id: string;
@@ -268,10 +229,6 @@ export function EditableGrid({
   const draggables = useRef<Draggable[]>([]);
   const stopJiggle = useRef<(() => void) | null>(null);
   const field = useRef<ReturnType<typeof createMagneticField> | null>(null);
-  // Where the dragged tile currently is, read by the edge scroller's frame
-  // loop. A ref because it updates far faster than React should re-render.
-  const pointerY = useRef(0);
-  const stopEdgeScroll = useRef<(() => void) | null>(null);
   // The order being dragged into, which the pointer updates far more often than
   // React should re-render. Held in a ref and only pushed out on a real change.
   const orderRef = useRef<string[]>(layout.widgets.map((w) => w.id));
@@ -409,11 +366,6 @@ export function EditableGrid({
           // pull-to-refresh, and the rubber-band overscroll that makes a drag
           // near the top of the screen feel like the page is being torn.
           document.documentElement.dataset.tileDragging = "true";
-          stopEdgeScroll.current?.();
-          stopEdgeScroll.current = edgeScroller(
-            scrollParentOf(el),
-            () => pointerY.current,
-          );
           // The grabbed tile stops wobbling: it is no longer *offering* to be
           // moved, it is being moved.
           el.querySelector<HTMLElement>("[data-tile-inner]")?.style.setProperty(
@@ -427,7 +379,6 @@ export function EditableGrid({
             x: box.left + box.width / 2,
             y: box.top + box.height / 2,
           };
-          pointerY.current = pointer.y;
           velocityDeform(el, self.velocity, self.angle);
           field.current?.pull(pointer.x, pointer.y, el);
 
@@ -463,8 +414,6 @@ export function EditableGrid({
         onRelease: (self) => {
           delete el.dataset.dragging;
           delete document.documentElement.dataset.tileDragging;
-          stopEdgeScroll.current?.();
-          stopEdgeScroll.current = null;
           settleDeform(el);
           field.current?.release();
           // Back to the slot the grid has already made for it, rather than
@@ -501,9 +450,7 @@ export function EditableGrid({
       field.current?.revert();
       field.current = null;
       // A gesture interrupted by a route change must not strand the document
-      // with scrolling suppressed and a frame loop still running.
-      stopEdgeScroll.current?.();
-      stopEdgeScroll.current = null;
+      // with scrolling suppressed.
       delete document.documentElement.dataset.tileDragging;
     };
     // Rebuilt when the SET of tiles changes — a draggable bound to a removed
