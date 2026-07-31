@@ -9,7 +9,6 @@ import {
   Bot,
   Check,
   ChevronDown,
-  ChevronRight,
   Columns3,
   FileText,
   Folder,
@@ -37,6 +36,12 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { useCustomize } from "@/components/appearance/customize-provider";
+import {
+  Branch,
+  Disclosure,
+  TreeHighlight,
+  useTreeHover,
+} from "@/components/dashboard/sidebar-tree-motion";
 import {
   Sidebar,
   SidebarContent,
@@ -273,6 +278,10 @@ function SidebarContentBody() {
 
   return (
     <SidebarContent>
+      {/* One box for the travelling highlight to be positioned against. It
+          sits inside the scroller rather than around it, so a row's offset is
+          measured against content that scrolls with it. */}
+      <TreeHighlight className="flex min-h-0 flex-1 flex-col gap-2">
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
@@ -343,6 +352,7 @@ function SidebarContentBody() {
       ) : (
         <PersonalTreeGroup personal={tree.personal} />
       )}
+      </TreeHighlight>
     </SidebarContent>
   );
 }
@@ -753,17 +763,13 @@ function SpaceTree({
 
   return (
     <SidebarMenuItem>
-      <div className="group/space flex min-w-0 items-center gap-0.5">
-        <button
-          type="button"
-          aria-label={expanded ? "Collapse" : "Expand"}
-          onClick={() => setExpanded((v) => !v)}
-          className="flex size-5 flex-shrink-0 items-center justify-center text-muted-foreground group-data-[collapsible=icon]:hidden"
-        >
-          <ChevronRight
-            className={cn("size-3.5 transition-transform duration-200", expanded && "rotate-90")}
-          />
-        </button>
+      <TreeRow className="group/space">
+        <Disclosure
+          className="group-data-[collapsible=icon]:hidden"
+          label={visibleName}
+          onToggle={() => setExpanded((v) => !v)}
+          open={expanded}
+        />
         <SidebarMenuButton
           asChild
           isActive={active}
@@ -795,9 +801,9 @@ function SpaceTree({
             else setAdding(kind);
           }}
         />
-      </div>
+      </TreeRow>
 
-      {expanded && (
+      <Branch open={expanded}>
         <SidebarMenuSub>
           {adding && (
             <SidebarMenuSubItem className="py-1">
@@ -849,7 +855,7 @@ function SpaceTree({
             <WhiteboardSubItem key={wb._id} whiteboardId={wb._id} title={wb.title} />
           ))}
         </SidebarMenuSub>
-      )}
+      </Branch>
 
       <TemplatePicker
         open={templateOpen}
@@ -861,6 +867,31 @@ function SpaceTree({
         }}
       />
     </SidebarMenuItem>
+  );
+}
+
+/**
+ * A tree row the travelling highlight can follow.
+ *
+ * `z-10` because the highlight is drawn at `z-0` behind the whole tree — a row
+ * without it disappears under its own hover state.
+ */
+function TreeRow({
+  className,
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const hover = useTreeHover();
+  return (
+    <div
+      className={cn("relative z-10 flex min-w-0 items-center gap-0.5", className)}
+      onMouseEnter={hover.onMouseEnter}
+      ref={hover.ref}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -940,18 +971,13 @@ function ProjectTree({
 
   return (
     <SidebarMenuSubItem>
-      <div className="group/row flex min-w-0 items-center gap-0.5">
-        <button
-          type="button"
-          aria-label={expanded ? "Collapse" : "Expand"}
-          aria-expanded={expanded}
-          onClick={() => setExpanded()}
-          className="flex size-4 flex-shrink-0 items-center justify-center text-muted-foreground"
-        >
-          <ChevronRight
-            className={cn("size-3 transition-transform duration-200", expanded && "rotate-90")}
-          />
-        </button>
+      <TreeRow className="group/row">
+        <Disclosure
+          className="size-4"
+          label={project.name}
+          onToggle={() => setExpanded()}
+          open={expanded}
+        />
         {renaming ? (
           <InlineCreate
             placeholder="Project name…"
@@ -1016,8 +1042,8 @@ function ProjectTree({
             </DropdownMenuItem>
           </RowMenu>
         )}
-      </div>
-      {expanded && (
+      </TreeRow>
+      <Branch open={expanded}>
         <SidebarMenuSub>
           {addingList && (
             <SidebarMenuSubItem className="py-1">
@@ -1066,7 +1092,7 @@ function ProjectTree({
             </SidebarMenuSubItem>
           )}
         </SidebarMenuSub>
-      )}
+      </Branch>
     </SidebarMenuSubItem>
   );
 }
@@ -1157,7 +1183,7 @@ function ListSubItem({
 
   return (
     <SidebarMenuSubItem>
-      <div className="group/row flex min-w-0 items-center gap-0.5">
+      <TreeRow className="group/row">
         <SidebarMenuSubButton asChild isActive={active} className="min-w-0 flex-1">
           <Link href={`/dashboard/l/${listId}`} aria-current={active ? "page" : undefined}>
             <ListIcon aria-hidden />
@@ -1190,7 +1216,7 @@ function ListSubItem({
             Delete list
           </DropdownMenuItem>
         </RowMenu>
-      </div>
+      </TreeRow>
     </SidebarMenuSubItem>
   );
 }

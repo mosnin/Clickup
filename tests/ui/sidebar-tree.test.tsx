@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   DashboardShell,
   navState,
@@ -110,6 +110,44 @@ describe("DashboardSidebar", () => {
     expect(screen.getByText("Pages").closest("a")?.getAttribute("href")).toBe(
       "/dashboard/pages",
     );
+  });
+
+  it("collapses and reopens a branch from its disclosure", async () => {
+    // The branch is an animated container now rather than a bare `&&`, which
+    // is exactly the kind of change that renders fine and stops toggling.
+    // Awaited because closing is an exit animation — the row is still in the
+    // DOM for a frame, so a synchronous assertion here passes either way.
+    seed();
+    render(<DashboardSidebar />, { wrapper: DashboardShell });
+
+    expect(screen.getByText("Backlog")).toBeDefined();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Collapse Billing migration/ }),
+    );
+    await waitFor(() => expect(screen.queryByText("Backlog")).toBeNull());
+
+    // Reopened, both because it is half the behaviour and because a project's
+    // collapsed state is a cookie shared by every row in the process — a test
+    // that closes one and walks away decides the next test's starting state.
+    fireEvent.click(
+      screen.getByRole("button", { name: /Expand Billing migration/ }),
+    );
+    await waitFor(() => expect(screen.getByText("Backlog")).toBeDefined());
+  });
+
+  it("names each disclosure after the branch it opens", () => {
+    // Several unlabelled "Expand" buttons in a tree are several identical
+    // stops for anyone navigating by name. Direction-agnostic so this does
+    // not depend on what the previous test left in the cookie.
+    seed();
+    render(<DashboardSidebar />, { wrapper: DashboardShell });
+    const labels = screen
+      .getAllByRole("button")
+      .map((b) => b.getAttribute("aria-label") ?? "");
+    expect(labels.some((l) => /^(Collapse|Expand) HQ$/.test(l))).toBe(true);
+    expect(
+      labels.some((l) => /^(Collapse|Expand) Billing migration$/.test(l)),
+    ).toBe(true);
   });
 
   it("survives a tree that hasn't loaded yet", () => {

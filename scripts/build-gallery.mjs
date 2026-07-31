@@ -46,16 +46,36 @@ await build({
     alias: {
       "@": join(ROOT, "src"),
       "@convex": join(ROOT, "convex"),
+      // The gallery renders real dashboard surfaces, and a real surface talks
+      // to Convex, Clerk and the router. Stubbing those three at the module
+      // boundary is what lets the harness show the actual component rather
+      // than a hand-built lookalike — a lookalike is a picture of a design,
+      // and it drifts the moment the real one changes.
+      "convex/react": join(ROOT, "tests/ui/design/stubs/convex-react.tsx"),
+      "@clerk/nextjs": join(ROOT, "tests/ui/design/stubs/clerk.tsx"),
+      "next/navigation": join(ROOT, "tests/ui/design/stubs/next-navigation.ts"),
+      "next/link": join(ROOT, "tests/ui/design/stubs/next-link.tsx"),
     },
   },
-  build: { outDir: OUT, emptyOutDir: true },
+  build: {
+    outDir: OUT,
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        index: join(SRC, "index.html"),
+        sidebar: join(SRC, "sidebar.html"),
+      },
+    },
+  },
   logLevel: "warn",
 });
 
-const html = join(OUT, "index.html");
-writeFileSync(
-  html,
-  readFileSync(html, "utf8").replace("<!--APP_CSS-->", `<style>${css}</style>`),
-);
+for (const page of ["index.html", "sidebar.html"]) {
+  const html = join(OUT, page);
+  writeFileSync(
+    html,
+    readFileSync(html, "utf8").replace("<!--APP_CSS-->", `<style>${css}</style>`),
+  );
+}
 
-console.log(`gallery built → ${html}`);
+console.log(`gallery built → ${join(OUT, "index.html")}`);

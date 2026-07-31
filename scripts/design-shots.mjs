@@ -55,19 +55,41 @@ const page = await browser.newPage({
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
 
-await page.goto("http://127.0.0.1:4599/");
-// Long enough for the entrance animations to land — a chart caught mid-reveal
-// looks broken in a still, which is a false alarm every single time.
-await page.waitForTimeout(2500);
-await page.screenshot({ path: join(OUT, "charts-light.png"), fullPage: true });
-console.log("shot charts-light.png");
+for (const [url, name] of [
+  ["http://127.0.0.1:4599/", "charts"],
+  ["http://127.0.0.1:4599/sidebar.html", "sidebar"],
+]) {
+  await page.goto(url);
+  // Long enough for the entrance animations to land — anything caught
+  // mid-reveal looks broken in a still, which is a false alarm every time.
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: join(OUT, `${name}-light.png`), fullPage: true });
+  console.log(`shot ${name}-light.png`);
 
-await page.evaluate(() => {
-  document.documentElement.setAttribute("data-theme", "dark");
-});
-await page.waitForTimeout(600);
-await page.screenshot({ path: join(OUT, "charts-dark.png"), fullPage: true });
-console.log("shot charts-dark.png");
+  await page.evaluate(() => {
+    document.documentElement.setAttribute("data-theme", "dark");
+  });
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: join(OUT, `${name}-dark.png`), fullPage: true });
+  console.log(`shot ${name}-dark.png`);
+
+  await page.evaluate(() => {
+    document.documentElement.removeAttribute("data-theme");
+  });
+
+  // The sidebar's highlight is one element that moves, positioned against a
+  // scroll container. Whether it lands on the row under the cursor is not
+  // something a static render can answer, so hover one and shoot it.
+  if (name === "sidebar") {
+    await page.getByText("In review").hover();
+    await page.waitForTimeout(500);
+    await page.screenshot({
+      path: join(OUT, "sidebar-hover.png"),
+      clip: { x: 0, y: 600, width: 400, height: 500 },
+    });
+    console.log("shot sidebar-hover.png");
+  }
+}
 
 await browser.close();
 server.close();
