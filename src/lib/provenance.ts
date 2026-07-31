@@ -1,4 +1,4 @@
-import { describeQuery, type DataQuery } from "@/lib/data-stream";
+import { describeQuery } from "@/lib/data-stream";
 import { describePanel, type PanelDef } from "@/lib/panel";
 
 // Why is this number what it is?
@@ -223,17 +223,4 @@ function words(text: string): string[] {
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter((w) => w.length > 2 && !STOP.has(w));
-}
-
-/** The whole chain as one sentence, for a tooltip or an agent's read. */
-export function describeProvenance(steps: ProvenanceStep[]): string {
-  return steps
-    .filter((s) => s.kind !== "records" || s.key === "records" || s.key === "truncated")
-    .map((s) => s.text)
-    .join(" ");
-}
-
-/** Does this panel's question even have records to point at? */
-export function hasRecords(query: DataQuery): boolean {
-  return query.from !== "activity";
 }

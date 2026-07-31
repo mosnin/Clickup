@@ -75,7 +75,9 @@ export type PlanNode = {
    *
    * "We thought X, then learned better" is the most useful thing a plan holds
    * and deleting destroys it. A retracted node is out of every derivation and
-   * still readable in the history of its question.
+   * still readable in the history of its question — see `QuestionView.retracted`,
+   * which the canvas renders behind a "n taken back" disclosure. A claim that
+   * something survives is worth nothing without somewhere to read it.
    */
   retractedAt: number | null;
 };
@@ -186,6 +188,15 @@ export type QuestionView = {
   state: QuestionState;
   /** Newest node anywhere under this question — how fresh the thinking is. */
   lastActivityAt: number;
+  /**
+   * What was taken back, newest first.
+   *
+   * Out of every derivation and still here, because "we thought X, then
+   * learned better" is the most useful thing a plan holds — and a claim that
+   * it survives is worth nothing if there is nowhere to read it. This is
+   * where the surface honours the storage decision.
+   */
+  retracted: PlanNode[];
 };
 
 export type PlanView = {
@@ -221,6 +232,18 @@ export function planView(input: unknown): PlanView {
     const bucket = byParent.get(node.parentId);
     if (bucket) bucket.push(node);
     else byParent.set(node.parentId, [node]);
+  }
+
+  // Retracted nodes are excluded from every derivation and kept for reading.
+  const retractedByParent = new Map<string, PlanNode[]>();
+  for (const node of nodes) {
+    if (node.retractedAt === null || !node.id) continue;
+    // A retracted option's evidence belongs with the option, not with the
+    // question — otherwise the history reads as a pile.
+    const key = node.parentId ?? "";
+    const bucket = retractedByParent.get(key);
+    if (bucket) bucket.push(node);
+    else retractedByParent.set(key, [node]);
   }
 
   const questions: QuestionView[] = [];
@@ -264,6 +287,9 @@ export function planView(input: unknown): PlanView {
       decision,
       state: questionState(options, decision),
       lastActivityAt,
+      retracted: (retractedByParent.get(q.id) ?? []).sort(
+        (a, b) => (b.retractedAt ?? 0) - (a.retractedAt ?? 0),
+      ),
     });
   }
 

@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  describeProvenance,
-  hasRecords,
-  provenanceOf,
-  relevantDecisions,
-} from "../src/lib/provenance";
+import { provenanceOf, relevantDecisions } from "../src/lib/provenance";
 import { normalizePanel } from "../src/lib/panel";
 
 // Why is this number what it is?
@@ -184,31 +179,5 @@ describe("which decisions bear on a panel", () => {
     expect(() =>
       relevantDecisions(normalizePanel({}), decisions),
     ).not.toThrow();
-  });
-});
-
-describe("the whole chain as one sentence", () => {
-  it("keeps the shape without listing every record", () => {
-    const steps = provenanceOf({
-      def: PANEL,
-      total: 9,
-      truncated: false,
-      rows: [{ id: "t1", title: "Ship the thing", href: null }],
-      authoredByName: "Ada",
-    });
-    const text = describeProvenance(steps);
-    expect(text).toContain("Asked for");
-    expect(text).toContain("9 records matched");
-    expect(text).toContain("Ada");
-    expect(text).not.toContain("Ship the thing");
-  });
-});
-
-describe("sources that have no records to point at", () => {
-  it("knows activity is already the record", () => {
-    expect(hasRecords(PANEL.query)).toBe(true);
-    expect(hasRecords(normalizePanel({ query: { from: "activity" } }).query)).toBe(
-      false,
-    );
   });
 });

@@ -279,6 +279,11 @@ function OpenQuestion({ question }: { question: QuestionView }) {
         </div>
       )}
 
+      {/* What was taken back. The storage decision — retract, never delete —
+          is only worth anything if there is somewhere to read it, and this
+          is that somewhere. */}
+      {question.retracted.length > 0 && <Retracted question={question} />}
+
       <div className="mt-3">
         {adding ? (
           <InlineCreate
@@ -342,6 +347,50 @@ function OpenQuestion({ question }: { question: QuestionView }) {
         )}
       </AnimatePresence>
     </article>
+  );
+}
+
+function Retracted({ question }: { question: QuestionView }) {
+  const unretract = useMutation(api.plans.unretract);
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+      >
+        {question.retracted.length} taken back
+      </button>
+      {open && (
+        <ul className="mt-1.5 space-y-1">
+          {question.retracted.map((node) => (
+            <li key={node.id} className="flex items-baseline gap-2">
+              <span className="min-w-0 flex-1 text-[11px] leading-relaxed text-muted-foreground line-through">
+                {node.body}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  void unretract({ nodeId: node.id as Id<"planNodes"> }).catch(
+                    (e) =>
+                      toast(errorMessage(e, "Couldn't put that back"), {
+                        kind: "error",
+                      }),
+                  )
+                }
+                className="flex-shrink-0 text-[10px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+              >
+                put it back
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

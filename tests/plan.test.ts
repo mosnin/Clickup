@@ -217,6 +217,36 @@ describe("retraction keeps the history and leaves the derivation", () => {
     expect(planView([...nodes, decision]).questions[0].state).toBe("ready");
   });
 
+  it("keeps what was taken back where somebody can read it", () => {
+    // The storage decision is only worth something if the history is
+    // reachable. It was not, for a while — the model excluded retracted
+    // nodes from everything including the view, so "still readable in the
+    // history of its question" was a comment describing nothing.
+    const { q, b, nodes } = argued({ evidenceA: ["supports"] });
+    const retracted = nodes.map((n) =>
+      n.id === b.id ? { ...n, retractedAt: 10 } : n,
+    );
+    const view = planView(retracted);
+    expect(view.questions[0].retracted).toHaveLength(1);
+    expect(view.questions[0].retracted[0].id).toBe(b.id);
+    // And still out of the derivation.
+    expect(view.questions[0].options).toHaveLength(1);
+    void q;
+  });
+
+  it("files a retracted option's evidence under the option, not the question", () => {
+    const { q, a, nodes } = argued({ evidenceA: ["supports"] });
+    const gutted = nodes.map((n) =>
+      n.id === a.id || n.parentId === a.id ? { ...n, retractedAt: 10 } : n,
+    );
+    // Only the option itself hangs off the question; its evidence hangs off
+    // it, or the history reads as a pile.
+    expect(planView(gutted).questions[0].retracted.map((r) => r.id)).toEqual([
+      a.id,
+    ]);
+    void q;
+  });
+
   it("ignores retracted evidence when deciding whether an option was argued", () => {
     const { a, nodes } = argued({ evidenceA: ["supports"], evidenceB: ["supports"] });
     const gutted = nodes.map((n) =>

@@ -290,3 +290,42 @@ describe("who said it", () => {
     expect(within(article).getByText(/Ada/)).toBeTruthy();
   });
 });
+
+describe("what was taken back is readable", () => {
+  it("is hidden by default and reachable in one click", () => {
+    // The storage decision — retract, never delete — was worth nothing while
+    // nothing rendered it. `unretract` existed on the backend and could not
+    // be reached from anywhere in the app.
+    const q = node({ kind: "question", body: "Which queue?" });
+    const gone = node({
+      kind: "option",
+      parentId: q.id,
+      body: "Kafka, actually impossible",
+      retractedAt: 50,
+    });
+    show([q, gone]);
+
+    expect(screen.queryByText("Kafka, actually impossible")).toBeNull();
+    fireEvent.click(screen.getByText("1 taken back"));
+    expect(screen.getByText("Kafka, actually impossible")).toBeTruthy();
+  });
+
+  it("puts one back", () => {
+    const q = node({ kind: "question", body: "Which queue?" });
+    const gone = node({
+      kind: "option",
+      parentId: q.id,
+      body: "Kafka",
+      retractedAt: 50,
+    });
+    show([q, gone]);
+    fireEvent.click(screen.getByText("1 taken back"));
+    fireEvent.click(screen.getByText("put it back"));
+    expect(calls("plans.unretract")).toEqual([{ nodeId: gone.id }]);
+  });
+
+  it("says nothing when nothing was taken back", () => {
+    show([node({ kind: "question", body: "Which queue?" })]);
+    expect(screen.queryByText(/taken back/)).toBeNull();
+  });
+});
