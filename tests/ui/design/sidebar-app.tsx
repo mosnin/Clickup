@@ -93,6 +93,43 @@ galleryData["notifications.unreadCount"] = 1;
 galleryData["timeEntries.runningForCurrent"] = null;
 galleryData["users.current"] = { clerkId: "u1", name: "Ada Lovelace" };
 galleryData["admin.isPlatformAdmin"] = false;
+// The studio's builder chapter: the scope resolver and one envelope, so the
+// live-panel shelves render with data instead of skeletons.
+galleryData["appearance.spaceContext"] = {
+  spaceId: "s1",
+  name: "HQ",
+  color: null,
+  theme: null,
+  componentStyle: null,
+  mayTheme: true,
+  scopeType: "workspace",
+  scopeId: "w1",
+};
+galleryData["dataStream.resolve"] = {
+  // Rows carry their fields under `meta`, exactly as the resolver emits them
+  // — the first draft of this fixture had them flat and crashed MetaLine,
+  // which is the harness working: a lookalike shape is a lookalike test.
+  rows: [
+    { id: "t1", title: "Ship the migration", href: "#", meta: { status: "In progress", assigneeName: "Ada", due: Date.UTC(2025, 5, 16), priority: "High" } },
+    { id: "t2", title: "Review the audit", href: "#", meta: { status: "Open", assigneeName: "Grace", due: Date.UTC(2025, 5, 18), priority: "Normal" } },
+    { id: "t3", title: "Fix the resize", href: "#", meta: { status: "Done", assigneeName: "Ada", priority: "High" } },
+  ],
+  series: [
+    {
+      key: "all",
+      label: "Open",
+      points: Array.from({ length: 14 }, (_, i) => ({
+        key: String(Date.UTC(2025, 5, 2) + i * 86_400_000),
+        label: "",
+        value: 4 + Math.round(6 * Math.sin(i / 2.1) + i / 2),
+      })),
+    },
+  ],
+  scalar: 23,
+  total: 23,
+  truncated: false,
+  meta: { unit: "tasks", dimensionLabel: "day", measureLabel: "Open" },
+};
 
 const TREE = [
   {

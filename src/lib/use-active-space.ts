@@ -23,6 +23,9 @@ export type ActiveSpace = {
   /** How this space draws its panels — src/lib/component-style.ts. */
   componentStyle: unknown;
   mayTheme: boolean;
+  /** The scope this space lives in — what authored panels belong to. */
+  scopeType: "user" | "workspace";
+  scopeId: string;
 };
 
 /**

@@ -158,7 +158,20 @@ export function ExpandableScreenContent({
   return (
     <AnimatePresence initial={false}>
       {isExpanded && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-3">
+          {/* Scrim: the page behind the screen must read as backdrop, never as
+              content — without it, the inset gutter shows slivers of live UI
+              (clipped letters down a phone's edge). Full-bleed below `sm`,
+              where there is no room for a gutter at all. */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: animationDuration }}
+            onClick={collapse}
+            aria-hidden
+            className="absolute inset-0 bg-foreground/30 backdrop-blur-sm"
+          />
           {/* Morphing background with shared layoutId */}
           <motion.div
             layoutId={layoutId}

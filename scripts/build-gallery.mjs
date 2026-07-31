@@ -60,6 +60,9 @@ await build({
   build: {
     outDir: OUT,
     emptyOutDir: true,
+    // Stacks in the harness must name source files, or a crash is a riddle.
+    sourcemap: true,
+    minify: false,
     rollupOptions: {
       input: {
         index: join(SRC, "index.html"),

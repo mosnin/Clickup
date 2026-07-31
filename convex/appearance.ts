@@ -246,6 +246,14 @@ export const spaceContext = query({
       componentStyle: space.componentStyle ?? null,
       /** Whether this viewer may change the look for everyone in the space. */
       mayTheme: await mayGovernSpace(ctx, space, identity.subject),
+      // The billing/visibility scope this space lives in, so a client
+      // standing in it can author scoped things (panels) without a second
+      // resolver round-trip. Derived, not stored — the same rule
+      // `calibration.measure` and the panel queries use.
+      scopeType: (space.parentType === "workspace" ? "workspace" : "user") as
+        | "user"
+        | "workspace",
+      scopeId: space.parentId,
     };
   },
 });

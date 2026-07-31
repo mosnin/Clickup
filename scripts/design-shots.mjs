@@ -123,6 +123,17 @@ for (const [url, name] of [
     await page.evaluate(() => {
       document.documentElement.removeAttribute("data-theme");
     });
+
+    // The builder chapter — both steps, because a step never opened is a
+    // step that ships broken.
+    await page.getByRole("tab", { name: "New card" }).click();
+    await page.waitForTimeout(1800);
+    await page.screenshot({ path: join(OUT, "builder-watch.png") });
+    console.log("shot builder-watch.png");
+    await page.locator('[data-item-id]').first().click();
+    await page.waitForTimeout(1800);
+    await page.screenshot({ path: join(OUT, "builder-shape.png") });
+    console.log("shot builder-shape.png");
   }
 }
 
@@ -155,6 +166,10 @@ if (mIsland) {
   await mobile.waitForTimeout(1600);
   await mobile.screenshot({ path: join(OUT, "studio-screen-mobile.png") });
   console.log("shot studio-screen-mobile.png");
+  await mobile.getByRole("tab", { name: "New card" }).click();
+  await mobile.waitForTimeout(1800);
+  await mobile.screenshot({ path: join(OUT, "builder-watch-mobile.png") });
+  console.log("shot builder-watch-mobile.png");
 }
 
 await mobile.goto("http://127.0.0.1:4599/labels.html");

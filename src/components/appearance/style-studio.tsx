@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { SPRING } from "@/components/motion";
 import {
   ExpandableScreen,
@@ -19,6 +20,14 @@ import {
   useDynamicIslandSize,
 } from "@/components/cult/dynamic-island";
 import { useCustomize } from "@/components/appearance/customize-provider";
+import {
+  builderDef,
+  shapeItems,
+  useAddCard,
+  useBuilderScope,
+  useCardBuilder,
+  watchItems,
+} from "@/components/appearance/card-builder";
 import { useComponentStyle } from "@/components/appearance/use-component-style";
 import { StyleCarousel } from "@/components/appearance/style-carousel";
 import { Chart, type ChartKind } from "@/components/charts/operate/chart";
@@ -158,7 +167,7 @@ function StudioIsland() {
   );
 }
 
-type Chapter = "colour" | "cards" | "chart";
+type Chapter = "colour" | "cards" | "chart" | "new";
 
 /** The expanded state: one question, one carousel, the app's own theme. */
 function StudioScreen() {
@@ -174,6 +183,7 @@ function StudioScreen() {
     { id: "colour", label: "Colour" },
     { id: "cards", label: "Card" },
     { id: "chart", label: "Chart" },
+    { id: "new", label: "New card" },
   ];
 
   return (
@@ -204,9 +214,11 @@ function StudioScreen() {
             ))}
           </div>
           <p className="mt-2.5 px-6 text-[13px] text-muted-foreground">
-            {selection
-              ? `Styling ${selection.label} — picks land on it instantly.`
-              : "Styling every panel. Close and click one to style it alone."}
+            {chapter === "new"
+              ? "Every card here is running on your real work."
+              : selection
+                ? `Styling ${selection.label} — picks land on it instantly.`
+                : "Styling every panel. Close and click one to style it alone."}
           </p>
         </Rise>
 
@@ -284,6 +296,10 @@ function StudioScreen() {
                 }}
                 title="Card"
               />
+            )}
+
+            {chapter === "new" && (
+              <BuilderChapter centred={centred} onCentred={setCentred} />
             )}
 
             {chapter === "chart" &&
@@ -541,6 +557,78 @@ function CollapseButton() {
     >
       <X className="h-4 w-4" />
     </button>
+  );
+}
+
+/**
+ * The new-card flow: two questions, then one button.
+ *
+ * Step one's shelf is finished starting points; step two is the chosen
+ * question drawn every legal way. Every card on both shelves is the real
+ * `<Panel>` on real data — see card-builder.tsx for why there is no naming
+ * step and no field step.
+ */
+function BuilderChapter({
+  centred,
+  onCentred,
+}: {
+  centred: string | null;
+  onCentred: (id: string) => void;
+}) {
+  const builder = useCardBuilder();
+  const scope = useBuilderScope();
+  const add = useAddCard(builder.back);
+
+  if (!scope) {
+    return (
+      <p className="mx-auto max-w-md px-6 py-8 text-[13px] text-muted-foreground">
+        Still connecting…
+      </p>
+    );
+  }
+
+  if (builder.step === "watch") {
+    return (
+      <HeroShelf
+        centred={centred}
+        items={watchItems(scope)}
+        onCentred={onCentred}
+        onPick={builder.pickPreset}
+        title="What should it watch?"
+      />
+    );
+  }
+
+  const chosen = centred;
+  const def = builderDef(
+    builder.presetId,
+    (chosen as never) ?? null,
+  );
+
+  return (
+    <div>
+      <HeroShelf
+        centred={centred}
+        items={shapeItems(builder.presetId!, scope)}
+        onCentred={onCentred}
+        onPick={(shape) => {
+          const next = builderDef(builder.presetId, shape as never);
+          if (next) add.add(next, scope);
+        }}
+        title="How should it be drawn?"
+      />
+      <div className="mt-3 flex items-center justify-center gap-4">
+        <ScreenLink onClick={builder.back}>← Watch something else</ScreenLink>
+        {def && (
+          <Button
+            onClick={() => add.add(def, scope)}
+            size="sm"
+          >
+            Add &ldquo;{def.title}&rdquo;
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 
