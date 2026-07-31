@@ -191,6 +191,10 @@ export function EditableGrid({
     /** False until the drag crosses a row threshold — a width drag must not
         preview a height it is never going to commit. */
     heightTouched: boolean;
+    /** The unrounded size under the pointer, drawn for the duration of the
+        gesture so the tile tracks the finger instead of jumping a cell at a
+        time. Absent on release, which is what makes the snap happen. */
+    exact?: { width: number; height: number };
   } | null>(null);
   const draggables = useRef<Draggable[]>([]);
   const stopJiggle = useRef<(() => void) | null>(null);
@@ -198,17 +202,86 @@ export function EditableGrid({
   // The order being dragged into, which the pointer updates far more often than
   // React should re-render. Held in a ref and only pushed out on a real change.
   const orderRef = useRef<string[]>(layout.widgets.map((w) => w.id));
-  orderRef.current = layout.widgets.map((w) => w.id);
+  /**
+   * The order a drag has reached, before it is saved. Local only — the same
+   * contract the resize preview above has, and for the same reason.
+   *
+   * It used to be no contract at all: `onDrag` called the real `commit` on
+   * every slot crossing, which is a server write per crossing while the finger
+   * is still down. That produced all three of the reported symptoms at once —
+   * racing writes resolving out of order so the grid snapped to a stale
+   * arrangement after the drop, a FLIP transition measuring against a layout
+   * the async write had not applied yet, and worst, the draggable-building
+   * effect (which listed `layout.widgets`) tearing down and recreating the
+   * anime draggable *under the finger* several times a second, which is where
+   * the overlapping and glitching came from.
+   *
+   * The resize path twenty lines below already fixed exactly this and wrote
+   * down the rule: one gesture is one intention, so it is one write.
+   */
+  const [dragOrder, setDragOrder] = useState<string[] | null>(null);
+  // Synced from the layout only while nothing is being dragged. Doing it on
+  // every render is how a drop got overwritten by the pre-drop order arriving
+  // one subscription tick later.
+  if (dragOrder === null) orderRef.current = layout.widgets.map((w) => w.id);
 
   const tileById = useMemo(
     () => new Map(tiles.map((t) => [t.id, t])),
     [tiles],
   );
 
+  // The saved layout, readable from inside a live gesture without making the
+  // gesture depend on it. Same device the resize grip uses, same reason.
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
+
+  // Which tiles exist, independent of the order they are in. Sorted, so a
+  // reorder produces the same key and cannot retrigger the drag effect.
+  const tileKey = useMemo(
+    () =>
+      layout.widgets
+        .map((w) => w.id)
+        .slice()
+        .sort()
+        .join("|"),
+    [layout.widgets],
+  );
+
   const commit = useCallback(
     (next: ScreenLayout, opts?: { droppedAt?: number }) => onChange(next, opts),
     [onChange],
   );
+
+  // What the grid actually draws: the dragged-into order while a gesture is
+  // live, the saved order otherwise.
+  const savedWidgets = layout.widgets;
+  const rendered = useMemo(() => {
+    if (!dragOrder) return savedWidgets;
+    const byId = new Map(savedWidgets.map((w) => [w.id, w]));
+    const out = dragOrder
+      .map((id) => byId.get(id))
+      .filter((w): w is ScreenLayout["widgets"][number] => w !== undefined);
+    // Anything the drag order has not heard of yet (a panel that arrived from
+    // another tab mid-gesture) still gets drawn — dropping it would make a
+    // teammate's panel vanish for as long as you hold the mouse down.
+    for (const w of savedWidgets) {
+      if (!dragOrder.includes(w.id)) out.push(w);
+    }
+    return out;
+  }, [dragOrder, savedWidgets]);
+
+  // Let go of the preview only once the saved layout agrees with it. Clearing
+  // on release instead means the grid renders the *pre-drop* order for the one
+  // round trip it takes the write to land — the tile visibly springs back to
+  // where it came from and then jumps forward again, which is the "saves out
+  // of place then glitches in" that got reported.
+  const dragOrderKey = dragOrder?.join("|") ?? null;
+  const savedOrderKey = layout.widgets.map((w) => w.id).join("|");
+  useEffect(() => {
+    if (dragOrderKey !== null && dragOrderKey === savedOrderKey) {
+      setDragOrder(null);
+    }
+  }, [dragOrderKey, savedOrderKey]);
 
   // ── Entering and leaving edit mode ──
   useEffect(() => {
@@ -295,21 +368,12 @@ export function EditableGrid({
           next.splice(over, 0, id);
           orderRef.current = next;
           // Reflow everything except the tile under the finger — that one is
-          // already where the pointer says it is.
-          morphLayout(
-            grid,
-            () =>
-              commit({
-                widgets: next.map((wid) => ({
-                  id: wid,
-                  span:
-                    layout.widgets.find((w) => w.id === wid)?.span ??
-                    tileById.get(wid)?.span ??
-                    1,
-                })),
-              }),
-            { children: '[data-tile]:not([data-dragging="true"])' },
-          );
+          // already where the pointer says it is. Local state, never a write:
+          // the neighbours part now, and the arrangement is saved once, when
+          // the gesture ends.
+          morphLayout(grid, () => setDragOrder(next), {
+            children: '[data-tile]:not([data-dragging="true"])',
+          });
         },
         onRelease: (self) => {
           delete el.dataset.dragging;
@@ -320,9 +384,24 @@ export function EditableGrid({
           self.animateInView?.(scaled(320));
           self.reset();
           el.style.zIndex = "";
+          // The one write. Built from the order the gesture actually reached
+          // — the closure's `layout.widgets` is the arrangement from before
+          // the drag started, and committing that was how a drop could save
+          // the old order over the new one.
+          const order = orderRef.current;
+          const saved = layoutRef.current.widgets;
           commit(
-            { widgets: layout.widgets },
-            { droppedAt: orderRef.current.indexOf(id) },
+            {
+              widgets: order.map((wid) => {
+                const was = saved.find((w) => w.id === wid);
+                return {
+                  id: wid,
+                  span: was?.span ?? tileById.get(wid)?.span ?? 1,
+                  ...(was?.rows === undefined ? {} : { rows: was.rows }),
+                };
+              }),
+            },
+            { droppedAt: order.indexOf(id) },
           );
         },
       });
@@ -334,9 +413,16 @@ export function EditableGrid({
       field.current?.revert();
       field.current = null;
     };
-    // Rebuilt when the set of tiles changes: a draggable bound to a removed
-    // element is a draggable holding a detached node.
-  }, [commit, editing, layout.widgets, tileById]);
+    // Rebuilt when the SET of tiles changes — a draggable bound to a removed
+    // element is a draggable holding a detached node — and deliberately not
+    // when their ORDER changes. `layout.widgets` was the dependency, and a
+    // reorder is a new array every time, so the effect tore down and rebuilt
+    // the draggable the user was holding, mid-gesture, on every slot crossing.
+    // The sorted key changes on add and remove and stays put through a
+    // reorder, which is exactly the distinction that keeps one gesture alive
+    // from grab to release. Everything the handlers read that can change
+    // during a drag is behind a ref, the same way `ResizeGrip` does it.
+  }, [commit, editing, tileKey, tileById]);
 
   // ── Long press to enter ──
   const press = useRef<{
@@ -496,7 +582,7 @@ export function EditableGrid({
           sized ? "@3xl:auto-rows-[10.5rem]" : "@3xl:items-start",
         )}
       >
-        {layout.widgets.map((w) => {
+        {rendered.map((w) => {
           const tile = tileById.get(w.id);
           if (!tile) return null;
           // A drag in progress shows its own size; everything else shows the
@@ -511,6 +597,12 @@ export function EditableGrid({
             !sized && (live ? live.heightTouched || w.rows !== undefined : w.rows !== undefined)
               ? rowsToHeight(rows)
               : null;
+          // While the grip is held, the tile is exactly the size of the
+          // pointer — not the nearest cell. Overriding the grid's own column
+          // and row tracks for the duration of the gesture is what makes the
+          // edge track the finger; dropping the override on release is what
+          // makes it snap, once, into the cell it will actually be saved at.
+          const exact = live?.exact ?? null;
           return (
             <div
               key={w.id}
@@ -534,7 +626,20 @@ export function EditableGrid({
                 sized && (ROW_CLASS[rows] ?? ROW_CLASS[1]),
                 editing && "touch-none select-none",
               )}
-              style={chosenHeight !== null ? { height: chosenHeight } : undefined}
+              style={
+                exact
+                  ? {
+                      // Out of the grid's tracks for the length of the
+                      // gesture, so nothing rounds the size but the release.
+                      width: exact.width,
+                      height: exact.height,
+                      maxWidth: "100%",
+                      transition: "none",
+                    }
+                  : chosenHeight !== null
+                    ? { height: chosenHeight }
+                    : undefined
+              }
               onPointerDown={(e) => {
                 if (editing) return;
                 press.current.x = e.clientX;
@@ -871,7 +976,16 @@ function ResizeGrip({
   onResize: (span: WidgetSpan, rows: WidgetRows | undefined) => void;
   /** Live size during the drag; null when the gesture ends. Never persisted. */
   onPreview: (
-    size: { span: WidgetSpan; rows: WidgetRows; heightTouched: boolean } | null,
+    size:
+      | {
+          span: WidgetSpan;
+          rows: WidgetRows;
+          heightTouched: boolean;
+          /** Where the pointer actually is, in px. Drawn during the gesture;
+              never saved — the committed size is `span`/`rows`. */
+          exact?: { width: number; height: number };
+        }
+      | null,
   ) => void;
 }) {
   const ref = useRef<HTMLButtonElement | null>(null);
@@ -961,29 +1075,47 @@ function ResizeGrip({
     const onMove = (e: PointerEvent) => {
       if (!dragging) return;
       e.preventDefault();
-      const columns = Math.round((e.clientX - startX) / column);
-      const rowDelta = Math.round((e.clientY - startY) / rowHeight);
       const { min: lo, max: hi } = boundsRef.current;
+
+      // ── The size the pointer is literally at, unrounded ──
+      //
+      // This used to round to whole columns and rows and only repaint when the
+      // rounded number changed. So the tile did not follow your finger: it sat
+      // still for most of a column's width and then jumped the whole ~300px at
+      // once — and because the tile also carries a spring transition, every
+      // jump animated on top of the jump. That is the whole of "not fluid,
+      // then snaps into place, extremely choppy". The maths was right and the
+      // feel was wrong, which is why no amount of fixing the write path
+      // touched it.
+      //
+      // Direct manipulation means the edge is under the pointer at all times,
+      // and the snap happens once, when you let go.
+      const exactSpan = startSpan + (e.clientX - startX) / column;
+      const exactRows = startRows + (e.clientY - startY) / rowHeight;
+      const width = Math.min(Math.max(exactSpan, lo), hi) * column;
+      const heightRows = Math.min(Math.max(exactRows, 1), MAX_ROWS);
+
+      // The rounded size is still tracked, because that is what will be saved
+      // and what the grid has to make room for.
       const nextSpan = Math.min(
-        Math.max(startSpan + columns, lo),
+        Math.max(Math.round(exactSpan), lo),
         hi,
       ) as WidgetSpan;
       const nextRows = Math.min(
-        Math.max(startRows + rowDelta, 1),
+        Math.max(Math.round(exactRows), 1),
         MAX_ROWS,
       ) as WidgetRows;
       if (nextRows !== startRows) heightTouched = true;
-      if (
-        lastReported &&
-        lastReported.span === nextSpan &&
-        lastReported.rows === nextRows
-      ) {
-        return;
-      }
       lastReported = { span: nextSpan, rows: nextRows };
-      // Preview locally on every threshold crossing — the tile has to move
-      // under the finger or this isn't resizing, it's submitting a size.
-      onPreviewRef.current({ ...lastReported, heightTouched });
+      onPreviewRef.current({
+        ...lastReported,
+        heightTouched,
+        // Pixels for the frame, cells for the commit.
+        exact: {
+          width,
+          height: heightRows * ROW_UNIT + (heightRows - 1) * ROW_GAP,
+        },
+      });
     };
 
     const onUp = () => {

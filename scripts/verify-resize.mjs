@@ -32,6 +32,11 @@ await page.waitForTimeout(1200);
 const tile = (id) => page.locator(`[data-tile="${id}"]`);
 const height = async (id) => (await tile(id).boundingBox()).height;
 
+const writeCount = async () =>
+  Number(await page.locator("#write-count").innerText());
+const order = async () =>
+  page.$$eval("[data-tile]", (els) => els.map((e) => e.dataset.tile));
+
 const beforeA = await height("a");
 const beforeB = await height("b");
 await page.screenshot({ path: join(OUT, "grid-before.png") });
@@ -40,13 +45,24 @@ await page.screenshot({ path: join(OUT, "grid-before.png") });
 const grip = page.getByLabel(/^Resize Today/);
 const box = await grip.boundingBox();
 await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+const writesBeforeResize = await writeCount();
 await page.mouse.down();
+// Sampled every step: a resize that follows the finger changes height on
+// almost every frame. The old one rounded to whole rows and only repainted on
+// a threshold crossing, so this list held two or three distinct values and the
+// tile jumped ~170px at a time — the reported "choppy, then snaps".
+const heights = [];
 for (let i = 1; i <= 13; i++) {
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + i * 20);
   await page.waitForTimeout(16);
+  heights.push(Math.round(await height("a")));
 }
 await page.mouse.up();
 await page.waitForTimeout(800);
+const steps = new Set(heights).size;
+const writesDuringResize = (await writeCount()) - writesBeforeResize;
+console.log(`resize: ${steps} distinct heights over 13 moves`, heights.join(","));
+console.log(`resize writes: ${writesDuringResize}`);
 
 const afterA = await height("a");
 const afterB = await height("b");
@@ -56,6 +72,34 @@ await page.screenshot({ path: join(OUT, "grid-after.png") });
 console.log(`tile a: ${Math.round(beforeA)} -> ${Math.round(afterA)}px`);
 console.log(`tile b (neighbour): ${Math.round(beforeB)} -> ${Math.round(afterB)}px`);
 console.log("committed:", JSON.stringify(layout.widgets.find((w) => w.id === "a")));
+
+// ── The reorder, which is the gesture that was fighting itself ──
+const beforeOrder = await order();
+const writesBeforeDrag = await writeCount();
+const from = await tile("a").boundingBox();
+const to = await tile("d").boundingBox();
+await page.mouse.move(from.x + from.width / 2, from.y + 40);
+await page.mouse.down();
+for (let i = 1; i <= 20; i++) {
+  await page.mouse.move(
+    from.x + from.width / 2 + ((to.x - from.x) * i) / 20,
+    from.y + 40 + ((to.y - from.y) * i) / 20,
+  );
+  await page.waitForTimeout(16);
+}
+await page.mouse.up();
+await page.waitForTimeout(900);
+const afterOrder = await order();
+const settledOrder = await (async () => {
+  // Look again after another beat: "saves out of place then glitches in" is a
+  // late write landing, so a single reading right after the drop cannot see it.
+  await page.waitForTimeout(700);
+  return order();
+})();
+const writesDuringDrag = (await writeCount()) - writesBeforeDrag;
+console.log(`order: ${beforeOrder.join(",")} -> ${afterOrder.join(",")}`);
+console.log(`order after settling: ${settledOrder.join(",")}`);
+console.log(`drag writes: ${writesDuringDrag}`);
 
 await browser.close();
 server.close();
@@ -73,4 +117,29 @@ if (layout.widgets.find((w) => w.id === "b").rows !== undefined) {
   console.error("FAIL: resizing one tile stamped a height onto its neighbour");
   process.exit(1);
 }
-console.log("PASS: vertical resize works under a real pointer");
+if (steps < 8) {
+  console.error(
+    `FAIL: the resize moved in ${steps} jumps over 13 pointer moves — it is ` +
+      "quantising to whole cells during the gesture instead of following the pointer",
+  );
+  process.exit(1);
+}
+if (writesDuringResize !== 1) {
+  console.error(`FAIL: one resize gesture produced ${writesDuringResize} writes`);
+  process.exit(1);
+}
+if (writesDuringDrag !== 1) {
+  console.error(
+    `FAIL: one reorder gesture produced ${writesDuringDrag} writes — mid-drag ` +
+      "writes race each other and rebuild the draggable under the finger",
+  );
+  process.exit(1);
+}
+if (afterOrder.join(",") !== settledOrder.join(",")) {
+  console.error(
+    `FAIL: the arrangement changed after the drop (${afterOrder.join(",")} -> ` +
+      `${settledOrder.join(",")}) — that is the "saves out of place then glitches in"`,
+  );
+  process.exit(1);
+}
+console.log("PASS: resize follows the pointer, and one gesture is one write");

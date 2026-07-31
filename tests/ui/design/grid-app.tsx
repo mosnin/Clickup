@@ -40,6 +40,11 @@ function Page() {
   const [layout, setLayout] = useState<ScreenLayout>({
     widgets: TILES.map((t) => ({ id: t.id, span: t.span })),
   });
+  // How many times the grid asked to SAVE. The reorder used to write on every
+  // slot crossing, and those racing writes are what made a drop land in the
+  // wrong place and then jump. "One gesture is one intention, so it is one
+  // write" is only a rule if something counts.
+  const [writes, setWrites] = useState(0);
 
   return (
     <ToastProvider>
@@ -55,7 +60,10 @@ function Page() {
               editing
               gridId="demo-grid"
               layout={layout}
-              onChange={setLayout}
+              onChange={(next) => {
+                setWrites((n) => n + 1);
+                setLayout(next);
+              }}
               onEditingChange={() => {}}
               tiles={TILES}
             />
@@ -63,6 +71,9 @@ function Page() {
           {/* The committed layout, readable by the harness. */}
           <pre id="layout-json" style={{ fontSize: 11, opacity: 0.6 }}>
             {JSON.stringify(layout)}
+          </pre>
+          <pre id="write-count" style={{ fontSize: 11, opacity: 0.6 }}>
+            {writes}
           </pre>
         </CustomizeProvider>
       </AppearanceProvider>
