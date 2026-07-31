@@ -211,10 +211,84 @@ describe("resizing", () => {
 
     window.dispatchEvent(pointerEvent("pointerup", { clientX: 620, clientY: 0 }));
     expect(onChange).toHaveBeenCalledTimes(1);
-    // Height comes back too: a resize sets a size, not a width.
+    // No `rows`. A purely horizontal drag must not claim a height — writing
+    // rows: 1 here is what used to flip every natural-height panel on the
+    // screen into a fixed 10.5rem box the first time anyone widened one card.
     expect(onChange.mock.calls[0][0]).toEqual({
-      widgets: [{ id: "a", span: 3, rows: 1 }],
+      widgets: [{ id: "a", span: 3 }],
     });
+  });
+
+  it("writes a height when the drag actually moves vertically", () => {
+    const onChange = vi.fn();
+    render(
+      <EditableGrid
+        gridId="g"
+        tiles={TILES}
+        layout={LAYOUT}
+        onChange={onChange}
+        editing
+        onEditingChange={() => {}}
+      />,
+    );
+    stubGridWidth(1200);
+
+    const grip = screen.getByLabelText(/Resize Progress/i);
+    grip.dispatchEvent(pointerEvent("pointerdown", { clientX: 0, clientY: 0 }));
+    // Down two row units (unit + gap = 192px each on a natural screen).
+    window.dispatchEvent(
+      pointerEvent("pointermove", { clientX: 0, clientY: 400 }),
+    );
+    window.dispatchEvent(pointerEvent("pointerup", { clientX: 0, clientY: 400 }));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const widget = (
+      onChange.mock.calls[0][0] as { widgets: { id: string; rows?: number }[] }
+    ).widgets[0];
+    expect(widget.rows, "the chosen height is stored").toBeGreaterThan(1);
+  });
+
+  it("gives the dragged panel an explicit height on a natural screen", () => {
+    // The feedback half of the same bug: with the row classes gated on a
+    // "sized" screen, a vertical drag on Home changed nothing under the
+    // finger — the preview had nowhere to land. Natural fixtures on purpose:
+    // no tile declares rows, exactly like Home.
+    const natural = [
+      { id: "a", span: 1 as const, title: "Progress", minSpan: 1 as const, maxSpan: 3 as const, content: <div>body</div> },
+      { id: "b", span: 1 as const, title: "Notes", minSpan: 1 as const, maxSpan: 3 as const, content: <div>notes</div> },
+    ];
+    const onChange = vi.fn();
+    const { container } = render(
+      <EditableGrid
+        gridId="g"
+        tiles={natural}
+        layout={{ widgets: [{ id: "a", span: 1 as const }, { id: "b", span: 1 as const }] }}
+        onChange={onChange}
+        editing
+        onEditingChange={() => {}}
+      />,
+    );
+    stubGridWidth(1200);
+
+    const grip = screen.getByLabelText(/^Resize Progress/);
+    grip.dispatchEvent(pointerEvent("pointerdown", { clientX: 0, clientY: 0 }));
+    // Raw dispatch bypasses React's event system, so the preview state lands
+    // on the next flush — act() is what makes the DOM assertable after it.
+    act(() => {
+      window.dispatchEvent(
+        pointerEvent("pointermove", { clientX: 0, clientY: 400 }),
+      );
+    });
+    const tile = container.querySelector('[data-tile="a"]') as HTMLElement;
+    expect(
+      tile.style.height,
+      "the tile is its dragged height while the pointer is down",
+    ).not.toBe("");
+    // And its neighbours keep their natural height — one panel's resize is
+    // not a mode switch for the screen.
+    const other = container.querySelector('[data-tile="b"]') as HTMLElement;
+    if (other) expect(other.style.height).toBe("");
+    window.dispatchEvent(pointerEvent("pointerup", { clientX: 0, clientY: 400 }));
   });
 
   it("shows the width under the finger before it is saved", () => {

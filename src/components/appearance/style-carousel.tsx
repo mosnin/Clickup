@@ -93,12 +93,15 @@ export function StyleCarousel({
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
+    // Snapshot the map for cleanup: the ref's `.current` can point at a fresh
+    // map by the time this effect tears down.
+    const anims = animatables.current;
 
-    animatables.current.clear();
+    anims.clear();
     for (const child of Array.from(track.children)) {
       const id = (child as HTMLElement).dataset.itemId;
       if (!id) continue;
-      animatables.current.set(
+      anims.set(
         id,
         createAnimatable(child as HTMLElement, {
           scale: scaled(320),
@@ -115,8 +118,8 @@ export function StyleCarousel({
     return () => {
       track.removeEventListener("scroll", drive);
       window.removeEventListener("resize", onResize);
-      for (const anim of animatables.current.values()) anim.revert();
-      animatables.current.clear();
+      for (const anim of anims.values()) anim.revert();
+      anims.clear();
     };
   }, [drive, items]);
 

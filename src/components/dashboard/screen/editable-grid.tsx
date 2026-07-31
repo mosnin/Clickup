@@ -120,8 +120,19 @@ function columnsFor(gridWidth: number): number {
 }
 /** Tallest a panel can be made. Past three rows it is a page, not a panel. */
 const MAX_ROWS = 3;
+/** One grid row (10.5rem) and the gap (1.5rem), in px at the root font size. */
+const ROW_UNIT = 10.5 * 16;
+const ROW_GAP = 1.5 * 16;
 /** Matches the grid's `auto-rows`, for the first frame before measuring. */
-const ROW_HEIGHT_FALLBACK = 168;
+const ROW_HEIGHT_FALLBACK = ROW_UNIT;
+
+/**
+ * The height `rows` buys on a natural screen, where there is no `auto-rows`
+ * track to span: N rows plus the gaps a real span would cross.
+ */
+function rowsToHeight(rows: WidgetRows): number {
+  return rows * ROW_UNIT + (rows - 1) * ROW_GAP;
+}
 
 const ROW_CLASS: Record<number, string> = {
   1: "@3xl:row-span-1",
@@ -177,6 +188,9 @@ export function EditableGrid({
     id: string;
     span: WidgetSpan;
     rows: WidgetRows;
+    /** False until the drag crosses a row threshold — a width drag must not
+        preview a height it is never going to commit. */
+    heightTouched: boolean;
   } | null>(null);
   const draggables = useRef<Draggable[]>([]);
   const stopJiggle = useRef<(() => void) | null>(null);
@@ -359,22 +373,37 @@ export function EditableGrid({
     );
   }
 
-  /** Set a size directly — what a drag reports, unlike the +/- delta. */
-  function setSize(id: string, span: WidgetSpan, rows: WidgetRows) {
+  /**
+   * Set a size directly — what a drag reports, unlike the +/- delta.
+   *
+   * `rows` is undefined when the gesture never moved vertically. That absence
+   * is load-bearing: writing `rows: 1` on a horizontal drag is what used to
+   * flip a natural screen into fixed-height mode, and "you widened one card
+   * so every card changed shape" is the bug, not a quirk.
+   */
+  function setSize(id: string, span: WidgetSpan, rows: WidgetRows | undefined) {
     const tile = tileById.get(id);
     if (!tile) return;
     const clampedSpan = Math.min(
       Math.max(span, tile.minSpan),
       tile.maxSpan,
     ) as WidgetSpan;
-    const clampedRows = Math.min(Math.max(rows, 1), MAX_ROWS) as WidgetRows;
     const current = layout.widgets.find((w) => w.id === id);
-    const currentRows = current?.rows ?? tile.rows ?? 1;
-    if (current?.span === clampedSpan && currentRows === clampedRows) return;
+    const clampedRows =
+      rows === undefined
+        ? current?.rows
+        : (Math.min(Math.max(rows, 1), MAX_ROWS) as WidgetRows);
+    if (current?.span === clampedSpan && current?.rows === clampedRows) return;
     morphLayout(gridRef.current ?? `#${gridId}`, () =>
       commit({
         widgets: layout.widgets.map((w) =>
-          w.id === id ? { ...w, span: clampedSpan, rows: clampedRows } : w,
+          w.id === id
+            ? {
+                ...w,
+                span: clampedSpan,
+                ...(clampedRows === undefined ? {} : { rows: clampedRows }),
+              }
+            : w,
         ),
       }),
     );
@@ -406,13 +435,25 @@ export function EditableGrid({
     else drop();
   }
 
-  // Sized when *anything* has a height — declared by the panel's author, or
-  // set by the reader. Looking only at the tile definitions meant a screen
-  // whose panels ship at natural height could never be given fixed rows, so
-  // dragging a tile taller did nothing at all: the grid had no rows to span.
-  const sized =
-    tiles.some((t) => t.rows !== undefined) ||
-    layout.widgets.some((w) => w.rows !== undefined);
+  // Two kinds of screen, and the difference is who decided the heights.
+  //
+  // A *composed* screen (any tile DECLARES rows — the project screen) puts
+  // every panel on a fixed row track, and resizing spans rows on that track.
+  //
+  // A *natural* screen (Home) lets every panel be its content's height — and
+  // this is where vertical resize used to be broken twice over. Dragging gave
+  // no feedback, because the row-span classes were gated on `sized` and the
+  // preview could not make a screen sized. Worse, releasing stamped `rows`
+  // onto the layout even for a purely horizontal drag, at which point `sized`
+  // flipped and EVERY panel on the page snapped to a fixed 10.5rem row —
+  // short ones stretched over holes, tall ones crushed into scrollboxes. One
+  // width-drag reshaped a whole screen nobody asked to reshape.
+  //
+  // So: `sized` is now the author's call alone, and on a natural screen a
+  // panel the reader resizes gets an *explicit height* of its own (see
+  // `rowsToHeight`) while its neighbours keep their natural height. Height
+  // becomes a per-panel fact, the way width always was.
+  const sized = tiles.some((t) => t.rows !== undefined);
 
   return (
     <div className="space-y-4">
@@ -463,6 +504,13 @@ export function EditableGrid({
           const live = preview && preview.id === w.id ? preview : null;
           const span = live ? live.span : w.span;
           const rows = live ? live.rows : (w.rows ?? tile.rows ?? 1);
+          // Natural screen + a height someone chose (saved, or under the
+          // finger right now) = this one panel is that tall. Live during the
+          // preview, which is what makes the drag visible.
+          const chosenHeight =
+            !sized && (live ? live.heightTouched || w.rows !== undefined : w.rows !== undefined)
+              ? rowsToHeight(rows)
+              : null;
           return (
             <div
               key={w.id}
@@ -486,6 +534,7 @@ export function EditableGrid({
                 sized && (ROW_CLASS[rows] ?? ROW_CLASS[1]),
                 editing && "touch-none select-none",
               )}
+              style={chosenHeight !== null ? { height: chosenHeight } : undefined}
               onPointerDown={(e) => {
                 if (editing) return;
                 press.current.x = e.clientX;
@@ -548,7 +597,13 @@ export function EditableGrid({
                   "relative",
                   // Fill the fixed cell; content that outgrows a real size
                   // scrolls inside it, exactly as a widget does on a phone.
-                  sized && "lg:h-full lg:overflow-y-auto lg:[&>*]:h-full",
+                  // `@3xl:` because the fixed rows are container-gated — the
+                  // old `lg:` variants meant a wide container in a narrow
+                  // window scrolled nothing and overflowed everything.
+                  sized && "@3xl:h-full @3xl:overflow-y-auto @3xl:[&>*]:h-full",
+                  // An explicitly-sized panel scrolls at every width — its
+                  // height is the reader's decision, not the breakpoint's.
+                  chosenHeight !== null && "h-full overflow-y-auto [&>*]:h-full",
                 )}
               >
                 {tile.content}
@@ -609,6 +664,7 @@ export function EditableGrid({
                       rows={rows}
                       min={tile.minSpan}
                       max={tile.maxSpan}
+                      natural={!sized && w.rows === undefined}
                       gridId={gridId}
                       onResize={(nextSpan, nextRows) =>
                         setSize(w.id, nextSpan, nextRows)
@@ -790,6 +846,7 @@ function ResizeGrip({
   rows,
   min,
   max,
+  natural,
   gridId,
   onResize,
   onPreview,
@@ -799,10 +856,15 @@ function ResizeGrip({
   rows: WidgetRows;
   min: WidgetSpan;
   max: WidgetSpan;
+  /** True when this panel currently has no chosen height (natural screen). */
+  natural: boolean;
   gridId: string;
-  onResize: (span: WidgetSpan, rows: WidgetRows) => void;
+  /** `rows` is undefined when the gesture never moved vertically. */
+  onResize: (span: WidgetSpan, rows: WidgetRows | undefined) => void;
   /** Live size during the drag; null when the gesture ends. Never persisted. */
-  onPreview: (size: { span: WidgetSpan; rows: WidgetRows } | null) => void;
+  onPreview: (
+    size: { span: WidgetSpan; rows: WidgetRows; heightTouched: boolean } | null,
+  ) => void;
 }) {
   const ref = useRef<HTMLButtonElement | null>(null);
   // Everything the drag reads lives in refs. The previous version listed
@@ -817,6 +879,8 @@ function ResizeGrip({
   rowsRef.current = rows;
   const boundsRef = useRef({ min, max });
   boundsRef.current = { min, max };
+  const naturalRef = useRef(natural);
+  naturalRef.current = natural;
   const onResizeRef = useRef(onResize);
   onResizeRef.current = onResize;
   const onPreviewRef = useRef(onPreview);
@@ -832,6 +896,9 @@ function ResizeGrip({
     let column = 0;
     let rowHeight = 0;
     let dragging = false;
+    /** Whether the pointer has crossed a row threshold at least once. Until
+        it has, the gesture is a width drag and must not claim a height. */
+    let heightTouched = false;
     /** The size the drag has reached, or null when nothing has changed. */
     let lastReported: { span: WidgetSpan; rows: WidgetRows } | null = null;
 
@@ -854,6 +921,7 @@ function ResizeGrip({
       // Divide by the columns actually drawn, not by the maximum. Otherwise
       // the drag and the layout disagree at every width but the widest.
       column = gridWidth > 0 ? gridWidth / columnsFor(gridWidth) : 320;
+      heightTouched = false;
       // The row height comes from the tile being dragged rather than from the
       // grid, because the grid's height is however many rows happen to exist.
       const tileBox = el.closest("[data-tile]")?.getBoundingClientRect();
@@ -861,6 +929,18 @@ function ResizeGrip({
         tileBox && tileBox.height > 0
           ? tileBox.height / Math.max(1, startRows)
           : ROW_HEIGHT_FALLBACK;
+      // On a natural screen the tile's height is its content's, which can be
+      // far from `startRows × unit`. Starting the ladder from the rung
+      // nearest the real height keeps the first threshold a small movement
+      // away in either direction — measured against the unit the committed
+      // height will actually use, so the preview and the result agree.
+      if (naturalRef.current && tileBox && tileBox.height > 0) {
+        startRows = Math.min(
+          Math.max(Math.round(tileBox.height / (ROW_UNIT + ROW_GAP)), 1),
+          MAX_ROWS,
+        ) as WidgetRows;
+        rowHeight = ROW_UNIT + ROW_GAP;
+      }
       try {
         el.setPointerCapture(e.pointerId);
       } catch {
@@ -884,6 +964,7 @@ function ResizeGrip({
         Math.max(startRows + rowDelta, 1),
         MAX_ROWS,
       ) as WidgetRows;
+      if (nextRows !== startRows) heightTouched = true;
       if (
         lastReported &&
         lastReported.span === nextSpan &&
@@ -894,7 +975,7 @@ function ResizeGrip({
       lastReported = { span: nextSpan, rows: nextRows };
       // Preview locally on every threshold crossing — the tile has to move
       // under the finger or this isn't resizing, it's submitting a size.
-      onPreviewRef.current(lastReported);
+      onPreviewRef.current({ ...lastReported, heightTouched });
     };
 
     const onUp = () => {
@@ -914,9 +995,13 @@ function ResizeGrip({
       onPreviewRef.current(null);
       if (
         settled !== null &&
-        (settled.span !== spanRef.current || settled.rows !== rowsRef.current)
+        (settled.span !== spanRef.current ||
+          (heightTouched && settled.rows !== rowsRef.current))
       ) {
-        onResizeRef.current(settled.span, settled.rows);
+        onResizeRef.current(
+          settled.span,
+          heightTouched ? settled.rows : undefined,
+        );
       }
     };
 
