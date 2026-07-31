@@ -1,12 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { X } from "lucide-react";
 import { SPRING } from "@/components/motion";
+import {
+  ExpandableScreen,
+  ExpandableScreenContent,
+  ExpandableScreenTrigger,
+  useExpandableScreen,
+} from "@/components/cult/expandable-screen";
+import {
+  DynamicIsland,
+  DynamicIslandProvider,
+  SIZE_PRESETS,
+  useDynamicIslandSize,
+} from "@/components/cult/dynamic-island";
 import { useCustomize } from "@/components/appearance/customize-provider";
 import { useComponentStyle } from "@/components/appearance/use-component-style";
 import { PanelPreview } from "@/components/appearance/style-gallery";
@@ -23,39 +35,40 @@ import {
   paletteColors,
 } from "@/lib/component-style";
 import {
+  isChartShape,
   normalizePanel,
   panelIdFromWidgetId,
   shapeLabel,
   shapesFor,
-  isChartShape,
   type PanelDef,
   type PanelShape,
 } from "@/lib/panel";
-import { cn } from "@/lib/utils";
 
-// The studio.
+// The studio, as an island.
 //
-// A sheet that rises from the bottom of the screen and holds three shelves —
-// colours, cards, charts — each a carousel of the real component you scroll
-// through and pick from. It replaces the settings rail, and the difference is
-// the point: a rail is a form you read, a shelf is a row of finished things
-// you recognise. Nobody is asked to name a property; every choice is made by
-// looking at the thing itself.
+// Customising lives in a small floating island at the bottom of the screen.
+// Tap it and it MORPHS — one shared element, not a dialog appearing — into a
+// full screen of shelves: colours, cards, chart shapes, each a carousel of
+// the real component that rises into place with depth as the screen opens.
+// Close it and it shrinks back to the island. Open and closed at will, and
+// the island is never in the way of the work.
 //
-// **It is a sheet, not a dialog, because the screen behind it is the
-// preview.** Every pick lands on the real panels immediately — the sheet
-// covers the bottom third and your work keeps rendering above it, so the
-// feedback loop is the page you were already looking at. A centered modal
-// would hide the one thing that can tell you whether the choice was right.
+// Why two states rather than one sheet:
 //
-// **Pointing is the scope.** Click a panel first (the screen is pointable
-// while the studio is up) and the shelves style that panel; click none and
-// they style all of them. No selector restates this, so nothing can disagree
-// with it.
+// **Collapsed is for pointing.** The page is fully reachable with the island
+// up, so you click the panel you mean and the island narrates the scope
+// ("Styling: Throughput"). A control that floats over your work has to earn
+// its pixels; a one-line island does, a third-of-the-screen sheet does not.
 //
-// **The chart shelf only appears with a panel in hand**, and it rewrites that
-// panel's definition — the same write the builder makes — because "draw this
-// as rings" is a change to the panel, not to a preference.
+// **Expanded is for choosing.** Shelves want width and attention — the
+// reference for this screen is a wallet of cards, not a settings page — so
+// choosing gets the whole viewport, on the app's ink, with the carousels
+// staggering in. Every pick still lands on the real panels instantly; the
+// screen closes with one tap to see them.
+//
+// The island's size machine (the vendored cult-ui component) is what makes
+// the collapsed state feel alive: it stretches between compact and long as
+// the selection changes, on the same spring the rest of the app uses.
 
 const SPECIMEN = [
   {
@@ -82,237 +95,318 @@ const SPECIMEN = [
   },
 ];
 
-type Chapter = "colour" | "cards" | "charts";
-
 export function StyleStudio() {
-  const { active, selection, select, setActive } = useCustomize();
+  const { active } = useCustomize();
+  if (!active) return null;
+  return (
+    <DynamicIslandProvider initialSize={SIZE_PRESETS.COMPACT}>
+      <ExpandableScreen layoutId="style-studio" lockScroll={false}>
+        <StudioIsland />
+        <StudioScreen />
+      </ExpandableScreen>
+    </DynamicIslandProvider>
+  );
+}
+
+/** The collapsed state: a floating island that names the scope and opens. */
+function StudioIsland() {
+  const { selection, setActive } = useCustomize();
+  const { style } = useComponentStyle(selection?.id ?? null);
+  const { setSize } = useDynamicIslandSize();
+
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center">
+      <div className="pointer-events-auto relative">
+        <ExpandableScreenTrigger className="[&>div:first-child]:bg-foreground">
+          <DynamicIsland id="style-island">
+            <button
+              className="flex h-full w-full items-center justify-center gap-2.5 px-4 text-background"
+              onClick={() =>
+                // Stretch as it opens, so the morph starts from motion
+                // rather than from a static pill.
+                setSize(SIZE_PRESETS.COMPACT_LONG)
+              }
+              type="button"
+            >
+              <span
+                aria-hidden
+                className="flex h-2.5 w-8 overflow-hidden rounded-full"
+              >
+                {paletteColors(style.palette).map((color, i) => (
+                  <span
+                    className="flex-1"
+                    key={i}
+                    style={{ background: color }}
+                  />
+                ))}
+              </span>
+              <span className="whitespace-nowrap text-xs font-medium">
+                {selection ? `Styling: ${selection.label}` : "Style"}
+              </span>
+            </button>
+          </DynamicIsland>
+        </ExpandableScreenTrigger>
+        <button
+          aria-label="Done styling"
+          className="pointer-events-auto absolute -right-9 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-foreground/90 text-background shadow-md"
+          onClick={() => setActive(false)}
+          type="button"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The expanded state: the island, unfolded into a screen of shelves. */
+function StudioScreen() {
+  const { selection, select, setActive } = useCustomize();
   const { style, commit, reset, dirty, revert } = useComponentStyle(
     selection?.id ?? null,
   );
-  const [chapter, setChapter] = useState<Chapter>("colour");
-
-  // Pointing is the scope — see the header comment.
   const scope = selection ? ("panel" as const) : ("personal" as const);
 
-  const chapters: { id: Chapter; label: string }[] = [
-    { id: "colour", label: "Colour" },
-    { id: "cards", label: "Cards" },
-    { id: "charts", label: "Charts" },
-  ];
-
   return (
-    <AnimatePresence>
-      {active && (
-        <motion.aside
-          animate={{ y: 0, opacity: 1 }}
-          aria-label="Style studio"
-          className="fixed inset-x-0 bottom-0 z-50 mx-auto max-w-4xl px-3 pb-3"
-          exit={{ y: 48, opacity: 0 }}
-          initial={{ y: 48, opacity: 0 }}
-          transition={SPRING}
-        >
-          <div className="bento overflow-hidden rounded-3xl bg-card/95 shadow-2xl backdrop-blur-md">
-            <header className="flex items-center gap-3 px-5 pb-1 pt-4">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  {selection ? selection.label : "Every panel"}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {selection
-                    ? "Styling this panel — changes land on it as you pick."
-                    : "Click any panel above to style just that one."}
-                </p>
-              </div>
-
-              <div className="segmented" role="tablist" aria-label="Chapter">
-                {chapters.map((c) => (
-                  <button
-                    aria-selected={chapter === c.id}
-                    className={cn(
-                      "px-3 py-1 text-xs",
-                      chapter === c.id && "segmented-on",
-                    )}
-                    key={c.id}
-                    onClick={() => setChapter(c.id)}
-                    role="tab"
-                    type="button"
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-
-              {dirty && (
-                <button
-                  className="text-xs text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
-                  onClick={revert}
-                  type="button"
-                >
-                  Undo
-                </button>
-              )}
+    <ExpandableScreenContent
+      className="bg-foreground text-background"
+      showCloseButton={false}
+    >
+      <div className="mx-auto flex min-h-full max-w-5xl flex-col gap-2 px-6 py-10">
+        <Rise delay={0}>
+          <header className="flex items-baseline justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">
+                {selection ? selection.label : "Every panel"}
+              </h2>
+              <p className="mt-1 text-sm text-background/60">
+                {selection
+                  ? "Everything below lands on this panel the moment you pick it."
+                  : "These set the look of every panel. Close and click one to style it alone."}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {dirty && <ScreenLink onClick={revert}>Undo</ScreenLink>}
               {selection && (
-                <button
-                  className="text-xs text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
-                  onClick={() => select(null)}
-                  type="button"
-                >
-                  All panels
-                </button>
+                <ScreenLink onClick={() => select(null)}>All panels</ScreenLink>
               )}
-              <button
-                aria-label="Close the studio"
-                className="tap-target flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted"
-                onClick={() => setActive(false)}
-                type="button"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </header>
+              <ScreenLink onClick={() => reset(scope)}>
+                {selection ? "Match the others" : "Defaults"}
+              </ScreenLink>
+              <CollapseButton />
+            </div>
+          </header>
+        </Rise>
 
-            {/* One chapter at a time. Re-keyed so switching re-mounts the
-                shelf and its entrance reads as arriving, not repainting. */}
-            <motion.div
-              animate={{ opacity: 1, y: 0 }}
-              initial={{ opacity: 0, y: 12 }}
-              key={chapter + (selection?.id ?? "all")}
-              transition={SPRING}
-            >
-              {chapter === "colour" && (
-                <StyleCarousel
-                  itemWidth={190}
-                  items={STYLE_ENUMS.palette.map((palette) => ({
-                    id: palette,
-                    label: palette[0].toUpperCase() + palette.slice(1),
-                    render: () => (
-                      <span className="pointer-events-none block rounded-xl bg-page p-2 ring-1 ring-border">
-                        <Chart
-                          height={64}
-                          kind="column"
-                          label={palette}
-                          series={SPECIMEN}
-                          style={normalizeStyle({ ...style, palette })}
-                          unit="count"
-                        />
+        <Rise delay={0.08}>
+          <Shelf title="Colour">
+            <StyleCarousel
+              itemWidth={230}
+              items={STYLE_ENUMS.palette.map((palette) => ({
+                id: palette,
+                label: palette[0].toUpperCase() + palette.slice(1),
+                render: () => (
+                  <span className="pointer-events-none block rounded-2xl bg-background p-3 text-foreground">
+                    <Chart
+                      height={84}
+                      kind="column"
+                      label={palette}
+                      series={SPECIMEN}
+                      style={normalizeStyle({ ...style, palette })}
+                      unit="count"
+                    />
+                    <span
+                      aria-hidden
+                      className="mt-2.5 flex h-3 w-full overflow-hidden rounded-full"
+                    >
+                      {paletteColors(palette).map((color, i) => (
                         <span
-                          aria-hidden
-                          className="mt-2 flex h-2.5 w-full overflow-hidden rounded-full"
-                        >
-                          {paletteColors(palette).map((color, i) => (
-                            <span
-                              className="flex-1"
-                              key={i}
-                              style={{ background: color }}
-                            />
-                          ))}
-                        </span>
-                      </span>
-                    ),
-                  }))}
-                  label="Colour"
-                  onPick={(palette) =>
-                    commit(
-                      { palette: palette as (typeof STYLE_ENUMS.palette)[number] },
-                      scope,
-                    )
-                  }
-                  selectedId={style.palette}
-                />
-              )}
+                          className="flex-1"
+                          key={i}
+                          style={{ background: color }}
+                        />
+                      ))}
+                    </span>
+                  </span>
+                ),
+              }))}
+              label="Colour"
+              onPick={(palette) =>
+                commit(
+                  { palette: palette as (typeof STYLE_ENUMS.palette)[number] },
+                  scope,
+                )
+              }
+              selectedId={style.palette}
+              tone="dark"
+            />
+          </Shelf>
+        </Rise>
 
-              {chapter === "cards" && (
-                <StyleCarousel
-                  itemWidth={210}
-                  items={CARD_PRESETS.map((preset) => ({
-                    id: preset.id,
-                    label: preset.name,
-                    hint: preset.description,
-                    render: () => (
-                      <PanelPreview
-                        compact
+        <Rise delay={0.16}>
+          <Shelf title="Cards">
+            <StyleCarousel
+              itemWidth={250}
+              items={CARD_PRESETS.map((preset) => ({
+                id: preset.id,
+                label: preset.name,
+                hint: preset.description,
+                render: () => (
+                  <span className="pointer-events-none block rounded-2xl bg-background p-3 text-foreground">
+                    <PanelPreview
+                      compact
+                      kind="column"
+                      style={normalizeStyle({
+                        ...style,
+                        ...normalizeStylePatch(preset.patch),
+                      })}
+                      title="Throughput"
+                    />
+                  </span>
+                ),
+              }))}
+              label="Cards"
+              onPick={(id) => {
+                const preset = CARD_PRESETS.find((p) => p.id === id);
+                if (preset) commit(normalizeStylePatch(preset.patch), scope);
+              }}
+              tone="dark"
+            />
+          </Shelf>
+        </Rise>
+
+        <Rise delay={0.24}>
+          {selection ? (
+            <Shelf title="Drawn as">
+              <ShapeShelf selectionId={selection.id} style={style} />
+            </Shelf>
+          ) : (
+            <Shelf title="Charts">
+              <StyleCarousel
+                itemWidth={250}
+                items={CHART_PRESETS.map((preset) => ({
+                  id: preset.id,
+                  label: preset.name,
+                  hint: preset.description,
+                  render: () => (
+                    <span className="pointer-events-none block rounded-2xl bg-background p-3 text-foreground">
+                      <Chart
+                        height={90}
                         kind="column"
+                        label={preset.name}
+                        series={SPECIMEN}
                         style={normalizeStyle({
                           ...style,
                           ...normalizeStylePatch(preset.patch),
                         })}
-                        title="Throughput"
+                        unit="count"
                       />
-                    ),
-                  }))}
-                  label="Cards"
-                  onPick={(id) => {
-                    const preset = CARD_PRESETS.find((p) => p.id === id);
-                    if (preset) commit(normalizeStylePatch(preset.patch), scope);
-                  }}
-                />
-              )}
+                    </span>
+                  ),
+                }))}
+                label="Chart looks"
+                onPick={(id) => {
+                  const preset = CHART_PRESETS.find((p) => p.id === id);
+                  if (preset) commit(normalizeStylePatch(preset.patch), scope);
+                }}
+                tone="dark"
+              />
+            </Shelf>
+          )}
+        </Rise>
 
-              {chapter === "charts" &&
-                (selection ? (
-                  <ShapeShelf selectionId={selection.id} style={style} />
-                ) : (
-                  <StyleCarousel
-                    itemWidth={210}
-                    items={CHART_PRESETS.map((preset) => ({
-                      id: preset.id,
-                      label: preset.name,
-                      hint: preset.description,
-                      render: () => (
-                        <span className="pointer-events-none block rounded-xl bg-page p-2 ring-1 ring-border">
-                          <Chart
-                            height={72}
-                            kind="column"
-                            label={preset.name}
-                            series={SPECIMEN}
-                            style={normalizeStyle({
-                              ...style,
-                              ...normalizeStylePatch(preset.patch),
-                            })}
-                            unit="count"
-                          />
-                        </span>
-                      ),
-                    }))}
-                    label="Chart looks"
-                    onPick={(id) => {
-                      const preset = CHART_PRESETS.find((p) => p.id === id);
-                      if (preset)
-                        commit(normalizeStylePatch(preset.patch), scope);
-                    }}
-                  />
-                ))}
-            </motion.div>
+        <Rise delay={0.3}>
+          <footer className="mt-auto flex items-center justify-between pt-4">
+            <ScreenLink onClick={() => setActive(false)}>
+              Done styling
+            </ScreenLink>
+            <Link
+              className="text-xs text-background/50 underline decoration-dotted underline-offset-2 hover:text-background"
+              href="/dashboard/appearance"
+              onClick={() => setActive(false)}
+            >
+              Type, navigation and motion →
+            </Link>
+          </footer>
+        </Rise>
+      </div>
+    </ExpandableScreenContent>
+  );
+}
 
-            <footer className="flex items-center justify-between px-5 pb-3">
-              <button
-                className="text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
-                onClick={() => reset(scope)}
-                type="button"
-              >
-                {selection ? "Match the others" : "Back to the defaults"}
-              </button>
-              <Link
-                className="text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
-                href="/dashboard/appearance"
-                onClick={() => setActive(false)}
-              >
-                Type, navigation and motion →
-              </Link>
-            </footer>
-          </div>
-        </motion.aside>
-      )}
-    </AnimatePresence>
+/** The reference entrance: rise, sharpen, settle — staggered per shelf. */
+function Rise({
+  delay,
+  children,
+}: {
+  delay: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <motion.div
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      initial={{ opacity: 0, y: 28, filter: "blur(6px)" }}
+      transition={{ ...SPRING, delay: 0.15 + delay }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function Shelf({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <h3 className="px-1 text-[11px] font-medium uppercase tracking-wider text-background/50">
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+function ScreenLink({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      className="text-xs text-background/60 underline decoration-dotted underline-offset-2 hover:text-background"
+      onClick={onClick}
+      type="button"
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Collapse back to the island — the screen's one way out. */
+function CollapseButton() {
+  const { collapse } = useExpandableScreen();
+  return (
+    <button
+      aria-label="Back to the island"
+      className="flex h-9 w-9 items-center justify-center rounded-full bg-background/10 text-background transition-colors hover:bg-background/20"
+      onClick={collapse}
+      type="button"
+    >
+      <X className="h-4 w-4" />
+    </button>
   );
 }
 
 /**
- * The chart shelf for one panel: every shape its question can be drawn as,
- * each rendered live in the panel's own style, committed with one click.
- *
- * This is the builder's shape control moved to where the panel is. It writes
- * the definition — not a style — because "draw it as rings" changes what the
- * panel is.
+ * Every shape this panel's question can be drawn as, live, one click each.
+ * Writes the panel's definition — the builder's write — because "draw it as
+ * rings" changes what the panel is, not a preference about it.
  */
 function ShapeShelf({
   selectionId,
@@ -340,9 +434,9 @@ function ShapeShelf({
 
   if (!componentId || !row || !stored) {
     return (
-      <p className="px-5 py-6 text-xs leading-relaxed text-muted-foreground">
-        This panel is built in, so its shape is fixed — but the colour and card
-        shelves still change how it looks.
+      <p className="px-1 py-4 text-xs leading-relaxed text-background/50">
+        This panel is built in, so its shape is fixed — colour and cards still
+        change how it looks.
       </p>
     );
   }
@@ -351,14 +445,14 @@ function ShapeShelf({
 
   return (
     <StyleCarousel
-      itemWidth={190}
+      itemWidth={230}
       items={shapes.map((shape) => ({
         id: shape,
         label: shapeLabel(shape),
         render: () => (
-          <span className="pointer-events-none block rounded-xl bg-page p-2 ring-1 ring-border">
+          <span className="pointer-events-none block rounded-2xl bg-background p-3 text-foreground">
             <Chart
-              height={84}
+              height={96}
               kind={shape as ChartKind}
               label={shapeLabel(shape)}
               series={SPECIMEN}
@@ -370,17 +464,16 @@ function ShapeShelf({
       }))}
       label="Drawn as"
       onPick={(shape) => {
-        const next = normalizePanel({
-          ...stored,
-          shape: shape as PanelShape,
-        });
-        void update({ componentId: row.componentId, definition: next }).catch((e) =>
-          toast(errorMessage(e, "Couldn't change the chart"), {
-            kind: "error",
-          }),
+        const next = normalizePanel({ ...stored, shape: shape as PanelShape });
+        void update({ componentId: row.componentId, definition: next }).catch(
+          (e) =>
+            toast(errorMessage(e, "Couldn't change the chart"), {
+              kind: "error",
+            }),
         );
       }}
       selectedId={stored.shape}
+      tone="dark"
     />
   );
 }

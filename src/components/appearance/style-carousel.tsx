@@ -45,6 +45,7 @@ export function StyleCarousel({
   onPick,
   itemWidth = 220,
   label,
+  tone = "light",
 }: {
   items: CarouselItem[];
   selectedId?: string;
@@ -52,6 +53,8 @@ export function StyleCarousel({
   /** Fixed so the shelf has a rhythm; content scales inside it. */
   itemWidth?: number;
   label: string;
+  /** "dark" when the shelf sits on the ink screen — flips ring and text. */
+  tone?: "light" | "dark";
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const animatables = useRef<Map<string, AnimatableObject>>(new Map());
@@ -155,7 +158,11 @@ export function StyleCarousel({
               aria-selected={chosen}
               className={cn(
                 "flex shrink-0 snap-center flex-col rounded-2xl p-2 text-left transition-[box-shadow,outline-color] outline outline-2 outline-offset-2",
-                chosen ? "outline-foreground" : "outline-transparent",
+                chosen
+                  ? tone === "dark"
+                    ? "outline-background"
+                    : "outline-foreground"
+                  : "outline-transparent",
               )}
               data-item-id={item.id}
               key={item.id}
@@ -170,7 +177,14 @@ export function StyleCarousel({
                 {item.label}
               </span>
               {item.hint && (
-                <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                <span
+                  className={cn(
+                    "mt-0.5 block truncate text-[11px]",
+                    tone === "dark"
+                      ? "text-background/50"
+                      : "text-muted-foreground",
+                  )}
+                >
                   {item.hint}
                 </span>
               )}

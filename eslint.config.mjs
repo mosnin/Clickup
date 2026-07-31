@@ -15,7 +15,7 @@ const config = [
     // rewriting their generics to satisfy our own rules would be lost on the
     // next `shadcn add`. Anything WE write on top of them lives outside this
     // directory and is held to the normal bar.
-    files: ["src/components/charts/**"],
+    files: ["src/components/charts/**", "src/components/cult/**"],
     // `operate/` is ours — the dispatcher that turns a panel definition
     // into one of these, plus the SVG shapes the library has no equivalent for.
     ignores: ["src/components/charts/operate/**"],

@@ -90,21 +90,28 @@ for (const [url, name] of [
     });
     console.log("shot sidebar-hover.png");
 
-    // The studio's other two shelves, since a tab that is never opened is a
-    // tab that ships broken.
-    for (const tab of ["Cards", "Charts"]) {
-      await page.getByRole("tab", { name: tab }).click();
-      await page.waitForTimeout(900);
-      const sheet = await page
-        .getByLabel("Style studio")
-        .boundingBox()
-        .catch(() => null);
+    // The island, then the screen it morphs into. A state that is never
+    // opened is a state that ships broken.
+    const island = await page
+      .locator("#style-island")
+      .boundingBox()
+      .catch(() => null);
+    if (island) {
       await page.screenshot({
-        path: join(OUT, `studio-${tab.toLowerCase()}.png`),
-        clip: sheet ?? undefined,
+        path: join(OUT, "studio-island.png"),
+        clip: {
+          x: Math.max(island.x - 120, 0),
+          y: Math.max(island.y - 60, 0),
+          width: island.width + 280,
+          height: island.height + 120,
+        },
       });
-      console.log(`shot studio-${tab.toLowerCase()}.png`);
+      console.log("shot studio-island.png");
+      await page.locator("#style-island button").first().click();
+      await page.waitForTimeout(1600);
     }
+    await page.screenshot({ path: join(OUT, "studio-screen.png") });
+    console.log("shot studio-screen.png");
   }
 }
 
