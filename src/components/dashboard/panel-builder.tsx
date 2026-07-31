@@ -169,7 +169,7 @@ export function PanelBuilder({
               ordinary definition, so picking it and then changing one thing is
               how the vocabulary gets learned. */}
           <Chapter title="Start from">
-            <div className="flex flex-wrap gap-1.5">
+            <div role="group" aria-label="Start from" className="flex flex-wrap gap-1.5">
               {PANEL_PRESETS.map((preset) => (
                 <button
                   key={preset.id}
@@ -663,9 +663,14 @@ function Choice({
   return (
     <div>
       <Label>{label}</Label>
-      {/* Scrolls inside itself rather than panning the page — some of these
-          lists are eleven long. */}
-      <div className="segmented mt-2 w-full overflow-x-auto">
+      {/* Named as a group: "Overdue" appears in the Due filter and again as a
+          measure, so without this a screen reader announces two identical
+          buttons with no way to tell which control they belong to. */}
+      <div
+        role="group"
+        aria-label={label}
+        className="segmented mt-2 w-full overflow-x-auto"
+      >
         {options.map(([v, text]) => (
           <button
             key={v}

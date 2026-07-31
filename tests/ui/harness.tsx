@@ -12,6 +12,25 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 export type QueryMap = Record<string, unknown>;
 
 /**
+ * What a recorded toast looks like.
+ *
+ * Recorded rather than swallowed because the app's destructive actions are
+ * *deferred* — the mutation runs when the undo window closes, not when you
+ * click. A test that only checks "the mutation was called" would pass on a
+ * delete that fires immediately, which is precisely the bug the pattern
+ * exists to prevent. So a test fires `onExpire` itself and asserts what
+ * happens on each side of that line.
+ */
+export type ToastCall = {
+  message: string;
+  opts?: {
+    kind?: string;
+    action?: { label: string; onClick: () => void };
+    onExpire?: () => void;
+  };
+};
+
+/**
  * The route the component believes it is on. Several surfaces derive
  * context from the URL — the sidebar picks which workspace's tree to show
  * from it — so a test that seeds workspace data has to say it is looking at
@@ -22,12 +41,22 @@ export const navState = { pathname: "/dashboard" };
 /** Set by each test before render; keyed by the function's dotted path. */
 export const queryResults: QueryMap = {};
 export const mutationCalls: { name: string; args: unknown }[] = [];
+export const toastCalls: ToastCall[] = [];
+/** Answers for `useAction`, keyed by dotted path — same idea as queries. */
+export const actionResults: QueryMap = {};
 
 /** Reset between tests so one test's data can't leak into the next. */
 export function resetHarness() {
   for (const key of Object.keys(queryResults)) delete queryResults[key];
+  for (const key of Object.keys(actionResults)) delete actionResults[key];
   mutationCalls.length = 0;
+  toastCalls.length = 0;
   navState.pathname = "/dashboard";
+}
+
+/** Every mutation call at a path, so a test can assert the args it sent. */
+export function calls(path: string): unknown[] {
+  return mutationCalls.filter((c) => c.name === path).map((c) => c.args);
 }
 
 /**
@@ -67,7 +96,13 @@ vi.mock("convex/react", () => ({
       return undefined;
     };
   },
-  useAction: () => async () => undefined,
+  useAction: (ref: { __path?: string }) => {
+    const path = ref?.__path ?? "";
+    return async (args: unknown) => {
+      mutationCalls.push({ name: path, args });
+      return actionResults[path];
+    };
+  },
 }));
 
 vi.mock("next/navigation", () => ({
@@ -84,7 +119,11 @@ vi.mock("@clerk/nextjs", () => ({
 }));
 
 vi.mock("@/components/toast", () => ({
-  useToast: () => ({ toast: vi.fn() }),
+  useToast: () => ({
+    toast: (message: string, opts?: ToastCall["opts"]) => {
+      toastCalls.push({ message, opts });
+    },
+  }),
   ToastProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
