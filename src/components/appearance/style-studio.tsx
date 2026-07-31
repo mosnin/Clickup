@@ -20,11 +20,16 @@ import {
 } from "@/components/cult/dynamic-island";
 import { useCustomize } from "@/components/appearance/customize-provider";
 import { useComponentStyle } from "@/components/appearance/use-component-style";
-import { PanelPreview } from "@/components/appearance/style-gallery";
 import { StyleCarousel } from "@/components/appearance/style-carousel";
 import { Chart, type ChartKind } from "@/components/charts/operate/chart";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
+import {
+  frameClass,
+  fillClass,
+  cornerCss,
+  padCss,
+} from "@/components/appearance/style-gallery";
 import { cn } from "@/lib/utils";
 import {
   CARD_PRESETS,
@@ -33,6 +38,7 @@ import {
   normalizeStyle,
   normalizeStylePatch,
   paletteColors,
+  type ComponentStyle,
 } from "@/lib/component-style";
 import {
   isChartShape,
@@ -46,54 +52,51 @@ import {
 
 // The studio, as an island.
 //
-// Customising lives in a small floating island at the bottom of the screen.
-// Tap it and it MORPHS — one shared element, not a dialog appearing — into a
-// full screen of shelves: colours, cards, chart shapes, each a carousel of
-// the real component that rises into place with depth as the screen opens.
-// Close it and it shrinks back to the island. Open and closed at will, and
-// the island is never in the way of the work.
+// Collapsed: a floating island that names the scope and leaves the page
+// reachable, so clicking a panel IS the scope selector. Tap it and it morphs
+// into one screen asking one question — a single full-width carousel on the
+// centre axis, dots beneath, the choice named once. Colour, Card and Chart
+// are steps you move between, never sections stacked down a page.
 //
-// Why two states rather than one sheet:
+// Three rules this file answers for, each one a shipped failure:
 //
-// **Collapsed is for pointing.** The page is fully reachable with the island
-// up, so you click the panel you mean and the island narrates the scope
-// ("Styling: Throughput"). A control that floats over your work has to earn
-// its pixels; a one-line island does, a third-of-the-screen sheet does not.
+// **The screen wears the app's theme.** It used to force an inverted ink
+// canvas, so in dark mode the specimens rendered light — a different product
+// stapled over this one. Every surface here is `bg-page`/`bg-card` tokens
+// now; dark mode renders dark because there is nothing left to override.
 //
-// **Expanded is for choosing.** Shelves want width and attention — the
-// reference for this screen is a wallet of cards, not a settings page — so
-// choosing gets the whole viewport, on the app's ink, with the carousels
-// staggering in. Every pick still lands on the real panels instantly; the
-// screen closes with one tap to see them.
+// **The specimens are the library's own look.** Charts drawn over temporal
+// buckets so the vendored library renders its own date axis, gradient fill
+// and entrance reveal — not the same recoloured column chart eleven times.
 //
-// The island's size machine (the vendored cult-ui component) is what makes
-// the collapsed state feel alive: it stretches between compact and long as
-// the selection changes, on the same spring the rest of the app uses.
+// **Locking in is a moment.** The shelf snaps like a feed, and the card that
+// arrives at centre re-mounts its chart, so the reveal animation replays as
+// it locks — the settle is something you watch, not a scroll that stopped.
+
+/** Fourteen days of buckets, so the library draws its own date axis. */
+const DAYS = Array.from({ length: 14 }, (_, i) => ({
+  key: String(Date.UTC(2025, 5, 2) + i * 86_400_000),
+  label: "",
+}));
+
+const FLOW = [6, 9, 7, 12, 10, 14, 11, 16, 13, 18, 14, 19, 16, 21];
+const EBB = [4, 3, 5, 4, 6, 5, 7, 8, 6, 9, 7, 10, 9, 11];
 
 const SPECIMEN = [
   {
     key: "a",
     label: "Shipped",
-    points: [
-      { key: "mon", label: "Mon", value: 6 },
-      { key: "tue", label: "Tue", value: 10 },
-      { key: "wed", label: "Wed", value: 4 },
-      { key: "thu", label: "Thu", value: 12 },
-      { key: "fri", label: "Fri", value: 8 },
-    ],
+    points: DAYS.map((d, i) => ({ ...d, value: FLOW[i] })),
   },
   {
     key: "b",
     label: "Open",
-    points: [
-      { key: "mon", label: "Mon", value: 3 },
-      { key: "tue", label: "Tue", value: 5 },
-      { key: "wed", label: "Wed", value: 7 },
-      { key: "thu", label: "Thu", value: 4 },
-      { key: "fri", label: "Fri", value: 6 },
-    ],
+    points: DAYS.map((d, i) => ({ ...d, value: EBB[i] })),
   },
 ];
+
+/** The card width: most of a phone, bounded on a desktop. */
+const CARD_W = "min(76vw, 560px)";
 
 export function StyleStudio() {
   const { active } = useCustomize();
@@ -121,11 +124,7 @@ function StudioIsland() {
           <DynamicIsland id="style-island">
             <button
               className="flex h-full w-full items-center justify-center gap-2.5 px-4 text-background"
-              onClick={() =>
-                // Stretch as it opens, so the morph starts from motion
-                // rather than from a static pill.
-                setSize(SIZE_PRESETS.COMPACT_LONG)
-              }
+              onClick={() => setSize(SIZE_PRESETS.COMPACT_LONG)}
               type="button"
             >
               <span
@@ -159,41 +158,30 @@ function StudioIsland() {
   );
 }
 
-/**
- * The expanded state: one choice at a time.
- *
- * The structure is a phone's set-up flow, because that is the only mass-market
- * pattern that has ever made configuration feel finished: one question on the
- * screen, one row of full-size options on the centre axis, dots underneath,
- * and the thing you are choosing named once, large, in one place. Chapters —
- * colour, cards, chart — are steps you move between, never sections stacked
- * down a page. Everything sits on one vertical axis; symmetry is the layout
- * rule, not a styling touch.
- */
+type Chapter = "colour" | "cards" | "chart";
+
+/** The expanded state: one question, one carousel, the app's own theme. */
 function StudioScreen() {
   const { selection, select, setActive } = useCustomize();
   const { style, commit, reset, dirty, revert } = useComponentStyle(
     selection?.id ?? null,
   );
   const scope = selection ? ("panel" as const) : ("personal" as const);
-  const [chapter, setChapter] = useState<"colour" | "cards" | "chart">(
-    "colour",
-  );
+  const [chapter, setChapter] = useState<Chapter>("colour");
   const [centred, setCentred] = useState<string | null>(null);
 
-  const chapters = [
-    { id: "colour" as const, label: "Colour" },
-    { id: "cards" as const, label: "Card" },
-    { id: "chart" as const, label: "Chart" },
+  const chapters: { id: Chapter; label: string }[] = [
+    { id: "colour", label: "Colour" },
+    { id: "cards", label: "Card" },
+    { id: "chart", label: "Chart" },
   ];
 
   return (
     <ExpandableScreenContent
-      className="bg-foreground text-background"
+      className="bg-page text-foreground"
       showCloseButton={false}
     >
-      <div className="flex h-full min-h-[calc(100vh-1.5rem)] flex-col items-center px-6 py-8 text-center">
-        {/* The step you are on. Centred, because everything here is. */}
+      <div className="flex min-h-[calc(100svh-1.5rem)] flex-col items-center px-0 py-6 text-center sm:py-8">
         <Rise delay={0}>
           <div className="segmented" role="tablist" aria-label="Choosing">
             {chapters.map((c) => (
@@ -215,16 +203,14 @@ function StudioScreen() {
               </button>
             ))}
           </div>
-          <p className="mt-3 text-sm text-background/60">
+          <p className="mt-2.5 px-6 text-[13px] text-muted-foreground">
             {selection
               ? `Styling ${selection.label} — picks land on it instantly.`
               : "Styling every panel. Close and click one to style it alone."}
           </p>
         </Rise>
 
-        {/* ONE carousel, filling the middle of the screen. Re-keyed per
-            chapter so switching is an arrival, not a repaint. */}
-        <div className="flex w-full max-w-6xl flex-1 flex-col justify-center">
+        <div className="flex w-full flex-1 flex-col justify-center">
           <Rise delay={0.1} key={chapter + (selection?.id ?? "all")}>
             {chapter === "colour" && (
               <HeroShelf
@@ -232,19 +218,22 @@ function StudioScreen() {
                 items={STYLE_ENUMS.palette.map((palette) => ({
                   id: palette,
                   label: palette[0].toUpperCase() + palette.slice(1),
-                  render: () => (
-                    <span className="pointer-events-none block rounded-3xl bg-background p-5 text-foreground shadow-2xl">
+                  render: (locked: boolean) => (
+                    <SpecimenCard>
+                      {/* Re-mounted as it locks (`key`), so the library's own
+                          reveal replays on arrival — the feed-snap moment. */}
                       <Chart
-                        height={150}
-                        kind="column"
+                        height={260}
+                        key={locked ? "locked" : "resting"}
+                        kind="area"
                         label={palette}
                         series={SPECIMEN}
-                        style={normalizeStyle({ ...style, palette })}
+                        style={specimen(style, { palette })}
                         unit="count"
                       />
                       <span
                         aria-hidden
-                        className="mt-4 flex h-3.5 w-full overflow-hidden rounded-full"
+                        className="mt-4 flex h-3 w-full overflow-hidden rounded-full"
                       >
                         {paletteColors(palette).map((color, i) => (
                           <span
@@ -254,21 +243,20 @@ function StudioScreen() {
                           />
                         ))}
                       </span>
-                    </span>
+                    </SpecimenCard>
                   ),
                 }))}
-                label="Colour"
                 onCentred={setCentred}
                 onPick={(palette) =>
                   commit(
                     {
-                      palette:
-                        palette as (typeof STYLE_ENUMS.palette)[number],
+                      palette: palette as (typeof STYLE_ENUMS.palette)[number],
                     },
                     scope,
                   )
                 }
                 selectedId={style.palette}
+                title="Colour"
               />
             )}
 
@@ -279,26 +267,22 @@ function StudioScreen() {
                   id: preset.id,
                   label: preset.name,
                   hint: preset.description,
-                  render: () => (
-                    <span className="pointer-events-none block rounded-3xl bg-background p-5 text-foreground shadow-2xl">
-                      <PanelPreview
-                        kind="column"
-                        style={normalizeStyle({
-                          ...style,
-                          ...normalizeStylePatch(preset.patch),
-                        })}
-                        title="Throughput"
-                      />
-                    </span>
+                  render: (locked: boolean) => (
+                    <CardSpecimen
+                      locked={locked}
+                      style={normalizeStyle({
+                        ...style,
+                        ...normalizeStylePatch(preset.patch),
+                      })}
+                    />
                   ),
                 }))}
-                label="Card"
                 onCentred={setCentred}
                 onPick={(id) => {
                   const preset = CARD_PRESETS.find((p) => p.id === id);
-                  if (preset)
-                    commit(normalizeStylePatch(preset.patch), scope);
+                  if (preset) commit(normalizeStylePatch(preset.patch), scope);
                 }}
+                title="Card"
               />
             )}
 
@@ -317,29 +301,30 @@ function StudioScreen() {
                     id: preset.id,
                     label: preset.name,
                     hint: preset.description,
-                    render: () => (
-                      <span className="pointer-events-none block rounded-3xl bg-background p-5 text-foreground shadow-2xl">
+                    render: (locked: boolean) => (
+                      <SpecimenCard>
                         <Chart
-                          height={170}
-                          kind="column"
+                          height={260}
+                          key={locked ? "locked" : "resting"}
+                          kind={PRESET_KIND[preset.id] ?? "area"}
                           label={preset.name}
                           series={SPECIMEN}
-                          style={normalizeStyle({
-                            ...style,
-                            ...normalizeStylePatch(preset.patch),
-                          })}
+                          style={specimen(
+                            style,
+                            normalizeStylePatch(preset.patch),
+                          )}
                           unit="count"
                         />
-                      </span>
+                      </SpecimenCard>
                     ),
                   }))}
-                  label="Chart"
                   onCentred={setCentred}
                   onPick={(id) => {
                     const preset = CHART_PRESETS.find((p) => p.id === id);
                     if (preset)
                       commit(normalizeStylePatch(preset.patch), scope);
                   }}
+                  title="Chart"
                 />
               ))}
           </Rise>
@@ -364,11 +349,93 @@ function StudioScreen() {
 }
 
 /**
- * One shelf plus the one place its centred item is named.
- *
- * The caption lives here, under the dots, large and alone — never on the
- * cards. Fifty labels moving past is a list; one label that changes as the
- * shelf settles is a choice.
+ * Each chart-look preset drawn as the kind that shows it off — the same
+ * recoloured column eleven times is how good options read as slop.
+ */
+const PRESET_KIND: Record<string, ChartKind> = {
+  editorial: "area",
+  report: "column",
+  deck: "column",
+  console: "line",
+  glass: "area",
+  ledger: "bar",
+  neon: "line",
+  contrast: "column",
+};
+
+/** The base every specimen shares: the library's own expressive rendering. */
+function specimen(
+  base: ComponentStyle,
+  patch: Partial<ComponentStyle>,
+): ComponentStyle {
+  return normalizeStyle({
+    ...base,
+    chartFill: "gradient",
+    axes: "x",
+    grid: "horizontal",
+    ...patch,
+  });
+}
+
+/** One card: the app's own surface, sized by the viewport. */
+function SpecimenCard({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="bento pointer-events-none block rounded-3xl bg-card p-5 text-left text-foreground sm:p-6">
+      {children}
+    </span>
+  );
+}
+
+/** The card chapter's specimen: a real panel frame around a real chart. */
+function CardSpecimen({
+  style,
+  locked,
+}: {
+  style: ComponentStyle;
+  locked: boolean;
+}) {
+  return (
+    <span
+      className={cn(
+        "pointer-events-none block text-left",
+        frameClass(style),
+        fillClass(style),
+      )}
+      style={{ borderRadius: cornerCss(style), padding: padCss(style) }}
+    >
+      {style.titleStyle !== "hidden" && (
+        <span
+          className={cn(
+            "block",
+            style.titleAlign === "center" && "text-center",
+            style.titleStyle === "micro" &&
+              "text-[11px] font-medium uppercase tracking-wider text-muted-foreground",
+            style.titleStyle === "plain" && "text-sm",
+            style.titleStyle === "large" && "text-base font-medium",
+            style.fill === "inverted" && "text-background",
+          )}
+        >
+          Throughput
+        </span>
+      )}
+      <span className="mt-3 block">
+        <Chart
+          height={220}
+          key={locked ? "locked" : "resting"}
+          kind="area"
+          label="Throughput"
+          series={SPECIMEN}
+          style={style}
+          unit="count"
+        />
+      </span>
+    </span>
+  );
+}
+
+/**
+ * One shelf plus the one place its centred item is named. Items render with
+ * a `locked` flag so the centred card can replay its entrance.
  */
 function HeroShelf({
   items,
@@ -376,32 +443,47 @@ function HeroShelf({
   onPick,
   onCentred,
   centred,
-  label,
+  title,
 }: {
-  items: { id: string; label: string; hint?: string; render: () => React.ReactNode }[];
+  items: {
+    id: string;
+    label: string;
+    hint?: string;
+    render: (locked: boolean) => React.ReactNode;
+  }[];
   selectedId?: string;
   onPick: (id: string) => void;
   onCentred: (id: string) => void;
   centred: string | null;
-  label: string;
+  title: string;
 }) {
-  const current = items.find((i) => i.id === centred) ?? items[0];
+  const restingId = centred ?? selectedId ?? items[0]?.id;
+  const current = items.find((i) => i.id === restingId) ?? items[0];
   return (
     <div>
       <StyleCarousel
         hero
-        itemWidth={340}
-        items={items}
-        label={label}
+        itemWidth={CARD_W}
+        items={items.map((item) => ({
+          ...item,
+          render: () => item.render(item.id === restingId),
+        }))}
+        label={title}
         onCentred={onCentred}
         onPick={onPick}
         selectedId={selectedId}
-        tone="dark"
       />
-      <div aria-live="polite" className="mt-5 min-h-[3.25rem]">
-        <p className="text-lg font-semibold">{current?.label}</p>
+      <div aria-live="polite" className="mt-4 min-h-[3.5rem] px-6">
+        <p className="text-lg font-semibold">
+          {current?.label}
+          {current && current.id === selectedId && (
+            <span className="ml-2 align-middle text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              current
+            </span>
+          )}
+        </p>
         {current?.hint && (
-          <p className="mx-auto mt-1 max-w-md text-sm text-background/60">
+          <p className="mx-auto mt-1 max-w-md text-[13px] text-muted-foreground">
             {current.hint}
           </p>
         )}
@@ -410,7 +492,7 @@ function HeroShelf({
   );
 }
 
-/** The reference entrance: rise, sharpen, settle — staggered per shelf. */
+/** The reference entrance: rise, sharpen, settle — staggered per block. */
 function Rise({
   delay,
   children,
@@ -438,7 +520,7 @@ function ScreenLink({
 }) {
   return (
     <button
-      className="text-xs text-background/60 underline decoration-dotted underline-offset-2 hover:text-background"
+      className="text-xs text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
       onClick={onClick}
       type="button"
     >
@@ -447,13 +529,13 @@ function ScreenLink({
   );
 }
 
-/** Collapse back to the island — the screen's one way out. */
+/** Collapse back to the island — the screen's one way out besides Done. */
 function CollapseButton() {
   const { collapse } = useExpandableScreen();
   return (
     <button
       aria-label="Back to the island"
-      className="flex h-9 w-9 items-center justify-center rounded-full bg-background/10 text-background transition-colors hover:bg-background/20"
+      className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition-colors hover:bg-muted/70"
       onClick={collapse}
       type="button"
     >
@@ -464,8 +546,8 @@ function CollapseButton() {
 
 /**
  * Every shape this panel's question can be drawn as, live, one click each.
- * Writes the panel's definition — the builder's write — because "draw it as
- * rings" changes what the panel is, not a preference about it.
+ * Writes the panel's definition — "draw it as rings" changes what the panel
+ * is, not a preference about it.
  */
 function ShapeShelf({
   selectionId,
@@ -497,7 +579,7 @@ function ShapeShelf({
 
   if (!componentId || !row || !stored) {
     return (
-      <p className="mx-auto max-w-md py-8 text-sm leading-relaxed text-background/60">
+      <p className="mx-auto max-w-md px-6 py-8 text-[13px] leading-relaxed text-muted-foreground">
         This panel is built in, so its shape is fixed — colour and card still
         change how it looks.
       </p>
@@ -512,20 +594,20 @@ function ShapeShelf({
       items={shapes.map((shape) => ({
         id: shape,
         label: shapeLabel(shape),
-        render: () => (
-          <span className="pointer-events-none block rounded-3xl bg-background p-5 text-foreground shadow-2xl">
+        render: (locked: boolean) => (
+          <SpecimenCard>
             <Chart
-              height={170}
+              height={260}
+              key={locked ? "locked" : "resting"}
               kind={shape as ChartKind}
               label={shapeLabel(shape)}
               series={SPECIMEN}
               style={style}
               unit="count"
             />
-          </span>
+          </SpecimenCard>
         ),
       }))}
-      label="Drawn as"
       onCentred={onCentred}
       onPick={(shape) => {
         const next = normalizePanel({ ...stored, shape: shape as PanelShape });
@@ -537,6 +619,7 @@ function ShapeShelf({
         );
       }}
       selectedId={stored.shape}
+      title="Drawn as"
     />
   );
 }

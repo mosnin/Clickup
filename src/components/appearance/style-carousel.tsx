@@ -31,8 +31,14 @@ import { cn } from "@/lib/utils";
 const INFLUENCE = 0.55;
 /** How much the centred item grows. Subtle: these are real components. */
 const LIFT = 0.08;
-/** The hero shelf grows more — one choice at a time earns the emphasis. */
-const HERO_LIFT = 0.22;
+/**
+ * The hero shelf shrinks the SIDES instead of growing the centre. Growing is
+ * how the centred card ended up physically lying on top of its neighbour — a
+ * scale transform reserves no space. Scaling everything else down to at most
+ * 1 means overlap is impossible by construction, and the centre still reads
+ * as the biggest thing on screen.
+ */
+const HERO_SIDE_SCALE = 0.84;
 
 export type CarouselItem = {
   id: string;
@@ -54,8 +60,12 @@ export function StyleCarousel({
   items: CarouselItem[];
   selectedId?: string;
   onPick: (id: string) => void;
-  /** Fixed so the shelf has a rhythm; content scales inside it. */
-  itemWidth?: number;
+  /**
+   * Fixed so the shelf has a rhythm; content scales inside it. A string is a
+   * CSS width (e.g. `min(72vw, 560px)`) so the hero card can be sized by the
+   * viewport — a fixed 340px is how a card wider than a phone shipped.
+   */
+  itemWidth?: number | string;
   label: string;
   /** "dark" when the shelf sits on the ink screen — flips ring and text. */
   tone?: "light" | "dark";
@@ -102,7 +112,11 @@ export function StyleCarousel({
       const pull = (Math.cos(t * Math.PI) + 1) / 2;
       const anim = animatables.current.get(id);
       if (anim) {
-        anim.scale(1 + (heroRef.current ? HERO_LIFT : LIFT) * pull);
+        anim.scale(
+          heroRef.current
+            ? HERO_SIDE_SCALE + (1 - HERO_SIDE_SCALE) * pull
+            : 1 + LIFT * pull,
+        );
         anim.opacity(0.45 + 0.55 * pull);
       }
     }
@@ -167,7 +181,12 @@ export function StyleCarousel({
         // and last item, so the shelf reads as one object on the page's axis.
         style={
           hero
-            ? { paddingInline: `calc(50% - ${itemWidth / 2}px)` }
+            ? {
+                paddingInline:
+                  typeof itemWidth === "number"
+                    ? `calc(50% - ${itemWidth / 2}px)`
+                    : `calc(50% - (${itemWidth}) / 2)`,
+              }
             : undefined
         }
         ref={trackRef}
@@ -187,12 +206,20 @@ export function StyleCarousel({
             <button
               aria-selected={chosen}
               className={cn(
-                "flex shrink-0 snap-center flex-col rounded-2xl p-2 text-left transition-[box-shadow,outline-color] outline outline-2 outline-offset-2",
-                chosen
-                  ? tone === "dark"
-                    ? "outline-background"
-                    : "outline-foreground"
-                  : "outline-transparent",
+                "flex shrink-0 snap-center flex-col text-left",
+                // No ring in hero mode: the centre position IS the selection,
+                // and a heavy outline around a floating card is a debug
+                // affordance, not a design.
+                hero
+                  ? "rounded-3xl"
+                  : cn(
+                      "rounded-2xl p-2 transition-[box-shadow,outline-color] outline outline-2 outline-offset-2",
+                      chosen
+                        ? tone === "dark"
+                          ? "outline-background"
+                          : "outline-foreground"
+                        : "outline-transparent",
+                    ),
               )}
               data-item-id={item.id}
               key={item.id}

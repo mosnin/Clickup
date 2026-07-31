@@ -112,6 +112,17 @@ for (const [url, name] of [
     }
     await page.screenshot({ path: join(OUT, "studio-screen.png") });
     console.log("shot studio-screen.png");
+    // The theme check that was skipped is the theme bug that shipped: the
+    // studio in dark mode, which must render dark.
+    await page.evaluate(() => {
+      document.documentElement.setAttribute("data-theme", "dark");
+    });
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: join(OUT, "studio-screen-dark.png") });
+    console.log("shot studio-screen-dark.png");
+    await page.evaluate(() => {
+      document.documentElement.removeAttribute("data-theme");
+    });
   }
 }
 
