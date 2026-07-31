@@ -1519,6 +1519,42 @@ export default defineSchema({
     .index("by_screen_and_status", ["screenKey", "status"])
     .index("by_agent", ["agentId"]),
 
+  // An agent proposing a panel that does not exist yet.
+  //
+  // The step past rearranging: not "show these nine in a different order" but
+  // "here is a question your screen isn't asking". An agent that has been
+  // watching the work knows which one, and a panel is now a definition rather
+  // than code, so it can write one.
+  //
+  // Same consent shape as a layout proposal, and for the same reason — an
+  // interface that changes itself is an interface nobody can learn. The
+  // difference is what accepting does: a layout proposal rearranges what you
+  // have, this one MINTS a panel, owned by the acceptor, credited to the
+  // agent. Consent is per-person because panels and layouts both are.
+  panelProposals: defineTable({
+    /** Same key screenLayouts uses: "project:<id>". */
+    screenKey: v.string(),
+    agentId: v.id("agents"),
+    agentName: v.string(),
+    /** A PanelDef — normalized by the renderer on every read, like all of them. */
+    definition: v.any(),
+    /** Where the panel is minted on accept: the scope the agent lives in. */
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    /** Why — a proposal without a reason is an instruction. */
+    reason: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("dismissed"),
+    ),
+    createdAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+    resolvedByClerkId: v.optional(v.string()),
+  })
+    .index("by_screen_and_status", ["screenKey", "status"])
+    .index("by_agent", ["agentId"]),
+
   // ── Phase 12: AI agent collaboration ────────────────────────────────
 
   // First-class AI agent principals. An agent belongs to either a user's

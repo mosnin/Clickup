@@ -822,6 +822,81 @@ export const proposeScreen = mutation({
   },
 });
 
+/**
+ * Suggest a panel this screen does not have.
+ *
+ * The step past `proposeScreen`. That one rearranges what already exists;
+ * this one adds a question nobody asked. An agent that has been doing the work
+ * knows which question is missing — "nothing here shows what is blocked on
+ * you" — and a panel is a definition rather than code, so it can write one.
+ *
+ * The definition is taken as an opaque object on purpose. Validating the
+ * vocabulary here would be a second copy of `normalizePanel`, and a second
+ * copy is how the two drift; instead the renderer normalizes on every read, so
+ * a definition using a value this build has never heard of degrades to one it
+ * can draw rather than breaking a screen. Executing it is separately safe:
+ * `dataStream.resolve` has exactly one branch per enumerated value and gathers
+ * records through the caller's own access checks, so the worst a hostile
+ * definition can do is show its author a differently-grouped view of records
+ * they could already read.
+ *
+ * One pending proposal per agent per screen. "Here are four panels I thought
+ * of" is noise where "here is the one I think you are missing" is signal, and
+ * every pending proposal is a banner on somebody's screen.
+ */
+export const proposePanel = mutation({
+  args: {
+    apiKey: v.string(),
+    projectId: v.id("projects"),
+    /** A PanelDef: { title, query, shape, fields, style, caption }. */
+    definition: v.any(),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+    // Adding to how a whole project is read is structure-level, same as
+    // proposing an arrangement: a list-restricted agent is fenced out.
+    requireUnrestricted(agent);
+    await requireProjectAccessForAgent(ctx, args.projectId, agent);
+
+    const reason = args.reason.trim();
+    if (!reason) {
+      throw new ConvexError(
+        "A proposal needs a reason — without one it is an instruction",
+      );
+    }
+    if (args.definition === null || typeof args.definition !== "object") {
+      throw new ConvexError("A panel proposal needs a definition object");
+    }
+
+    const screenKey = `project:${args.projectId}`;
+    const pending = await ctx.db
+      .query("panelProposals")
+      .withIndex("by_screen_and_status", (q) =>
+        q.eq("screenKey", screenKey).eq("status", "pending"),
+      )
+      .collect();
+    for (const prior of pending) {
+      if (prior.agentId === agent._id) await ctx.db.delete(prior._id);
+    }
+
+    const proposalId = await ctx.db.insert("panelProposals", {
+      screenKey,
+      agentId: agent._id,
+      agentName: agent.name,
+      definition: args.definition,
+      // The scope the agent lives in, which is the scope it can read. The
+      // panel is minted there on accept, and access is checked again then.
+      scopeType: agent.parentType,
+      scopeId: agent.parentId,
+      reason: reason.slice(0, 500),
+      status: "pending",
+      createdAt: Date.now(),
+    });
+    return { proposalId };
+  },
+});
+
 export const setFocus = mutation({
   args: {
     apiKey: v.string(),

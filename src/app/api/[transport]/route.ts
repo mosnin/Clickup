@@ -13,6 +13,9 @@ import {
   toolDescriptionForProfile,
   type AnnotationProfile,
 } from "@/lib/mcp-annotation-profile";
+import { QUERY_VOCABULARY } from "@/lib/data-stream";
+import { ALL_SHAPES } from "@/lib/panel";
+import { STYLE_ENUMS } from "@/lib/component-style";
 
 // Hosted MCP server (Streamable HTTP) at POST /api/mcp.
 //
@@ -288,6 +291,7 @@ const IDEMPOTENT_TOOLS = new Set([
   "heartbeat",
   "set_focus",
   "propose_screen",
+  "propose_panel", // a newer proposal replaces this agent's previous one
   "emit_run_event",
   "acknowledge_wake",
   "acknowledge_task_context",
@@ -363,6 +367,73 @@ type ToolDef = {
     args: any,
   ) => Promise<unknown>;
 };
+
+/**
+ * A panel definition, as an agent writes one.
+ *
+ * Every enum is read from the app's own vocabulary rather than retyped, so
+ * the tool an agent sees can never offer a value the renderer would drop. A
+ * hand-copied list here would be a third place the vocabulary lives, and the
+ * one place nothing would notice going stale.
+ *
+ * Deliberately permissive about *absence*: everything but the source is
+ * optional, because a definition is normalized on every read and a missing
+ * key means "the default", not "invalid". The agent is choosing a question,
+ * not filling in a form.
+ */
+const enumOf = (values: readonly string[]) =>
+  z.enum(values as unknown as [string, ...string[]]);
+
+const PANEL_DEFINITION = z.object({
+  title: z.string().max(60).describe("what to call it on the screen"),
+  query: z.object({
+    from: enumOf(QUERY_VOCABULARY.sources),
+    filter: z
+      .object({
+        status: enumOf(QUERY_VOCABULARY.statuses).optional(),
+        assignee: enumOf(QUERY_VOCABULARY.assignees).optional(),
+        due: enumOf(QUERY_VOCABULARY.dues).optional(),
+        window: enumOf(QUERY_VOCABULARY.windows).optional(),
+        priority: z.array(enumOf(QUERY_VOCABULARY.priorities)).optional(),
+        blocked: z.boolean().optional(),
+        needsApproval: z.boolean().optional(),
+        search: z.string().max(64).optional(),
+      })
+      .optional(),
+    dimension: enumOf(QUERY_VOCABULARY.dimensions)
+      .optional()
+      .describe("how records are grouped into bars or slices"),
+    breakdown: enumOf(QUERY_VOCABULARY.dimensions)
+      .optional()
+      .describe("a second grouping — what makes a chart stacked"),
+    measure: enumOf(QUERY_VOCABULARY.measures)
+      .optional()
+      .describe("how each group is reduced to a number"),
+    sort: enumOf(QUERY_VOCABULARY.sorts).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+  }),
+  shape: enumOf(ALL_SHAPES).describe("how it is drawn"),
+  fields: z
+    .array(z.string())
+    .optional()
+    .describe("row fields, for the list/table/card shapes"),
+  style: z
+    .object({
+      palette: enumOf(STYLE_ENUMS.palette).optional(),
+      frame: enumOf(STYLE_ENUMS.frame).optional(),
+      fill: enumOf(STYLE_ENUMS.fill).optional(),
+      grid: enumOf(STYLE_ENUMS.grid).optional(),
+      axes: enumOf(STYLE_ENUMS.axes).optional(),
+      dataLabels: enumOf(STYLE_ENUMS.dataLabels).optional(),
+      barShape: enumOf(STYLE_ENUMS.barShape).optional(),
+      curve: enumOf(STYLE_ENUMS.curve).optional(),
+    })
+    .optional()
+    .describe(
+      "the look this panel carries. Sits under the reader's own overrides, so it is a suggestion about drawing rather than a change to their dashboard.",
+    ),
+  caption: z.string().max(140).optional(),
+});
 
 const TOOLS: ToolDef[] = [
   // ── Identity & presence ──────────────────────────────────────────
@@ -442,6 +513,21 @@ const TOOLS: ToolDef[] = [
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.proposeScreen), { apiKey: k, ...a }),
+  },
+  {
+    name: "propose_panel",
+    description:
+      "Suggest a panel this project's screen does not have — a question nobody is asking. I author the definition (what to show, how to draw it, what it looks like); a human previews it rendered against their real data and accepts or dismisses it. It NEVER appears on anyone's screen by itself. Use this when I notice something the screen cannot answer — 'nothing here shows what is blocked on you', 'there is no view of where the week's hours went'. A newer proposal replaces my previous pending one, so send the single panel I think is most missing.",
+    shape: {
+      projectId: z.string(),
+      definition: PANEL_DEFINITION,
+      reason: z
+        .string()
+        .max(500)
+        .describe("what this panel answers that the screen currently cannot"),
+    },
+    run: (c, k, a) =>
+      c.mutation(asMutation(api.agentApi.proposePanel), { apiKey: k, ...a }),
   },
   {
     name: "set_focus",

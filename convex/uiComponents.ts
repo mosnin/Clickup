@@ -1,6 +1,12 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { requireIdentity, requireScopeAccess } from "./_authz";
+import type { QueryCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import {
+  requireIdentity,
+  requireProjectAccess,
+  requireScopeAccess,
+} from "./_authz";
 
 // Where authored panels are stored.
 //
@@ -76,6 +82,101 @@ export const get = query({
       scopeType: row.scopeType,
       scopeId: row.scopeId,
     };
+  },
+});
+
+// ── Panels an agent has proposed ────────────────────────────────────────
+//
+// An agent may AUTHOR a panel; it may never place one. See the note on
+// `panelProposals` in the schema for why. Accepting mints the panel into the
+// acceptor's own collection and hands the id back, so the client can put it on
+// the screen using the layout it is already holding — the server does not know
+// whether this person has ever arranged this screen, and writing a layout row
+// containing only the new panel would wipe a screen down to one panel.
+
+/** Which project a screen key points at, or null for a kind we don't gate. */
+function projectIdFromScreenKey(
+  ctx: QueryCtx,
+  screenKey: string,
+): Id<"projects"> | null {
+  if (!screenKey.startsWith("project:")) return null;
+  return ctx.db.normalizeId("projects", screenKey.slice("project:".length));
+}
+
+/** Panels proposed for a screen and not yet resolved, oldest first. */
+export const proposalsFor = query({
+  args: { screenKey: v.string() },
+  handler: async (ctx, { screenKey }) => {
+    // Access-checked against the surface: a proposal carries an agent's name,
+    // its reasoning, and a definition describing this workspace's work.
+    const projectId = projectIdFromScreenKey(ctx, screenKey);
+    if (!projectId) return [];
+    try {
+      await requireProjectAccess(ctx, projectId);
+    } catch {
+      return [];
+    }
+    const rows = await ctx.db
+      .query("panelProposals")
+      .withIndex("by_screen_and_status", (q) =>
+        q.eq("screenKey", screenKey).eq("status", "pending"),
+      )
+      .collect();
+    return rows.map((r) => ({
+      proposalId: r._id,
+      agentName: r.agentName,
+      definition: r.definition as unknown,
+      reason: r.reason,
+      createdAt: r.createdAt,
+    }));
+  },
+});
+
+/**
+ * Accept or dismiss a proposed panel.
+ *
+ * Accepting creates the panel under the acceptor's own ownership, credited to
+ * the agent that wrote it — so it behaves exactly like one they built, and
+ * removing it later is an ordinary delete rather than an argument with an
+ * agent. Returns the new id; the client places it.
+ */
+export const resolveProposal = mutation({
+  args: { proposalId: v.id("panelProposals"), accept: v.boolean() },
+  handler: async (ctx, { proposalId, accept }) => {
+    const identity = await requireIdentity(ctx);
+    const proposal = await ctx.db.get(proposalId);
+    if (!proposal || proposal.status !== "pending") {
+      throw new ConvexError("That suggestion has already been handled");
+    }
+    const projectId = projectIdFromScreenKey(ctx, proposal.screenKey);
+    if (!projectId) throw new ConvexError("Unknown screen");
+    await requireProjectAccess(ctx, projectId);
+
+    await ctx.db.patch(proposal._id, {
+      status: accept ? "accepted" : "dismissed",
+      resolvedAt: Date.now(),
+      resolvedByClerkId: identity.subject,
+    });
+    if (!accept) return { componentId: null };
+
+    // Re-checked at accept rather than trusted from propose time: an agent's
+    // access can be narrowed between writing a proposal and someone reading it.
+    await requireScopeAccess(ctx, {
+      scopeType: proposal.scopeType,
+      scopeId: proposal.scopeId,
+    });
+
+    const now = Date.now();
+    const componentId = await ctx.db.insert("uiComponents", {
+      ownerClerkId: identity.subject,
+      scopeType: proposal.scopeType,
+      scopeId: proposal.scopeId,
+      definition: proposal.definition,
+      authoredByName: proposal.agentName,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { componentId };
   },
 });
 

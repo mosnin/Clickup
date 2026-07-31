@@ -35,6 +35,20 @@ const MAX_BUCKETS = 60;
 
 const DAY = 86_400_000;
 
+/** What a query with nothing said about filtering means. */
+const EMPTY_FILTER = {
+  status: "any",
+  priority: [] as string[],
+  assignee: "anyone",
+  due: "any",
+  window: "all",
+  blocked: false,
+  needsApproval: false,
+  search: "",
+  scopeToKind: "",
+  scopeToId: "",
+};
+
 type Filter = {
   status: string;
   priority: string[];
@@ -422,7 +436,11 @@ export const resolve = query({
     }
 
     const q = args.query as Query;
-    const filter = q.filter;
+    // Belt and braces. Every caller normalizes first (the renderer does it on
+    // every read), but definitions are authored by agents and stored opaque,
+    // so a missing filter must degrade to "no filter" rather than throw and
+    // take a screen down with it.
+    const filter: Filter = { ...EMPTY_FILTER, ...(q.filter ?? {}) };
     const now = Date.now();
     const tz = Math.max(-840, Math.min(840, args.tzOffsetMinutes ?? 0));
     const limit = Math.min(Math.max(Number(q.limit) || 8, 1), 60);

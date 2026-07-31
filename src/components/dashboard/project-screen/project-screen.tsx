@@ -31,6 +31,7 @@ import {
 } from "./widgets";
 import { Panel } from "@/components/dashboard/panel";
 import { PanelBuilder } from "@/components/dashboard/panel-builder";
+import { PanelProposal } from "@/components/dashboard/panel-proposal";
 import {
   describePanel,
   isMetricShape,
@@ -221,6 +222,21 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
 
   return (
     <div className="space-y-4">
+      {/* A panel an agent wrote, which does not exist anywhere yet — so it is
+          previewed inline rather than morphed into the grid. */}
+      <PanelProposal
+        screenKey={key}
+        scopeType={scope.scopeType}
+        scopeId={scope.scopeId}
+        onAccept={(componentId) =>
+          morphLayout(`#${GRID_ID}`, () =>
+            persist(addWidget(layout, panelWidgetId(componentId), 1), {
+              droppedAt: layout.widgets.length,
+            }),
+          )
+        }
+      />
+
       <AnimatePresence initial={false}>
         {proposal && (
           <motion.div
