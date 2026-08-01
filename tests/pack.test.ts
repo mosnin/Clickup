@@ -202,3 +202,66 @@ describe("moving a tile", () => {
     }
   });
 });
+
+describe("hostile input cannot freeze the tab", () => {
+  // These are not hypotheticals. `w: NaN` hung `pack` forever: `Math.floor(NaN)`
+  // is NaN, `Math.max(1, NaN)` is NaN, and `x + NaN <= cols` is false for every
+  // x — so the placement scan never succeeded, the row loop ran without end,
+  // and the occupancy grid grew until the tab died. A layout is stored as
+  // `v.any()`, so a single corrupt number was reachable from the database.
+  const HOSTILE = [
+    { id: "nan-w", w: NaN, h: 1 },
+    { id: "nan-h", w: 1, h: NaN },
+    { id: "inf-w", w: Infinity, h: 1 },
+    { id: "inf-h", w: 1, h: Infinity },
+    { id: "neg", w: -3, h: -3 },
+    { id: "huge", w: 1e9, h: 1e9 },
+    { id: "frac", w: 1.7, h: 2.3 },
+  ];
+
+  it("returns, and returns something placeable", () => {
+    const rects = pack(HOSTILE, 3);
+    expect(rects).toHaveLength(HOSTILE.length);
+    for (const r of rects) {
+      expect(Number.isFinite(r.x)).toBe(true);
+      expect(Number.isFinite(r.y)).toBe(true);
+      expect(r.w).toBeGreaterThanOrEqual(1);
+      expect(r.h).toBeGreaterThanOrEqual(1);
+      expect(r.x + r.w).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it("still cannot overlap, even with garbage in", () => {
+    expect(anyOverlap(pack(HOSTILE, 3))).toBe(false);
+    expect(anyOverlap(pack(HOSTILE, 1))).toBe(false);
+  });
+
+  it("survives a column count that is itself nonsense", () => {
+    // `columns` comes from a measurement, and a measurement is 0 on the first
+    // frame and NaN for a detached element.
+    for (const cols of [0, -1, NaN, Infinity]) {
+      const rects = pack([{ id: "a", w: 2, h: 1 }], cols as number);
+      expect(rects).toHaveLength(1);
+      expect(Number.isFinite(rects[0]!.x)).toBe(true);
+    }
+  });
+
+  it("never loses a tile, whatever it was asked for", () => {
+    // A panel in the wrong place is a bug you can see and report. A panel that
+    // silently vanished is one you cannot.
+    const ids = pack(HOSTILE, 2).map((r) => r.id);
+    for (const item of HOSTILE) expect(ids).toContain(item.id);
+  });
+
+  it("keeps duplicate ids as two tiles rather than one", () => {
+    const rects = pack(
+      [
+        { id: "same", w: 1, h: 1 },
+        { id: "same", w: 1, h: 1 },
+      ],
+      3,
+    );
+    expect(rects).toHaveLength(2);
+    expect(anyOverlap(rects)).toBe(false);
+  });
+});

@@ -29,6 +29,9 @@
 // same function answer for a phone (one column) and a desktop (three) without
 // a second code path — the failure mode that made mobile its own bug surface.
 
+/** Tallest a tile may be. Mirrors the grid's own cap; past this it is a page. */
+const MAX_ROWS = 3;
+
 /** A tile asking for space, in grid units. */
 export type PackItem = {
   id: string;
@@ -48,6 +51,25 @@ export type Rect = {
 };
 
 /**
+ * A size that can actually be placed.
+ *
+ * `NaN` froze the browser. `Math.floor(NaN)` is `NaN`, `Math.max(1, NaN)` is
+ * `NaN`, and `x + NaN <= cols` is false for every x — so the placement scan
+ * never succeeded, the row loop ran forever, and the occupancy grid grew
+ * without bound. A single corrupt number in a stored layout was a hang and a
+ * memory leak, reached from data the server accepts as `v.any()`.
+ *
+ * Coerced rather than rejected, on the same principle the rest of this
+ * codebase normalizes by: a panel whose size is unreadable is still a panel
+ * somebody put on their screen, and dropping it makes their work vanish.
+ * One cell is the honest floor.
+ */
+function unit(value: number, max: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(Math.max(1, Math.floor(value)), max);
+}
+
+/**
  * Lay items out in reading order, first fit, compacted upward.
  *
  * First fit rather than best fit on purpose. Best fit produces a denser sheet
@@ -58,7 +80,9 @@ export type Rect = {
  * have predicted before you let go.
  */
 export function pack(items: readonly PackItem[], columns: number): Rect[] {
-  const cols = Math.max(1, Math.floor(columns));
+  // The column count comes from a measurement, and a measurement can be 0 on
+  // the first frame or NaN if the element is detached.
+  const cols = Number.isFinite(columns) ? Math.max(1, Math.floor(columns)) : 1;
   // Row-major occupancy. Rows are grown on demand, so a tall tile at the
   // bottom cannot run off the end of a fixed-size grid.
   const filled: boolean[][] = [];
@@ -81,11 +105,17 @@ export function pack(items: readonly PackItem[], columns: number): Rect[] {
     // Clamped, never rejected: a tile asking for four columns in a
     // three-column grid is a tile that wants to be as wide as possible, and
     // dropping it would make a panel vanish on a narrow screen.
-    const w = Math.min(Math.max(1, Math.floor(item.w)), cols);
-    const h = Math.max(1, Math.floor(item.h));
+    const w = unit(item.w, cols);
+    const h = unit(item.h, MAX_ROWS);
 
+    // Bounded as a backstop. The scan below cannot fail now that sizes are
+    // finite and w <= cols, but "cannot" is a claim about today's code, and
+    // the failure mode of being wrong is a frozen tab rather than a wrong
+    // pixel. One row per item plus its own height is more than any packing
+    // needs and still terminates.
+    const ceiling = out.length + h + items.length + 1;
     let placed = false;
-    for (let y = 0; !placed; y += 1) {
+    for (let y = 0; !placed && y < ceiling; y += 1) {
       for (let x = 0; x + w <= cols; x += 1) {
         if (!free(x, y, w, h)) continue;
         for (let dy = 0; dy < h; dy += 1) {
@@ -95,6 +125,18 @@ export function pack(items: readonly PackItem[], columns: number): Rect[] {
         out.push({ id: item.id, x, y, w, h });
         placed = true;
         break;
+      }
+    }
+    // Unreachable while the invariants above hold. If it ever is reached, the
+    // tile goes below everything rather than being silently dropped — a panel
+    // in the wrong place is a bug you can see and report; a panel that
+    // vanished is one you cannot.
+    if (!placed) {
+      const y = out.reduce((m, r) => Math.max(m, r.y + r.h), 0);
+      out.push({ id: item.id, x: 0, y, w, h });
+      for (let dy = 0; dy < h; dy += 1) {
+        const row = rowAt(y + dy);
+        for (let dx = 0; dx < w; dx += 1) row[dx] = true;
       }
     }
   }
