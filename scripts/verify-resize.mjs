@@ -157,6 +157,46 @@ console.log(
 );
 await phone.screenshot({ path: join(OUT, "grid-phone-after.png") });
 
+// ── No two tiles may ever share a pixel ──
+//
+// The property `pack` proves in the abstract, checked against what the browser
+// actually painted. Both halves are needed: the maths can be right while the
+// renderer draws something else, which is precisely the gap that let the
+// overlap ship — the old suite proved things about a model nothing rendered
+// from.
+async function overlapsOn(p) {
+  return p.evaluate(() => {
+    const boxes = Array.from(document.querySelectorAll("[data-tile]")).map(
+      (el) => ({ id: el.dataset.tile, ...el.getBoundingClientRect().toJSON() }),
+    );
+    const hits = [];
+    for (let i = 0; i < boxes.length; i += 1) {
+      for (let j = i + 1; j < boxes.length; j += 1) {
+        const a = boxes[i];
+        const b = boxes[j];
+        // One pixel of tolerance for sub-pixel rounding on percentage widths.
+        if (
+          a.left < b.right - 1 &&
+          b.left < a.right - 1 &&
+          a.top < b.bottom - 1 &&
+          b.top < a.bottom - 1
+        ) {
+          hits.push(`${a.id} overlaps ${b.id}`);
+        }
+      }
+    }
+    return hits;
+  });
+}
+
+const overlapWide = await overlapsOn(page);
+await phone.goto("http://127.0.0.1:4599/grid.html");
+await phone.waitForTimeout(1200);
+const overlapNarrow = await overlapsOn(phone);
+console.log(
+  `overlap @1280: ${overlapWide.length}, @390: ${overlapNarrow.length}`,
+);
+
 await browser.close();
 server.close();
 
@@ -217,4 +257,9 @@ if (stranded !== null) {
   );
   process.exit(1);
 }
-console.log("PASS: resize follows the pointer, and one gesture is one write");
+if (overlapWide.length > 0 || overlapNarrow.length > 0) {
+  console.error("FAIL: tiles are overlapping on screen");
+  for (const h of [...overlapWide, ...overlapNarrow]) console.error("  " + h);
+  process.exit(1);
+}
+console.log("PASS: no overlap at 1280 or 390, resize follows the pointer, one gesture one write");

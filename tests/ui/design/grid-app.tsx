@@ -29,11 +29,18 @@ function DemoCard({ title, lines }: { title: string; lines: number }) {
   );
 }
 
+// Deliberately mixed. The fixture this replaces was four identically sized
+// cards, which is why it stayed green through the entire overlapping-panels
+// bug: the two layout models only disagreed when heights DIFFERED, and four
+// equal cards cannot express that. A short stat tile beside a tall table is
+// the arrangement that actually broke on the real Home.
 const TILES = [
-  { id: "a", span: 2 as const, title: "Today", minSpan: 1 as const, maxSpan: 3 as const, content: <DemoCard lines={3} title="Today" /> },
-  { id: "b", span: 1 as const, title: "Goals", minSpan: 1 as const, maxSpan: 3 as const, content: <DemoCard lines={8} title="Goals" /> },
-  { id: "c", span: 1 as const, title: "Agents", minSpan: 1 as const, maxSpan: 3 as const, content: <DemoCard lines={5} title="Agents" /> },
-  { id: "d", span: 2 as const, title: "Activity", minSpan: 1 as const, maxSpan: 3 as const, content: <DemoCard lines={4} title="Activity" /> },
+  { id: "a", span: 2 as const, rows: 1 as const, title: "Today", minSpan: 1 as const, maxSpan: 3 as const, content: <DemoCard lines={3} title="Today" /> },
+  { id: "b", span: 1 as const, rows: 3 as const, title: "Goals", minSpan: 1 as const, maxSpan: 3 as const, content: <DemoCard lines={14} title="Goals" /> },
+  { id: "c", span: 1 as const, rows: 1 as const, title: "Agents", minSpan: 1 as const, maxSpan: 3 as const, content: <DemoCard lines={2} title="Agents" /> },
+  { id: "d", span: 2 as const, rows: 2 as const, title: "Activity", minSpan: 1 as const, maxSpan: 3 as const, content: <DemoCard lines={9} title="Activity" /> },
+  { id: "e", span: 1 as const, rows: 2 as const, title: "Spend", minSpan: 1 as const, maxSpan: 3 as const, content: <DemoCard lines={6} title="Spend" /> },
+  { id: "f", span: 3 as const, rows: 1 as const, title: "Projects", minSpan: 1 as const, maxSpan: 3 as const, content: <DemoCard lines={4} title="Projects" /> },
 ];
 
 function Page() {

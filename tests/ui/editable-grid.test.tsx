@@ -180,6 +180,11 @@ function stubGridWidth(width: number) {
   });
 }
 
+/** Is this tile laid out exactly one column wide? */
+function oneColumn(el: HTMLElement): boolean {
+  return el.dataset.w === "1";
+}
+
 describe("resizing", () => {
   it("writes once for a whole drag, not once per column crossed", () => {
     const onChange = vi.fn();
@@ -299,10 +304,19 @@ describe("resizing", () => {
       tile.style.height,
       "the tile is its dragged height while the pointer is down",
     ).not.toBe("");
-    // And its neighbours keep their natural height — one panel's resize is
-    // not a mode switch for the screen.
+    // And its neighbours are unmoved. Every tile now carries an explicit box
+    // because `pack` decides all of them, so the question is no longer "does
+    // the neighbour have a height" but "did the neighbour's box change" — and
+    // it must not. One panel's resize is not a mode switch for the screen.
     const other = container.querySelector('[data-tile="b"]') as HTMLElement;
-    if (other) expect(other.style.height).toBe("");
+    // Its neighbour is unmoved: same column, same row, same size. Every tile
+    // now carries an explicit box because `pack` decides all of them, so the
+    // question is no longer "does the neighbour have a height" but "did the
+    // neighbour's box change" — and it must not.
+    if (other) {
+      expect(other.dataset.h).toBe("1");
+      expect(other.dataset.col).toBe("1");
+    }
     window.dispatchEvent(pointerEvent("pointerup", { clientX: 0, clientY: 400 }));
   });
 
@@ -320,7 +334,11 @@ describe("resizing", () => {
     );
     stubGridWidth(1200);
     const tile = document.querySelector<HTMLElement>('[data-tile="a"]')!;
-    expect(tile.className).toContain("@3xl:col-span-1");
+    // Geometry, not a class name. The span classes were the OLD placement
+    // model — CSS Grid computing tracks while tiles carried their own heights,
+    // which is the disagreement that produced overlapping panels. Asserting a
+    // class asserted the implementation; this asserts what is drawn.
+    expect(oneColumn(tile)).toBe(true);
 
     const grip = screen.getByLabelText(/Resize Progress/i);
     act(() => {
@@ -333,7 +351,7 @@ describe("resizing", () => {
     // The tile moved without anything being saved: that is the whole point of
     // a preview, and it is what makes a resize feel like resizing.
     const live = document.querySelector<HTMLElement>('[data-tile="a"]')!;
-    expect(live.className).toContain("@3xl:col-span-2");
+    expect(live.dataset.w).toBe("2");
     expect(onChange).not.toHaveBeenCalled();
   });
 
@@ -364,7 +382,7 @@ describe("resizing", () => {
 
     expect(onChange).not.toHaveBeenCalled();
     const tile = document.querySelector<HTMLElement>('[data-tile="a"]')!;
-    expect(tile.className).toContain("@3xl:col-span-1");
+    expect(oneColumn(tile)).toBe(true);
   });
 
   it("is still reachable without a pointer", () => {

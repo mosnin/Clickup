@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import useMeasure from "react-use-measure";
 import { X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { SPRING } from "@/components/motion";
@@ -25,6 +26,7 @@ import {
   type WidgetSpan,
   type WidgetRows,
 } from "@/lib/screen-layout";
+import { pack, packedRows } from "@/lib/pack";
 import { cn } from "@/lib/utils";
 import {
   customizable,
@@ -103,7 +105,7 @@ export type EditableTile = {
    * whatever height their content happened to be. Omitted = natural height,
    * for surfaces whose panels are genuinely content-shaped.
    */
-  rows?: 1 | 2;
+  rows?: WidgetRows;
   content: React.ReactNode;
 };
 
@@ -120,12 +122,6 @@ export type EditableTile = {
 // floating, or docked to the bottom. A panel's size should follow the space it
 // actually has, so the same screen at the same window size reflows when you
 // collapse the nav. That is what `@container` gives and a breakpoint cannot.
-const SPAN_CLASS: Record<number, string> = {
-  1: "@3xl:col-span-1",
-  2: "@3xl:col-span-2",
-  3: "@3xl:col-span-3",
-};
-
 /** Most columns the grid ever draws. The one place that number lives. */
 const GRID_COLUMNS = 3;
 
@@ -163,12 +159,6 @@ const ROW_HEIGHT_FALLBACK = ROW_UNIT;
 function rowsToHeight(rows: WidgetRows): number {
   return rows * ROW_UNIT + (rows - 1) * ROW_GAP;
 }
-
-const ROW_CLASS: Record<number, string> = {
-  1: "@3xl:row-span-1",
-  2: "@3xl:row-span-2",
-  3: "@3xl:row-span-3",
-};
 
 export function EditableGrid({
   tiles,
@@ -284,6 +274,12 @@ export function EditableGrid({
 
   // What the grid actually draws: the dragged-into order while a gesture is
   // live, the saved order otherwise.
+  // The canvas measures itself, so the packer's column count and what is drawn
+  // can never disagree — a whole class of "the drag computed a new span and
+  // the CSS ignored it" bugs that came from two places deciding separately.
+  const [measureRef, { width: canvasWidth }] = useMeasure();
+  const columns = columnsFor(canvasWidth || 1024);
+
   const savedWidgets = layout.widgets;
   const rendered = useMemo(() => {
     if (!dragOrder) return savedWidgets;
@@ -581,6 +577,28 @@ export function EditableGrid({
   // becomes a per-panel fact, the way width always was.
   const sized = tiles.some((t) => t.rows !== undefined);
 
+  // The one place geometry is decided. A live resize feeds its in-progress
+  // size straight in, so neighbours part around the tile being dragged rather
+  // than after it lands.
+  const packed = useMemo(() => {
+    const items = rendered.map((w) => {
+      const tile = tileById.get(w.id);
+      const live = preview && preview.id === w.id ? preview : null;
+      return {
+        id: w.id,
+        w: live ? live.span : w.span,
+        h: live ? live.rows : (w.rows ?? tile?.rows ?? 1),
+      };
+    });
+    return pack(items, columns);
+  }, [rendered, tileById, preview, columns]);
+
+  const rectById = useMemo(
+    () => new Map(packed.map((r) => [r.id, r])),
+    [packed],
+  );
+  const canvasHeight = packedRows(packed) * (ROW_UNIT + ROW_GAP) - ROW_GAP;
+
   return (
     <div className="space-y-4">
       {/* The only chrome in reading mode: nothing. Editing announces itself with
@@ -609,18 +627,20 @@ export function EditableGrid({
         )}
       </div>
 
+      {/* The canvas draws what `pack` says, and nothing else places anything.
+          It used to be a CSS Grid whose tracks the browser computed, while the
+          tiles carried their own pixel heights — two models, each believing it
+          owned placement, which is exactly where the overlapping panels came
+          from. Every tile is now absolutely positioned from a rectangle that
+          is provably non-overlapping before it reaches the DOM. */}
       <div
         id={gridId}
-        ref={gridRef}
-        className={cn(
-          // `@container` is what the span classes above measure against.
-          "@container grid grid-cols-1 gap-6 @md:grid-cols-2 @3xl:grid-cols-3",
-          // Sized tiles get a fixed row height, which is what makes the screen
-          // read as composed: every panel is a real size on a shared grid
-          // rather than whatever its content happened to measure. Only once
-          // there is room for columns — stacked, natural height is right.
-          sized ? "@3xl:auto-rows-[10.5rem]" : "@3xl:items-start",
-        )}
+        ref={(node) => {
+          gridRef.current = node;
+          measureRef(node);
+        }}
+        className="@container relative w-full"
+        style={{ height: canvasHeight }}
       >
         {rendered.map((w) => {
           const tile = tileById.get(w.id);
@@ -643,10 +663,23 @@ export function EditableGrid({
           // edge track the finger; dropping the override on release is what
           // makes it snap, once, into the cell it will actually be saved at.
           const exact = live?.exact ?? null;
+          // Absent only in the frame before the first pack, and a tile with no
+          // rectangle must still be somewhere rather than stacked at the
+          // origin on top of its neighbours.
+          const rect = rectById.get(w.id) ?? { x: 0, y: 0, w: span, h: rows };
           return (
             <div
               key={w.id}
               data-tile={w.id}
+              // The packed rectangle, readable without parsing CSS. jsdom
+              // discards `calc()` from inline styles, so a test that asserted
+              // the width string could only ever pass in a real browser — and
+              // the harness wants the units anyway, to check the drawn box
+              // against what the packer decided.
+              data-col={rect.x}
+              data-row={rect.y}
+              data-w={rect.w}
+              data-h={rect.h}
               {...(customizing
                 ? {
                     ...customizable({
@@ -661,37 +694,33 @@ export function EditableGrid({
               className={cn(
                 // `group/tile` is what lets the width control reveal itself on
                 // hover without every tile's chrome shouting at once.
-                "group/tile relative min-w-0",
-                SPAN_CLASS[span] ?? SPAN_CLASS[1],
-                sized && (ROW_CLASS[rows] ?? ROW_CLASS[1]),
+                "group/tile absolute min-w-0",
                 editing && "touch-none select-none",
               )}
-              style={
-                exact
-                  ? {
-                      // Out of the grid's tracks for the length of the
-                      // gesture, so nothing rounds the size but the release.
-                      width: exact.width,
-                      height: exact.height,
-                      maxWidth: "100%",
-                      transition: "none",
-                    }
-                  : chosenHeight !== null
-                    ? // `minHeight`, not `height`. A chosen height is somebody
-                      // saying "give this panel room", and a fixed one turns
-                      // that into "and hide anything that doesn't fit" — which
-                      // is how a stat card shipped sliced through its own
-                      // number, the digit cut in half by the card's bottom
-                      // edge. Growing is the safe direction to be wrong in:
-                      // too much space is a gap, too little is missing data.
-                      //
-                      // Only where the grid has no `auto-rows` track to span
-                      // (`sized` screens keep exact rows, because there the
-                      // shared row height is what makes the screen look
-                      // composed and every tile is authored to fit it).
-                      { minHeight: chosenHeight }
-                    : undefined
-              }
+              style={{
+                // Every number here comes from the packed rectangle. There is
+                // no second opinion: the browser is told exactly where this
+                // tile goes, so two tiles cannot disagree about a row the way
+                // they did when CSS Grid computed tracks under tiles that
+                // carried their own heights.
+                //
+                // Columns are a percentage so the canvas stays fluid — the
+                // shell's sidebar can open, collapse, float or dock, and the
+                // arithmetic follows without measuring again. Rows are pixels
+                // because a row IS a fixed height; that is what makes a screen
+                // look composed rather than accidental.
+                left: `calc((100% + ${ROW_GAP}px) / ${columns} * ${rect.x})`,
+                top: rect.y * (ROW_UNIT + ROW_GAP),
+                width: exact
+                  ? exact.width
+                  : `calc((100% + ${ROW_GAP}px) / ${columns} * ${rect.w} - ${ROW_GAP}px)`,
+                height: exact
+                  ? exact.height
+                  : rect.h * (ROW_UNIT + ROW_GAP) - ROW_GAP,
+                // Mid-gesture the tile is the size of the pointer, and nothing
+                // may animate it there — the snap happens once, on release.
+                ...(exact ? { transition: "none" } : null),
+              }}
               onPointerDown={(e) => {
                 if (editing) return;
                 press.current.x = e.clientX;
