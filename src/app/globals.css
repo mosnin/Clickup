@@ -414,33 +414,21 @@
 }
 
 /* ── Customise mode ───────────────────────────────────────────────────────
-   The inspector sits beside your work rather than on top of it. A panel hidden
-   behind the rail is a panel you are editing blind, so the shell gives up the
-   width instead of the rail taking it — that is the whole difference between
-   an inspector and a modal.
+   Marks what is pointable. It does NOT reserve space any more, and that is
+   the fix for an empty sidebar opening when you press Customise.
 
-   Below `lg` the rail would leave nothing to look at, so it becomes a sheet
-   over the bottom half and the canvas keeps the top. */
-[data-customizing="true"] [data-slot="sidebar-inset"] {
-  padding-right: min(21rem, 100vw);
-  transition: padding-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-@media (max-width: 1023px) {
-  [data-customizing="true"] [data-slot="sidebar-inset"] {
-    padding-right: 0;
-    padding-bottom: 60vh;
-  }
-  [data-customize-rail] {
-    inset: auto 0 0 0 !important;
-    width: 100% !important;
-    height: 60vh;
-    border-left: 0;
-    border-top: 1px solid var(--color-border);
-  }
-}
+   These rules were written for an inspector rail that sat beside your work —
+   the shell gave up 21rem so a panel could never be edited from behind a
+   panel. That rail was replaced by the studio (an island that expands into a
+   screen) and deleted, but the reservation stayed behind. So pressing
+   Customise pushed the canvas over and revealed three hundred pixels of
+   nothing, with the only real control a small pill at the bottom of the
+   screen. Chrome that reserves room for a component nobody renders is worse
+   than either choice on its own: it costs the space AND gives nothing back.
 
-/* Anything that can be pointed at says so — but quietly, because the canvas
-   is still the thing being read. The affordance arrives on approach. */
+   Below `lg` the same rule reserved 60vh, which is why the mode read as even
+   more broken on a phone — most of the screen surrendered to an absence. */
+
 [data-customizing="true"] [data-customize-id] {
   cursor: pointer;
   outline: 1px dashed var(--color-border);
