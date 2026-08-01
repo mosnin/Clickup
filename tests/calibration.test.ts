@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { normalizeQuery } from "../src/lib/data-stream";
 import {
+  brokenClaimFor,
   DIRECTIONS,
   UNCHANGED_TOLERANCE,
   calibrationOf,
@@ -245,5 +247,60 @@ describe("the shape of a stored expectation", () => {
       query: { from: "tasks", filter: { window: "7d" } },
     });
     expect(e.query.filter.window).toBe("7d");
+  });
+});
+
+describe("the claim a number broke", () => {
+  // Normalized, because `describeQuery` reads the whole shape — a bare
+  // `{from, measure}` is not a query this system ever produces.
+  const query = normalizeQuery({ from: "tasks", measure: "count" });
+  const other = normalizeQuery({ from: "pages", measure: "count" });
+  const claim = (
+    q: unknown,
+    verdict: "missed" | "met" | "pending" | "unevaluable",
+    checkedAt: number,
+    value = 23,
+  ) => ({
+    question: `Did it move? ${checkedAt}`,
+    expectation: {
+      query: q as never,
+      direction: "at_most" as const,
+      target: 10,
+      baseline: 18,
+      dueAt: 0,
+      note: "",
+    },
+    outcome: { verdict, value, checkedAt } as never,
+  });
+
+  it("wears a missed claim about the same number", () => {
+    const found = brokenClaimFor(query, [claim(query, "missed", 5)]);
+    expect(found?.value).toBe(23);
+    expect(found?.claim).toContain("10");
+  });
+
+  it("says nothing when the claim held, or has not been checked", () => {
+    expect(brokenClaimFor(query, [claim(query, "met", 5)])).toBeNull();
+    expect(brokenClaimFor(query, [claim(query, "pending", 5)])).toBeNull();
+    // "Unevaluable" means the question went away, not that anyone was wrong.
+    expect(brokenClaimFor(query, [claim(query, "unevaluable", 5)])).toBeNull();
+  });
+
+  it("never attributes a failure to a claim about a different number", () => {
+    // The expensive mistake this guards: telling somebody they said a number
+    // would fall when they were talking about something else entirely.
+    expect(brokenClaimFor(query, [claim(other, "missed", 5)])).toBeNull();
+  });
+
+  it("prefers the newest check, because a later decision supersedes it", () => {
+    const found = brokenClaimFor(query, [
+      claim(query, "missed", 5, 40),
+      claim(query, "missed", 9, 23),
+    ]);
+    expect(found?.value).toBe(23);
+  });
+
+  it("says nothing at all when nobody claimed anything", () => {
+    expect(brokenClaimFor(query, [])).toBeNull();
   });
 });

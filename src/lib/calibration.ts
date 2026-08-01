@@ -265,3 +265,77 @@ export const HORIZONS: { label: string; days: number }[] = [
   { label: "In a month", days: 30 },
   { label: "In a quarter", days: 90 },
 ];
+
+// ── The claim a number broke ────────────────────────────────────────────
+//
+// Calibration grades what a team expected. Provenance lets a metric say where
+// it came from. Neither knew about the other, so a decision could be measured
+// as wrong in one place while the very number that proved it wrong was drawn
+// somewhere else, saying nothing. Joining them is what turns a dashboard from
+// something that reports the world back at you into something that holds you
+// to your own reasoning: **23 overdue — you expected at most 10 by today.**
+//
+// **Matched on the query, not on prose.** `relevantDecisions` finds decisions
+// that *bear on* a panel by word overlap, because a decision's text is the
+// only thing there is to compare. Here both sides are structured — an
+// expectation is stated in the same vocabulary a panel asks in — so the match
+// is an equality rather than a guess. That matters more here than anywhere
+// else in the product: a wrong "you said this would go down" attributes a
+// failure to someone who never claimed it, which is worse than saying nothing.
+//
+// **Only `missed`.** Not pending (nothing happened yet), not met (a dashboard
+// congratulating you is noise), and never `unevaluable`, which means the
+// question went away rather than the claim failing.
+//
+// **Nothing here is narrated.** The sentence is computed from the two
+// structures. An explanation that can disagree with the number it explains is
+// worse than none, because people believe it.
+
+export type BrokenClaim = {
+  /** What was claimed, in the product's words. */
+  claim: string;
+  /** The question whose decision carried it, for the link back. */
+  question: string;
+  /** What it actually came to. */
+  value: number;
+};
+
+/** Does this expectation ask the same thing this panel draws? */
+function sameQuestion(a: DataQuery, b: DataQuery): boolean {
+  // Source and measure only. A claim about "how many tasks" is about the same
+  // number whether the panel groups it by assignee or by status — grouping
+  // changes how it is drawn, not what is counted. Comparing the filter too
+  // would silently drop the match every time somebody re-filtered their own
+  // panel, which reads as the feature quietly breaking.
+  return a.from === b.from && a.measure === b.measure;
+}
+
+/**
+ * The broken claim a panel should be wearing, if there is one.
+ *
+ * Newest check wins when several apply: an older failed claim about the same
+ * number has already been superseded by whatever was decided next.
+ */
+export function brokenClaimFor(
+  query: DataQuery,
+  decisions: readonly {
+    question: string;
+    expectation: Expectation;
+    outcome: Outcome;
+  }[],
+): BrokenClaim | null {
+  const hits = decisions
+    .filter(
+      (d) =>
+        d.outcome.verdict === "missed" && sameQuestion(d.expectation.query, query),
+    )
+    .sort((a, b) => b.outcome.checkedAt - a.outcome.checkedAt);
+
+  const top = hits[0];
+  if (!top) return null;
+  return {
+    claim: describeExpectation(top.expectation),
+    question: top.question,
+    value: top.outcome.value,
+  };
+}
