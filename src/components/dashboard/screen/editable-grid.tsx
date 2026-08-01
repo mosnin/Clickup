@@ -677,7 +677,19 @@ export function EditableGrid({
                       transition: "none",
                     }
                   : chosenHeight !== null
-                    ? { height: chosenHeight }
+                    ? // `minHeight`, not `height`. A chosen height is somebody
+                      // saying "give this panel room", and a fixed one turns
+                      // that into "and hide anything that doesn't fit" — which
+                      // is how a stat card shipped sliced through its own
+                      // number, the digit cut in half by the card's bottom
+                      // edge. Growing is the safe direction to be wrong in:
+                      // too much space is a gap, too little is missing data.
+                      //
+                      // Only where the grid has no `auto-rows` track to span
+                      // (`sized` screens keep exact rows, because there the
+                      // shared row height is what makes the screen look
+                      // composed and every tile is authored to fit it).
+                      { minHeight: chosenHeight }
                     : undefined
               }
               onPointerDown={(e) => {
@@ -788,12 +800,21 @@ export function EditableGrid({
                       itself, where +/- resize and arrows reorder (see the
                       key handler above). That is one place to learn instead
                       of a control per axis. */}
-                  {/* Sat at `-top-2.5`, which put it in the gap ABOVE the card
-                      rather than on it — a white circle floating between two
-                      panels, attached to neither, reading as stray UI rather
-                      than as this tile's remove. Inside its own corner it is
-                      unambiguously part of the thing it deletes. */}
-                  <div className="pointer-events-none absolute right-2 top-2 z-20 flex items-center gap-1">
+                  {/* Straddling the corner, which is the only place it can go.
+                      Two wrong answers were tried first: `-top-2.5 right-2`
+                      put it in the gap ABOVE the card, a white circle floating
+                      between two panels and attached to neither; moving it
+                      inside to `top-2 right-2` attached it and immediately
+                      landed it on top of the card's own header — over the
+                      icon well on a stat panel, over "11 projects" on a table.
+                      A control that covers the content it belongs to is worse
+                      than one that floats.
+
+                      On the corner it overlaps only the card's rounded edge,
+                      where by construction there is nothing to cover, and it
+                      still reads as attached — which is exactly where a phone
+                      puts a delete badge, for the same reason. */}
+                  <div className="pointer-events-none absolute -right-2 -top-2 z-20 flex items-center gap-1">
                     <button
                       type="button"
                       aria-label={`Remove ${tile.title}`}
