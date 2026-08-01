@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "convex/react";
+import {
+  brokenClaimFor,
+  type Expectation,
+  type Outcome,
+} from "@/lib/calibration";
 import { api } from "@convex/_generated/api";
 import { Chart, type ChartKind } from "@/components/charts/operate/chart";
 import { LiveNumber } from "@/components/dashboard/live-number";
@@ -60,6 +65,39 @@ import { cn } from "@/lib/utils";
 //   - **It remembers what it told you.** See `lib/panel-memory` — the delta
 //     lands under the number it explains rather than in an inbox elsewhere.
 
+/**
+ * The rows `brokenClaimFor` can actually reason about.
+ *
+ * `forScope` types `expectation` as unknown — it is stored as `v.any()`,
+ * because the claim vocabulary lives in the client library rather than in the
+ * schema. Narrowing here keeps that boundary honest: anything without a
+ * checked outcome is dropped before it reaches the matcher, so a malformed or
+ * half-written row can never be presented as somebody's failed prediction.
+ */
+function gradedOnly(
+  rows: readonly {
+    question: string;
+    expectation: unknown;
+    outcome: { verdict: string; value: number; checkedAt: number } | null;
+  }[],
+) {
+  const out: {
+    question: string;
+    expectation: Expectation;
+    outcome: Outcome;
+  }[] = [];
+  for (const row of rows) {
+    const e = row.expectation as Expectation | undefined;
+    if (!row.outcome || !e || typeof e !== "object" || !e.query) continue;
+    out.push({
+      question: row.question,
+      expectation: e,
+      outcome: row.outcome as Outcome,
+    });
+  }
+  return out;
+}
+
 export function Panel({
   definition,
   scopeType,
@@ -90,6 +128,22 @@ export function Panel({
     query: def.query,
     tzOffsetMinutes,
   });
+
+  // The claim this number broke, if anyone staked one on it.
+  //
+  // Only for metric shapes: a single number is a thing you can be wrong
+  // about, and a grouped chart is not — attaching "you expected at most 10"
+  // to a bar chart of ten assignees says it about all of them and about none
+  // of them. `forScope` is already access-checked and already returns the
+  // graded expectation, so this adds a subscription rather than an endpoint.
+  const claims = useQuery(
+    api.calibration.forScope,
+    isMetricShape(def.shape) ? { scopeType, scopeId } : "skip",
+  );
+  const broken = useMemo(
+    () => (claims ? brokenClaimFor(def.query, gradedOnly(claims)) : null),
+    [claims, def.query],
+  );
 
   const scalar = data?.scalar ?? null;
   const { state, attentionClass } = usePanelAttention(
@@ -123,6 +177,14 @@ export function Panel({
           />
         )}
       </div>
+      {broken && (
+        // Stated flatly, and never softened: a missed claim is the most
+        // valuable thing this product can tell you, and hedging it is how a
+        // team quietly stops being wrong about anything.
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          You expected: {broken.claim}.
+        </p>
+      )}
       {data?.truncated && (
         // Said out loud rather than silently capped: a number that only counts
         // what the walk reached is a number people will act on.
