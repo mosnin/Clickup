@@ -794,7 +794,6 @@ function CardSpecimen({
                 "text-[11px] font-medium uppercase tracking-wider text-muted-foreground",
               style.titleStyle === "plain" && "text-sm",
               style.titleStyle === "large" && "text-base font-medium",
-              style.fill === "inverted" && "text-background",
             )}
           >
             Throughput

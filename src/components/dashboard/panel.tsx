@@ -242,7 +242,6 @@ function Header({
             "text-[11px] font-medium uppercase tracking-wider text-muted-foreground",
           style.titleStyle === "plain" && "text-sm",
           style.titleStyle === "large" && "text-base font-medium",
-          style.fill === "inverted" && "text-background",
         )}
       >
         {def.title}
@@ -420,10 +419,7 @@ function Metric({
       <ProvenanceToggle
         open={provenance.open}
         onToggle={provenance.toggle}
-        className={cn(
-          "text-4xl tabular-nums",
-          style.fill === "inverted" && "text-background",
-        )}
+        className="text-4xl tabular-nums"
       >
         <LiveNumber value={data.scalar} />
         {data.meta.unit === "percent" ? "%" : ""}

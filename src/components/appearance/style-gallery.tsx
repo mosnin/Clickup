@@ -283,7 +283,6 @@ export function PanelPreview({
               "text-[10px] font-medium uppercase tracking-wider text-muted-foreground",
             style.titleStyle === "plain" && "text-xs",
             style.titleStyle === "large" && "text-sm font-medium",
-            style.fill === "inverted" && "text-background",
           )}
         >
           {title}
