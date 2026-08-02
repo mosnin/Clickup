@@ -3,6 +3,7 @@ import {
   HOME_PANEL_QUESTIONS,
   builtInPanelQuestion,
   mintFromBuiltIn,
+  widgetIdFromSelection,
 } from "../src/lib/built-in-panel";
 import {
   isChartShape,
@@ -97,6 +98,33 @@ describe("what a built-in can be asked", () => {
       expect(shapesFor(def.query.from).filter(isChartShape).length, id)
         .toBeGreaterThan(0);
     }
+  });
+});
+
+describe("reading a selection", () => {
+  it("finds the widget on its own grid", () => {
+    expect(widgetIdFromSelection("home-grid:activity", "home-grid")).toBe(
+      "activity",
+    );
+  });
+
+  it("keeps a panel's own colon", () => {
+    // Splitting on the last colon — or on all of them — hands back "abc123",
+    // which resolves to nothing. The control then looks broken rather than
+    // mis-parsed, which is how this class of bug survives.
+    expect(widgetIdFromSelection("home-grid:custom:abc123", "home-grid")).toBe(
+      "custom:abc123",
+    );
+  });
+
+  it("ignores a selection on somebody else's grid", () => {
+    expect(
+      widgetIdFromSelection("project-screen-grid:activity", "home-grid"),
+    ).toBeNull();
+    expect(widgetIdFromSelection("activity", "home-grid")).toBeNull();
+    expect(widgetIdFromSelection("home-grid:", "home-grid")).toBeNull();
+    expect(widgetIdFromSelection(null, "home-grid")).toBeNull();
+    expect(widgetIdFromSelection("home-grid:activity", null)).toBeNull();
   });
 });
 

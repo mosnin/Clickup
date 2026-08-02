@@ -14,6 +14,7 @@ import { FloatingNavToggle } from "@/components/appearance/floating-nav-toggle";
 import { SidebarDock } from "@/components/appearance/sidebar-dock";
 import { DockSlot } from "@/components/appearance/dock-slot";
 import { CustomizeProvider } from "@/components/appearance/customize-provider";
+import { MintablePanelsProvider } from "@/components/appearance/mintable-panels";
 import { StyleStudio } from "@/components/appearance/style-studio";
 
 export default async function DashboardLayout({
@@ -50,6 +51,10 @@ export default async function DashboardLayout({
       <ToastProvider>
       <AppearanceProvider>
       <CustomizeProvider>
+      {/* Above the page rather than inside it: the studio is a sibling of
+          `children`, so a screen offering its built-ins for minting has to
+          reach up here to be heard. */}
+      <MintablePanelsProvider>
         <SidebarProvider defaultOpen={defaultOpen} className="h-svh overflow-hidden">
           <EnsureUser />
           <NoSupportWidget />
@@ -85,6 +90,7 @@ export default async function DashboardLayout({
           {/* The inspector. Beside the work, never instead of it. */}
           <StyleStudio />
         </SidebarProvider>
+      </MintablePanelsProvider>
       </CustomizeProvider>
       </AppearanceProvider>
       </ToastProvider>

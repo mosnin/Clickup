@@ -375,16 +375,31 @@ galleryData["invites.listForCurrentUser"] = [
   },
 ];
 
-// MIXED heights, on purpose. The bug this fixture exists to catch only
-// appears when neighbouring tiles disagree about how tall they are: a two-row
-// task list beside a one-row chart, a one-row feed beside a two-row agents
-// card. Six tiles at the same height is the arrangement that proved nothing.
-galleryData["userSettings.current"] = {
-  clerkId: "u1",
-  homeWidgets: ["stats", "today", "activity", "projects", "live", "agents"],
-  homeWidgetSpans: { stats: 3, today: 2, activity: 1, projects: 3, live: 2, agents: 1 },
-  homeWidgetRows: { today: 2, activity: 1, live: 1, agents: 2 },
-};
+// Two Homes, because they are two different screens and both ship.
+//
+// `?plain=1` is the Home of somebody who has never touched the layout — no
+// stored rows at all, which is what every account starts as and most stay as.
+// The default here is a customised one, with MIXED heights on purpose: the
+// bug this fixture exists to catch only appears when neighbouring tiles
+// disagree about how tall they are — a two-row task list beside a one-row
+// chart, a one-row feed beside a two-row agents card. Six tiles at the same
+// height is the arrangement that proved nothing for a year.
+const CUSTOMISED = !new URLSearchParams(window.location.search).has("plain");
+galleryData["userSettings.current"] = CUSTOMISED
+  ? {
+      clerkId: "u1",
+      homeWidgets: ["stats", "today", "activity", "projects", "live", "agents"],
+      homeWidgetSpans: {
+        stats: 3,
+        today: 2,
+        activity: 1,
+        projects: 3,
+        live: 2,
+        agents: 1,
+      },
+      homeWidgetRows: { today: 2, activity: 1, live: 1, agents: 2 },
+    }
+  : null;
 
 galleryData["appearance.forCurrentUser"] = null;
 galleryData["appearance.spaceContext"] = null;

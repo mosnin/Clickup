@@ -50,8 +50,24 @@ export function useQuery(ref: unknown): unknown {
   return galleryData[pathOf(ref)];
 }
 
-export function useMutation() {
-  return async () => undefined;
+/**
+ * A mutation that does nothing, and — crucially — that can still be *built*.
+ *
+ * The real `useMutation` returns a callable carrying `.withOptimisticUpdate`,
+ * and surfaces reach for it during render, not on click: Home's task list
+ * calls it at the top of the component. A bare async function therefore threw
+ * before anything painted, and the widget vanished from the screenshot while
+ * the harness reported a shot taken. The stub has to match the SHAPE of the
+ * thing, or it tests a page nobody runs.
+ */
+type GalleryMutation = ((...args: unknown[]) => Promise<undefined>) & {
+  withOptimisticUpdate: (fn: unknown) => GalleryMutation;
+};
+
+export function useMutation(): GalleryMutation {
+  const fn = (async () => undefined) as GalleryMutation;
+  fn.withOptimisticUpdate = () => fn;
+  return fn;
 }
 
 export function useAction() {

@@ -21,6 +21,7 @@ import {
 } from "@/components/cult/dynamic-island";
 import { useCustomize } from "@/components/appearance/customize-provider";
 import {
+  LivePanelCard,
   builderDef,
   shapeItems,
   useAddCard,
@@ -28,6 +29,8 @@ import {
   useCardBuilder,
   watchItems,
 } from "@/components/appearance/card-builder";
+import { useMintableBuiltIn } from "@/components/appearance/mintable-panels";
+import { mintFromBuiltIn } from "@/lib/built-in-panel";
 import { useComponentStyle } from "@/components/appearance/use-component-style";
 import { StyleCarousel } from "@/components/appearance/style-carousel";
 import { Chart, type ChartKind } from "@/components/charts/operate/chart";
@@ -53,6 +56,7 @@ import {
   isChartShape,
   normalizePanel,
   panelIdFromWidgetId,
+  panelWidgetId,
   shapeLabel,
   shapesFor,
   type PanelDef,
@@ -256,9 +260,16 @@ function StudioScreen() {
           <p className="mt-1 px-6 text-[13px] text-muted-foreground">
             {chapter === "new"
               ? "Every card here is running on your real work."
-              : `Scroll to one and it's applied${
-                  selection ? ` to ${selection.label}` : " everywhere"
-                } — there's nothing to save.`}
+              : /* The chart chapter, pointed at one panel, does NOT apply on
+                   scroll — it rewrites a definition, so it asks for a pick. A
+                   line promising "there's nothing to save" over a shelf that
+                   saves nothing until you press it is the same lie this
+                   studio shipped once already, told the other way round. */
+                chapter === "chart" && selection
+                ? "Your own numbers, drawn each way. Nothing changes until you pick one."
+                : `Scroll to one and it's applied${
+                    selection ? ` to ${selection.label}` : " everywhere"
+                  } — there's nothing to save.`}
           </p>
         </Rise>
 
@@ -348,7 +359,6 @@ function StudioScreen() {
                   centred={centred}
                   onCentred={setCentred}
                   selectionId={selection.id}
-                  style={style}
                 />
               ) : (
                 <HeroShelf
@@ -725,17 +735,34 @@ function BuilderChapter({
 
 /**
  * Every shape this panel's question can be drawn as, live, one click each.
- * Writes the panel's definition — "draw it as rings" changes what the panel
- * is, not a preference about it.
+ *
+ * Two panels arrive here and they are not the same object. One has a stored
+ * definition, and picking a shape rewrites it — "draw it as rings" changes what
+ * the panel IS, not a preference about it. The other is **built in**, and used
+ * to land on a paragraph reading "this panel is built in, so its shape is
+ * fixed" — which on Home was every panel on the screen. The control was present
+ * and inert for the whole surface, which is the exact failure this studio
+ * already shipped once with scroll-to-choose: a control that looks live and
+ * is not.
+ *
+ * A built-in has no definition, so a pick MINTS one — the built-in's question
+ * (src/lib/built-in-panel.ts) in the chosen shape — and the screen swaps it
+ * into the slot the built-in was standing in. From then on it is an ordinary
+ * authored panel and every later pick edits it.
+ *
+ * Both paths draw the candidate with the real `<Panel>` over real data rather
+ * than the invented `SPECIMEN` series the style chapters use. That is not
+ * polish: a minted panel is close to its built-in but never identical to it
+ * (one scope instead of every scope, chiefly), and a made-up specimen cannot
+ * show a difference that exists only in the data. Looking at the actual card,
+ * with the actual numbers, is what makes the pick informed.
  */
 function ShapeShelf({
   selectionId,
-  style,
   centred,
   onCentred,
 }: {
   selectionId: string;
-  style: ReturnType<typeof useComponentStyle>["style"];
   centred: string | null;
   onCentred: (id: string) => void;
 }) {
@@ -749,6 +776,11 @@ function ShapeShelf({
     componentId ? { componentId } : "skip",
   );
   const update = useMutation(api.uiComponents.update);
+  const create = useMutation(api.uiComponents.create);
+  // Null for a selection that already has a definition — a stored panel's
+  // widget id is `custom:<id>`, which no built-in registry answers for.
+  const mintable = useMintableBuiltIn(selectionId);
+  const { select } = useCustomize();
   const { toast } = useToast();
 
   const stored = useMemo<PanelDef | null>(
@@ -756,7 +788,12 @@ function ShapeShelf({
     [row],
   );
 
-  if (!componentId || !row || !stored) {
+  const base = stored ?? mintable?.question ?? null;
+  const scope = row
+    ? { scopeType: row.scopeType, scopeId: row.scopeId }
+    : (mintable?.scope ?? null);
+
+  if (!base || !scope) {
     return (
       <p className="mx-auto max-w-md px-6 py-8 text-[13px] leading-relaxed text-muted-foreground">
         This panel is built in, so its shape is fixed — colour and card still
@@ -765,41 +802,75 @@ function ShapeShelf({
     );
   }
 
-  const shapes = shapesFor(stored.query.from).filter(isChartShape);
+  const shapes = shapesFor(base.query.from).filter(isChartShape);
+
+  function pick(shape: PanelShape) {
+    if (stored && row) {
+      const next = normalizePanel({ ...stored, shape });
+      void update({ componentId: row.componentId, definition: next }).catch(
+        (e) =>
+          toast(errorMessage(e, "Couldn't change the chart"), { kind: "error" }),
+      );
+      return;
+    }
+    if (!mintable || !base) return;
+    const next = mintFromBuiltIn(base, shape);
+    // The mutation returns an id and the screen places it. It cannot place it
+    // itself: the server can't tell "never arranged this screen" from
+    // "arranged it empty", so a layout written here would wipe the screen down
+    // to this one panel. See convex/uiComponents.ts.
+    void create({ ...scope!, definition: next })
+      .then((componentId) => {
+        mintable.replace(componentId as unknown as string);
+        // Re-point the inspector at what is now standing there, or the next
+        // pick would mint a second panel from the built-in that is no longer
+        // on the screen.
+        select({
+          id: `${selectionId.slice(0, selectionId.indexOf(":"))}:${panelWidgetId(
+            componentId as unknown as string,
+          )}`,
+          label: next.title,
+          screenKey: selectionId.slice(0, selectionId.indexOf(":")),
+        });
+        toast(
+          `“${next.title}” is yours now — drawn as a ${shapeLabel(
+            shape,
+          ).toLowerCase()}.`,
+        );
+      })
+      .catch((e) =>
+        toast(errorMessage(e, "Couldn't change the chart"), { kind: "error" }),
+      );
+  }
 
   return (
-    <HeroShelf
-      applyOnCentre={false}
-      centred={centred}
-      items={shapes.map((shape) => ({
-        id: shape,
-        label: shapeLabel(shape),
-        render: (locked: boolean) => (
-          <SpecimenCard>
-            <Chart
-              height={260}
-              key={locked ? "locked" : "resting"}
-              kind={shape as ChartKind}
-              label={shapeLabel(shape)}
-              series={SPECIMEN}
-              style={style}
-              unit="count"
+    <div>
+      {!stored && (
+        <p className="mx-auto mb-3 max-w-md px-6 text-[13px] leading-relaxed text-muted-foreground">
+          Picking one makes this a card of your own. The built-in waits on the
+          shelf if you want it back.
+        </p>
+      )}
+      <HeroShelf
+        applyOnCentre={false}
+        centred={centred}
+        items={shapes.map((shape) => ({
+          id: shape,
+          label: shapeLabel(shape),
+          render: () => (
+            <LivePanelCard
+              def={
+                stored ? normalizePanel({ ...stored, shape }) : mintFromBuiltIn(base!, shape)
+              }
+              scope={scope!}
             />
-          </SpecimenCard>
-        ),
-      }))}
-      onCentred={onCentred}
-      onPick={(shape) => {
-        const next = normalizePanel({ ...stored, shape: shape as PanelShape });
-        void update({ componentId: row.componentId, definition: next }).catch(
-          (e) =>
-            toast(errorMessage(e, "Couldn't change the chart"), {
-              kind: "error",
-            }),
-        );
-      }}
-      selectedId={stored.shape}
-      title="Drawn as"
-    />
+          ),
+        }))}
+        onCentred={onCentred}
+        onPick={(shape) => pick(shape as PanelShape)}
+        selectedId={stored?.shape}
+        title="Drawn as"
+      />
+    </div>
   );
 }

@@ -116,6 +116,26 @@ export function builtInPanelQuestion(
 }
 
 /**
+ * The widget inside a `customizable()` selection id, if it is on this grid.
+ *
+ * The id is `<gridId>:<widgetId>` — written by `EditableGrid`. Split on the
+ * FIRST colon only: an authored panel's widget id carries one of its own
+ * (`custom:<id>`), and splitting on the last (or on all of them) hands back
+ * something that resolves to nothing, which reads as a control that did not
+ * work rather than as a parsing bug.
+ */
+export function widgetIdFromSelection(
+  selectionId: string | null,
+  gridId: string | null,
+): string | null {
+  if (!selectionId || !gridId) return null;
+  const cut = selectionId.indexOf(":");
+  if (cut === -1) return null;
+  if (selectionId.slice(0, cut) !== gridId) return null;
+  return selectionId.slice(cut + 1) || null;
+}
+
+/**
  * The definition a shape pick mints from a built-in.
  *
  * `coherePanel` rather than `normalizePanel` alone: this is somebody actively

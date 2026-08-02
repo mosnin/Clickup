@@ -126,7 +126,7 @@ export function shapeItems(
  * resolver the dashboard uses, so what the shelf shows is what the screen
  * gets — there is no gap for a preview to lie in.
  */
-function LivePanelCard({
+export function LivePanelCard({
   def,
   scope,
 }: {

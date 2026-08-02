@@ -170,13 +170,13 @@ for (const [url, name] of [
 // screenful and silently drops everything below it. A shot that quietly loses
 // half the page is worse than no shot, so grow the window to the content and
 // then shoot.
-async function shootHome(width, label) {
+async function shootHome(width, label, query = "") {
   const p = await browser.newPage({
     viewport: { width, height: 900 },
     deviceScaleFactor: 2,
   });
   p.on("pageerror", (e) => errors.push(String(e)));
-  await p.goto("http://127.0.0.1:4599/home.html");
+  await p.goto(`http://127.0.0.1:4599/home.html${query}`);
   await p.waitForTimeout(2500);
   const h = await p.evaluate(() => {
     const el = document.querySelector('[data-slot="sidebar-inset"]');
@@ -204,6 +204,11 @@ async function shootHome(width, label) {
 
 await shootHome(1180, "desktop");
 await shootHome(390, "mobile");
+// The same page with nothing customised — the Home every account starts on,
+// and the one it is easiest to never look at because the fixture author had
+// to go out of their way to produce it.
+await shootHome(1180, "desktop-plain", "?plain=1");
+await shootHome(390, "mobile-plain", "?plain=1");
 
 // ── The mobile pass. Never taken before this audit, which is exactly how a
 // 340px card shipped onto a 390px screen unseen. Every phase re-runs this.
