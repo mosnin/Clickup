@@ -911,6 +911,47 @@ for (const r of coverage) {
   );
 }
 
+md.push("\n## Gestures, driven with a real pointer\n");
+if (gestureMeasurement) {
+  const { resize: rz, reorder: ro } = gestureMeasurement;
+  md.push(
+    `Resize: ${rz.distinctHeights} distinct heights over 13 pointer moves ` +
+      `(a resize that follows the finger changes on almost every frame), ` +
+      `${rz.writes} write(s), ${rz.heightBefore}px → ${rz.heightAtRelease}px at ` +
+      `release → ${rz.heightAfter}px settled, neighbour ` +
+      `${rz.neighbourChanged ? "CHANGED" : "untouched"}.\n`,
+  );
+  md.push(
+    `\nReorder: \`${(ro.before ?? []).join(",")}\` → \`${(ro.atDrop ?? []).join(",")}\` ` +
+      `at the drop → \`${(ro.settled ?? []).join(",")}\` after settling, ` +
+      `${ro.writes} write(s). Looked at twice on purpose: "saves out of place ` +
+      `then glitches in" is a late write landing, and one reading taken at the ` +
+      `moment of release cannot see it.\n`,
+  );
+}
+
+md.push("\n## The studio's live-behind claim\n");
+md.push(
+  "The sheet says on screen that a choice applies everywhere, live behind it. " +
+    "That is a testable sentence, so it is tested rather than photographed: a " +
+    "palette is picked with the sheet open and the marks on the canvas BEHIND " +
+    "it are sampled before and after. A screenshot of the sheet cannot tell " +
+    "you either way.\n",
+);
+md.push("| viewport | result | before / after |");
+md.push("| --- | --- | --- |");
+for (const lb of liveBehind) {
+  md.push(
+    `| ${lb.viewport} | ${
+      lb.measurable
+        ? lb.changed
+          ? "the canvas changed"
+          : "**NOTHING changed** — the control did not reach the product"
+        : "not measurable — " + lb.why
+    } | ${lb.before ? `\`${lb.before}\`, \`${lb.after}\`` : "—"} |`,
+  );
+}
+
 md.push("\n## Findings, ranked\n");
 if (folded.length === 0) {
   md.push("Nothing fired.\n");
