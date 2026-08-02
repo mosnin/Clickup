@@ -287,14 +287,18 @@ export default function DashboardHome() {
       : null,
   );
 
-  // Wait for settings and for the authored panels, so a saved layout never
-  // flashes the default order — or a screen with authored panels on it — on
-  // first paint.
-  if (
-    overview === undefined ||
-    settings === undefined ||
-    (scope !== null && panelRows === undefined)
-  ) {
+  // Wait for settings too, so a saved custom layout never flashes the
+  // default order on first paint.
+  //
+  // Deliberately NOT waiting on the authored panels as well. They arrive over
+  // the same subscription as `settings` and land with it in practice, so the
+  // wait would buy a frame — and it would make the whole screen depend on one
+  // more query answering, which is how a surface ends up permanently blank in
+  // a harness (or for anyone whose scope resolves late). The case that
+  // actually matters is destructive rather than cosmetic — a save landing
+  // while the list is still loading — and `order` above handles it by keeping
+  // unresolved panel ids until it KNOWS they are gone.
+  if (overview === undefined || settings === undefined) {
     return <DashboardSkeleton />;
   }
   if (overview === null) {

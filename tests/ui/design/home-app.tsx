@@ -27,6 +27,15 @@ import { galleryData } from "./stubs/convex-react";
 // real work: long project names, a nine-word status line, a tall list beside a
 // short chart. Equal-sized tiles full of "Lorem" cannot express the bugs that
 // happen, which is the whole reason the old fixture never caught one.
+//
+// What the FIRST run of this page found, in both states and at both widths:
+// every panel is given a fixed 10.5rem box by the grid and nothing clips it,
+// so Projects (458px of table in a 168px box) paints straight over Live, and
+// Live paints over Agents. Home has been overlapping itself this whole time.
+// The demo fixture could not see it because every tile there declares `rows`,
+// which makes the grid a *composed* screen and turns the scroll containers on.
+// Home declares none, so it takes the *natural* path — the path nothing had
+// ever rendered.
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = Date.now();
