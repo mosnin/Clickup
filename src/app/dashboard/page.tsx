@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import useMeasure from "react-use-measure";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -155,6 +156,59 @@ function spanOf(id: WidgetId): 1 | 2 | 3 {
   return SPAN_OF[id as BuiltInId] ?? 1;
 }
 
+// ── How tall each block starts ───────────────────────────────────────────
+//
+// A default that needs scrolling on first load is the bug. Every block used to
+// start at one row — 168px — and every block's content is taller than that:
+// Today's tasks is 305px, the chart 316px, Projects 458px, Live 469px. Since
+// the packer took over, a tile clips and scrolls what does not fit, which is
+// the correct behaviour for a box somebody chose and a terrible default for a
+// box nobody chose. A brand-new account landed on a stat card sliced through
+// its own number and a chart showing one black stub of its tallest bar.
+//
+// So these are measured, not guessed (scripts/measure-home.mjs frees each
+// tile's box and reads what its content actually wants), and they are measured
+// at BOTH shapes this screen has. Height cannot be one number: at three
+// columns the stat row is 94px of content and at one column the same four
+// cards are 424px. The index is the column count the grid is drawing, which is
+// also what decides how wide each block is — a block's own span is capped by
+// it — so one table answers for a phone, a split window and a desktop without
+// a second layout model.
+//
+// A row is 10.5rem plus a 1.5rem gap: 1 → 168px, 2 → 360px, 3 → 552px, and 3
+// is the ceiling the grid enforces. Where content exceeds 552 (Live at one
+// column is 546, Projects 458) the tallest honest row is what it gets.
+//
+// This is a DEFAULT, never a write: it lands in the tile, not in the layout,
+// so nothing is persisted and a redesign of a block still reaches everyone who
+// never resized it. Anyone who has dragged a corner keeps their own height.
+const DEFAULT_ROWS: Record<BuiltInId, [one: 1 | 2 | 3, two: 1 | 2 | 3, three: 1 | 2 | 3]> = {
+  //          1 col  2 cols  3 cols
+  stats: [2, 2, 1],
+  today: [3, 2, 2],
+  activity: [2, 2, 2],
+  projects: [3, 3, 3],
+  live: [3, 3, 3],
+  agents: [2, 2, 2],
+};
+/** Mirrors the grid's own thresholds (Tailwind's `@md` 28rem, `@3xl` 48rem). */
+function columnsFor(gridWidth: number): 1 | 2 | 3 {
+  if (gridWidth >= 48 * 16) return 3;
+  if (gridWidth >= 28 * 16) return 2;
+  return 1;
+}
+/**
+ * The height a block starts at, before anyone has resized anything.
+ *
+ * An authored panel gets one row: nothing here knows what it draws, and a
+ * panel that arrives too tall is a panel the reader can see and pull taller,
+ * while one that arrives with 400px of white under it looks broken.
+ */
+function defaultRowsOf(id: WidgetId, columns: 1 | 2 | 3): 1 | 2 | 3 {
+  const row = DEFAULT_ROWS[id as BuiltInId];
+  return row ? row[columns - 1] : 1;
+}
+
 function startOfToday(): number {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -205,6 +259,15 @@ export default function DashboardHome() {
     () => new Map((panelRows ?? []).map((r) => [r.componentId as string, r])),
     [panelRows],
   );
+
+  // What shape the grid is in right now. Measured from the grid's own box
+  // rather than the window's, for the reason the grid itself measures: the
+  // shell's nav can be open, collapsed, floating or docked, so the same window
+  // draws a different number of columns and the default heights have to follow
+  // the space a block actually has. 1024 until the first measurement lands, so
+  // a desktop never flashes a phone's heights on its way to the real answer.
+  const [gridBoxRef, { width: gridWidth }] = useMeasure();
+  const gridColumns = columnsFor(gridWidth || 1024);
 
   const [customizing, setCustomizing] = useState(false);
   // Local optimistic layout: render the just-clicked order immediately;
@@ -491,6 +554,10 @@ export default function DashboardHome() {
       {/* The blocks, on the same physical grid every screen uses: hold one
           until the grid wobbles (or hit Customize) and move it. Hidden blocks
           wait on a shelf below and are dragged back on. */}
+      {/* The box the defaults are measured against. It is the grid's own
+          width — the grid is `w-full` inside it — so "how many columns is
+          this drawing" is answered once, the same way the grid answers it. */}
+      <div ref={gridBoxRef}>
       <EditableGrid
         gridId={HOME_GRID_ID}
         editing={customizing}
@@ -508,6 +575,10 @@ export default function DashboardHome() {
               // width. The designed span is only where it starts.
               minSpan: 1 as const,
               maxSpan: 3 as const,
+              // Tall enough for what it draws, at the width it is being drawn
+              // at. Overridden by anything the reader saved (`layout.widgets`
+              // carries their rows); this is only where it starts.
+              rows: defaultRowsOf(id, gridColumns),
               content: widgetContent(id),
             },
           ];
@@ -595,6 +666,7 @@ export default function DashboardHome() {
           ) : null
         }
       </EditableGrid>
+      </div>
     </div>
   );
 }
