@@ -220,6 +220,16 @@ const CUT_TEXT = `(() => {
         if (clipX || clipY) {
           const b = el.getBoundingClientRect();
           const marked = cs.textOverflow === "ellipsis";
+          // The same exemption on the other axis. This product declares
+          // shortened text two ways — \`truncate\` (nowrap + ellipsis, which
+          // clips on X) and \`line-clamp\` (wrap, then keep N lines, which
+          // clips on Y) — and both end in an ellipsis that says so. The gate
+          // knew only the older one, so moving a title from one idiom to the
+          // other turned correct work red on 273 tiles. Note what is NOT
+          // exempted: a box with \`overflow: hidden\` and no clamp still
+          // reports, which is the undeclared clipping this pass exists for.
+          const clamped =
+            cs.webkitLineClamp !== "none" && parseInt(cs.webkitLineClamp) > 0;
           const reachableY =
             (cs.overflowY === "auto" || cs.overflowY === "scroll") &&
             el.scrollHeight > el.clientHeight + 1;
@@ -240,7 +250,7 @@ const CUT_TEXT = `(() => {
               out.push({ tile: id, axis: "x", by: dx, text: text.slice(0, 40) });
             }
           }
-          if (clipY && !reachableY && dy > 2) {
+          if (clipY && !reachableY && !clamped && dy > 2) {
             const key = id + "|y|" + text;
             if (!seen.has(key)) {
               seen.add(key);
