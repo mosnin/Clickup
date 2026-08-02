@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import useMeasure from "react-use-measure";
 import { useQuery } from "convex/react";
 import {
   brokenClaimFor,
@@ -151,6 +152,23 @@ export function Panel({
     isMetricShape(def.shape) ? scalar : null,
   );
 
+  // How much room the body actually got.
+  //
+  // The packer hands a panel a box; the panel does not get to assume that box
+  // is the size it would have liked. Every shape in here used to lay out at a
+  // constant — 132px of chart, 34px of sparkline — and let whatever was
+  // holding it crop the difference, which is how a metric's spark came out as
+  // one black rectangle sliced by the tile's bottom edge and a workload's last
+  // two rows were cut with nothing to say they existed. So the box is measured
+  // and passed down, and the shapes shrink into it.
+  //
+  // Measured rather than derived, because "what is left after the header" is a
+  // sum of six things this component does not own (padding from the style
+  // layer, a claim line, a truncation line, a title that may be hidden).
+  const [bodyRef, bodyBox] = useMeasure();
+  const room = Math.floor(bodyBox.height);
+  const width = Math.floor(bodyBox.width);
+
   const frame = (
     <div
       className={cn(
@@ -163,7 +181,7 @@ export function Panel({
       style={{ borderRadius: cornerCss(style), padding: padCss(style) }}
     >
       <Header def={def} style={style} total={data?.total ?? 0} />
-      <div className="mt-2 min-h-0 flex-1">
+      <div className="mt-2 min-h-0 flex-1" ref={bodyRef}>
         {data === undefined ? (
           <Skeleton />
         ) : (
@@ -174,6 +192,8 @@ export function Panel({
             state={state}
             scopeType={scopeType}
             scopeId={scopeId}
+            room={room}
+            width={width}
           />
         )}
       </div>
@@ -240,6 +260,27 @@ type Envelope = NonNullable<
   ReturnType<typeof useQuery<typeof api.dataStream.resolve>>
 >;
 
+/**
+ * The height a chart may draw at, given the room the body was measured to have.
+ *
+ * Two rules. It never exceeds the room, which is the whole point. And it never
+ * exceeds the height the shape would have chosen anyway, which is what keeps
+ * this stable: a panel in an auto-height container has `room` equal to its own
+ * content, so a chart that grew to fill the room would grow the room, and the
+ * two would chase each other. Shrinking is monotone and terminates.
+ *
+ * A room of 0 is "not measured yet", not "no space" — the first paint has no
+ * box — so it falls back rather than collapsing the chart to nothing.
+ */
+function chartHeight(style: { padding: string }, room: number): number {
+  const wanted = style.padding === "tight" ? 110 : 132;
+  if (room <= 0) return wanted;
+  return Math.max(MIN_CHART_PX, Math.min(wanted, room));
+}
+
+/** Below this a chart is a smear, and saying so is more use than drawing it. */
+const MIN_CHART_PX = 40;
+
 function Body({
   def,
   data,
@@ -247,6 +288,8 @@ function Body({
   state,
   scopeType,
   scopeId,
+  room,
+  width,
 }: {
   def: PanelDef;
   data: Envelope;
@@ -254,6 +297,10 @@ function Body({
   state: ReturnType<typeof usePanelAttention>["state"];
   scopeType: "user" | "workspace";
   scopeId: string;
+  /** Measured height of the body box, or 0 before the first measure. */
+  room: number;
+  /** Measured width of the body box, or 0 before the first measure. */
+  width: number;
 }) {
   if (isMetricShape(def.shape)) {
     return (
@@ -264,6 +311,7 @@ function Body({
         state={state}
         scopeType={scopeType}
         scopeId={scopeId}
+        room={room}
       />
     );
   }
@@ -276,7 +324,7 @@ function Body({
         series={data.series}
         style={style}
         unit={data.meta.unit}
-        height={style.padding === "tight" ? 110 : 132}
+        height={chartHeight(style, room)}
         label={def.title}
       />
     );
@@ -284,10 +332,23 @@ function Body({
 
   if (data.rows.length === 0) return <Empty def={def} />;
 
-  if (def.shape === "table") return <Table def={def} rows={data.rows} />;
+  if (def.shape === "table") {
+    return <Table def={def} rows={data.rows} width={width} />;
+  }
   if (def.shape === "cards") return <Cards def={def} rows={data.rows} />;
   return <Rows def={def} rows={data.rows} />;
 }
+
+/**
+ * Room the metric's own furniture needs before a sparkline is worth drawing:
+ * the number, the delta line under it and the caption. Below this the spark is
+ * the thing that gets cut, so it is the thing that is not drawn — an absent
+ * chart says less than a clipped one, but it does not say something false.
+ */
+const METRIC_FURNITURE_PX = 76;
+/** A sparkline shorter than this is a line, not a trend. */
+const MIN_SPARK_PX = 18;
+const SPARK_PX = 34;
 
 function Metric({
   def,
@@ -296,6 +357,7 @@ function Metric({
   state,
   scopeType,
   scopeId,
+  room,
 }: {
   def: PanelDef;
   data: Envelope;
@@ -303,14 +365,22 @@ function Metric({
   state: ReturnType<typeof usePanelAttention>["state"];
   scopeType: "user" | "workspace";
   scopeId: string;
+  room: number;
 }) {
   // A big number is where "why is that what it is" actually gets asked, so
   // this is where the chain hangs. The number itself is the affordance —
   // anything else would be chrome competing with the thing it is about.
   const provenance = useProvenance();
 
+  // What is left for the spark once the number, the delta and the caption have
+  // taken theirs. Unmeasured (0) keeps the shape it has always had.
+  const spark =
+    room <= 0
+      ? SPARK_PX
+      : Math.min(SPARK_PX, room - METRIC_FURNITURE_PX);
+
   return (
-    <div className="flex h-full flex-col justify-between">
+    <div className="flex h-full min-h-0 flex-col justify-between">
       <ProvenanceToggle
         open={provenance.open}
         onToggle={provenance.toggle}
@@ -344,20 +414,22 @@ function Metric({
       {/* What changed since you last looked, under the number it explains. */}
       <PanelDelta state={state} className="mt-1" />
 
-      {def.shape === "metric_spark" && data.series[0]?.points.length > 1 && (
-        <div className="mt-2">
-          <Chart
-            kind="sparkline"
-            series={data.series}
-            style={style}
-            unit={data.meta.unit}
-            height={34}
-            label={`${def.title} over time`}
-          />
-        </div>
-      )}
+      {def.shape === "metric_spark" &&
+        data.series[0]?.points.length > 1 &&
+        spark >= MIN_SPARK_PX && (
+          <div className="mt-2 min-h-0">
+            <Chart
+              kind="sparkline"
+              series={data.series}
+              style={style}
+              unit={data.meta.unit}
+              height={spark}
+              label={`${def.title} over time`}
+            />
+          </div>
+        )}
 
-      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+      <p className="mt-1 truncate text-[11px] leading-relaxed text-muted-foreground">
         {def.caption || describePanel(def)}
       </p>
     </div>
@@ -440,11 +512,35 @@ function Cards({ def, rows }: { def: PanelDef; rows: Envelope["rows"] }) {
   );
 }
 
-/** Wide content scrolls inside its own panel, never panning the page. */
-function Table({ def, rows }: { def: PanelDef; rows: Envelope["rows"] }) {
+/**
+ * The narrowest a table can be and still be a table.
+ *
+ * Below this the columns stop being columns: a title and a status chip in
+ * 320px is a chip sliced by the panel's own edge, which is what shipped. The
+ * old answer was a horizontal scroller inside the tile, and a horizontal
+ * scrollbar inside a card on a phone is a control most people never find — so
+ * the rows stack instead, which is the same records read down instead of
+ * across. Measured from the body's own box rather than from the viewport,
+ * because a table in a one-column tile on a 1280px screen is just as narrow as
+ * one on a phone; the panel does not know or care which it is in.
+ */
+const TABLE_MIN_PX = 360;
+
+function Table({
+  def,
+  rows,
+  width,
+}: {
+  def: PanelDef;
+  rows: Envelope["rows"];
+  width: number;
+}) {
+  if (width > 0 && width < TABLE_MIN_PX) {
+    return <Rows def={def} rows={rows} />;
+  }
   return (
     <div className="-mx-1 overflow-x-auto px-1">
-      <table className="w-full min-w-[22rem] text-left text-xs">
+      <table className="w-full text-left text-xs">
         <thead>
           <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
             <th className="pb-1 pr-3 font-medium">Title</th>

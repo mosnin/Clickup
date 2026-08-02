@@ -1008,13 +1008,29 @@ function ActivityChart({ completions }: { completions?: number[] }) {
 
   const total = data.reduce((sum, d) => sum + d.completed, 0);
 
+  // The chart is as tall as the box it was given, never a constant.
+  //
+  // It used to declare `h-[175px]` inside a card the packer hands 168px, so on
+  // a phone the plot ran straight through the card's bottom edge and all you
+  // could see of a week of work was one bar sliced in half. Measured rather
+  // than assumed, because the header, the count line and the card's padding
+  // are four different numbers and the tile's height is a fifth that this
+  // component does not choose.
+  //
+  // Shrink-only: in a card with no height of its own the measured box IS the
+  // plot, so a plot that grew to fill it would grow it, and the two would
+  // chase each other. `min` terminates.
+  const [plotRef, plotBox] = useMeasure();
+  const measured = Math.floor(plotBox.height);
+  const plotHeight = measured > 0 ? Math.max(56, Math.min(175, measured)) : 175;
+
   return (
-    <div className="h-full rounded-xl border border-border bg-card overflow-hidden">
-      <div className="border-b border-border px-4 py-3">
+    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card">
+      <div className="shrink-0 border-b border-border px-4 py-3">
         <h3 className="text-base font-medium">Recent activity</h3>
       </div>
-      <div className="p-4">
-        <div className="mb-4 flex items-baseline gap-2">
+      <div className="flex min-h-0 flex-1 flex-col p-4">
+        <div className="mb-4 flex shrink-0 items-baseline gap-2">
           <span className="text-3xl font-semibold tabular-nums">
             <Counter
               value={total}
@@ -1028,30 +1044,39 @@ function ActivityChart({ completions }: { completions?: number[] }) {
             completed · last 7 days
           </span>
         </div>
-        <ChartContainer config={chartConfig} className="h-[175px] w-full">
-          <BarChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="var(--color-border)"
-              vertical={false}
-            />
-            <XAxis
-              dataKey="day"
-              tickLine={false}
-              axisLine={false}
-              tick={{ fontSize: 11 }}
-            />
-            <YAxis hide allowDecimals={false} />
-            <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar
-              dataKey="completed"
-              radius={[4, 4, 0, 0]}
-              fill="var(--color-completed)"
-            />
-          </BarChart>
-        </ChartContainer>
+        <div className="min-h-0 w-full flex-1" ref={plotRef}>
+          <ChartContainer
+            config={chartConfig}
+            className="w-full"
+            style={{ height: plotHeight }}
+          >
+            <BarChart
+              data={data}
+              margin={{ top: 8, right: 8, left: 8, bottom: 0 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="var(--color-border)"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="day"
+                tickLine={false}
+                axisLine={false}
+                tick={{ fontSize: 11 }}
+              />
+              <YAxis hide allowDecimals={false} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar
+                dataKey="completed"
+                radius={[4, 4, 0, 0]}
+                fill="var(--color-completed)"
+              />
+            </BarChart>
+          </ChartContainer>
+        </div>
         {total === 0 && (
-          <p className="mt-3 text-xs text-muted-foreground">
+          <p className="mt-3 shrink-0 text-xs text-muted-foreground">
             No completions in the last few events yet — this fills in as work
             wraps up.
           </p>
@@ -1061,6 +1086,42 @@ function ActivityChart({ completions }: { completions?: number[] }) {
   );
 }
 
+/**
+ * Health as a word, drawn the same way wherever the row is read.
+ *
+ * One component because the chip is the one thing in this table that must
+ * never truncate: "At r" and "Off" are not shorter ways of saying "At risk"
+ * and "Off track", they are different claims, and a reader cannot tell that a
+ * word was cut. So it never sits in a column that can be squeezed.
+ */
+function HealthChip({ status }: { status: Project["projectStatus"] }) {
+  const chip = status ? HEALTH_CHIP[status] : null;
+  if (!chip) return <span className="text-sm text-muted-foreground">—</span>;
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "whitespace-nowrap border-transparent text-foreground",
+        chip.className,
+      )}
+    >
+      {chip.label}
+    </Badge>
+  );
+}
+
+/**
+ * Five columns need this much room before they stop being columns.
+ *
+ * Below it the table was still a table and the panel's edge did the editing:
+ * the Health header read "Hea" and every chip under it was sliced mid-word by
+ * the tile boundary — not by an ellipsis, which at least admits to it. The old
+ * escape hatch was a horizontal scroller, and a horizontal scrollbar inside a
+ * card on a phone is a control most people never find; the same five facts
+ * read down the page instead, which is what a phone is shaped like.
+ */
+const PROJECTS_TABLE_MIN_PX = 620;
+
 function ProjectsTable({
   projects,
   totalProjects,
@@ -1068,11 +1129,17 @@ function ProjectsTable({
   projects: Project[];
   totalProjects: number;
 }) {
+  const [ref, box] = useMeasure();
+  const narrow = box.width > 0 && box.width < PROJECTS_TABLE_MIN_PX;
+
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div
+      className="rounded-xl border border-border bg-card overflow-hidden"
+      ref={ref}
+    >
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <h3 className="text-base font-medium">Projects</h3>
-        <span className="text-xs text-muted-foreground">
+        <span className="shrink-0 text-xs text-muted-foreground">
           {projects.length === totalProjects
             ? `${totalProjects} project${totalProjects === 1 ? "" : "s"}`
             : `Showing ${projects.length} of ${totalProjects}`}
@@ -1084,6 +1151,48 @@ function ProjectsTable({
           title="No projects yet"
           message="Create a list inside your personal space or a workspace and it'll show up here, live."
         />
+      ) : narrow ? (
+        <ul className="divide-y divide-border">
+          {projects.map((p) => {
+            const pct = p.total > 0 ? (p.done / p.total) * 100 : 0;
+            const targetOverdue =
+              p.targetDate !== undefined &&
+              p.targetDate < startOfToday() &&
+              p.done < p.total;
+            return (
+              <li className="px-4 py-3" key={p.listId}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link
+                      href={`/dashboard/l/${p.listId}`}
+                      className="block truncate font-medium text-foreground hover:underline"
+                    >
+                      {p.name}
+                    </Link>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {p.place}
+                    </p>
+                  </div>
+                  <HealthChip status={p.projectStatus} />
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <Progress value={pct} className="h-2 flex-1" />
+                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                    {p.done}/{p.total}
+                  </span>
+                </div>
+                <p className="mt-1 truncate text-xs text-muted-foreground">
+                  {p.targetDate !== undefined && (
+                    <span className={cn(targetOverdue && "text-danger")}>
+                      Target {formatDate(p.targetDate)} ·{" "}
+                    </span>
+                  )}
+                  {timeAgo(p.lastActivityAt)}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
       ) : (
         <div className="overflow-x-auto">
           <Table>
@@ -1099,9 +1208,6 @@ function ProjectsTable({
             <TableBody>
               {projects.map((p) => {
                 const pct = p.total > 0 ? (p.done / p.total) * 100 : 0;
-                const chip = p.projectStatus
-                  ? HEALTH_CHIP[p.projectStatus]
-                  : null;
                 const targetOverdue =
                   p.targetDate !== undefined &&
                   p.targetDate < startOfToday() &&
@@ -1118,19 +1224,7 @@ function ProjectsTable({
                       <p className="text-xs text-muted-foreground">{p.place}</p>
                     </TableCell>
                     <TableCell>
-                      {chip ? (
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "border-transparent text-foreground",
-                            chip.className,
-                          )}
-                        >
-                          {chip.label}
-                        </Badge>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      )}
+                      <HealthChip status={p.projectStatus} />
                     </TableCell>
                     <TableCell>
                       <div className="flex min-w-[140px] items-center gap-2">

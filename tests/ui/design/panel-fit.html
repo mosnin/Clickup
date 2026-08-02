@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Panel fit</title>
+    <!-- The app's own compiled stylesheet, substituted at build time. A
+         harness styled by hand is a picture of a design system, and it drifts
+         the first time anything changes. -->
+    <!--APP_CSS-->
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: var(--color-page, #f6f6f7);
+        color: var(--color-foreground, #111);
+      }
+      .row {
+        display: flex;
+        align-items: flex-start;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+      .cap {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        opacity: 0.5;
+        margin: 20px 0 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./panel-fit-app.tsx"></script>
+  </body>
+</html>

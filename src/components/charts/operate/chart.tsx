@@ -130,6 +130,19 @@ const LIBRARY_KINDS = new Set<ChartKind>([
   "heatmap",
 ]);
 
+/** A plot shorter than this is a smear; below it the chart draws nothing. */
+const MIN_PLOT_PX = 24;
+/** Assumed legend height for the first frame, before it has been measured. */
+const LEGEND_GUESS_PX = 20;
+/**
+ * Below this the chart is all furniture and no marks, so the names go.
+ *
+ * Naming the series matters less than being able to read them, and a legend
+ * that does not fit is a legend cut in half — which says something false about
+ * how many series there are. The tooltip still names every one.
+ */
+const LEGEND_MIN_TOTAL_PX = 84;
+
 export function Chart({
   kind,
   series,
@@ -143,6 +156,23 @@ export function Chart({
   const usable = useMemo(
     () => series.filter((s) => s.points.length > 0),
     [series],
+  );
+  // `height` is the extent of the WHOLE chart, legend included — not of the
+  // plot with furniture hung off the bottom. A caller measures the box it can
+  // give and passes that; if the legend then added its own 20px underneath,
+  // every multi-series chart would overflow by exactly the legend, which is
+  // the same "lay out naturally and let the box crop it" this file exists to
+  // stop. So the root is a column of the stated height, the legend takes what
+  // it needs, and the plot is measured into what is left.
+  const [plotRef, plotBox] = useMeasure();
+  const legend =
+    style.legend !== "none" &&
+    usable.length > 1 &&
+    height >= LEGEND_MIN_TOTAL_PX;
+  const measured = Math.floor(plotBox.height);
+  const plotHeight = Math.max(
+    MIN_PLOT_PX,
+    measured > 0 ? measured : height - (legend ? LEGEND_GUESS_PX : 0),
   );
 
   if (usable.length === 0) return <Nothing className={className} />;
@@ -163,7 +193,7 @@ export function Chart({
 
   return (
     <div
-      className={cn("w-full", className)}
+      className={cn("flex w-full min-h-0 flex-col", className)}
       role="img"
       aria-label={label ?? "Chart"}
       // The furniture the library draws — a gauge's unfilled notches, a ring's
@@ -177,17 +207,24 @@ export function Chart({
       // Supplying it here rather than globally keeps the blast radius to these
       // charts, and `--chart-grid` is the right register: this is furniture,
       // the same weight as a gridline, and it is defined in both themes.
-      style={{ "--border": "var(--chart-grid)" } as React.CSSProperties}
+      style={
+        {
+          height,
+          "--border": "var(--chart-grid)",
+        } as React.CSSProperties
+      }
     >
-      <Body
-        kind={kind}
-        series={usable}
-        style={style}
-        unit={unit}
-        height={height}
-        x={xKind ?? xKindOf(usable)}
-      />
-      {style.legend !== "none" && usable.length > 1 && (
+      <div className="min-h-0 w-full flex-1" ref={plotRef}>
+        <Body
+          kind={kind}
+          series={usable}
+          style={style}
+          unit={unit}
+          height={plotHeight}
+          x={xKind ?? xKindOf(usable)}
+        />
+      </div>
+      {legend && (
         <SeriesLegend
           series={usable}
           style={style}
@@ -708,7 +745,7 @@ function SeriesLegend({
 
   return (
     <Legend
-      className={cn("mt-1 flex gap-1", stacked ? "flex-col" : "flex-wrap")}
+      className={cn("mt-1 flex shrink-0 gap-1", stacked ? "flex-col" : "flex-wrap")}
       items={items}
     >
       <LegendItem className="flex items-center gap-1.5 px-1.5 py-0.5">

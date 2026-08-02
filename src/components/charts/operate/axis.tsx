@@ -163,7 +163,14 @@ export function AxisColumn({ ticks }: { ticks: AxisTick[] }) {
 
   return (
     <div className="relative max-w-[38%] shrink-0 pr-2">
-      <div aria-hidden className="invisible flex flex-col">
+      {/* `h-0` because this stack is here for its WIDTH and nothing else. Left
+          in flow it laid out at 16px a row whatever height the column had, so
+          eleven rows in a 110px box was 66px of invisible content pushing the
+          column's scroll height past its box — the same "lay out at natural
+          size and let the box crop it" the charts themselves were doing. Its
+          width contribution survives being zero-height; its height no longer
+          claims room the panel does not have. */}
+      <div aria-hidden className="invisible flex h-0 flex-col overflow-hidden">
         {ticks.map((tick) => (
           <span className="truncate text-[10px] leading-4" key={tick.key}>
             {tick.label}

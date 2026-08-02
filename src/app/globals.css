@@ -2097,67 +2097,78 @@ a:hover > .message-ref {
     oklch(0.145 0 0);
 }
 
+/* Tailwind names for the chart library's tokens.
+   Every alias here read `var(----legend)` — four dashes, a property nothing
+   defines — so all thirty-one resolved to nothing, and this block wins over
+   the `--color-chart-*` values declared at the top of the file. An undefined
+   custom property is not a fallback, it is an invalid value: as a `fill` it
+   becomes SVG's initial black, which is why Home's completions bar drew as a
+   solid black rectangle in BOTH themes and vanished into the card in dark.
+   Third time this class of bug has shipped here (see the `--border` note in
+   `charts/operate/chart.tsx`), so the rule is written down: anything that
+   paints resolves to a token defined in BOTH themes, and `tests/ui/panel-fit`
+   measures it rather than trusting that it does. */
 @theme inline {
   --color-legend:
-    var(----legend);
+    var(--legend);
   --color-legend-foreground:
-    var(----legend-foreground);
+    var(--legend-foreground);
   --color-legend-muted:
-    var(----legend-muted);
+    var(--legend-muted);
   --color-legend-muted-foreground:
-    var(----legend-muted-foreground);
+    var(--legend-muted-foreground);
   --color-legend-track:
-    var(----legend-track);
+    var(--legend-track);
   --color-chart-1:
-    var(----chart-1);
+    var(--chart-1);
   --color-chart-2:
-    var(----chart-2);
+    var(--chart-2);
   --color-chart-3:
-    var(----chart-3);
+    var(--chart-3);
   --color-chart-4:
-    var(----chart-4);
+    var(--chart-4);
   --color-chart-5:
-    var(----chart-5);
+    var(--chart-5);
   --color-chart-background:
-    var(----chart-background);
+    var(--chart-background);
   --color-chart-foreground:
-    var(----chart-foreground);
+    var(--chart-foreground);
   --color-chart-foreground-muted:
-    var(----chart-foreground-muted);
+    var(--chart-foreground-muted);
   --chart-line-primary:
-    var(----chart-line-primary);
+    var(--chart-line-primary);
   --chart-line-secondary:
-    var(----chart-line-secondary);
+    var(--chart-line-secondary);
   --color-chart-crosshair:
-    var(----chart-crosshair);
+    var(--chart-crosshair);
   --color-chart-grid:
-    var(----chart-grid);
+    var(--chart-grid);
   --chart-brush-border:
-    var(----chart-brush-border);
+    var(--chart-brush-border);
   --color-chart-tooltip-background:
-    var(----chart-tooltip-background);
+    var(--chart-tooltip-background);
   --color-chart-tooltip-foreground:
-    var(----chart-tooltip-foreground);
+    var(--chart-tooltip-foreground);
   --color-chart-tooltip-muted:
-    var(----chart-tooltip-muted);
+    var(--chart-tooltip-muted);
   --color-chart-marker-background:
-    var(----chart-marker-background);
+    var(--chart-marker-background);
   --color-chart-marker-border:
-    var(----chart-marker-border);
+    var(--chart-marker-border);
   --color-chart-marker-foreground:
-    var(----chart-marker-foreground);
+    var(--chart-marker-foreground);
   --color-chart-label:
-    var(----chart-label);
+    var(--chart-label);
   --color-chart-scale-01:
-    var(----chart-scale-01);
+    var(--chart-scale-01);
   --color-chart-scale-02:
-    var(----chart-scale-02);
+    var(--chart-scale-02);
   --color-chart-scale-03:
-    var(----chart-scale-03);
+    var(--chart-scale-03);
   --color-chart-scale-04:
-    var(----chart-scale-04);
+    var(--chart-scale-04);
   --color-chart-scale-05:
-    var(----chart-scale-05);
+    var(--chart-scale-05);
   --color-chart-scale-pattern-color:
-    var(----chart-scale-pattern-color);
+    var(--chart-scale-pattern-color);
 }
