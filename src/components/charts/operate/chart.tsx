@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import useMeasure from "react-use-measure";
 import { curveLinear, curveMonotoneX, curveStep } from "@visx/curve";
 
@@ -24,8 +24,8 @@ import { RingChart } from "../ring-chart";
 import { Ring } from "../ring";
 import { Scatter } from "../scatter";
 import { ScatterChart } from "../scatter-chart";
-import { XAxis } from "../x-axis";
 import { YAxis } from "../y-axis";
+import { useChartStable } from "../chart-context";
 
 import {
   paletteColors,
@@ -33,7 +33,15 @@ import {
   type ComponentStyle,
 } from "@/lib/component-style";
 import { cn } from "@/lib/utils";
+import {
+  AxisColumn,
+  AxisStrip,
+  BandTicks,
+  PointTicks,
+  type AxisTick,
+} from "./axis";
 import { SvgChart, type ChartSeries } from "./svg-charts";
+import { HorizontalZeroMarks } from "./zero-marks";
 
 // The one chart.
 //
@@ -50,8 +58,10 @@ import { SvgChart, type ChartSeries } from "./svg-charts";
 // are categories — status, assignee, priority. Handing a status breakdown to a
 // date axis produces a chart that prints yesterday's date under "In progress",
 // which is not a cosmetic problem; it is a chart that lies. So a categorical
-// dimension gets evenly spaced synthetic instants for geometry and our own
-// label strip underneath, and the library's date axis is simply not rendered.
+// dimension gets evenly spaced synthetic instants for geometry, and *every*
+// chart — temporal or categorical — gets the one axis in `./axis`. The
+// library's `XAxis` is not rendered at all: it drew a second typography, in a
+// second place (on top of the marks), for half the cards in the same row.
 // `xKindOf` decides which case a series is, from the resolver's own
 // convention: temporal buckets carry an epoch as their key and a blank label,
 // precisely because the label is the renderer's job.
@@ -156,6 +166,18 @@ export function Chart({
       className={cn("w-full", className)}
       role="img"
       aria-label={label ?? "Chart"}
+      // The furniture the library draws — a gauge's unfilled notches, a ring's
+      // track, a radar's grid and spokes — is painted `var(--border)`, a
+      // shadcn token this app has never defined. An undefined custom property
+      // is not a fallback, it is an invalid value: as a `fill` it resolves to
+      // SVG's initial black, and as a `stroke` it resolves to none. So the
+      // radial's inactive arc was black on a black card, the rings' tracks
+      // were black rings in a monochrome palette of black arcs, and the radar
+      // had no grid at all — a polygon with nothing to be a proportion of.
+      // Supplying it here rather than globally keeps the blast radius to these
+      // charts, and `--chart-grid` is the right register: this is furniture,
+      // the same weight as a gridline, and it is defined in both themes.
+      style={{ "--border": "var(--chart-grid)" } as React.CSSProperties}
     >
       <Body
         kind={kind}
@@ -232,7 +254,9 @@ function Bars({
   const labels = useMemo(() => rows.map((r) => String(r.label)), [rows]);
   const stacked =
     style.stackMode === "stacked" || style.stackMode === "percent";
-  const axis = style.axes !== "none";
+  const on = style.axes !== "none";
+  const axis = useAxisAcross(on ? labels : []);
+  const down = useAxisDown(on ? labels : []);
 
   const plot = (
     <BarChart
@@ -245,15 +269,40 @@ function Bars({
       stacked={stacked}
       xDataKey="label"
     >
-      {style.grid !== "none" && <Grid horizontal vertical={false} />}
+      {/* A band scale has no gridline to give: a rule drawn between "Blocked"
+          and "Complete" measures nothing, and that is what a horizontal bar
+          chart was drawing — rows of ticks lying across a scale of names. Only
+          the value axis can carry gridlines, and which side that is depends on
+          which way the bars run. Five either way, so the two orientations are
+          the same chart turned, not two densities. */}
+      {style.grid !== "none" && (
+        <Grid
+          horizontal={!horizontal}
+          numTicksColumns={5}
+          vertical={horizontal}
+        />
+      )}
       {series.map((s, i) => (
         <Bar
           dataKey={seriesField(i)}
           fill={seriesColor(style.palette, i)}
           key={s.key}
           lineCap={BAR_CAP[style.barShape]}
+          // A zero bucket is a fact, and it was being drawn as absence — see
+          // `./zero-marks`. This is the library's own floor and it covers the
+          // vertical case; the horizontal one is drawn below, because the
+          // floor lives in the vertical branch of its geometry only.
+          minBarHeight={ZERO_MARK_PX}
         />
       ))}
+      {horizontal && (
+        <HorizontalZeroMarks
+          dataKeys={series.map((_, i) => seriesField(i))}
+          fills={series.map((_, i) => seriesColor(style.palette, i))}
+          size={ZERO_MARK_PX}
+        />
+      )}
+      {horizontal ? down.reporter : axis.reporter}
     </BarChart>
   );
 
@@ -262,17 +311,16 @@ function Bars({
   if (horizontal) {
     return (
       <div className="flex w-full items-stretch" style={{ height }}>
-        {axis && <BandColumn labels={labels} />}
+        {down.column}
         <div className="min-w-0 flex-1">{plot}</div>
       </div>
     );
   }
 
   return (
-    <div className="flex w-full flex-col" style={{ height }}>
-      <div className="min-h-0 flex-1">{plot}</div>
-      {axis && <BandStrip labels={labels} />}
-    </div>
+    <Plot height={height} measure={axis.measure} strip={axis.strip}>
+      {plot}
+    </Plot>
   );
 }
 
@@ -284,124 +332,113 @@ function Lines({
   bare,
 }: BodyProps & { bare: boolean }) {
   const rows = useMemo(() => instantRows(series, x), [series, x]);
+  // A sparkline is a shape without furniture; everything else gets the axis.
+  const axis = useAxisAcross(bare ? [] : axisLabels(series, x, style.axes));
 
   return (
-    <>
-      <Box height={height}>
-        <LineChart
-          aspectRatio="auto"
-          className="h-full w-full"
-          data={rows}
-          margin={marginFor(style, false, bare)}
-        >
-          {!bare && style.grid !== "none" && (
-            <Grid
-              horizontal={style.grid === "horizontal" || style.grid === "both"}
-              vertical={style.grid === "vertical" || style.grid === "both"}
-            />
-          )}
-          {series.map((s, i) => (
-            <Line
-              curve={CURVE[style.curve]}
-              dataKey={seriesField(i)}
-              // Off. It fades the stroke toward transparent at the edges, and
-              // at a panel's width that means most of the line is invisible —
-              // a chart that hides its own data to look nice.
-              fadeEdges={false}
-              key={s.key}
-              markers={{ fill: seriesColor(style.palette, i) }}
-              showMarkers={style.markers !== "none"}
-              stroke={seriesColor(style.palette, i)}
-              strokeWidth={bare ? 1.75 : 2.5}
-            />
-          ))}
-          {!bare &&
-            x === "time" &&
-            (style.axes === "x" || style.axes === "both") && <XAxis />}
-          {!bare && (style.axes === "y" || style.axes === "both") && <YAxis />}
-        </LineChart>
-      </Box>
-      {!bare && <BandStrip labels={bandLabels(series, x, style.axes)} />}
-    </>
+    <Plot height={height} measure={axis.measure} strip={axis.strip}>
+      <LineChart
+        aspectRatio="auto"
+        className="h-full w-full"
+        data={rows}
+        margin={marginFor(style, false, bare)}
+      >
+        {!bare && style.grid !== "none" && (
+          <Grid
+            horizontal={style.grid === "horizontal" || style.grid === "both"}
+            vertical={style.grid === "vertical" || style.grid === "both"}
+          />
+        )}
+        {series.map((s, i) => (
+          <Line
+            curve={CURVE[style.curve]}
+            dataKey={seriesField(i)}
+            // Off. It fades the stroke toward transparent at the edges, and
+            // at a panel's width that means most of the line is invisible —
+            // a chart that hides its own data to look nice.
+            fadeEdges={false}
+            key={s.key}
+            markers={{ fill: seriesColor(style.palette, i) }}
+            showMarkers={style.markers !== "none"}
+            stroke={seriesColor(style.palette, i)}
+            strokeWidth={bare ? 1.75 : 2.5}
+          />
+        ))}
+        {!bare && (style.axes === "y" || style.axes === "both") && <YAxis />}
+        {axis.reporter}
+      </LineChart>
+    </Plot>
   );
 }
 
 function Areas({ series, style, height, x }: BodyProps) {
   const rows = useMemo(() => instantRows(series, x), [series, x]);
   const outline = style.chartFill === "outline";
+  const axis = useAxisAcross(axisLabels(series, x, style.axes));
 
   return (
-    <>
-      <Box height={height}>
-        <AreaChart
-          aspectRatio="auto"
-          className="h-full w-full"
-          data={rows}
-          margin={marginFor(style, false)}
-        >
-          {style.grid !== "none" && (
-            <Grid
-              horizontal={style.grid === "horizontal" || style.grid === "both"}
-              vertical={style.grid === "vertical" || style.grid === "both"}
-            />
-          )}
-          {series.map((s, i) => (
-            <Area
-              curve={CURVE[style.curve]}
-              dataKey={seriesField(i)}
-              fill={seriesColor(style.palette, i)}
-              fillOpacity={outline ? 0 : FILL_OPACITY[style.chartFill]}
-              key={s.key}
-              markers={{ fill: seriesColor(style.palette, i) }}
-              showMarkers={style.markers !== "none"}
-              stroke={seriesColor(style.palette, i)}
-            />
-          ))}
-          {x === "time" && (style.axes === "x" || style.axes === "both") && (
-            <XAxis />
-          )}
-          {(style.axes === "y" || style.axes === "both") && <YAxis />}
-        </AreaChart>
-      </Box>
-      <BandStrip labels={bandLabels(series, x, style.axes)} />
-    </>
+    <Plot height={height} measure={axis.measure} strip={axis.strip}>
+      <AreaChart
+        aspectRatio="auto"
+        className="h-full w-full"
+        data={rows}
+        margin={marginFor(style, false)}
+      >
+        {style.grid !== "none" && (
+          <Grid
+            horizontal={style.grid === "horizontal" || style.grid === "both"}
+            vertical={style.grid === "vertical" || style.grid === "both"}
+          />
+        )}
+        {series.map((s, i) => (
+          <Area
+            curve={CURVE[style.curve]}
+            dataKey={seriesField(i)}
+            fill={seriesColor(style.palette, i)}
+            fillOpacity={outline ? 0 : FILL_OPACITY[style.chartFill]}
+            key={s.key}
+            markers={{ fill: seriesColor(style.palette, i) }}
+            showMarkers={style.markers !== "none"}
+            stroke={seriesColor(style.palette, i)}
+          />
+        ))}
+        {(style.axes === "y" || style.axes === "both") && <YAxis />}
+        {axis.reporter}
+      </AreaChart>
+    </Plot>
   );
 }
 
 function Dots({ series, style, height, x }: BodyProps) {
   const rows = useMemo(() => instantRows(series, x), [series, x]);
+  const axis = useAxisAcross(axisLabels(series, x, style.axes));
 
   return (
-    <>
-      <Box height={height}>
-        <ScatterChart
-          aspectRatio="auto"
-          className="h-full w-full"
-          data={rows}
-          margin={marginFor(style, false)}
-        >
-          {style.grid !== "none" && (
-            <Grid
-              horizontal={style.grid === "horizontal" || style.grid === "both"}
-              vertical={style.grid === "vertical" || style.grid === "both"}
-            />
-          )}
-          {series.map((s, i) => (
-            <Scatter
-              dataKey={seriesField(i)}
-              fill={seriesColor(style.palette, i)}
-              key={s.key}
-              radius={style.markers === "ring" ? 6 : 4.5}
-            />
-          ))}
-          {x === "time" && (style.axes === "x" || style.axes === "both") && (
-            <XAxis />
-          )}
-          {(style.axes === "y" || style.axes === "both") && <YAxis />}
-        </ScatterChart>
-      </Box>
-      <BandStrip labels={bandLabels(series, x, style.axes)} />
-    </>
+    <Plot height={height} measure={axis.measure} strip={axis.strip}>
+      <ScatterChart
+        aspectRatio="auto"
+        className="h-full w-full"
+        data={rows}
+        margin={marginFor(style, false)}
+      >
+        {style.grid !== "none" && (
+          <Grid
+            horizontal={style.grid === "horizontal" || style.grid === "both"}
+            vertical={style.grid === "vertical" || style.grid === "both"}
+          />
+        )}
+        {series.map((s, i) => (
+          <Scatter
+            dataKey={seriesField(i)}
+            fill={seriesColor(style.palette, i)}
+            key={s.key}
+            radius={style.markers === "ring" ? 6 : 4.5}
+          />
+        ))}
+        {(style.axes === "y" || style.axes === "both") && <YAxis />}
+        {axis.reporter}
+      </ScatterChart>
+    </Plot>
   );
 }
 
@@ -560,7 +597,7 @@ function Heat({ series, style, height }: BodyProps) {
   const columns = useMemo(() => heatColumns(series), [series]);
   const levels = useMemo(() => heatLevels(style), [style]);
   return (
-    <Box height={height}>
+    <Plot height={height}>
       <HeatmapChart
         className="h-full w-full"
         data={columns}
@@ -569,7 +606,7 @@ function Heat({ series, style, height }: BodyProps) {
       >
         <HeatmapCells />
       </HeatmapChart>
-    </Box>
+    </Plot>
   );
 }
 
@@ -585,124 +622,66 @@ function Nothing({ className }: { className?: string }) {
 }
 
 /**
- * The band labels for a cartesian chart.
+ * The axis under a plot, and the reporter that tells it where the marks are.
  *
  * The vendored axes could not do this job. `BarXAxis` thins by label *count*
  * rather than by available width, so six statuses in a one-column panel come
  * out as one smear; `BarYAxis` hardcodes a 70px cap, so anybody called
- * Katherine is "Katherine…" on a 1100px screen. Both are absolutely
- * positioned inside the plot box, so the labels sit on top of the bars.
- *
- * This is the whole fix, and it is three rules:
- *
- * **A label may never overlap its neighbour**, because two words pretending to
- * be one is worse than one word. An ellipsis is an honest "there is more
- * here"; a smear is a lie.
- *
- * **Labels thin by measured width, not by count.** Below the width a short
- * word needs, every other band is labelled.
- *
- * **A thinned label inherits the room the skipped bands freed.** This is the
- * rule the first version was missing, and it is why a fortnight of days came
- * out as `J… J… J…`: it correctly dropped three labels in four, then left the
- * survivor in its own 16px cell, so what it had made room for it refused to
- * use. Each drawn label now sits over its own band and may spread across the
- * silent ones on either side — which is exactly the space nothing else is
- * allowed to occupy.
- *
- * **It lives outside the plot.** The chart is given the remaining height, so
- * the row is space the bars were never drawn into.
+ * Katherine is "Katherine…" on a 1100px screen; `XAxis` is a second
+ * typography in a second place, sitting on top of the marks. So the drawing
+ * moved out to `./axis`, and this is the two-line join: the reporter goes
+ * inside the chart, the strip goes under it, and the pixel positions travel
+ * between them.
  */
-
-/** Below this, a label cannot say anything, so fewer of them say more. */
-const MIN_BAND_LABEL_PX = 54;
-
-function BandStrip({ labels }: { labels: string[] }) {
-  const [ref, { width }] = useMeasure();
-  if (labels.length === 0) return null;
-
-  // Before the first measurement, show them all: a strip that starts thinned
-  // and fills in reads as a glitch, and one frame of slightly tight labels
-  // does not.
-  const per = width > 0 ? width / labels.length : Infinity;
-  const stride = per >= MIN_BAND_LABEL_PX ? 1 : Math.ceil(MIN_BAND_LABEL_PX / per);
-  const room = Number.isFinite(per) ? per * stride : undefined;
-
-  return (
-    <div className="relative mt-1 h-4 w-full shrink-0" ref={ref}>
-      {labels.map((label, i) => {
-        if (i % stride !== 0) return null;
-        const centre = ((i + 0.5) / labels.length) * 100;
-        const first = i === 0;
-        const last = i + stride >= labels.length;
-        // Every label stays inside ITS OWN BAND — never pinned to the plot's
-        // edge.
-        //
-        // The edge version is why an axis lied about which bar was which. To
-        // stop half of "Jun 1" hanging off the panel, the first and last
-        // labels were anchored to the strip's left and right edges. On a
-        // six-band chart that put "Fri" 57px right of the Fri group, directly
-        // over the SAT group; the last date on a fortnight named the
-        // second-to-last bar. Overhang is a cosmetic complaint. A label under
-        // the wrong mark is a chart that misinforms, which is strictly worse
-        // and much harder to notice.
-        //
-        // So the ends anchor to their band's own left or right edge instead:
-        // still fully inside the strip, still unambiguously over the band they
-        // name. Bands that carry a label are at least MIN_BAND_LABEL_PX wide
-        // by construction (that is what `stride` guarantees), so there is room
-        // for the word without reaching into a neighbour.
-        const bandLeft = (i / labels.length) * 100;
-        const bandRight = ((i + 1) / labels.length) * 100;
-        return (
-          <span
-            className="absolute top-0 truncate text-[10px] leading-4 text-muted-foreground"
-            key={`${label}-${i}`}
-            style={{
-              left: first ? `${bandLeft}%` : last ? undefined : `${centre}%`,
-              right: last && !first ? `${100 - bandRight}%` : undefined,
-              transform: first || last ? undefined : "translateX(-50%)",
-              maxWidth: room,
-            }}
-            title={label}
-          >
-            {label}
-          </span>
-        );
-      })}
-    </div>
-  );
+function useAxisAcross(labels: string[]) {
+  const [ticks, setTicks] = useState<AxisTick[]>([]);
+  const [measure, { width }] = useMeasure();
+  const on = labels.length > 0;
+  return {
+    measure,
+    reporter: on ? <BandOrPointTicks labels={labels} onTicks={setTicks} /> : null,
+    strip: on ? <AxisStrip ticks={ticks} width={width} /> : null,
+  };
 }
 
-/** The same labels down the side, for a horizontal bar chart. */
-function BandColumn({ labels }: { labels: string[] }) {
-  return (
-    <div className="flex max-w-[38%] shrink-0 flex-col justify-around py-1 pr-2">
-      {labels.map((label, i) => (
-        <span
-          className="truncate text-right text-[10px] leading-4 text-muted-foreground"
-          key={`${label}-${i}`}
-          title={label}
-        >
-          {label}
-        </span>
-      ))}
-    </div>
-  );
+/** The same, running down the side of a horizontal bar chart. */
+function useAxisDown(labels: string[]) {
+  const [ticks, setTicks] = useState<AxisTick[]>([]);
+  const on = labels.length > 0;
+  return {
+    reporter: on ? <BandTicks labels={labels} onTicks={setTicks} /> : null,
+    column: on ? <AxisColumn ticks={ticks} /> : null,
+  };
 }
 
 /**
- * What to write under each band, or nothing when the axis is off or the x is
- * time — a time-scaled chart has the library's own date axis and a second row
- * of labels under it is two answers to one question.
+ * A band chart and a time chart place their marks with different scales, and
+ * the reporter has to ask the right one. Which is in play is not something a
+ * caller should have to remember, so it is read from the context.
  */
-function bandLabels(
+function BandOrPointTicks(props: {
+  labels: string[];
+  onTicks: (ticks: AxisTick[]) => void;
+}) {
+  const { barScale } = useChartStable();
+  return barScale ? <BandTicks {...props} /> : <PointTicks {...props} />;
+}
+
+/**
+ * The words under (or beside) each mark, or none when the axis is off.
+ *
+ * A temporal bucket has no label of its own — the resolver leaves it blank
+ * because formatting an instant is the renderer's job — so `bandLabel` fills
+ * one in. Both kinds of x get the same treatment now: a chart's dimension
+ * decides what a label says, never who draws it.
+ */
+function axisLabels(
   series: ChartSeries[],
   x: "time" | "category",
   axes: ComponentStyle["axes"],
 ): string[] {
-  if (x !== "category" || axes === "none" || axes === "y") return [];
-  return (series[0]?.points ?? []).map((p) => p.label || p.key);
+  if (axes === "none" || axes === "y") return [];
+  return (series[0]?.points ?? []).map((p) => bandLabel(p, x));
 }
 
 function SeriesLegend({
@@ -750,6 +729,15 @@ const BAR_GAP = { thin: 0.55, normal: 0.35, thick: 0.15 } as const;
  */
 const BAR_CAP = { square: "butt", rounded: 6, pill: "round" } as const;
 
+/**
+ * How tall a zero reads as.
+ *
+ * Small enough that it can never be mistaken for a quantity — every real value
+ * on a chart this size draws taller — and large enough to survive a retina
+ * downscale. See `./zero-marks` for why absence was the wrong answer.
+ */
+const ZERO_MARK_PX = 3;
+
 const FILL_OPACITY = {
   solid: 0.45,
   gradient: 0.55,
@@ -757,36 +745,50 @@ const FILL_OPACITY = {
   outline: 0,
 } as const;
 
-/** Room for the axes the style asked for, and no more. */
+/**
+ * Room for the axes the style asked for, and no more.
+ *
+ * There is no `bottom` case for the x axis any more: the labels are drawn
+ * under the plot rather than inside it, so the only thing the bottom margin
+ * still has to hold is the half of a marker that hangs below the last row of
+ * pixels the scale can reach.
+ */
 function marginFor(style: ComponentStyle, horizontal: boolean, bare = false) {
   if (bare) return { top: 4, right: 2, bottom: 4, left: 2 };
   const wantsY = style.axes === "y" || style.axes === "both";
-  const wantsX = style.axes === "x" || style.axes === "both";
   return {
     top: 10,
     right: 8,
-    bottom: wantsX ? 22 : 8,
+    bottom: 8,
     left: wantsY || horizontal ? 34 : 8,
   };
 }
 
 /**
- * A fixed-height box for a chart that otherwise fills its parent.
+ * A chart of a stated height with its axis strip underneath.
  *
  * The library sizes itself from its container, and a panel says how tall it
- * wants to be in pixels. Tailwind cannot see a computed arbitrary value, so
- * the height is an inline style on a wrapper and the chart is told to fill it.
+ * wants to be in pixels — so the height is an inline style and the chart is
+ * told to fill what is left after the strip has taken its 20px. That
+ * subtraction is the whole reason the labels can never collide with the marks:
+ * the plot is not drawn where they are.
  */
-function Box({
+function Plot({
   height,
+  measure,
+  strip,
   children,
 }: {
   height: number;
+  /** Measures the strip's own width — the same width the plot was given. */
+  measure?: (node: HTMLElement | null) => void;
+  strip?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <div className="w-full" style={{ height }}>
-      {children}
+    <div className="flex w-full flex-col" ref={measure} style={{ height }}>
+      <div className="min-h-0 w-full flex-1">{children}</div>
+      {strip}
     </div>
   );
 }

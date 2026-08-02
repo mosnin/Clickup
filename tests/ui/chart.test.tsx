@@ -113,6 +113,22 @@ async function drawn(container: HTMLElement, kind: string) {
   return container;
 }
 
+/**
+ * The words in the axis strip, once they have arrived.
+ *
+ * A tick's position comes from the chart's own scale, which means it is
+ * reported out of an effect — one commit after the marks appear. Imperceptible
+ * in a browser (the effect runs before paint); worth waiting for here.
+ */
+async function axisLabels(container: HTMLElement, kind: string) {
+  await waitFor(() => {
+    expect(container.querySelectorAll("div.mt-1 > span").length, kind).toBeGreaterThan(0);
+  });
+  return [...container.querySelectorAll("div.mt-1 > span")].map(
+    (el) => el.textContent ?? "",
+  );
+}
+
 /** No coordinate may be NaN — an SVG with one renders nothing, silently. */
 function expectNoNaN(container: HTMLElement, kind: string) {
   for (const path of container.querySelectorAll("path")) {
@@ -261,18 +277,80 @@ describe("what the x axis says", () => {
     expect(xKindOf([])).toBe("category");
   });
 
-  it("leaves the label strip off a temporal chart", async () => {
+  it("labels a temporal chart from the same strip as a categorical one", async () => {
     // The resolver blanks temporal labels on purpose, because formatting an
-    // instant is the renderer's job. Rendering them anyway would put a row of
-    // empty chips under the library's own date axis.
+    // instant is the renderer's job — so the strip has to do that job rather
+    // than print nothing. It used to hand temporal charts to the vendored
+    // `XAxis` instead, which is a second typography in a second place: the
+    // labels sat on top of the marks, and two cards in one row looked like two
+    // products.
     const container = await drawn(draw("line", TEMPORAL), "line");
-    expect(container.querySelectorAll("div.mt-1 > span").length).toBe(0);
+    const labels = await axisLabels(container, "line");
+    for (const label of labels) {
+      expect(label.trim()).not.toBe("");
+      // A formatted instant, never the epoch it was stored as.
+      expect(label).not.toMatch(/^\d{10,}$/);
+    }
     // And the strip IS there for a categorical one, so the assertion above is
     // about the dimension rather than about the shape never having a strip.
     const categorical = await drawn(draw("line", SERIES), "line");
+    expect((await axisLabels(categorical, "line")).length).toBeGreaterThan(0);
+  });
+
+  it("draws exactly one axis, so no chart carries two sets of labels", async () => {
+    // `text-chart-label` is the vendored `XAxis`'s own class. Its presence
+    // anywhere means a second row of dates has been portaled into the plot,
+    // which is how the scatter ended up with its dots and its dates on the
+    // same pixels.
+    for (const kind of ["line", "area", "scatter", "column"] as ChartKind[]) {
+      const container = await drawn(draw(kind, TEMPORAL), kind);
+      expect((await axisLabels(container, kind)).length).toBeGreaterThan(0);
+      expect(
+        container.querySelectorAll(".text-chart-label").length,
+        kind,
+      ).toBe(0);
+    }
+  });
+});
+
+describe("zero is a value, not an absence", () => {
+  /** A week with three quiet days — the shape that used to punch holes. */
+  const WITH_ZEROS: ChartSeries[] = [
+    {
+      key: "a",
+      label: "Done",
+      points: [
+        { key: "mon", label: "Mon", value: 12 },
+        { key: "tue", label: "Tue", value: 0 },
+        { key: "wed", label: "Wed", value: 7 },
+        { key: "thu", label: "Thu", value: 0 },
+      ],
+    },
+  ];
+
+  /** Marks painted in the series' own colour — the bars and nothing else. */
+  function inkedRects(container: HTMLElement): Element[] {
+    const fill = paletteColors("mono")[0];
+    return [...container.querySelectorAll("rect")].filter(
+      (el) => el.getAttribute("fill") === fill,
+    );
+  }
+
+  it("draws a column for a zero bucket", async () => {
+    // A hole between two columns reads as a chart that failed to load, not as
+    // a day when nothing happened — and the reader's next move is to distrust
+    // the whole panel rather than to learn something from it.
+    const container = await drawn(draw("column", WITH_ZEROS), "column");
+    expect(inkedRects(container).length).toBe(WITH_ZEROS[0].points.length);
+  });
+
+  it("draws a mark for a zero bar, which the library will not", async () => {
+    // The library's own floor (`<Bar minBarHeight>`) lives in the vertical
+    // branch of its geometry only, so bars that run across need ours.
+    const container = await drawn(draw("bar", WITH_ZEROS), "bar");
     expect(
-      categorical.querySelectorAll("div.mt-1 > span").length,
-    ).toBeGreaterThan(0);
+      container.querySelectorAll("g.operate-zero-marks rect").length,
+    ).toBe(2);
   });
 });
 

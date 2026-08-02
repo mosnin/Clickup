@@ -64,6 +64,22 @@ const TEMPORAL = [
   },
 ];
 
+/** A week with three quiet days. Zero is the value most often drawn wrong. */
+const WITH_ZEROS = [
+  {
+    key: "a",
+    label: "Done",
+    points: [
+      { key: "mon", label: "Mon", value: 12 },
+      { key: "tue", label: "Tue", value: 0 },
+      { key: "wed", label: "Wed", value: 7 },
+      { key: "thu", label: "Thu", value: 0 },
+      { key: "fri", label: "Fri", value: 0 },
+      { key: "sat", label: "Sat", value: 4 },
+    ],
+  },
+];
+
 const KINDS: ChartKind[] = [
   "bar",
   "column",
@@ -129,6 +145,33 @@ function Gallery() {
               label={kind}
               series={TEMPORAL}
               style={DEFAULT_STYLE}
+              unit="count"
+            />
+          </Cell>
+        ))}
+      </Section>
+
+      <Section title="Zero buckets — a hole would read as broken">
+        {(["column", "bar"] as ChartKind[]).map((kind) => (
+          <Cell caption={`${kind} · zeros`} key={kind}>
+            <Chart
+              height={150}
+              kind={kind}
+              label={kind}
+              series={WITH_ZEROS}
+              style={DEFAULT_STYLE}
+              unit="count"
+            />
+          </Cell>
+        ))}
+        {(["column", "bar"] as ChartKind[]).map((kind) => (
+          <Cell caption={`${kind} · zeros · 2 series`} key={`${kind}-2`}>
+            <Chart
+              height={150}
+              kind={kind}
+              label={kind}
+              series={[...WITH_ZEROS, { ...SERIES[1], points: SERIES[1].points.map((pt, i) => (i === 2 ? { ...pt, value: 0 } : pt)) }]}
+              style={normalizeStyle({ stackMode: "grouped" })}
               unit="count"
             />
           </Cell>
