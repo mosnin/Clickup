@@ -2,7 +2,6 @@
 
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -62,15 +61,27 @@ export type MintableScreen = {
   replace: (widgetId: string, componentId: string) => void;
 };
 
-type Registry = {
+/**
+ * The stable half: how to offer and how to withdraw.
+ *
+ * Separate from the grid id, and the separation is load-bearing rather than
+ * tidy. With both in one context value, the registering effect had to depend on
+ * that value — and claiming a grid CHANGED it, so the effect tore itself down
+ * and re-ran forever: claim, identity changes, cleanup releases, claim again.
+ * The screen was registered and unregistered on a loop, and the studio,
+ * mounting during one of the gaps, read nothing and told the reader the shape
+ * was fixed. Every part of the mechanism was correct and the feature did not
+ * work; only driving it in a browser found it.
+ */
+type Controls = {
   offer: RefObject<MintableScreen | null>;
-  /** The offering grid, as state — the studio re-renders when this changes. */
-  gridId: string | null;
   claim: (gridId: string) => void;
   release: (gridId: string) => void;
 };
 
-const MintableContext = createContext<Registry | null>(null);
+const ControlsContext = createContext<Controls | null>(null);
+/** The offering grid, as state — the studio re-renders when this changes. */
+const GridContext = createContext<string | null>(null);
 
 export function MintablePanelsProvider({
   children,
@@ -79,23 +90,24 @@ export function MintablePanelsProvider({
 }) {
   const offer = useRef<MintableScreen | null>(null);
   const [gridId, setGridId] = useState<string | null>(null);
-  const claim = useCallback((id: string) => setGridId(id), []);
-  // Release only what you claimed. Route transitions overlap — the arriving
-  // screen mounts before the leaving one unmounts — so an unconditional clear
-  // on unmount would wipe the offer the NEW screen had just registered and
-  // leave the studio saying the shape is fixed on a screen where it isn't.
-  const release = useCallback(
-    (id: string) => setGridId((cur) => (cur === id ? null : cur)),
+  const controls = useMemo<Controls>(
+    () => ({
+      offer,
+      claim: (id: string) => setGridId(id),
+      // Release only what you claimed. Route transitions overlap — the
+      // arriving screen mounts before the leaving one unmounts — so an
+      // unconditional clear would wipe the offer the NEW screen had just
+      // registered and leave the studio saying the shape is fixed on a screen
+      // where it isn't.
+      release: (id: string) =>
+        setGridId((cur) => (cur === id ? null : cur)),
+    }),
     [],
   );
-  const value = useMemo<Registry>(
-    () => ({ offer, gridId, claim, release }),
-    [gridId, claim, release],
-  );
   return (
-    <MintableContext.Provider value={value}>
-      {children}
-    </MintableContext.Provider>
+    <ControlsContext.Provider value={controls}>
+      <GridContext.Provider value={gridId}>{children}</GridContext.Provider>
+    </ControlsContext.Provider>
   );
 }
 
@@ -106,28 +118,30 @@ export function MintablePanelsProvider({
  * above. Pass null from a screen with nothing to offer.
  */
 export function useOfferMintablePanels(screen: MintableScreen | null): void {
-  const registry = useContext(MintableContext);
+  const controls = useContext(ControlsContext);
   const gridId = screen?.gridId ?? null;
 
   // No dependency array: the offer has to be the one from THIS render, and the
   // whole reason it is a ref is that its identity changes constantly.
   useLayoutEffect(() => {
-    if (registry) registry.offer.current = screen;
+    if (controls) controls.offer.current = screen;
   });
 
+  // `controls` is stable for the life of the provider, so this runs once per
+  // screen — see the note on the split above for what happened when it wasn't.
   useEffect(() => {
-    if (!registry || !gridId) return;
-    registry.claim(gridId);
+    if (!controls || !gridId) return;
+    controls.claim(gridId);
     return () => {
       // Leaving the page takes the offer with it, or the studio would keep
       // offering to mint from a screen that is no longer on the display and
       // write into a layout nobody is looking at.
-      if (registry.offer.current?.gridId === gridId) {
-        registry.offer.current = null;
+      if (controls.offer.current?.gridId === gridId) {
+        controls.offer.current = null;
       }
-      registry.release(gridId);
+      controls.release(gridId);
     };
-  }, [registry, gridId]);
+  }, [controls, gridId]);
 }
 
 /**
@@ -146,11 +160,12 @@ export function useMintableBuiltIn(selectionId: string | null): {
   scope: MintableScreen["scope"];
   replace: (componentId: string) => void;
 } | null {
-  const registry = useContext(MintableContext);
-  const widgetId = widgetIdFromSelection(selectionId, registry?.gridId ?? null);
-  const screen = registry?.offer.current ?? null;
+  const controls = useContext(ControlsContext);
+  const gridId = useContext(GridContext);
+  const widgetId = widgetIdFromSelection(selectionId, gridId);
+  const screen = controls?.offer.current ?? null;
   const question = widgetId && screen ? screen.questionFor(widgetId) : null;
-  if (!registry || !widgetId || !screen || !question) return null;
+  if (!controls || !widgetId || !screen || !question) return null;
   return {
     question,
     scope: screen.scope,
@@ -158,6 +173,6 @@ export function useMintableBuiltIn(selectionId: string | null): {
     // certainly changed since this was rendered, and writing a stale one back
     // would undo whatever moved in between.
     replace: (componentId: string) =>
-      registry.offer.current?.replace(widgetId, componentId),
+      controls.offer.current?.replace(widgetId, componentId),
   };
 }

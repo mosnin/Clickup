@@ -802,7 +802,18 @@ function ShapeShelf({
     );
   }
 
-  const shapes = shapesFor(base.query.from).filter(isChartShape);
+  // The question's own shape first, so the shelf opens on the drawing that
+  // most resembles what is standing there. Not marked "current" — for a
+  // built-in it is a suggestion, and a button reading "Current" over a panel
+  // that has never been drawn that way is the same class of lie as a shelf
+  // that looks chosen and isn't.
+  const chartShapes = shapesFor(base.query.from).filter(isChartShape);
+  const shapes = stored
+    ? chartShapes
+    : [
+        ...chartShapes.filter((s) => s === base.shape),
+        ...chartShapes.filter((s) => s !== base.shape),
+      ];
 
   function pick(shape: PanelShape) {
     if (stored && row) {
