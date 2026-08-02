@@ -58,6 +58,24 @@
         gap: 32px;
         align-items: start;
       }
+      /* Below the sidebar's own breakpoint this reservation is a bug, and it
+         was one: 390 - 320 - 32 leaves 38px of column, so the heading rendered
+         as "Sideba" against the viewport edge and the body text wrapped to one
+         word per line. Every mobile studio shot was taken over that. The
+         fixture's own broken layout is not the product's, but a reader cannot
+         tell them apart in a PNG, and an audit artifact that needs insider
+         knowledge to discount is one that will eventually be misread.
+         The real app makes the sidebar a drawer here, so the reservation goes. */
+      @media (max-width: 767px) {
+        body {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+        .split {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 20px;
+        }
+      }
     </style>
   </head>
   <body>

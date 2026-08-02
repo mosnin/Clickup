@@ -46,8 +46,25 @@ function pathOf(ref: unknown): string {
   }
 }
 
-export function useQuery(ref: unknown): unknown {
-  return galleryData[pathOf(ref)];
+/**
+ * Answer a query.
+ *
+ * A fixture may be a VALUE or a FUNCTION of the arguments. The function form
+ * exists because a page that draws nineteen panels draws them all through one
+ * query, and a fixture that cannot see the arguments can only ever answer all
+ * nineteen the same way — which means the empty state, the truncated state and
+ * the "one number" state are three states no gallery page could ever hold at
+ * once. Every one of those is a state that ships.
+ *
+ * The argument is the real one the component passes, so a fixture that
+ * branches on it branches on the same vocabulary the resolver does.
+ */
+export function useQuery(ref: unknown, args?: unknown): unknown {
+  const fixture = galleryData[pathOf(ref)];
+  if (typeof fixture === "function") {
+    return (fixture as (a: unknown) => unknown)(args);
+  }
+  return fixture;
 }
 
 /**

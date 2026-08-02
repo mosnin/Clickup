@@ -75,6 +75,17 @@ await build({
         // A panel arriving because a condition became true, on a real canvas.
         // The one claim jsdom cannot check: that it displaces nothing.
         situation: join(SRC, "situation.html"),
+        // The other real canvas: the project screen, with its tray, its
+        // builder and the two banners an agent can raise on it.
+        project: join(SRC, "project.html"),
+        // Every shape the one panel renderer can draw, in every state it can
+        // be in — the surface that is reused most and had been photographed
+        // least.
+        panels: join(SRC, "panels.html"),
+        // The instrument, pointed at defects it is supposed to find. Built
+        // alongside everything else on purpose: a calibration page that has to
+        // be built separately is a calibration step somebody will skip.
+        broken: join(SRC, "broken.html"),
       },
     },
   },
@@ -88,6 +99,9 @@ for (const page of [
   "grid.html",
   "home.html",
   "situation.html",
+  "project.html",
+  "panels.html",
+  "broken.html",
 ]) {
   const html = join(OUT, page);
   writeFileSync(

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Calibration</title>
+    <!-- The app's own stylesheet, because `.tap-target` is one of the things
+         under test here: the tap gate has to account for the hit area this
+         product actually gives a small control, and a hand-written copy of
+         that rule would decalibrate the moment the real one changed. -->
+    <!--APP_CSS-->
+    <style>
+      body {
+        margin: 0;
+        /* Fixed, not tokenised. The specimens assert that the MEASUREMENT
+           works; if their backdrop moved with a theme token, retuning the
+           theme would silently change what the calibration proves. */
+        background: #f6f6f7;
+        color: #111111;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./broken-app.tsx"></script>
+  </body>
+</html>

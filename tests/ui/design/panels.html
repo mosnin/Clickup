@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Panels</title>
+    <!-- Replaced at build time with the app's own compiled stylesheet, so what
+         this renders is what ships. See scripts/build-gallery.mjs. -->
+    <!--APP_CSS-->
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: var(--color-page, #f6f6f7);
+        color: var(--color-foreground, #111);
+      }
+      /* One column at a phone, which is the width every panel in this product
+         is actually drawn at most often — a specimen sheet that only ever
+         shows three-column panels is a sheet that cannot express the defect
+         that matters. `minmax(0, …)` rather than a fixed minimum, or the grid
+         itself forces the page wider than the viewport and every 390px
+         reading taken from it is a desktop layout wearing a phone's clothes. */
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+        gap: 16px;
+      }
+      .cell {
+        background: var(--color-card, #fff);
+        border-radius: 16px;
+        padding: 14px;
+        min-width: 0;
+      }
+      .cap {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        opacity: 0.5;
+        margin-bottom: 8px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 4px;
+      }
+      h2 {
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        opacity: 0.45;
+        margin: 32px 0 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./panels-app.tsx"></script>
+  </body>
+</html>
