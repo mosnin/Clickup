@@ -136,7 +136,17 @@ const CARD_W = "min(74vw, 380px)";
 
 /** Chart heights, chosen against the sheet's height rather than a screen's. */
 const SPECIMEN_H = 120;
-const CARD_SPECIMEN_H = 88;
+const CARD_SPECIMEN_H = 76;
+/**
+ * The chart chapter runs shorter than the colour chapter on purpose.
+ *
+ * A shelf is as tall as its TALLEST card — the flex row stretches, so one
+ * specimen that draws a legend and a value axis lifts the caption of every
+ * other one, and the name of what is centred goes under the sheet's edge.
+ * Three of the chart presets carry ~46px of extra chrome, so the plot they
+ * are given is smaller and the shelf lands at the same height as the others.
+ */
+const CHART_SPECIMEN_H = 96;
 
 export function StyleStudio() {
   const { active } = useCustomize();
@@ -499,7 +509,7 @@ function StudioSheet() {
                           render: (locked: boolean) => (
                             <SpecimenCard>
                               <Chart
-                                height={SPECIMEN_H}
+                                height={CHART_SPECIMEN_H}
                                 key={locked ? "locked" : "resting"}
                                 kind={PRESET_KIND[preset.id] ?? "area"}
                                 label={preset.name}
@@ -693,7 +703,7 @@ function CardSpecimen({
     /* `bento-tile` rather than `bg-page`: the studio screen is *itself* the
        page colour, so a page-coloured plinth on it is an invisible plinth —
        the design system's own nested-well surface is the one that separates. */
-    <span className="bento-tile pointer-events-none block p-4 sm:p-6">
+    <span className="bento-tile pointer-events-none block p-3 sm:p-6">
       <span
         className={cn(
           "block text-left",
@@ -826,8 +836,13 @@ function HeroShelf({
           <p className="truncate text-[15px] font-semibold sm:text-base">
             {current?.label}
           </p>
+          {/* The description is desktop-only, and that is a decision about
+              the sheet's last 20 pixels rather than about the sentence: on a
+              phone it lands half-under the action bar, and a line sliced
+              through the middle reads as a rendering fault. The name — the
+              answer to "which one is this" — always fits. */}
           {current?.hint && (
-            <p className="mx-auto line-clamp-2 max-w-md text-[12px] text-muted-foreground">
+            <p className="mx-auto hidden line-clamp-2 max-w-md text-[12px] text-muted-foreground sm:block">
               {current.hint}
             </p>
           )}
