@@ -95,15 +95,23 @@ function InviteCard({
   }
 
   return (
-    <div className="flex items-center gap-4 rounded-2xl panel p-5">
-      <span className="icon-tile">
+    // Wrapping, because the three parts of this card have very different
+    // rights to the space. On a phone the row had 88px left for the text after
+    // the icon and the two buttons had taken theirs — and an email address is
+    // one unbreakable word, so it painted straight out of its box and under
+    // the Accept pill. `basis-56` is the width below which the sentence stops
+    // being readable: past that the buttons drop to their own line rather than
+    // the words being crushed, and `break-words` keeps a very long address
+    // inside the card even then.
+    <div className="flex flex-wrap items-center gap-4 rounded-2xl panel p-5">
+      <span className="icon-tile flex-shrink-0">
         <Mail className="h-4 w-4" />
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-56">
         <p className="font-semibold">
           Join {workspaceName}
         </p>
-        <p className="text-sm text-muted-foreground">
+        <p className="break-words text-sm text-muted-foreground">
           {invitedBy} invited you as {role}.
         </p>
       </div>

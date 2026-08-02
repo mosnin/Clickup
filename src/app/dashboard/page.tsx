@@ -736,12 +736,20 @@ function StatsCards({
   ];
 
   return (
-    <Stagger className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    // Two across on a phone, four when the panel is wide enough for the
+    // labels — and measured against the GRID rather than the window, because
+    // this panel's width is decided by its span and by whether the nav is
+    // open, not by the viewport. Four stacked cards were 424px of content in
+    // a 168px box, which is what sliced "Due today" through its own number.
+    <Stagger className="grid grid-cols-2 gap-4 @3xl:grid-cols-4">
       {stats.map((stat) => (
-        <StaggerItem key={stat.title}>
+        <StaggerItem key={stat.title} className="h-full">
+          {/* Fills its cell. The grid stretches its rows to the panel's
+              height either way; without this the card kept its content height
+              and the slack fell between the rows as a ragged 130px hole. */}
           <Link
             href={stat.href}
-            className="block rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/30"
+            className="block h-full rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/30"
           >
             <div className="flex items-start justify-between">
               <div className="space-y-1">
@@ -841,31 +849,45 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
               row.dueDate !== undefined && row.dueDate < startOfToday();
             return (
               <StaggerItem key={row._id}>
-                <div className="flex flex-wrap items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/20">
+                {/* The title wins the row.
+                    Every part of this row used to be flex-shrink-0 except the
+                    title, so on a phone the chip and the date took their full
+                    width first and left the title 15px — one row rendered as
+                    literally "R.". Nothing is hidden to fix it: the title
+                    carries a 12rem basis, so when the panel is a phone wide
+                    the meta drops to its own line underneath and the title
+                    gets the whole width, and when there is room they sit on
+                    one line exactly as before. */}
+                <div className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/20">
                   <Checkbox
+                    className="mt-0.5 flex-shrink-0"
                     aria-label={`Mark "${row.title}" complete`}
                     onCheckedChange={() => complete(row)}
                   />
-                  <Link
-                    href={`/dashboard/l/${row.listId}/t/${row._id}`}
-                    className="min-w-0 flex-1 truncate text-sm font-medium hover:underline"
-                  >
-                    {row.title}
-                  </Link>
-                  <span className="flex-shrink-0 rounded-lg border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
-                    {row.listName}
-                  </span>
-                  {row.priority && <PriorityDot priority={row.priority} />}
-                  {row.dueDate !== undefined && (
-                    <span
-                      className={cn(
-                        "ml-auto flex-shrink-0 text-xs font-medium tabular-nums",
-                        overdue ? "text-danger" : "text-muted-foreground",
-                      )}
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <Link
+                      href={`/dashboard/l/${row.listId}/t/${row._id}`}
+                      className="min-w-0 flex-1 basis-48 text-sm font-medium hover:underline line-clamp-2"
                     >
-                      Due: {formatDate(row.dueDate)}
+                      {row.title}
+                    </Link>
+                    <span className="flex flex-shrink-0 items-center gap-2">
+                      <span className="rounded-lg border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
+                        {row.listName}
+                      </span>
+                      {row.priority && <PriorityDot priority={row.priority} />}
+                      {row.dueDate !== undefined && (
+                        <span
+                          className={cn(
+                            "text-xs font-medium tabular-nums",
+                            overdue ? "text-danger" : "text-muted-foreground",
+                          )}
+                        >
+                          Due: {formatDate(row.dueDate)}
+                        </span>
+                      )}
                     </span>
-                  )}
+                  </div>
                 </div>
               </StaggerItem>
             );
