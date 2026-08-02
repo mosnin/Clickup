@@ -3,7 +3,7 @@ import { query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireScopeAccess } from "./_authz";
-import { allListsInScope, listsInScope } from "./_scope";
+import { allListsInScope, listsInScope, listsInScopeAs } from "./_scope";
 
 // The one resolver.
 //
@@ -452,6 +452,28 @@ export const resolve = query({
  * asking cannot be evaluated on a schedule — see `normalizeExpectation`, which
  * refuses "assigned to me" for exactly that reason.
  */
+/**
+ * Which lists a resolution may see — the one place that decides.
+ *
+ * Three callers with three different answers to "on whose behalf", and putting
+ * the choice in one function is what keeps a fourth from quietly picking the
+ * wrong one: a screen walks as the requester, grading walks unchecked and then
+ * narrows to an already-authorized project, and a situation's cron walks as the
+ * person who owns the subscription.
+ */
+async function gatherLists(
+  ctx: QueryCtx,
+  scopeType: "user" | "workspace",
+  scopeId: string,
+  on: { unscoped?: boolean; asSubject?: string },
+): Promise<Doc<"lists">[]> {
+  if (on.unscoped) return await allListsInScope(ctx, scopeType, scopeId);
+  if (on.asSubject !== undefined) {
+    return await listsInScopeAs(ctx, scopeType, scopeId, on.asSubject);
+  }
+  return await listsInScope(ctx, scopeType, scopeId);
+}
+
 export async function resolveEnvelope(
   ctx: QueryCtx,
   args: {
@@ -467,6 +489,13 @@ export async function resolveEnvelope(
      * `allListsInScope`.
      */
     unscoped?: boolean;
+    /**
+     * Run the visibility walk as a named person rather than as the request's
+     * identity. What a situation's cron passes, so a subscription measures
+     * exactly what its owner can see — see `listsInScopeAs`. Ignored when
+     * `unscoped` is set, which already means "no check".
+     */
+    asSubject?: string;
   },
   subject: string,
 ): Promise<Envelope> {
@@ -503,6 +532,7 @@ export async function resolveEnvelope(
     if (q.from !== "tasks") {
       return await resolveOther(ctx, args.scopeType, args.scopeId, q, {
         unscoped: args.unscoped,
+        asSubject: args.asSubject,
         now,
         tz,
         limit,
@@ -511,9 +541,7 @@ export async function resolveEnvelope(
     }
 
     // ── Gather ──
-    let lists = args.unscoped
-      ? await allListsInScope(ctx, args.scopeType, args.scopeId)
-      : await listsInScope(ctx, args.scopeType, args.scopeId);
+    let lists = await gatherLists(ctx, args.scopeType, args.scopeId, args);
     if (filter.scopeToKind === "list") {
       lists = lists.filter((l) => l._id === filter.scopeToId);
     } else if (filter.scopeToKind === "project") {
@@ -816,9 +844,11 @@ async function resolveOther(
     meta: { unit: string; dimensionLabel: string; measureLabel: string };
     /** See `allListsInScope` — only grading passes it. */
     unscoped?: boolean;
+    /** See `listsInScopeAs` — only a situation's cron passes it. */
+    asSubject?: string;
   },
 ): Promise<Envelope> {
-  const { now, tz, limit, meta, unscoped } = ctxo;
+  const { now, tz, limit, meta } = ctxo;
   const search = q.filter.search.toLowerCase();
   const from = windowStart(q.filter.window, now);
 
@@ -1051,9 +1081,7 @@ async function resolveOther(
   }
 
   if (q.from === "time") {
-    const lists = unscoped
-      ? await allListsInScope(ctx, scopeType, scopeId)
-      : await listsInScope(ctx, scopeType, scopeId);
+    const lists = await gatherLists(ctx, scopeType, scopeId, ctxo);
     const listIds = new Set(lists.map((l) => l._id as string));
     const entries = await ctx.db.query("timeEntries").order("desc").take(1000);
     const matched: { key: string; label: string; at: number; value: number }[] = [];

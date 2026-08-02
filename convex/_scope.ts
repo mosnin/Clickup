@@ -44,6 +44,31 @@ export async function allListsInScope(
   return await walk(ctx, scopeType, scopeId, null);
 }
 
+/**
+ * Every list inside a scope that a NAMED person may see.
+ *
+ * The same walk `listsInScope` does, with the identity supplied instead of
+ * read from the request. A cron has no ambient identity, and the two existing
+ * options are both wrong for a subscription someone owns: `listsInScope`
+ * silently returns nothing (no identity → no lists → every task situation
+ * measures zero, and zero is permanently `at_most`), while `allListsInScope`
+ * skips the per-space check and would let a subscription read private spaces
+ * its owner cannot open.
+ *
+ * So the rule is the ordinary one, asked on behalf of the owner: a situation
+ * sees exactly what the person who subscribed to it sees, and nothing more.
+ * Callers must confirm separately that the owner still has the scope — this
+ * walks spaces, and a revoked workspace membership is a fact above them.
+ */
+export async function listsInScopeAs(
+  ctx: QueryCtx,
+  scopeType: "user" | "workspace",
+  scopeId: string,
+  subject: string,
+): Promise<Doc<"lists">[]> {
+  return await walk(ctx, scopeType, scopeId, { subject });
+}
+
 async function walk(
   ctx: QueryCtx,
   scopeType: "user" | "workspace",

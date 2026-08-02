@@ -332,6 +332,30 @@ export async function mayGovernSpace(
 // rule that gets re-implemented.
 
 /**
+ * Can this person see into this scope?
+ *
+ * Split out of `requireScopeAccess` so a caller holding a subject rather than
+ * an ambient identity asks the same question — a cron re-checking whose
+ * subscription it is about to evaluate, for instance. One definition, because
+ * the second copy of an access rule is where the hole appears.
+ */
+export async function canAccessScope(
+  ctx: QueryCtx | MutationCtx,
+  scopeType: "user" | "workspace",
+  scopeId: string,
+  subject: string,
+): Promise<boolean> {
+  if (scopeType === "user") return scopeId === subject;
+  const membership = await ctx.db
+    .query("memberships")
+    .withIndex("by_user_and_workspace", (q) =>
+      q.eq("userClerkId", subject).eq("workspaceId", scopeId as Id<"workspaces">),
+    )
+    .unique();
+  return membership !== null;
+}
+
+/**
  * A page's scope is a person or a workspace, exactly like a doc's top-level
  * parent — so this is the same check, not a new one.
  */
@@ -340,19 +364,11 @@ export async function requireScopeAccess(
   scope: { scopeType: "user" | "workspace"; scopeId: string },
 ): Promise<{ subject: string }> {
   const identity = await requireIdentity(ctx);
-  if (scope.scopeType === "user") {
-    if (scope.scopeId !== identity.subject) throw new ConvexError("Forbidden");
-    return { subject: identity.subject };
+  if (
+    !(await canAccessScope(ctx, scope.scopeType, scope.scopeId, identity.subject))
+  ) {
+    throw new ConvexError("Forbidden");
   }
-  const membership = await ctx.db
-    .query("memberships")
-    .withIndex("by_user_and_workspace", (q) =>
-      q
-        .eq("userClerkId", identity.subject)
-        .eq("workspaceId", scope.scopeId as Id<"workspaces">),
-    )
-    .unique();
-  if (!membership) throw new ConvexError("Forbidden");
   return { subject: identity.subject };
 }
 
