@@ -20,6 +20,8 @@ import {
   type ScreenLayout,
 } from "@/lib/screen-layout";
 import { OnlyWhenList } from "@/components/appearance/only-when";
+import { EmptyState } from "@/components/dashboard/empty-state";
+import { Button } from "@/components/ui/button";
 import {
   EditableGrid,
   TrayTile,
@@ -363,13 +365,22 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
       tiles={tiles}
       layout={layout}
       onChange={persist}
-      emptyMessage={
-        <div className="panel rounded-2xl p-8 text-center">
-          <p className="text-sm text-muted-foreground">
-            You&apos;ve cleared this screen. Arrange to put something back.
-          </p>
-        </div>
-      }
+      // An emptied screen is a real destination — nothing is put back for you
+      // — so this is the one state whose only job is to teach the way on. It
+      // used to be a grey sentence naming a control it did not carry, in a
+      // screen whose only other affordance was a 24px word in the far corner.
+      // The action IS the control, so noticing and doing are the same gesture.
+      emptyMessage={(startArranging) => (
+        <EmptyState
+          action={
+            <Button size="sm" onClick={startArranging}>
+              Arrange this screen
+            </Button>
+          }
+          message="Nothing comes back on its own. Arranging opens the tray of panels this project can draw — and the builder, for a question none of them asks yet."
+          title="This screen is yours, and it is empty"
+        />
+      )}
     >
       {(editing) =>
         editing && unplaced.length > 0 ? (

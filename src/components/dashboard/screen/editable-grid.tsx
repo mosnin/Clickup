@@ -218,7 +218,23 @@ export function EditableGrid({
    * somebody having answered a question whose answer went nowhere.
    */
   layoutIsProvisional?: boolean;
-  emptyMessage?: React.ReactNode;
+  /**
+   * What a screen with nothing on it says.
+   *
+   * The function form is handed the way back in. An emptied screen is a
+   * legitimate destination here — `normalizeLayout` never helpfully re-adds
+   * anything — which makes it the one state where the reader has no panel left
+   * to long-press, so the gesture that is normally the entrance is unavailable
+   * exactly when it is needed. A message that NAMES a control ("Arrange to put
+   * something back") without carrying it is an instruction to go looking; the
+   * function form lets the empty state hold the door itself.
+   *
+   * A plain node still works, because `React.ReactNode` cannot be a function
+   * and the two are therefore told apart by `typeof` alone.
+   */
+  emptyMessage?:
+    | React.ReactNode
+    | ((startArranging: () => void) => React.ReactNode);
   /** The tray, rendered below the grid while editing. */
   children?: (editing: boolean) => React.ReactNode;
   /**
@@ -722,7 +738,11 @@ export function EditableGrid({
             aria-pressed={editing}
             onClick={() => setEditing((e) => !e)}
             className={cn(
-              "rounded-full px-3 py-1 text-xs transition-colors",
+              // `.tap-target` because this pill is the entrance to authorship
+              // on a touch screen AND the only way back out of a screen
+              // somebody has emptied — at which point there is no panel left to
+              // long-press, so it is the sole affordance on the surface.
+              "tap-target rounded-full px-3 py-1.5 text-xs transition-colors",
               editing
                 ? "bg-foreground text-background"
                 : "text-muted-foreground hover:text-foreground",
@@ -1008,7 +1028,11 @@ export function EditableGrid({
         })}
       </div>
 
-      {shown.widgets.length === 0 && !editing && emptyMessage}
+      {shown.widgets.length === 0 &&
+        !editing &&
+        (typeof emptyMessage === "function"
+          ? emptyMessage(() => setEditing(true))
+          : emptyMessage)}
 
       {children?.(editing)}
 
