@@ -48,6 +48,10 @@ import { normalizePanel, type PanelDef, type PanelShape } from "@/lib/panel";
 //     pair; it is not this change's to fix.) The window is left off rather than
 //     stated wrongly, so the chart runs over completion history.
 //
+// The project screen is the same exercise over a different registry, and it
+// comes out at one of eleven — see `projectPanelQuestions` below, including the
+// trap that disqualifies the one other candidate.
+//
 // That residual gap is why the shelf using this renders the candidate with the
 // real `<Panel>` over real data before anything is minted, instead of the
 // invented `SPECIMEN` series the style shelves use. A specimen drawn from made-
@@ -96,6 +100,102 @@ export const HOME_PANEL_QUESTIONS: Record<string, unknown> = {
     fields: ["status", "task"],
   },
 };
+
+/**
+ * The project screen's built-ins, for one project.
+ *
+ * A function rather than a table because the only honest statement here carries
+ * the project's own id: a panel resolves against a SCOPE (a user or a
+ * workspace), and a project is neither — `filter.scopeTo{Kind,Id}` is what
+ * narrows a scope-wide query down to one project's lists.
+ *
+ * ── Why exactly one of eleven ──
+ *
+ * `PROJECT_WIDGETS` has eleven entries and ten of them have no question:
+ *
+ *   - **about / status / owner / target-date / notes** edit a field on the
+ *     project record. They are controls, not readings; there is no set of
+ *     records to draw.
+ *   - **lists** is the project's lists. There is no `lists` source — and
+ *     "tasks grouped by list" is a different question wearing the same word.
+ *   - **plan** is open questions, **agent-stream** is live runs, **pages** is
+ *     the pages *attached* to this project. None of the three has a source: the
+ *     `pages` source reads a whole scope's pages, which is a different set.
+ *   - **activity** is the one that looks expressible and is not, and the reason
+ *     is worth recording because it is invisible from the pure layer: the
+ *     `scopeTo` filter is honoured **only for `from: "tasks"`**. Every other
+ *     source is answered by `resolveOther` in convex/dataStream.ts, which never
+ *     reads it. So `{ from: "activity", scopeToKind: "project" }` normalizes,
+ *     renders, and quietly shows the entire scope's activity instead of this
+ *     project's — the `today` failure again: the nearest statement selects a
+ *     different set of records, and a chart that is wrong about *which* records
+ *     is worse than no chart.
+ *
+ * That leaves **progress**, which does narrow, because it reads tasks.
+ *
+ * ── What progress says, and what it does not ──
+ *
+ * The built-in reads `projects.rollupsForProject` and shows one percentage:
+ * completed ÷ total across every list whose `parentType` is this project. The
+ * statement below selects exactly that set of records — `rollupsForProject`
+ * ranges `lists.by_parent(project, id)` and the resolver filters
+ * `l.parentType === "project" && l.parentId === scopeToId`, which are the same
+ * lists — and draws its composition: how many tasks stand in each status.
+ *
+ * That is the same relationship `agents` has to its built-in above (the card
+ * shows who is online; the panel shows everyone, carrying online/offline), and
+ * it is the relationship a chart has to a percentage: the fraction the built-in
+ * prints is the complete slice over the whole ring, so nothing is lost and
+ * nothing is invented. The measure is `count` rather than `completion_rate`
+ * deliberately — "share complete, by status" is 100% or 0% in every bucket,
+ * which is the degenerate chart this control exists not to produce.
+ *
+ * The dimension is stated rather than left to `coherePanel` for the same
+ * reason. Coherence picks a source's first grouping when a chart has none; here
+ * that guess would be the whole answer, and a guess nobody wrote down is a
+ * guess nobody can check.
+ */
+export function projectPanelQuestions(
+  projectId: string,
+): Record<string, unknown> {
+  return {
+    progress: {
+      title: "Progress",
+      query: {
+        from: "tasks",
+        // Every task, not the open ones: a chart of what is finished that
+        // filtered out finished work is a chart of zero.
+        filter: { status: "any", scopeToKind: "project", scopeToId: projectId },
+        dimension: "status",
+        measure: "count",
+      },
+      shape: "donut",
+    },
+  };
+}
+
+/**
+ * The question a project built-in asks, or null.
+ *
+ * The narrowing is re-read off the normalized definition rather than trusted,
+ * and that check is the whole point of this wrapper. `normalizeQuery` cleans
+ * `scopeToId` against a character class and drops **both** halves of the pair
+ * when either fails — so an id this build cannot express does not produce a
+ * refused panel, it produces a panel about the entire workspace with a title
+ * reading "Progress". Answering null keeps the control saying the shape is
+ * fixed, which is the truth in that case.
+ */
+export function projectPanelQuestion(
+  widgetId: string,
+  projectId: string,
+): PanelDef | null {
+  if (!projectId) return null;
+  const def = builtInPanelQuestion(widgetId, projectPanelQuestions(projectId));
+  if (!def) return null;
+  const { scopeToKind, scopeToId } = def.query.filter;
+  if (scopeToKind !== "project" || scopeToId !== projectId) return null;
+  return def;
+}
 
 /**
  * The question a built-in asks, as a panel definition, or null if it has none.

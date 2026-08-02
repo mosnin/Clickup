@@ -445,6 +445,23 @@
   outline-offset: 4px;
 }
 
+/* ── Room under the studio sheet ──────────────────────────────────────────
+   The sheet is deliberately not modal: the canvas above it stays live, and
+   watching a colour land on your own panels is the entire reason it stopped
+   being a full screen. That only works if every panel can be brought ABOVE
+   the sheet, so while it is open the scroll container gets a floor the height
+   of the sheet. It is set by the sheet's own effect and removed when it
+   closes — the last reservation this mode made (21rem for an inspector rail)
+   outlived the component it was for, and the mode read as broken for it. */
+:root[data-studio-sheet] [data-slot="sidebar-inset"] > * {
+  padding-bottom: calc(58svh + 1.5rem);
+}
+@media (min-width: 640px) {
+  :root[data-studio-sheet] [data-slot="sidebar-inset"] > * {
+    padding-bottom: calc(min(34rem, 72svh) + 3rem);
+  }
+}
+
 /* ── Row lists, in the room's chosen style ────────────────────────────────
    A list of things is the most repeated shape in the product, so how it is
    drawn is worth being a choice — and it is a choice about the *place*, which

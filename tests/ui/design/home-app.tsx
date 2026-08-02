@@ -1,7 +1,13 @@
+import { useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { ToastProvider } from "@/components/toast";
 import { AppearanceProvider } from "@/components/appearance/appearance-provider";
-import { CustomizeProvider } from "@/components/appearance/customize-provider";
+import {
+  CustomizeProvider,
+  useCustomize,
+} from "@/components/appearance/customize-provider";
+import { MintablePanelsProvider } from "@/components/appearance/mintable-panels";
+import { StyleStudio } from "@/components/appearance/style-studio";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import DashboardHome from "@/app/dashboard/page";
@@ -413,6 +419,77 @@ galleryData["userSettings.current"] = CUSTOMISED
 galleryData["appearance.forCurrentUser"] = null;
 galleryData["appearance.spaceContext"] = null;
 
+// ── The studio, over Home ────────────────────────────────────────────────
+//
+// `?studio=1` opens customise mode on this page, which is the only place the
+// mint path can be looked at: the chart chapter needs a screen OFFERING its
+// built-ins, and Home is the screen that does. It had never been rendered — the
+// shelf's shots all came from the sidebar page, where nothing offers and the
+// chapter correctly says the shape is fixed. So the state that shipped was the
+// one state of this control nobody had seen.
+//
+// Nothing else about the page changes, so the four Home shots stay the Home
+// shots and this is a fifth thing rather than a different fixture.
+
+/** Panels this reader has authored: none, which is where everyone starts. */
+galleryData["uiComponents.listForScope"] = [];
+/** Nothing selected has a stored definition, so the shelf takes the mint path. */
+galleryData["uiComponents.get"] = null;
+// The candidate cards in the chart chapter draw with the real `<Panel>` over
+// real data rather than an invented specimen — see built-in-panel.ts — so the
+// resolver has to answer or the shelf is a row of skeletons.
+galleryData["dataStream.resolve"] = {
+  rows: [
+    {
+      id: "t1",
+      title: "Reconcile the September ledger export",
+      href: "#",
+      meta: {
+        status: "In progress",
+        assigneeName: "Ada",
+        due: todayStart,
+        priority: "High",
+      },
+    },
+    {
+      id: "t2",
+      title: "Write the rollback runbook",
+      href: "#",
+      meta: { status: "Open", assigneeName: "Triage", priority: "Normal" },
+    },
+    {
+      id: "t3",
+      title: "Delete the legacy webhook handler",
+      href: "#",
+      meta: { status: "Done", assigneeName: "Ada", priority: "Low" },
+    },
+  ],
+  series: [
+    {
+      key: "all",
+      label: "Completed",
+      points: Array.from({ length: 14 }, (_, i) => ({
+        key: String(todayStart - (13 - i) * DAY),
+        label: "",
+        value: 3 + Math.round(5 * Math.sin(i / 2.1) + i / 3),
+      })),
+    },
+  ],
+  scalar: 41,
+  total: 41,
+  truncated: false,
+  meta: { unit: "count", dimensionLabel: "day", measureLabel: "Completed" },
+};
+
+const STUDIO = new URLSearchParams(window.location.search).has("studio");
+
+/** Customise mode, turned on the app's own way. */
+function StudioOpen() {
+  const { setActive } = useCustomize();
+  useEffect(() => setActive(true), [setActive]);
+  return null;
+}
+
 function Page() {
   // The dashboard layout's own composition, in its own order: toasts wrap
   // appearance (the appearance writer has to be able to say a save failed),
@@ -425,14 +502,21 @@ function Page() {
     <ToastProvider>
       <AppearanceProvider>
         <CustomizeProvider>
-          <SidebarProvider className="h-svh overflow-hidden">
-            <DashboardSidebar />
-            <SidebarInset className="h-full min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-contain">
-              <div className="w-full px-4 py-6 sm:px-6">
-                <DashboardHome />
-              </div>
-            </SidebarInset>
-          </SidebarProvider>
+          {/* Up here rather than around Home, exactly as the dashboard layout
+              has it: the studio is a sibling of the page, so a provider
+              rendered by the page could never reach it. */}
+          <MintablePanelsProvider>
+            <SidebarProvider className="h-svh overflow-hidden">
+              <DashboardSidebar />
+              <SidebarInset className="h-full min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-contain">
+                <div className="w-full px-4 py-6 sm:px-6">
+                  <DashboardHome />
+                </div>
+              </SidebarInset>
+            </SidebarProvider>
+            {STUDIO && <StudioOpen />}
+            <StyleStudio />
+          </MintablePanelsProvider>
         </CustomizeProvider>
       </AppearanceProvider>
     </ToastProvider>

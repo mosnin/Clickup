@@ -633,18 +633,34 @@ function BandStrip({ labels }: { labels: string[] }) {
       {labels.map((label, i) => {
         if (i % stride !== 0) return null;
         const centre = ((i + 0.5) / labels.length) * 100;
-        // The first and last drawn labels align to the strip's edges instead
-        // of centring on their band: half of "Jun 1" hanging off the left of
-        // the panel is the same clipping bug in a different place.
         const first = i === 0;
         const last = i + stride >= labels.length;
+        // Every label stays inside ITS OWN BAND — never pinned to the plot's
+        // edge.
+        //
+        // The edge version is why an axis lied about which bar was which. To
+        // stop half of "Jun 1" hanging off the panel, the first and last
+        // labels were anchored to the strip's left and right edges. On a
+        // six-band chart that put "Fri" 57px right of the Fri group, directly
+        // over the SAT group; the last date on a fortnight named the
+        // second-to-last bar. Overhang is a cosmetic complaint. A label under
+        // the wrong mark is a chart that misinforms, which is strictly worse
+        // and much harder to notice.
+        //
+        // So the ends anchor to their band's own left or right edge instead:
+        // still fully inside the strip, still unambiguously over the band they
+        // name. Bands that carry a label are at least MIN_BAND_LABEL_PX wide
+        // by construction (that is what `stride` guarantees), so there is room
+        // for the word without reaching into a neighbour.
+        const bandLeft = (i / labels.length) * 100;
+        const bandRight = ((i + 1) / labels.length) * 100;
         return (
           <span
             className="absolute top-0 truncate text-[10px] leading-4 text-muted-foreground"
             key={`${label}-${i}`}
             style={{
-              left: first ? 0 : last ? undefined : `${centre}%`,
-              right: last && !first ? 0 : undefined,
+              left: first ? `${bandLeft}%` : last ? undefined : `${centre}%`,
+              right: last && !first ? `${100 - bandRight}%` : undefined,
               transform: first || last ? undefined : "translateX(-50%)",
               maxWidth: room,
             }}

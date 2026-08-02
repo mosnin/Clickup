@@ -14,6 +14,7 @@ import {
   describeLayoutChange,
   insertWidget,
   normalizeLayout,
+  replaceWidget,
   screenKey,
   unusedWidgets,
   type ScreenLayout,
@@ -39,6 +40,8 @@ import {
   panelIdFromWidgetId,
   panelWidgetId,
 } from "@/lib/panel";
+import { useOfferMintablePanels } from "@/components/appearance/mintable-panels";
+import { projectPanelQuestion } from "@/lib/built-in-panel";
 
 // A project screen, arranged by the person reading it.
 //
@@ -153,6 +156,32 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
     },
     [key, previewingProposal, saveLayout, toast],
   );
+
+  // Offer this screen's built-ins to the studio's chart chapter.
+  //
+  // Without this the control was present and inert on every project page —
+  // exactly the failure Home's half of this fixed, one screen along. The
+  // mechanism is general; what is screen-specific is the three things only a
+  // screen knows: which grid it is, where a minted panel is stored, and where
+  // in ITS layout the built-in was standing.
+  //
+  // `projectId` rather than a static table because a project is not a scope:
+  // the question has to carry the id that narrows a scope-wide query down to
+  // this project's lists. Ten of the eleven widgets answer null — see
+  // `projectPanelQuestions` for each one's reason.
+  useOfferMintablePanels({
+    gridId: GRID_ID,
+    scope,
+    questionFor: (widgetId) => projectPanelQuestion(widgetId, ctx.project._id),
+    // Straight through `persist`, so a swap obeys the same rule every other
+    // edit here does — including refusing to write while an agent's proposed
+    // layout is being previewed, which would otherwise save the agent's
+    // arrangement as yours on the way past.
+    replace: (widgetId, componentId) =>
+      morphLayout(`#${GRID_ID}`, () =>
+        persist(replaceWidget(layout, widgetId, panelWidgetId(componentId))),
+      ),
+  });
 
   const tiles = useMemo<EditableTile[]>(
     () =>

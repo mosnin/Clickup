@@ -11,7 +11,17 @@ export function UserButton() {
   );
 }
 export function useUser() {
-  return { isSignedIn: true, isLoaded: true, user: { fullName: "Ada Lovelace" } };
+  // `id` is not decoration. Home builds its panel scope from it
+  // (`{ scopeType: "user", scopeId: user.id }`) and skips every authored-panel
+  // query — and the whole mint path — when it is absent, so a stub without one
+  // renders a Home where choosing a chart shape can never do anything, while
+  // the harness reports a shot taken. It matches the `clerkId` the fixtures
+  // are written against.
+  return {
+    isSignedIn: true,
+    isLoaded: true,
+    user: { id: "u1", firstName: "Ada", fullName: "Ada Lovelace" },
+  };
 }
 export function useAuth() {
   return { isSignedIn: true, isLoaded: true, getToken: async () => null };

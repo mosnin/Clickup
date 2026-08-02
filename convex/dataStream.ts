@@ -749,7 +749,17 @@ export async function resolveEnvelope(
       keys.sort((a, b) => (PRIORITY_ORDER[a] ?? 2) - (PRIORITY_ORDER[b] ?? 2));
     }
     if (keys.length > MAX_BUCKETS) {
-      keys = keys.slice(0, MAX_BUCKETS);
+      // A date axis keeps its NEWEST buckets; everything else keeps its first.
+      //
+      // The keys are already chronological here, so the old `slice(0, …)` kept
+      // the sixty *oldest* days — a "finished each day" chart on a two-year-old
+      // account drew that account's first two months and called it recent. It
+      // is the more expensive half of the `filter.window` trap: dropping the
+      // window to make a completion chart honest about which tasks it counts
+      // would have made it dishonest about which days it shows.
+      keys = dateFieldFor(q.dimension)
+        ? keys.slice(-MAX_BUCKETS)
+        : keys.slice(0, MAX_BUCKETS);
       truncated = true;
     }
 
@@ -846,7 +856,13 @@ async function resolveOther(
     }
     let keys = [...buckets.keys()];
     if (dateFieldFor(q.dimension)) keys.sort((a, b) => Number(a) - Number(b));
-    if (keys.length > MAX_BUCKETS) keys = keys.slice(0, MAX_BUCKETS);
+    // The newest buckets on a date axis, the first ones otherwise — the same
+    // rule the task walk above uses, and for the same reason.
+    if (keys.length > MAX_BUCKETS) {
+      keys = dateFieldFor(q.dimension)
+        ? keys.slice(-MAX_BUCKETS)
+        : keys.slice(0, MAX_BUCKETS);
+    }
     return [
       {
         key: "all",

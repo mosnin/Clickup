@@ -82,7 +82,28 @@ export type Priority = "urgent" | "high" | "normal" | "low";
 export type StatusFilter = "any" | "open" | "in_progress" | "complete" | "closed";
 export type AssigneeFilter = "anyone" | "me" | "unassigned" | "agents" | "humans";
 export type DueFilter = "any" | "overdue" | "today" | "week" | "month" | "none";
-/** The window records are drawn from, for anything time-shaped. */
+/**
+ * The window records are drawn from, for anything time-shaped.
+ *
+ * **It is matched against when a record ARRIVED, never against the date the
+ * dimension buckets on.** For tasks that is `_creationTime`; for activity the
+ * event's own timestamp; for pages `updatedAt`; for time entries `startedAt`;
+ * for agents, goals and sprints it is ignored entirely.
+ *
+ * That distinction is invisible and expensive, so it is written down here and
+ * said out loud by `describeQuery`. `window: "30d"` beside
+ * `dimension: "completed_day"` reads as "the last 30 days" and means "tasks
+ * *added* in the last 30 days, bucketed by the day they were finished" — which
+ * silently drops every long-running task that landed this week, and produces a
+ * plausible chart that under-reports exactly the work people most want to see.
+ * `PANEL_PRESETS.burn` carried that pair and no longer does.
+ *
+ * Left as-is rather than repaired, because a stored panel must not change what
+ * it shows when someone improves the resolver: a definition written against
+ * these semantics means what it meant. State a window when the question is
+ * about *arrival*, and leave it off when the question is about a date the
+ * dimension already names.
+ */
 export type Window = "all" | "7d" | "30d" | "90d" | "quarter" | "year";
 
 export type SortKey =
@@ -519,7 +540,18 @@ export function describeQuery(q: DataQuery): string {
     parts.push(words[q.filter.assignee]);
   }
   if (q.filter.due !== "any") parts.push(`due ${q.filter.due}`);
-  if (q.filter.window !== "all") parts.push(`over the last ${q.filter.window}`);
+  if (q.filter.window !== "all") {
+    // "over the last 30d" reads as the span the chart covers. For tasks it is
+    // not: the window is matched against when the task was added (see the note
+    // on `Window`), so a panel bucketed by completion says one thing and shows
+    // another. The sentence is the only place that difference can be seen, so
+    // it says which date it means.
+    parts.push(
+      q.from === "tasks"
+        ? `added in the last ${q.filter.window}`
+        : `over the last ${q.filter.window}`,
+    );
+  }
   if (q.filter.blocked) parts.push("blocked");
   if (q.filter.needsApproval) parts.push("waiting on approval");
   if (q.filter.search) parts.push(`matching "${q.filter.search}"`);

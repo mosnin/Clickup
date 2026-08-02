@@ -175,7 +175,9 @@ export function StyleCarousel({
       <div
         className={cn(
           "flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-          hero ? "gap-8 py-8" : "gap-4 px-[35%] pb-3 pt-2",
+          // The hero shelf lives in a sheet now, not on a screen, so its
+          // breathing room is measured against ~58svh rather than a viewport.
+          hero ? "gap-6 py-2" : "gap-4 px-[35%] pb-3 pt-2",
         )}
         // Symmetric by construction: exactly the space that centres the first
         // and last item, so the shelf reads as one object on the page's axis.

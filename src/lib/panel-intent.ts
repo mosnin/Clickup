@@ -398,7 +398,17 @@ export const PANEL_PRESETS: {
         from: "tasks",
         dimension: "completed_day",
         measure: "completed",
-        filter: { window: "30d", status: "any" },
+        // No window, and that absence is the fix rather than an omission.
+        // `filter.window` is matched against when a task was ADDED, not when
+        // it was finished (see the note on `Window` in data-stream.ts), so the
+        // `30d` this carried meant "tasks created in the last 30 days,
+        // bucketed by the day they landed" — a chart that silently drops every
+        // long-running task finished this week and looks right doing it. The
+        // preset promises "how much is landing, day by day"; over completion
+        // history that is now what it is. Recency is the resolver's job: a
+        // date dimension keeps its most recent buckets when it has more than
+        // fit.
+        filter: { status: "any" },
       },
       shape: "area",
     },

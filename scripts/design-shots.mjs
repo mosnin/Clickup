@@ -202,8 +202,68 @@ async function shootHome(width, label, query = "") {
   await p.close();
 }
 
+// ── The shelf that turns a built-in into your own card ───────────────────
+//
+// The chart chapter has two states and only one of them had ever been
+// photographed. Pointed at a stored panel it edits a definition; pointed at a
+// BUILT-IN it offers to mint one — and that second state needs a screen
+// offering its built-ins, which the sidebar page (where every studio shot came
+// from) does not have. So the state that shipped was the unseen one, at both
+// widths and in both themes.
+//
+// Driven by real clicks through the app's own path — select the tile, open the
+// island, choose the chapter — because the question is whether a person can
+// reach it, not whether the component renders when handed props.
+async function shootMintShelf(width, label) {
+  const p = await browser.newPage({
+    viewport: { width, height: width < 500 ? 844 : 1000 },
+    deviceScaleFactor: 2,
+  });
+  p.on("pageerror", (e) => errors.push(String(e)));
+  await p.goto("http://127.0.0.1:4599/home.html?studio=1");
+  await p.waitForTimeout(2200);
+
+  // Clicking the tile IS the scope selector — the delegated capture-phase
+  // handler in customize-provider turns it into a selection.
+  await p.locator('[data-tile="activity"]').click({ position: { x: 40, y: 30 } });
+  await p.waitForTimeout(400);
+  const selected = await p.locator("#style-island").innerText();
+  if (!/recent activity/i.test(selected)) {
+    errors.push(
+      `mint shelf at ${width}px: clicking the tile did not select it ` +
+        `(island reads "${selected.trim()}")`,
+    );
+  }
+
+  await p.locator("#style-island button").first().click();
+  await p.waitForTimeout(1400);
+  await p.getByRole("tab", { name: "Chart", exact: true }).click();
+  await p.waitForTimeout(1800);
+
+  // A shelf of chart shapes is the whole point; a paragraph reading "this
+  // panel is built in, so its shape is fixed" is the inert control this
+  // change exists to remove, and a screenshot of it would look fine.
+  const shapes = await p.locator("[data-item-id]").count();
+  if (shapes === 0) {
+    errors.push(`mint shelf at ${width}px: no shapes offered for a built-in`);
+  }
+
+  await p.screenshot({ path: join(SHOTS, `mint-shelf-${label}-light.png`) });
+  console.log(`shot mint-shelf-${label}-light.png (${shapes} shapes)`);
+
+  await p.evaluate(() => {
+    document.documentElement.setAttribute("data-theme", "dark");
+  });
+  await p.waitForTimeout(900);
+  await p.screenshot({ path: join(SHOTS, `mint-shelf-${label}-dark.png`) });
+  console.log(`shot mint-shelf-${label}-dark.png`);
+  await p.close();
+}
+
 await shootHome(1180, "desktop");
 await shootHome(390, "mobile");
+await shootMintShelf(1180, "desktop");
+await shootMintShelf(390, "mobile");
 // The same page with nothing customised — the Home every account starts on,
 // and the one it is easiest to never look at because the fixture author had
 // to go out of their way to produce it.
