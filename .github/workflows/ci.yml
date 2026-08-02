@@ -36,4 +36,14 @@ jobs:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
           CLERK_SECRET_KEY: sk_test_placeholder
           NEXT_PUBLIC_CONVEX_URL: https://placeholder-000.convex.cloud
+      # tests/ui/panel-fit.test.tsx drives real Chromium from inside the vitest
+      # suite — it measures what the browser actually painted, which jsdom
+      # cannot answer (it has no layout). We depend on playwright-core, which
+      # deliberately ships no browsers, so CI has to fetch one; locally the
+      # test finds the pre-installed binary and this step is irrelevant.
+      #
+      # Installed rather than skipped-when-missing on purpose: a visual gate
+      # that quietly no-ops on the one machine that gates merges is worse than
+      # no gate, because it reads as coverage.
+      - run: npx playwright-core install --with-deps chromium
       - run: npm test
