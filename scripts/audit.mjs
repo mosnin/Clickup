@@ -45,13 +45,21 @@ import {
 } from "./audit-gesture.mjs";
 
 const GALLERY = "/tmp/design-gallery";
-const OUT = "/tmp/audit";
-const PORT = 4617;
+// Port 0 asks the OS for a free one. A fixed port is a second thing two
+// concurrent runs collide over, and the collision arrives as `EADDRINUSE`
+// half way through somebody's coverage rather than as anything about the UI.
+const PORT = 0;
 const CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 
 const args = process.argv.slice(2);
 const only = (args.find((a) => a.startsWith("--only=")) || "").slice(7);
 const failOn = (args.find((a) => a.startsWith("--fail-on=")) || "").slice(10);
+// The output directory is the whole run's identity, and the first thing this
+// script does to it is delete it. Two people iterating at once against one
+// hardcoded path do not get two results — they get one, belonging to whoever
+// finished last, and the other reads it as their own. `--out=` is how a run
+// says which results are its.
+const OUT = (args.find((a) => a.startsWith("--out=")) || "").slice(6) || "/tmp/audit";
 
 // The widest a crop may be in CSS pixels. At deviceScaleFactor 2 this lands at
 // 1360 device px, under the point where a reader downscales it. Anything wider
@@ -103,8 +111,8 @@ const server = createServer((req, res) => {
   res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "text/plain" });
   res.end(readFileSync(file));
 });
-await new Promise((r) => server.listen(PORT, r));
-const base = `http://127.0.0.1:${PORT}/`;
+await new Promise((r) => server.listen(PORT, "127.0.0.1", r));
+const base = `http://127.0.0.1:${server.address().port}/`;
 
 const browser = await chromium.launch({
   executablePath: CHROME,
@@ -287,7 +295,18 @@ async function calibrate() {
   await page.close();
 
   // Horizontal overflow is a property of a whole page, so it gets its own
-  // pair of pages rather than a pair of blocks.
+  // pages rather than a pair of blocks.
+  //
+  // TWO controls, not one, and the second is the more important of them. The
+  // first says the gate does not fire on a page that fits. The second says it
+  // does not fire on a page that fits *while something on it is scaled* —
+  // because `getBoundingClientRect` is in painted coordinates and `scrollWidth`
+  // is in layout coordinates, and a gate that adds one to the other agrees with
+  // itself on everything unscaled and then manufactures a critical finding the
+  // first time somebody scales a tile. That is not hypothetical: it happened,
+  // on arrange mode, and it stayed invisible until the coverage hole over
+  // arrange mode was closed. This is the cap-bearing gate; a false critical
+  // here pins the whole product's score at 5.
   {
     const bad = await openPage("broken.html?defect=overflow", VIEWPORTS[1], "light", 1200);
     const badF = (await gate(bad.page, VIEWPORTS[1])).findings.filter(
@@ -299,18 +318,32 @@ async function calibrate() {
       (f) => f.gate === "overflow",
     );
     await good.page.close();
+    const scaled = await openPage(
+      "broken.html?defect=overflow-scaled",
+      VIEWPORTS[1],
+      "light",
+      1200,
+    );
+    const scaledF = (await gate(scaled.page, VIEWPORTS[1])).findings.filter(
+      (f) => f.gate === "overflow",
+    );
+    await scaled.page.close();
     results.push({
       gate: "overflow",
-      ok: badF.length > 0 && goodF.length === 0,
+      ok: badF.length > 0 && goodF.length === 0 && scaledF.length === 0,
       firedOnSpecimen: badF.length,
-      firedOnItsOwnControl: goodF.length,
+      firedOnItsOwnControl: goodF.length + scaledF.length,
       firedOnOtherControls: 0,
       why:
         badF.length === 0
           ? "never fired on a page 900px wide in a 390px viewport"
           : goodF.length > 0
             ? "fired on a page that fits"
-            : null,
+            : scaledF.length > 0
+              ? "fired on a tile that is scaled down and fits — the gate is " +
+                "adding a painted coordinate to a layout one: " +
+                scaledF.map((f) => f.message).join("; ").slice(0, 200)
+              : null,
       exemplar: badF[0]?.message ?? null,
     });
   }
@@ -546,10 +579,37 @@ async function runState(surface, state, viewport, theme) {
     }
     return out;
   });
-  for (const s of structural.slice(0, 80)) {
+  // ── A zero that means "nothing there" and a zero that means "we did not
+  //    look" must not print the same ──
+  //
+  // `project-cleared` is a screen somebody deliberately emptied, and it
+  // reported "0 native crops" in exactly the same words a surface whose crop
+  // step had silently failed would have. A reader has to infer which one it is
+  // from a zero, and inference is what this instrument exists to remove. So
+  // the two numbers are kept apart: how many things there were to photograph,
+  // and how many photographs came back.
+  const wanted = structural.slice(0, 80);
+  let photographed = 0;
+  for (const s of wanted) {
     const name = `${slug(id)}-${viewport.label}-${theme}-${slug(s.label)}-${s.auditId}`;
-    row.crops.push(...(await cropElement(page, s.auditId, name)));
+    const files = await cropElement(page, s.auditId, name);
+    if (files.length > 0) photographed++;
+    row.crops.push(...files);
   }
+  row.evidence = {
+    candidates: wanted.length,
+    photographed,
+    files: row.crops.length,
+    // The three states a reader actually needs told apart.
+    verdict:
+      wanted.length === 0
+        ? "nothing to photograph"
+        : photographed === wanted.length
+          ? "photographed"
+          : photographed === 0
+            ? "photographed nothing"
+            : "partly photographed",
+  };
 
   coverage.push(row);
   await page.close();
@@ -961,13 +1021,52 @@ md.push(
     `${unreachable.length} **unreachable**. An unreachable surface scores its ` +
     "dimension as unknown and drags the total; it is never silently skipped.\n",
 );
-md.push("| surface | viewport | theme | status | reason / crops |");
+// Evidence is its own column because "reached" and "photographed" are two
+// different claims, and a run that conflates them can report a surface as
+// covered on the strength of having loaded it.
+const emptySurfaces = coverage.filter(
+  (r) => r.evidence && r.evidence.verdict === "nothing to photograph",
+);
+const blindSurfaces = coverage.filter(
+  (r) =>
+    r.evidence &&
+    (r.evidence.verdict === "photographed nothing" ||
+      r.evidence.verdict === "partly photographed"),
+);
+md.push(
+  `\n${emptySurfaces.length} of those rows had nothing on them to photograph ` +
+    "(a deliberately empty screen is a result, not a gap) and " +
+    `${blindSurfaces.length} had something the crop step could not capture. ` +
+    "Both would otherwise print as `0 native crops`, which is why they do not.\n",
+);
+md.push("| surface | viewport | theme | status | evidence |");
 md.push("| --- | --- | --- | --- | --- |");
 for (const r of coverage) {
+  let evidence;
+  if (r.reason) {
+    evidence = r.reason.slice(0, 180);
+  } else if (!r.evidence) {
+    evidence = `${r.crops.length} native crops`;
+  } else if (r.evidence.verdict === "nothing to photograph") {
+    evidence =
+      "reached, **nothing to photograph** — no panel, card or dialog is on " +
+      "this surface at all";
+  } else if (r.evidence.verdict === "photographed nothing") {
+    evidence =
+      `**reached but photographed nothing** — ${r.evidence.candidates} ` +
+      "element(s) were found and none of them could be cropped";
+  } else if (r.evidence.verdict === "partly photographed") {
+    evidence =
+      `${r.evidence.files} native crops — but ${
+        r.evidence.candidates - r.evidence.photographed
+      } of ${r.evidence.candidates} element(s) **could not be cropped**`;
+  } else {
+    evidence = `${r.evidence.files} native crops of ${r.evidence.candidates} element(s)`;
+  }
   md.push(
     `| ${r.title} \`${r.surface}\` | ${r.viewport} | ${r.theme} | ${
       r.status === "reached" ? "reached" : `**${r.status}**`
-    } | ${r.reason ? r.reason.slice(0, 180) : `${r.crops.length} native crops`} |`,
+    } | ${evidence} |`,
   );
 }
 
@@ -1020,6 +1119,15 @@ if (folded.length === 0) {
     const rows = folded.filter((f) => f.severity === sev);
     if (rows.length === 0) continue;
     md.push(`\n### ${sev} (${rows.length})\n`);
+    if (sev === "info") {
+      md.push(
+        "Not defects. This section is an inventory of things the product does " +
+          "on purpose — where text shortens, and by how much — kept because it " +
+          "is worth being able to look up and filed apart because a reader who " +
+          "has to sort intended behaviour out of a defect list will stop " +
+          "reading the list.\n",
+      );
+    }
     for (const f of rows) {
       md.push(
         `**\`${f.gate}\`** on \`${f.surface}\` — ${f.occurrences}x, ` +

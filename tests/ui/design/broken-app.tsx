@@ -26,9 +26,10 @@ import { createRoot } from "react-dom/client";
 // would silently decalibrate the instrument, which is precisely the class of
 // silent failure the audit exists to prevent.
 //
-//   ?defect=overflow   the 390px horizontal-overflow specimen, alone
-//   ?defect=gesture    a grid that writes per frame and lands somewhere else
-//   (no query)         every element-level specimen and its control
+//   ?defect=overflow          the 390px horizontal-overflow specimen, alone
+//   ?defect=overflow-scaled   a tile scaled down to fit — must stay quiet
+//   ?defect=gesture           a grid that writes per frame and lands elsewhere
+//   (no query)                every element-level specimen and its control
 
 const params = new URLSearchParams(window.location.search);
 const DEFECT = params.get("defect");
@@ -325,6 +326,46 @@ function OverflowPage() {
   );
 }
 
+function ScaledButFitsPage() {
+  // The control for the coordinate-space half of the overflow gate.
+  //
+  // A tile the arrange gesture has shrunk: its LAYOUT box is 460px wide and its
+  // PAINTED box is 460 x 0.72 = 331px, which fits a phone with room to spare.
+  // A gate that adds a transformed left edge to an untransformed `scrollWidth`
+  // reports this as 460px of content in a 390px viewport — a critical finding,
+  // pinning the whole product's score at 5, about a tile nobody is losing a
+  // pixel of.
+  //
+  // It is a page of its own rather than a block on the specimen sheet because
+  // horizontal overflow is a property of a whole document: a block that is
+  // wrong about the viewport makes every other block on the page wrong too.
+  return (
+    <div style={{ padding: 8 }}>
+      <div
+        style={{
+          width: 460,
+          background: "#e8eaf6",
+          borderRadius: 12,
+          transform: "scale(0.72)",
+          transformOrigin: "left top",
+        }}
+      >
+        <p
+          style={{
+            font: "400 12px/1.5 system-ui, sans-serif",
+            color: "#111111",
+            margin: 0,
+            padding: 14,
+          }}
+        >
+          A tile the arrange gesture has scaled down. Its layout box is 460px
+          wide; its painted box is 331px, and every pixel of it is on screen.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function Page() {
   // Both sides of the gesture calibration. A gate proved only on the broken
   // fixture cannot be told apart from a gate that fires on everything, and a
@@ -332,6 +373,7 @@ function Page() {
   if (DEFECT === "gesture") return <GesturePage clean={false} />;
   if (DEFECT === "gesture-ok") return <GesturePage clean />;
   if (DEFECT === "overflow") return <OverflowPage />;
+  if (DEFECT === "overflow-scaled") return <ScaledButFitsPage />;
   return (
     <div style={{ padding: 20, maxWidth: 720 }}>
       <h1 style={{ font: "700 18px/1.3 system-ui, sans-serif", color: "#111111" }}>
@@ -484,17 +526,61 @@ function Page() {
           </div>
         }
         clean={
-          <div
-            style={{
-              width: 120,
-              height: 18,
-              overflow: "hidden",
-              font: "400 13px system-ui",
-              color: "#111111",
-            }}
-          >
-            Reconcile
-          </div>
+          <>
+            <div
+              style={{
+                width: 120,
+                height: 18,
+                overflow: "hidden",
+                font: "400 13px system-ui",
+                color: "#111111",
+              }}
+            >
+              Reconcile
+            </div>
+            {/* The narrowing, calibrated in the direction narrowings fail.
+                Both of these are text clipped to a pixel ON PURPOSE so it
+                reaches a screen reader and not the screen — the standard
+                visually-hidden pattern, written twice because there are two
+                spellings of it in the wild and the gate must recognise the
+                SIGNATURE rather than a class name. The gate reported the first
+                one as "Toggle Sidebar is cut off with no ellipsis" on nearly
+                every surface in the product, about code that is right. A gate
+                that has been narrowed needs a test that it was not narrowed too
+                far, and a test that it still catches the real thing; the
+                specimen beside this one is the second half. */}
+            <span
+              style={{
+                position: "absolute",
+                width: 1,
+                height: 1,
+                padding: 0,
+                margin: -1,
+                overflow: "hidden",
+                clip: "rect(0, 0, 0, 0)",
+                whiteSpace: "nowrap",
+                borderWidth: 0,
+                font: "400 13px system-ui",
+                color: "#111111",
+              }}
+            >
+              Toggle sidebar
+            </span>
+            <span
+              style={{
+                position: "absolute",
+                width: 1,
+                height: 1,
+                overflow: "hidden",
+                clipPath: "inset(50%)",
+                whiteSpace: "nowrap",
+                font: "400 13px system-ui",
+                color: "#111111",
+              }}
+            >
+              Opens the navigation drawer
+            </span>
+          </>
         }
         gate="clipped"
         what="text cut off with nothing to say so"
@@ -548,36 +634,78 @@ function Page() {
           />
         }
         clean={
-          <div style={{ display: "flex", gap: 10 }}>
-            <button
-              aria-label="Close"
+          <>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                aria-label="Close"
+                onClick={() => {}}
+                style={{
+                  width: 44,
+                  height: 44,
+                  border: 0,
+                  background: "#e0e0e0",
+                  borderRadius: 8,
+                }}
+              />
+              {/* The control that matters most in this file: 30px painted, but
+                  `.tap-target` hangs a -0.55rem `::after` under a coarse
+                  pointer, so the real target is ~47px. A gate that measured the
+                  painted box would call this broken on every screen in the
+                  product, and a gate people mute is a gate that is off. */}
+              <button
+                aria-label="Start timer"
+                className="tap-target"
+                onClick={() => {}}
+                style={{
+                  width: 30,
+                  height: 30,
+                  border: 0,
+                  background: "#e0e0e0",
+                  borderRadius: 8,
+                }}
+              />
+            </div>
+            {/* A 20px line of text inside a 44px row that is itself the
+                affordance. The finger gets the ROW, and reporting the text's
+                own box put a 274x20 list link at "high" on every surface that
+                draws a list. The row carries the press, so the row is what is
+                measured. */}
+            <div
               onClick={() => {}}
-              style={{
-                width: 44,
-                height: 44,
-                border: 0,
-                background: "#e0e0e0",
-                borderRadius: 8,
-              }}
-            />
-            {/* The control that matters most in this file: 30px painted, but
-                `.tap-target` hangs a -0.55rem `::after` under a coarse
-                pointer, so the real target is ~47px. A gate that measured the
-                painted box would call this broken on every screen in the
-                product, and a gate people mute is a gate that is off. */}
-            <button
-              aria-label="Start timer"
-              className="tap-target"
-              onClick={() => {}}
-              style={{
-                width: 30,
-                height: 30,
-                border: 0,
-                background: "#e0e0e0",
-                borderRadius: 8,
-              }}
-            />
-          </div>
+              style={{ marginTop: 40, padding: "12px 0", cursor: "pointer" }}
+            >
+              <a
+                href="#reconcile"
+                style={{
+                  display: "block",
+                  font: "400 13px/20px system-ui",
+                  color: "#1a3faa",
+                }}
+              >
+                Reconcile the September ledger export
+              </a>
+            </div>
+            {/* And the other half of the same correction: a wide, thin link
+                with nothing else within reach of it. A press that misses it
+                vertically reaches nothing at all, so the band it owns really is
+                44px — an allowance that applies ONLY because it already spans
+                far more than 44px sideways. The specimen beside this one is a
+                20x20 button, short in BOTH axes, where no amount of room makes
+                the box bigger; it still fires, which is what stops this from
+                being a way of making the number go down. */}
+            <div style={{ marginTop: 40 }}>
+              <a
+                href="#cutover"
+                style={{
+                  display: "block",
+                  font: "400 13px/20px system-ui",
+                  color: "#1a3faa",
+                }}
+              >
+                Cut over the legacy webhook consumers
+              </a>
+            </div>
+          </>
         }
         gate="tap"
         what="a target too small for a thumb"

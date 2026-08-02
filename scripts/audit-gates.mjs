@@ -84,11 +84,20 @@ export const GATES = {
     title: "Text is cut off with nothing to say so",
     rubric: "Legibility of purpose (dimension 3)",
   },
+  // Deliberate ellipsis. This is the design working — `.truncate` and
+  // `line-clamp-*` are in this product's vocabulary and a panel title that
+  // shortens at 390px is the intended behaviour, not a defect. It is reported
+  // at `info` rather than `low` because a severity implies somebody should act,
+  // and nobody is ever going to act on this: three hundred entries of "a title
+  // ellipsised, on purpose, exactly where it was told to" sitting in the same
+  // ranked list as fifteen real defects is the burial this report exists to
+  // prevent. It is kept because WHERE text shortens is worth being able to look
+  // up — an inventory, filed under its own heading, and out of the defect list.
   truncated: {
     cap: null,
-    severity: "low",
-    title: "Text is ellipsised",
-    rubric: "Legibility of purpose (dimension 3)",
+    severity: "info",
+    title: "Text is deliberately shortened",
+    rubric: "Legibility of purpose (dimension 3) — inventory, not a defect",
   },
   tap: {
     cap: null,
@@ -115,7 +124,11 @@ export const GATES = {
   },
 };
 
-export const SEVERITY_ORDER = ["critical", "high", "medium", "low"];
+// `info` is last on purpose, and it is not a severity so much as the absence of
+// one: a gate reporting at `info` is describing the product, not accusing it.
+// `--fail-on=<severity>` indexes into this list, so nothing at `info` can ever
+// fail a run.
+export const SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"];
 
 /** The ceiling every firing gate imposes, and which one is binding. */
 export function ceilingFor(firedGateIds) {
@@ -280,6 +293,47 @@ export function collectFindings(opts) {
     return r;
   }
 
+  /**
+   * The visually-hidden pattern: text clipped to nothing ON PURPOSE, so it
+   * reaches a screen reader and not the screen.
+   *
+   * This has to be recognised by its computed signature rather than by the
+   * class name that usually carries it. `.sr-only` is one convention — this
+   * codebase also writes the same thing inline, other codebases call it
+   * `.visually-hidden`, and a gate keyed on a string is a gate that goes blind
+   * the day somebody renames a utility. The signature is what the browser
+   * actually ends up with: a box clipped away to a pixel, by any of the three
+   * mechanisms that have ever been used to do it.
+   *
+   * Getting this wrong is expensive in the direction it was wrong: the
+   * `clipped` gate was reporting "Toggle Sidebar is cut off with no ellipsis"
+   * on nearly every surface, about a span that is CORRECT CODE. Forty nits
+   * with two real defects among them is how the two real defects ship.
+   */
+  function visuallyHidden(el, cs) {
+    const style = cs || getComputedStyle(el);
+    // `clip-path: inset(50%)` — the modern form.
+    if (/inset\(\s*50%/.test(style.clipPath || "")) return true;
+    // `clip: rect(0, 0, 0, 0)` — the classic one, and still what Tailwind's
+    // `sr-only` emits.
+    if (/^rect\(\s*0px(\s*,\s*0px){3}\s*\)$/.test((style.clip || "").trim()))
+      return true;
+    // Taken out of flow and clipped down to about a pixel. This is the pattern
+    // itself rather than any spelling of it.
+    const r = el.getBoundingClientRect();
+    const tiny = Math.max(r.width, r.height) <= 2;
+    const clips =
+      style.overflow === "hidden" ||
+      style.overflow === "clip" ||
+      style.overflowX === "hidden" ||
+      style.overflowX === "clip" ||
+      style.overflowY === "hidden" ||
+      style.overflowY === "clip";
+    if (tiny && clips && (style.position === "absolute" || style.position === "fixed"))
+      return true;
+    return false;
+  }
+
   function describe(el) {
     let s = el.tagName.toLowerCase();
     if (el.id) s += "#" + el.id;
@@ -429,10 +483,31 @@ export function collectFindings(opts) {
       // a 390px viewport — a confident, precise, entirely invented number, and
       // the crop is what gave it away. A gate that produces those is worse
       // than one that stays quiet, because somebody will go and look for it.
+      //
+      // And `scrollWidth` has to be brought into the same coordinate space as
+      // the rectangle before the two are added together, which is the bug this
+      // paragraph exists to stop coming back. `getBoundingClientRect` is where
+      // the element is PAINTED — transforms applied, its own and every
+      // ancestor's. `scrollWidth` is a layout-box property and ignores
+      // transforms entirely. Adding a transformed `left` to an untransformed
+      // width is adding inches to centimetres: it agrees on everything that is
+      // not scaled, which is almost everything, and then invents a critical
+      // finding on the one surface that is. Arrange mode scales a tile to 0.965
+      // and the gate reported "a tile reaches 397px in a 390px viewport" about
+      // a surface whose widest painted pixel was 375 — not a defect, an
+      // arithmetic error, and it could not surface until the coverage hole over
+      // arrange mode was closed. An instrument defect hiding behind an
+      // unreachable surface is the hardest kind there is to find.
+      //
+      // So the overflow is measured as what it is: the content sticking out
+      // PAST the element's own box, scaled the way that element is scaled, and
+      // added to the painted right edge. When nothing overflows, the answer is
+      // simply where the element is painted.
       const svgNs = el.namespaceURI === "http://www.w3.org/2000/svg";
-      const contentRight = svgNs
-        ? r.right
-        : r.left + Math.max(r.width, el.scrollWidth);
+      const layoutWidth = el.offsetWidth;
+      const scaleX = layoutWidth > 0 ? r.width / layoutWidth : 1;
+      const past = Math.max(0, el.scrollWidth - el.clientWidth);
+      const contentRight = svgNs ? r.right : r.right + past * scaleX;
       const over = Math.round(contentRight - limit);
       if (over <= 1) continue;
       // Reachable by scrolling something? Then it is the app working.
@@ -486,7 +561,12 @@ export function collectFindings(opts) {
       // `clipped`, which says so loudly. Neither is this.
       if (cs.textOverflow === "ellipsis") continue;
       if (el.childElementCount === 0) continue;
-      const inner = el.scrollWidth - el.clientWidth;
+      // Both of these are layout-box properties, so they are already like for
+      // like — but the number REPORTED is a number somebody goes and looks for
+      // on a screen, so it is converted to painted pixels the same way the
+      // scan above is.
+      const scale = el.offsetWidth > 0 ? r.width / el.offsetWidth : 1;
+      const inner = Math.round((el.scrollWidth - el.clientWidth) * scale);
       if (inner > 4) {
         report(
           "overflow",
@@ -725,6 +805,21 @@ export function collectFindings(opts) {
   }
 
   // ── 7. Clipped and truncated text ───────────────────────────────────
+  //
+  // Two findings out of one measurement, and the split is the whole value of
+  // the gate: text shortened WITH a mark saying so is the design working, and
+  // text shortened with nothing saying so is a sentence that ends mid-word.
+  // Three things have to be got right for the split to mean anything.
+  //
+  //   1. Visually-hidden text is not shortened text. It is clipped to a pixel
+  //      on purpose so a screen reader gets it and the screen does not, and
+  //      reporting it is reporting correct code as a defect.
+  //   2. `text-overflow: ellipsis` is not the only deliberate ellipsis in the
+  //      product. `line-clamp-*` cuts VERTICALLY and the browser draws the
+  //      ellipsis itself — measured as a vertical cut with no `text-overflow`,
+  //      which read as the loud finding when it is the quiet one.
+  //   3. `text-overflow: ellipsis` on something that WRAPS renders no ellipsis
+  //      at all. The declaration is not the behaviour; the single line is.
   {
     for (const el of document.querySelectorAll("body *")) {
       if (ignored(el)) continue;
@@ -736,6 +831,7 @@ export function collectFindings(opts) {
       const box = paintedBox(el);
       if (!box) continue;
       const cs = getComputedStyle(el);
+      if (visuallyHidden(el, cs)) continue;
       const ox = cs.overflowX;
       const oy = cs.overflowY;
       const scrollable =
@@ -747,30 +843,81 @@ export function collectFindings(opts) {
       const cutX = hiddenX ? el.scrollWidth - el.clientWidth : 0;
       const cutY = hiddenY ? el.scrollHeight - el.clientHeight : 0;
       if (cutX <= 1 && cutY <= 1) continue;
-      const ellipsis = cs.textOverflow === "ellipsis" && cutX > 1 && cutY <= 1;
+      const clampRaw = cs.webkitLineClamp || cs.lineClamp || "none";
+      const clamp = clampRaw !== "none" ? parseInt(clampRaw, 10) : 0;
+      const nowrap = cs.whiteSpace === "nowrap" || cs.whiteSpace === "pre";
+      // A single line, declared to ellipsise, cut sideways: the browser draws
+      // the mark.
+      const singleLineEllipsis =
+        cs.textOverflow === "ellipsis" && nowrap && cutX > 1 && cutY <= 1;
+      // Clamped to N lines, cut downwards: the browser draws the mark too.
+      const clampedEllipsis = clamp > 0 && cutY > 1;
+      const ellipsis = singleLineEllipsis || clampedEllipsis;
       report(
         ellipsis ? "truncated" : "clipped",
         el,
-        ellipsis
-          ? `"${own.trim().slice(0, 40)}" is ellipsised — ${cutX}px hidden`
-          : `"${own.trim().slice(0, 40)}" is cut off with no ellipsis — ` +
-            `${cutX}px right, ${cutY}px below`,
-        { cutX, cutY, clientWidth: el.clientWidth, clientHeight: el.clientHeight },
+        clampedEllipsis
+          ? `"${own.trim().slice(0, 40)}" is clamped to ${clamp} line(s) — ` +
+            `${cutY}px below the fold of its own box, with an ellipsis`
+          : ellipsis
+            ? `"${own.trim().slice(0, 40)}" is ellipsised — ${cutX}px hidden`
+            : `"${own.trim().slice(0, 40)}" is cut off with no ellipsis — ` +
+              `${cutX}px right, ${cutY}px below`,
+        {
+          cutX,
+          cutY,
+          clientWidth: el.clientWidth,
+          clientHeight: el.clientHeight,
+          lineClamp: clamp || undefined,
+        },
       );
     }
   }
 
   // ── 8. Tap targets ──────────────────────────────────────────────────
   //
-  // Measured with the hit area this app actually gives a control, not with its
-  // painted box: `.tap-target` hangs an absolutely-positioned `::after` with a
-  // negative inset under a coarse pointer, so a 24px glyph is a 41px target
-  // and reporting it as 24 is a false alarm forty times over.
+  // The question is not "how big is this element". It is **how big is the area
+  // a finger gets**, which is a different number three times over, and this
+  // gate reported the first one for a while and buried its own real findings
+  // under eight hundred readings of the wrong box.
+  //
+  // Three corrections, in the order they apply:
+  //
+  //   1. **The `::after` hit area.** `.tap-target` hangs an absolutely
+  //      positioned pseudo-element with a negative inset under a coarse
+  //      pointer, so a 23px glyph is a 41px target. (This was already here and
+  //      is why the 30px `.tap-target` control in the calibration fixture stays
+  //      quiet — a gate that measured the painted box would call it broken on
+  //      every screen in the product.)
+  //
+  //   2. **The row that forwards the press.** A control inside a `<label>`, or
+  //      inside a row that is itself the affordance, is pressed by pressing the
+  //      row. A `<label>` forwards by specification and is adopted whatever its
+  //      size; anything else is an INFERENCE, so it is adopted only when it is
+  //      the control's own padded row (no other target inside it, and no more
+  //      than 4x its area) rather than a big card that happens to be clickable.
+  //
+  //   3. **The free space no other target claims, on ONE axis only.** A 274x20
+  //      link that spans its row does not need a finger aimed sideways — only
+  //      downwards — and the space above and below it belongs to nothing else,
+  //      so the band a press can land in really is 44px. That allowance applies
+  //      only to an axis whose PERPENDICULAR extent already clears the floor:
+  //      a 32x32 icon button needs aim in two dimensions at once, no amount of
+  //      room around it makes the box bigger, and that is exactly the case the
+  //      44px floor was written for. It keeps firing, which is the point — the
+  //      correction must not be a way of making the number go down.
   if (COARSE) {
-    const controls = document.querySelectorAll(
+    const FLOOR = 43.5;
+    const CLICK_PROPS = ["onClick", "onPointerDown", "onMouseDown", "onKeyDown"];
+    const ACTIVATES =
+      'button, a[href], [role="button"], [role="tab"], [role="switch"], summary, label';
+
+    // Every target on the page first, because two of the three corrections are
+    // about a target's relationship to the OTHER targets.
+    const targets = [];
+    for (const el of document.querySelectorAll(
       'button, a[href], [role="button"], [role="tab"], input:not([type="hidden"]), select, summary, [role="switch"]',
-    );
-    for (const el of controls) {
+    )) {
       if (ignored(el)) continue;
       const box = paintedBox(el);
       if (!box) continue;
@@ -785,21 +932,148 @@ export function collectFindings(opts) {
         w += grow(after.left) + grow(after.right);
         h += grow(after.top) + grow(after.bottom);
       }
-      const min = Math.min(w, h);
-      if (min < 43.5) {
-        report(
-          "tap",
-          el,
-          `"${(accessibleName(el) || describe(el)).slice(0, 40)}" is ` +
-            `${Math.round(w)}x${Math.round(h)}px of hit area (44 is the floor)`,
-          {
-            width: Math.round(w),
-            height: Math.round(h),
-            paintedWidth: Math.round(box.width),
-            paintedHeight: Math.round(box.height),
-          },
-        );
+      const cx = box.x + box.width / 2;
+      const cy = box.y + box.height / 2;
+      targets.push({
+        el,
+        painted: box,
+        hit: {
+          left: cx - w / 2,
+          right: cx + w / 2,
+          top: cy - h / 2,
+          bottom: cy + h / 2,
+        },
+      });
+    }
+
+    /** Does pressing this element do something? */
+    function activates(el) {
+      if (el.matches(ACTIVATES)) return true;
+      const key = Object.keys(el).find((k) => k.indexOf("__reactProps$") === 0);
+      if (key) {
+        const props = el[key] || {};
+        for (const h of CLICK_PROPS) if (typeof props[h] === "function") return true;
       }
+      return false;
+    }
+
+    /**
+     * The box a press has to land in to reach this control.
+     *
+     * A form field is never widened: a text input inside a clickable card is
+     * not the card, and pressing the card selects the card rather than putting
+     * a caret in the field.
+     */
+    function reachable(t) {
+      let box = { ...t.hit };
+      if (t.el.matches("input, select, textarea")) return box;
+      const area = (t.hit.right - t.hit.left) * (t.hit.bottom - t.hit.top);
+      let node = t.el.parentElement;
+      let hops = 0;
+      while (node && node !== document.body && hops < 6) {
+        // Another target inside means the ancestor's area is shared, so none
+        // of it can be attributed to this control.
+        if (targets.some((o) => o.el !== t.el && node.contains(o.el))) break;
+        if (activates(node)) {
+          const r = node.getBoundingClientRect();
+          const contains =
+            r.left <= box.left + 1 &&
+            r.right >= box.right - 1 &&
+            r.top <= box.top + 1 &&
+            r.bottom >= box.bottom - 1;
+          const isLabel = node.tagName === "LABEL";
+          if (contains && (isLabel || r.width * r.height <= area * 4)) {
+            box = { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+          }
+        }
+        node = node.parentElement;
+        hops++;
+      }
+      return box;
+    }
+
+    /**
+     * How far the box can grow in one direction before it reaches something a
+     * press could be meant for instead. Each of the two targets either side of
+     * a gap claims half of it.
+     */
+    function room(box, t, dir) {
+      let nearest = Infinity;
+      for (const o of targets) {
+        if (o.el === t.el) continue;
+        const b = o.hit;
+        let d;
+        if (dir === "top" || dir === "bottom") {
+          if (b.right <= box.left || b.left >= box.right) continue;
+          d = dir === "top" ? box.top - b.bottom : b.top - box.bottom;
+        } else {
+          if (b.bottom <= box.top || b.top >= box.bottom) continue;
+          d = dir === "left" ? box.left - b.right : b.left - box.right;
+        }
+        if (d >= 0 && d < nearest) nearest = d;
+      }
+      // Sideways, the page edge is a real wall — there is nothing to press out
+      // there. Vertically there is not one: a document scrolls.
+      const wall =
+        dir === "left"
+          ? Math.max(0, box.left)
+          : dir === "right"
+            ? Math.max(0, document.documentElement.clientWidth - box.right)
+            : Infinity;
+      return Math.min(nearest === Infinity ? Infinity : nearest / 2, wall);
+    }
+
+    for (const t of targets) {
+      const box = reachable(t);
+      const reachW = box.right - box.left;
+      const reachH = box.bottom - box.top;
+      let w = reachW;
+      let h = reachH;
+      let free = 0;
+      if (reachH >= FLOOR && reachW < FLOOR) {
+        const need = (FLOOR - reachW) / 2;
+        free =
+          Math.min(need, room(box, t, "left")) +
+          Math.min(need, room(box, t, "right"));
+        w += free;
+      } else if (reachW >= FLOOR && reachH < FLOOR) {
+        const need = (FLOOR - reachH) / 2;
+        free =
+          Math.min(need, room(box, t, "top")) +
+          Math.min(need, room(box, t, "bottom"));
+        h += free;
+      }
+      if (Math.min(w, h) >= FLOOR) continue;
+
+      const name = (accessibleName(t.el) || describe(t.el)).slice(0, 40);
+      const grown = Math.round(reachW) !== Math.round(t.painted.width) ||
+        Math.round(reachH) !== Math.round(t.painted.height);
+      let how = "";
+      if (grown) {
+        how +=
+          ` — measured on the ${Math.round(reachW)}x${Math.round(reachH)}px area` +
+          ` that forwards the press to it`;
+      }
+      if (free > 0.5) {
+        how +=
+          `${how ? "," : " —"} plus ${Math.round(free)}px of space no other` +
+          ` target claims`;
+      }
+      report(
+        "tap",
+        t.el,
+        `"${name}" is ${Math.round(w)}x${Math.round(h)}px of hit area ` +
+          `(44 is the floor)${how}`,
+        {
+          width: Math.round(w),
+          height: Math.round(h),
+          paintedWidth: Math.round(t.painted.width),
+          paintedHeight: Math.round(t.painted.height),
+          reachableWidth: Math.round(reachW),
+          reachableHeight: Math.round(reachH),
+          freeSpace: Math.round(free),
+        },
+      );
     }
   }
 
