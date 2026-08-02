@@ -481,6 +481,48 @@ galleryData["dataStream.resolve"] = {
   meta: { unit: "count", dimensionLabel: "day", measureLabel: "Completed" },
 };
 
+// ── Panels that are only here sometimes ──────────────────────────────────
+//
+// `?situations=1` gives this reader two conditions on Home, which is the only
+// way to look at the list that turns them off. It has to be behind a flag: the
+// list is correctly absent when nobody has set one, and that absence is what
+// every other Home shot should keep showing.
+//
+// This is the surface with the strongest claim on being photographed, because
+// it is the one you go looking for when nothing is on screen — a panel governed
+// by a condition is invisible exactly when the condition is false, so a list
+// that renders badly here is a setting nobody can unset.
+galleryData["situations.forScreen"] = new URLSearchParams(
+  window.location.search,
+).has("situations")
+  ? [
+      {
+        subscriptionId: "ps1",
+        panelId: "activity",
+        description: "Overdue tasks reached 6",
+        isTrue: true,
+        value: 7,
+        becameTrueAt: todayStart,
+        becameFalseAt: null,
+        acknowledgedAt: todayStart,
+        resolution: "kept",
+        lastCheckedAt: todayStart,
+      },
+      {
+        subscriptionId: "ps2",
+        panelId: "agents",
+        description: "Tasks waiting on approval reached 3",
+        isTrue: false,
+        value: 0,
+        becameTrueAt: null,
+        becameFalseAt: null,
+        acknowledgedAt: null,
+        resolution: null,
+        lastCheckedAt: todayStart,
+      },
+    ]
+  : [];
+
 const STUDIO = new URLSearchParams(window.location.search).has("studio");
 
 /** Customise mode, turned on the app's own way. */

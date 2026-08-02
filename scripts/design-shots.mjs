@@ -389,12 +389,51 @@ async function shootOnlyWhen(width, label) {
   await p.close();
 }
 
+/**
+ * The list of conditions, in the arrange tray.
+ *
+ * The surface with the strongest claim on a photograph: you go looking for it
+ * precisely when the panel it governs is NOT on screen, so if it renders badly
+ * there is no other way to turn a condition off. `?situations=1` gives this
+ * reader two of them — one true, one not.
+ */
+async function shootOnlyWhenList(width, label) {
+  const p = await browser.newPage({
+    viewport: { width, height: width < 500 ? 844 : 1000 },
+    deviceScaleFactor: 2,
+  });
+  p.on("pageerror", (e) => errors.push(String(e)));
+  await p.goto("http://127.0.0.1:4599/home.html?situations=1");
+  await p.waitForTimeout(2000);
+  // Through the page's own switch — the tray only exists while arranging.
+  await p.getByRole("button", { name: "Customize", exact: true }).click();
+  await p.waitForTimeout(900);
+  const list = p.getByText("Only here sometimes");
+  await list.scrollIntoViewIfNeeded().catch(() => {});
+  await p.waitForTimeout(600);
+  if ((await list.count()) === 0) {
+    errors.push(`only-when list at ${width}px: the tray does not show it`);
+  }
+  await p.screenshot({ path: join(SHOTS, `only-when-list-${label}-light.png`) });
+  console.log(`shot only-when-list-${label}-light.png`);
+
+  await p.evaluate(() => {
+    document.documentElement.setAttribute("data-theme", "dark");
+  });
+  await p.waitForTimeout(800);
+  await p.screenshot({ path: join(SHOTS, `only-when-list-${label}-dark.png`) });
+  console.log(`shot only-when-list-${label}-dark.png`);
+  await p.close();
+}
+
 await shootHome(1180, "desktop");
 await shootHome(390, "mobile");
 await shootMintShelf(1180, "desktop");
 await shootMintShelf(390, "mobile");
 await shootOnlyWhen(1180, "desktop");
 await shootOnlyWhen(390, "mobile");
+await shootOnlyWhenList(390, "mobile");
+await shootOnlyWhenList(1180, "desktop");
 // The same page with nothing customised — the Home every account starts on,
 // and the one it is easiest to never look at because the fixture author had
 // to go out of their way to produce it.
