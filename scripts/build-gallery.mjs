@@ -13,13 +13,27 @@
 
 import { build } from "vite";
 import react from "@vitejs/plugin-react";
-import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
+import {
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+  existsSync,
+  renameSync,
+  rmSync,
+} from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = join(ROOT, "tests/ui/design");
-const OUT = "/tmp/design-gallery";
+const FINAL = "/tmp/design-gallery";
+// Built beside the gallery and moved into place only once it is whole.
+// `emptyOutDir` deletes first and writes afterwards, so a build that throws
+// half way — a syntax error in a surface somebody else is mid-edit on — leaves
+// an EMPTY gallery, and every harness pointed at it then fails for a reason
+// that has nothing to do with what it was measuring. The swap is the last
+// thing that happens.
+const OUT = "/tmp/design-gallery.building";
 
 function appCss() {
   const dir = join(ROOT, ".next/static/css");
@@ -110,7 +124,10 @@ for (const page of [
   );
 }
 
-console.log(`gallery built → ${join(OUT, "index.html")}`);
+rmSync(FINAL, { recursive: true, force: true });
+renameSync(OUT, FINAL);
+
+console.log(`gallery built → ${join(FINAL, "index.html")}`);
 // Said here because this is the last line anybody sees before they go looking
 // at pictures by hand. The audit covers every surface at both widths in both
 // themes, gates each one against measurements it has just proved it can make,
