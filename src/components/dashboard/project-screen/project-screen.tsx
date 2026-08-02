@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -14,11 +14,14 @@ import {
   describeLayoutChange,
   insertWidget,
   normalizeLayout,
+  removeWidget,
   replaceWidget,
   screenKey,
   unusedWidgets,
   type ScreenLayout,
 } from "@/lib/screen-layout";
+import { useScreenSituations } from "@/components/dashboard/screen/situation-arrival";
+import { OnlyWhenList } from "@/components/appearance/only-when";
 import {
   EditableGrid,
   TrayTile,
@@ -52,6 +55,16 @@ import { projectPanelQuestion } from "@/lib/built-in-panel";
 // whole product rather than reinvented per surface.
 
 const GRID_ID = "project-screen-grid";
+
+/**
+ * How wide a panel arrives at when a condition brings it.
+ *
+ * Two columns rather than one, and the same number for the preview and for
+ * keeping it: a panel that arrived because something happened is a thing
+ * somebody was asked to READ, and a preview that resizes at the moment you
+ * accept it is a preview that was lying about what you were accepting.
+ */
+const ARRIVAL_SPAN = 2 as const;
 
 export function ProjectScreen(ctx: ProjectWidgetContext) {
   const key = screenKey("project", ctx.project._id);
@@ -111,7 +124,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
     proposal !== null &&
     proposedLayout !== null &&
     previewingProposal === proposal.proposalId;
-  const layout = previewing && proposedLayout ? proposedLayout : ownLayout;
+  const baseLayout = previewing && proposedLayout ? proposedLayout : ownLayout;
 
   function resolve(accept: boolean) {
     if (!proposal) return;
@@ -134,12 +147,18 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
     );
   }
 
-  const persist = useCallback(
+  /**
+   * Save an arrangement, full stop.
+   *
+   * Split out from `persist` because the two callers are different acts. This
+   * one is for a layout built explicitly from `ownLayout` — accepting a
+   * proposal, keeping an arriving panel, removing one — where the caller has
+   * already decided what your arrangement should be. `persist` is for edits the
+   * GRID reports, which have to be refused while the grid is showing something
+   * that is not yours.
+   */
+  const write = useCallback(
     (next: ScreenLayout, opts?: { droppedAt?: number }) => {
-      // While previewing a suggestion the grid renders the proposal; an edit
-      // made in that state would silently save the agent's layout as yours.
-      // Accepting is the only way a proposal becomes your arrangement.
-      if (previewingProposal !== null) return;
       void saveLayout({ screenKey: key, layout: next }).catch((e) =>
         toast(errorMessage(e, "Couldn't save the arrangement"), {
           kind: "error",
@@ -154,7 +173,58 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
         }
       }
     },
-    [key, previewingProposal, saveLayout, toast],
+    [key, saveLayout, toast],
+  );
+
+  // ── A condition that has become true ──
+  //
+  // Same consent shape as the proposal above, deliberately: an arriving panel
+  // announces and a person places it. What differs is who is speaking — an
+  // agent there, the reader's own work here — and what happens when the reason
+  // expires, which is nothing at all to a panel they kept. See
+  // `situation-arrival.tsx`.
+  const situations = useScreenSituations({
+    screenKey: key,
+    gridId: GRID_ID,
+    // The reader's OWN layout. Feeding it the previewed one would make an
+    // arriving panel look already-placed the instant it was previewed, and the
+    // banner offering it would vanish mid-preview.
+    layout: ownLayout,
+    available: availableIds,
+    onPlace: (panelId) =>
+      morphLayout(`#${GRID_ID}`, () =>
+        write(addWidget(ownLayout, panelId, ARRIVAL_SPAN), {
+          droppedAt: ownLayout.widgets.length,
+        }),
+      ),
+    onRemove: (panelId) => write(removeWidget(ownLayout, panelId)),
+  });
+
+  /**
+   * What the grid draws: yours, or an agent's proposal, plus whatever is being
+   * previewed on arrival. The preview goes through the ordinary layout so the
+   * packer places it — nothing else in this product is allowed to decide where
+   * a tile sits, and an arriving panel is not the exception that proves it.
+   */
+  const layout = situations.previewPanelId
+    ? addWidget(baseLayout, situations.previewPanelId, ARRIVAL_SPAN)
+    : baseLayout;
+
+  /** Read inside `persist` without rebuilding it on every preview toggle. */
+  const previewingSituation = useRef(false);
+  previewingSituation.current = situations.previewPanelId !== null;
+
+  const persist = useCallback(
+    (next: ScreenLayout, opts?: { droppedAt?: number }) => {
+      // While previewing a suggestion the grid renders the proposal; an edit
+      // made in that state would silently save the agent's layout as yours.
+      // Accepting is the only way a proposal becomes your arrangement. A panel
+      // arriving on a condition is previewed the same way and gets the same
+      // refusal, for the same reason.
+      if (previewingProposal !== null || previewingSituation.current) return;
+      write(next, opts);
+    },
+    [previewingProposal, write],
   );
 
   // Offer this screen's built-ins to the studio's chart chapter.
@@ -254,6 +324,11 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
 
   return (
     <div className="space-y-4">
+      {/* A panel whose condition has become true. First, above the agent's
+          suggestions, because this one is about the reader's own work rather
+          than about somebody's opinion of their screen. */}
+      {situations.banner}
+
       {/* A panel an agent wrote, which does not exist anywhere yet — so it is
           previewed inline rather than morphed into the grid. */}
       <PanelProposal
@@ -332,6 +407,10 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
 
     <EditableGrid
       gridId={GRID_ID}
+      // The screen, not the element — a condition set on this project's panel
+      // must not be the same row as one set on another project's. See the note
+      // on the prop.
+      screenKey={key}
       tiles={tiles}
       layout={layout}
       onChange={persist}
@@ -471,6 +550,15 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
                 );
               })}
             </div>
+            {/* Every panel here that is only sometimes here, and the one tap
+                out of each. It belongs beside the unplaced panels because it
+                answers the same question they do — "what is not on my screen,
+                and why" — and it has to be SOMEWHERE, since a panel governed
+                by a condition is invisible exactly when the condition is
+                false. A setting you can only reach by pointing at a thing that
+                is not on screen is a setting that cannot be unset. */}
+            <OnlyWhenList screenKey={key} />
+
             {/* The ceiling this whole system exists to remove: you are no
                 longer choosing from what we shipped. */}
             <div className="mt-4 border-t border-border/60 pt-4">

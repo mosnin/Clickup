@@ -64,6 +64,7 @@ import {
 import { ActorGlyph } from "@/components/appearance/actor-glyph";
 import { Panel } from "@/components/dashboard/panel";
 import { useOfferMintablePanels } from "@/components/appearance/mintable-panels";
+import { OnlyWhenList } from "@/components/appearance/only-when";
 import { builtInPanelQuestion } from "@/lib/built-in-panel";
 import {
   describePanel,
@@ -142,6 +143,8 @@ const WIDGET_BY_ID = new Map<string, (typeof WIDGETS)[number]>(
   WIDGETS.map((w) => [w.id, w]),
 );
 const HOME_GRID_ID = "home-grid";
+/** What per-screen state calls this screen — see the prop on `EditableGrid`. */
+const HOME_SCREEN_KEY = "home";
 /** The registry's span strings, as the numbers the shared grid speaks. */
 const SPAN_OF: Record<BuiltInId, 1 | 2 | 3> = {
   stats: 3,
@@ -560,6 +563,11 @@ export default function DashboardHome() {
       <div ref={gridBoxRef}>
       <EditableGrid
         gridId={HOME_GRID_ID}
+        // There is exactly one Home per person and its arrangement lives in
+        // `userSettings`, so it has no `screenLayouts` key to borrow. The word
+        // is the key: per-screen rows are already keyed by owner, so "home"
+        // cannot collide with anybody else's.
+        screenKey={HOME_SCREEN_KEY}
         editing={customizing}
         onEditingChange={setCustomizing}
         tiles={order.flatMap((id) => {
@@ -662,6 +670,12 @@ export default function DashboardHome() {
                   ))}
                 </div>
               )}
+              {/* The blocks that are only here sometimes, and the way out of
+                  each — beside the hidden ones, because they answer the same
+                  question. A condition is the one setting you cannot reach by
+                  pointing at what it governs: when it is false there is
+                  nothing on screen to point at. */}
+              <OnlyWhenList screenKey={HOME_SCREEN_KEY} />
             </div>
           ) : null
         }
