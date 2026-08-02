@@ -29,8 +29,29 @@ import { panelWidgetId } from "@/lib/panel";
 
 vi.mock("@/components/motion", async () => await import("./motion-mock"));
 
+// anime's draggable builds a `DOMPoint`, which jsdom does not have — so a grid
+// rendered in edit mode throws before any assertion runs. Stubbed to the same
+// shape `editable-grid.test.tsx` uses: `morphLayout` still applies its change
+// synchronously, which is all these tests read.
+vi.mock("@/lib/anime", () => ({
+  RELEASE: {},
+  createDraggable: () => ({ revert() {}, reset() {}, animateInView() {} }),
+  createMagneticField: () => ({ pull() {}, release() {}, revert() {} }),
+  inhale: () => {},
+  jiggle: () => () => {},
+  morphLayout: (_root: unknown, change: () => void) => change(),
+  scaled: (n: number) => n,
+  settleDeform: () => {},
+  tearOut: (_el: unknown, done: () => void) => done(),
+  velocityDeform: () => {},
+  wake: () => {},
+}));
+
 const { ProjectScreen } = await import(
   "@/components/dashboard/project-screen/project-screen"
+);
+const { EditableGrid } = await import(
+  "@/components/dashboard/screen/editable-grid"
 );
 
 const PROJECT = {
@@ -399,5 +420,114 @@ describe("a preview withdraws when its condition stops holding", () => {
     expect(tileIds()).not.toContain(WIDGET_ID);
     expect(screen.getByText(/the preview stepped back/i)).toBeTruthy();
     expect(calls("screens.saveLayout")).toEqual([]);
+  });
+});
+
+
+describe("any grid announces — that is the whole mechanism", () => {
+  // The claim that makes a third surface free, and the gap this closed: the
+  // banner was wired into the project screen only, so Home — where a person can
+  // AUTHOR a condition — could never hear one fire. Half a loop, and exactly
+  // the failure "a feature that can only be configured from one special screen
+  // has not been built dynamically" names.
+  //
+  // Rendered here with nothing but a grid: no screen component, no hook call,
+  // no wiring. If this passes, every surface that draws an `EditableGrid` has
+  // arrivals, and the next one costs a `screenKey`.
+
+  const GRID_TILES = [
+    {
+      id: "a",
+      span: 1 as const,
+      title: "Placed",
+      minSpan: 1 as const,
+      maxSpan: 3 as const,
+      rows: 1 as const,
+      content: <div>placed body</div>,
+    },
+    {
+      id: "offered",
+      span: 2 as const,
+      title: "Offered",
+      minSpan: 1 as const,
+      maxSpan: 3 as const,
+      rows: 1 as const,
+      content: <div>offered body</div>,
+    },
+  ];
+  const GRID_LAYOUT = { widgets: [{ id: "a", span: 1 as const }] };
+
+  function renderGrid(
+    onChange: (next: { widgets: { id: string }[] }) => void = () => {},
+    over: Record<string, unknown> = {},
+  ) {
+    return render(
+      <EditableGrid
+        gridId="g"
+        screenKey="anywhere"
+        tiles={GRID_TILES}
+        layout={GRID_LAYOUT}
+        onChange={onChange}
+        {...over}
+      />,
+      { wrapper: DashboardShell },
+    );
+  }
+
+  beforeEach(() => {
+    queryResults["situations.forScreen"] = [
+      situation({ panelId: "offered" }),
+    ];
+  });
+
+  it("offers the panel with no help from its caller", () => {
+    renderGrid();
+    expect(screen.getByText(CONDITION, { exact: false })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Keep" })).toBeTruthy();
+  });
+
+  it("previews it into its own canvas", async () => {
+    renderGrid();
+    expect(tileIds()).toEqual(["a"]);
+    await click("Preview");
+    expect(tileIds()).toContain("offered");
+  });
+
+  it("refuses every other edit while an offer is on the canvas", async () => {
+    // The guard used to be restated in each caller, which is the shape that
+    // guarantees the next surface forgets it. The grid is the only thing that
+    // knows a panel has been offered and not accepted, so it owns the refusal —
+    // otherwise a drag or a resize saves the offered panel as part of the
+    // reader's screen.
+    const saves: { widgets: { id: string }[] }[] = [];
+    renderGrid((next) => saves.push(next), { editing: true });
+    await click("Preview");
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /^Remove Placed/ }));
+    });
+    expect(saves).toEqual([]);
+  });
+
+  it("hands the placement back out through onChange", async () => {
+    const saves: { widgets: { id: string }[] }[] = [];
+    renderGrid((next) => saves.push(next));
+    await click("Keep");
+    expect(saves).toHaveLength(1);
+    expect(saves[0].widgets.map((w) => w.id)).toEqual(["a", "offered"]);
+  });
+
+  it("stays quiet while the layout it is drawing is not the reader's", () => {
+    // An agent's proposal on the canvas. Offering a panel would place it into
+    // that proposal, and the surface would refuse the write — leaving somebody
+    // having answered a question whose answer went nowhere.
+    renderGrid(() => {}, { layoutIsProvisional: true });
+    expect(screen.queryByText(CONDITION)).toBeNull();
+  });
+
+  it("draws exactly the grid that shipped when nothing is subscribed", () => {
+    queryResults["situations.forScreen"] = [];
+    renderGrid();
+    expect(tileIds()).toEqual(["a"]);
+    expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
   });
 });

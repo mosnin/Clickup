@@ -230,6 +230,29 @@ export function shouldReportDeparture(
 }
 
 /**
+ * How this occurrence was answered, in the reader's words, or null.
+ *
+ * The complement of `shouldAnnounce`'s stamp clause, and it exists because
+ * without it the two halves of this feature contradict each other on the same
+ * screen. The "Only here sometimes" list says a condition is *true now*; the
+ * banner that would have offered its panel is absent because it was dismissed
+ * — and nothing anywhere says so. "True, and nothing happened" reads as the
+ * feature being broken, which is a worse outcome than never having dismissed
+ * it.
+ *
+ * Deliberately says nothing about a condition that is false, or one whose
+ * current occurrence has not been answered: there is no fact to report, and a
+ * phrase per row is chrome.
+ */
+export function describeAnswer(s: SituationState): string | null {
+  if (!s.isTrue || s.becameTrueAt === null) return null;
+  if (s.acknowledgedAt === null || s.acknowledgedAt < s.becameTrueAt) {
+    return null;
+  }
+  return s.resolution === "kept" ? "you kept it" : "dismissed for now";
+}
+
+/**
  * The one arrival to announce, or null.
  *
  * One at a time, matching "one pending proposal per agent per screen": a stack

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  describeAnswer,
   nextAnnouncement,
   nextDeparture,
   shouldAnnounce,
@@ -161,6 +162,63 @@ describe("a departure is reported only for a panel somebody kept", () => {
         ON,
       ),
     ).toBe(true);
+  });
+});
+
+describe("the list and the banner cannot contradict each other", () => {
+  // Both halves of this feature read the same query, and they are on the same
+  // screen at the same time — the banner above the canvas, the list in the
+  // arrange tray. Without this the list says "True now" about a condition whose
+  // banner is deliberately absent, and nothing anywhere explains the gap. "True,
+  // and nothing happened" reads as the product being broken, which is a worse
+  // outcome than having dismissed it.
+
+  it("says nothing about a condition nobody has answered", () => {
+    expect(describeAnswer(state())).toBeNull();
+  });
+
+  it("says nothing about a condition that is not true", () => {
+    expect(
+      describeAnswer(state({ isTrue: false, acknowledgedAt: 5_000 })),
+    ).toBeNull();
+  });
+
+  it("explains a dismissal, which is why no banner is showing", () => {
+    expect(
+      describeAnswer(state({ acknowledgedAt: 1_000, resolution: "dismissed" })),
+    ).toBe("dismissed for now");
+  });
+
+  it("explains a panel that was kept", () => {
+    expect(
+      describeAnswer(state({ acknowledgedAt: 1_000, resolution: "kept" })),
+    ).toBe("you kept it");
+  });
+
+  it("goes quiet again the moment a new occurrence is on offer", () => {
+    // The exact complement of `shouldAnnounce`: if the banner is back, the list
+    // must stop explaining an answer that belongs to the previous occurrence.
+    const again = state({
+      acknowledgedAt: 1_000,
+      resolution: "dismissed",
+      becameFalseAt: 2_000,
+      becameTrueAt: 3_000,
+    });
+    expect(shouldAnnounce(again, OFF)).toBe(true);
+    expect(describeAnswer(again)).toBeNull();
+  });
+
+  it("is the exact complement of announcing, for every stamp", () => {
+    // Stated as a property rather than four examples, because the two are read
+    // side by side: whenever the banner is silent about a true condition for a
+    // reason the reader caused, the list has to be able to say so.
+    for (const acknowledgedAt of [null, 500, 1_000, 1_500]) {
+      const s = state({ acknowledgedAt, resolution: "dismissed" });
+      const announcing = shouldAnnounce(s, OFF);
+      expect(describeAnswer(s) === null, `ack=${acknowledgedAt}`).toBe(
+        announcing,
+      );
+    }
   });
 });
 

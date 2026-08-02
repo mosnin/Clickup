@@ -18,6 +18,7 @@ import { useMintableBuiltIn } from "@/components/appearance/mintable-panels";
 import {
   COMPARISONS,
   comparisonLabel,
+  describeAnswer,
   describeSituation,
   isSituationTrue,
   normalizeSituation,
@@ -472,6 +473,13 @@ type SubscriptionRow = {
   description: string;
   isTrue: boolean;
   value: number | null;
+  // What happened the last time this became true. The banner above the canvas
+  // and this list read the same query, so a condition answered there has to
+  // read as answered here — otherwise the list says "True now" about something
+  // that is visibly not happening, and the feature reads as broken.
+  becameTrueAt: number | null;
+  acknowledgedAt: number | null;
+  resolution: "kept" | "dismissed" | null;
 };
 
 /**
@@ -502,7 +510,15 @@ export function OnlyWhenList({ screenKey }: { screenKey: string }) {
         Only here sometimes
       </span>
       <ul className="mt-3 space-y-2">
-        {visible.map((row) => (
+        {visible.map((row) => {
+          // Why nothing is announcing, computed from the same row the banner
+          // reads so the two can never disagree.
+          const answered = describeAnswer({
+            ...row,
+            subscriptionId: row.subscriptionId as string,
+            becameFalseAt: null,
+          });
+          return (
           <li
             className="bento-tile flex flex-wrap items-center gap-2 rounded-2xl p-3"
             key={row.subscriptionId}
@@ -512,6 +528,7 @@ export function OnlyWhenList({ screenKey }: { screenKey: string }) {
               <span className="mt-0.5 block text-xs text-muted-foreground">
                 {row.isTrue ? "True now" : "Not true now"}
                 {row.value === null ? "" : ` · measured ${formatValue(row.value)}`}
+                {answered === null ? "" : ` · ${answered}`}
               </span>
             </span>
             <button
@@ -522,7 +539,8 @@ export function OnlyWhenList({ screenKey }: { screenKey: string }) {
               Always show
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </section>
   );

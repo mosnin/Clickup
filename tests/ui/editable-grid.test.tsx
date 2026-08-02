@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
+// The grid talks to Convex now — a condition that has become true offers its
+// panel here, above the canvas, rather than beside each caller. Imported for
+// its mocks: the grid is still a pure function of what it is handed.
+import { queryResults, resetHarness } from "./harness";
 
 // The editable grid's edit chrome.
 //
@@ -21,9 +25,7 @@ vi.mock("@/lib/anime", () => ({
   velocityDeform: () => {},
 }));
 
-vi.mock("@/components/motion", () => ({
-  SPRING: { duration: 0 },
-}));
+vi.mock("@/components/motion", async () => await import("./motion-mock"));
 
 const { EditableGrid } = await import(
   "@/components/dashboard/screen/editable-grid"
@@ -47,6 +49,9 @@ const LAYOUT = { widgets: [{ id: "a", span: 1 as const }] };
 
 beforeEach(() => {
   document.body.innerHTML = "";
+  resetHarness();
+  // Nothing subscribed: the grid must be exactly the grid that shipped.
+  queryResults["situations.forScreen"] = [];
 });
 
 describe("edit chrome", () => {

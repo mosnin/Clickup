@@ -570,7 +570,11 @@ export default function DashboardHome() {
         screenKey={HOME_SCREEN_KEY}
         editing={customizing}
         onEditingChange={setCustomizing}
-        tiles={order.flatMap((id) => {
+        // Everything this screen can draw, placed or not — see the prop.
+        // Hidden blocks are already resolvable by title and content, so the
+        // whole set costs an element that is never mounted, and it is what lets
+        // a condition preview the panel it governs before it is placed.
+        tiles={[...order, ...hidden].flatMap((id) => {
           const title = titleOf(id);
           if (title === null) return [];
           const span = spans[id] ?? spanOf(id);
@@ -1229,7 +1233,11 @@ function ProjectsTable({
                     <TableCell>
                       <div className="flex min-w-[140px] items-center gap-2">
                         <Progress value={pct} className="h-2 flex-1" />
-                        <span className="w-12 flex-shrink-0 text-sm tabular-nums text-muted-foreground">
+                        {/* `min-w`, not `w`: a fixed 3rem holds "9/9" and not
+                            "118/121", and a number wider than its own box runs
+                            into the next column — a count and a date read as
+                            one string with nothing to say they are two. */}
+                        <span className="min-w-12 flex-shrink-0 text-sm tabular-nums text-muted-foreground">
                           {p.done}/{p.total}
                         </span>
                       </div>

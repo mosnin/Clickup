@@ -81,8 +81,29 @@ type GalleryMutation = ((...args: unknown[]) => Promise<undefined>) & {
   withOptimisticUpdate: (fn: unknown) => GalleryMutation;
 };
 
-export function useMutation(): GalleryMutation {
-  const fn = (async () => undefined) as GalleryMutation;
+/**
+ * Mutations a fixture wants to actually HAPPEN, by dotted path.
+ *
+ * A mutation that resolves and changes nothing is fine for a screenshot and
+ * wrong for anything that reconciles. Home writes its layout optimistically and
+ * drops the draft the moment the write resolves — on the reasonable assumption
+ * that the subscription has caught up — so against a black-hole stub every
+ * layout change on Home snapped back a beat later, and a harness driving that
+ * page would have reported the product broken when it was the harness that had
+ * no memory.
+ *
+ * A handler here writes into `galleryData`, which the query stub reads on the
+ * next render. That is the whole of "a backend that remembers", and it is what
+ * lets a gate walk a surface rather than photograph it.
+ */
+export const galleryMutations: Record<string, (args: unknown) => void> = {};
+
+export function useMutation(ref?: unknown): GalleryMutation {
+  const path = ref === undefined ? "" : pathOf(ref);
+  const fn = (async (args: unknown) => {
+    galleryMutations[path]?.(args);
+    return undefined;
+  }) as GalleryMutation;
   fn.withOptimisticUpdate = () => fn;
   return fn;
 }

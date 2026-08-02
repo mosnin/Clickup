@@ -67,6 +67,7 @@ export function useScreenSituations({
   gridId,
   layout,
   available,
+  enabled = true,
   onPlace,
   onRemove,
 }: {
@@ -76,6 +77,18 @@ export function useScreenSituations({
   layout: ScreenLayout;
   /** Widget ids this screen can actually draw. */
   available: readonly string[];
+  /**
+   * False while the surface is showing an arrangement that is not the reader's
+   * own — an agent's proposal being previewed, say.
+   *
+   * Not a feature flag and not a per-surface difference: it is the one fact
+   * about a layout that only the surface holding it can know. Offering a panel
+   * against somebody else's arrangement would place it into that arrangement,
+   * and a surface that refuses edits while previewing (which is the rule) would
+   * refuse it — leaving the reader having answered a question whose answer went
+   * nowhere. Silence is the honest state.
+   */
+  enabled?: boolean;
   /** Put the panel on the screen. The server does not know your layout. */
   onPlace: (panelId: string) => void;
   /** Take it off again, at the reader's request and never otherwise. */
@@ -125,8 +138,8 @@ export function useScreenSituations({
     [available, placed],
   );
 
-  const arrival = nextAnnouncement(states, factsFor);
-  const departure = nextDeparture(states, factsFor);
+  const arrival = enabled ? nextAnnouncement(states, factsFor) : null;
+  const departure = enabled ? nextDeparture(states, factsFor) : null;
 
   // ── The preview withdrawing ──
   //
@@ -138,6 +151,11 @@ export function useScreenSituations({
   const live = arrival !== null && arrival.subscriptionId === previewing;
   const previewedState =
     states.find((s) => s.subscriptionId === previewing) ?? null;
+  // The note is for a condition that LAPSED. A subscription that is gone
+  // altogether was cancelled by the reader — from the "Only here sometimes"
+  // list in the arrange tray, which is the other half of this feature — and
+  // telling somebody their own action happened is noise. The panel steps back
+  // either way; only the sentence is conditional.
   const previewedDescription = previewedState?.description ?? null;
   useEffect(() => {
     if (previewing === null || live) return;
@@ -244,8 +262,15 @@ function Notice({
       transition={{ duration: 0.3, ease: EASE }}
       className="bento-tile flex flex-wrap items-center gap-3 rounded-2xl p-4"
     >
-      <div className="min-w-0 flex-1">{children}</div>
-      <div className="flex items-center gap-2">{actions}</div>
+      {/* `min-w-0` here would be a lie about what this sentence needs.
+          `flex-wrap` only wraps when an item cannot shrink any further, so a
+          text block that will shrink to nothing never wraps — it just gets
+          narrower and narrower beside the buttons, and at 390px the condition
+          came out as a five-word-tall column two words wide, which is how the
+          harness found it. A real floor is what makes the actions drop to
+          their own line instead. */}
+      <div className="min-w-[14rem] flex-1">{children}</div>
+      <div className="flex flex-wrap items-center gap-2">{actions}</div>
     </motion.div>
   );
 }

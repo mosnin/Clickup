@@ -4,8 +4,7 @@ import { ToastProvider } from "@/components/toast";
 import { AppearanceProvider } from "@/components/appearance/appearance-provider";
 import { CustomizeProvider } from "@/components/appearance/customize-provider";
 import { EditableGrid } from "@/components/dashboard/screen/editable-grid";
-import { useScreenSituations } from "@/components/dashboard/screen/situation-arrival";
-import { addWidget, removeWidget, type ScreenLayout } from "@/lib/screen-layout";
+import { type ScreenLayout } from "@/lib/screen-layout";
 import { galleryData } from "./stubs/convex-react";
 
 // A panel arriving on a real canvas, in a real browser.
@@ -113,27 +112,6 @@ function Screen() {
   // subscription does, minus the socket.
   const [, refresh] = useReducer((n: number) => n + 1, 0);
 
-  const situations = useScreenSituations({
-    screenKey: SCREEN_KEY,
-    gridId: GRID,
-    layout,
-    available: AVAILABLE,
-    onPlace: (panelId) => {
-      setWrites((n) => n + 1);
-      setLayout((l) => addWidget(l, panelId, 2));
-    },
-    onRemove: (panelId) => {
-      setWrites((n) => n + 1);
-      setLayout((l) => removeWidget(l, panelId));
-    },
-  });
-
-  // Exactly the composition the project screen uses: the preview is an entry
-  // in the ordinary layout, so the packer places it and nothing else can.
-  const rendered = situations.previewPanelId
-    ? addWidget(layout, situations.previewPanelId, 2)
-    : layout;
-
   return (
     <>
       <h1>A panel arriving, for real</h1>
@@ -142,10 +120,14 @@ function Screen() {
         two widths.
       </p>
       <div style={{ maxWidth: 1100, minWidth: 0 }}>
-        {situations.banner}
+        {/* Nothing here mentions situations. The grid owns the offer — it has
+            the screen key, the tiles, the layout and the way to save, which is
+            everything an offer needs — so a surface gets arrivals by rendering
+            a grid and this fixture proves exactly that. */}
         <EditableGrid
           gridId={GRID}
-          layout={rendered}
+          screenKey={SCREEN_KEY}
+          layout={layout}
           onChange={(next) => {
             setWrites((n) => n + 1);
             setLayout(next);

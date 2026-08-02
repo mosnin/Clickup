@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useReducer } from "react";
 import { createRoot } from "react-dom/client";
 import { ToastProvider } from "@/components/toast";
 import { AppearanceProvider } from "@/components/appearance/appearance-provider";
@@ -11,7 +11,7 @@ import { StyleStudio } from "@/components/appearance/style-studio";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import DashboardHome from "@/app/dashboard/page";
-import { galleryData } from "./stubs/convex-react";
+import { galleryData, galleryMutations } from "./stubs/convex-react";
 
 // Home, in the harness, for the first time.
 //
@@ -523,6 +523,83 @@ galleryData["situations.forScreen"] = new URLSearchParams(
     ]
   : [];
 
+// ── A panel ARRIVING, because a condition just became true ───────────────
+//
+// The list above is the half you go looking for; this is the half that comes to
+// you, and it had never been rendered on the surface most people actually open.
+// `?arrival=1` is a reader with one block off their Home and a condition that
+// has just become true about it — the only state in which the offer appears.
+//
+// Home is the right place to prove it and the demo grid is not: this page has
+// six blocks at four different heights inside a real shell with a real sidebar,
+// which is exactly the arrangement a placement bug needs in order to show. A
+// panel that arrives must land in a slot the packer chose and displace nothing,
+// and that claim is worth nothing measured against four identical cards.
+const ARRIVAL = new URLSearchParams(window.location.search).has("arrival");
+
+/** The condition, before it lapses. Exported so the lapse can restate it. */
+const ARRIVING_ROW = {
+  subscriptionId: "ps-arrive",
+  panelId: "agents",
+  description: "Blocked tasks reached 3",
+  isTrue: true,
+  value: 3,
+  becameTrueAt: todayStart,
+  becameFalseAt: null,
+  acknowledgedAt: null,
+  resolution: null,
+  lastCheckedAt: todayStart,
+};
+
+if (ARRIVAL) {
+  // One block off the screen, so there is something for a condition to offer.
+  galleryData["userSettings.current"] = {
+    clerkId: "u1",
+    homeWidgets: ["stats", "today", "activity", "projects", "live"],
+    homeWidgetSpans: { stats: 3, today: 2, activity: 1, projects: 3, live: 2 },
+    homeWidgetRows: { today: 2, activity: 1, live: 1 },
+  };
+  galleryData["situations.forScreen"] = [ARRIVING_ROW];
+
+  // A backend that remembers, for this one write.
+  //
+  // Home saves its arrangement optimistically and drops the draft the instant
+  // the mutation resolves, trusting the subscription to have caught up. Against
+  // a stub that resolves and forgets, every layout change on this page snaps
+  // back a beat later — so a harness driving Home would report the product
+  // broken when it is the harness with no memory. Writing the settings row back
+  // is what makes the walk a walk.
+  galleryMutations["userSettings.setHomeWidgets"] = (args) => {
+    const a = args as {
+      homeWidgets: string[] | null;
+      spans?: Record<string, number> | null;
+      rows?: Record<string, number> | null;
+    };
+    galleryData["userSettings.current"] = {
+      clerkId: "u1",
+      homeWidgets: a.homeWidgets ?? undefined,
+      homeWidgetSpans: a.spans ?? {},
+      homeWidgetRows: a.rows ?? {},
+    };
+  };
+}
+
+/**
+ * The condition lapsing, which is the departure case.
+ *
+ * A button rather than a second page load, because what is being proven spans
+ * one session: a panel the reader KEPT has to still be there afterwards, and a
+ * reload would lose the keeping along with the thing being tested. Rendered
+ * only under `?arrival=1`, so no other shot of this page grows a control.
+ */
+function LapseControl({ onLapse }: { onLapse: () => void }) {
+  return (
+    <button id="end-condition" onClick={onLapse} type="button">
+      end the condition
+    </button>
+  );
+}
+
 const STUDIO = new URLSearchParams(window.location.search).has("studio");
 
 /** Customise mode, turned on the app's own way. */
@@ -533,6 +610,10 @@ function StudioOpen() {
 }
 
 function Page() {
+  // The gallery's stub reads `galleryData` during render, so re-rendering is
+  // how this page delivers a new subscription state — what a Convex
+  // subscription does, minus the socket.
+  const [, refresh] = useReducer((n: number) => n + 1, 0);
   // The dashboard layout's own composition, in its own order: toasts wrap
   // appearance (the appearance writer has to be able to say a save failed),
   // appearance wraps everything that reads a token, and there is exactly one
@@ -553,6 +634,22 @@ function Page() {
               <SidebarInset className="h-full min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-contain">
                 <div className="w-full px-4 py-6 sm:px-6">
                   <DashboardHome />
+                  {ARRIVAL && (
+                    <LapseControl
+                      onLapse={() => {
+                        galleryData["situations.forScreen"] = [
+                          {
+                            ...ARRIVING_ROW,
+                            isTrue: false,
+                            becameFalseAt: todayStart + 1,
+                            acknowledgedAt: todayStart,
+                            resolution: "kept",
+                          },
+                        ];
+                        refresh();
+                      }}
+                    />
+                  )}
                 </div>
               </SidebarInset>
             </SidebarProvider>

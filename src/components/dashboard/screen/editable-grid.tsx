@@ -19,13 +19,16 @@ import {
   type Draggable,
 } from "@/lib/anime";
 import {
+  addWidget,
   centersOf,
   hoveredIndex,
+  removeWidget,
   slotForPointer,
   type ScreenLayout,
   type WidgetSpan,
   type WidgetRows,
 } from "@/lib/screen-layout";
+import { useScreenSituations } from "@/components/dashboard/screen/situation-arrival";
 import { pack, packedRows } from "@/lib/pack";
 import { cn } from "@/lib/utils";
 import {
@@ -152,17 +155,40 @@ const ROW_GAP = 1.5 * 16;
 /** Matches the grid's `auto-rows`, for the first frame before measuring. */
 const ROW_HEIGHT_FALLBACK = ROW_UNIT;
 
+/**
+ * How wide a panel arrives at when a condition brings it.
+ *
+ * Two columns rather than one, and the same number for the preview and for
+ * keeping it: a panel that arrived because something happened is a thing
+ * somebody was asked to READ, and a preview that resizes at the moment you
+ * accept it is a preview that was lying about what you were accepting.
+ */
+const ARRIVAL_SPAN = 2 as const;
+
 export function EditableGrid({
   tiles,
   layout,
   onChange,
   gridId,
   screenKey,
+  layoutIsProvisional,
   emptyMessage,
   children,
   editing: controlledEditing,
   onEditingChange,
 }: {
+  /**
+   * Every tile this screen can draw — not only the placed ones.
+   *
+   * The layout decides what is SHOWN; this decides what CAN be. The difference
+   * used to be invisible because both callers derived tiles from their layout,
+   * and it stopped being invisible the moment the grid had to draw a panel the
+   * layout did not yet contain: a condition offering a panel can only preview
+   * it if the surface can already say what it looks like. Passing the whole set
+   * costs nothing — an unplaced tile's `content` is an element that is never
+   * mounted — and it is what lets the grid answer "would this draw anything"
+   * without asking its caller.
+   */
   tiles: EditableTile[];
   layout: ScreenLayout;
   /** Called with the new layout on every committed change. */
@@ -182,6 +208,16 @@ export function EditableGrid({
    * stored screen state does not have to invent one.
    */
   screenKey?: string;
+  /**
+   * True while `layout` is somebody else's suggestion rather than the reader's
+   * own arrangement — an agent's screen proposal being previewed.
+   *
+   * The grid already refuses to write in that state; this tells it to stay
+   * quiet as well. Offering a panel against a layout that is not yours would
+   * place it into that layout, and the write would be refused — leaving
+   * somebody having answered a question whose answer went nowhere.
+   */
+  layoutIsProvisional?: boolean;
   emptyMessage?: React.ReactNode;
   /** The tray, rendered below the grid while editing. */
   children?: (editing: boolean) => React.ReactNode;
@@ -209,6 +245,53 @@ export function EditableGrid({
   // what happens next — it announces what each tile *is* and the inspector
   // takes it from there.
   const { active: customizing, selection } = useCustomize();
+
+  // ── A panel arriving because a condition became true ──
+  //
+  // It lives here rather than beside each caller, and that placement is the
+  // whole point. This was wired into the project screen only, which meant the
+  // app's main surface could AUTHOR a condition it could never hear fire —
+  // half a loop, and precisely the failure "a feature that can only be
+  // configured from one special screen has not been built dynamically" names.
+  //
+  // Everything the offer needs, the grid already has: which screen this is
+  // (`screenKey`), what it can draw (`tiles`), what is placed (`layout`), and
+  // how to save (`onChange`). So a surface gets arrivals by rendering a grid,
+  // and the next one costs nothing at all.
+  const available = useMemo(() => tiles.map((t) => t.id), [tiles]);
+  const situations = useScreenSituations({
+    screenKey: screenKey ?? gridId,
+    gridId,
+    // The reader's own arrangement, deliberately without the preview below —
+    // otherwise previewing a panel would make it look already-placed and the
+    // banner offering it would vanish under the reader's hand.
+    layout,
+    available,
+    enabled: !layoutIsProvisional,
+    // Built from `layout` rather than from what is drawn, and sent straight to
+    // `onChange` rather than through `commit`: keeping a panel is the one edit
+    // that is allowed to happen while the grid is showing an offer, because it
+    // is the act that ends the offer.
+    onPlace: (panelId) =>
+      onChange(addWidget(layout, panelId, ARRIVAL_SPAN), {
+        droppedAt: layout.widgets.length,
+      }),
+    onRemove: (panelId) => onChange(removeWidget(layout, panelId)),
+  });
+
+  /**
+   * What the grid draws: the reader's arrangement, plus whatever is being
+   * offered.
+   *
+   * An ordinary entry in an ordinary layout, so `pack` places it exactly as it
+   * places everything else. Nothing here knows a pixel, which is what makes
+   * "an arriving panel cannot displace anything" true by construction rather
+   * than by care.
+   */
+  const shown = situations.previewPanelId
+    ? addWidget(layout, situations.previewPanelId, ARRIVAL_SPAN)
+    : layout;
+
   // The width a resize drag has reached, before it commits. Local only: the
   // tile must move under the finger, but a width is not saved until you let go.
   const [preview, setPreview] = useState<{
@@ -228,7 +311,7 @@ export function EditableGrid({
   const field = useRef<ReturnType<typeof createMagneticField> | null>(null);
   // The order being dragged into, which the pointer updates far more often than
   // React should re-render. Held in a ref and only pushed out on a real change.
-  const orderRef = useRef<string[]>(layout.widgets.map((w) => w.id));
+  const orderRef = useRef<string[]>(shown.widgets.map((w) => w.id));
   /**
    * The order a drag has reached, before it is saved. Local only — the same
    * contract the resize preview above has, and for the same reason.
@@ -250,7 +333,7 @@ export function EditableGrid({
   // Synced from the layout only while nothing is being dragged. Doing it on
   // every render is how a drop got overwritten by the pre-drop order arriving
   // one subscription tick later.
-  if (dragOrder === null) orderRef.current = layout.widgets.map((w) => w.id);
+  if (dragOrder === null) orderRef.current = shown.widgets.map((w) => w.id);
 
   const tileById = useMemo(
     () => new Map(tiles.map((t) => [t.id, t])),
@@ -266,16 +349,32 @@ export function EditableGrid({
   // reorder produces the same key and cannot retrigger the drag effect.
   const tileKey = useMemo(
     () =>
-      layout.widgets
+      shown.widgets
         .map((w) => w.id)
         .slice()
         .sort()
         .join("|"),
-    [layout.widgets],
+    [shown.widgets],
   );
 
+  /**
+   * Save an arrangement — unless the grid is showing one that is not yours.
+   *
+   * The guard used to live in the project screen, restated per caller, which is
+   * the shape that guarantees the next surface forgets it. It belongs here: the
+   * grid is the only thing that knows a panel has been OFFERED and not yet
+   * accepted, so a drag or a resize while an offer is on the canvas would
+   * silently save the offered panel as part of the reader's screen. Keeping it
+   * is the only way an offered panel becomes theirs.
+   */
+  const offering = situations.previewPanelId !== null;
+  const offeringRef = useRef(offering);
+  offeringRef.current = offering;
   const commit = useCallback(
-    (next: ScreenLayout, opts?: { droppedAt?: number }) => onChange(next, opts),
+    (next: ScreenLayout, opts?: { droppedAt?: number }) => {
+      if (offeringRef.current) return;
+      onChange(next, opts);
+    },
     [onChange],
   );
 
@@ -287,7 +386,7 @@ export function EditableGrid({
   const [measureRef, { width: canvasWidth }] = useMeasure();
   const columns = columnsFor(canvasWidth || 1024);
 
-  const savedWidgets = layout.widgets;
+  const savedWidgets = shown.widgets;
   const rendered = useMemo(() => {
     if (!dragOrder) return savedWidgets;
     const byId = new Map(savedWidgets.map((w) => [w.id, w]));
@@ -309,7 +408,7 @@ export function EditableGrid({
   // where it came from and then jumps forward again, which is the "saves out
   // of place then glitches in" that got reported.
   const dragOrderKey = dragOrder?.join("|") ?? null;
-  const savedOrderKey = layout.widgets.map((w) => w.id).join("|");
+  const savedOrderKey = shown.widgets.map((w) => w.id).join("|");
   useEffect(() => {
     if (dragOrderKey !== null && dragOrderKey === savedOrderKey) {
       setDragOrder(null);
@@ -336,7 +435,7 @@ export function EditableGrid({
       stopJiggle.current?.();
       stopJiggle.current = null;
     };
-  }, [editing, layout.widgets.length]);
+  }, [editing, shown.widgets.length]);
 
   // ── Dragging ──
   useEffect(() => {
@@ -634,6 +733,13 @@ export function EditableGrid({
         )}
       </div>
 
+      {/* A condition that has become true, offering the panel it governs.
+          Above the canvas rather than inside it, because it is a question
+          about the screen and not a part of it — and because a tile that were
+          sometimes a banner would have to be packed, which is exactly the
+          confusion `pack` exists to end. */}
+      {situations.banner}
+
       {/* The canvas draws what `pack` says, and nothing else places anything.
           It used to be a CSS Grid whose tracks the browser computed, while the
           tiles carried their own pixel heights — two models, each believing it
@@ -902,7 +1008,7 @@ export function EditableGrid({
         })}
       </div>
 
-      {layout.widgets.length === 0 && !editing && emptyMessage}
+      {shown.widgets.length === 0 && !editing && emptyMessage}
 
       {children?.(editing)}
 
