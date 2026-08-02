@@ -57,7 +57,15 @@ export function PageHeader({
             type="button"
             aria-label="Open navigation"
             onClick={toggleSidebar}
-            className="-ml-1.5 flex size-8 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground md:hidden"
+            // 44px on a phone, and it matters more here than anywhere: this is
+            // the only way to the sidebar below `md`, and it shipped at 32x32
+            // — a target that needs aim in BOTH directions at once, which is
+            // exactly the case the floor exists for. `size-11` rather than
+            // `.tap-target`, because the padding utility's -0.55rem halo tops
+            // out around 34px on a small control; here the button can simply
+            // be the right size. The negative margin keeps the glyph on the
+            // same optical line it was on.
+            className="-ml-3 flex size-11 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground md:hidden"
           >
             <Menu className="size-4" aria-hidden />
           </button>

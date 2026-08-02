@@ -237,7 +237,7 @@ function Header({
     >
       <span
         className={cn(
-          "min-w-0 truncate",
+          "line-clamp-1 min-w-0 break-words",
           style.titleStyle === "micro" &&
             "text-[11px] font-medium uppercase tracking-wider text-muted-foreground",
           style.titleStyle === "plain" && "text-sm",
@@ -281,6 +281,16 @@ function chartHeight(style: { padding: string }, room: number): number {
 /** Below this a chart is a smear, and saying so is more use than drawing it. */
 const MIN_CHART_PX = 40;
 
+/**
+ * The narrowest body a dial can be drawn in.
+ *
+ * Mirrors the gauge's own `min-width` (`components/charts/gauge.tsx` resolves
+ * 300 for the radial form). Stated here rather than imported because it is the
+ * *renderer's* decision what to do about it — the chart is entitled to a floor,
+ * and the panel is the thing that knows how much room there is.
+ */
+const RADIAL_MIN_PX = 300;
+
 function Body({
   def,
   data,
@@ -318,6 +328,32 @@ function Body({
 
   if (isChartShape(def.shape)) {
     if (data.series.length === 0) return <Empty def={def} />;
+    // A dial below the width it can be drawn at reads its own number instead.
+    //
+    // The gauge declares a hard `min-width: 300px` (charts/gauge.tsx) — an arc
+    // has a radius and there is no honest way to draw one in less room. What it
+    // did with less was overflow: 31px of the dial hung outside a studio
+    // specimen that clips, and 14px of it hung off the right edge of the panels
+    // sheet at 1280. Neither was reachable; a reader simply lost the right-hand
+    // slice of a circle and nothing said so.
+    //
+    // So the same rule the table follows one screen down: when the box cannot
+    // hold the drawing, draw the same answer a way that fits. A dial is one
+    // number against its maximum, and that number is `scalar` — the identical
+    // quantity, read plainly, rather than a circle sliced by its container.
+    if (def.shape === "radial" && width > 0 && width < RADIAL_MIN_PX) {
+      return (
+        <Metric
+          def={def}
+          data={data}
+          style={style}
+          state={state}
+          scopeType={scopeType}
+          scopeId={scopeId}
+          room={room}
+        />
+      );
+    }
     return (
       <Chart
         kind={def.shape as ChartKind}
@@ -429,7 +465,7 @@ function Metric({
           </div>
         )}
 
-      <p className="mt-1 truncate text-[11px] leading-relaxed text-muted-foreground">
+      <p className="mt-1 line-clamp-1 break-words text-[11px] leading-relaxed text-muted-foreground">
         {def.caption || describePanel(def)}
       </p>
     </div>
@@ -444,12 +480,85 @@ function Empty({ def }: { def: PanelDef }) {
   );
 }
 
-function RowTitle({ row }: { row: Envelope["rows"][number] }) {
-  const text = <span className="block truncate text-sm">{row.title}</span>;
-  if (!row.href) return text;
+/**
+ * How a line of text that is longer than its box ends.
+ *
+ * `line-clamp-*` rather than `truncate`, and the difference is not cosmetic.
+ * `truncate` is `white-space: nowrap` — the text is laid out at its full
+ * natural length and the box crops it, so a 60-character title inside a 274px
+ * card is really 467px of text with 193px of it existing outside the viewport.
+ * It LOOKS right, and everything measuring the page finds content nobody can
+ * reach. `line-clamp` wraps first and clips by line, so the text never extends
+ * past its own box; one line reads the same as `truncate` did, except the
+ * ellipsis lands after a whole word instead of through the middle of one.
+ *
+ * `break-words` at every call site is the pathological case: one unbroken
+ * 90-character token cannot wrap, and would put us back where we started.
+ */
+const CLAMP = { 1: "line-clamp-1", 2: "line-clamp-2" } as const;
+
+/**
+ * A record's title, as much of it as the box can hold.
+ *
+ * Two lines in a list or a card, one in a table.
+ *
+ * One line was the same rule everywhere, and on a phone it cost the sentence:
+ * a 274px card turned "Reconcile the September ledger export before the
+ * cutover window" into "Reconcile the September ledger …", which names a month
+ * and a ledger and no longer says what is being done to them. Two lines is the
+ * width a phone actually has, spent downward — where a panel has room — and it
+ * is identical for every title that already fitted, so nothing on a desktop
+ * moves. A table keeps one line because a column with a variable row height
+ * stops being a column.
+ */
+function RowTitle({
+  row,
+  lines = 2,
+}: {
+  row: Envelope["rows"][number];
+  lines?: 1 | 2;
+}) {
   return (
-    <Link href={row.href} className="block min-w-0 hover:underline">
-      {text}
+    <span
+      className={cn(
+        "block break-words text-sm group-hover:underline",
+        CLAMP[lines],
+      )}
+    >
+      {row.title}
+    </span>
+  );
+}
+
+/**
+ * A whole row — title and its meta line — as one target.
+ *
+ * The link used to wrap the TITLE alone, which made a 20px band inside a ~40px
+ * row the only place a press counted; the words directly under it, in the same
+ * row, about the same record, did nothing. On a phone that is a target you have
+ * to aim at vertically, and the two-thirds of the row that look pressable are
+ * not. Wrapping both is also simply what everybody expects a list row to do.
+ *
+ * The underline moves to `group-hover`, so hovering the row still marks the
+ * TITLE as the link rather than underlining the metadata along with it.
+ */
+function RowBody({
+  def,
+  row,
+}: {
+  def: PanelDef;
+  row: Envelope["rows"][number];
+}) {
+  const inner = (
+    <>
+      <RowTitle row={row} />
+      <MetaLine def={def} row={row} />
+    </>
+  );
+  if (!row.href) return inner;
+  return (
+    <Link className="group block min-w-0" href={row.href}>
+      {inner}
     </Link>
   );
 }
@@ -480,7 +589,7 @@ function MetaLine({ def, row }: { def: PanelDef; row: Envelope["rows"][number] }
   }
   if (bits.length === 0) return null;
   return (
-    <span className="block truncate text-[11px] text-muted-foreground">
+    <span className="line-clamp-1 block break-words text-[11px] text-muted-foreground">
       {bits.join(" · ")}
     </span>
   );
@@ -491,8 +600,7 @@ function Rows({ def, rows }: { def: PanelDef; rows: Envelope["rows"] }) {
     <Stagger className="ui-list">
       {rows.map((row) => (
         <StaggerItem key={row.id} className="min-w-0">
-          <RowTitle row={row} />
-          <MetaLine def={def} row={row} />
+          <RowBody def={def} row={row} />
         </StaggerItem>
       ))}
     </Stagger>
@@ -504,8 +612,7 @@ function Cards({ def, rows }: { def: PanelDef; rows: Envelope["rows"] }) {
     <Stagger className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       {rows.map((row) => (
         <StaggerItem key={row.id} className="bento-tile min-w-0 p-3">
-          <RowTitle row={row} />
-          <MetaLine def={def} row={row} />
+          <RowBody def={def} row={row} />
         </StaggerItem>
       ))}
     </Stagger>
@@ -554,8 +661,18 @@ function Table({
         <tbody>
           {rows.map((row) => (
             <tr key={row.id} className="border-t border-border/60">
-              <td className="max-w-[14rem] truncate py-1.5 pr-3">
-                <RowTitle row={row} />
+              {/* The cell no longer carries `truncate` itself: `nowrap` on the
+                  cell would stop the title inside it from wrapping, and
+                  `line-clamp` clips a wrapped line rather than an unwrapped
+                  one. The title owns its own ending. */}
+              <td className="max-w-[14rem] py-1.5 pr-3">
+                {row.href ? (
+                  <Link className="group block min-w-0" href={row.href}>
+                    <RowTitle lines={1} row={row} />
+                  </Link>
+                ) : (
+                  <RowTitle lines={1} row={row} />
+                )}
               </td>
               {def.fields.map((f) => {
                 const value = row.meta[f];

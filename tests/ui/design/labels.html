@@ -22,6 +22,14 @@
         background: var(--color-card, #fff);
         border-radius: 16px;
         padding: 16px;
+        /* The specimens state a panel width in pixels, which is the whole
+           point of the page — and at 390 the 540px and 1100px ones simply hung
+           off the right of the screen, taking 59px of chart with them. A
+           reading taken from a specimen wider than the screen showing it is a
+           reading of a chart nobody can see. Clamped, so every section renders
+           at the width a phone actually gives a panel; on a desktop, where the
+           stated widths fit, nothing changes. */
+        max-width: 100%;
       }
       .cap {
         font-size: 11px;

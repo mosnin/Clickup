@@ -362,21 +362,38 @@ function StudioSheet() {
               </button>
             </div>
 
-            {/* Chapters: a pill row that SCROLLS when it doesn't fit, rather
-                than a four-up segmented control squeezing "New card" into two
-                cramped lines at 390px. Centred while it fits, so on a desktop
-                it still reads as one control on the axis. */}
-            <div className="mt-1 shrink-0 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {/* Chapters. On a phone the five of them FIT — one full-width row
+                of equal thirds-of-a-fifth, every chapter visible, nothing
+                behind an edge. The previous answer was a scroller with its
+                scrollbar hidden, and 36px of "New card" lived past the right
+                edge of a 390px screen with no mark on the screen saying so: a
+                person who never swipes a tab strip they cannot see is a person
+                who never finds the builder. A hidden scrollbar is not an
+                affordance, and a chapter you cannot see is a chapter you do
+                not have.
+
+                `overflow-x-auto` stays as the safety valve rather than as the
+                layout: at a large type scale the labels can still outgrow the
+                row, and scrolling is the honest failure. From `sm` up it goes
+                back to the centred pill — a five-up bar stretched across a
+                desktop is a menu bar, not a control. */}
+            <div className="mt-1 shrink-0 overflow-x-auto px-0 sm:px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div
                 aria-label="Choosing"
-                className="segmented mx-auto w-max"
+                className="segmented flex w-full sm:mx-auto sm:w-max"
                 role="tablist"
               >
                 {CHAPTERS.map((c) => (
                   <button
                     aria-selected={chapter === c.id}
                     className={cn(
-                      "inline-flex h-11 items-center px-4 text-[13px]",
+                      // `flex-auto`, not `flex-1`: equal fifths give every
+                      // chapter 78px and "Only when…" needs 68 of its own, so
+                      // an equal split clipped the one label that could not
+                      // afford it while "Card" sat in 78px of air. Sizing from
+                      // content and then sharing what is left over means the
+                      // long one is the one that gets the room.
+                      "inline-flex h-11 min-w-0 flex-auto items-center justify-center truncate px-1.5 text-[13px] sm:flex-none sm:px-4",
                       chapter === c.id && "segmented-on",
                     )}
                     key={c.id}
