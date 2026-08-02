@@ -6,6 +6,9 @@ const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
   "/onboarding(.*)",
   "/invite(.*)",
+  // The Chat dashboard is a second logged-in shell, not a page inside the
+  // first, so it needs its own entry here.
+  "/chat(.*)",
 ]);
 
 // Routes that authenticate themselves and must never be touched by Clerk.

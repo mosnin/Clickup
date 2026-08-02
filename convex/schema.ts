@@ -1,5 +1,11 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { buzzTables } from "./buzz/_tables";
+import { buzzNotificationTables } from "./buzz/notifications";
+import { buzzReminderTables } from "./buzz/reminders";
+import { buzzModerationTables } from "./buzz/moderation";
+import { buzzWorkflowTables } from "./buzz/workflows";
+import { buzzBridgeTables } from "./buzz/bridge";
 
 // Schema for operate.to.
 //
@@ -1024,6 +1030,12 @@ export default defineSchema({
             v.literal("page"),
             v.literal("sprint"),
             v.literal("goal"),
+            // C12: the same literal `_refs.REF_KINDS` gained. It has to be here
+            // too or a Work message naming a Chat room fails validation on the
+            // way in — the refs are parsed from the body, so the vocabulary the
+            // parser knows and the vocabulary this column accepts are the same
+            // vocabulary.
+            v.literal("room"),
           ),
           id: v.string(),
           label: v.string(),
@@ -1048,6 +1060,11 @@ export default defineSchema({
       v.literal("workspace"),
       v.literal("channel"),
       v.literal("page"),
+      // C12, the unified inbox: a Chat room. `parentId` is the room key from
+      // `src/lib/buzz/bridge.ts` (scope + channel id) rather than a bare
+      // channel id, because a Buzz channel id is unique inside a community and
+      // the inbox has no other way to know which community it came from.
+      v.literal("room"),
     ),
     parentId: v.string(),
     // Carried on the row for message-less sources, so the inbox still has
@@ -1278,6 +1295,9 @@ export default defineSchema({
       v.literal("list"),
       v.literal("project"),
       v.literal("space"),
+      // A Chat community (`"<scopeType>:<scopeId>"`). The same literal is
+      // added to `presence.SURFACE_TYPE`; this union is where it is defined.
+      v.literal("community"),
     ),
     surfaceId: v.string(),
     /** clerkId for a person, agent document id for an agent. */
@@ -2379,4 +2399,36 @@ export default defineSchema({
   })
     .index("by_scope", ["scopeType", "scopeId", "createdAt"])
     .index("by_nonce", ["nonce"]),
+
+  // The Chat dashboard's substrate: an append-only log of signed, kind-tagged
+  // events, its tag index, and the keys that sign into it. Defined in
+  // convex/buzz/_tables.ts — a different kind of thing from the mutable domain
+  // rows above, and kept out of this file so it costs it two lines forever.
+  ...buzzTables,
+  // Notification settings and mutes. They live beside the module that reads
+  // them rather than in _tables.ts because they are ordinary preference rows,
+  // not part of the signed log — and because absence is meaningful here: no row
+  // means "never opened the settings screen", which is the defaults, so there
+  // is nothing to create on signup and nothing to migrate.
+  ...buzzNotificationTables,
+  // The reminder projection. The log is the record — every reminder is a signed,
+  // author-gated kind 30300 — but `not_before` is not a filterable tag and every
+  // index on the log leads with the community, so "everything due now, anywhere"
+  // has nowhere to range. Declared in convex/buzz/reminders.ts beside the cron
+  // that is its only reason to exist.
+  ...buzzReminderTables,
+  // Reports, the append-only action log, and community restrictions. The action
+  // log is the one table in the product that retention must never learn about:
+  // a moderation record whose job is to outlive the thing it was about cannot
+  // be pruned on the same schedule as the thing it was about.
+  ...buzzModerationTables,
+  // Workflows, their runs, their approval gates, and the at-most-once claim a
+  // scheduled fire takes. The claim is a row rather than an in-memory filter
+  // because ours is written in the same serializable transaction that reads it
+  // — the claim IS the mechanism, not a second weaker copy of one.
+  ...buzzWorkflowTables,
+  // The bridge's one row: which project a room is about. Only a pointer — the
+  // whole of C12 is reads across the two sides, and the single fact neither
+  // side can hold alone is the edge between them.
+  ...buzzBridgeTables,
 });

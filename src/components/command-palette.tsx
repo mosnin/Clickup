@@ -9,10 +9,12 @@ import {
   LayoutTemplate,
   CornerDownLeft,
   FileText,
+  Hash,
   Home,
   Inbox,
   LayoutGrid,
   List,
+  MessagesSquare,
   Plus,
   Search,
   Sparkles,
@@ -28,6 +30,10 @@ import { useToast } from "@/components/toast";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
 import { errorMessage } from "@/lib/errors";
 import { capCommandPaletteItems } from "@/lib/command-palette-items";
+// C12 — one search. Chat's messages, plus the tasks and pages its unified
+// search reaches, folded into the same list. A hook rather than a query here so
+// this file stays a Work-side file with a three-line diff.
+import { useChatPaletteHits } from "@/components/chat/bridge";
 
 // ⌘K command palette: jump to any list/doc/board/workspace/agent, search
 // tasks by title, or create a task without leaving the keyboard. Mounted
@@ -68,6 +74,7 @@ export function CommandPalette() {
       ? { text: query }
       : "skip",
   );
+  const chat = useChatPaletteHits(query, open && createTitle === null);
   const createTask = useMutation(api.tasks.create);
   const createPage = useMutation(api.pages.create);
   const { user } = useUser();
@@ -360,7 +367,9 @@ export function CommandPalette() {
       });
     }
 
+    const seenTasks = new Set<string>();
     for (const t of taskHits ?? []) {
+      seenTasks.add(t.taskId);
       out.push({
         key: `task-${t.taskId}`,
         group: "Tasks",
@@ -368,6 +377,33 @@ export function CommandPalette() {
         hint: t.listName,
         icon: SquareCheck,
         run: nav(`/dashboard/l/${t.listId}/t/${t.taskId}`),
+      });
+    }
+
+    // Chat's half of the answer. A task can come back from both searches, so
+    // the ones already listed are skipped rather than shown twice — one row per
+    // thing is the whole reason the palette is readable.
+    //
+    // One entry per kind the unified hit declares, rather than "message or
+    // else": a palette glyph is a semantic type indicator, so drawing a page
+    // and a room as checkboxes says both are tasks. Rooms are their own group
+    // because they are the one hit you navigate *to* rather than read.
+    const CHAT_HIT = {
+      message: { group: "Messages", icon: MessagesSquare },
+      room: { group: "Rooms", icon: Hash },
+      task: { group: "Chat", icon: SquareCheck },
+      page: { group: "Chat", icon: FileText },
+    } as const;
+    for (const hit of chat.hits) {
+      if (hit.kind === "task" && seenTasks.has(hit.id)) continue;
+      const shape = CHAT_HIT[hit.kind];
+      out.push({
+        key: `chat-${hit.kind}-${hit.id}`,
+        group: shape.group,
+        label: hit.label,
+        hint: hit.context,
+        icon: shape.icon,
+        run: nav(hit.href),
       });
     }
 
@@ -502,6 +538,7 @@ export function CommandPalette() {
     tree,
     agents,
     taskHits,
+    chat.hits,
     allLists,
     allSpaces,
     router,
@@ -588,6 +625,10 @@ export function CommandPalette() {
 
   return (
     <AnimatePresence>
+      {/* Chat's subscriptions render nothing and sit outside the palette's own
+          presence animation, so opening and closing does not tear them down
+          mid-query. */}
+      {chat.subscriptions}
       {open && (
         <motion.div
           initial={{ opacity: 0 }}

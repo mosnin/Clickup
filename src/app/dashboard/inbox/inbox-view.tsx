@@ -35,6 +35,10 @@ const CONTEXT_KIND: Record<string, string> = {
   workspace: "Chat",
   channel: "Channel",
   space: "Chat",
+  // C12: a mention in a Chat room. One literal — the row already arrives with
+  // its `#channel` label and a working `/chat/c/…` link from
+  // `mentions.feedForCurrent`.
+  room: "Room",
 };
 
 export function Inbox() {

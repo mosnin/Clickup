@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
+import { resolveRoomMention } from "./buzz/bridge";
 
 export const listForCurrent = query({
   args: { unreadOnly: v.optional(v.boolean()) },
@@ -93,6 +94,13 @@ export const feedForCurrent = query({
             href = `/dashboard/pages/${page._id}`;
             contextLabel = page.title;
           }
+        } else if (mention.parentType === "room") {
+          // C12: a Chat room. One branch, and the resolution lives in
+          // convex/buzz/bridge.ts so the room-key grammar has one owner.
+          ({ href, label: contextLabel } = await resolveRoomMention(
+            ctx,
+            mention.parentId,
+          ));
         } else if (mention.parentType === "space") {
           // Space chat has no dedicated page yet — fall back to the inbox
           // so the card is still clickable (mirrors messages.ts
