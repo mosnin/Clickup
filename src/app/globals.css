@@ -2465,3 +2465,316 @@ a:hover > .message-ref {
   --color-chart-scale-pattern-color:
     var(--chart-scale-pattern-color);
 }
+
+/* ---------------------------------------------------------------------------
+   The Chat dashboard.
+
+   Chat is a different application over the same workspace, and it should feel
+   like one — Buzz's density and chrome, not the Work canvas's airy sheet. The
+   whole re-skin is this block, because every component already reads tokens;
+   nothing below here knows there is a second dashboard.
+
+   Scoped by `data-app="chat"` on :root (stamped by ChatThemeScope) rather than
+   on a wrapper, so portalled surfaces — toasts, menus, popovers — are themed
+   too. Attribute-scoped, following [data-list-style] / [data-sidebar] /
+   [data-customizing] above; not a second stylesheet, which would drift from
+   this one the first time a token changed.
+
+   What this block MUST NOT redeclare: --ui-font-scale, --ui-motion-scale,
+   --ui-muted-toward-fg, --ui-muted-toward-bg, --ui-font-body, --ui-row-height.
+   Those are the personal accessibility keys. AppearanceProvider writes them as
+   inline styles on :root, and a descendant rule here would beat the person who
+   set them — a room overruling someone's type size or reduced motion is the
+   exact harm the PERSONAL/PLACE partition exists to prevent. Asserted in
+   tests/buzz-theme-scope.test.ts.
+--------------------------------------------------------------------------- */
+:root[data-app="chat"] {
+  /* A room, not a sheet: the canvas recedes and the panes carry the light. */
+  --color-page: oklch(0.968 0.003 264);
+  --color-background: oklch(1 0 0);
+
+  /* A transcript is read in rows, not in cards, so the corners stop being
+     pill-shaped. Radius is a place setting — how tight the rows are is not:
+     --ui-gap and --ui-pad belong to `density`, which is the reader's, so Chat
+     asks for none of it. (The test caught this the first time it ran.) */
+  --ui-radius-card: 0.75rem;
+}
+
+:root[data-theme="dark"][data-app="chat"] {
+  /* Buzz reads dark by default and the contrast between rail, transcript and
+     composer is what makes the panes legible — so the canvas goes darker than
+     the surfaces sitting on it, the opposite of the light-mode relationship. */
+  --color-page: oklch(0.178 0.006 264);
+  --color-background: oklch(0.216 0.006 264);
+}
+
+/* ---------------------------------------------------------------------------
+   The Chat shell's own vocabulary.
+
+   Buzz expresses its whole chrome with about six values — a hover wash, an
+   active wash, a 40%-ink secondary tone, a hairline — reused on every surface
+   from the community rail to the section labels. Written as tokens + a handful
+   of classes rather than as Tailwind arbitrary values at three hundred call
+   sites, because that is what makes "the room's hover is a touch stronger"
+   one edit instead of a search-and-replace.
+
+   Naming is `--chat-*` on purpose: none of these is an appearance token, so
+   there is no path by which extending this section can overrule how a person
+   reads. The rules above still apply — nothing here may declare a personal
+   accessibility token (tests/buzz-theme-scope.test.ts).
+
+   The washes are alpha over whatever is behind them rather than opaque fills,
+   so a row on the rail, a row on the sidebar and a row on the white content
+   card all read as the same gesture at different depths — which is the thing
+   that makes the panes look like one surface instead of three stacked ones.
+--------------------------------------------------------------------------- */
+:root[data-app="chat"] {
+  --chat-hover: rgb(16 16 16 / 0.05);
+  --chat-active: rgb(16 16 16 / 0.08);
+  --chat-quiet: rgb(16 16 16 / 0.45);
+  --chat-hairline: rgb(16 16 16 / 0.09);
+  /* Unread is ink, matching --color-unread: the one accent the whole product
+     uses to mean "this is new". Chat does not get a second one. */
+  --chat-accent: #101010;
+  --chat-accent-fg: #ffffff;
+}
+
+:root[data-theme="dark"][data-app="chat"] {
+  --chat-hover: rgb(255 255 255 / 0.06);
+  --chat-active: rgb(255 255 255 / 0.12);
+  --chat-quiet: rgb(255 255 255 / 0.45);
+  --chat-hairline: rgb(255 255 255 / 0.1);
+  --chat-accent: rgb(255 255 255 / 0.92);
+  --chat-accent-fg: oklch(0.216 0.006 264);
+}
+
+/* A row in the rail or the sidebar. 2rem tall, the density Buzz uses
+   throughout — deliberately not --ui-row-height, which belongs to the
+   reader's density setting and is opt-in per surface everywhere else too. */
+.chat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: inherit;
+  text-align: left;
+  transition: background-color 0.12s ease;
+}
+.chat-row:hover {
+  background: var(--chat-hover);
+}
+.chat-row[data-active="true"] {
+  /* Flat tint, no shadow: the selection sits *on* the chrome rather than
+     floating above it. A raised pill here reads as a card and breaks the
+     "one continuous surface" the panes are trying to be. */
+  background: var(--chat-active);
+  font-weight: 600;
+  box-shadow: none;
+}
+.chat-row[data-muted="true"]:not([data-unread="true"]) {
+  opacity: 0.5;
+}
+
+/* Section label: sentence case, quiet, and a button because it collapses. */
+.chat-section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 2rem;
+  width: 100%;
+  padding: 0 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--chat-quiet);
+}
+.chat-section-label:hover {
+  color: var(--color-foreground);
+}
+
+.chat-quiet {
+  color: var(--chat-quiet);
+}
+
+/* The two unread marks. A count is something to act on; a dot is only news. */
+.chat-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.25rem;
+  min-width: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 9999px;
+  background: var(--chat-accent);
+  color: var(--chat-accent-fg);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.chat-badge[data-size="sm"] {
+  height: 1rem;
+  min-width: 1rem;
+  padding: 0 0.2rem;
+  font-size: 0.625rem;
+}
+.chat-dot {
+  display: block;
+  height: 0.5rem;
+  width: 0.5rem;
+  border-radius: 9999px;
+  background: var(--chat-accent);
+}
+
+/* Hover-only scrollbar. At rest the sidebar has no visible furniture; the
+   thumb appears when the pointer is over the thing it scrolls. */
+.chat-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.chat-scroll:hover {
+  scrollbar-color: var(--chat-hairline) transparent;
+}
+.chat-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.chat-scroll::-webkit-scrollbar-thumb {
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background-color: transparent;
+}
+.chat-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: var(--chat-hairline);
+}
+
+/* A functional glyph button in the chrome (toggle, close, room action). */
+.chat-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.75rem;
+  width: 1.75rem;
+  border-radius: 0.375rem;
+  color: var(--chat-quiet);
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+.chat-icon-button:hover {
+  background: var(--chat-hover);
+  color: var(--color-foreground);
+}
+
+/* A community tile on the rail. The resting squircle squares off on select —
+   the one gesture borrowed wholesale, because the radius change is what tells
+   you which community you are in without a second indicator. */
+.chat-rail-tile {
+  display: grid;
+  place-items: center;
+  height: 2.25rem;
+  width: 2.25rem;
+  border-radius: 1rem;
+  background: var(--chat-hover);
+  color: var(--color-foreground);
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition:
+    border-radius 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+.chat-rail-tile:hover {
+  border-radius: 0.625rem;
+  background: var(--chat-active);
+}
+.chat-rail-tile[data-active="true"] {
+  border-radius: 0.625rem;
+  background: var(--chat-accent);
+  color: var(--chat-accent-fg);
+}
+
+/* The content card: the app's sheet, inset inside the chrome. The hairline
+   runs on the two edges that face the chrome only — a full border would draw
+   a line against the window edge where there is nothing to separate from. */
+.chat-surface {
+  background: var(--color-background);
+  border-radius: var(--ui-radius-card);
+  box-shadow: -1px -1px 0 0 var(--chat-hairline);
+}
+
+.chat-divider {
+  border-color: var(--chat-hairline);
+}
+
+/* The 12px grab strip on a resizable pane's edge. Invisible until touched;
+   a hairline appears under the pointer so the edge announces itself. */
+.chat-grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.chat-grip::after {
+  content: "";
+  position: absolute;
+  top: 2.5rem;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--chat-hairline);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.chat-grip:hover::after,
+.chat-grip:focus-visible::after,
+.chat-grip[data-resizing="true"]::after {
+  opacity: 1;
+}
+/* While a drag is live the whole document takes the resize cursor, or the
+   pointer flickers back to a caret the moment it leaves the 12px strip. */
+:root[data-chat-resizing="true"] {
+  cursor: col-resize;
+}
+:root[data-chat-resizing="true"] body {
+  user-select: none;
+}
+
+/* Dark Chat: the tones that have to move with the canvas.
+   The block above lifts --color-page and --color-background well above the
+   app's near-black dark scheme, which left everything derived from the
+   *unlifted* scale sitting darker than the card it is drawn on — the
+   composer's fill (--color-muted, #1a1a1a) disappeared into a #2c2c2c
+   surface. A surface colour is only ever a relationship, so raising one end
+   means raising the rest. */
+:root[data-theme="dark"][data-app="chat"] {
+  --color-muted: oklch(0.262 0.006 264);
+  --color-border: oklch(0.303 0.006 264);
+  --color-card: oklch(0.216 0.006 264);
+  --color-popover: oklch(0.253 0.006 264);
+  --color-accent: oklch(0.276 0.006 264);
+  --color-input: oklch(0.303 0.006 264);
+}
+
+/* The segmented control's options are laid out by the track, and the track
+   never said `display`. Outside a flex parent that leaves an anchor with an
+   icon and a label as two inline runs — a two-line pill in a 40px strip. The
+   fix is scoped here rather than in the shared rule because the Work sidebar
+   renders the same control inside a flex row, where it happens to look
+   right, and a shared-file change is the one edit this build must not make. */
+:root[data-app="chat"] .segmented > * {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

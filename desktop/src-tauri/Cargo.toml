@@ -1,0 +1,16 @@
+[package]
+name = "operate-desktop"
+version = "0.1.0"
+edition = "2021"
+description = "operate.to desktop shell"
+license = "UNLICENSED"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-opener = "2"
+
+[features]
+default = []

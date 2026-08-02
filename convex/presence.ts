@@ -8,6 +8,7 @@ import {
   requireListAccess,
   requirePageAccess,
   requireProjectAccess,
+  requireScopeAccess,
   requireSpaceAccess,
   requireTaskAccess,
 } from "./_authz";
@@ -40,9 +41,19 @@ export const SURFACE_TYPE = v.union(
   v.literal("list"),
   v.literal("project"),
   v.literal("space"),
+  // The Chat side's community surface (07-integration-map §3, §9). Its id is
+  // `"<scopeType>:<scopeId>"` — a scope, not a document — so it needs the one
+  // branch in `requireSurface` below and nothing else here.
+  v.literal("community"),
 );
 
-export type SurfaceType = "page" | "task" | "list" | "project" | "space";
+export type SurfaceType =
+  | "page"
+  | "task"
+  | "list"
+  | "project"
+  | "space"
+  | "community";
 
 /**
  * Confirm the caller can be on this surface at all.
@@ -79,6 +90,19 @@ async function requireSurface(
     const id = ctx.db.normalizeId("projects", surfaceId);
     if (!id) throw new Error("Not found");
     await requireProjectAccess(ctx, id);
+    return;
+  }
+  if (surfaceType === "community") {
+    // A Chat community is a scope rather than a document (00-decisions D4), so
+    // its surface id is the pair `_authz` already speaks, joined by a colon.
+    // The scope check is the whole fence: presence is community-wide, never
+    // room-wide, precisely so this branch cannot become a way to learn who is
+    // standing in a private room.
+    const separator = surfaceId.indexOf(":");
+    const scopeType = surfaceId.slice(0, separator);
+    const scopeId = surfaceId.slice(separator + 1);
+    if (scopeType !== "user" && scopeType !== "workspace") throw new Error("Not found");
+    await requireScopeAccess(ctx, { scopeType, scopeId });
     return;
   }
   const id = ctx.db.normalizeId("spaces", surfaceId);

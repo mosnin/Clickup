@@ -16,6 +16,14 @@ import {
 import { QUERY_VOCABULARY } from "@/lib/data-stream";
 import { ALL_SHAPES } from "@/lib/panel";
 import { STYLE_ENUMS } from "@/lib/component-style";
+// The Chat dashboard's agent surface (C6b). A separate application sharing one
+// endpoint (D11), so its catalog lives in its own module and lands here in one
+// line rather than growing this file by a twelfth of itself.
+import {
+  CHAT_AGENT_IDEMPOTENT_TOOLS,
+  CHAT_AGENT_READ_TOOLS,
+  CHAT_AGENT_TOOLS,
+} from "@/lib/buzz/agent-chat-tools";
 
 // Hosted MCP server (Streamable HTTP) at POST /api/mcp.
 //
@@ -2844,6 +2852,12 @@ for (const [legacy, canonical] of Object.entries(DEPRECATED_TOOL_ALIASES)) {
   if (READ_TOOLS.has(canonical)) READ_TOOLS.add(legacy);
   if (IDEMPOTENT_TOOLS.has(canonical)) IDEMPOTENT_TOOLS.add(legacy);
 }
+
+// The Chat tools carry their own classification, for the same reason they carry
+// their own definitions: adding one must not mean editing this file.
+TOOLS.push(...CHAT_AGENT_TOOLS);
+for (const name of CHAT_AGENT_READ_TOOLS) READ_TOOLS.add(name);
+for (const name of CHAT_AGENT_IDEMPOTENT_TOOLS) IDEMPOTENT_TOOLS.add(name);
 
 function createOperateMcpHandler(profile: AnnotationProfile) {
   return createMcpHandler(

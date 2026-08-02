@@ -78,6 +78,7 @@ import { RunningTimerChip } from "@/components/dashboard/running-timer-chip";
 import { TemplatePicker } from "@/components/dashboard/template-picker";
 import { NewWorkspaceDialog } from "@/components/dashboard/new-workspace-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ModeSwitcher } from "@/components/chat/mode-switcher";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
 import { useProjectExpanded } from "@/lib/project-collapse";
@@ -193,6 +194,9 @@ function SidebarHeaderSwitcher() {
 
   return (
     <SidebarHeader>
+      {/* Work or Chat. Above the workspace switcher because it is the coarser
+          question — which application you are in, before which workspace. */}
+      <ModeSwitcher collapsible className="mb-1" />
       {/* The grab handle for the whole navigation.
           Holding the sidebar body still works — it has to, because that is the
           gesture the dock teaches — but a hold is undiscoverable and easy to

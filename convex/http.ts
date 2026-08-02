@@ -1,4 +1,5 @@
-import { httpRouter } from "convex/server";
+import { anyApi, httpRouter } from "convex/server";
+import type { FunctionReference } from "convex/server";
 import { Webhook } from "svix";
 import type { WebhookEvent } from "@clerk/backend";
 import { httpAction } from "./_generated/server";
@@ -68,6 +69,92 @@ const handleClerkWebhook = httpAction(async (ctx, request) => {
   return new Response("ok", { status: 200 });
 });
 
+// ---------------------------------------------------------------------------
+// Chat workflows: the webhook trigger door.
+// ---------------------------------------------------------------------------
+
+/**
+ * `POST /hooks/<scopeType>/<scopeId>/<workflowId>`
+ *
+ * Buzz's route is `/hooks/{id}` because its relay resolves a workflow from a
+ * single table. Ours cannot: every index in `convex/buzz/workflows.ts` leads
+ * with the community, which is the tenancy fence, and a lookup by id alone
+ * would need a scope-blind index — the one thing that makes the fence skippable
+ * rather than unskippable. So the community is in the path. It is not a secret
+ * (it is in every application URL already); the secret is the secret.
+ *
+ * The workflow's secret arrives in `X-Webhook-Secret`, not the body, so a
+ * misconfigured sender cannot log it into somebody's message history by posting
+ * it as content. It is compared in constant time inside the mutation.
+ *
+ * Every failure answers 404 with the same body. A 401 for a bad secret and a
+ * 404 for a missing workflow would let anyone enumerate which workflow ids
+ * exist by watching which status they get — the same reason the queue withholds
+ * a report whole rather than redacting it.
+ */
+const fireWorkflowWebhook = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const parts = url.pathname.split("/").filter(Boolean); // ["hooks", type, id, workflowId]
+  const [, scopeType, scopeId, workflowId] = parts;
+
+  if ((scopeType !== "user" && scopeType !== "workspace") || !scopeId || !workflowId) {
+    return new Response("not found", { status: 404 });
+  }
+
+  const secret = request.headers.get("x-webhook-secret") ?? "";
+  if (!secret) return new Response("not found", { status: 404 });
+
+  // Bounded, because this endpoint is unauthenticated until the secret is
+  // checked and the body is read before that check can happen.
+  const raw = await request.text();
+  if (raw.length > 64 * 1024) return new Response("not found", { status: 404 });
+
+  let body: unknown = undefined;
+  if (raw.length > 0) {
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      // A non-JSON body is not an error: a workflow may only care that it fired.
+      body = { raw };
+    }
+  }
+
+  const result = (await ctx.runMutation(fireWebhookRef, {
+    scopeType,
+    scopeId,
+    workflowId,
+    secret,
+    body,
+  })) as { status: string; runId?: string };
+
+  if (result.status !== "accepted") return new Response("not found", { status: 404 });
+  return new Response(JSON.stringify({ status: "accepted", runId: result.runId }), {
+    status: 202,
+    headers: { "content-type": "application/json" },
+  });
+});
+
+/**
+ * Reached through `anyApi` with a locally written type, because
+ * `convex/_generated/` is the checked-in stub here and does not know
+ * `internal.buzz.*` yet. Same device, and the same reason, as
+ * `convex/buzz/keys.ts`. Delete the cast the first time the CLI regenerates.
+ */
+const fireWebhookRef = anyApi.buzz.workflows.fireWebhook as unknown as FunctionReference<
+  "mutation",
+  "internal",
+  {
+    scopeType: "user" | "workspace";
+    scopeId: string;
+    workflowId: string;
+    secret: string;
+    body?: unknown;
+  },
+  { status: string; runId?: string; workflowId?: string }
+>;
+
 const http = httpRouter();
 http.route({ path: "/clerk", method: "POST", handler: handleClerkWebhook });
+// pathPrefix, because the community and the workflow id are path segments.
+http.route({ pathPrefix: "/hooks/", method: "POST", handler: fireWorkflowWebhook });
 export default http;

@@ -22,6 +22,12 @@ export const REF_KINDS = [
   "page",
   "sprint",
   "goal",
+  // A Chat room. One literal, and it is what makes the reference grammar run
+  // both ways: Work objects were already nameable inside a Chat message, and
+  // this is what lets a Chat room be named from anywhere the token is parsed.
+  // Resolution is the resolver's job, and each side resolves with its own
+  // authz — see convex/buzz/bridge.ts.
+  "room",
 ] as const;
 
 export type RefKind = (typeof REF_KINDS)[number];

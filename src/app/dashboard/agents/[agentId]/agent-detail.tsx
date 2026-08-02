@@ -38,6 +38,7 @@ import {
   StaggerItem,
 } from "@/components/motion";
 import { ActorGlyph } from "@/components/appearance/actor-glyph";
+import { AgentRooms } from "@/components/chat/bridge";
 
 // Per-agent drill-down: live status, governance controls (role, budget,
 // notify URL), run history, current claims/assignments, and the agent's
@@ -159,6 +160,10 @@ export function AgentDetail({ agentId }: { agentId: string }) {
               {agent.statusText}
             </p>
           )}
+          {/* C12: the Chat half of "what is this agent doing". Read live from
+              the room turns rather than stored on the agent, and absent when
+              there is nothing happening. */}
+          <AgentRooms agentId={agent._id} />
         </div>
       </header>
 

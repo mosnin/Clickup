@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat shell</title>
+    <!-- Replaced at build time with the app's own compiled stylesheet, so what
+         this renders is what ships. See ./shoot.mjs. -->
+    <!--APP_CSS-->
+    <style>
+      /* The shell pins the viewport itself; the page must not add a scrollbar
+         under it, or the shot is of a document that scrolls — the one thing
+         this shell exists not to do. */
+      html,
+      body,
+      #root {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+      body {
+        font-family: var(--font-sans, system-ui, sans-serif);
+        /* What `src/app/layout.tsx` puts on its own body, and it is
+           load-bearing rather than cosmetic: every dialog in Chat is a Radix
+           portal attached to `document.body`, so it inherits from HERE and not
+           from the shell's `text-foreground`. Without this the room
+           photographed correctly in dark mode and every dialog opened over it
+           photographed as near-black text on a near-black panel — a gallery
+           reporting a bug the product does not have, which is the same
+           failure as one hiding a bug it does. */
+        color: var(--color-foreground);
+        background: var(--color-page);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./chat-app.tsx"></script>
+  </body>
+</html>
