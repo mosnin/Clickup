@@ -387,7 +387,7 @@ async function runState(surface, state, viewport, theme) {
   let opened;
   try {
     opened = await openPage(url, viewport, theme, surface.settle ?? 2600);
-  } catch {
+  } catch (e) {
     row.status = "unreachable";
     row.reason = `the page would not load: ${String(e).slice(0, 200)}`;
     coverage.push(row);
@@ -408,7 +408,7 @@ async function runState(surface, state, viewport, theme) {
         break;
       }
     }
-  } catch {
+  } catch (e) {
     row.status = "unreachable";
     row.reason = `driving it threw: ${String(e).slice(0, 240)}`;
   }
@@ -576,7 +576,42 @@ console.log("\nCovering surfaces…");
 for (const surface of chosen) {
   for (const viewport of VIEWPORTS) {
     for (const theme of THEMES) {
-      await runState(surface, null, viewport, theme);
+      // ── A throw is a hole, never the end of the run ──
+      //
+      // This loop crashed once, on the studio, and took thirty-seven reached
+      // surfaces down with it — no findings file, no coverage, nothing. That
+      // is strictly worse than the failure this instrument exists to prevent:
+      // a run that dies reports nothing at all, and "nothing" is the one
+      // reading a person cannot tell from "not run yet". So anything thrown
+      // anywhere under a surface becomes an `unreachable` row with its reason
+      // attached, which is exactly what the rubric asks for — an unreachable
+      // surface drags the total, and is never silently absent.
+      try {
+        await runState(surface, null, viewport, theme);
+      } catch (e) {
+        coverage.push({
+          surface: surface.id,
+          title: surface.title,
+          url: surface.url,
+          viewport: viewport.label,
+          theme,
+          status: "unreachable",
+          reason: `the audit threw while covering it: ${String(e).slice(0, 240)}`,
+          crops: [],
+        });
+        raw.push({
+          gate: "unreachable",
+          surface: surface.id,
+          title: surface.title,
+          viewport: viewport.label,
+          theme,
+          message: `the audit threw while covering it: ${String(e).slice(0, 240)}`,
+          numbers: {},
+          element: null,
+          auditId: null,
+          crops: [],
+        });
+      }
       if (surface.states) {
         // The states are discovered from a live page rather than listed here,
         // so a chapter added to the studio is covered without anybody
@@ -593,7 +628,7 @@ for (const surface of chosen) {
           if (surface.prep) await surface.prep(probe.page, { viewport, theme });
           states = await surface.states(probe.page);
           await probe.page.close();
-        } catch {
+        } catch (e) {
           coverage.push({
             surface: `${surface.id}--states`,
             title: `${surface.title} · sub-states`,
@@ -607,7 +642,32 @@ for (const surface of chosen) {
           continue;
         }
         for (const state of states) {
-          await runState(surface, state, viewport, theme);
+          try {
+            await runState(surface, state, viewport, theme);
+          } catch (e) {
+            coverage.push({
+              surface: `${surface.id}--${state.id}`,
+              title: state.title,
+              url: surface.url,
+              viewport: viewport.label,
+              theme,
+              status: "unreachable",
+              reason: `the audit threw while covering it: ${String(e).slice(0, 240)}`,
+              crops: [],
+            });
+            raw.push({
+              gate: "unreachable",
+              surface: `${surface.id}--${state.id}`,
+              title: state.title,
+              viewport: viewport.label,
+              theme,
+              message: `the audit threw while covering it: ${String(e).slice(0, 240)}`,
+              numbers: {},
+              element: null,
+              auditId: null,
+              crops: [],
+            });
+          }
         }
       }
     }
@@ -692,7 +752,7 @@ for (const viewport of VIEWPORTS) {
           : "not measurable — " + result.why
       }`,
     );
-  } catch {
+  } catch (e) {
     liveBehind.push({
       viewport: viewport.label,
       measurable: false,
