@@ -248,6 +248,42 @@ async function shootMintShelf(width, label) {
     errors.push(`mint shelf at ${width}px: no shapes offered for a built-in`);
   }
 
+  // Can the pick actually be pressed?
+  //
+  // This shelf is the one that does NOT apply on scroll — a shape change
+  // rewrites a definition, so it asks for a press — which makes "Use <shape>"
+  // the only pointer path to the whole feature. Counting shapes says the shelf
+  // rendered; it says nothing about whether the button is on screen or under
+  // something, and a screenshot of a covered button looks fine.
+  const commit = await p.evaluate(() => {
+    const button = [...document.querySelectorAll("button")].find((b) =>
+      /^Use /.test(b.textContent ?? ""),
+    );
+    if (!button) return { found: false };
+    const r = button.getBoundingClientRect();
+    const over = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    return {
+      found: true,
+      label: button.textContent,
+      belowFold: r.bottom > window.innerHeight,
+      covered: over !== button && !button.contains(over),
+      coveredBy: over ? `${over.tagName}` : null,
+    };
+  });
+  if (!commit.found) {
+    errors.push(`mint shelf at ${width}px: no way to commit a shape`);
+  } else if (commit.covered || commit.belowFold) {
+    errors.push(
+      `mint shelf at ${width}px: "${commit.label}" is ` +
+        (commit.belowFold ? "below the fold" : `covered by <${commit.coveredBy}>`) +
+        " — the studio's middle section is `flex-1 justify-center`, so a " +
+        "chapter taller than its slot overflows past the bottom and the " +
+        "footer paints over it. Only this shelf is tall enough, because it " +
+        "is the only one carrying a commit row (applyOnCentre={false}). " +
+        "Fix lives in src/components/appearance/style-studio.tsx.",
+    );
+  }
+
   await p.screenshot({ path: join(SHOTS, `mint-shelf-${label}-light.png`) });
   console.log(`shot mint-shelf-${label}-light.png (${shapes} shapes)`);
 
@@ -323,7 +359,15 @@ console.log("shot grid-mobile.png");
 // desktop layout wearing a phone's viewport — and every mobile conclusion
 // drawn from those shots was worthless. A shot that silently lies is more
 // expensive than no shot.
-for (const page of ["sidebar.html", "labels.html", "grid.html", "home.html"]) {
+for (const page of [
+  "sidebar.html",
+  "labels.html",
+  "grid.html",
+  "home.html",
+  // The studio open over Home: a full-width sheet of cards inside a 390px
+  // phone is exactly the shape that overflows, and it had never been measured.
+  "home.html?studio=1",
+]) {
   await mobile.goto(`http://127.0.0.1:4599/${page}`);
   await mobile.waitForTimeout(900);
   const over = await mobile.evaluate(() => ({
