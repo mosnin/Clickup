@@ -1501,6 +1501,61 @@ export default defineSchema({
     .index("by_owner_and_scope", ["ownerClerkId", "scopeType", "scopeId"])
     .index("by_scope", ["scopeType", "scopeId"]),
 
+  // A panel that is TRUE rather than placed.
+  //
+  // See `src/lib/situation.ts` for the argument. A screen is a shelf: things
+  // put on it stay there. The adaptive alternative — rearranging somebody's
+  // screen for them — is rejected everywhere else in this codebase for a good
+  // reason. A subscription is the third option: a panel names a condition, and
+  // when that condition becomes true the arrival is OFFERED, exactly like an
+  // agent's screen proposal.
+  //
+  // Per person, like layouts and panels, because whether a panel arrives is a
+  // consent decision and consent is not collective. Nothing this table drives
+  // writes a layout.
+  panelSituations: defineTable({
+    ownerClerkId: v.string(),
+    /** Where the question is asked, and the boundary it may never read past. */
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    /** The same key `screenLayouts` uses: "project:<id>". */
+    screenKey: v.string(),
+    /** The widget id the layout would carry — "custom:<id>" or a built-in. */
+    panelId: v.string(),
+    /**
+     * A Situation. `v.any()` for the reason every definition here is: a row
+     * written by another build must degrade rather than fail validation — and
+     * `normalizeSituation` REFUSES a malformed one rather than repairing it, so
+     * degrading means the subscription does nothing.
+     */
+    situation: v.any(),
+    /**
+     * The last evaluated state, and the reason this table exists at all.
+     *
+     * The dead band is asymmetric — a true situation has to travel a whole band
+     * back before it goes false — which is only expressible if the previous
+     * answer survives between polls. A cron that recomputed from `false` every
+     * tick would have no hysteresis whatever the pure function says, and a
+     * value sitting on its threshold would flap once every fifteen minutes.
+     *
+     * Required rather than optional: absence must not read as "was true". A
+     * situation nobody has seen has to earn its arrival.
+     */
+    wasTrue: v.boolean(),
+    /** What it measured last, for the announcement. Absent = unreadable. */
+    lastValue: v.optional(v.number()),
+    lastCheckedAt: v.optional(v.number()),
+    becameTrueAt: v.optional(v.number()),
+    becameFalseAt: v.optional(v.number()),
+    /** Cron ordering, so the sweep is an index range rather than a scan. */
+    nextCheckAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_owner_and_screen", ["ownerClerkId", "screenKey"])
+    .index("by_owner_screen_and_panel", ["ownerClerkId", "screenKey", "panelId"])
+    .index("by_next_check", ["nextCheckAt"]),
+
   // An agent's suggestion for how a screen could be arranged.
   //
   // Never a mutation of anyone's layout. The naive version of "the UI adapts

@@ -31,6 +31,16 @@ crons.interval(
   {},
 );
 
+// Situations share the cadence too. A condition over a team's work does not
+// change meaningfully inside fifteen minutes, and the dead band is sized on the
+// assumption that a value is sampled four times an hour rather than constantly.
+crons.interval(
+  "evaluate panel situations",
+  { minutes: 15 },
+  internal.situations.evaluateDue,
+  {},
+);
+
 crons.interval(
   "prune old events, deliveries, and usage counters",
   { hours: 24 },
