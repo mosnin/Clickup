@@ -24,10 +24,20 @@ export const STATUS_CHIPS: {
   label: string;
   className: string;
 }[] = [
+  // `amber`, `rose` and `slate` were not pastel tokens — the ramp is
+  // blue/red/yellow/green/purple/pink — so Tailwind generated no rule for
+  // three of these four and they have been colourless pills since they
+  // shipped. A class naming a colour that does not exist fails silently, which
+  // is why only the one that DID resolve ("On track", near-white ink on pale
+  // green in dark, 1.11:1) was ever reported.
   { key: "on_track", label: "On track", className: "bg-pastel-green" },
-  { key: "at_risk", label: "At risk", className: "bg-pastel-amber" },
-  { key: "off_track", label: "Off track", className: "bg-pastel-rose" },
-  { key: "paused", label: "Paused", className: "bg-pastel-slate" },
+  { key: "at_risk", label: "At risk", className: "bg-pastel-yellow" },
+  { key: "off_track", label: "Off track", className: "bg-pastel-red" },
+  // No pastel grey in the ramp, and inventing one to say "nothing is
+  // happening" would be a colour carrying no meaning. `bg-muted` is the
+  // product's own quiet surface and it is defined in both themes, so this chip
+  // takes the inherited foreground and is correct either way round.
+  { key: "paused", label: "Paused", className: "bg-muted" },
 ];
 
 export function ProjectStatusCard({ project }: { project: Doc<"projects"> }) {
@@ -61,7 +71,12 @@ export function ProjectStatusCard({ project }: { project: Doc<"projects"> }) {
               aria-pressed={active}
               onClick={() => void setStatus(chip.key)}
               className={cn(
-                "rounded-full px-3 py-1.5 text-xs font-medium text-foreground transition-opacity",
+                // No `text-foreground`: the chip paints itself a fixed pale
+                // pastel, and `text-foreground` flips to near-white in dark —
+                // "On track" measured 1.11:1. The pastel fill carries its own
+                // ink now (see globals.css), so saying nothing is correct in
+                // both themes and saying `text-foreground` was correct in one.
+                "rounded-full px-3 py-1.5 text-xs font-medium transition-opacity",
                 chip.className,
                 !active && "opacity-45 hover:opacity-80",
               )}

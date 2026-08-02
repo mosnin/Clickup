@@ -387,11 +387,20 @@ const LOW_CONTRAST = `(() => {
   // so neither is a colour snapshot that rots the next time anything moves. If
   // the palette changes, these stop matching and the gate fires.
   //
-  //   FURNITURE — \`--chart-grid\` and the \`--border\` the vendored shapes are
-  //   given. A gauge's unfilled notches, a ring's track and a radar's grid are
-  //   what a reading is measured AGAINST; WCAG 1.4.11 asks 3:1 of graphical
-  //   objects required to understand the content, and a gridline is not one.
-  //   Drawing them at 3:1 would put the furniture level with the data.
+  //   FURNITURE — \`--chart-grid\` (hairlines) and \`--chart-track\` (the
+  //   \`--border\` the vendored shapes are given). A gauge's unfilled notches, a
+  //   ring's track and a radar's web are what a reading is measured AGAINST;
+  //   WCAG 1.4.11 asks 3:1 of graphical objects required to understand the
+  //   content, and a track is not one. Drawing them at 3:1 would put the
+  //   furniture level with the data.
+  //
+  //   Two entries, because there are two registers. These marks used to be
+  //   allowed here by ACCIDENT: \`--border\` was pointed at \`--chart-grid\`, so
+  //   they resolved to a colour already on the list, and the day the hairline
+  //   value turned out to be wrong as a fill (1.18:1 in dark — an invisible
+  //   track, reported 360 times by the audit's ink gate) this list did not
+  //   notice, because it had never been told what it was allowing. Naming
+  //   \`--chart-track\` is the difference between an exemption and a coincidence.
   //
   //   THE PALE END OF THE MONO RAMP — an OPEN finding, not a decision. The
   //   default palette is six stops of \`color-mix(foreground, background)\` at
@@ -419,6 +428,7 @@ const LOW_CONTRAST = `(() => {
   const allowed = new Set(
     [
       "var(--chart-grid)",
+      "var(--chart-track)",
       "var(--border)",
       ...[52, 38, 26, 16].map(
         (p) =>

@@ -45,13 +45,28 @@
   --color-brand-600: #131316;
   --color-brand-700: #000000;
 
-  /* Pastel accent fills (chart-series / chip backgrounds) */
+  /* Pastel accent fills (chart-series / chip backgrounds).
+
+     These are the one place a fixed colour is right: a pastel is a fixed pale
+     fill in BOTH themes on purpose, which is what makes a status chip read the
+     same to two people sitting side by side. What follows from that, and what
+     had to be paid for, is that the INK on one is also fixed — a chip that
+     paints itself a light fill and then takes `text-foreground` gets a
+     near-white letter on pale green the moment the reader is in dark mode, and
+     "On track" measured 1.11:1 on the project surfaces.
+
+     So the ink rides with the fill, at zero specificity, rather than being
+     hand-listed as `dark:text-neutral-900` at each call site — which is how it
+     was done, in about a dozen places, and how the thirteenth was missed.
+     `:where()` means any explicit `text-*` still wins, so this is a default a
+     caller can overrule and not a rule fighting them. */
   --color-pastel-blue: #d9e8fa;
   --color-pastel-red: #fadcd7;
   --color-pastel-yellow: #faeec7;
   --color-pastel-green: #d5efdE;
   --color-pastel-purple: #e6defa;
   --color-pastel-pink: #f9e0f4;
+  --color-pastel-foreground: #101010;
 
   /* Positive delta green (the only saturated color in the system) */
   --color-positive: #16a34a;
@@ -619,6 +634,21 @@ h3 {
   ::before,
   ::after {
     border-color: var(--color-border);
+  }
+
+  /* A pastel fill carries its own ink — see the note beside the tokens.
+
+     In `base` rather than at zero specificity, and the difference matters in
+     both directions. Layer order does the overriding: every `text-*` utility
+     lives in `utilities`, which beats `base` whatever the specificity, so the
+     `text-neutral-900` and `dark:` variants already written at a dozen call
+     sites keep working and are now redundant rather than load bearing. And it
+     is a plain selector rather than `:where()` because Tailwind's own preflight
+     sets `color: inherit` on `button, input, …` from this same layer — a
+     zero-specificity rule loses to it, which is to say it would have worked
+     everywhere except on the chips, which are buttons. */
+  [class*="bg-pastel-"] {
+    color: var(--color-pastel-foreground);
   }
 }
 
