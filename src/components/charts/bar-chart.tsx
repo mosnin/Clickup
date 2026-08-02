@@ -248,6 +248,34 @@ const ChartCore = memo(function ChartCore({
   // Band width for bars - use prop if provided, otherwise use scale's bandwidth
   const bandWidth = barWidthProp ?? categoryScale.bandwidth();
 
+  // VENDORED FIX — re-apply after any upstream sync.
+  //
+  // The most negative value on the chart, or 0 when everything is positive.
+  //
+  // Upstream builds every value domain as `[0, max * 1.1]`, which does not
+  // merely clip a negative — it maps it to a position at or beyond the
+  // baseline, so the bar has no extent and renders as blank space. That is the
+  // failure mode this codebase treats as the worst one available: not a chart
+  // refusing to draw, but a chart drawing a confident picture with a real
+  // record silently missing. It is reachable from any money sum or delta.
+  //
+  // Returning 0 for all-positive data is what makes this safe: the domain is
+  // then byte-identical to what upstream produced, so every existing chart is
+  // untouched and `scale(0)` still lands exactly on the baseline.
+  const minValue = useMemo(() => {
+    let min = 0;
+    for (const line of lines) {
+      for (const d of data) {
+        const value = d[line.dataKey];
+        if (typeof value === "number" && value < min) min = value;
+      }
+    }
+    // Stacked negatives are a genuinely different question (does a negative
+    // segment extend the stack downward, or cancel against it?), and no caller
+    // here asks it. Left at 0 deliberately rather than answered badly.
+    return stacked ? 0 : min;
+  }, [data, lines, stacked]);
+
   // Compute max value considering stacking
   const maxValue = useMemo(() => {
     if (stacked) {
@@ -285,10 +313,12 @@ const ChartCore = memo(function ChartCore({
     const range = isHorizontal ? [0, innerWidth] : [innerHeight, 0];
     return scaleLinear({
       range,
-      domain: [0, maxValue * 1.1],
+      // VENDORED FIX — re-apply after any upstream sync. See `minValue`.
+      // Identical to upstream's `[0, max * 1.1]` whenever nothing is negative.
+      domain: [minValue < 0 ? minValue * 1.1 : 0, maxValue * 1.1],
       nice: true,
     });
-  }, [innerWidth, innerHeight, maxValue, isHorizontal]);
+  }, [innerWidth, innerHeight, maxValue, minValue, isHorizontal]);
 
   const yScales = useMemo(() => {
     if (isHorizontal) {

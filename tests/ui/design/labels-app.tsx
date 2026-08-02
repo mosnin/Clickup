@@ -83,7 +83,15 @@ function Page() {
           <h2>{w.label}</h2>
           <div className="row">
             {CASES.map((c) => (
-              <div className="cell" key={c.name} style={{ width: w.width }}>
+              // `data-case` so a gate can name one chart instead of matching
+              // on caption text, which is copy and will change.
+              <div
+                className="cell"
+                data-case={c.name}
+                data-width={w.width}
+                key={c.name}
+                style={{ width: w.width }}
+              >
                 <div className="cap">{c.name}</div>
                 <Chart
                   height={150}

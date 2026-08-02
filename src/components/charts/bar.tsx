@@ -301,7 +301,17 @@ const BarInner = memo(function BarInner({
               barW = Math.max(0, barW - stackGap);
             }
           } else {
-            x = 0;
+            // VENDORED FIX — re-apply after any upstream sync.
+            // Upstream pinned the bar's left edge to 0 and its width to
+            // `scale(value)`, which silently assumes zero sits at the left of
+            // the plot. That holds only while the domain starts at 0; with a
+            // negative in the data it does not, and a negative bar came out
+            // with no extent at all — blank space where a record should be.
+            // Anchoring both edges to `scale(0)` is exactly equivalent
+            // whenever the domain does start at 0, so no existing chart moves.
+            const zeroPos = scale(0) ?? 0;
+            x = Math.min(zeroPos, valuePos);
+            barW = Math.abs(valuePos - zeroPos);
             // For grouped bars, offset y position
             const effectiveGroupGap = seriesCount > 1 ? groupGap : 0;
             y = bandPos + seriesIndex * (barWidth + effectiveGroupGap);
@@ -313,7 +323,12 @@ const BarInner = memo(function BarInner({
         } else {
           // Vertical bars: category on x-axis, value on y-axis
           const valuePos = scale(value) ?? 0;
-          barHeight = innerHeight - valuePos;
+          // VENDORED FIX — re-apply after any upstream sync. Same reasoning as
+          // the horizontal branch: `innerHeight - valuePos` assumes zero is the
+          // bottom of the plot, which stops being true the moment the domain
+          // admits a negative. `scale(0)` IS `innerHeight` for an all-positive
+          // domain, so this is a no-op for every chart that exists today.
+          barHeight = Math.abs(valuePos - (scale(0) ?? innerHeight));
           barW = barWidth;
 
           if (stacked && stackOffsets) {
@@ -327,7 +342,11 @@ const BarInner = memo(function BarInner({
               barHeight = Math.max(0, barHeight - stackGap);
             }
           } else {
-            y = valuePos;
+            // VENDORED FIX — the top edge is whichever of the value and the
+            // baseline is higher on screen. For a positive value that is the
+            // value (unchanged); for a negative it is the baseline, and the
+            // bar hangs below it.
+            y = Math.min(valuePos, scale(0) ?? innerHeight);
             // For grouped bars, offset x position
             const effectiveGroupGap = seriesCount > 1 ? groupGap : 0;
             x = bandPos + seriesIndex * (barWidth + effectiveGroupGap);
@@ -343,15 +362,15 @@ const BarInner = memo(function BarInner({
           // perspective trim (sub-pixel on a 3px bar; keeps the front aligned
           // with bar-depth, which also skips trim for floored bars).
           let isFloored = false;
-          if (
-            !stacked &&
-            minBarHeight > 0 &&
-            value >= 0 &&
-            barHeight < minBarHeight
-          ) {
+          if (!stacked && minBarHeight > 0 && barHeight < minBarHeight) {
             const baselineY = scale(0) ?? innerHeight;
             barHeight = minBarHeight;
-            y = baselineY - minBarHeight;
+            // VENDORED FIX — the floor used to be gated on `value >= 0`, so a
+            // value near zero from below fell through it and vanished, which
+            // is the same blank a zero used to leave. A negative floors
+            // downward from the baseline instead of upward, so its direction
+            // still reads correctly at three pixels.
+            y = value < 0 ? baselineY : baselineY - minBarHeight;
             isFloored = true;
           }
 

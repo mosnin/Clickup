@@ -466,3 +466,55 @@ describe("the style presets", () => {
     }
   });
 });
+
+describe("a negative value is a value", () => {
+  // Upstream builds every bar domain as `[0, max * 1.1]` and anchors the bar
+  // to the plot's edge rather than to zero, so a negative had no extent at
+  // all: blank space where a record should be. Not a chart refusing to draw —
+  // a chart drawing a confident picture with something real missing.
+  //
+  // **The geometry of that fix is NOT verified here, and cannot be.** Bars
+  // enter through `AnimatedBar`, which in jsdom renders the animation's start
+  // state and never advances: every bar sits at `height: 0px` on the plot
+  // floor, whatever value it was given. Three tests were written against that
+  // and all three passed while measuring nothing — one of them by asserting
+  // that a set of NaNs had one element. The real assertion runs a real
+  // browser, in `scripts/verify-negatives.mjs`.
+  //
+  // What is worth checking here is the half that is pure: the scale has to
+  // admit the value before anything can draw it.
+
+  const MIXED: ChartSeries[] = [
+    {
+      key: "a",
+      label: "Net",
+      points: [
+        { key: "mon", label: "Mon", value: 12 },
+        { key: "tue", label: "Tue", value: -6 },
+        { key: "wed", label: "Wed", value: 7 },
+        { key: "thu", label: "Thu", value: -3 },
+      ],
+    },
+  ];
+
+  it("draws a mark per point when some of them are negative", async () => {
+    // Count, not position: a missing bar is a missing element, and that much
+    // jsdom can still see.
+    const fill = paletteColors(DEFAULT_STYLE.palette)[0];
+    const container = draw("column", MIXED);
+    await waitFor(
+      () => {
+        expect(
+          container.querySelectorAll(`rect[fill="${fill}"]`).length,
+        ).toBeGreaterThanOrEqual(MIXED[0].points.length);
+      },
+      { timeout: 3000 },
+    );
+  });
+
+  it("renders a negative series without throwing", async () => {
+    for (const kind of ["column", "bar", "line", "area"] as const) {
+      await drawn(draw(kind, MIXED), `${kind} with negatives`);
+    }
+  });
+});
