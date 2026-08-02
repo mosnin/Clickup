@@ -9,6 +9,7 @@ import { chromium } from "playwright-core";
 import { createServer } from "node:http";
 import { readFileSync, existsSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
+import { overlapsOn, spillsOn } from "./lib/tile-geometry.mjs";
 
 const OUT = "/tmp/design-gallery";
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
@@ -157,72 +158,11 @@ console.log(
 );
 await phone.screenshot({ path: join(OUT, "grid-phone-after.png") });
 
-// ── No two tiles may ever share a pixel ──
+// ── No two tiles may ever share a pixel, and nothing paints outside one ──
 //
-// The property `pack` proves in the abstract, checked against what the browser
-// actually painted. Both halves are needed: the maths can be right while the
-// renderer draws something else, which is precisely the gap that let the
-// overlap ship — the old suite proved things about a model nothing rendered
-// from.
-async function overlapsOn(p) {
-  return p.evaluate(() => {
-    const boxes = Array.from(document.querySelectorAll("[data-tile]")).map(
-      (el) => ({ id: el.dataset.tile, ...el.getBoundingClientRect().toJSON() }),
-    );
-    const hits = [];
-    for (let i = 0; i < boxes.length; i += 1) {
-      for (let j = i + 1; j < boxes.length; j += 1) {
-        const a = boxes[i];
-        const b = boxes[j];
-        // One pixel of tolerance for sub-pixel rounding on percentage widths.
-        if (
-          a.left < b.right - 1 &&
-          b.left < a.right - 1 &&
-          a.top < b.bottom - 1 &&
-          b.top < a.bottom - 1
-        ) {
-          hits.push(`${a.id} overlaps ${b.id}`);
-        }
-      }
-    }
-    return hits;
-  });
-}
-
-// Content must stay inside its tile, not merely tiles inside the grid.
-//
-// The box check above passed while every panel on Home overlapped the one
-// below it. The BOXES were right — the packer had done its job — but the tile
-// did not clip, so a 458px table inside a 168px box painted straight over its
-// neighbour. A gate that measures the correct thing can still miss the failure
-// one layer inside it, and "no overlapping boxes" is not the property anyone
-// cares about; "nothing is painted over anything" is.
-async function spillsOn(p) {
-  return p.evaluate(() => {
-    const out = [];
-    for (const el of document.querySelectorAll("[data-tile]")) {
-      // The CONTENT wrapper only. The edit chrome — the remove control, the
-      // resize grip — is deliberately hung on the tile's corner and straddles
-      // the edge by design; measuring it reported a spill on every tile on a
-      // screen with nothing wrong with it, which is the kind of false alarm
-      // that gets a gate switched off.
-      const inner = el.querySelector("[data-tile-inner]");
-      if (!inner) continue;
-      const box = el.getBoundingClientRect();
-      const c = inner.getBoundingClientRect();
-      const below = Math.round(c.bottom - box.bottom);
-      const right = Math.round(c.right - box.right);
-      // A few px of slack for shadows and focus rings.
-      if (below > 4) {
-        out.push(`${el.dataset.tile} content spills ${below}px below its tile`);
-      }
-      if (right > 4) {
-        out.push(`${el.dataset.tile} content spills ${right}px past its right edge`);
-      }
-    }
-    return out;
-  });
-}
+// Both measurements live in `scripts/lib/tile-geometry.mjs` so every harness
+// that asserts them asserts the same thing. A gate that exists in two versions
+// is a gate that will one day pass in one of them.
 
 const overlapWide = await overlapsOn(page);
 const spillWide = await spillsOn(page);

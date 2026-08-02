@@ -72,6 +72,9 @@ await build({
         // The product's own Home, not a specimen sheet. Every other page here
         // is a demo of components; this one is the screen people open.
         home: join(SRC, "home.html"),
+        // A panel arriving because a condition became true, on a real canvas.
+        // The one claim jsdom cannot check: that it displaces nothing.
+        situation: join(SRC, "situation.html"),
       },
     },
   },
@@ -84,6 +87,7 @@ for (const page of [
   "labels.html",
   "grid.html",
   "home.html",
+  "situation.html",
 ]) {
   const html = join(OUT, page);
   writeFileSync(
