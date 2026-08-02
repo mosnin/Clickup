@@ -69,13 +69,22 @@ await build({
         sidebar: join(SRC, "sidebar.html"),
         labels: join(SRC, "labels.html"),
         grid: join(SRC, "grid.html"),
+        // The product's own Home, not a specimen sheet. Every other page here
+        // is a demo of components; this one is the screen people open.
+        home: join(SRC, "home.html"),
       },
     },
   },
   logLevel: "warn",
 });
 
-for (const page of ["index.html", "sidebar.html", "labels.html", "grid.html"]) {
+for (const page of [
+  "index.html",
+  "sidebar.html",
+  "labels.html",
+  "grid.html",
+  "home.html",
+]) {
   const html = join(OUT, page);
   writeFileSync(
     html,

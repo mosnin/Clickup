@@ -160,6 +160,51 @@ for (const [url, name] of [
   }
 }
 
+// ── Home: the screen people actually open ────────────────────────────────
+//
+// Shot at both widths and both themes, because every regression this harness
+// was built after was found on a phone by the person using the product, not
+// here. Home is not a specimen sheet — it is the real page inside the real
+// shell — so it needs its own capture: the dashboard pins itself to the
+// viewport and scrolls INSIDE the inset, which means `fullPage` returns one
+// screenful and silently drops everything below it. A shot that quietly loses
+// half the page is worse than no shot, so grow the window to the content and
+// then shoot.
+async function shootHome(width, label) {
+  const p = await browser.newPage({
+    viewport: { width, height: 900 },
+    deviceScaleFactor: 2,
+  });
+  p.on("pageerror", (e) => errors.push(String(e)));
+  await p.goto("http://127.0.0.1:4599/home.html");
+  await p.waitForTimeout(2500);
+  const h = await p.evaluate(() => {
+    const el = document.querySelector('[data-slot="sidebar-inset"]');
+    return Math.ceil(el ? el.scrollHeight : document.body.scrollHeight);
+  });
+  const height = Math.max(h + 32, 900);
+  if (height > 8000) {
+    errors.push(`home.html at ${width}px is ${h}px tall — taller than the shot`);
+  }
+  await p.setViewportSize({ width, height: Math.min(height, 8000) });
+  // Re-measure work (the grid packs against its own width) plus the entrance
+  // animations, which look broken in a still if caught mid-reveal.
+  await p.waitForTimeout(1600);
+  await p.screenshot({ path: join(SHOTS, `home-${label}-light.png`) });
+  console.log(`shot home-${label}-light.png`);
+
+  await p.evaluate(() => {
+    document.documentElement.setAttribute("data-theme", "dark");
+  });
+  await p.waitForTimeout(800);
+  await p.screenshot({ path: join(SHOTS, `home-${label}-dark.png`) });
+  console.log(`shot home-${label}-dark.png`);
+  await p.close();
+}
+
+await shootHome(1180, "desktop");
+await shootHome(390, "mobile");
+
 // ── The mobile pass. Never taken before this audit, which is exactly how a
 // 340px card shipped onto a 390px screen unseen. Every phase re-runs this.
 const mobile = await browser.newPage({
@@ -213,7 +258,7 @@ console.log("shot grid-mobile.png");
 // desktop layout wearing a phone's viewport — and every mobile conclusion
 // drawn from those shots was worthless. A shot that silently lies is more
 // expensive than no shot.
-for (const page of ["sidebar.html", "labels.html", "grid.html"]) {
+for (const page of ["sidebar.html", "labels.html", "grid.html", "home.html"]) {
   await mobile.goto(`http://127.0.0.1:4599/${page}`);
   await mobile.waitForTimeout(900);
   const over = await mobile.evaluate(() => ({
