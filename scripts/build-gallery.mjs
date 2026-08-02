@@ -111,3 +111,9 @@ for (const page of [
 }
 
 console.log(`gallery built → ${join(OUT, "index.html")}`);
+// Said here because this is the last line anybody sees before they go looking
+// at pictures by hand. The audit covers every surface at both widths in both
+// themes, gates each one against measurements it has just proved it can make,
+// and writes ranked findings with native-resolution crops. Looking through a
+// directory of PNGs is the thing it replaces.
+console.log("audit it:            node scripts/audit.mjs");
