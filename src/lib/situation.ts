@@ -417,3 +417,70 @@ export function seedThreshold(compare: Comparison, value: number): number {
       return Math.max(0, now);
   }
 }
+
+/**
+ * A condition being composed, before anybody has agreed to it.
+ *
+ * The draft is separate from the `Situation` for one reason: `touched`. A
+ * threshold nobody has moved may be re-seeded from a live reading, and one they
+ * have moved may not — and that distinction has to survive the composer without
+ * ever reaching the mutation, which is only interested in the claim.
+ */
+export type SituationDraft = {
+  /** Which starting point it came from — `panel` for the panel's own question. */
+  starterId: string;
+  label: string;
+  query: DataQuery;
+  compare: Comparison;
+  threshold: number;
+  /** False until the person has moved the number themselves. */
+  touched: boolean;
+};
+
+/** A fresh draft over one question, keeping the comparison already chosen. */
+export function newDraft(
+  question: { id: string; label: string; query: DataQuery },
+  compare: Comparison = "at_least",
+): SituationDraft {
+  return {
+    starterId: question.id,
+    label: question.label,
+    query: question.query,
+    compare,
+    // Replaced by the first live reading — see `seedFor`. One rather than zero
+    // so a draft that is never measured is still a condition somebody meant.
+    threshold: 1,
+    touched: false,
+  };
+}
+
+/** A draft as the thing the mutation takes. */
+export function situationFromDraft(
+  panelId: string,
+  draft: SituationDraft,
+): Situation {
+  return {
+    // Stable per panel: one panel has one condition, so the panel is the
+    // identity. A fresh id per edit would leave the previous verdict's dead
+    // band attached to a threshold nobody is comparing against any more.
+    id: panelId.slice(0, 64),
+    label: draft.label,
+    query: draft.query,
+    compare: draft.compare,
+    threshold: draft.threshold,
+  };
+}
+
+/**
+ * The threshold this draft should start at, or null to leave it alone.
+ *
+ * Once per question, and never after the number has been touched: a control
+ * that keeps rewriting what you chose is worse than one that never helps.
+ */
+export function seedFor(
+  draft: SituationDraft,
+  value: number | null,
+): number | null {
+  if (draft.touched || value === null) return null;
+  return seedThreshold(draft.compare, value);
+}

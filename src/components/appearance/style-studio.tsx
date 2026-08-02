@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { AnimatePresence, MotionConfig, motion, useDragControls } from "motion/react";
@@ -36,6 +37,22 @@ import {
   watchItems,
 } from "@/components/appearance/card-builder";
 import { useMintableBuiltIn } from "@/components/appearance/mintable-panels";
+import {
+  QuestionCard,
+  WhenStep,
+  questionsFor,
+  situationProblem,
+  usePanelSituation,
+  useSituationCommit,
+  useStudioPanel,
+} from "@/components/appearance/only-when";
+import {
+  describeSituation,
+  newDraft,
+  seedFor,
+  situationFromDraft,
+  type SituationDraft,
+} from "@/lib/situation";
 import { mintFromBuiltIn } from "@/lib/built-in-panel";
 import { useComponentStyle } from "@/components/appearance/use-component-style";
 import { StyleCarousel } from "@/components/appearance/style-carousel";
@@ -242,12 +259,13 @@ function StudioIsland() {
   );
 }
 
-type Chapter = "colour" | "cards" | "chart" | "new";
+type Chapter = "colour" | "cards" | "chart" | "only" | "new";
 
 const CHAPTERS: { id: Chapter; label: string }[] = [
   { id: "colour", label: "Colour" },
   { id: "cards", label: "Card" },
   { id: "chart", label: "Chart" },
+  { id: "only", label: "Only when…" },
   { id: "new", label: "New card" },
 ];
 
@@ -377,38 +395,48 @@ function StudioSheet() {
 
             <ShelfHintContext.Provider value={hint}>
               <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-1 text-center">
-                <Rise delay={0}>
-                  {/* One plain question per chapter, and one plain sentence
-                      about what a pick does. The previous copy named the
-                      mechanism ("Styling every panel", "picks land on it
-                      instantly") without ever answering the two questions a
-                      person actually has: what am I choosing, and how do I
-                      keep it. */}
-                  <h2 className="mt-1 px-6 text-[15px] font-semibold sm:text-base">
-                    {chapter === "colour"
-                      ? "What colour is your data?"
-                      : chapter === "cards"
-                        ? "How should a card look?"
-                        : chapter === "chart"
-                          ? "How should the numbers be drawn?"
-                          : "What should your new card watch?"}
-                  </h2>
-                  <p className="mt-0.5 px-6 text-[12px] text-muted-foreground sm:text-[13px]">
-                    {chapter === "new"
-                      ? "Every card here is running on your real work."
-                      : /* The chart chapter, pointed at one panel, does NOT
-                           apply on scroll — it rewrites a definition, so it
-                           asks for a pick. A line promising "there's nothing
-                           to save" over a shelf that saves nothing until you
-                           press it is the same lie this studio shipped once
-                           already, told the other way round. */
-                        chapter === "chart" && selection
-                        ? "Drawn each way. Nothing changes until you pick."
-                        : `Scroll to one — it applies ${
-                            selection ? `to ${selection.label}` : "everywhere"
-                          }, live behind.`}
-                  </p>
-                </Rise>
+                {chapter !== "only" && (
+                  <Rise delay={0}>
+                    {/* One plain question per chapter, and one plain sentence
+                        about what a pick DOES. The previous copy named the
+                        mechanism ("Styling every panel", "picks land on it
+                        instantly") without ever answering the two questions a
+                        person actually has: what am I choosing, and how do I
+                        keep it.
+
+                        And it must not name the *gesture*: the coach mark six
+                        millimetres below already does, in the one verb this
+                        sheet uses for it. Saying "scroll to one" here and
+                        "swipe" there is one action under two names, which
+                        reads as two people having written the screen. The
+                        subtitle carries the consequence; the hint carries the
+                        mechanic. */}
+                    <StudioHeading>
+                      {chapter === "colour"
+                        ? "What colour is your data?"
+                        : chapter === "cards"
+                          ? "How should a card look?"
+                          : chapter === "chart"
+                            ? "How should the numbers be drawn?"
+                            : "What should your new card watch?"}
+                    </StudioHeading>
+                    <StudioSub>
+                      {chapter === "new"
+                        ? "Every card here is running on your real work."
+                        : /* The chart chapter, pointed at one panel, does NOT
+                             apply on scroll — it rewrites a definition, so it
+                             asks for a pick. A line promising "there's nothing
+                             to save" over a shelf that saves nothing until you
+                             press it is the same lie this studio shipped once
+                             already, told the other way round. */
+                          chapter === "chart" && selection
+                          ? "Drawn each way. Nothing changes until you pick."
+                          : `It applies ${
+                              selection ? `to ${selection.label}` : "everywhere"
+                            }, live behind.`}
+                    </StudioSub>
+                  </Rise>
+                )}
 
                 <Rise delay={0.08} key={chapter + (selection?.id ?? "all")}>
                   {chapter === "colour" && (
@@ -490,6 +518,14 @@ function StudioSheet() {
 
                   {chapter === "new" && (
                     <BuilderChapter centred={centred} onCentred={setCentred} />
+                  )}
+
+                  {chapter === "only" && (
+                    <OnlyWhenChapter
+                      centred={centred}
+                      onCentred={setCentred}
+                      selection={selection}
+                    />
                   )}
 
                   {chapter === "chart" &&
@@ -864,6 +900,30 @@ function HeroShelf({
   );
 }
 
+/**
+ * The sheet's one question, and the one line under it.
+ *
+ * Primitives rather than markup repeated per chapter, because the chapters that
+ * ask their question in two steps ("Only when…") have to say it in exactly the
+ * same voice as the ones that ask it in one — and the first thing to drift when
+ * a heading is copy-pasted is the size it is drifting at.
+ */
+function StudioHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="mt-1 px-6 text-[15px] font-semibold sm:text-base">
+      {children}
+    </h2>
+  );
+}
+
+function StudioSub({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mt-0.5 px-6 text-[12px] text-muted-foreground sm:text-[13px]">
+      {children}
+    </p>
+  );
+}
+
 /** The reference entrance: rise, sharpen, settle — staggered per block. */
 function Rise({
   delay,
@@ -1128,6 +1188,233 @@ function ShapeShelf({
         selectedId={stored?.shape}
         title="Drawn as"
       />
+    </div>
+  );
+}
+
+/**
+ * Saying when this card should be here at all.
+ *
+ * Every other chapter changes how a panel *looks*; this one changes whether it
+ * is on the screen. That is the ceiling the rest of the studio leaves in place:
+ * a dashboard is a shelf, and the only lever anybody has is "on it" or "not on
+ * it", so the panel that matters twice a quarter either clutters the screen for
+ * the rest of the year or is not there when it is needed.
+ *
+ * It asks two questions and not one form. **What should decide it** — a shelf
+ * of questions, the panel's own first, each drawn as the number it answers
+ * right now on real work. Then **when** — three comparisons drawn as what they
+ * do, and a threshold set against the live reading, so "6" is picked next to
+ * "it's 4 right now" instead of guessed at.
+ *
+ * Nothing is written until the last press. The composer can never write a
+ * condition the mutation would refuse (`situationProblem` runs the server's own
+ * two refusals first, and the button says what is missing), and clearing one is
+ * a single tap with an undo window rather than a dialog.
+ */
+function OnlyWhenChapter({
+  selection,
+  centred,
+  onCentred,
+}: {
+  selection: { id: string; label: string; screenKey: string | null } | null;
+  centred: string | null;
+  onCentred: (id: string) => void;
+}) {
+  const screenKey = selection?.screenKey ?? null;
+  // The widget id, which is what a subscription is keyed by. Split on the FIRST
+  // colon only — an authored panel's own widget id carries one (`custom:<id>`).
+  const panelId = selection
+    ? selection.id.slice(selection.id.indexOf(":") + 1)
+    : null;
+
+  const panel = useStudioPanel(selection?.id ?? null);
+  const existing = usePanelSituation(screenKey, panelId);
+  const { clearing, save, clear } = useSituationCommit(screenKey);
+  const [draft, setDraft] = useState<SituationDraft | null>(null);
+  const [step, setStep] = useState<"question" | "when">("question");
+  const seeded = useRef("");
+
+  const questions = questionsFor(panel);
+
+  // Pointing the studio at a different panel starts a different sentence.
+  useEffect(() => {
+    setDraft(null);
+    setStep("question");
+    seeded.current = "";
+  }, [selection?.id]);
+
+  if (!selection || !screenKey || !panelId) {
+    return (
+      <div>
+        <StudioHeading>Which card comes and goes?</StudioHeading>
+        <StudioSub>
+          Tap one behind this sheet and it can be here only when something is
+          true.
+        </StudioSub>
+      </div>
+    );
+  }
+
+  const live =
+    existing && !clearing.includes(existing.subscriptionId) ? existing : null;
+
+  // What is already set, and the one tap out of it. Shown instead of the
+  // composer rather than above it: a chapter that renders a state AND a form
+  // for the same thing is the stacked settings panel this studio replaced.
+  if (live && step === "question" && draft === null) {
+    return (
+      <div>
+        <StudioHeading>{selection.label} comes and goes</StudioHeading>
+        <StudioSub>
+          It is on your screen only while this is true — checked every quarter
+          hour.
+        </StudioSub>
+        <div className="mx-auto mt-3 max-w-md px-4">
+          <p className="bento rounded-2xl bg-card p-4 text-left">
+            <span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Only here when
+            </span>
+            {/* The server's own `describeSituation`, unchanged. */}
+            <span className="mt-0.5 block text-[15px] font-semibold">
+              {live.description}
+            </span>
+            <span className="mt-1 block text-xs text-muted-foreground">
+              {live.isTrue ? "True now" : "Not true now"}
+            </span>
+          </p>
+          <div className="mt-3 flex items-center justify-center gap-2">
+            {/* Opening a draft is what takes the chapter off this state and
+                into the composer — the state above is shown precisely while
+                there is nothing being composed. */}
+            <SheetAction onClick={() => setDraft(newDraft(questions[0]))}>
+              Change it
+            </SheetAction>
+            <Button
+              className="h-11 rounded-full px-5"
+              onClick={() => clear(live.subscriptionId, live.description)}
+              type="button"
+            >
+              Always show it
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const current = draft ?? newDraft(questions[0]);
+
+  if (step === "question") {
+    return (
+      <div>
+        <StudioHeading>What should decide it?</StudioHeading>
+        <StudioSub>
+          {panel
+            ? "Its own question first — that is usually the one."
+            : "Each one is answered by your work right now."}
+        </StudioSub>
+        <HeroShelf
+          applyOnCentre={false}
+          centred={centred}
+          items={questions.map((q) => ({
+            id: q.id,
+            label: q.label,
+            render: () => (
+              <QuestionCard
+                label={q.label}
+                query={q.query}
+                scope={panel?.scope ?? null}
+              />
+            ),
+          }))}
+          onCentred={(id) => {
+            onCentred(id);
+            const next = questions.find((q) => q.id === id);
+            if (next) setDraft(newDraft(next, current.compare));
+          }}
+          onPick={(id) => {
+            const next = questions.find((q) => q.id === id);
+            if (next) setDraft(newDraft(next, current.compare));
+            setStep("when");
+          }}
+          title="What should decide it?"
+        />
+      </div>
+    );
+  }
+
+  const situation = situationFromDraft(panelId, current);
+  const problem = panel
+    ? situationProblem(situation, panel.scope.scopeType)
+    : "Still working out where this card reads from.";
+
+  return (
+    <div>
+      <StudioHeading>When should it be here?</StudioHeading>
+      <StudioSub>Set against what it answers right now.</StudioSub>
+      <div className="mx-auto mt-3 max-w-md">
+        <WhenStep
+          compare={current.compare}
+          label={current.label}
+          onCompare={(compare) => setDraft({ ...current, compare })}
+          onMeasured={(value) => {
+            // Seeded once per question, and never after the number has been
+            // touched — see `seedFor`.
+            const key = `${current.starterId}:${current.compare}`;
+            if (seeded.current === key) return;
+            const next = seedFor(current, value);
+            if (next === null) return;
+            seeded.current = key;
+            setDraft({ ...current, threshold: next });
+          }}
+          onThreshold={(threshold) =>
+            setDraft({ ...current, threshold, touched: true })
+          }
+          query={current.query}
+          scope={panel?.scope ?? null}
+          threshold={current.threshold}
+        />
+
+        {/* The same sentence the toast, the event log and the arrival banner
+            use — VERBATIM, under a label, rather than folded into a line of
+            this screen's own prose. Recasing it to fit a sentence here is
+            enough to make one condition read as two different conditions
+            depending on where you meet it. */}
+        <p aria-live="polite" className="mt-4 px-4 text-center">
+          <span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Only here when
+          </span>
+          <span className="mt-0.5 block text-[15px] font-semibold">
+            {describeSituation(situation)}
+          </span>
+        </p>
+        {problem && (
+          <p className="mt-2 px-4 text-center text-[12px] leading-relaxed text-muted-foreground">
+            {problem}
+          </p>
+        )}
+
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2 px-3">
+          <SheetAction onClick={() => setStep("question")}>
+            ← Ask something else
+          </SheetAction>
+          <Button
+            className="h-11 rounded-full px-5"
+            disabled={problem !== null || !panel}
+            onClick={() => {
+              if (!panel || problem) return;
+              save(panel.scope, panelId, situation, () => {
+                setDraft(null);
+                setStep("question");
+              });
+            }}
+            type="button"
+          >
+            Only show it then
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

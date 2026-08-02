@@ -157,6 +157,7 @@ export function EditableGrid({
   layout,
   onChange,
   gridId,
+  screenKey,
   emptyMessage,
   children,
   editing: controlledEditing,
@@ -167,6 +168,20 @@ export function EditableGrid({
   /** Called with the new layout on every committed change. */
   onChange: (next: ScreenLayout, opts?: { droppedAt?: number }) => void;
   gridId: string;
+  /**
+   * Which SCREEN this is, as everything that stores per-screen state names it
+   * — `screenKey("project", id)`, not the grid's DOM id.
+   *
+   * The two are different on purpose and the difference matters exactly once,
+   * here. A grid id identifies the element (`project-screen-grid`) and is the
+   * same string on every project; a screen key identifies the screen
+   * (`project:<id>`) and is what `screenLayouts`, `screenProposals` and
+   * `panelSituations` are all keyed by. Announcing the grid id to the
+   * inspector meant a condition set on one project's panel was the same row as
+   * a condition on another's. Defaults to the grid id so a surface that has no
+   * stored screen state does not have to invent one.
+   */
+  screenKey?: string;
   emptyMessage?: React.ReactNode;
   /** The tray, rendered below the grid while editing. */
   children?: (editing: boolean) => React.ReactNode;
@@ -670,7 +685,7 @@ export function EditableGrid({
                     ...customizable({
                       id: `${gridId}:${w.id}`,
                       label: tile.title,
-                      screenKey: gridId,
+                      screenKey: screenKey ?? gridId,
                     }),
                     "data-customize-selected":
                       selection?.id === `${gridId}:${w.id}` ? "true" : undefined,

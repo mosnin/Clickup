@@ -296,10 +296,105 @@ async function shootMintShelf(width, label) {
   await p.close();
 }
 
+// ── Saying when a panel should be here ───────────────────────────────────
+//
+// The studio's newest chapter, and the one with the most to get wrong on a
+// phone: two steps, a shelf of live readings, then a row of three drawn
+// comparisons plus a stepper plus a sentence plus a commit — all inside a
+// ~58svh sheet. Every one of those is a candidate for the failure this harness
+// exists to catch, which is a control that renders below the sheet's own edge
+// and looks fine in a screenshot nobody took.
+//
+// Driven through the app's own path — select a tile, open the island, choose
+// the chapter — because the question is whether a person can reach it.
+async function shootOnlyWhen(width, label) {
+  const p = await browser.newPage({
+    viewport: { width, height: width < 500 ? 844 : 1000 },
+    deviceScaleFactor: 2,
+  });
+  p.on("pageerror", (e) => errors.push(String(e)));
+  await p.goto("http://127.0.0.1:4599/home.html?studio=1");
+  await p.waitForTimeout(2200);
+  await p.locator('[data-tile="activity"]').click({ position: { x: 40, y: 30 } });
+  await p.waitForTimeout(400);
+  await p.locator("#style-island button").first().click();
+  await p.waitForTimeout(1400);
+  await p.getByRole("tab", { name: "Only when…" }).click();
+  await p.waitForTimeout(1800);
+
+  // Step one: a shelf of questions, the panel's own first. A chapter that
+  // renders "tap a card" here would mean the selection never reached it.
+  const questions = await p.locator("[data-item-id]").count();
+  if (questions === 0) {
+    errors.push(`only-when at ${width}px: no questions offered for a panel`);
+  }
+  await p.screenshot({ path: join(SHOTS, `only-when-question-${label}-light.png`) });
+  console.log(`shot only-when-question-${label}-light.png (${questions} questions)`);
+
+  await p.evaluate(() => {
+    document.documentElement.setAttribute("data-theme", "dark");
+  });
+  await p.waitForTimeout(800);
+  await p.screenshot({ path: join(SHOTS, `only-when-question-${label}-dark.png`) });
+  console.log(`shot only-when-question-${label}-dark.png`);
+  await p.evaluate(() => {
+    document.documentElement.removeAttribute("data-theme");
+  });
+
+  // Step two. The commit is the whole feature, so it is checked the way the
+  // mint shelf's is: on screen, and not painted over by the sheet's footer.
+  await p.evaluate(() => {
+    const button = [...document.querySelectorAll("button")].find((b) =>
+      /^Use /.test(b.textContent ?? ""),
+    );
+    button?.click();
+  });
+  await p.waitForTimeout(1400);
+  const commit = await p.evaluate(() => {
+    const button = [...document.querySelectorAll("button")].find(
+      (b) => (b.textContent ?? "").trim() === "Only show it then",
+    );
+    if (!button) return { found: false };
+    const r = button.getBoundingClientRect();
+    const over = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    return {
+      found: true,
+      belowFold: r.bottom > window.innerHeight,
+      covered: over !== button && !button.contains(over),
+      coveredBy: over ? over.tagName : null,
+    };
+  });
+  if (!commit.found) {
+    errors.push(`only-when at ${width}px: no way to commit a condition`);
+  } else if (commit.covered || commit.belowFold) {
+    errors.push(
+      `only-when at ${width}px: "Only show it then" is ` +
+        (commit.belowFold
+          ? "below the fold"
+          : `covered by <${commit.coveredBy}>`) +
+        " — the sheet's middle section scrolls, but a commit you have to go " +
+        "looking for is the failure this studio already shipped once. Fix " +
+        "lives in src/components/appearance/style-studio.tsx.",
+    );
+  }
+  await p.screenshot({ path: join(SHOTS, `only-when-when-${label}-light.png`) });
+  console.log(`shot only-when-when-${label}-light.png`);
+
+  await p.evaluate(() => {
+    document.documentElement.setAttribute("data-theme", "dark");
+  });
+  await p.waitForTimeout(800);
+  await p.screenshot({ path: join(SHOTS, `only-when-when-${label}-dark.png`) });
+  console.log(`shot only-when-when-${label}-dark.png`);
+  await p.close();
+}
+
 await shootHome(1180, "desktop");
 await shootHome(390, "mobile");
 await shootMintShelf(1180, "desktop");
 await shootMintShelf(390, "mobile");
+await shootOnlyWhen(1180, "desktop");
+await shootOnlyWhen(390, "mobile");
 // The same page with nothing customised — the Home every account starts on,
 // and the one it is easiest to never look at because the fixture author had
 // to go out of their way to produce it.
