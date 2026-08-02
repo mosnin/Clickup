@@ -265,9 +265,19 @@ async function calibrate() {
     return out;
   }, findings.map((f) => f.auditId).filter(Boolean));
 
+  // Some specimens seed more than one SHAPE of the same defect, and each is
+  // there because the gate was once wrong about exactly that shape. Firing on
+  // one of the two is a gate with half the property, and it would pass a check
+  // that only asks whether anything fired at all. `tap` seeds two: a target
+  // short in one axis and a target short in both, and the whole correctness of
+  // the free-space allowance is that it rescues the first and refuses the
+  // second.
+  const MUST_FIRE_AT_LEAST = { tap: 2 };
+
   for (const id of elementGates) {
     const mine = findings.filter((f) => f.gate === id);
     const fired = mine.filter((f) => located[f.auditId]?.specimen === id);
+    const wanted = MUST_FIRE_AT_LEAST[id] ?? 1;
     const falseAlarms = mine.filter(
       (f) => located[f.auditId]?.control !== null && located[f.auditId]?.control !== undefined,
     );
@@ -276,7 +286,7 @@ async function calibrate() {
     );
     results.push({
       gate: id,
-      ok: fired.length > 0 && strayControls.length === 0,
+      ok: fired.length >= wanted && strayControls.length === 0,
       firedOnSpecimen: fired.length,
       firedOnItsOwnControl: strayControls.length,
       // Cross-fire is reported rather than failed: a spill specimen is allowed
@@ -286,7 +296,11 @@ async function calibrate() {
       why:
         fired.length === 0
           ? `never fired on its own specimen — this gate cannot report its absence`
-          : strayControls.length > 0
+          : fired.length < wanted
+            ? `caught ${fired.length} of the ${wanted} defects seeded on its ` +
+              `specimen — a gate with half the property looks exactly like a ` +
+              `gate with all of it until the half it lost is the one that ships`
+            : strayControls.length > 0
             ? `fired ${strayControls.length}x on the clean control`
             : null,
       exemplar: fired[0]?.message ?? null,

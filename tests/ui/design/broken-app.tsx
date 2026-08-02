@@ -621,17 +621,40 @@ function Page() {
 
       <Specimen
         broken={
-          <button
-            aria-label="Close"
-            onClick={() => {}}
-            style={{
-              width: 20,
-              height: 20,
-              border: 0,
-              background: "#e0e0e0",
-              borderRadius: 6,
-            }}
-          />
+          <>
+            <button
+              aria-label="Close"
+              onClick={() => {}}
+              style={{
+                width: 20,
+                height: 20,
+                border: 0,
+                background: "#e0e0e0",
+                borderRadius: 6,
+              }}
+            />
+            {/* The mirror of the control beside this one, and the reason the
+                free-space allowance is not a way of making the number go down.
+                A 32x32 icon button with forty clear pixels all round it: short
+                in BOTH axes, so no amount of room enlarges the box, and the
+                allowance is refused. This is the case the 44px floor was
+                written for and it has to keep firing while a wide thin link in
+                the same amount of space stops. */}
+            <button
+              aria-label="Open navigation"
+              onClick={() => {}}
+              style={{
+                display: "block",
+                marginTop: 40,
+                marginBottom: 40,
+                width: 32,
+                height: 32,
+                border: 0,
+                background: "#e0e0e0",
+                borderRadius: 8,
+              }}
+            />
+          </>
         }
         clean={
           <>
