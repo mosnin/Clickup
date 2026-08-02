@@ -291,6 +291,11 @@ function StudioSheet() {
             animate={{ y: 0, opacity: 1 }}
             className={cn(
               "pointer-events-auto flex w-full flex-col overflow-hidden bg-page text-foreground",
+              // A hairline as well as a shadow: the sheet is page-coloured
+              // (its specimens are the card-coloured things on it), and in
+              // dark mode a shadow over near-black separates nothing — the
+              // sheet's own edge disappeared into the canvas.
+              "ring-1 ring-border",
               "h-[58svh] min-h-[22rem] rounded-t-3xl shadow-[0_-14px_44px_-16px_rgb(0_0_0/0.32)]",
               "sm:h-[min(34rem,72svh)] sm:max-w-[42rem] sm:rounded-3xl sm:shadow-[0_18px_54px_-18px_rgb(0_0_0/0.34)]",
             )}
@@ -369,7 +374,7 @@ function StudioSheet() {
                       instantly") without ever answering the two questions a
                       person actually has: what am I choosing, and how do I
                       keep it. */}
-                  <h2 className="mt-2 px-6 text-[15px] font-semibold sm:text-base">
+                  <h2 className="mt-1 px-6 text-[15px] font-semibold sm:text-base">
                     {chapter === "colour"
                       ? "What colour is your data?"
                       : chapter === "cards"
@@ -388,10 +393,10 @@ function StudioSheet() {
                            press it is the same lie this studio shipped once
                            already, told the other way round. */
                         chapter === "chart" && selection
-                        ? "Your numbers, drawn each way. Nothing changes until you pick."
-                        : `Applies ${
+                        ? "Drawn each way. Nothing changes until you pick."
+                        : `Scroll to one — it applies ${
                             selection ? `to ${selection.label}` : "everywhere"
-                          } as you scroll — watch it land behind.`}
+                          }, live behind.`}
                   </p>
                 </Rise>
 
@@ -604,7 +609,7 @@ function ShelfHint({ applyOnCentre }: { applyOnCentre: boolean }) {
   return (
     <motion.p
       animate={{ opacity: 1, y: 0 }}
-      className="pointer-events-none mx-auto mt-2 flex w-max max-w-[94%] items-center gap-1.5 rounded-full bg-foreground px-3 py-1 text-[11px] font-medium text-background"
+      className="pointer-events-none mx-auto mt-1.5 flex w-max max-w-[94%] items-center gap-1.5 rounded-full bg-foreground px-3 py-1 text-[11px] font-medium text-background"
       initial={{ opacity: 0, y: 6 }}
       transition={{ duration: 0.4, ease: EASE, delay: 0.5 }}
     >
@@ -1084,9 +1089,8 @@ function ShapeShelf({
   return (
     <div>
       {!stored && (
-        <p className="mx-auto mb-3 max-w-md px-6 text-[13px] leading-relaxed text-muted-foreground">
-          Picking one makes this a card of your own. The built-in waits on the
-          shelf if you want it back.
+        <p className="mx-auto max-w-md px-6 text-[12px] text-muted-foreground">
+          Picking one makes this card your own.
         </p>
       )}
       <HeroShelf

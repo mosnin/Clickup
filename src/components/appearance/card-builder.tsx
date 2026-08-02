@@ -140,7 +140,7 @@ export function LivePanelCard({
     // Sized to the studio sheet rather than to a full screen: the sheet is
     // ~58svh on a phone, and a 340px card inside it is a card whose bottom
     // half you never see.
-    <span className="pointer-events-none block h-[200px] overflow-hidden text-left sm:h-[260px] [&>*]:h-full">
+    <span className="pointer-events-none block h-[160px] overflow-hidden text-left sm:h-[240px] [&>*]:h-full">
       <Panel
         definition={def}
         key={`${def.title}:${def.shape}`}
