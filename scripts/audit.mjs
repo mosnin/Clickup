@@ -494,18 +494,29 @@ async function runState(surface, state, viewport, theme) {
   row.measured = measured;
   row.unmeasurable = skipped;
 
-  // One native crop per finding, and one per structural element, so a clean
+  // A native crop per finding, and one per structural element, so a clean
   // surface still leaves photographs somebody can look at rather than a line
   // of text saying it was fine.
+  //
+  // Capped per gate, because the report cites six exemplars and the two
+  // hundred and sixtieth photograph of the same ellipsised title is not
+  // evidence of anything — it is four minutes of wall clock and a directory
+  // nobody will open. The FINDING is still recorded every time, so the counts
+  // and the fold are unaffected; only the pictures stop.
+  const cropped = new Map();
   for (const f of findings) {
-    if (!f.auditId) continue;
-    const name = `${slug(id)}-${viewport.label}-${theme}-${f.gate}-${f.auditId}`;
-    f.crops = await cropElement(page, f.auditId, name);
     f.surface = id;
     f.title = title;
     f.viewport = viewport.label;
     f.theme = theme;
+    f.crops = [];
     raw.push(f);
+    if (!f.auditId) continue;
+    const seen = cropped.get(f.gate) ?? 0;
+    if (seen >= 6) continue;
+    cropped.set(f.gate, seen + 1);
+    const name = `${slug(id)}-${viewport.label}-${theme}-${f.gate}-${f.auditId}`;
+    f.crops = await cropElement(page, f.auditId, name);
   }
 
   const structural = await page.evaluate(() => {
@@ -870,13 +881,17 @@ md.push(
     "everything else; `candidate` means the gate found something a person has " +
     "to confirm before the cap binds.\n",
 );
-md.push("| condition | caps at | status | occurrences | surfaces |");
-md.push("| --- | --- | --- | --- | --- |");
+// The gate is named alongside the condition because two gates answer one
+// rubric line — `inert` finds controls with nothing behind them and `dead`
+// confirms it by pressing one — and a table with the same sentence twice and
+// two different verdicts reads as a bug in the report.
+md.push("| gate | condition | caps at | status | occurrences | surfaces |");
+md.push("| --- | --- | --- | --- | --- | --- |");
 for (const c of caps) {
   md.push(
-    `| ${c.condition} | ${c.capsTotalAt} | ${c.status} | ${c.occurrences} | ${
-      c.surfaces.slice(0, 4).join(", ") || "—"
-    } |`,
+    `| \`${c.gate}\` | ${c.condition} | ${c.capsTotalAt} | ${c.status} | ${
+      c.occurrences
+    } | ${c.surfaces.slice(0, 4).join(", ") || "—"} |`,
   );
 }
 
