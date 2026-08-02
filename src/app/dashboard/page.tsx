@@ -954,13 +954,24 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
                     aria-label={`Mark "${row.title}" complete`}
                     onCheckedChange={() => complete(row)}
                   />
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
-                    <Link
-                      href={`/dashboard/l/${row.listId}/t/${row._id}`}
-                      className="min-w-0 flex-1 basis-48 text-sm font-medium hover:underline line-clamp-2"
-                    >
+                  {/* The whole row is one target.
+                      The link used to wrap the TITLE alone, so the list, the
+                      priority and the due date — same row, same task, sitting
+                      right next to it — did nothing at all, and the part that
+                      did was a 20px band inside a 39px row. `.tap-row` takes
+                      the rest of the way to the 44px floor by making the row
+                      taller on touch rather than by hanging a halo off it,
+                      which would reach into the task above and below. The
+                      underline moves to `group-hover` so hovering still marks
+                      the title as the link rather than underlining the meta
+                      along with it. */}
+                  <Link
+                    href={`/dashboard/l/${row.listId}/t/${row._id}`}
+                    className="tap-row group flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5"
+                  >
+                    <span className="min-w-0 flex-1 basis-48 text-sm font-medium line-clamp-2 group-hover:underline">
                       {row.title}
-                    </Link>
+                    </span>
                     <span className="flex flex-shrink-0 items-center gap-2">
                       <span className="rounded-lg border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
                         {row.listName}
@@ -977,7 +988,7 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
                         </span>
                       )}
                     </span>
-                  </div>
+                  </Link>
                 </div>
               </StaggerItem>
             );
@@ -1166,17 +1177,20 @@ function ProjectsTable({
             return (
               <li className="px-4 py-3" key={p.listId}>
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <Link
-                      href={`/dashboard/l/${p.listId}`}
-                      className="block truncate font-medium text-foreground hover:underline"
-                    >
+                  {/* Name and place are one target, for the same reason as the
+                      task rows above: they are two lines about one project,
+                      and only the top one used to be pressable. */}
+                  <Link
+                    href={`/dashboard/l/${p.listId}`}
+                    className="tap-row group block min-w-0"
+                  >
+                    <span className="block truncate font-medium text-foreground group-hover:underline">
                       {p.name}
-                    </Link>
-                    <p className="truncate text-xs text-muted-foreground">
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
                       {p.place}
-                    </p>
-                  </div>
+                    </span>
+                  </Link>
                   <HealthChip status={p.projectStatus} />
                 </div>
                 <div className="mt-2 flex items-center gap-2">
@@ -1221,11 +1235,15 @@ function ProjectsTable({
                     <TableCell>
                       <Link
                         href={`/dashboard/l/${p.listId}`}
-                        className="font-medium text-foreground hover:underline"
+                        className="tap-row group block"
                       >
-                        {p.name}
+                        <span className="block font-medium text-foreground group-hover:underline">
+                          {p.name}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          {p.place}
+                        </span>
                       </Link>
-                      <p className="text-xs text-muted-foreground">{p.place}</p>
                     </TableCell>
                     <TableCell>
                       <HealthChip status={p.projectStatus} />
@@ -1269,12 +1287,16 @@ function ProjectsTable({
         </div>
       )}
       {projects.length < totalProjects && (
-        <div className="border-t border-border px-4 py-3">
+        // The padding belongs to the LINK, not to the strip around it: a 16px
+        // line of text in a 40px bar meant the bar looked pressable and only
+        // the words were. Now the strip is the target, and `.tap-row` takes it
+        // to 44 on touch.
+        <div className="border-t border-border px-4">
           <Link
             href="/dashboard/projects"
-            className="text-sm font-medium hover:underline"
+            className="tap-row group flex items-center py-3 text-sm font-medium"
           >
-            View all projects
+            <span className="group-hover:underline">View all projects</span>
           </Link>
         </div>
       )}
@@ -1322,19 +1344,30 @@ function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
                     transition={{ duration: 0.4, ease: EASE }}
                     className="text-sm leading-snug"
                   >
+                    {/* The timestamp is part of the entry, so it is part of
+                        the target: the link used to stop at the sentence and
+                        the line under it — same event, same destination — did
+                        nothing. */}
                     {e.listId ? (
                       <Link
                         href={`/dashboard/l/${e.listId}`}
-                        className="hover:underline"
+                        className="tap-row group block"
                       >
-                        {body}
+                        <span className="block group-hover:underline">
+                          {body}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          {timeAgo(e.createdAt)}
+                        </span>
                       </Link>
                     ) : (
-                      <span>{body}</span>
+                      <>
+                        <span>{body}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {timeAgo(e.createdAt)}
+                        </span>
+                      </>
                     )}
-                    <span className="block text-xs text-muted-foreground">
-                      {timeAgo(e.createdAt)}
-                    </span>
                   </motion.li>
                 );
               })}

@@ -552,8 +552,13 @@ function RowBody({
     </>
   );
   if (!row.href) return inner;
+  // Wrapping both lines made the row ONE target; `.tap-row` makes it a target
+  // a thumb can hit. A title and a meta line come to 31px, which is under the
+  // floor however correctly the anchor is drawn around them — and the fix has
+  // to be the row's own height rather than a halo, because a halo here would
+  // overlap the record above and the record below.
   return (
-    <Link className="group block min-w-0" href={row.href}>
+    <Link className="tap-row group block min-w-0" href={row.href}>
       {inner}
     </Link>
   );
@@ -663,7 +668,10 @@ function Table({
                   one. The title owns its own ending. */}
               <td className="max-w-[14rem] py-1.5 pr-3">
                 {row.href ? (
-                  <Link className="group block min-w-0" href={row.href}>
+                  <Link
+                    className="tap-row group flex min-w-0 items-center"
+                    href={row.href}
+                  >
                     <RowTitle lines={1} row={row} />
                   </Link>
                 ) : (

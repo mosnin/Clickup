@@ -237,8 +237,11 @@ function FileTreeFile({ node }: { node: FileTreeElement }) {
       className="relative z-10"
       onMouseEnter={highlightTarget.onMouseEnter}
     >
+      {/* Not a target itself, but it sits between rows that are: a tree whose
+          folders grew on touch and whose files did not would read as two
+          different lists. */}
       <div
-        className="pointer-events-none flex items-center gap-2 p-2"
+        className="tap-row pointer-events-none flex items-center gap-2 p-2"
         style={node.highlight ? { color: highlightColor } : undefined}
       >
         {showIcons && (
@@ -269,7 +272,12 @@ function FileTreeFolder({ node }: { node: FileTreeElement }) {
             ref={highlightTarget.ref}
             onMouseEnter={highlightTarget.onMouseEnter}
           >
-            <div className="pointer-events-none flex items-center gap-2 p-2">
+            {/* `.tap-row` rather than `.tap-target`: a halo on this row would
+                reach into the rows above and below it, and a press between two
+                folders has to resolve to one of them. The row gets taller on
+                touch instead. `items-center` keeps the label optically where
+                it was. */}
+            <div className="tap-row pointer-events-none flex items-center gap-2 p-2">
               {showIcons && (
                 <FolderIcon
                   closeIcon={<Folder className="size-4" />}
