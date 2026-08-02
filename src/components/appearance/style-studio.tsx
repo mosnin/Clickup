@@ -221,10 +221,30 @@ function StudioIsland() {
       transition={{ duration: 0.32, ease: EASE }}
     >
       <div className="pointer-events-auto">
-        <ExpandableScreenTrigger className="[&>div:first-child]:bg-foreground">
+        {/* The pill paints itself, from the button.
+
+            It used to be painted by `[&>div:first-child]:bg-foreground` on the
+            trigger, and that class was doing nothing at all. The selector does
+            match — the trigger's first child is its shared-layout background
+            layer — but that layer is (a) completely covered by the island,
+            which is a vendored component carrying a hardcoded opaque `bg-black`
+            of its own, and (b) never morphed into anything, because this studio
+            renders its own sheet rather than `ExpandableScreenContent`, so no
+            second element shares the layoutId.
+
+            So the pill was black in both themes while its label asked for
+            `text-background` — near-white in light (which is why nobody saw
+            it) and near-black in dark, where it measured 1.09:1 on black.
+
+            `ui-inverted` is the same token set the inverted panel fill uses:
+            surface = the theme's ink, writing = the theme's canvas. The button
+            is `h-full w-full` inside the island, so painting it here covers the
+            vendored black without reaching into a component we do not own, and
+            the pill inverts with the theme the way it always claimed to. */}
+        <ExpandableScreenTrigger>
           <DynamicIsland id="style-island">
             <button
-              className="flex h-full w-full items-center justify-center gap-2.5 px-4 text-background"
+              className="ui-inverted flex h-full w-full items-center justify-center gap-2.5 rounded-full px-4"
               onClick={() => setSize(SIZE_PRESETS.COMPACT_LONG)}
               type="button"
             >
