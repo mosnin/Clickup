@@ -59,3 +59,11 @@ public/swe-worker-*.js
 # IDE
 .idea/
 .vscode/
+
+# One-off verification scratch: a throwaway harness an agent builds to
+# answer a single question ("does the Chart chapter offer shapes for a
+# built-in?"). Useful while it runs, meaningless the moment it has answered,
+# and committing it would leave a second half-built gallery beside the real
+# one for somebody to mistake for the harness.
+.verify/
+verify-shape.tmp.mjs
