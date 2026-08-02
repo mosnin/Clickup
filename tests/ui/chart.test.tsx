@@ -354,6 +354,34 @@ describe("zero is a value, not an absence", () => {
   });
 });
 
+describe("two charts on one page are two charts", () => {
+  it("gives every reveal clip its own id", async () => {
+    // SVG `url(#…)` resolves against the document, so a clip id that is a
+    // constant is shared by every chart of that kind on the page — and the
+    // first in document order wins. Two panels side by side clipped the wider
+    // one to the narrower one's plot: a six-status line stopped after four
+    // statuses with nothing on screen to say the rest existed. Nothing looks
+    // more like working software than a chart that is quietly missing its end.
+    const { container } = render(
+      <>
+        <div style={{ width: 300 }}>
+          <Chart kind="line" series={SERIES} style={DEFAULT_STYLE} unit="count" />
+          <Chart kind="area" series={SERIES} style={DEFAULT_STYLE} unit="count" />
+        </div>
+        <div style={{ width: 900 }}>
+          <Chart kind="line" series={SERIES} style={DEFAULT_STYLE} unit="count" />
+          <Chart kind="area" series={SERIES} style={DEFAULT_STYLE} unit="count" />
+        </div>
+      </>,
+    );
+    await waitFor(() => {
+      expect(container.querySelectorAll("clipPath").length).toBeGreaterThan(1);
+    });
+    const ids = [...container.querySelectorAll("clipPath")].map((el) => el.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
 describe("the style axes reach the marks", () => {
   it("draws series in the chosen palette", async () => {
     for (const palette of ["mono", "pastel", "ocean"] as const) {

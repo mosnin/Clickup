@@ -8,6 +8,7 @@ import {
   isValidElement,
   type ReactNode,
   useCallback,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -155,12 +156,23 @@ function ChartInner({
 }: ChartInnerProps) {
   const lines = useMemo(() => extractAreaConfigs(children), [children]);
 
+  // VENDORED FIX — re-apply after any upstream sync of this directory.
+  //
+  // This id was the constant "chart-area-grow-clip". SVG `url(#…)` resolves against the
+  // document, so every chart of this kind on a page shared ONE clip — and the
+  // first in document order wins. Two panels side by side therefore clipped
+  // the wider one to the narrower one's plot: on the label gallery a six-status
+  // line stopped after four statuses, with no sign that anything was missing.
+  // A chart that hides its own data is the worst failure there is, and there is
+  // no prop to pass instead — the id is hardcoded here.
+  const clipPathId = `chart-area-grow-clip-${useId().replace(/:/g, "")}`;
+
   return (
     <TimeSeriesChartInner
       animationDuration={animationDuration}
       animationEasing={animationEasing}
       chartStatus={chartStatus}
-      clipPathId="chart-area-grow-clip"
+      clipPathId={clipPathId}
       containerRef={containerRef}
       data={data}
       enterTransition={enterTransition}

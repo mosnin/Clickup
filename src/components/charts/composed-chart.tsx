@@ -7,6 +7,7 @@ import {
   isValidElement,
   type ReactElement,
   type ReactNode,
+  useId,
   useMemo,
   useRef,
 } from "react";
@@ -249,11 +250,22 @@ function ChartInner({
     [data, lines, barDataKeys, stacked]
   );
 
+  // VENDORED FIX — re-apply after any upstream sync of this directory.
+  //
+  // This id was the constant "composed-chart-grow-clip". SVG `url(#…)` resolves against the
+  // document, so every chart of this kind on a page shared ONE clip — and the
+  // first in document order wins. Two panels side by side therefore clipped
+  // the wider one to the narrower one's plot: on the label gallery a six-status
+  // line stopped after four statuses, with no sign that anything was missing.
+  // A chart that hides its own data is the worst failure there is, and there is
+  // no prop to pass instead — the id is hardcoded here.
+  const clipPathId = `composed-chart-grow-clip-${useId().replace(/:/g, "")}`;
+
   return (
     <TimeSeriesChartInner
       animationDuration={animationDuration}
       animationEasing={animationEasing}
-      clipPathId="composed-chart-grow-clip"
+      clipPathId={clipPathId}
       composedBarDataKeys={barDataKeys.length > 0 ? barDataKeys : undefined}
       composedBarGap={barGap}
       composedBarSize={barSize}
