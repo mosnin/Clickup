@@ -254,6 +254,33 @@ export function insertWidget(
 
 
 /**
+ * Swap one widget for another, in place.
+ *
+ * Position, width and height belong to the SLOT rather than to whatever is
+ * sitting in it. Choosing a chart shape for a built-in mints a panel and puts
+ * it where the built-in stood; doing that as remove-then-append would drop the
+ * panel to the bottom of the screen, which reads as the built-in vanishing
+ * rather than as the shape landing — the pick would look like it had failed
+ * twice over.
+ *
+ * Refuses when the replacement is already placed, because a layout holding the
+ * same id twice renders one tile and silently loses the other.
+ */
+export function replaceWidget(
+  layout: ScreenLayout,
+  id: string,
+  nextId: string,
+): ScreenLayout {
+  if (nextId === id) return layout;
+  const at = layout.widgets.findIndex((w) => w.id === id);
+  if (at === -1) return layout;
+  if (layout.widgets.some((w) => w.id === nextId)) return layout;
+  const widgets = [...layout.widgets];
+  widgets[at] = { ...widgets[at], id: nextId };
+  return { widgets };
+}
+
+/**
  * What a proposed layout would change, in words a banner can use.
  *
  * The diff is the consent surface: "Accept" is only meaningful if the person
