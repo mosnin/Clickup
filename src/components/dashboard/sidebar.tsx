@@ -290,7 +290,6 @@ function SidebarContentBody() {
               href="/dashboard"
               label="Home"
               icon={Home}
-              iconColor="text-sky-500"
               exact
             />
             <InboxMenuItem />
@@ -299,14 +298,12 @@ function SidebarContentBody() {
               href="/dashboard/my-work"
               label="My work"
               icon={ListTodo}
-              iconColor="text-emerald-500"
               exact
             />
             <NavMenuItem
               href="/dashboard/spaces"
               label="Spaces"
               icon={FolderKanban}
-              iconColor="text-amber-500"
               exact
             />
             {/* Two different questions: Spaces answers "where does this
@@ -316,26 +313,22 @@ function SidebarContentBody() {
               href="/dashboard/projects"
               label="Projects"
               icon={Columns3}
-              iconColor="text-teal-500"
               exact
             />
             <NavMenuItem
               href="/dashboard/pages"
               label="Pages"
               icon={FileText}
-              iconColor="text-rose-500"
             />
             <NavMenuItem
               href="/dashboard/agents"
               label="Agents"
               icon={Bot}
-              iconColor="text-violet-500"
             />
             <NavMenuItem
               href="/dashboard/templates"
               label="Templates"
               icon={LayoutTemplate}
-              iconColor="text-sky-500"
             />
           </SidebarMenu>
         </SidebarGroupContent>
@@ -377,22 +370,26 @@ function NavMenuItem({
   href,
   label,
   icon: Icon,
-  iconColor,
   exact = false,
 }: {
   href: string;
   label: string;
   icon: typeof Bot;
-  iconColor: string;
   exact?: boolean;
 }) {
   const pathname = usePathname();
   const active = exact ? pathname === href : pathname.startsWith(href);
   return (
     <SidebarMenuItem>
+      {/* No per-destination icon colour. It read as a code and was not one —
+          Home and Templates were both sky-500 — so it was decoration in the
+          one place this design system reserves for affordance. The glyphs are
+          already distinct from each other, the label sits beside them, and the
+          collapsed rail keeps `tooltip`, so nothing was identifying a
+          destination by hue that cannot identify it without one. */}
       <SidebarMenuButton asChild isActive={active} tooltip={label}>
         <Link href={href} aria-current={active ? "page" : undefined}>
-          <Icon className={iconColor} />
+          <Icon />
           <span>{label}</span>
         </Link>
       </SidebarMenuButton>
@@ -441,7 +438,7 @@ function ChatMenuItem() {
     <SidebarMenuItem>
       <SidebarMenuButton asChild isActive={active} tooltip="Chat">
         <Link href="/dashboard/chat" aria-current={active ? "page" : undefined}>
-          <MessagesSquare className="text-violet-500" />
+          <MessagesSquare />
           <span>Chat</span>
         </Link>
       </SidebarMenuButton>
