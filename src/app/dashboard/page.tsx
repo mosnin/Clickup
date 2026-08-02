@@ -61,16 +61,6 @@ import {
   TrayTile,
 } from "@/components/dashboard/screen/editable-grid";
 import { ActorGlyph } from "@/components/appearance/actor-glyph";
-import { Panel } from "@/components/dashboard/panel";
-import { useOfferMintablePanels } from "@/components/appearance/mintable-panels";
-import { builtInPanelQuestion } from "@/lib/built-in-panel";
-import {
-  describePanel,
-  normalizePanel,
-  panelIdFromWidgetId,
-  panelWidgetId,
-} from "@/lib/panel";
-import { replaceWidget } from "@/lib/screen-layout";
 
 // Home: the Square dashboard-5 shell's page composition (Phase H), wired to
 // live Convex data. Two reactive queries drive every tile — homeOverview.get
@@ -126,23 +116,14 @@ const WIDGETS = [
   { id: "live", title: "Live feed", span: "lg:col-span-2" },
   { id: "agents", title: "Agents online", span: "" },
 ] as const;
-type BuiltInId = (typeof WIDGETS)[number]["id"];
-/**
- * A slot on Home: a built-in's id, or `custom:<panel id>`.
- *
- * It used to be the union of the six built-in ids, and that type was the reason
- * choosing a chart shape on Home could not land anywhere — `order` dropped
- * every id the registry did not know, so a panel written for this screen was
- * filtered out of the layout the moment it was read back.
- */
-type WidgetId = string;
+type WidgetId = (typeof WIDGETS)[number]["id"];
 const DEFAULT_LAYOUT: WidgetId[] = WIDGETS.map((w) => w.id);
-const WIDGET_BY_ID = new Map<string, (typeof WIDGETS)[number]>(
+const WIDGET_BY_ID = new Map<WidgetId, (typeof WIDGETS)[number]>(
   WIDGETS.map((w) => [w.id, w]),
 );
 const HOME_GRID_ID = "home-grid";
 /** The registry's span strings, as the numbers the shared grid speaks. */
-const SPAN_OF: Record<BuiltInId, 1 | 2 | 3> = {
+const SPAN_OF: Record<WidgetId, 1 | 2 | 3> = {
   stats: 3,
   today: 2,
   activity: 1,
@@ -150,10 +131,6 @@ const SPAN_OF: Record<BuiltInId, 1 | 2 | 3> = {
   live: 2,
   agents: 1,
 };
-/** A panel someone authored has no designed width; one column is its start. */
-function spanOf(id: WidgetId): 1 | 2 | 3 {
-  return SPAN_OF[id as BuiltInId] ?? 1;
-}
 
 function startOfToday(): number {
   const d = new Date();
@@ -189,23 +166,6 @@ export default function DashboardHome() {
   const { user } = useUser();
   const { toast } = useToast();
 
-  // Home stands in no space, so a panel here belongs to the reader themselves.
-  // The same scope `useBuilderScope` falls back to, so a card built from the
-  // studio anywhere with no active space lands where these do.
-  const scope = useMemo(
-    () =>
-      user?.id ? { scopeType: "user" as const, scopeId: user.id } : null,
-    [user?.id],
-  );
-  const panelRows = useQuery(
-    api.uiComponents.listForScope,
-    scope ? scope : "skip",
-  );
-  const panelsById = useMemo(
-    () => new Map((panelRows ?? []).map((r) => [r.componentId as string, r])),
-    [panelRows],
-  );
-
   const [customizing, setCustomizing] = useState(false);
   // Local optimistic layout: render the just-clicked order immediately;
   // the server round-trip (settings) reconciles behind it.
@@ -224,86 +184,32 @@ export default function DashboardHome() {
     const seen = new Set<string>();
     const out: WidgetId[] = [];
     for (const id of source) {
-      if (seen.has(id)) continue;
-      const panelId = panelIdFromWidgetId(id);
-      if (panelId) {
-        // Panels are dropped only once we KNOW they are gone. While the list
-        // is still loading every authored panel would look unknown, and a save
-        // in that window — a drag, a resize — would write the pruned order
-        // back and delete them from the screen for good.
-        if (panelRows !== undefined && !panelsById.has(panelId)) continue;
-      } else if (!WIDGET_BY_ID.has(id)) {
-        continue;
+      if (WIDGET_BY_ID.has(id as WidgetId) && !seen.has(id)) {
+        out.push(id as WidgetId);
+        seen.add(id);
       }
-      out.push(id);
-      seen.add(id);
     }
     return out;
-  }, [draft, settings, panelRows, panelsById]);
-
-  const spans: Partial<Record<string, 1 | 2 | 3>> =
-    spanDraft ??
-    ((settings?.homeWidgetSpans ?? {}) as Partial<Record<string, 1 | 2 | 3>>);
-  // How tall each block is. Absent means "whatever it was designed at", which
-  // is what keeps a layout sparse and lets a redesign of a block still reach
-  // someone who never resized it.
-  const rows: Partial<Record<string, 1 | 2 | 3>> =
-    rowDraft ??
-    ((settings?.homeWidgetRows ?? {}) as Partial<Record<string, 1 | 2 | 3>>);
-
-  /** This screen's arrangement in the shared layout vocabulary. */
-  const layout = {
-    widgets: order.map((id) => ({
-      id,
-      span: spans[id] ?? spanOf(id),
-      ...(rows[id] ? { rows: rows[id] } : {}),
-    })),
-  };
-
-  // Offer the built-ins the studio can mint from. Every hook runs before the
-  // skeleton returns below; the closures read `order`/`spans`/`rows` from this
-  // render and are only *called* later, through the registry's ref.
-  useOfferMintablePanels(
-    scope
-      ? {
-          gridId: HOME_GRID_ID,
-          scope,
-          questionFor: builtInPanelQuestion,
-          replace: (widgetId, componentId) => {
-            const next = replaceWidget(
-              layout,
-              widgetId,
-              panelWidgetId(componentId),
-            );
-            applyLayout(
-              next.widgets.map((w) => w.id),
-              Object.fromEntries(next.widgets.map((w) => [w.id, w.span])),
-              Object.fromEntries(
-                next.widgets.flatMap((w) => (w.rows ? [[w.id, w.rows]] : [])),
-              ),
-            );
-          },
-        }
-      : null,
-  );
+  }, [draft, settings]);
 
   // Wait for settings too, so a saved custom layout never flashes the
   // default order on first paint.
-  //
-  // Deliberately NOT waiting on the authored panels as well. They arrive over
-  // the same subscription as `settings` and land with it in practice, so the
-  // wait would buy a frame — and it would make the whole screen depend on one
-  // more query answering, which is how a surface ends up permanently blank in
-  // a harness (or for anyone whose scope resolves late). The case that
-  // actually matters is destructive rather than cosmetic — a save landing
-  // while the list is still loading — and `order` above handles it by keeping
-  // unresolved panel ids until it KNOWS they are gone.
   if (overview === undefined || settings === undefined) {
     return <DashboardSkeleton />;
   }
   if (overview === null) {
     return null;
   }
+
+  const spans: Partial<Record<WidgetId, 1 | 2 | 3>> =
+    spanDraft ??
+    ((settings?.homeWidgetSpans ?? {}) as Partial<Record<WidgetId, 1 | 2 | 3>>);
+  // How tall each block is. Absent means "whatever it was designed at", which
+  // is what keeps a layout sparse and lets a redesign of a block still reach
+  // someone who never resized it.
+  const rows: Partial<Record<WidgetId, 1 | 2 | 3>> =
+    rowDraft ??
+    ((settings?.homeWidgetRows ?? {}) as Partial<Record<WidgetId, 1 | 2 | 3>>);
 
   function persist(
     next: WidgetId[] | null,
@@ -346,15 +252,7 @@ export default function DashboardHome() {
     persist(null, null, null);
   }
 
-  // The shelf: built-ins that are off the screen, then panels this reader owns
-  // that aren't on it. A swapped-out built-in has to be recoverable, and so
-  // does a panel they removed — otherwise choosing a shape is a one-way door.
-  const hidden = [
-    ...DEFAULT_LAYOUT.filter((id) => !order.includes(id)),
-    ...(panelRows ?? [])
-      .map((r) => panelWidgetId(r.componentId as string))
-      .filter((id) => !order.includes(id)),
-  ];
+  const hidden = DEFAULT_LAYOUT.filter((id) => !order.includes(id));
 
   // totalAgentsOnline counts the whole fleet; overview.agents is a display
   // preview capped at 8 and would undercount larger fleets.
@@ -369,47 +267,7 @@ export default function DashboardHome() {
 
   // Re-alias so the non-null narrowing survives into the closure below.
   const ov = overview;
-  const sc = scope;
-  /** What a slot is called, or null if nothing here can draw it. */
-  function titleOf(id: WidgetId): string | null {
-    const panelId = panelIdFromWidgetId(id);
-    if (panelId) {
-      const row = panelsById.get(panelId);
-      // The definition's own title, read through the panel model — the same
-      // one the renderer uses, so the tile's heading and its contents can
-      // never disagree about what the panel is called.
-      return row ? normalizePanel(row.definition).title : null;
-    }
-    return WIDGET_BY_ID.get(id)?.title ?? null;
-  }
-  /** The one-line reading of an authored panel, for the shelf. */
-  function describeShelfPanel(id: WidgetId): React.ReactNode {
-    const panelId = panelIdFromWidgetId(id);
-    const row = panelId ? panelsById.get(panelId) : undefined;
-    if (!row) return null;
-    return (
-      <span className="mt-0.5 block max-w-[22rem] truncate text-[11px] font-normal text-muted-foreground">
-        {describePanel(normalizePanel(row.definition))}
-      </span>
-    );
-  }
   function widgetContent(id: WidgetId): React.ReactNode {
-    const panelId = panelIdFromWidgetId(id);
-    if (panelId) {
-      const row = panelsById.get(panelId);
-      if (!row || !sc) return null;
-      return (
-        <Panel
-          definition={row.definition}
-          scopeType={sc.scopeType}
-          scopeId={sc.scopeId}
-          // Scoped to the screen as well as the panel, the same way the project
-          // screen does it: the same panel on two screens is two places you
-          // look, and "since I last looked" is a fact about the looking.
-          panelId={`${HOME_GRID_ID}:${id}`}
-        />
-      );
-    }
     switch (id) {
       case "stats":
         return <StatsCards me={ov.me} agentsOnline={agentsOnline} />;
@@ -496,14 +354,14 @@ export default function DashboardHome() {
         editing={customizing}
         onEditingChange={setCustomizing}
         tiles={order.flatMap((id) => {
-          const title = titleOf(id);
-          if (title === null) return [];
-          const span = spans[id] ?? spanOf(id);
+          const def = WIDGET_BY_ID.get(id);
+          if (!def) return [];
+          const span = spans[id] ?? SPAN_OF[id];
           return [
             {
               id,
               span,
-              title,
+              title: def.title,
               // Every block can be narrowed to one column or run the full
               // width. The designed span is only where it starts.
               minSpan: 1 as const,
@@ -512,10 +370,16 @@ export default function DashboardHome() {
             },
           ];
         })}
-        layout={layout}
+        layout={{
+          widgets: order.map((id) => ({
+            id,
+            span: spans[id] ?? SPAN_OF[id],
+            ...(rows[id] ? { rows: rows[id] } : {}),
+          })),
+        }}
         onChange={(next, opts) => {
           applyLayout(
-            next.widgets.map((w) => w.id),
+            next.widgets.map((w) => w.id as WidgetId),
             Object.fromEntries(
               next.widgets.map((w) => [w.id, w.span]),
             ) as Partial<Record<WidgetId, 1 | 2 | 3>>,
@@ -580,13 +444,9 @@ export default function DashboardHome() {
                         applyLayout(next);
                       }}
                       onClick={() => applyLayout([...order, id])}
-                      className="bento-tile cursor-grab px-3 py-2 text-left text-sm active:cursor-grabbing"
+                      className="bento-tile cursor-grab px-3 py-2 text-sm active:cursor-grabbing"
                     >
-                      + {titleOf(id) ?? "Panel"}
-                      {/* An authored panel says what it asks. Two of them
-                          called "Recent activity" are otherwise
-                          indistinguishable on a shelf. */}
-                      {describeShelfPanel(id)}
+                      + {WIDGET_BY_ID.get(id)?.title}
                     </TrayTile>
                   ))}
                 </div>

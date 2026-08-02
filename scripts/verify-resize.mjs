@@ -189,12 +189,50 @@ async function overlapsOn(p) {
   });
 }
 
+// Content must stay inside its tile, not merely tiles inside the grid.
+//
+// The box check above passed while every panel on Home overlapped the one
+// below it. The BOXES were right — the packer had done its job — but the tile
+// did not clip, so a 458px table inside a 168px box painted straight over its
+// neighbour. A gate that measures the correct thing can still miss the failure
+// one layer inside it, and "no overlapping boxes" is not the property anyone
+// cares about; "nothing is painted over anything" is.
+async function spillsOn(p) {
+  return p.evaluate(() => {
+    const out = [];
+    for (const el of document.querySelectorAll("[data-tile]")) {
+      // The CONTENT wrapper only. The edit chrome — the remove control, the
+      // resize grip — is deliberately hung on the tile's corner and straddles
+      // the edge by design; measuring it reported a spill on every tile on a
+      // screen with nothing wrong with it, which is the kind of false alarm
+      // that gets a gate switched off.
+      const inner = el.querySelector("[data-tile-inner]");
+      if (!inner) continue;
+      const box = el.getBoundingClientRect();
+      const c = inner.getBoundingClientRect();
+      const below = Math.round(c.bottom - box.bottom);
+      const right = Math.round(c.right - box.right);
+      // A few px of slack for shadows and focus rings.
+      if (below > 4) {
+        out.push(`${el.dataset.tile} content spills ${below}px below its tile`);
+      }
+      if (right > 4) {
+        out.push(`${el.dataset.tile} content spills ${right}px past its right edge`);
+      }
+    }
+    return out;
+  });
+}
+
 const overlapWide = await overlapsOn(page);
+const spillWide = await spillsOn(page);
 await phone.goto("http://127.0.0.1:4599/grid.html");
 await phone.waitForTimeout(1200);
 const overlapNarrow = await overlapsOn(phone);
+const spillNarrow = await spillsOn(phone);
 console.log(
-  `overlap @1280: ${overlapWide.length}, @390: ${overlapNarrow.length}`,
+  `overlap @1280: ${overlapWide.length}, @390: ${overlapNarrow.length} | ` +
+    `spill @1280: ${spillWide.length}, @390: ${spillNarrow.length}`,
 );
 
 await browser.close();
@@ -260,6 +298,11 @@ if (stranded !== null) {
 if (overlapWide.length > 0 || overlapNarrow.length > 0) {
   console.error("FAIL: tiles are overlapping on screen");
   for (const h of [...overlapWide, ...overlapNarrow]) console.error("  " + h);
+  process.exit(1);
+}
+if (spillWide.length > 0 || spillNarrow.length > 0) {
+  console.error("FAIL: content is painting outside its tile");
+  for (const h of [...spillWide, ...spillNarrow]) console.error("  " + h);
   process.exit(1);
 }
 console.log("PASS: no overlap at 1280 or 390, resize follows the pointer, one gesture one write");

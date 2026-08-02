@@ -152,14 +152,6 @@ const ROW_GAP = 1.5 * 16;
 /** Matches the grid's `auto-rows`, for the first frame before measuring. */
 const ROW_HEIGHT_FALLBACK = ROW_UNIT;
 
-/**
- * The height `rows` buys on a natural screen, where there is no `auto-rows`
- * track to span: N rows plus the gaps a real span would cross.
- */
-function rowsToHeight(rows: WidgetRows): number {
-  return rows * ROW_UNIT + (rows - 1) * ROW_GAP;
-}
-
 export function EditableGrid({
   tiles,
   layout,
@@ -650,13 +642,6 @@ export function EditableGrid({
           const live = preview && preview.id === w.id ? preview : null;
           const span = live ? live.span : w.span;
           const rows = live ? live.rows : (w.rows ?? tile.rows ?? 1);
-          // Natural screen + a height someone chose (saved, or under the
-          // finger right now) = this one panel is that tall. Live during the
-          // preview, which is what makes the drag visible.
-          const chosenHeight =
-            !sized && (live ? live.heightTouched || w.rows !== undefined : w.rows !== undefined)
-              ? rowsToHeight(rows)
-              : null;
           // While the grip is held, the tile is exactly the size of the
           // pointer — not the nearest cell. Overriding the grid's own column
           // and row tracks for the duration of the gesture is what makes the
@@ -781,15 +766,28 @@ export function EditableGrid({
                 data-tile-inner
                 className={cn(
                   "relative",
-                  // Fill the fixed cell; content that outgrows a real size
-                  // scrolls inside it, exactly as a widget does on a phone.
-                  // `@3xl:` because the fixed rows are container-gated — the
-                  // old `lg:` variants meant a wide container in a narrow
-                  // window scrolled nothing and overflowed everything.
-                  sized && "@3xl:h-full @3xl:overflow-y-auto @3xl:[&>*]:h-full",
-                  // An explicitly-sized panel scrolls at every width — its
-                  // height is the reader's decision, not the breakpoint's.
-                  chosenHeight !== null && "h-full overflow-y-auto [&>*]:h-full",
+                  // Fill the box and scroll inside it — unconditionally,
+                  // because since the packer took over EVERY tile has a real
+                  // box, at every width.
+                  //
+                  // This was gated on `sized`, meaning "some tile declared
+                  // rows on the tile itself". Home declares its rows in
+                  // `layout.widgets` instead, so `sized` was false for Home —
+                  // and the gate that makes a fixed box safe never applied to
+                  // the one screen people actually open. The box was 168px,
+                  // the Projects table inside it was 458px, and the surplus
+                  // painted straight over the panel below. Every panel on
+                  // Home overlapped the next one, at both widths, in both
+                  // themes.
+                  //
+                  // The browser overlap gate could not see it: it measures
+                  // `[data-tile]` boxes, and the BOXES were correct — the
+                  // packer had done its job. What overflowed was content out
+                  // of a box that never clipped. A gate that measures the
+                  // right thing can still miss the failure one layer inside
+                  // it, which is why the gate now also checks content (see
+                  // scripts/verify-resize.mjs).
+                  "h-full overflow-y-auto [&>*]:h-full",
                 )}
               >
                 {tile.content}
