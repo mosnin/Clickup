@@ -338,7 +338,14 @@ export function fillClass(style: ComponentStyle): string {
     case "gradient":
       return "bg-gradient-to-br from-card to-muted";
     case "inverted":
-      return "bg-foreground text-background";
+      // Not `bg-foreground text-background`. That paints the surface and the
+      // inherited ink and stops, so everything inside the card — the quiet
+      // register, hairlines, wells, chart furniture — went on being computed
+      // for the surrounding theme against a surface that is now its opposite.
+      // `.ui-inverted` (globals.css) is the same two colours plus the rest of
+      // the token set, so the next thing added inside the card is right by
+      // default rather than by being remembered.
+      return "ui-inverted";
   }
 }
 

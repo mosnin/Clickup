@@ -461,6 +461,122 @@
   );
 }
 
+/* ── An inverted surface ──────────────────────────────────────────────────
+   **A panel that inverts must invert its token context, not a pair of text
+   colours.**
+
+   `fill: "inverted"` used to render as `bg-foreground text-background`. That
+   is two declarations, and it repaints exactly two things: the surface and
+   whatever inherits `color`. Everything else inside the panel goes on reading
+   the surrounding theme's tokens against a surface that is now the opposite
+   colour — so the chart's axis labels stayed light-theme `#6b6b75` on a
+   `#101010` card and measured **3.61:1** (AA needs 4.5). The gate reported it
+   eighteen times on one studio chapter. Patching the labels would have fixed
+   those eighteen and left the nineteenth element to be added inside the panel
+   just as broken, with nothing to say so.
+
+   So this is a token set. The pattern is not new here: `.marketing-shell`
+   already redefines the shared tokens for a nested scope, which is the whole
+   reason a black logged-out site can be built out of `bg-background`. This is
+   that, scoped to one card.
+
+   **The one thing to know before adding to it.** `--color-foreground` and
+   `--color-background` are NOT swapped, because on an inverted card they are
+   already the right way round: the surface IS the theme's ink and the writing
+   IS the theme's canvas. That is what `bg-foreground text-background` says,
+   and four call sites say it. Everything else — the quiet register, hairlines,
+   wells, the ink scale, chart furniture, the shadow pair — is redefined so it
+   is computed against the paint this card actually has. Note in particular
+   that `--color-muted-foreground` keeps the reader's contrast preference but
+   with its two ends exchanged: "toward the foreground" means toward the
+   writing, which on this card is `--color-background`.
+
+   Corollary, and the only footgun left: inside here `text-foreground` paints
+   ink on ink. Text that wants to be read either inherits, or asks for
+   `text-background`. */
+.ui-inverted {
+  background-color: var(--color-foreground);
+  color: var(--color-background);
+
+  /* The dark theme's ink values, because in the light theme this card is a
+     dark surface. Mirrored below for the dark theme, where it is a light one. */
+  --ui-muted-base: #9e9e9e;
+  --color-border: #232323;
+  --color-muted: #1a1a1a;
+  --color-card: #121212;
+  --color-card-foreground: #f4f4f4;
+  --color-brand-50: #141414;
+  --color-brand-100: #1a1a1a;
+  --color-brand-200: #272727;
+  --color-brand-500: #a1a1aa;
+  --color-brand-600: #71717a;
+  --color-brand-700: #ededf0;
+
+  --ui-shade: rgb(0 0 0 / 0.62);
+  --ui-shade-weak: rgb(0 0 0 / 0.35);
+  --ui-glint: rgb(255 255 255 / 0.045);
+  --ui-glint-strong: rgb(255 255 255 / 0.06);
+
+  /* Chart furniture. `@theme inline` means the utilities and the chart context
+     both read `--chart-*` directly, so redefining these here reaches both. */
+  --chart-background: oklch(0.145 0 0);
+  --chart-foreground: oklch(0.45 0 0);
+  --chart-foreground-muted: oklch(0.65 0.01 260);
+  --chart-crosshair: oklch(0.45 0 0);
+  --chart-grid: oklch(0.25 0 0);
+  --chart-track: oklch(0.325 0 0);
+  --chart-label: oklch(0.75 0.01 260);
+  --chart-marker-background: oklch(0.25 0.01 260);
+  --chart-marker-border: oklch(0.4 0.01 260);
+  --chart-marker-foreground: oklch(0.9 0 0);
+}
+
+/* Declared apart from the block above rather than folded into the `:root,
+   :root[data-theme="dark"], .marketing-shell` group, because the two ends of
+   the mix are exchanged here and folding it in would have hidden that. */
+.ui-inverted {
+  --color-muted-foreground: color-mix(
+    in srgb,
+    color-mix(
+      in srgb,
+      var(--ui-muted-base),
+      var(--color-background) var(--ui-muted-toward-fg)
+    ),
+    var(--color-foreground) var(--ui-muted-toward-bg)
+  );
+}
+
+:root[data-theme="dark"] .ui-inverted {
+  /* The light theme's values: on a dark canvas this card is the light one. */
+  --ui-muted-base: #6b6b75;
+  --color-border: #ececee;
+  --color-muted: #f5f5f6;
+  --color-card: #ffffff;
+  --color-card-foreground: #101010;
+  --color-brand-50: #f5f5f6;
+  --color-brand-100: #e9e9ec;
+  --color-brand-200: #d9d9de;
+  --color-brand-500: #3f3f46;
+  --color-brand-600: #131316;
+  --color-brand-700: #000000;
+
+  --ui-shade: rgb(16 16 18 / 0.16);
+  --ui-shade-weak: rgb(16 16 18 / 0.06);
+  --ui-glint: rgb(255 255 255 / 0.7);
+  --ui-glint-strong: rgb(255 255 255 / 0.95);
+
+  --chart-background: oklch(1 0 0);
+  --chart-foreground: oklch(0.145 0.004 285);
+  --chart-foreground-muted: oklch(0.55 0.014 260);
+  --chart-crosshair: oklch(0.4 0.1828 274.34);
+  --chart-grid: oklch(0.9 0 0);
+  --chart-track: oklch(0.87 0 0);
+  --chart-label: oklch(0.45 0.01 260);
+  --chart-marker-background: oklch(0.97 0.005 260);
+  --chart-marker-border: oklch(0.85 0.01 260);
+  --chart-marker-foreground: oklch(0.3 0.01 260);
+}
+
 /* ── Customise mode ───────────────────────────────────────────────────────
    Marks what is pointable. It does NOT reserve space any more, and that is
    the fix for an empty sidebar opening when you press Customise.
