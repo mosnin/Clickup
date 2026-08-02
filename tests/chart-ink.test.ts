@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   contrastRatio,
@@ -122,17 +122,56 @@ describe("chart furniture is legible in the theme it is drawn in", () => {
     expect(chart).toContain('"--border": "var(--chart-track)"');
   });
 
+  it("paints no NEUTRAL colour literal anywhere in the chart layer", () => {
+    // The sweep, stated as the property rather than as a list of files.
+    //
+    // A saturated literal is a hue, and a hue is what a palette IS — the three
+    // that survive this sweep (`#e879f9` on the accent pattern, `#bef264` and
+    // `#10b981` on the notch gauge's default gradient) are library defaults
+    // this app never reaches, and they are mid-luminance, so they read on
+    // either card. A NEUTRAL literal is the bug: a grey has no identity of its
+    // own, it was picked to sit a certain distance from one card, and the
+    // other card is somewhere else entirely. Every one of the four failures in
+    // this file's history was a neutral.
+    //
+    // `white`/`black` inside a `<mask>` are not paint — in a luminance mask
+    // white means "keep" — so the keyword check is scoped to `color-mix`,
+    // which is the only place they are a colour here.
+    const files = readdirSync(
+      new URL("../src/components/charts", import.meta.url),
+      { recursive: true, encoding: "utf8" },
+    ).filter((f) => /\.tsx?$/.test(f));
+    expect(files.length).toBeGreaterThan(20);
+    const offenders: string[] = [];
+    for (const file of files) {
+      const src = readFileSync(
+        new URL(`../src/components/charts/${file}`, import.meta.url),
+        "utf8",
+      );
+      for (const [, hex] of src.matchAll(/["'](#[0-9a-fA-F]{6})["']/g)) {
+        const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+        const spread = Math.max(r, g, b) - Math.min(r, g, b);
+        if (spread <= 24) offenders.push(`${file}: ${hex}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it("never mixes a chart colour toward a literal black or white", () => {
     // `color-mix(… , white)` is the same bug one indirection down: "lighter"
-    // is only "quieter" in a light theme.
-    const heatmap = readFileSync(
-      new URL(
-        "../src/components/charts/heatmap/heatmap-colors.ts",
-        import.meta.url,
-      ),
-      "utf8",
-    );
-    expect(heatmap).not.toMatch(/color-mix\([^)]*,\s*(white|black)\s*\)/);
+    // is only "quieter" in a light theme. This is what the heatmap's pattern
+    // stroke was doing.
+    const files = readdirSync(
+      new URL("../src/components/charts", import.meta.url),
+      { recursive: true, encoding: "utf8" },
+    ).filter((f) => /\.tsx?$/.test(f));
+    for (const file of files) {
+      const src = readFileSync(
+        new URL(`../src/components/charts/${file}`, import.meta.url),
+        "utf8",
+      );
+      expect(src, file).not.toMatch(/color-mix\([^)]*,\s*(white|black)\s*\)/);
+    }
   });
 });
 
