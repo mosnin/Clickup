@@ -114,6 +114,86 @@ export function normalizeSituation(input: unknown): Situation | null {
   };
 }
 
+// ── Is this the same claim, or a new one? ───────────────────────────────
+//
+// Backend-only, like the matrix below, because it is about the SAVE path and
+// there is no save path in `src/`.
+//
+// The dead band lives in `wasTrue`, and `wasTrue` only survives if re-saving a
+// subscription knows when it is looking at the same condition. Resetting the
+// verdict on every write reintroduces the flap through the save path instead of
+// the poll path — worse, because the pure predicate is where anyone would look
+// for it and the pure predicate is not where it goes wrong. It stops being
+// theoretical the moment a composer saves on change the way the appearance
+// panel does: nudging a threshold from 6 to 7 and back to 6 is three writes,
+// and the third would land on the original condition having forgotten it was
+// ever true.
+//
+// What makes it a different CLAIM is what it measures and what it is compared
+// against — the scope, the query, the comparison, the threshold. `id` and
+// `label` are naming. Renaming a condition is not restating it, and a live
+// panel that blinks because somebody fixed a typo in its label is the same
+// failure in a smaller costume.
+
+/** Structural equality, key-order independent — two writes meaning one thing. */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (a === null || b === null) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+      return false;
+    }
+    return a.every((item, i) => deepEqual(item, b[i]));
+  }
+  if (typeof a !== "object") return false;
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  // Undefined-valued keys are absent as far as this is concerned: a query
+  // written `{ due: undefined }` and one written without `due` ask the same
+  // question, and the resolver cannot tell them apart either.
+  const keys = (o: Record<string, unknown>) =>
+    Object.keys(o).filter((k) => o[k] !== undefined);
+  const ak = keys(ao).sort();
+  const bk = keys(bo).sort();
+  if (ak.length !== bk.length) return false;
+  if (ak.some((k, i) => k !== bk[i])) return false;
+  return ak.every((k) => deepEqual(ao[k], bo[k]));
+}
+
+/**
+ * Do these two subscriptions state the same claim?
+ *
+ * Compared in NORMALIZED form by every caller, or two writes that mean the same
+ * thing look different — normalization is what settles clamping, trimming and
+ * defaults, and comparing raw arguments would answer "changed" to a save that
+ * changed nothing.
+ */
+export function sameClaim(
+  a: {
+    scopeType: string;
+    scopeId: string;
+    compare: Comparison;
+    threshold: number;
+    query: unknown;
+  },
+  b: {
+    scopeType: string;
+    scopeId: string;
+    compare: Comparison;
+    threshold: number;
+    query: unknown;
+  },
+): boolean {
+  return (
+    a.scopeType === b.scopeType &&
+    a.scopeId === b.scopeId &&
+    a.compare === b.compare &&
+    a.threshold === b.threshold &&
+    deepEqual(a.query, b.query)
+  );
+}
+
 // ── What the resolver actually honours ──────────────────────────────────
 //
 // The query vocabulary in `src/lib/data-stream.ts` is one list of filters for

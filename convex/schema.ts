@@ -1547,6 +1547,35 @@ export default defineSchema({
     lastCheckedAt: v.optional(v.number()),
     becameTrueAt: v.optional(v.number()),
     becameFalseAt: v.optional(v.number()),
+    /**
+     * The transition this person has already answered.
+     *
+     * This is what makes "not now" mean something. A dismissal that only lived
+     * for a session would put the same banner back on the next sweep, fifteen
+     * minutes later, forever — which is not a dismissal, it is a snooze with no
+     * end, and it is the single fastest way to teach someone to stop reading
+     * their own screen.
+     *
+     * A stamp rather than a boolean, because the honest unit of dismissal is
+     * the OCCURRENCE, not the subscription. Six tasks open today, dismissed;
+     * the sprint clears; next week six are open again — that is a new fact
+     * about the work and deserves to be said again. Storing the `becameTrueAt`
+     * that was answered gets both halves from one field: while the condition
+     * holds, the stamp equals the occurrence and nothing is announced; when it
+     * goes false and true again, `becameTrueAt` moves past the stamp and the
+     * arrival is offered afresh.
+     */
+    acknowledgedAt: v.optional(v.number()),
+    /**
+     * How the last arrival was answered, which is what departure means.
+     *
+     * A panel the reader KEPT is in their layout and stays there when the
+     * condition stops holding — see the note in `situations.ts`. A panel that
+     * was only ever previewed was never theirs. Absent = never answered.
+     */
+    resolution: v.optional(
+      v.union(v.literal("kept"), v.literal("dismissed")),
+    ),
     /** Cron ordering, so the sweep is an index range rather than a scan. */
     nextCheckAt: v.number(),
     createdAt: v.number(),

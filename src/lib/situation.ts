@@ -36,7 +36,7 @@
 // accepted, or ignored is a decision made elsewhere, per person, because
 // layouts are per person.
 
-import type { DataQuery } from "./data-stream";
+import { normalizeQuery, type DataQuery } from "./data-stream";
 
 /** How a measured value is compared to the threshold. */
 export type Comparison = "at_least" | "at_most" | "equals";
@@ -124,6 +124,152 @@ export function describeSituation(situation: Situation): string {
   }
 }
 
+// ── Arriving, and leaving ───────────────────────────────────────────────
+//
+// Everything above decides whether a condition HOLDS. Nothing above decides
+// whether to say so, and the difference is the whole feature: a condition that
+// is true is a fact about the work, while an announcement is an interruption of
+// a person, and the second is only justified by the first plus three things the
+// server cannot know.
+//
+// Those three are why this is here rather than in `convex/situations.ts`. Two
+// of them — is the panel already on this reader's screen, does its id still
+// resolve to something drawable — are facts about a layout the client composed;
+// the server genuinely cannot answer them (it cannot even distinguish "never
+// arranged this screen" from "arranged it empty", which is why accepting a
+// panel proposal hands the id back for the client to place). Splitting the
+// predicate across the wire would put half the rule where it cannot be tested
+// and the other half where it cannot see.
+
+export type Resolution = "kept" | "dismissed";
+
+/** One subscription as the screen sees it — `situations.forScreen`'s row. */
+export type SituationState = {
+  subscriptionId: string;
+  /** The widget id a layout would carry: "custom:<id>" or a built-in. */
+  panelId: string;
+  /** `describeSituation`, computed server-side. Shown verbatim. */
+  description: string;
+  isTrue: boolean;
+  becameTrueAt: number | null;
+  becameFalseAt: number | null;
+  acknowledgedAt: number | null;
+  resolution: Resolution | null;
+};
+
+/** What only the screen knows about a panel. */
+export type ScreenFacts = {
+  /** Is it already in the reader's own saved layout? */
+  onScreen: boolean;
+  /** Does its id still resolve to a panel this screen can draw? */
+  drawable: boolean;
+};
+
+/**
+ * Should this condition announce itself?
+ *
+ * Five ways to answer no, and each one is a banner somebody would otherwise
+ * have had to live with:
+ *
+ * **It isn't true.** The obvious one, stated first so the rest read as
+ * refinements of it rather than as exceptions.
+ *
+ * **The panel is already there.** Offering to add what is on the screen is a
+ * control that does nothing, and this is also what makes "keep" final: a kept
+ * panel stays placed, so every later occurrence of its condition is answered by
+ * the panel itself rather than by another banner.
+ *
+ * **Nothing would be drawn.** A subscription can outlive the panel it points
+ * at. Announcing an arrival that resolves to an empty tile is worse than
+ * silence, because the reader consents to something and gets nothing.
+ *
+ * **It was answered.** `acknowledgedAt` is the occurrence, not the
+ * subscription, so "not now" is durable across sweeps without being permanent
+ * across time — the condition has to go false and become true again to earn a
+ * second hearing, and when it does, that is a new fact about the work.
+ *
+ * **We cannot date it.** A true condition with no transition stamp cannot be
+ * acknowledged: any dismissal would record a time the row never moves past, so
+ * the banner would return every fifteen minutes with no way to stop it. A
+ * banner you cannot dismiss is worse than a panel you never saw, so an undated
+ * condition stays quiet. Only reachable for a row written before transitions
+ * were recorded; `record()` stamps every real one.
+ */
+export function shouldAnnounce(s: SituationState, f: ScreenFacts): boolean {
+  if (!s.isTrue) return false;
+  if (f.onScreen) return false;
+  if (!f.drawable) return false;
+  if (s.becameTrueAt === null) return false;
+  if (s.acknowledgedAt === null) return true;
+  return s.acknowledgedAt < s.becameTrueAt;
+}
+
+/**
+ * Should the reader be told the reason a panel arrived has expired?
+ *
+ * Only for a panel they KEPT, and only while it is still on their screen. A
+ * panel that was dismissed or merely previewed was never placed, so there is
+ * nothing standing on the screen for the note to be about; a panel they have
+ * since removed has already been dealt with more decisively than a note.
+ *
+ * It stays a note and never an action. The panel is theirs now — see the
+ * departure reasoning in `convex/situations.ts` — so this says what changed and
+ * offers, and the acknowledgement stamp keeps it to once per occurrence rather
+ * than letting it settle into chrome.
+ */
+export function shouldReportDeparture(
+  s: SituationState,
+  f: ScreenFacts,
+): boolean {
+  if (s.isTrue) return false;
+  if (s.resolution !== "kept") return false;
+  if (!f.onScreen) return false;
+  if (s.becameFalseAt === null) return false;
+  if (s.acknowledgedAt === null) return true;
+  return s.acknowledgedAt < s.becameFalseAt;
+}
+
+/**
+ * The one arrival to announce, or null.
+ *
+ * One at a time, matching "one pending proposal per agent per screen": a stack
+ * of banners is a wall, and a wall is read as chrome rather than as news.
+ *
+ * Oldest occurrence first. The alternative — freshest first — sounds more
+ * relevant and is how a queue starves: a screen with several live conditions
+ * would keep putting the newest in front and the first one to become true would
+ * never be seen. Answering one always advances the queue, so nothing waits
+ * behind anything forever.
+ */
+export function nextAnnouncement(
+  states: readonly SituationState[],
+  factsFor: (s: SituationState) => ScreenFacts,
+): SituationState | null {
+  let best: SituationState | null = null;
+  for (const s of states) {
+    if (!shouldAnnounce(s, factsFor(s))) continue;
+    if (best === null || (s.becameTrueAt ?? 0) < (best.becameTrueAt ?? 0)) {
+      best = s;
+    }
+  }
+  return best;
+}
+
+/** The one departure to report, oldest first, for the reasons above. */
+export function nextDeparture(
+  states: readonly SituationState[],
+  factsFor: (s: SituationState) => ScreenFacts,
+): SituationState | null {
+  let best: SituationState | null = null;
+  for (const s of states) {
+    if (!shouldReportDeparture(s, factsFor(s))) continue;
+    if (best === null || (s.becameFalseAt ?? 0) < (best.becameFalseAt ?? 0)) {
+      best = s;
+    }
+  }
+  return best;
+}
+
 /**
  * Coerce anything into a situation, or refuse.
  *
@@ -156,4 +302,118 @@ export function normalizeSituation(input: unknown): Situation | null {
     compare,
     threshold,
   };
+}
+
+// ── Composing one, in a sentence somebody would say ──────────────────────
+//
+// Everything below is for the person putting a condition together. It adds no
+// power: every starter is an ordinary query, run through `normalizeQuery` like
+// any other, so nothing here can express something an agent or the pickers
+// could not. It exists so the first question a composer asks has answers on it
+// rather than an empty vocabulary.
+
+/** How a comparison reads in the row of options, before a number is on it. */
+const COMPARISON_WORDS: Record<Comparison, string> = {
+  at_least: "at least",
+  at_most: "at most",
+  equals: "exactly",
+};
+
+export function comparisonLabel(compare: Comparison): string {
+  return COMPARISON_WORDS[compare];
+}
+
+/**
+ * A starting question, in the query vocabulary.
+ *
+ * Every one is over tasks with only filters `convex/dataStream.ts` actually
+ * honours for tasks — which is what keeps the composer from ever offering a
+ * condition `situationRefusal` would then refuse. A control that produces a
+ * refusal is the same failure as a control that produces a stub.
+ */
+export type SituationStarter = {
+  id: string;
+  /** What the condition is ABOUT — `describeSituation` puts a number after it. */
+  label: string;
+  query: DataQuery;
+};
+
+export const SITUATION_STARTERS: SituationStarter[] = [
+  {
+    id: "overdue",
+    label: "Overdue tasks",
+    query: normalizeQuery({
+      from: "tasks",
+      filter: { status: "open", due: "overdue" },
+      measure: "count",
+    }),
+  },
+  {
+    id: "blocked",
+    label: "Blocked tasks",
+    query: normalizeQuery({
+      from: "tasks",
+      filter: { status: "open", blocked: true },
+      measure: "count",
+    }),
+  },
+  {
+    id: "approval",
+    label: "Tasks waiting on approval",
+    query: normalizeQuery({
+      from: "tasks",
+      filter: { status: "open", needsApproval: true },
+      measure: "count",
+    }),
+  },
+  {
+    id: "unassigned",
+    label: "Tasks with nobody on them",
+    query: normalizeQuery({
+      from: "tasks",
+      filter: { status: "open", assignee: "unassigned" },
+      measure: "count",
+    }),
+  },
+  {
+    id: "mine",
+    label: "My open tasks",
+    query: normalizeQuery({
+      from: "tasks",
+      filter: { status: "open", assignee: "me" },
+      measure: "count",
+    }),
+  },
+  {
+    id: "due-week",
+    label: "Tasks due this week",
+    query: normalizeQuery({
+      from: "tasks",
+      filter: { status: "open", due: "week" },
+      measure: "count",
+    }),
+  },
+];
+
+/**
+ * Where the threshold starts, given what the condition measures right now.
+ *
+ * Not 1, and not zero. A condition seeded at a constant is a condition whose
+ * first reading is meaningless — "at least 1" over a board with forty open
+ * tasks is already true and says nothing. Anchoring one step off the current
+ * value makes the default sentence "tell me when this gets worse", which is
+ * what somebody subscribing a panel almost always means, and it is legible
+ * because the current value is on screen beside it.
+ */
+export function seedThreshold(compare: Comparison, value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  const now = Math.round(value);
+  switch (compare) {
+    case "at_least":
+      return now + 1;
+    case "at_most":
+      return Math.max(0, now - 1);
+    case "equals":
+      return Math.max(0, now);
+  }
 }

@@ -9,6 +9,7 @@ import {
   describeSituation,
   isSituationTrue,
   normalizeSituation,
+  sameClaim,
   situationRefusal,
   type Situation,
 } from "./_situations";
@@ -141,9 +142,27 @@ async function record(
   // — a panel that appeared has to be answerable for why. The event names the
   // condition rather than the panel, because "Sprint panel appeared" tells a
   // reader nothing about what changed in their work.
+  //
+  // **Into the OWNER's scope, never the subscription's.** Two boundaries live
+  // on this row and conflating them is a privacy leak, which is exactly what
+  // happened here: the event was emitted at `row.scopeType`/`row.scopeId`, so a
+  // workspace-scoped subscription wrote "Open tasks in this sprint reached 6"
+  // into the workspace activity feed — the owner's own free-text label and
+  // their clerk id, fanned out to every member, to every workspace webhook, and
+  // over the workspace's realtime channel.
+  //
+  //   `row.scopeType`/`row.scopeId` is the boundary the QUESTION may never read
+  //   past. It belongs to `measure()` and nothing here touches it.
+  //
+  //   The event's scope is about who is ENTITLED TO KNOW that this person's
+  //   condition tripped, and the answer is: the person. A subscription is a
+  //   statement about what one individual is privately watching for, and
+  //   publishing it to the team is the same class of mistake as a space theme
+  //   reaching into somebody's personal type size — a personal act made shared
+  //   without anyone asking.
   await emitEvent(ctx, {
-    scopeType: row.scopeType,
-    scopeId: row.scopeId,
+    scopeType: "user",
+    scopeId: row.ownerClerkId,
     type: isTrue ? "situation.became_true" : "situation.became_false",
     actor: SYSTEM_ACTOR,
     entityType: "panel",
@@ -157,6 +176,12 @@ async function record(
       value,
       screenKey: row.screenKey,
       ownerClerkId: row.ownerClerkId,
+      // Where the question was asked, kept in the payload now that it is no
+      // longer the event's own scope. An audit row that cannot say which
+      // workspace a number came from is a weaker record than the one it
+      // replaced, and the leak was in the addressing, not in the fact.
+      measuredScopeType: row.scopeType,
+      measuredScopeId: row.scopeId,
     },
   });
   return changed;
@@ -236,16 +261,51 @@ export const subscribe = mutation({
 
     if (existing) {
       // A changed condition is a new claim, so the remembered verdict goes with
-      // the old one. Carrying `wasTrue` across would apply the previous
+      // the old one: carrying `wasTrue` across would apply the previous
       // condition's dead band to this one's threshold.
+      //
+      // But the antecedent has to be ESTABLISHED, not assumed. Resetting on
+      // every write — which is what this used to do — throws away the verdict
+      // when nothing changed, so a value resting inside the dead band is re-read
+      // strictly, goes false, comes back true, and announces. That is exactly
+      // the flap the band exists to prevent, reintroduced through the save path
+      // instead of the poll path, where nobody would look for it. And it is not
+      // hypothetical: a composer that saves on change writes several times per
+      // edit, so nudging a threshold from 6 to 7 and back to 6 would land on the
+      // original condition having forgotten it was ever true.
+      //
+      // `sameClaim` compares the NORMALIZED forms — scope, query, comparison,
+      // threshold — and deliberately ignores `id` and `label`, because renaming
+      // a condition is not restating it.
+      const previous = normalizeSituation(existing.situation);
+      const unchanged =
+        previous !== null &&
+        sameClaim(
+          {
+            scopeType: existing.scopeType,
+            scopeId: existing.scopeId,
+            ...previous,
+          },
+          { scopeType: args.scopeType, scopeId: args.scopeId, ...situation },
+        );
+
       await ctx.db.patch(id, {
         scopeType: args.scopeType,
         scopeId: args.scopeId,
         situation,
-        wasTrue: false,
-        lastValue: undefined,
-        nextCheckAt: now,
         updatedAt: now,
+        ...(unchanged
+          ? {}
+          : {
+              wasTrue: false,
+              lastValue: undefined,
+              // The transition stamps date the OLD claim's history. Left in
+              // place they would let an acknowledgement of the previous
+              // condition silence the new one's first arrival.
+              becameTrueAt: undefined,
+              becameFalseAt: undefined,
+              nextCheckAt: now,
+            }),
       });
     }
 
@@ -273,11 +333,91 @@ export const unsubscribe = mutation({
   },
 });
 
+// ── Answering an announcement ───────────────────────────────────────────
+//
+// The consent shape is the one screen proposals and panel proposals already
+// use, and it does not bend: the condition ANNOUNCES, a person PLACES. What is
+// recorded here is only that the person answered — the layout write happens on
+// the client, for the reason `uiComponents.resolveProposal` gives and which is
+// worth repeating because it is not obvious: the server cannot tell "never
+// arranged this screen" from "arranged it empty", so a server that helpfully
+// wrote a layout row holding the one new panel would wipe a screen down to it.
+// So this hands back the panel id and the client places it.
+//
+// **Departure.** A situation going false is not a licence to take a panel away.
+// The rule, and the reasoning:
+//
+//   A panel the reader KEPT is theirs. It is in their layout, written by their
+//   own consent, indistinguishable from a panel they added from the tray — and
+//   a layout that edits itself is precisely the adaptive UI this codebase
+//   rejects everywhere else. Removing it is their call. What the product owes
+//   them instead is the truth: the reason it arrived has expired, said once,
+//   with a one-tap way to act on it. Saying nothing would leave them reading a
+//   panel whose premise is gone; removing it would be the screen changing
+//   behind their back. Telling them and offering is the only option that is
+//   neither.
+//
+//   A panel still only being PREVIEWED was never theirs — nothing was written,
+//   nothing was consented to — so it withdraws with a settle and a line, which
+//   is handled entirely on the client because a preview only ever existed
+//   there.
+//
+// Departures are acknowledged through the same stamp as arrivals, so the note
+// is said once per occurrence rather than sitting on the screen as chrome.
+export const acknowledge = mutation({
+  args: {
+    subscriptionId: v.id("panelSituations"),
+    /**
+     * How an ARRIVAL was answered. Absent means this is a departure being
+     * acknowledged, which has no resolution to record — the panel's fate was
+     * decided when it arrived.
+     */
+    resolution: v.optional(v.union(v.literal("kept"), v.literal("dismissed"))),
+  },
+  handler: async (ctx, { subscriptionId, resolution }) => {
+    const identity = await requireIdentity(ctx);
+    const row = await ctx.db.get(subscriptionId);
+    // "Not found" rather than "forbidden", so an id cannot be probed for
+    // existence — the treatment every other per-person row here gets.
+    if (!row || row.ownerClerkId !== identity.subject) {
+      throw new ConvexError("Subscription not found");
+    }
+
+    // The transition being answered, taken from the row rather than from the
+    // caller. A client-supplied stamp would let a stale banner acknowledge an
+    // occurrence that had already been superseded — which reads as a dismissal
+    // silently swallowing the NEXT arrival, the one failure this mechanism
+    // exists to prevent.
+    //
+    // `Date.now()` only when neither stamp exists, which is a row written
+    // before transitions were recorded. Stamping the present is the safe
+    // direction: it suppresses this occurrence and nothing after it, since any
+    // real transition from here on is later than now.
+    const answered =
+      (row.wasTrue ? row.becameTrueAt : row.becameFalseAt) ?? Date.now();
+
+    await ctx.db.patch(subscriptionId, {
+      acknowledgedAt: answered,
+      ...(resolution === undefined ? {} : { resolution }),
+      updatedAt: Date.now(),
+    });
+
+    // The panel id, so the client can place it. See the note above.
+    return { panelId: row.panelId };
+  },
+});
+
 /**
  * What is true on this screen, for this person.
  *
  * The consent surface reads this and decides what to offer. It deliberately
  * returns state rather than a layout: this file never says where a panel goes.
+ *
+ * Nor does it say whether to ANNOUNCE. That question needs two things only the
+ * client holds — whether the panel is already on this reader's screen, and
+ * whether its id still resolves to something drawable — so the predicate lives
+ * once, in `src/lib/situation.ts`, where it is pure and testable, rather than
+ * half here and half there.
  */
 export const forScreen = query({
   args: { screenKey: v.string() },
@@ -309,6 +449,9 @@ export const forScreen = query({
           isTrue: row.wasTrue,
           value: row.lastValue ?? null,
           becameTrueAt: row.becameTrueAt ?? null,
+          becameFalseAt: row.becameFalseAt ?? null,
+          acknowledgedAt: row.acknowledgedAt ?? null,
+          resolution: row.resolution ?? null,
           lastCheckedAt: row.lastCheckedAt ?? null,
         },
       ];

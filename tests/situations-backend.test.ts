@@ -654,3 +654,350 @@ describe("the two copies of the rule agree", () => {
     }
   });
 });
+
+describe("a transition is the owner's business, not the team's", () => {
+  // Two boundaries live on a subscription row and they are not the same one.
+  // `scopeType`/`scopeId` is where the QUESTION may read — a workspace, if that
+  // is what is being measured. Who is entitled to know that this person's
+  // condition tripped is a different question with a different answer, and
+  // conflating them wrote somebody's private worry, in their own words, into
+  // the team's activity feed.
+
+  async function eventScopes(t: State["t"]) {
+    return await t.run(async (ctx) =>
+      (await ctx.db.query("events").collect())
+        .filter((e) => e.type.startsWith("situation."))
+        .map((e) => ({ scopeType: e.scopeType, scopeId: e.scopeId })),
+    );
+  }
+
+  it("keeps a workspace-scoped subscription's transition out of the workspace feed", async () => {
+    const state = await seed();
+    await addTasks(state.alice, state.listId, 6);
+    await subscribe(state);
+
+    const scopes = await eventScopes(state.t);
+    expect(scopes).toHaveLength(1);
+    expect(scopes[0]).toEqual({
+      scopeType: "user",
+      scopeId: ALICE.subject,
+    });
+    // Said the other way round too, because "it is in the right place" and
+    // "it is not in the wrong place" are different assertions and only the
+    // second one is the leak.
+    expect(
+      scopes.some((s) => s.scopeId === state.workspaceId),
+    ).toBe(false);
+
+    // Through the query a teammate would actually read, not only the table.
+    const teammate = { subject: "user_carol" };
+    await state.t.run(async (ctx) => {
+      await ctx.db.insert("users", {
+        clerkId: teammate.subject,
+        email: "carol@example.com",
+        name: "Carol",
+      });
+      await ctx.db.insert("memberships", {
+        userClerkId: teammate.subject,
+        workspaceId: state.workspaceId,
+        role: "member",
+        joinedAt: Date.now(),
+      });
+    });
+    const seen = await state.t
+      .withIdentity(teammate)
+      .query(api.events.feed, {
+        scopeType: "workspace",
+        scopeId: state.workspaceId,
+      });
+    expect(seen.filter((e) => e.type.startsWith("situation."))).toEqual([]);
+  });
+
+  it("still records where the question was asked", async () => {
+    // Auditability was worth having; the fix is in the addressing, not in
+    // dropping the fact. A row that cannot say which workspace a number came
+    // from would be a weaker record than the one it replaced.
+    const state = await seed();
+    await addTasks(state.alice, state.listId, 6);
+    await subscribe(state);
+    const payload = (await situationEvents(state.t))[0].payload as {
+      measuredScopeType: string;
+      measuredScopeId: string;
+    };
+    expect(payload.measuredScopeType).toBe("workspace");
+    expect(payload.measuredScopeId).toBe(state.workspaceId);
+  });
+
+  it("does not fan a transition out to workspace webhooks", async () => {
+    // The same leak wearing a different hat: `emitEvent` matches subscriptions
+    // by the event's scope, so a workspace-addressed transition would have been
+    // POSTed to whatever the team has wired up.
+    const state = await seed();
+    await state.t.run(async (ctx) => {
+      await ctx.db.insert("webhookSubscriptions", {
+        scopeType: "workspace",
+        scopeId: state.workspaceId,
+        url: "https://example.com/hook",
+        secret: "s",
+        eventTypes: [],
+        ownerType: "user",
+        ownerId: ALICE.subject,
+        enabled: true,
+        failureCount: 0,
+        createdAt: Date.now(),
+      });
+    });
+    await addTasks(state.alice, state.listId, 6);
+    await subscribe(state);
+    const deliveries = await state.t.run(async (ctx) =>
+      ctx.db.query("webhookDeliveries").collect(),
+    );
+    expect(
+      deliveries.filter((d) => d.eventType.startsWith("situation.")),
+    ).toEqual([]);
+  });
+});
+
+describe("re-saving a condition does not make it forget itself", () => {
+  // `wasTrue` IS the dead band. Resetting it on every write reintroduces the
+  // flap through the save path rather than the poll path — invisible to the
+  // pure predicate's tests, because the pure predicate is not where it goes
+  // wrong.
+
+  it("preserves the verdict when nothing about the claim changed", async () => {
+    const state = await seed();
+    const tasks = await addTasks(state.alice, state.listId, 6);
+    expect((await subscribe(state)).isTrue).toBe(true);
+
+    // One task closes: five, which is inside the band, so the condition is
+    // still true. This is the state a naive re-save destroys.
+    await state.alice.mutation(api.tasks.toggleComplete, { taskId: tasks[0] });
+    await ripen(state.t);
+    await state.t.mutation(internal.situations.evaluateDue, {});
+    expect((await stateOf(state.t)).wasTrue).toBe(true);
+
+    const again = await subscribe(state);
+    expect(again.value).toBe(5);
+    expect(again.isTrue).toBe(true);
+    expect((await stateOf(state.t)).wasTrue).toBe(true);
+    // And crucially: no second announcement. A blink is two events.
+    expect(await situationEvents(state.t)).toHaveLength(1);
+  });
+
+  it("survives a composer that saves several times per edit", async () => {
+    // The realistic shape of the bug: an appearance-style panel debounces at
+    // ~450ms, so one editing session is several writes. Nudging a threshold up
+    // and back down must land on the original condition with its memory intact.
+    const state = await seed();
+    const tasks = await addTasks(state.alice, state.listId, 6);
+    await subscribe(state);
+    await state.alice.mutation(api.tasks.toggleComplete, { taskId: tasks[0] });
+    await ripen(state.t);
+    await state.t.mutation(internal.situations.evaluateDue, {});
+
+    for (let i = 0; i < 8; i += 1) await subscribe(state);
+    expect((await stateOf(state.t)).wasTrue).toBe(true);
+    expect(await situationEvents(state.t)).toHaveLength(1);
+  });
+
+  it("ignores a re-save that only renames the condition", async () => {
+    // Relabelling is renaming, not restating. A live panel that blinks because
+    // somebody fixed a typo is the same failure in a smaller costume.
+    const state = await seed();
+    const tasks = await addTasks(state.alice, state.listId, 6);
+    await subscribe(state);
+    await state.alice.mutation(api.tasks.toggleComplete, { taskId: tasks[0] });
+    await ripen(state.t);
+    await state.t.mutation(internal.situations.evaluateDue, {});
+
+    const renamed = await subscribe(state, {
+      id: "open-tasks-v2",
+      label: "Still open in this sprint",
+    });
+    expect(renamed.isTrue).toBe(true);
+    expect(await situationEvents(state.t)).toHaveLength(1);
+  });
+
+  it("ignores a query rewritten with its keys in a different order", async () => {
+    // Two writes that mean the same thing must not look different, or the
+    // comparison is a formatting check rather than a semantic one.
+    const state = await seed();
+    const tasks = await addTasks(state.alice, state.listId, 6);
+    await subscribe(state);
+    await state.alice.mutation(api.tasks.toggleComplete, { taskId: tasks[0] });
+    await ripen(state.t);
+    await state.t.mutation(internal.situations.evaluateDue, {});
+
+    const reordered = await subscribe(state, {
+      query: { measure: "count", filter: { status: "open" }, from: "tasks" },
+    });
+    expect(reordered.isTrue).toBe(true);
+    expect(await situationEvents(state.t)).toHaveLength(1);
+  });
+
+  it("clears the verdict when the threshold actually changes", async () => {
+    const state = await seed();
+    await addTasks(state.alice, state.listId, 6);
+    await subscribe(state, { threshold: 5 });
+    expect((await stateOf(state.t)).wasTrue).toBe(true);
+
+    // Six open against a new claim of "at least 7". Six is one below seven,
+    // which is INSIDE the new threshold's band — so a carried-over verdict
+    // would read it as true and the panel would never have to earn its
+    // arrival under the condition somebody just wrote.
+    const changed = await subscribe(state, { threshold: 7 });
+    expect(changed.value).toBe(6);
+    expect(changed.isTrue).toBe(false);
+  });
+
+  it("clears the verdict when the question changes", async () => {
+    const state = await seed();
+    await addTasks(state.alice, state.listId, 6);
+    await subscribe(state);
+    expect((await stateOf(state.t)).wasTrue).toBe(true);
+
+    const changed = await subscribe(state, {
+      query: {
+        ...OPEN_TASKS,
+        filter: { status: "open", due: "overdue" },
+      },
+    });
+    expect(changed.value).toBe(0);
+    expect(changed.isTrue).toBe(false);
+  });
+});
+
+describe("answering an announcement", () => {
+  // The consent record. Nothing here writes a layout — the client does that,
+  // for the reason panel proposals already gave: the server cannot tell "never
+  // arranged this screen" from "arranged it empty".
+
+  async function forScreen(state: State) {
+    return (await state.alice.query(api.situations.forScreen, {
+      screenKey: SCREEN,
+    }))[0];
+  }
+
+  it("stamps the occurrence being answered, and hands back the panel", async () => {
+    const state = await seed();
+    await addTasks(state.alice, state.listId, 6);
+    const { subscriptionId } = await subscribe(state);
+    const before = await forScreen(state);
+    expect(before.acknowledgedAt).toBeNull();
+
+    const result = await state.alice.mutation(api.situations.acknowledge, {
+      subscriptionId,
+      resolution: "kept",
+    });
+    expect(result.panelId).toBe(PANEL);
+
+    const after = await forScreen(state);
+    // The stamp is the row's own transition, never a time the caller supplied:
+    // a client-chosen stamp could acknowledge an occurrence that had already
+    // been superseded, which is a dismissal swallowing the NEXT arrival.
+    expect(after.acknowledgedAt).toBe(before.becameTrueAt);
+    expect(after.resolution).toBe("kept");
+  });
+
+  it("survives the sweep, so a dismissal is not a fifteen-minute snooze", async () => {
+    const state = await seed();
+    await addTasks(state.alice, state.listId, 6);
+    const { subscriptionId } = await subscribe(state);
+    await state.alice.mutation(api.situations.acknowledge, {
+      subscriptionId,
+      resolution: "dismissed",
+    });
+    const stamped = (await forScreen(state)).acknowledgedAt;
+
+    for (let i = 0; i < 4; i += 1) {
+      await ripen(state.t);
+      await state.t.mutation(internal.situations.evaluateDue, {});
+    }
+    const after = await forScreen(state);
+    // Still true, still answered, and the occurrence has not moved — which is
+    // exactly what `shouldAnnounce` reads to stay quiet.
+    expect(after.isTrue).toBe(true);
+    expect(after.acknowledgedAt).toBe(stamped);
+    expect(after.becameTrueAt).toBe(stamped);
+  });
+
+  it("lets the same condition be heard again after it has cleared and returned", async () => {
+    const state = await seed();
+    const tasks = await addTasks(state.alice, state.listId, 6);
+    const { subscriptionId } = await subscribe(state);
+    await state.alice.mutation(api.situations.acknowledge, {
+      subscriptionId,
+      resolution: "dismissed",
+    });
+    const answered = (await forScreen(state)).acknowledgedAt!;
+
+    // Two closed clears the band; reopening puts it back. A new occurrence.
+    await state.alice.mutation(api.tasks.toggleComplete, { taskId: tasks[0] });
+    await state.alice.mutation(api.tasks.toggleComplete, { taskId: tasks[1] });
+    await ripen(state.t);
+    await state.t.mutation(internal.situations.evaluateDue, {});
+    expect((await forScreen(state)).isTrue).toBe(false);
+
+    await state.alice.mutation(api.tasks.toggleComplete, { taskId: tasks[0] });
+    await state.alice.mutation(api.tasks.toggleComplete, { taskId: tasks[1] });
+    await ripen(state.t);
+    await state.t.mutation(internal.situations.evaluateDue, {});
+
+    const back = await forScreen(state);
+    expect(back.isTrue).toBe(true);
+    expect(back.becameTrueAt!).toBeGreaterThan(answered);
+    expect(back.acknowledgedAt).toBe(answered);
+  });
+
+  it("acknowledges a departure against the falling transition", async () => {
+    const state = await seed();
+    const tasks = await addTasks(state.alice, state.listId, 6);
+    const { subscriptionId } = await subscribe(state);
+    await state.alice.mutation(api.situations.acknowledge, {
+      subscriptionId,
+      resolution: "kept",
+    });
+    await state.alice.mutation(api.tasks.toggleComplete, { taskId: tasks[0] });
+    await state.alice.mutation(api.tasks.toggleComplete, { taskId: tasks[1] });
+    await ripen(state.t);
+    await state.t.mutation(internal.situations.evaluateDue, {});
+
+    const fallen = await forScreen(state);
+    expect(fallen.isTrue).toBe(false);
+    await state.alice.mutation(api.situations.acknowledge, { subscriptionId });
+    const after = await forScreen(state);
+    expect(after.acknowledgedAt).toBe(fallen.becameFalseAt);
+    // A departure has no resolution of its own — the panel's fate was decided
+    // when it arrived, and that record must survive being told it has expired.
+    expect(after.resolution).toBe("kept");
+  });
+
+  it("writes no layout, whatever the answer is", async () => {
+    // The line this feature is not allowed to cross. Accepting mints nothing
+    // and arranges nothing; the client places the panel in its own layout.
+    const state = await seed();
+    await addTasks(state.alice, state.listId, 6);
+    const { subscriptionId } = await subscribe(state);
+    await state.alice.mutation(api.situations.acknowledge, {
+      subscriptionId,
+      resolution: "kept",
+    });
+    const layouts = await state.t.run(async (ctx) =>
+      ctx.db.query("screenLayouts").collect(),
+    );
+    expect(layouts).toEqual([]);
+  });
+
+  it("will not let anyone else answer it", async () => {
+    const state = await seed();
+    const { subscriptionId } = await subscribe(state);
+    await expect(
+      state.t
+        .withIdentity(OUTSIDER)
+        .mutation(api.situations.acknowledge, {
+          subscriptionId,
+          resolution: "dismissed",
+        }),
+    ).rejects.toThrow(/not found/i);
+  });
+});
