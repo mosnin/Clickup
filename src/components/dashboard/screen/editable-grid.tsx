@@ -982,7 +982,14 @@ export function EditableGrid({
                       where by construction there is nothing to cover, and it
                       still reads as attached — which is exactly where a phone
                       puts a delete badge, for the same reason. */}
-                  <div className="pointer-events-none absolute -right-2 -top-2 z-20 flex items-center gap-1">
+                  {/* `data-tile-chrome` raises this badge's tap floor: the
+                      tile around it is scaled to 0.965 while arrange mode is
+                      on, so a 44px hit area is 42.5 under the finger. See the
+                      rule in globals.css. */}
+                  <div
+                    data-tile-chrome
+                    className="pointer-events-none absolute -right-2 -top-2 z-20 flex items-center gap-1"
+                  >
                     <button
                       type="button"
                       aria-label={`Remove ${tile.title}`}
@@ -1056,7 +1063,7 @@ export function EditableGrid({
               <button
                 type="button"
                 onClick={() => setEditing(false)}
-                className="rounded-full bg-background px-3 py-1 text-xs font-medium text-foreground"
+                className="tap-target rounded-full bg-background px-3 py-1 text-xs font-medium text-foreground"
               >
                 Done
               </button>

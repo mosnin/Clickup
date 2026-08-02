@@ -22,16 +22,14 @@ function Checkbox({
         // around it fixes.
         //
         // A halo rather than a bigger box, because the drawing is correct: the
-        // checkbox stays 16px and the press it answers to is 44. `-inset-3.5`
-        // is 14px a side, which is 44 exactly. `.tap-target` (the app's usual
-        // idiom) would only reach 33.6 here — its -0.55rem is sized for ~30px
-        // controls — so the inset is stated rather than borrowed.
+        // checkbox stays 16px and the press it answers to is 44.
         //
-        // Coarse pointers only. A 44px invisible halo under a mouse would
-        // swallow clicks aimed at the words beside it; a finger has no such
-        // precision to lose. Rows carrying these are ~77px apart, so no two
-        // halos meet.
-        "relative [@media(pointer:coarse)]:after:absolute [@media(pointer:coarse)]:after:-inset-3.5 [@media(pointer:coarse)]:after:content-['']",
+        // This used to state its own `-inset-3.5`, because `.tap-target` was a
+        // flat -0.55rem halo that only reached 33.6px on a control this small.
+        // The utility is now a 44px FLOOR, which resolves to exactly -14px on
+        // a 16px box — the same geometry, borrowed instead of restated. Rows
+        // carrying these are ~77px apart, so no two halos meet.
+        "tap-target",
         className
       )}
       {...props}

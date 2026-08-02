@@ -143,7 +143,7 @@ export function ProjectOwnerCard({
             <button
               type="button"
               onClick={() => void setOwner(null)}
-              className="flex-shrink-0 text-xs text-muted-foreground hover:text-foreground"
+              className="tap-target flex-shrink-0 text-xs text-muted-foreground hover:text-foreground"
             >
               Remove
             </button>
@@ -194,7 +194,7 @@ export function ProjectTargetDateCard({
           <button
             type="button"
             onClick={() => void setDate(null)}
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="tap-target text-xs text-muted-foreground hover:text-foreground"
           >
             Clear
           </button>

@@ -294,13 +294,25 @@
    does not exist on a phone. The resize grip sat at 60% until a mouse found
    it; on a coarse pointer it is always fully visible and gets a real target
    around it — 36px is under everyone's minimum, and this one is in a corner
-   where a thumb is least accurate. */
+   where a thumb is least accurate.
+
+   3rem rather than 2.75rem because of something the stylesheet cannot see:
+   arrange mode runs `inhale()`, which scales every tile to 0.965 to say "these
+   are objects now". A control drawn at 44px inside a scaled tile is 42.5px
+   under the finger, and both handles were failing the floor for exactly that
+   reason while measuring 44 in their own CSS. 3rem × 0.965 = 46.3, so the
+   floor is cleared by the pixels that actually get pressed. `--tap-floor`
+   carries the same correction to the remove badge, which reaches its size
+   through `.tap-target` rather than through a height. */
 @media (pointer: coarse) {
   [data-tile] [data-resize-grip] {
     opacity: 1;
     padding: 0.75rem;
-    height: 2.75rem;
-    width: 2.75rem;
+    height: 3rem;
+    width: 3rem;
+  }
+  [data-tile] [data-tile-chrome] {
+    --tap-floor: 3rem;
   }
 }
 
@@ -1407,8 +1419,42 @@ body {
   height: 100%;
 }
 
-/* Expanded touch hit-area for small icon buttons: keeps the compact visual
- * size on desktop while giving coarse pointers a ~44px target. */
+/* A control's hit area, FLOORED at 44px rather than padded by a fixed amount.
+ *
+ * This used to be a flat `inset: -0.55rem` halo, which makes the resulting
+ * target a function of how big the control already was — 17.6px added to a
+ * 36px button is 53.6 (more than anyone needs), and 17.6 added to a 20px one
+ * is 37.6 (under the floor the utility exists to reach). So the app carried
+ * two hand-written workarounds saying so in their comments, and three controls
+ * shipped at 41-42px while wearing the class that was supposed to fix them.
+ *
+ * The floor states the intent directly: grow the box to 2.75rem on each axis,
+ * and stop. Two properties fall out of it, and both were measured over all 68
+ * sized call sites before the change:
+ *
+ *   - **Nothing that already cleared the floor gets bigger.** 37 call sites
+ *     (every h-7/h-8/h-9 control) get a SMALLER halo than they had, so the
+ *     overlap between neighbouring controls in a dense toolbar goes down, not
+ *     up. Two 32px buttons 4px apart overlapped by 13.6px before and by 8 now.
+ *   - **Everything that grows was under the floor.** All 31 growing call sites
+ *     measure 16-24px painted — i.e. every one of them was a target this
+ *     utility was already failing to deliver.
+ *
+ * `100%` resolves against the containing block's width for left/right and its
+ * height for top/bottom, so each axis is floored on its own: a 63x16 text
+ * button grows downward only, which is the axis that was short. `min(0px, …)`
+ * keeps the halo from ever being smaller than the control it belongs to.
+ *
+ * `--tap-floor` is raised where a control is drawn inside something scaled
+ * (see the arrange-mode chrome below), because the floor is about the pixels
+ * under the finger rather than the ones in the stylesheet.
+ *
+ * Coarse pointers only. A 44px invisible halo under a mouse would swallow
+ * clicks aimed at whatever is beside it; a finger has no such precision to
+ * lose. And a halo is for an isolated control — a ROW in a list gets `.tap-row`
+ * instead, which makes the row itself taller, because a halo on one row
+ * overlaps the rows above and below it and a press between two records has to
+ * resolve to one of them. */
 .tap-target {
   position: relative;
 }
@@ -1416,7 +1462,15 @@ body {
   .tap-target::after {
     content: "";
     position: absolute;
-    inset: -0.55rem;
+    inset: min(0px, calc((100% - var(--tap-floor, 2.75rem)) / 2));
+  }
+}
+
+/* The same 44px floor for a row that stands for one record, reached by making
+ * the row taller. See the note above for why a row must not use a halo. */
+@media (pointer: coarse) {
+  .tap-row {
+    min-height: 2.75rem;
   }
 }
 

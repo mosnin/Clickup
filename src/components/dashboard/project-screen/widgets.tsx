@@ -93,7 +93,13 @@ function AboutWidget({ project }: ProjectWidgetContext) {
               }),
             );
         }}
-        className="mt-2 w-full bg-transparent text-sm focus:outline-none"
+        // A form field cannot borrow a hit area: `.tap-target` hangs its halo
+        // off an `::after`, and an `<input>` generates no pseudo-elements —
+        // and the gate is right to refuse to widen a field onto whatever card
+        // encloses it, since pressing the card selects the card rather than
+        // putting a caret in the field. So the box itself is the target. A
+        // 20px-tall line of text was the whole of it; on touch it is 44.
+        className="mt-2 w-full bg-transparent text-sm focus:outline-none [@media(pointer:coarse)]:min-h-11"
       />
     </Card>
   );
@@ -111,7 +117,12 @@ function ListsWidget({ project, lists }: ProjectWidgetContext) {
           Lists
         </h2>
         {!creating && (
-          <Button variant="outline" size="sm" onClick={() => setCreating(true)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="tap-target"
+            onClick={() => setCreating(true)}
+          >
             <Plus className="h-3.5 w-3.5" />
             Add list
           </Button>
