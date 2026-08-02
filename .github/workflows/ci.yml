@@ -15,8 +15,20 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Typecheck first: it is the fastest way to fail, and a type error makes
+      # everything after it noise.
       - run: npm run typecheck
-      - run: npm test
+      # Build BEFORE test, which is the opposite of the obvious order and is
+      # deliberate. Some gates measure what the app actually ships rather than
+      # what a component returns in isolation — tests/ui/panel-fit.test.tsx
+      # reads the compiled stylesheet out of .next/static/css and *refuses to
+      # run* without it, on the grounds that measuring contrast against a
+      # stylesheet the app does not ship is worse than not measuring at all.
+      # With test first that CSS never exists, so the gate could only ever
+      # throw. It passed locally purely because a previous build had left
+      # .next behind, which is exactly the kind of works-on-my-machine this
+      # ordering removes.
+      #
       # Placeholder publishable values so `next build` can prerender; no
       # real secrets are needed (or used) at build time.
       - run: npm run build
@@ -24,3 +36,4 @@ jobs:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
           CLERK_SECRET_KEY: sk_test_placeholder
           NEXT_PUBLIC_CONVEX_URL: https://placeholder-000.convex.cloud
+      - run: npm test
