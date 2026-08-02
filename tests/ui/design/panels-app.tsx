@@ -3,9 +3,9 @@ import { ToastProvider } from "@/components/toast";
 import { AppearanceProvider } from "@/components/appearance/appearance-provider";
 import { CustomizeProvider } from "@/components/appearance/customize-provider";
 import { Panel } from "@/components/dashboard/panel";
+import { PanelBuilder } from "@/components/dashboard/panel-builder";
 import { PanelProposal } from "@/components/dashboard/panel-proposal";
 import { EmptyState } from "@/components/dashboard/empty-state";
-import { Button } from "@/components/ui/button";
 import { ALL_SHAPES, shapeLabel, type PanelShape } from "@/lib/panel";
 import { galleryData } from "./stubs/convex-react";
 
@@ -338,8 +338,27 @@ function Page() {
             </div>
             <div className="cell" data-audit-panel style={{ gridColumn: "span 2" }}>
               <div className="cap">empty state · standalone, with an action</div>
+              {/* The action is the REAL builder, not a button shaped like one.
+                  It used to be `<Button size="sm">Build a panel</Button>` — no
+                  handler, no ancestor handler, no destination — and the gallery
+                  is where a person goes to find out what this product does, so
+                  a control here that produces nothing is the product claiming
+                  something it does not do. Under the rubric that is worse than
+                  having no control at all, because absence is honest.
+
+                  Wiring it to the thing it names costs one component: pressing
+                  it opens the same builder a blank project screen offers, with
+                  the same vocabulary and the same live preview. */}
               <EmptyState
-                action={<Button size="sm">Build a panel</Button>}
+                action={
+                  <div className="w-full text-left">
+                    <PanelBuilder
+                      onCreated={() => {}}
+                      scopeId={SCOPE.scopeId}
+                      scopeType={SCOPE.scopeType}
+                    />
+                  </div>
+                }
                 message="A panel is a question about your work. Pick something to watch and how it should be drawn."
                 title="This screen is blank"
               />
