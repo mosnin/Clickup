@@ -129,9 +129,15 @@ galleryData["uiComponents.forScope"] = [];
  *
  * `data-fit-tile` is what the gate measures against: everything the panel
  * paints has to stay inside it, exactly as everything a real tile holds has to
- * stay inside the tile. `overflow: hidden` because a real tile clips too —
- * without it a defect would paint over the neighbour instead of being cut, and
- * the gate would be reading a different failure than the one that ships.
+ * stay inside the tile.
+ *
+ * `overflow: auto` because that is what a real tile is (`[data-tile-inner]` in
+ * `screen/editable-grid`), and the harness has to be the shell that ships
+ * rather than a stricter one. The difference matters in both directions: with
+ * `visible` a defect would paint over its neighbour instead of being cut, and
+ * the gate would be reading a different failure; with `hidden` every list of
+ * eleven rows in a one-row tile would report as clipped, when scrolling is
+ * exactly how a list is meant to work there.
  */
 function Tile({
   shape,
@@ -148,7 +154,7 @@ function Tile({
     <div
       data-fit-tile={id}
       data-shape={shape}
-      style={{ width, height, flex: "0 0 auto", overflow: "hidden" }}
+      style={{ width, height, flex: "0 0 auto", overflow: "auto" }}
     >
       <Panel
         definition={{
@@ -167,10 +173,100 @@ function Tile({
   );
 }
 
+/**
+ * The three defects, on purpose, so the instrument can be shown catching them.
+ *
+ * A gate that has never fired on a known defect cannot report its absence —
+ * and this project has already had an auditor return a clean result on a
+ * surface with a defect documented twice. The calibration is therefore part of
+ * the page rather than a fixture kept somewhere else: a broken copy that has
+ * to be maintained separately drifts away from the real one, and the day it
+ * does, the calibration passes while testing nothing.
+ *
+ *   `?break=clip` — a chart at a constant height inside a smaller box, in a
+ *   tile that SCROLLS, which is exactly the shape of the shipped defect: the
+ *   holder could technically be scrolled and nobody ever did. The first
+ *   version of the gate forgave this and reported the page clean.
+ *
+ *   `?break=cut` — text past a boundary that cannot be scrolled at all, which
+ *   is the table losing its last column.
+ *
+ *   `?break=ink` — a mark filled from a custom property nothing defines. Not a
+ *   hardcoded black: the point is that an undefined property is not a
+ *   fallback, it is an invalid value that resolves to SVG's initial black, and
+ *   the gate has to catch the real mechanism rather than a stand-in for it.
+ */
+const BREAK = new URLSearchParams(location.search).get("break");
+
+function Broken() {
+  if (BREAK === "clip") {
+    return (
+      <div className="row">
+        <div
+          data-fit-tile="broken/clip"
+          style={{ width: 276, height: 90, flex: "0 0 auto", overflow: "auto" }}
+        >
+          <div className="bento rounded-2xl bg-card p-3">
+            <p className="text-sm">Recent activity</p>
+            <p className="text-4xl">4917</p>
+            {/* A chart that laid itself out at a constant, the way `Panel`
+                asked for 132px of chart in whatever room was left. */}
+            <div aria-label="Completions over time" role="img" style={{ height: 132 }}>
+              <svg height={132} width={240}>
+                <rect fill="#555" height={100} width={30} x={10} y={20} />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (BREAK === "cut") {
+    return (
+      <div className="row">
+        <div
+          data-fit-tile="broken/cut"
+          style={{ width: 200, height: 90, flex: "0 0 auto", overflow: "hidden" }}
+        >
+          <div className="bento h-full rounded-2xl bg-card p-3">
+            <table style={{ width: 420 }}>
+              <tbody>
+                <tr>
+                  <td style={{ width: 340 }}>Billing migration</td>
+                  <td>At risk</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (BREAK === "ink") {
+    return (
+      <div className="row">
+        <div
+          data-fit-tile="broken/ink"
+          style={{ width: 276, height: 168, flex: "0 0 auto", overflow: "hidden" }}
+        >
+          <div className="bento h-full rounded-2xl bg-card p-3">
+            <svg height={120} width={240}>
+              <rect fill="var(--a-token-nothing-defines)" height={80} width={40} x={10} y={20} />
+              <rect fill="var(--a-token-nothing-defines)" height={60} width={40} x={70} y={40} />
+            </svg>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
 function Page() {
   return (
     <ToastProvider>
       <AppearanceProvider>
+        <Broken />
         {ALL_SHAPES.map((shape) => (
           <section key={shape}>
             <p className="cap">{shape}</p>

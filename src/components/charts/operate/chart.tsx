@@ -516,7 +516,7 @@ function Dial({ series, style, height, unit }: BodyProps) {
 }
 
 /** Concentric progress rings — one per point, each against the largest. */
-function Rings({ series, style, height }: BodyProps) {
+function Rings({ series, style, height, x }: BodyProps) {
   const points = series[0]?.points ?? [];
   const max = Math.max(...points.map((p) => p.value), 1);
   // Four, not six. Six concentric hairlines is a spirograph — the rings stop
@@ -524,7 +524,7 @@ function Rings({ series, style, height }: BodyProps) {
   // opposite of what a chart is for. Fewer and thicker is legible at panel
   // size; past four, this shape is the wrong shape for the data.
   const data = points.slice(0, 4).map((p, i) => ({
-    label: p.label || p.key,
+    label: bandLabel(p, x),
     value: p.value,
     maxValue: max,
     color: p.color ?? seriesColor(style.palette, i),
@@ -542,18 +542,24 @@ function Rings({ series, style, height }: BodyProps) {
 }
 
 /** Stages, largest first — the shape only reads as a funnel if it narrows. */
-function Funnel({ series, style, height }: BodyProps) {
+function Funnel({ series, style, height, x }: BodyProps) {
   const stages: FunnelStage[] = useMemo(() => {
     const points = series[0]?.points ?? [];
     return [...points]
       .sort((a, b) => b.value - a.value)
       .slice(0, 8)
       .map((p, i) => ({
-        label: p.label || p.key,
+        // `bandLabel`, not `p.label || p.key`. A temporal bucket carries the
+        // epoch as its key and deliberately leaves the label blank, because
+        // formatting an instant is the renderer's job — so falling through to
+        // the key printed `1748995200000` beside a funnel stage, a ring and a
+        // radar spoke. It was also thirteen digits wide, which is how the
+        // clipping gate found it.
+        label: bandLabel(p, x),
         value: p.value,
         color: p.color ?? seriesColor(style.palette, i),
       }));
-  }, [series, style.palette]);
+  }, [series, style.palette, x]);
 
   // A funnel is proportions, so a set of zeroes divides by its own total and
   // the library emits `NaN` into the path — which renders as nothing at all
@@ -594,10 +600,10 @@ function Funnel({ series, style, height }: BodyProps) {
  * globally: an axis whose biggest value is 3 would otherwise be a dot at the
  * centre next to one whose biggest is 300.
  */
-function Radar({ series, style, height }: BodyProps) {
+function Radar({ series, style, height, x }: BodyProps) {
   const { metrics, data } = useMemo(
-    () => radarShape(series, style),
-    [series, style],
+    () => radarShape(series, style, x),
+    [series, style, x],
   );
   if (metrics.length < 3) {
     return (
@@ -931,11 +937,15 @@ function bandRows(
 }
 
 /** Points become axes, series become polygons, values normalise per axis. */
-function radarShape(series: ChartSeries[], style: ComponentStyle) {
+function radarShape(
+  series: ChartSeries[],
+  style: ComponentStyle,
+  x: "time" | "category",
+) {
   const points = series[0]?.points.slice(0, 8) ?? [];
   const metrics = points.map((p, i) => ({
     key: `m${i}`,
-    label: p.label || p.key,
+    label: bandLabel(p, x),
   }));
   const ceilings = points.map((_, i) =>
     Math.max(...series.map((s) => s.points[i]?.value ?? 0), 1),

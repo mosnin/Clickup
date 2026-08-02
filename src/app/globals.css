@@ -32,7 +32,8 @@
   --color-background: #ffffff;
   --color-foreground: #101010;
   --color-muted: #f5f5f6;
-  --color-muted-foreground: #8b8b94;
+  /* Kept in step with `--ui-muted-base` below, which is what actually wins. */
+  --color-muted-foreground: #6b6b75;
   --color-border: #ececee;
 
   /* "Brand" is ink now: black CTAs, gray chips. Kept as a scale so the
@@ -391,7 +392,16 @@
    inline --color-muted-foreground would outrank the dark-theme rule below —
    the setting would look right in light mode and quietly break dark mode. */
 :root {
-  --ui-muted-base: #8b8b94;
+  /* 5.27:1 on the card and 4.79:1 on a `.bento-tile` well.
+     It was #8b8b94, which is 3.38:1 and 3.07:1 — below WCAG AA for normal
+     text on both, in light mode only, for every caption, meta line, axis
+     label and micro-label in the product. Dark mode was already fine
+     (6.99:1), which is exactly how it stayed unnoticed: the theme somebody
+     checks for contrast problems was the one that did not have one. Measured
+     by `tests/ui/panel-fit`, which reported it 1,794 times. The cool cast is
+     kept (R=G, B+10, the same relationship the old value had) so this reads
+     as the same grey, only doing its job. */
+  --ui-muted-base: #6b6b75;
 }
 :root[data-theme="dark"] {
   --ui-muted-base: #9e9e9e;
