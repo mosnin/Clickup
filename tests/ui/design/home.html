@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Home</title>
+    <!-- Replaced at build time with the app's own compiled stylesheet, so what
+         this renders is what ships. See scripts/build-gallery.mjs. -->
+    <!--APP_CSS-->
+    <style>
+      /* No page padding, no max-width, no decoration. Every other gallery page
+         is a specimen sheet with its own frame; this one is the PRODUCT. The
+         shell (sidebar + inset + its padding) comes from the app's own
+         components in home-app.tsx, because a frame invented here is a frame
+         nobody ships behind — and it would change the width Home lays out in,
+         which is the whole question a Home screenshot is asked. */
+      body {
+        margin: 0;
+        background: var(--color-page, #f6f6f7);
+        color: var(--color-foreground, #111);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./home-app.tsx"></script>
+  </body>
+</html>
