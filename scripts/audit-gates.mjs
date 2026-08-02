@@ -1045,20 +1045,35 @@ export function collectFindings(opts) {
       }
       if (Math.min(w, h) >= FLOOR) continue;
 
+      // The three numbers are named apart, because a reader who goes looking
+      // for a "41x41px" control and finds a 23px glyph will conclude the
+      // instrument is lying rather than that the glyph carries a hit area.
       const name = (accessibleName(t.el) || describe(t.el)).slice(0, 40);
-      const grown = Math.round(reachW) !== Math.round(t.painted.width) ||
-        Math.round(reachH) !== Math.round(t.painted.height);
-      let how = "";
-      if (grown) {
-        how +=
-          ` — measured on the ${Math.round(reachW)}x${Math.round(reachH)}px area` +
-          ` that forwards the press to it`;
+      const hitW = t.hit.right - t.hit.left;
+      const hitH = t.hit.bottom - t.hit.top;
+      const clauses = [];
+      if (
+        Math.round(hitW) !== Math.round(t.painted.width) ||
+        Math.round(hitH) !== Math.round(t.painted.height)
+      ) {
+        clauses.push(
+          `${Math.round(t.painted.width)}x${Math.round(t.painted.height)}px ` +
+            `painted, widened by its own \`::after\` hit area`,
+        );
+      }
+      if (Math.round(reachW) !== Math.round(hitW) ||
+          Math.round(reachH) !== Math.round(hitH)) {
+        clauses.push(
+          `measured on the ${Math.round(reachW)}x${Math.round(reachH)}px row ` +
+            `that forwards the press to it`,
+        );
       }
       if (free > 0.5) {
-        how +=
-          `${how ? "," : " —"} plus ${Math.round(free)}px of space no other` +
-          ` target claims`;
+        clauses.push(
+          `including ${Math.round(free)}px of space no other target claims`,
+        );
       }
+      const how = clauses.length > 0 ? ` — ${clauses.join(", ")}` : "";
       report(
         "tap",
         t.el,
