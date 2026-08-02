@@ -270,7 +270,14 @@ function ActivityWidget({ project }: ProjectWidgetContext) {
                 {eventLabel(e.type)}
                 {e.entityTitle ? ` ${e.entityTitle}` : ""}
               </span>{" "}
-              <span className="text-muted-foreground/70">
+              {/* `text-muted-foreground`, not `/70`. An opacity modifier on an
+                  already-muted token is a third tier of quiet that nothing
+                  designed: it composited to 2.9:1 here, below AA, and it is
+                  invisible to the contrast preference — the slider moves
+                  `--color-muted-foreground` and then this multiplied it back
+                  down again. Muted is the quietest register the product has;
+                  a timestamp is not quieter than muted. */}
+              <span className="text-muted-foreground">
                 {timeAgo(e.createdAt)}
               </span>
             </li>

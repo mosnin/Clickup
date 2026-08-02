@@ -78,8 +78,19 @@ export function isHeatmapLevelPattern(style: HeatmapLevelStyle): boolean {
   );
 }
 
+/**
+ * The pattern stroke, one step toward the card the cell is drawn on.
+ *
+ * Toward the CARD, not toward `white`. "Lighter than the fill" is only the
+ * same instruction as "quieter than the fill" in a light theme; on a dark
+ * card, mixing toward white walks the stroke away from the surface and the
+ * texture reads louder than the data it is texturing. Same class of mistake
+ * as the one `--chart-track` exists for: a paint value that cannot flip with
+ * the theme is wrong in exactly one of the two themes, and it is always the
+ * one nobody had open.
+ */
 export function heatmapPatternStrokeFallback(color: string): string {
-  return `color-mix(in oklch, ${color} 45%, white)`;
+  return `color-mix(in oklch, ${color} 45%, var(--chart-background))`;
 }
 
 export function heatmapLevelPatternRenderOptions(style: HeatmapLevelStyle) {

@@ -587,7 +587,7 @@ function ProjectSection({
                 {project.name}
               </Link>
             </h2>
-            <span className="flex-shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+            <span className="flex-shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               Project
             </span>
             <DropdownMenu>

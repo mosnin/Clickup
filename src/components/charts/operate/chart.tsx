@@ -197,20 +197,34 @@ export function Chart({
       role="img"
       aria-label={label ?? "Chart"}
       // The furniture the library draws — a gauge's unfilled notches, a ring's
-      // track, a radar's grid and spokes — is painted `var(--border)`, a
-      // shadcn token this app has never defined. An undefined custom property
-      // is not a fallback, it is an invalid value: as a `fill` it resolves to
-      // SVG's initial black, and as a `stroke` it resolves to none. So the
-      // radial's inactive arc was black on a black card, the rings' tracks
-      // were black rings in a monochrome palette of black arcs, and the radar
-      // had no grid at all — a polygon with nothing to be a proportion of.
-      // Supplying it here rather than globally keeps the blast radius to these
-      // charts, and `--chart-grid` is the right register: this is furniture,
-      // the same weight as a gridline, and it is defined in both themes.
+      // track, a funnel's halo, a radar's grid and spokes — is painted
+      // `var(--border)`, a shadcn token this app has never defined. An
+      // undefined custom property is not a fallback, it is an invalid value:
+      // as a `fill` it resolves to SVG's initial black, and as a `stroke` it
+      // resolves to none. So the radial's inactive arc was black on a black
+      // card, the rings' tracks were black rings in a monochrome palette of
+      // black arcs, and the radar had no grid at all — a polygon with nothing
+      // to be a proportion of. Supplying it here rather than globally keeps
+      // the blast radius to these charts.
+      //
+      // It pointed at `--chart-grid` for a year and that was the same bug one
+      // step quieter. `--chart-grid` is a HAIRLINE value: gridlines are
+      // strokes with `fill: none`, they are supposed to be nearly invisible,
+      // and its dark stop mirrors its light stop by lightness. Mirroring a
+      // lightness does not mirror a contrast — near black the same 0.1 step
+      // buys almost nothing — so the identical token measured 1.35:1 in light
+      // and 1.18:1 in dark, and every one of these filled shapes disappeared
+      // into the card. The ink gate found it 360 times.
+      //
+      // `--chart-track` is the other register: furniture that is a SHAPE,
+      // specified by the contrast it measures against the card (~1.5:1 in
+      // both themes) rather than by a lightness. A track is a quantity you
+      // are meant to see the data against; if you cannot see it, the data is
+      // a proportion of nothing.
       style={
         {
           height,
-          "--border": "var(--chart-grid)",
+          "--border": "var(--chart-track)",
         } as React.CSSProperties
       }
     >

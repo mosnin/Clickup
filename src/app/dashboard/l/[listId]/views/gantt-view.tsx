@@ -681,7 +681,7 @@ export function GanttView({
                     <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                       {row.label}
                     </span>
-                    <span className="ml-1.5 text-[11px] normal-case tracking-normal text-muted-foreground/70">
+                    <span className="ml-1.5 text-[11px] normal-case tracking-normal text-muted-foreground">
                       {row.count}
                     </span>
                   </div>

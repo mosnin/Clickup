@@ -187,6 +187,12 @@
     oklch(0.4 0.1828 274.34);
   --chart-grid:
     oklch(0.9 0 0);
+  /* Furniture that is a SHAPE rather than a hairline: a ring's track, a
+     gauge's unfilled notches, a funnel's halo, a radar's web. See the note
+     beside its dark twin — this is specified by the contrast it measures
+     against the card, not by mirroring a lightness. 1.48:1 on white. */
+  --chart-track:
+    oklch(0.87 0 0);
   --chart-brush-border:
     var(--chart-grid);
   --chart-tooltip-background:
@@ -409,6 +415,23 @@
 .marketing-shell {
   --ui-muted-base: #a6a6a6;
 }
+/* **This is the quietest text register the product has, and nothing may stack
+   another opacity on top of it.**
+
+   `text-muted-foreground/70` shipped on timestamps, counts and a project
+   label. It composites to `rgb(151,151,158)` on a white card — 2.9:1, below
+   AA — and it is invisible to the control above: the reader turns contrast
+   up, `--ui-muted-toward-fg` moves this token toward the foreground, and a
+   `/70` sitting on top of it quietly divides the gain back out again. A third
+   tier of quiet that nothing designed and no preference can reach is not a
+   design decision, it is an unmeasured one.
+
+   The travel that stays above AA, measured against a `.bento-tile` well (the
+   darker of the two surfaces muted text lands on, so the binding one): about
+   3% toward the background in light, about 20% in dark. Light is that tight
+   because `--ui-muted-base` is already near the AA floor by design — see the
+   note on it above. Anyone widening the contrast range should move the base
+   first, not the range. */
 :root,
 :root[data-theme="dark"],
 .marketing-shell {
@@ -753,6 +776,7 @@ body {
 .orb {
   position: relative;
   overflow: hidden;
+  container-type: size;
   background: var(--orb-b, #8b8bff);
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0.1) inset,
@@ -788,15 +812,47 @@ body {
     transparent 44%
   );
 }
-/* The initial rides above the gradient; the shadow keeps it legible over
-   both the bright sheen and the darker lower half. */
+/* The initial rides above the gradient.
+
+   The ink is `--orb-ink`, measured from the orb's own fill in
+   `lib/identity-color.ts` — dark on the mints and ambers, light on the blues
+   and violets. It was a flat `#fff`, which measured 1.56:1 on
+   `hsl(166 82% 52%)`: the ramp holds HSL lightness constant across hues and
+   equal HSL lightness is nowhere near equal luminance, so a fixed ink is
+   guaranteed to be wrong on one end of any hue ramp. See the note in
+   `identity-color.ts` for why the threshold is a crossing rather than a
+   taste.
+
+   The halo is the ink's opposite because the gradient is *moving*: the other
+   two stops are lighter than the one the ink was measured against, so a
+   single flat ink cannot be optimal against all of the sphere at once, and
+   the halo is what carries the letter over the part it is weakest on. */
 .orb-label {
   position: relative;
   z-index: 1;
   font-weight: 600;
-  color: #fff;
-  text-shadow: 0 1px 3px rgb(0 0 0 / 0.45);
+  color: var(--orb-ink, #fff);
+  text-shadow: 0 1px 3px var(--orb-halo, rgb(0 0 0 / 0.45));
   line-height: 1;
+}
+/* Below the icon slot the letter stops being a letter.
+
+   The sidebar shrinks the orb to a 16px square so a Space keeps the row
+   rhythm of its Star/Lock siblings — deliberate, and the right call — but it
+   takes the monogram down to 8px/600 with it, which is a texture wearing the
+   shape of an "H". It is not carrying anything either: the orb is
+   `aria-hidden`, and the row spells the name out in full immediately beside
+   it. So at that size the orb is simply an orb, and the colour does the
+   identifying it was always doing.
+
+   Keyed off the ORB's rendered size rather than a size prop, because the two
+   call sites that hit this shrink it with a className the component never
+   sees. A rule written against `size="xs"` would miss them, and would miss
+   the next caller that shrinks one a different way. */
+@container (max-width: 20px) {
+  .orb-label {
+    display: none;
+  }
 }
 @keyframes orb-spin {
   to {
@@ -2083,6 +2139,31 @@ a:hover > .message-ref {
     oklch(0.45 0 0);
   --chart-grid:
     oklch(0.25 0 0);
+  /* **A symmetric lightness step is not a symmetric contrast step**, and that
+     is the whole of this bug.
+
+     `--chart-grid` mirrors its light value by lightness: white minus 0.1 in
+     light, the dark card plus 0.1 in dark. In light that measures 1.35:1 and
+     you can see it. In dark the same step measures **1.18:1** — sRGB is not
+     linear near black, so the identical move buys almost no luminance — and
+     the ink gate reported it 360 times: a ring's track, a funnel's halo, a
+     gauge's unfilled notches, all present in the DOM and absent on screen.
+     Fourth time this class has shipped here (see the `--border` note in
+     `charts/operate/chart.tsx`), and the previous three fixes all made a
+     value theme-AWARE without making it theme-CORRECT.
+
+     So this token is specified by **the contrast it measures against the
+     card it is drawn on**, not by a lightness: ~1.5:1 in both themes. Change
+     it by measuring, never by nudging the number until it looks right in the
+     theme you happen to have open. `tests/chart-ink.test.ts` holds the bar.
+
+     It is deliberately separate from `--chart-grid`. A gridline is a stroke
+     with `fill: none` and is meant to be nearly invisible; a track is a mark
+     whose job is to be a legible shape underneath the data. Collapsing the
+     two registers into one token is what let a hairline value end up as a
+     fill. */
+  --chart-track:
+    oklch(0.325 0 0);
   --chart-brush-border:
     var(--chart-grid);
   --chart-marker-background:
@@ -2153,6 +2234,8 @@ a:hover > .message-ref {
     var(--chart-crosshair);
   --color-chart-grid:
     var(--chart-grid);
+  --color-chart-track:
+    var(--chart-track);
   --chart-brush-border:
     var(--chart-brush-border);
   --color-chart-tooltip-background:
