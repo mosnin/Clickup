@@ -363,6 +363,46 @@ function Editing({ on }: { on: boolean }) {
   return null;
 }
 
+// ── Arrange mode, entered the way a person enters it ───────────────────────
+//
+// This is what `?state=arrange` used to do wrong, and the wrongness was
+// invisible because the two modes look adjacent: it called `setActive(true)`,
+// which is the STYLE STUDIO's customise mode — "Done customising", "Style this
+// screen" — and not the grid's editing mode at all. So a surface titled
+// "arrange mode (handles, tray, wobble)" photographed a screen with no handles,
+// no tray and no wobble, the audit correctly reported it unreachable, and the
+// project screen's editing model went four viewport/theme combinations without
+// ever being looked at. Arrange mode worked the whole time; nothing had pressed
+// the button.
+//
+// So this presses the button. Reaching into the grid and setting its state
+// would photograph a mode that might not have an entrance — the failure one
+// layer along — whereas clicking the real pill proves the entrance exists and
+// then shows what is behind it. It polls because the pill only exists once the
+// grid has rendered, and gives up rather than spinning forever: a fixture that
+// silently never enters the state is the hole this whole surface exists to
+// close.
+function Arranging({ on }: { on: boolean }) {
+  useEffect(() => {
+    if (!on) return;
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      const pill = Array.from(document.querySelectorAll("button")).find(
+        (b) => b.textContent?.trim() === "Arrange",
+      );
+      if (pill) {
+        pill.click();
+        window.clearInterval(timer);
+      } else if (++tries > 40) {
+        window.clearInterval(timer);
+        console.error("no Arrange control on the project screen");
+      }
+    }, 50);
+    return () => window.clearInterval(timer);
+  }, [on]);
+  return null;
+}
+
 function Page() {
   return (
     <ToastProvider>
@@ -383,7 +423,8 @@ function Page() {
                 </div>
               </SidebarInset>
             </SidebarProvider>
-            <Editing on={STUDIO || STATE === "arrange"} />
+            <Editing on={STUDIO} />
+            <Arranging on={STATE === "arrange"} />
             <StyleStudio />
           </MintablePanelsProvider>
         </CustomizeProvider>
