@@ -29,8 +29,8 @@ import { usePathname } from "next/navigation";
 import { MessagesSquare, SquareKanban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ModeBadge, useModeBadges } from "@/components/chat/bridge";
-
-type Mode = "work" | "chat";
+import { useModeTransition } from "@/components/chat/mode-transition";
+import { type Mode, modeOf } from "@/lib/mode-transition";
 
 const MODES: { mode: Mode; label: string; href: string; Icon: typeof MessagesSquare }[] = [
   { mode: "work", label: "Work", href: "/dashboard", Icon: SquareKanban },
@@ -51,8 +51,13 @@ export function ModeSwitcher({
   className?: string;
 }) {
   const pathname = usePathname();
-  const active: Mode = pathname.startsWith("/chat") ? "chat" : "work";
+  // `modeOf` rather than a local startsWith: the transition decides direction
+  // from the same function, and a control that disagrees with its own
+  // animation about which half is active is a bug waiting for the first route
+  // that begins with the letters "chat".
+  const active: Mode = modeOf(pathname);
   const other = MODES.find((m) => m.mode !== active)!;
+  const onModeClick = useModeTransition();
   // One subscription for both forms of the control. Mounting it inside the
   // badge would open two — the segmented control renders one per half, and the
   // rail renders a third.
@@ -74,6 +79,7 @@ export function ModeSwitcher({
           <Link
             key={mode}
             href={href}
+            onClick={(event) => onModeClick(event, href)}
             aria-current={active === mode ? "page" : undefined}
             className={cn(
               "flex-1 justify-center gap-1.5",
@@ -98,6 +104,7 @@ export function ModeSwitcher({
         // guess, and this one changes what application you are looking at.
         <Link
           href={other.href}
+          onClick={(event) => onModeClick(event, other.href)}
           title={`Switch to ${other.label}`}
           aria-label={`Switch to ${other.label}`}
           className="tap-target relative hidden size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:flex"

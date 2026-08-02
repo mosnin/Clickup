@@ -121,7 +121,11 @@ export function DashboardSidebar() {
   }, [pathname, setOpenMobile]);
 
   return (
-    <Sidebar collapsible="icon">
+    // data-mode-surface="nav" pairs with the Chat shell's rail: same
+    // view-transition-name on both, so crossing between the dashboards morphs
+    // this into that rather than cross-fading the viewport. See the Work ⇄ Chat
+    // block in globals.css.
+    <Sidebar collapsible="icon" data-mode-surface="nav">
       <SidebarHeaderSwitcher />
       <SidebarContentBody />
       <SidebarFooterBody />

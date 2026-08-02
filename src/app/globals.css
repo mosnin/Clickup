@@ -1834,6 +1834,138 @@ h3,
   letter-spacing: 0;
 }
 
+/* ── Work ⇄ Chat transition ───────────────────────────────────────────────
+   The only navigation in the product that swaps the whole chrome, so the only
+   one with a directional transition. Driven by components/chat/mode-
+   transition.tsx, which sets `data-mode-dir` on :root for the length of the
+   animation — the view-transition pseudo-elements are children of the root, so
+   a root attribute is the only selector that can reach them.
+
+   The two shells are different components with no shared React tree, which is
+   why this is CSS on the View Transitions API rather than motion/react like
+   everything else in the dashboard: `view-transition-name` is what lets the
+   browser match the Work sidebar to the Chat rail across a navigation that
+   destroys and rebuilds both.
+
+   Duration comes from --mode-transition-ms, which the hook sets from
+   `scaled()` — so a reader who turned motion down gets a shorter one, and a
+   reader who turned it off never gets here at all (the hook returns early and
+   the <Link> navigates plainly). The fallback everywhere else is the same:
+   no View Transitions support, no transition, still a working link. */
+
+/* Pulling these two out of the root snapshot is what makes the nav hold still
+   while the content moves. Without a name they are part of `root` and the
+   whole viewport cross-fades, which reads as a page load — the exact thing
+   this exists to stop reading like. */
+[data-mode-surface="nav"] {
+  view-transition-name: mode-nav;
+}
+[data-mode-surface="content"] {
+  view-transition-name: mode-content;
+}
+
+::view-transition-group(mode-nav),
+::view-transition-group(mode-content) {
+  animation-duration: var(--mode-transition-ms, 320ms);
+  animation-timing-function: var(--ui-ease, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+/* Naming nav and content pulls them out of `root`, but `root` still exists —
+   it is now everything underneath, which is the page background. Chromium
+   cross-fades it on its own 250ms default, so without this the background
+   settles 70ms before the content that sits on it: two clocks in one gesture,
+   which reads as a glitch rather than as a slow part and a fast part. Caught
+   by scripts/verify-mode-transition.mjs, which measures every animation the
+   browser actually started rather than the ones I remembered to style.
+
+   Scoped to [data-mode-dir] so it only binds during a mode switch — an
+   unscoped rule here would silently impose this duration on any other view
+   transition the product grows later. */
+:root[data-mode-dir]::view-transition-group(root),
+:root[data-mode-dir]::view-transition-old(root),
+:root[data-mode-dir]::view-transition-new(root) {
+  animation-duration: var(--mode-transition-ms, 320ms);
+  animation-timing-function: var(--ui-ease, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+/* The nav morphs: same name on both shells, so the browser interpolates the
+   Work sidebar's box into the Chat rail's. Cross-fading the two snapshots on
+   top of that would show one set of nav labels ghosting through the other, so
+   the old one leaves immediately and the new one is present throughout. */
+::view-transition-old(mode-nav) {
+  animation: none;
+  opacity: 0;
+}
+::view-transition-new(mode-nav) {
+  animation: none;
+  opacity: 1;
+}
+
+::view-transition-old(mode-content),
+::view-transition-new(mode-content) {
+  animation-duration: var(--mode-transition-ms, 320ms);
+  animation-timing-function: var(--ui-ease, cubic-bezier(0.16, 1, 0.3, 1));
+  animation-fill-mode: both;
+}
+
+/* Work sits left of Chat and always has — that is the order in the switcher,
+   so it is the order the rooms are in. Going to Chat, the old content leaves
+   left and the new arrives from the right; going back, the reverse. The
+   geometry is the entire message: cross-fading in both directions would say
+   "a thing changed" where this says "you moved". */
+:root[data-mode-dir="to-chat"]::view-transition-old(mode-content) {
+  animation-name: mode-exit-left;
+}
+:root[data-mode-dir="to-chat"]::view-transition-new(mode-content) {
+  animation-name: mode-enter-right;
+}
+:root[data-mode-dir="to-work"]::view-transition-old(mode-content) {
+  animation-name: mode-exit-right;
+}
+:root[data-mode-dir="to-work"]::view-transition-new(mode-content) {
+  animation-name: mode-enter-left;
+}
+
+/* 2% rather than a full width: the content is not a slide in a carousel, it is
+   a room seen through a doorway that stays put. A large translation reads as
+   two separate screens, which is the opposite of the claim being made. */
+@keyframes mode-exit-left {
+  to {
+    opacity: 0;
+    transform: translateX(-2%);
+  }
+}
+@keyframes mode-enter-right {
+  from {
+    opacity: 0;
+    transform: translateX(2%);
+  }
+}
+@keyframes mode-exit-right {
+  to {
+    opacity: 0;
+    transform: translateX(2%);
+  }
+}
+@keyframes mode-enter-left {
+  from {
+    opacity: 0;
+    transform: translateX(-2%);
+  }
+}
+
+/* Belt and braces. The hook already refuses to start a transition under
+   reduced motion, so this only matters if a future caller forgets — and the
+   failure it prevents (a full-viewport slide for somebody who asked for no
+   motion) is bad enough to be worth two lines that should never run. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
 /* ── Mobile sidebar drawer ────────────────────────────────────────────────
    The vendored Sheet slides in linearly, which reads cheap on a drawer this
    large. `.sidebar-sheet` (applied to the one mobile sidebar Sheet in

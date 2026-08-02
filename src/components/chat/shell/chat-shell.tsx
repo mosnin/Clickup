@@ -281,8 +281,15 @@ export function ChatShell({ children }: { children: ReactNode }) {
               data-chat-shell=""
               className="flex h-svh w-full overflow-hidden bg-page text-foreground"
             >
-              {/* The nav: rail + sidebar. One element, two shapes. */}
+              {/* The nav: rail + sidebar. One element, two shapes.
+
+                  data-mode-surface="nav" pairs this with the Work shell's
+                  sidebar container: one view-transition-name across both, so
+                  switching dashboards morphs this box into that one instead of
+                  cross-fading the viewport. See the Work ⇄ Chat block in
+                  globals.css. */}
               <nav
+                data-mode-surface="nav"
                 aria-label="Chat navigation"
                 data-layout={isWide ? "inline" : "drawer"}
                 data-open={navOpen ? "true" : "false"}
@@ -315,7 +322,10 @@ export function ChatShell({ children }: { children: ReactNode }) {
                 />
               ) : null}
 
-              <div className="flex min-w-0 flex-1 flex-col">
+              <div
+                data-mode-surface="content"
+                className="flex min-w-0 flex-1 flex-col"
+              >
                 <ChatTopChrome onOpenNav={() => setNavOpen(true)} />
                 <div className="flex min-h-0 min-w-0 flex-1">{children}</div>
               </div>

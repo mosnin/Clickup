@@ -65,7 +65,15 @@ export default async function DashboardLayout({
               container; without it, any too-wide child would let the whole
               "page" pan sideways on mobile. Wide surfaces (tables, boards,
               Gantt) scroll inside their own overflow-x-auto wrappers. */}
-          <SidebarInset className="h-full min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-contain">
+          {/* data-mode-surface: the Work half of the Work ⇄ Chat transition.
+              The Chat shell tags its own rail and body with the same two
+              values, which is what lets the browser morph one shell's
+              navigation into the other's instead of cross-fading the whole
+              viewport. See the transition block in globals.css. */}
+          <SidebarInset
+            data-mode-surface="content"
+            className="h-full min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-contain"
+          >
             <div className="w-full px-4 py-6 sm:px-6">{children}</div>
           </SidebarInset>
           {/* One continuous brand gradient across the entire viewport's bottom
