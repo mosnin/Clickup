@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import useMeasure from "react-use-measure";
 import {
   arcPath,
   arcsFor,
@@ -78,6 +79,18 @@ export type SvgChartProps = {
   label?: string;
 };
 
+/**
+ * Axis and label text, in CSS pixels — the same 10 the library charts' strip
+ * uses, and the reason it is not simply written on each `<text>`.
+ *
+ * These charts are drawn in a fixed logical box that the SVG then scales to
+ * fit (see the note above). Everything inside scales with it, text included,
+ * so `font-size="10"` came out at 7.3px in a one-column panel — beside a 10px
+ * label on the chart next to it, in the same row of the same dashboard. So the
+ * size is set once, on the `<svg>`, divided by the scale it is about to be
+ * multiplied by, and every `<text>` inherits it. One number, one size on
+ * screen, whatever the panel is doing.
+ */
 const AXIS_TEXT = 10;
 
 /** Room for the axes the style asked for, and no more. */
@@ -106,6 +119,14 @@ export function SvgChart({
   className,
   label,
 }: SvgChartProps) {
+  const [ref, { width: measured }] = useMeasure();
+  // `preserveAspectRatio` defaults to "meet", so the drawing is scaled by the
+  // smaller of the two ratios. The height ratio is always 1 (the viewBox and
+  // the rendered height are the same number), which leaves the width — and it
+  // is never above 1, so this only ever corrects text back UP to its stated
+  // size, never shrinks it below.
+  const scale = measured > 0 ? Math.min(measured / width, 1) : 1;
+
   const usable = series.filter((s) => s.points.length > 0);
   if (usable.length === 0) {
     return (
@@ -118,7 +139,7 @@ export function SvgChart({
   const shared = { series: usable, style, unit, width, height };
 
   return (
-    <div className={cn("w-full", className)}>
+    <div className={cn("w-full", className)} ref={ref}>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         width="100%"
@@ -126,6 +147,8 @@ export function SvgChart({
         role="img"
         aria-label={label ?? "Chart"}
         className="overflow-visible"
+        // Inherited by every `<text>` below — see `AXIS_TEXT`.
+        style={{ fontSize: AXIS_TEXT / scale }}
       >
         {kind === "donut" || kind === "pie" ? (
           <Arcs {...shared} hole={kind === "pie" ? 0 : style.donutHole} />
@@ -233,7 +256,6 @@ function AxisLabels({
           y={scale(t)}
           dy="0.32em"
           textAnchor="end"
-          fontSize={AXIS_TEXT}
           fill="var(--color-muted-foreground)"
         >
           {formatValue(t, unit)}
@@ -381,7 +403,6 @@ function Bars({
                 y={horizontal ? band.center(ci) : value(values[0]) - 3}
                 dy={horizontal ? "0.32em" : undefined}
                 textAnchor={horizontal ? "start" : "middle"}
-                fontSize={AXIS_TEXT}
                 fill="var(--color-muted-foreground)"
               >
                 {style.dataLabels === "percent"
@@ -397,7 +418,6 @@ function Bars({
                   x={band.center(ci)}
                   y={height - 4}
                   textAnchor="middle"
-                  fontSize={AXIS_TEXT}
                   fill="var(--color-muted-foreground)"
                 >
                   {categoryLabel(cat)}
@@ -522,7 +542,6 @@ function Lines({
               x={x(i)}
               y={height - 4}
               textAnchor="middle"
-              fontSize={AXIS_TEXT}
               fill="var(--color-muted-foreground)"
             >
               {categoryLabel(cat)}
@@ -563,7 +582,6 @@ function Arcs({
         y={cy}
         textAnchor="middle"
         dy="0.32em"
-        fontSize={AXIS_TEXT}
         fill="var(--color-muted-foreground)"
       >
         No data
@@ -602,7 +620,6 @@ function Arcs({
                 y={at.y}
                 dy="0.32em"
                 textAnchor="middle"
-                fontSize={AXIS_TEXT}
                 fill="var(--color-background)"
                 style={{ paintOrder: "stroke" }}
                 stroke="var(--color-foreground)"
@@ -811,7 +828,6 @@ function Waterfall({
                 x={band.center(i)}
                 y={Math.min(a, b) - 3}
                 textAnchor="middle"
-                fontSize={AXIS_TEXT}
                 fill="var(--color-muted-foreground)"
               >
                 {compactNumber(s.point.value)}
@@ -822,7 +838,6 @@ function Waterfall({
                 x={band.center(i)}
                 y={height - 4}
                 textAnchor="middle"
-                fontSize={AXIS_TEXT}
                 fill="var(--color-muted-foreground)"
               >
                 {categoryLabel(s.point)}
@@ -888,7 +903,6 @@ function Treemap({
               <text
                 x={tile.x + 6}
                 y={tile.y + 14}
-                fontSize={AXIS_TEXT}
                 fill="var(--color-foreground)"
                 paintOrder="stroke"
                 stroke="var(--color-card)"

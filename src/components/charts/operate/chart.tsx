@@ -534,7 +534,14 @@ function Funnel({ series, style, height }: BodyProps) {
     <FunnelChart
       data={stages}
       edges="straight"
-      layers={1}
+      // Two, and never one. The library fades its halo rings in from the
+      // outside — `0.18 + (l / (layers - 1 || 1)) * 0.65` — and at one layer
+      // that expression never reaches its second term, so the whole funnel
+      // drew at 18% opacity. On white the last stage was invisible and on
+      // black all of them were; the shape a funnel exists to show was the one
+      // thing you could not see. Two layers puts a solid segment inside the
+      // faint one, which is the halo the formula was written for.
+      layers={2}
       showLabels
       showPercentage={style.dataLabels === "percent"}
       showValues={style.dataLabels !== "percent"}
