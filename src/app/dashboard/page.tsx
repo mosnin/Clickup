@@ -1137,8 +1137,27 @@ function HealthChip({ status }: { status: Project["projectStatus"] }) {
  */
 const PROJECTS_TABLE_MIN_PX = 620;
 
+/**
+ * How many project rows fit the tallest box the grid will ever give this panel.
+ *
+ * The row ladder tops out at 3 rows = 552px, and `scripts/measure-home.mjs`
+ * measured this block wanting 749px with TWELVE rows in it — so at every
+ * viewport it reported SCROLLS, meaning "a block whose default is a lie". A
+ * panel that cannot fit any legal height is not a sizing mistake, it is an
+ * unbounded list in a bounded box, and no default can rescue it.
+ *
+ * Six is what fits: 552px less the header, the count and the "View all" strip
+ * leaves ~456px, and a row (title, place, progress, timestamp) is ~76px.
+ * The server still sends twelve; the extra ones were never visible, they were
+ * painting over the panel underneath.
+ *
+ * Re-run `npm run gallery && node scripts/measure-home.mjs` after touching the
+ * row's contents — if this block reports SCROLLS again, this number is wrong.
+ */
+const HOME_PROJECT_ROWS = 6;
+
 function ProjectsTable({
-  projects,
+  projects: allProjects,
   totalProjects,
 }: {
   projects: Project[];
@@ -1146,6 +1165,12 @@ function ProjectsTable({
 }) {
   const [ref, box] = useMeasure();
   const narrow = box.width > 0 && box.width < PROJECTS_TABLE_MIN_PX;
+
+  // Bounded here rather than in `homeOverview.ts`: the directory page wants
+  // more of them, and the query is shared. What the PANEL can draw is a fact
+  // about the panel's box.
+  const projects = allProjects.slice(0, HOME_PROJECT_ROWS);
+  const hidden = totalProjects - projects.length;
 
   return (
     <div
@@ -1155,9 +1180,9 @@ function ProjectsTable({
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <h3 className="text-base font-medium">Projects</h3>
         <span className="shrink-0 text-xs text-muted-foreground">
-          {projects.length === totalProjects
+          {hidden <= 0
             ? `${totalProjects} project${totalProjects === 1 ? "" : "s"}`
-            : `Showing ${projects.length} of ${totalProjects}`}
+            : `${projects.length} of ${totalProjects}`}
         </span>
       </div>
       {projects.length === 0 ? (
@@ -1286,7 +1311,7 @@ function ProjectsTable({
           </Table>
         </div>
       )}
-      {projects.length < totalProjects && (
+      {hidden > 0 && (
         // The padding belongs to the LINK, not to the strip around it: a 16px
         // line of text in a 40px bar meant the bar looked pressable and only
         // the words were. Now the strip is the target, and `.tap-row` takes it
@@ -1296,7 +1321,9 @@ function ProjectsTable({
             href="/dashboard/projects"
             className="tap-row group flex items-center py-3 text-sm font-medium"
           >
-            <span className="group-hover:underline">View all projects</span>
+            <span className="group-hover:underline">
+              View all {totalProjects} projects
+            </span>
           </Link>
         </div>
       )}
