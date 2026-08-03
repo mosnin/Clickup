@@ -46,6 +46,7 @@ import {
   type MyPresence,
 } from "@/components/chat/presence";
 import { ChannelsProvider } from "./channel-data";
+import { EnsureChatIdentity } from "./ensure-chat-identity";
 import { ChatTopChrome } from "./top-chrome";
 import { CommunityRail } from "./community-rail";
 import { ChannelSidebar } from "./channel-sidebar";
@@ -270,6 +271,11 @@ export function ChatShell({ children }: { children: ReactNode }) {
 
   return (
     <MotionConfig reducedMotion="user">
+      {/* Mints this reader's Chat signing key if they have none. Sits above
+          everything because *every* Chat write needs it, and the shell is the
+          one component every entry into Chat passes through — see the file's
+          own comment for what breaks without it. Renders nothing. */}
+      <EnsureChatIdentity />
       <ChannelsProvider scope={scope}>
         <ShellContext.Provider value={state}>
           {/* One roster subscription for the application, so a dot beside a
