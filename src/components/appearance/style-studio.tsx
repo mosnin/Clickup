@@ -120,14 +120,30 @@ import {
 // arrives at centre re-mounts its chart, so the reveal animation replays as
 // it locks — the settle is something you watch, not a scroll that stopped.
 
-/** Fourteen days of buckets, so the library draws its own date axis. */
-const DAYS = Array.from({ length: 14 }, (_, i) => ({
+/**
+ * Seven days of buckets, so the library draws its own date axis.
+ *
+ * It was fourteen, and fourteen is what made every specimen unreadable: a card
+ * here is ~340px wide and ~100px tall, so fourteen points across two series is
+ * twenty-eight marks with about 24px between them. At the ring size the
+ * presets ask for, that is not a chart with markers on it — it is a braid of
+ * overlapping circles with a line somewhere underneath, and it was the first
+ * thing anybody saw when they opened the studio.
+ *
+ * Seven is also the honest number for a specimen: a week reads as a week, and
+ * the point of these cards is to show how a look draws, not to be a plausible
+ * quantity of data.
+ */
+const DAYS = Array.from({ length: 7 }, (_, i) => ({
   key: String(Date.UTC(2025, 5, 2) + i * 86_400_000),
   label: "",
 }));
 
-const FLOW = [6, 9, 7, 12, 10, 14, 11, 16, 13, 18, 14, 19, 16, 21];
-const EBB = [4, 3, 5, 4, 6, 5, 7, 8, 6, 9, 7, 10, 9, 11];
+// Two series that stay apart across the whole span. They used to converge in
+// the middle, which put the two strokes on top of each other in exactly the
+// place the eye lands first.
+const FLOW = [6, 10, 8, 14, 12, 18, 21];
+const EBB = [3, 4, 3, 6, 5, 8, 9];
 
 const SPECIMEN = [
   {

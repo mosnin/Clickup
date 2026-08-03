@@ -43,6 +43,26 @@ import {
 import { SvgChart, type ChartSeries } from "./svg-charts";
 import { HorizontalZeroMarks } from "./zero-marks";
 
+/**
+ * Is there room to draw a marker on every point?
+ *
+ * A marker is ~10px across and needs roughly three times that in clear space
+ * to read as a separate thing. Past about a dozen points in a panel-width
+ * chart they collide into a braid — which is not a marker per point, it is a
+ * texture, and it hides the line it was meant to annotate.
+ *
+ * Counting points rather than measuring pixels because the width is the
+ * library's business at this layer, not ours. It is a proxy, but it fails in
+ * the safe direction: a wide chart loses markers it could have afforded,
+ * where the alternative is a narrow one drawing a mess. Somebody who set
+ * `markers: "ring"` is asking for emphasis; they are not asking for this.
+ */
+const MARKER_ROOM = 12;
+function hasMarkerRoom(count: number): boolean {
+  return count <= MARKER_ROOM;
+}
+
+
 // The one chart.
 //
 // A panel is a definition — a question, a shape and a look — and this is the
@@ -410,7 +430,7 @@ function Lines({
             fadeEdges={false}
             key={s.key}
             markers={{ fill: seriesColor(style.palette, i) }}
-            showMarkers={style.markers !== "none"}
+            showMarkers={style.markers !== "none" && hasMarkerRoom(rows.length)}
             stroke={seriesColor(style.palette, i)}
             strokeWidth={bare ? 1.75 : 2.5}
           />
@@ -449,7 +469,7 @@ function Areas({ series, style, height, x }: BodyProps) {
             fillOpacity={outline ? 0 : FILL_OPACITY[style.chartFill]}
             key={s.key}
             markers={{ fill: seriesColor(style.palette, i) }}
-            showMarkers={style.markers !== "none"}
+            showMarkers={style.markers !== "none" && hasMarkerRoom(rows.length)}
             stroke={seriesColor(style.palette, i)}
           />
         ))}
@@ -483,7 +503,18 @@ function Dots({ series, style, height, x }: BodyProps) {
             dataKey={seriesField(i)}
             fill={seriesColor(style.palette, i)}
             key={s.key}
-            radius={style.markers === "ring" ? 6 : 4.5}
+            // A scatter's whole content IS its markers, so they are never
+            // suppressed — they shrink instead, which keeps a dense cloud
+            // readable without deleting the data.
+            radius={
+              hasMarkerRoom(rows.length)
+                ? style.markers === "ring"
+                  ? 6
+                  : 4.5
+                : style.markers === "ring"
+                  ? 3
+                  : 2.25
+            }
           />
         ))}
         {(style.axes === "y" || style.axes === "both") && <YAxis />}
@@ -642,6 +673,9 @@ function Radar({ series, style, height, x }: BodyProps) {
           <RadarArea
             index={i}
             key={d.label}
+            // Not density-gated: a radar's points are its vertices, the
+            // corners of the shape itself, and there are as many as there are
+            // axes — a handful by construction.
             showPoints={style.markers !== "none"}
           />
         ))}
