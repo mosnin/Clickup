@@ -2625,11 +2625,19 @@ a:hover > .message-ref {
   --color-page: oklch(0.968 0.003 264);
   --color-background: oklch(1 0 0);
 
-  /* A transcript is read in rows, not in cards, so the corners stop being
-     pill-shaped. Radius is a place setting — how tight the rows are is not:
-     --ui-gap and --ui-pad belong to `density`, which is the reader's, so Chat
-     asks for none of it. (The test caught this the first time it ran.) */
-  --ui-radius-card: 0.75rem;
+  /* Radius is deliberately NOT overridden here any more. Chat used to set
+     --ui-radius-card: 0.75rem, on the reasoning that a transcript is read in
+     rows rather than in cards; the cost was that Chat's panes and the Work
+     dashboard's panels met at different corners, and switching between the two
+     halves of one product read as switching between two products. A shared
+     radius is the cheapest thing that makes them one app, so Chat inherits the
+     1rem every other surface uses.
+
+     What Chat still owns is the canvas relationship above — that is about
+     depth, which genuinely differs between a room and a sheet, and it survives
+     because it does not contradict anything Work says. Density is still absent
+     on purpose: --ui-gap and --ui-pad belong to `density`, which is the
+     reader's, not the room's. */
 }
 
 :root[data-theme="dark"][data-app="chat"] {
@@ -2691,7 +2699,11 @@ a:hover > .message-ref {
   min-width: 0;
   height: 2rem;
   padding: 0 0.5rem;
-  border-radius: 0.375rem;
+  /* --ui-radius-control, the same corner the Work sidebar's rows use. It was
+     0.375rem, which is a different corner at the size a person actually reads
+     these at, and nav rows are the element repeated most often in both halves
+     — so of everything on screen they are the worst place to disagree. */
+  border-radius: var(--ui-radius-control);
   font-size: 0.875rem;
   line-height: 1.25rem;
   color: inherit;
@@ -2837,10 +2849,43 @@ a:hover > .message-ref {
 /* The content card: the app's sheet, inset inside the chrome. The hairline
    runs on the two edges that face the chrome only — a full border would draw
    a line against the window edge where there is nothing to separate from. */
+/* A pane in Chat, drawn the way a panel in Work is drawn.
+ *
+ * This used to be a 1px hairline on the two edges facing the chrome, which was
+ * a defensible drawing of a pane and the wrong one for this product: Work's
+ * surfaces float on a soft shadow, so the two halves announced themselves as
+ * separate applications every time you crossed between them. Elevation is the
+ * single loudest signal of "same design system", louder than palette, because
+ * it survives both themes and every accent.
+ *
+ * It borrows `.panel`'s two properties rather than restating their values, so
+ * a change to the app's surface language reaches Chat automatically — a second
+ * copy of a shadow is a second thing to remember to update, and it would drift
+ * the first time somebody tuned one of them.
+ *
+ * The background stays `--color-background` rather than `--color-card`: that is
+ * the token Chat's own light/dark canvas relationship is expressed in (see the
+ * scope block above), and swapping it here would invert the pane-versus-canvas
+ * contrast in dark mode, which is the one thing that block exists to get right.
+ */
 .chat-surface {
   background: var(--color-background);
+  border: var(--ui-surface-border);
   border-radius: var(--ui-radius-card);
-  box-shadow: -1px -1px 0 0 var(--chat-hairline);
+  box-shadow: var(--ui-surface-shadow);
+}
+/* Exactly what `.panel` does one screen over, and for the same reason: a soft
+ * light-mode shadow over a dark canvas reads as grime rather than as lift. In
+ * Chat it would be doubly wrong — dark mode there inverts the relationship, so
+ * the pane is already *lighter* than the canvas and is separated by its own
+ * value, with nothing left for a shadow to do.
+ *
+ * Found by measuring rather than by reading: light mode matched on the first
+ * try and this did not, because the token is the same in both themes and the
+ * rule that cancels it is attached to `.panel` by name. A shared token is not
+ * the same thing as a shared appearance. */
+:root[data-theme="dark"] .chat-surface {
+  box-shadow: none;
 }
 
 .chat-divider {
