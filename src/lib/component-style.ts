@@ -65,6 +65,26 @@ export type Legend = "none" | "bottom" | "right";
 export type Markers = "none" | "dot" | "ring";
 export type StackMode = "none" | "stacked" | "grouped" | "percent";
 
+// ── Rows, tables and text ────────────────────────────────────────────────
+//
+// The half of the product that is not a chart, and which this model did not
+// describe at all until now. Charts are a minority of what a panel draws — a
+// list of tasks, a table of projects, a stack of activity is the common case —
+// so a customiser with twelve chart keys and none of these was a customiser
+// for the exception.
+//
+// What is deliberately NOT here: type size, line height, and row height. Those
+// are `density` and `fontScale` in the appearance model, they are PERSONAL
+// keys, and a panel that could set them would be a panel that shrinks the type
+// of somebody who never asked. The keys below are all about how a row is
+// DRAWN, never about how hard it is to read.
+export type RowDivider = "none" | "hairline" | "zebra";
+export type RowMarker = "none" | "dot" | "rule" | "index";
+export type RowEmphasis = "plain" | "medium" | "strong";
+export type TableHeader = "plain" | "muted" | "caps";
+export type ChipShape = "pill" | "soft" | "square";
+export type NumberStyle = "plain" | "tabular" | "display";
+
 export type ComponentStyle = {
   frame: Frame;
   fill: Fill;
@@ -86,6 +106,12 @@ export type ComponentStyle = {
   stackMode: StackMode;
   /** Hole size for a donut, as a share of its radius. 0 is a pie. */
   donutHole: number;
+  rowDivider: RowDivider;
+  rowMarker: RowMarker;
+  rowEmphasis: RowEmphasis;
+  tableHeader: TableHeader;
+  chipShape: ChipShape;
+  numberStyle: NumberStyle;
 };
 
 /**
@@ -115,6 +141,15 @@ export const DEFAULT_STYLE: ComponentStyle = {
   markers: "none",
   stackMode: "none",
   donutHole: 0.62,
+  // The shipped look for the non-chart half: hairline-separated rows, no
+  // leading marker, medium-weight titles, tiny uppercase table headers,
+  // rounded-full chips, tabular figures.
+  rowDivider: "hairline",
+  rowMarker: "none",
+  rowEmphasis: "medium",
+  tableHeader: "caps",
+  chipShape: "pill",
+  numberStyle: "tabular",
 };
 
 const ENUMS = {
@@ -136,6 +171,12 @@ const ENUMS = {
   legend: ["none", "bottom", "right"],
   markers: ["none", "dot", "ring"],
   stackMode: ["none", "stacked", "grouped", "percent"],
+  rowDivider: ["none", "hairline", "zebra"],
+  rowMarker: ["none", "dot", "rule", "index"],
+  rowEmphasis: ["plain", "medium", "strong"],
+  tableHeader: ["plain", "muted", "caps"],
+  chipShape: ["pill", "soft", "square"],
+  numberStyle: ["plain", "tabular", "display"],
 } as const;
 
 export const STYLE_ENUMS = ENUMS;
@@ -159,6 +200,16 @@ export const FRAME_KEYS: readonly StyleKey[] = [
   "titleStyle",
   "titleAlign",
   "accentEdge",
+];
+
+/** Keys that describe how a ROW, a table or a number is drawn. */
+export const ROW_KEYS: readonly StyleKey[] = [
+  "rowDivider",
+  "rowMarker",
+  "rowEmphasis",
+  "tableHeader",
+  "chipShape",
+  "numberStyle",
 ];
 
 /** Keys that describe how data is drawn. */
@@ -665,3 +716,93 @@ export const CHART_PRESETS: StylePreset[] = STYLE_PRESETS.map((preset) => ({
   ...preset,
   patch: normalizeStylePatch(preset.patch, CHART_KEYS),
 }));
+
+/**
+ * How a list, a table and the numbers in them are drawn.
+ *
+ * Named for what they look like rather than for the keys they set, same as the
+ * chart shelf: somebody choosing "Ledger" is choosing a look, not filling in
+ * six dropdowns. These are the common case — most panels on most screens are
+ * rows, not charts — so this shelf matters more than the chart one, and it is
+ * the one that did not exist.
+ */
+export const ROW_PRESETS: StylePreset[] = [
+  {
+    id: "rows-lines",
+    name: "Ruled",
+    description: "A hairline under every row. The shipped look.",
+    patch: {
+      rowDivider: "hairline",
+      rowMarker: "none",
+      rowEmphasis: "medium",
+      tableHeader: "caps",
+      chipShape: "pill",
+      numberStyle: "tabular",
+    },
+  },
+  {
+    id: "rows-open",
+    name: "Open",
+    description: "No rules at all. Space does the separating.",
+    patch: {
+      rowDivider: "none",
+      rowMarker: "none",
+      rowEmphasis: "medium",
+      tableHeader: "muted",
+      chipShape: "soft",
+      numberStyle: "tabular",
+    },
+  },
+  {
+    id: "rows-banded",
+    name: "Banded",
+    description: "Alternating fills — easiest to track across a wide table.",
+    patch: {
+      rowDivider: "zebra",
+      rowMarker: "none",
+      rowEmphasis: "plain",
+      tableHeader: "muted",
+      chipShape: "square",
+      numberStyle: "tabular",
+    },
+  },
+  {
+    id: "rows-marked",
+    name: "Marked",
+    description: "A dot leads every row, so scanning has something to follow.",
+    patch: {
+      rowDivider: "none",
+      rowMarker: "dot",
+      rowEmphasis: "medium",
+      tableHeader: "plain",
+      chipShape: "pill",
+      numberStyle: "tabular",
+    },
+  },
+  {
+    id: "rows-numbered",
+    name: "Numbered",
+    description: "Rank in front of each row. For anything ordered.",
+    patch: {
+      rowDivider: "hairline",
+      rowMarker: "index",
+      rowEmphasis: "medium",
+      tableHeader: "caps",
+      chipShape: "soft",
+      numberStyle: "tabular",
+    },
+  },
+  {
+    id: "rows-editorial",
+    name: "Editorial",
+    description: "Heavier titles and big figures. Reads like a report.",
+    patch: {
+      rowDivider: "hairline",
+      rowMarker: "rule",
+      rowEmphasis: "strong",
+      tableHeader: "caps",
+      chipShape: "square",
+      numberStyle: "display",
+    },
+  },
+];

@@ -171,6 +171,19 @@ export function Panel({
 
   const frame = (
     <div
+      // How the non-chart half is drawn, as attributes rather than threaded
+      // props. Rows, tables and chips are rendered by four different
+      // components at three depths; passing `style` to each would mean four
+      // call sites to keep in agreement, and the fifth one somebody adds next
+      // month would silently ignore the reader's choice. CSS answers "how is
+      // a row drawn" from the panel root, exactly the way `data-list-style`
+      // on :root already answers it for the app.
+      data-row-divider={style.rowDivider}
+      data-row-marker={style.rowMarker}
+      data-row-emphasis={style.rowEmphasis}
+      data-table-header={style.tableHeader}
+      data-chip-shape={style.chipShape}
+      data-number-style={style.numberStyle}
       className={cn(
         "flex h-full min-w-0 flex-col transition-shadow",
         frameClass(style),
@@ -247,7 +260,7 @@ function Header({
         {def.title}
       </span>
       {total > def.query.limit && style.titleAlign !== "center" && (
-        <span className="flex-shrink-0 text-[11px] tabular-nums text-muted-foreground">
+        <span className="ui-figure flex-shrink-0 text-[11px] text-muted-foreground">
           {def.query.limit} of {total}
         </span>
       )}
@@ -419,7 +432,7 @@ function Metric({
       <ProvenanceToggle
         open={provenance.open}
         onToggle={provenance.toggle}
-        className="text-4xl tabular-nums"
+        className="ui-figure text-4xl"
       >
         <LiveNumber value={data.scalar} />
         {data.meta.unit === "percent" ? "%" : ""}
@@ -517,7 +530,11 @@ function RowTitle({
   return (
     <span
       className={cn(
-        "block break-words text-sm group-hover:underline",
+        // `ui-row-title` is the hook the row-emphasis rules hang off. A class
+        // rather than a prop for the same reason the attributes are on the
+        // panel root: this component is rendered from four places and none of
+        // them should have to know how heavy the reader likes their titles.
+        "ui-row-title block break-words text-sm group-hover:underline",
         CLAMP[lines],
       )}
     >
@@ -683,7 +700,7 @@ function Table({
                 return (
                   <td
                     key={f}
-                    className="py-1.5 pr-3 tabular-nums text-muted-foreground"
+                    className="ui-figure py-1.5 pr-3 text-muted-foreground"
                   >
                     {value === null || value === undefined
                       ? "—"

@@ -69,11 +69,14 @@ import { cn } from "@/lib/utils";
 import {
   CARD_PRESETS,
   CHART_PRESETS,
+  ROW_PRESETS,
+  DEFAULT_STYLE,
   STYLE_ENUMS,
   normalizeStyle,
   normalizeStylePatch,
   paletteColors,
   type ComponentStyle,
+  type StylePatch,
 } from "@/lib/component-style";
 import {
   isChartShape,
@@ -180,6 +183,49 @@ const CARD_SPECIMEN_H = 76;
  * are given is smaller and the shelf lands at the same height as the others.
  */
 const CHART_SPECIMEN_H = 96;
+
+/**
+ * Three rows, drawn by the same rules a panel draws them with.
+ *
+ * Not a picture of a list — the attributes below are the ones
+ * `dashboard/panel.tsx` puts on its own root, and the classes are the ones the
+ * row components carry, so what this shows is what you get. A specimen that
+ * merely resembles the thing drifts the moment the renderer changes, which is
+ * the whole argument for drawing options rather than naming them.
+ */
+function RowSpecimen({ patch }: { patch: StylePatch }) {
+  const s = { ...DEFAULT_STYLE, ...patch };
+  return (
+    <div
+      data-row-divider={s.rowDivider}
+      data-row-marker={s.rowMarker}
+      data-row-emphasis={s.rowEmphasis}
+      data-chip-shape={s.chipShape}
+      data-number-style={s.numberStyle}
+      className="w-full px-1 py-1.5"
+    >
+      <div className="ui-list">
+        {[
+          { title: "Ship the release gate", meta: "Ada", n: "4" },
+          { title: "Draft the launch note", meta: "Grace", n: "12" },
+          { title: "Review agent budgets", meta: "Alan", n: "7" },
+        ].map((row) => (
+          <div key={row.title} className="flex items-center gap-2 py-1.5">
+            <span className="ui-row-title min-w-0 flex-1 truncate text-sm">
+              {row.title}
+            </span>
+            <span className="ui-chip bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              {row.meta}
+            </span>
+            <span className="ui-figure text-xs text-muted-foreground">
+              {row.n}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function StyleStudio() {
   const { active } = useCustomize();
@@ -295,11 +341,16 @@ function StudioIsland() {
   );
 }
 
-type Chapter = "colour" | "cards" | "chart" | "only" | "new";
+type Chapter = "colour" | "cards" | "rows" | "chart" | "only" | "new";
 
 const CHAPTERS: { id: Chapter; label: string }[] = [
   { id: "colour", label: "Colour" },
   { id: "cards", label: "Card" },
+  // Rows sit BEFORE charts, because they are the common case. Most panels on
+  // most screens are a list or a table; a chart is the exception. The studio
+  // opened on chart controls for months while offering none of these, which
+  // read — correctly — as a customiser built for a product this isn't.
+  { id: "rows", label: "Rows" },
   { id: "chart", label: "Chart" },
   { id: "only", label: "Only when…" },
   { id: "new", label: "New card" },
@@ -578,6 +629,31 @@ function StudioSheet() {
                       centred={centred}
                       onCentred={setCentred}
                       selection={selection}
+                    />
+                  )}
+
+                  {chapter === "rows" && (
+                    <HeroShelf
+                      centred={centred}
+                      items={ROW_PRESETS.map((preset) => ({
+                        id: preset.id,
+                        label: preset.name,
+                        hint: preset.description,
+                        render: () => (
+                          <SpecimenCard>
+                            <RowSpecimen
+                              patch={normalizeStylePatch(preset.patch)}
+                            />
+                          </SpecimenCard>
+                        ),
+                      }))}
+                      onCentred={setCentred}
+                      onPick={(id) => {
+                        const preset = ROW_PRESETS.find((p) => p.id === id);
+                        if (preset)
+                          commit(normalizeStylePatch(preset.patch), scope);
+                      }}
+                      title="Rows"
                     />
                   )}
 

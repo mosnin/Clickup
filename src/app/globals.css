@@ -2955,3 +2955,135 @@ a:hover > .message-ref {
   align-items: center;
   justify-content: center;
 }
+
+/* ---------------------------------------------------------------------------
+   Rows, tables and figures — the non-chart half of a panel.
+
+   The style model described twelve ways to draw a chart and no way at all to
+   draw a row, which is what most panels on most screens actually are. These
+   rules are the other half. They hang off attributes the panel root emits from
+   its resolved style (see `dashboard/panel.tsx`), so a list, a table and a
+   card all answer to one choice without any of them being handed a prop.
+
+   Everything here is about DRAWING. Row height, type size and line height are
+   deliberately absent: those are `density` and `fontScale`, they belong to the
+   reader, and a panel that could set them could shrink the type of somebody
+   who never asked for it.
+--------------------------------------------------------------------------- */
+
+/* Dividers ---------------------------------------------------------------- */
+[data-row-divider="none"] .ui-list > * + * {
+  border-top: 0;
+}
+[data-row-divider="hairline"] .ui-list > * + * {
+  border-top: 1px solid var(--color-border);
+}
+[data-row-divider="zebra"] .ui-list > * + * {
+  border-top: 0;
+}
+[data-row-divider="zebra"] .ui-list > *:nth-child(even),
+[data-row-divider="zebra"] tbody tr:nth-child(even) {
+  background: var(--color-muted);
+}
+[data-row-divider="zebra"] tbody tr,
+[data-row-divider="none"] tbody tr {
+  border-top-color: transparent;
+}
+
+/* Leading marks ------------------------------------------------------------
+   A counter rather than content on the row itself: the row components are
+   shared with surfaces that have no panel around them, and none of them
+   should have to know they are being numbered. */
+[data-row-marker="dot"] .ui-list,
+[data-row-marker="index"] .ui-list,
+[data-row-marker="rule"] .ui-list {
+  counter-reset: ui-row;
+}
+[data-row-marker="dot"] .ui-list > *,
+[data-row-marker="index"] .ui-list > *,
+[data-row-marker="rule"] .ui-list > * {
+  counter-increment: ui-row;
+  position: relative;
+  padding-left: 1.25rem;
+}
+[data-row-marker="dot"] .ui-list > *::before {
+  content: "";
+  position: absolute;
+  left: 0.25rem;
+  top: 0.95em;
+  height: 0.3rem;
+  width: 0.3rem;
+  border-radius: 9999px;
+  background: var(--color-muted-foreground);
+}
+[data-row-marker="index"] .ui-list > *::before {
+  content: counter(ui-row);
+  position: absolute;
+  left: 0;
+  top: 0.5em;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted-foreground);
+}
+[data-row-marker="rule"] .ui-list > *::before {
+  content: "";
+  position: absolute;
+  left: 0.35rem;
+  top: 0.55em;
+  bottom: 0.55em;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--color-border);
+}
+
+/* Title weight ------------------------------------------------------------ */
+[data-row-emphasis="plain"] .ui-list .ui-row-title {
+  font-weight: 400;
+}
+[data-row-emphasis="medium"] .ui-list .ui-row-title {
+  font-weight: 500;
+}
+[data-row-emphasis="strong"] .ui-list .ui-row-title {
+  font-weight: 650;
+}
+
+/* Table headers ----------------------------------------------------------- */
+[data-table-header="plain"] thead tr {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-foreground);
+}
+[data-table-header="muted"] thead tr {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-muted-foreground);
+}
+[data-table-header="caps"] thead tr {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted-foreground);
+}
+
+/* Chips ------------------------------------------------------------------- */
+[data-chip-shape="pill"] .ui-chip {
+  border-radius: 9999px;
+}
+[data-chip-shape="soft"] .ui-chip {
+  border-radius: 0.5rem;
+}
+[data-chip-shape="square"] .ui-chip {
+  border-radius: 0.185rem;
+}
+
+/* Figures ----------------------------------------------------------------- */
+[data-number-style="plain"] .ui-figure {
+  font-variant-numeric: normal;
+}
+[data-number-style="tabular"] .ui-figure {
+  font-variant-numeric: tabular-nums;
+}
+[data-number-style="display"] .ui-figure {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}

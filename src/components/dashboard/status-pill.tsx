@@ -18,7 +18,10 @@ export function StatusPill({
     <Badge
       variant="outline"
       className={cn(
-        "gap-1.5 border-transparent font-medium text-foreground/80",
+        // `ui-chip` is what makes the panel's chip-shape choice reach a real
+        // element. Without a consumer this would be a control that changes
+        // nothing, which is worse than a control that is absent.
+        "ui-chip gap-1.5 border-transparent font-medium text-foreground/80",
         className,
       )}
       style={{ backgroundColor: `${status.color}4d` }}

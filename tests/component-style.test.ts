@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   CHART_KEYS,
+  ROW_KEYS,
   DEFAULT_STYLE,
   FRAME_KEYS,
   STYLE_ENUMS,
@@ -209,7 +210,11 @@ describe("layering runs general to specific", () => {
 
 describe("the key partition", () => {
   it("covers every axis exactly once", () => {
-    const classified = [...FRAME_KEYS, ...CHART_KEYS];
+    // ROW_KEYS joined the partition when the model stopped being only about
+    // charts. The rule it enforces is the point: a key nobody classified is a
+    // key no shelf offers, which is a control that exists in the type and
+    // nowhere a person can reach.
+    const classified = [...FRAME_KEYS, ...CHART_KEYS, ...ROW_KEYS];
     expect([...classified].sort()).toEqual([...STYLE_KEYS].sort());
     expect(new Set(classified).size).toBe(classified.length);
   });
