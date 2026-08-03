@@ -1331,13 +1331,27 @@ function SidebarFooterBody() {
  */
 function AppearanceMenuItem() {
   const { active, setActive } = useCustomize();
+  const { isMobile, setOpenMobile } = useSidebar();
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton
           isActive={active}
           tooltip="Customise this screen"
-          onClick={() => setActive(!active)}
+          onClick={() => {
+            const next = !active;
+            setActive(next);
+            // On a phone the sidebar is a full-screen drawer, so turning the
+            // mode on from inside it left the inspector and the whole canvas
+            // behind an opaque sheet — the one surface the mode exists to let
+            // you edit in place was the one thing you could not see. Entering
+            // the mode has to get out of its own way.
+            //
+            // Only on entry: leaving the mode from inside the drawer is an
+            // ordinary menu action, and closing the nav underneath somebody
+            // who was using it would be its own small rudeness.
+            if (next && isMobile) setOpenMobile(false);
+          }}
         >
           <Sparkles className="text-muted-foreground" />
           <span className="flex-1 truncate">

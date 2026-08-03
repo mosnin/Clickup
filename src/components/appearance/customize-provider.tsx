@@ -126,6 +126,19 @@ export function CustomizeProvider({ children }: { children: React.ReactNode }) {
       ) {
         return;
       }
+      // A modal's scrim is not the canvas.
+      //
+      // `[role=dialog]` above covers the sheet itself but not the dimmed layer
+      // behind it, which is a sibling — so on a phone, opening the nav while
+      // customising and then tapping away to dismiss it read as "tapped the
+      // background" and dropped the mode. Two things went at once and only one
+      // of them was asked for.
+      //
+      // Tested by attribute rather than by asking whether a modal is open:
+      // "is this element a scrim" is a fact about the thing under the finger,
+      // and the alternative — querying the document for an open overlay — says
+      // yes to taps that genuinely were on the canvas.
+      if (target?.closest("[data-slot$='-overlay']")) return;
       if (selection) setSelection(null);
       else setActive(false);
     };
