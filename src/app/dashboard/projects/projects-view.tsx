@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { FolderKanban, Star } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Picker } from "@/components/ui/picker";
 import { Progress } from "@/components/ui/progress";
 import { Tabs } from "@/components/interior/tabs";
+import { Pagination } from "@/components/interior/pagination";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { useToast } from "@/components/toast";
@@ -32,6 +33,10 @@ type ProjectRow = NonNullable<
 >["rows"][number];
 
 const PROJECTS_PANEL_ID = "projects-directory-panel";
+
+// 24 divides by 2, 3 and 4, so the last row of the grid is full at every
+// breakpoint the cards lay out at.
+const PAGE_SIZE = 24;
 
 type StatusFilter = "" | "on_track" | "at_risk" | "off_track" | "paused";
 
@@ -170,7 +175,11 @@ export function ProjectsView() {
 
   // Defaults ("name" / "none") drop out of the URL so the bare
   // /dashboard/projects link stays clean.
-  function setParam(key: "sort" | "group", value: string, defaultValue: string) {
+  function setParam(
+    key: "sort" | "group" | "page",
+    value: string,
+    defaultValue: string,
+  ) {
     const params = new URLSearchParams(searchParams.toString());
     if (value === defaultValue) params.delete(key);
     else params.set(key, value);
@@ -182,6 +191,18 @@ export function ProjectsView() {
     const t = setTimeout(() => setDebounced(raw.trim()), 250);
     return () => clearTimeout(t);
   }, [raw]);
+
+  // Narrowing the set returns you to its start. Without this, searching while
+  // on page 4 leaves you on page 4 of a one-page result — the clamp above
+  // stops it rendering empty, but landing mid-list after a search you just
+  // typed reads as the search having failed.
+  const resetPage = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (!params.has("page")) return;
+    params.delete("page");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
 
   const data = useQuery(api.projectsDirectory.list, {
     search: debounced || undefined,
@@ -204,9 +225,28 @@ export function ProjectsView() {
     return [...data.rows].sort((a, b) => compareProjects(a, b, sort));
   }, [data, sort]);
 
+  // Paging is over the SORTED FLAT list, and groups are built from the page
+  // rather than the page from the groups. One rule for both modes: a page is
+  // always PAGE_SIZE rows, and a group heading appears on whichever page its
+  // rows fell on. Paging per-group instead would mean a page whose size
+  // depends on which groups it happens to span.
+  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  // Clamped, not trusted: ?page=99 arrives from a shared link and from
+  // pressing back after the filter narrowed. An out-of-range page must show
+  // the last page, never an empty screen under a full-looking header.
+  const pageParam = Number(searchParams.get("page") ?? 1);
+  const page = Math.min(
+    Math.max(1, Number.isFinite(pageParam) ? Math.trunc(pageParam) : 1),
+    pageCount,
+  );
+  const paged = useMemo(
+    () => sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [sorted, page],
+  );
+
   const groups = useMemo(
-    () => (group === "none" ? null : groupProjects(sorted, group)),
-    [sorted, group],
+    () => (group === "none" ? null : groupProjects(paged, group)),
+    [paged, group],
   );
 
   async function onToggleFavorite(listId: Id<"projects">, wasFavorited: boolean) {
@@ -244,7 +284,10 @@ export function ProjectsView() {
         <div className="flex flex-wrap items-center gap-2 pb-2">
           <Input
             value={raw}
-            onChange={(e) => setRaw(e.currentTarget.value)}
+            onChange={(e) => {
+              setRaw(e.currentTarget.value);
+              resetPage();
+            }}
             placeholder="Search projects…"
             className="h-8 w-40 sm:w-56"
           />
@@ -271,7 +314,10 @@ export function ProjectsView() {
             label: f.label,
           }))}
           value={status || "all"}
-          onValueChange={(v) => setStatus(v === "all" ? "" : (v as StatusFilter))}
+          onValueChange={(v) => {
+            setStatus(v === "all" ? "" : (v as StatusFilter));
+            resetPage();
+          }}
           label="Filter projects by health"
           // Manual: each change is a refetch and a re-sort of the whole
           // directory, so arrowing across five tabs must not fire five of
@@ -301,7 +347,7 @@ export function ProjectsView() {
         <>
           {groups === null ? (
             <ProjectsGrid
-              projects={sorted}
+              projects={paged}
               favoritedProjectIds={favoritedProjectIds}
               onToggleFavorite={onToggleFavorite}
             />
@@ -324,10 +370,21 @@ export function ProjectsView() {
               ))}
             </div>
           )}
+          <Pagination
+            count={pageCount}
+            page={page}
+            label="Projects"
+            onPageChange={(next) => setParam("page", String(next), "1")}
+            className="pt-2"
+          />
+          {/* Only when the SERVER truncated, which is a different condition
+              from "this page is one of several" and needs saying separately —
+              the pager can reach every row it was given, and these are rows it
+              was not given. */}
           {data.totalCount > data.rows.length && (
             <p className="text-center text-xs text-muted-foreground">
-              Showing {data.rows.length} of {data.totalCount}. Narrow your
-              search to see more.
+              Showing the first {data.rows.length} of {data.totalCount}. Narrow
+              your search to reach the rest.
             </p>
           )}
         </>

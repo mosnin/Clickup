@@ -40,6 +40,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { Pagination } from "@/components/interior/pagination";
 import { cn } from "@/lib/utils";
 import { identityFill } from "@/lib/identity-color";
 import { timeAgo } from "@/lib/time";
@@ -560,12 +561,25 @@ function auditTone(action: string): string {
   return "bg-muted text-muted-foreground";
 }
 
+const AUDIT_PAGE_SIZE = 25;
+
 function AuditTab() {
   const rows = useQuery(api.admin.auditLog, { limit: 200 });
+  // Local rather than in the URL, unlike the projects directory: the admin
+  // tabs are not addressable per-page, so a ?page= here would be a parameter
+  // that outlives the tab it belongs to.
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil((rows?.length ?? 0) / AUDIT_PAGE_SIZE));
+  const current = Math.min(page, pageCount);
+  const pageRows = (rows ?? []).slice(
+    (current - 1) * AUDIT_PAGE_SIZE,
+    current * AUDIT_PAGE_SIZE,
+  );
   if (rows === undefined) return <SkeletonRows />;
   if (rows.length === 0)
     return <Empty label="No admin actions recorded yet." />;
   return (
+    <>
     <TableCard>
       <Table>
         <TableHeader>
@@ -576,7 +590,7 @@ function AuditTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((r) => (
+          {pageRows.map((r) => (
             <TableRow key={r._id}>
               <TableCell>
                 <Badge
@@ -604,6 +618,14 @@ function AuditTab() {
         </TableBody>
       </Table>
     </TableCard>
+    <Pagination
+      count={pageCount}
+      page={current}
+      label="Audit log"
+      onPageChange={setPage}
+      className="pt-3"
+    />
+    </>
   );
 }
 
