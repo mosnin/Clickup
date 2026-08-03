@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import { mentionedActorIds } from "./_markdown";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -305,7 +306,24 @@ export async function createMessageCore(
   // actually see this context — silently drop the rest. Mentioned humans
   // get an email; mentioned agents get an event (their MCP inbox +
   // webhooks pick it up).
-  const mentionIds = Array.from(new Set(args.mentionIds ?? []));
+  // Derived from the body, unioned with whatever the caller passed.
+  //
+  // This used to trust `args.mentionIds` alone, four lines after a comment
+  // arguing — about refs — that a caller-supplied array can disagree with the
+  // text it claims to describe. It disagreed constantly: every agent had to
+  // remember to duplicate each token it had just written (the MCP tool
+  // description pleads for it), a human reply notified nobody, and a team on a
+  // twelve-message thread learned to re-tag four names every time or move to
+  // Slack. Parsing the body is the only source that cannot drift from what the
+  // message actually says.
+  //
+  // Union rather than replace: a caller may legitimately notify somebody whose
+  // token is not in this body — an assigned comment, a handoff. `canBeMentioned`
+  // still gates every id below, so deriving more of them widens who is
+  // considered, never who is allowed.
+  const mentionIds = Array.from(
+    new Set([...(args.mentionIds ?? []), ...mentionedActorIds(args.body)]),
+  );
   for (const id of mentionIds) {
     if (id === actor.id) continue;
     const allowed = await canBeMentioned(ctx, id, workspaceId, personalOwner);
