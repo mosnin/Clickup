@@ -31,6 +31,7 @@ import {
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { Monogram } from "@/components/dashboard/monogram";
 import { InlineCreate } from "@/components/dashboard/inline-create";
+import { Tabs } from "@/components/interior/tabs";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { TemplatePicker } from "@/components/dashboard/template-picker";
 import { Button } from "@/components/ui/button";
@@ -104,6 +105,7 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
   const id = spaceId as Id<"spaces">;
   const overview = useQuery(api.spaces.overview, { spaceId: id });
   const router = useRouter();
+  const SPACE_PANEL_ID = "space-section-panel";
   const [tab, setTab] = useState<"overview" | "settings">("overview");
   const [templateOpen, setTemplateOpen] = useState(false);
 
@@ -172,39 +174,20 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
           ) : undefined
         }
       >
-        <nav
-          aria-label="Space tabs"
-          className="flex items-center gap-1 pb-2 text-sm"
-        >
-          <button
-            type="button"
-            onClick={() => setTab("overview")}
-            aria-pressed={tab === "overview"}
-            className={cn(
-              "rounded-md px-3 py-1.5 font-medium transition-colors",
-              tab === "overview"
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-            )}
-          >
-            Overview
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("settings")}
-            aria-pressed={tab === "settings"}
-            className={cn(
-              "rounded-md px-3 py-1.5 font-medium transition-colors",
-              tab === "settings"
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-            )}
-          >
-            Settings
-          </button>
-        </nav>
+        <Tabs
+          items={[
+            { value: "overview", label: "Overview" },
+            { value: "settings", label: "Settings" },
+          ]}
+          value={tab}
+          onValueChange={(v) => setTab(v as "overview" | "settings")}
+          label="Space sections"
+          activation="automatic"
+          panelId={SPACE_PANEL_ID}
+        />
       </PageHeader>
 
+      <div id={SPACE_PANEL_ID} role="tabpanel" aria-label="Space">
       {tab === "overview" ? (
         <OverviewTab
           spaceId={id}
@@ -225,6 +208,7 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
           canGovern={canGovern}
         />
       )}
+      </div>
       <TemplatePicker
         open={templateOpen}
         parent={{ kind: "space", spaceId: id }}

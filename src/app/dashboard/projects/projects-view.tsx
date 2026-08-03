@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Picker } from "@/components/ui/picker";
 import { Progress } from "@/components/ui/progress";
+import { Tabs } from "@/components/interior/tabs";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { useToast } from "@/components/toast";
@@ -29,6 +30,8 @@ import { cn } from "@/lib/utils";
 type ProjectRow = NonNullable<
   ReturnType<typeof useQuery<typeof api.projectsDirectory.list>>
 >["rows"][number];
+
+const PROJECTS_PANEL_ID = "projects-directory-panel";
 
 type StatusFilter = "" | "on_track" | "at_risk" | "off_track" | "paused";
 
@@ -229,10 +232,15 @@ export function ProjectsView() {
             : `${data.totalCount} project${data.totalCount === 1 ? "" : "s"}`
         }
       >
-        {/* Search + health filter + sort/group live in the header's own
-            row (not the actions cluster, which sits flush beside the title
-            with no wrap) so they wrap under the title instead of
-            overflowing the page horizontally on narrow screens. */}
+        {/* Two rows, and the split is the point. Search and sort/group are
+            *controls* — they change how the set is drawn. Health is a
+            *place* — it changes which set you are looking at. They used to
+            share one wrapping row, where the filter buttons read as three
+            more widgets among five and the strip could never sit flush.
+
+            Controls first, then the tab strip alone on the header's bottom
+            edge, so the rule under the selected tab and the header's own
+            border are one line. */}
         <div className="flex flex-wrap items-center gap-2 pb-2">
           <Input
             value={raw}
@@ -240,48 +248,44 @@ export function ProjectsView() {
             placeholder="Search projects…"
             className="h-8 w-40 sm:w-56"
           />
-          <nav
-            aria-label="Health filter"
-            className="-mx-1 flex items-center gap-1 overflow-x-auto overscroll-x-contain px-1 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f.key || "all"}
-                type="button"
-                onClick={() => setStatus(f.key)}
-                aria-pressed={status === f.key}
-                className={cn(
-                  "flex-shrink-0 rounded-md px-3 py-1.5 transition-colors",
-                  status === f.key
-                    ? "bg-accent font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
-          </nav>
-          <div className="flex flex-wrap items-center gap-2">
-            <Picker
-              options={SORT_OPTIONS.map((o) => ({ id: o.id, label: o.label }))}
-              selectedId={sort}
-              onSelect={(id) => {
-                if (isSortKey(id)) setParam("sort", id, "name");
-              }}
-              label={`Sort · ${sortLabel}`}
-            />
-            <Picker
-              options={GROUP_OPTIONS.map((o) => ({ id: o.id, label: o.label }))}
-              selectedId={group}
-              onSelect={(id) => {
-                if (isGroupKey(id)) setParam("group", id, "none");
-              }}
-              label={`Group · ${groupLabel}`}
-            />
-          </div>
+          <Picker
+            options={SORT_OPTIONS.map((o) => ({ id: o.id, label: o.label }))}
+            selectedId={sort}
+            onSelect={(id) => {
+              if (isSortKey(id)) setParam("sort", id, "name");
+            }}
+            label={`Sort · ${sortLabel}`}
+          />
+          <Picker
+            options={GROUP_OPTIONS.map((o) => ({ id: o.id, label: o.label }))}
+            selectedId={group}
+            onSelect={(id) => {
+              if (isGroupKey(id)) setParam("group", id, "none");
+            }}
+            label={`Group · ${groupLabel}`}
+          />
         </div>
+        <Tabs
+          items={STATUS_FILTERS.map((f) => ({
+            value: f.key || "all",
+            label: f.label,
+          }))}
+          value={status || "all"}
+          onValueChange={(v) => setStatus(v === "all" ? "" : (v as StatusFilter))}
+          label="Filter projects by health"
+          // Manual: each change is a refetch and a re-sort of the whole
+          // directory, so arrowing across five tabs must not fire five of
+          // them. The reader picks, then presses.
+          activation="manual"
+          panelId={PROJECTS_PANEL_ID}
+        />
       </PageHeader>
 
+      {/* The strip's panel, named rather than nested: the results are a page
+          of content under a sticky header, not something that can live inside
+          the header itself. `aria-controls` still has a real target, which is
+          the part that matters to a screen reader. */}
+      <div id={PROJECTS_PANEL_ID} role="tabpanel" aria-label="Projects">
       {data === undefined ? (
         <ProjectsSkeleton />
       ) : data.rows.length === 0 ? (
@@ -328,6 +332,7 @@ export function ProjectsView() {
           )}
         </>
       )}
+      </div>
     </div>
   );
 }

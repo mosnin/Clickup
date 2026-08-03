@@ -37,6 +37,7 @@ import {
 import { Orb } from "@/components/dashboard/orb";
 import { BillingTab } from "@/components/dashboard/billing-panel";
 import { ConnectSnippet } from "@/components/dashboard/connect-snippet";
+import { Tabs } from "@/components/interior/tabs";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { TerminalSurface } from "@/components/terminal-surface";
 import TextType from "@/components/text-type";
@@ -62,6 +63,8 @@ import { ActorGlyph } from "@/components/appearance/actor-glyph";
 // queries, so an agent's heartbeat/statusText updates appear in realtime.
 
 type Tab = "agents" | "activity" | "billing" | "webhooks" | "skills";
+
+const AGENTS_PANEL_ID = "agents-section-panel";
 
 const TABS: { key: Tab; label: string; icon: typeof Bot }[] = [
   { key: "agents", label: "Agents", icon: Bot },
@@ -134,28 +137,25 @@ export function AgentsView() {
           )
         }
       >
-        <nav
-          aria-label="Agents tabs"
-          className="-mx-4 flex items-center gap-1 overflow-x-auto overscroll-x-contain px-4 pb-2 text-sm sm:-mx-6 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {TABS.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              aria-current={tab === key ? "page" : undefined}
-              className={cn(
-                "inline-flex flex-shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors",
-                tab === key
-                  ? "bg-accent font-medium text-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          ))}
-        </nav>
+        {/* These were already tabs in everything but name and behaviour —
+            `aria-current="page"` on a row of buttons that switch a panel,
+            which announces them as navigation and costs one tab stop each.
+            Now they say what they are and the arrow keys work. */}
+        <Tabs
+          items={TABS.map(({ key, label, icon }) => ({
+            value: key,
+            label,
+            icon,
+          }))}
+          value={tab}
+          onValueChange={(v) => setTab(v as Tab)}
+          label="Agents sections"
+          // Automatic: these switch between already-subscribed views, so
+          // arrowing through them is free and selection-follows-focus is the
+          // faster contract.
+          activation="automatic"
+          panelId={AGENTS_PANEL_ID}
+        />
       </PageHeader>
 
       <TextType
@@ -167,6 +167,8 @@ export function AgentsView() {
       />
 
       <motion.div
+        id={AGENTS_PANEL_ID}
+        role="tabpanel"
         key={tab}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
