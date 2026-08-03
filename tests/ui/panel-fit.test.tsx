@@ -488,8 +488,23 @@ const LOW_CONTRAST = `(() => {
     // ── Marks ──
     for (const el of tile.querySelectorAll("svg rect, svg path, svg circle, svg ellipse, svg polygon")) {
       if (invisible(el)) continue;
+      // A shape inside one of these is a DEFINITION, not a drawing: it says
+      // where something clips or how it is painted, and is never itself put on
+      // screen. Nothing in it can be read, so nothing in it has a contrast.
+      //
+      // This was found the expensive way. The chart library emits a full-size
+      // <rect> inside a <clipPath>; it carries no fill, so it computes to
+      // SVG's initial black. Chromium 141 reports a 0x0 box for it and the
+      // size floor below happened to hide it, which is why this gate passed
+      // locally for weeks. Chromium 131 — the build playwright-core pins, so
+      // the one CI runs — reports its real geometry, and the gate then failed
+      // every chart in the suite on the contrast of something no user can see.
+      // Relying on a size floor to exclude unrendered geometry was always
+      // incidental; asking whether the element is rendered at all is the
+      // property actually meant, and it does not vary by browser.
+      if (el.closest("clipPath, defs, mask, pattern, marker, symbol")) continue;
       const box = el.getBoundingClientRect();
-      // Big enough to be a mark rather than a hairline join or a clip path.
+      // Big enough to be a mark rather than a hairline join.
       if (box.width < 3 || box.height < 3) continue;
       const cs = getComputedStyle(el);
       const parent = el.parentElement;
