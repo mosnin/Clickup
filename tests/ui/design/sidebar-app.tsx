@@ -4,6 +4,7 @@ import { ToastProvider } from "@/components/toast";
 import { AppearanceProvider } from "@/components/appearance/appearance-provider";
 import { CustomizeProvider } from "@/components/appearance/customize-provider";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
+import { SidebarDock } from "@/components/appearance/sidebar-dock";
 import { FileTree } from "@/components/ui/file-tree";
 import { galleryData } from "./stubs/convex-react";
 import { StyleStudio } from "@/components/appearance/style-studio";
@@ -173,6 +174,12 @@ function Page() {
             <CustomizeProvider>
               <SidebarProvider>
                 <DashboardSidebar />
+                {/* The drag-to-move gesture, which the dashboard layout
+                    mounts beside the sidebar. It was absent here, so the
+                    gesture that decides whether the nav can be picked up —
+                    and whether it can be picked up BY ACCIDENT — had no
+                    harness at all. scripts/verify-nav-grab.mjs drives it. */}
+                <SidebarDock />
               </SidebarProvider>
               {/* The studio, opened by its own switch so what renders is the
                   real component in its real providers. */}

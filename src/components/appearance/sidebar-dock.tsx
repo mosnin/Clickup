@@ -107,6 +107,8 @@ export function SidebarDock() {
     // under the finger fires on every drop.
     let suppressClick = false;
 
+    const preventNativeDrag = (e: Event) => e.preventDefault();
+
     const setZoneBoth = (z: SidebarPosition | null) => {
       zoneRef.current = z;
       setZone(z);
@@ -125,6 +127,17 @@ export function SidebarDock() {
       container.style.willChange = "transform";
       container.style.zIndex = "60";
       container.style.cursor = "grabbing";
+      // The nav is full of <a> elements, and an anchor is natively
+      // draggable. Without this, moving the hand after a successful lift
+      // starts an HTML5 link drag, the browser takes the gesture, fires
+      // pointercancel — and the nav settles back the instant you try to
+      // move it. The gesture engaged and then went dead in your hand, which
+      // is indistinguishable from it never having worked.
+      //
+      // Suppressing selection matters for the same reason: a text-selection
+      // drag cancels the pointer just as effectively.
+      container.style.userSelect = "none";
+      container.addEventListener("dragstart", preventNativeDrag);
       // The floating sidebar carries a CSS `transition: transform` so its
       // collapse animates. Left on during a drag it lags every frame behind the
       // hand by 350ms, which reads as the panel being stuck in treacle.
@@ -165,6 +178,8 @@ export function SidebarDock() {
       if (!touched) return;
       touched = false;
       container.style.cursor = "";
+      container.style.userSelect = "";
+      container.removeEventListener("dragstart", preventNativeDrag);
       animeSet(container, { x: 0, y: 0, scale: 1, rotate: 0 });
       container.style.transform = "";
       container.style.willChange = "";
@@ -220,6 +235,20 @@ export function SidebarDock() {
         ) {
           cancelHold();
         }
+        return;
+      }
+      // Engaged with nothing held down means the release was never seen —
+      // the nav is now following a pointer that is not pressed, which is the
+      // "click the sidebar and it comes off in your hand" bug. Recover
+      // instead of dragging something nobody is holding.
+      //
+      // `buttons` is the authority here rather than a flag of our own: it
+      // describes the pointer's ACTUAL state this frame, so it is true even
+      // when the pointerup went somewhere we never heard about.
+      if (e.buttons === 0) {
+        engaged = false;
+        setZoneBoth(null);
+        settle();
         return;
       }
       e.preventDefault();
@@ -287,17 +316,34 @@ export function SidebarDock() {
     };
 
     container.addEventListener("pointerdown", onPointerDown);
-    container.addEventListener("pointermove", onPointerMove);
-    container.addEventListener("pointerup", onPointerUp);
-    container.addEventListener("pointercancel", onPointerUp);
+    // Move, up and cancel listen on the WINDOW, not the container, and that
+    // is the whole fix for the nav coming off in your hand.
+    //
+    // Pointer capture is taken in lift(), so once a drag is real the events
+    // retarget to the container — but during the 650ms hold there is no
+    // capture yet. Release outside the container in that window (a menu
+    // portal opening under the cursor, a row unmounting on navigation, the
+    // pointer leaving the rail) and the container's own pointerup never
+    // fires: the timer runs to completion, the nav lifts with nothing held
+    // down, and from then on it follows the mouse with no way to drop it.
+    //
+    // A release anywhere has to count as a release. The window hears all of
+    // them, and the handlers below already no-op when nothing is pending.
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
     container.addEventListener("click", onClickCapture, true);
     window.addEventListener("keydown", onKeyDown);
     return () => {
       cancelHold();
       container.removeEventListener("pointerdown", onPointerDown);
-      container.removeEventListener("pointermove", onPointerMove);
-      container.removeEventListener("pointerup", onPointerUp);
-      container.removeEventListener("pointercancel", onPointerUp);
+      // Removed from the same target they were added to. Detaching a window
+      // listener from the container silently succeeds and leaves the real
+      // one bound — one stale drag handler per re-render, every one of them
+      // still holding a reference to a container that has gone.
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
       container.removeEventListener("click", onClickCapture, true);
       window.removeEventListener("keydown", onKeyDown);
       // A drag interrupted by the element going away must not leave a
