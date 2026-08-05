@@ -1,16 +1,6 @@
-import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { INSTALLABLE_SKILLS, skillDigests } from "@/lib/agent-skills";
 
-const SKILLS = [
-  "operate-plan",
-  "operate-dispatch",
-  "operate-worker",
-  "operate-daily-ops",
-  "operate-recovery",
-  "operate-assurance",
-  "operate-decisions",
-];
+const SKILLS = INSTALLABLE_SKILLS.map((skill) => skill.slug);
 
 const OFFICIAL_ORIGIN = "https://www.operate.to";
 
@@ -37,27 +27,12 @@ function publicOrigin(): string {
 
 export async function GET() {
   const origin = publicOrigin();
-  const skillFiles = await Promise.all(
-    SKILLS.map(async (skill) => {
-      const content = await readFile(
-        path.join(
-          process.cwd(),
-          "plugins",
-          "operate",
-          "skills",
-          skill,
-          "SKILL.md",
-        ),
-      );
-      return {
-        skill,
-        sha256: createHash("sha256").update(content).digest("hex"),
-      };
-    }),
-  );
+  // Same digests the manifest publishes, so "the installer verified this"
+  // and "the manifest says you are current" can never mean different bytes.
+  const skillFiles = await skillDigests();
   const downloads = skillFiles
     .map(
-      ({ skill, sha256 }) =>
+      ({ slug: skill, sha256 }) =>
         `mkdir -p "$staging_dir/${skill}"
 curl -fsSL --retry 3 --retry-delay 1 "${origin}/skills/operate/${skill}" -o "$staging_dir/${skill}/SKILL.md"
 verify_sha256 "${sha256}" "$staging_dir/${skill}/SKILL.md"`,

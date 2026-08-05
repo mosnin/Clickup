@@ -258,6 +258,7 @@ export const watchdog = internalMutation({
 const EVENT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const DELIVERY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const USAGE_RETENTION_DAYS = 14;
+const DEVICE_REQUEST_RETENTION_MS = 24 * 60 * 60 * 1000;
 const PRUNE_BATCH = 500;
 
 // Daily pruning. Tables are append-only, so oldest-by-_creationTime and
@@ -282,6 +283,19 @@ export const prune = internalMutation({
         await ctx.db.delete(d._id);
       }
     }
+
+    // Device authorization requests. They live 10 minutes and are useless
+    // the moment they expire, but a claimed row has to outlive its own code
+    // — that terminal row is what makes a replayed device_code an
+    // invalid_grant rather than a second key. A day's grace is far longer
+    // than any live code, so nothing is deleted while it could still matter.
+    const oldAuthRequests = await ctx.db
+      .query("agentAuthRequests")
+      .withIndex("by_expires", (q) =>
+        q.lt("expiresAt", now - DEVICE_REQUEST_RETENTION_MS),
+      )
+      .take(PRUNE_BATCH);
+    for (const request of oldAuthRequests) await ctx.db.delete(request._id);
 
     const cutoffDay = new Date(now - USAGE_RETENTION_DAYS * 86_400_000)
       .toISOString()

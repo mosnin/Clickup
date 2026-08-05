@@ -1,35 +1,17 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-
-const SKILLS = new Set([
-  "operate-plan",
-  "operate-dispatch",
-  "operate-worker",
-  "operate-daily-ops",
-  "operate-recovery",
-  "operate-assurance",
-  "operate-decisions",
-]);
+import { readSkill, SKILL_SLUGS } from "@/lib/agent-skills";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ skill: string }> },
 ) {
   const { skill } = await params;
-  if (!SKILLS.has(skill)) {
+  // The allow-list is what keeps this from being a path traversal into the
+  // repo: `skill` comes straight from the URL and is otherwise joined onto
+  // a filesystem path.
+  if (!SKILL_SLUGS.has(skill)) {
     return new Response("Skill not found", { status: 404 });
   }
-  const content = await readFile(
-    path.join(
-      process.cwd(),
-      "plugins",
-      "operate",
-      "skills",
-      skill,
-      "SKILL.md",
-    ),
-    "utf8",
-  );
+  const content = (await readSkill(skill)).toString("utf8");
   return new Response(content, {
     headers: {
       "Content-Type": "text/markdown; charset=utf-8",

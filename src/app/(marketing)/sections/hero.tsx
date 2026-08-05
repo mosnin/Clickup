@@ -6,6 +6,7 @@ import gsap from "gsap";
 import { HERO } from "@/lib/marketing-content";
 import { Container, CtaButton, ScreenshotFrame } from "@/components/marketing/ui";
 import { HeroUnicorn } from "@/components/marketing/hero-unicorn";
+import { StartCommand } from "@/components/marketing/start-command";
 import { useGsap, GsapParallax, EASE_OUT } from "@/components/marketing/gsap";
 import GradientText from "@/components/gradient-text";
 
@@ -50,9 +51,12 @@ export function Hero() {
         "-=0.4",
       )
       .fromTo(
-        root.querySelector("[data-hero-cta]"),
+        // querySelectorAll, not querySelector: the buttons and the curl
+        // command are both tagged data-hero-cta so they arrive as one beat,
+        // and a singular query would leave the second one untweened.
+        root.querySelectorAll("[data-hero-cta]"),
         { autoAlpha: 0, y: 16 },
-        { autoAlpha: 1, y: 0, duration: 0.5 },
+        { autoAlpha: 1, y: 0, duration: 0.5, stagger: 0.08 },
         "-=0.35",
       )
       .fromTo(
@@ -218,6 +222,12 @@ export function Hero() {
           <CtaButton href={HERO.secondaryCta.href} variant="ghostDark" size="lg">
             {HERO.secondaryCta.label}
           </CtaButton>
+        </div>
+
+        {/* Rides the CTA reveal rather than getting its own tween: it is the
+            third option in the same decision, not a new beat. */}
+        <div data-hero-cta>
+          <StartCommand />
         </div>
 
         <GsapParallax

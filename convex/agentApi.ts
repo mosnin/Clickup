@@ -579,7 +579,7 @@ export const whoami = query({
         note: "This API key is permanently bound to the scope above. To act in a different workspace, use that workspace's own key — there is no scope selector.",
       },
       firstSteps:
-        "New here? Confirm `connection.boundTo` is the workspace you mean before writing anything. Then fetch the collaboration-protocol skill, find work with next_task, read get_task, acknowledge its context versions, and claim and heartbeat while working.",
+        "New here? Confirm `connection.boundTo` is the workspace you mean before writing anything. Then call `brief` — it returns the decisions already made, the questions still open, and your governance limits in one call, which is what stops a new agent relitigating settled work. Then fetch the collaboration-protocol skill, find work with next_task, read get_task, acknowledge its context versions, and claim and heartbeat while working.",
     };
   },
 });

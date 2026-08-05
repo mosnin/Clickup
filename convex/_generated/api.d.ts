@@ -24,6 +24,7 @@ import type * as _x402 from "../_x402.js";
 import type * as admin from "../admin.js";
 import type * as agentAi from "../agentAi.js";
 import type * as agentApi from "../agentApi.js";
+import type * as agentAuth from "../agentAuth.js";
 import type * as agentKeys from "../agentKeys.js";
 import type * as agentPingDeliveries from "../agentPingDeliveries.js";
 import type * as agentPingDeliveryAction from "../agentPingDeliveryAction.js";
@@ -169,6 +170,7 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   agentAi: typeof agentAi;
   agentApi: typeof agentApi;
+  agentAuth: typeof agentAuth;
   agentKeys: typeof agentKeys;
   agentPingDeliveries: typeof agentPingDeliveries;
   agentPingDeliveryAction: typeof agentPingDeliveryAction;

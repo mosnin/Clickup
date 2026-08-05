@@ -1,15 +1,106 @@
+import { createHash, randomBytes } from "node:crypto";
 import { api } from "@convex/_generated/api";
 import {
+  DEVICE_GRANT,
+  deviceErrorCode,
   oauthConvexClient,
   oauthError,
+  oauthIssuer,
   oauthJson,
   randomCredential,
 } from "@/lib/oauth-server";
 
+// What to tell the agent alongside each RFC error code. The code is what a
+// runtime branches on; this is what a person reads in a log when their agent
+// stopped and they want to know why.
+const DEVICE_ERROR_HELP: Record<string, (interval?: number) => string> = {
+  authorization_pending: () =>
+    "Waiting for a human to approve this request at /link",
+  slow_down: (interval) =>
+    `Polling too fast. Wait ${interval ?? 5}s between requests.`,
+  access_denied: () => "The request was declined",
+  expired_token: () => "This code expired. Start again to get a new one.",
+  invalid_grant: () => "Unknown or already-used device code",
+};
+
+// RFC 8628 §3.5 — the device grant's half of the token endpoint.
+//
+// Unlike the authorization-code grant above, this one issues an agent API
+// key (`cua_…`) rather than an OAuth access token, because that is the
+// credential /api/mcp and every function in agentApi.ts actually accept. It
+// is minted HERE and only its hash crosses into Convex, so the plaintext
+// never exists in the database at any point — not even for the ten minutes
+// between a human approving and the poller collecting.
+async function deviceGrant(deviceCode: string) {
+  if (!deviceCode) {
+    return oauthError("invalid_request", "device_code is required");
+  }
+  // Generated before the call because the mutation stores the hash and
+  // returns nothing that could reconstruct it.
+  const key = `cua_${randomBytes(24).toString("hex")}`;
+  const result = await oauthConvexClient().mutation(
+    api.agentAuth.claimDeviceRequest,
+    {
+      deviceCode,
+      keyHash: createHash("sha256").update(key).digest("hex"),
+      keyPrefix: key.slice(0, 12),
+    },
+  );
+
+  // The mapping itself lives in oauth-server.ts so it can be tested without
+  // a Convex deployment — see tests/agent-device-http.test.ts.
+  const error = deviceErrorCode(result.state, result.slowDown);
+  if (error) {
+    return oauthError(error, DEVICE_ERROR_HELP[error](result.interval), 400);
+  }
+
+  const issuer = oauthIssuer();
+  return oauthJson({
+    // Named api_key rather than access_token: it does not expire and there
+    // is no refresh token to pair with it, so calling it an access_token
+    // would invite a client to build a refresh loop around nothing.
+    api_key: key,
+    token_type: "Bearer",
+    agent_id: result.agentId,
+    agent_name: result.agentName,
+    agent_created: result.agentCreated,
+    scope_name: result.scopeName,
+    mcp_url: `${issuer}/api/mcp`,
+    manifest_url: `${issuer}/api/agent/manifest`,
+  });
+}
+
 export async function POST(request: Request) {
-  const form = await request.formData();
-  const grantType = String(form.get("grant_type") ?? "");
-  const clientId = String(form.get("client_id") ?? "");
+  // RFC 8628 posts form-encoded; an agent hand-rolling this with curl will
+  // reach for JSON. Accept both — see /oauth/device for the same reasoning.
+  const contentType = request.headers.get("content-type") ?? "";
+  let field: (name: string) => string;
+  if (contentType.includes("application/json")) {
+    const body = (await request.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+    field = (name) => String(body[name] ?? "");
+  } else {
+    const form = await request.formData();
+    field = (name) => String(form.get(name) ?? "");
+  }
+
+  const grantType = field("grant_type");
+  // Checked before client_id, because the device grant has no registered
+  // client to identify: the device code IS the credential.
+  if (grantType === DEVICE_GRANT) {
+    try {
+      return await deviceGrant(field("device_code"));
+    } catch (error) {
+      return oauthError(
+        "invalid_grant",
+        error instanceof Error ? error.message : "Device grant failed",
+      );
+    }
+  }
+
+  const clientId = field("client_id");
   if (!clientId) {
     return oauthError("invalid_client", "client_id is required", 401);
   }
@@ -17,9 +108,9 @@ export async function POST(request: Request) {
   const refreshToken = randomCredential("opr");
   try {
     if (grantType === "authorization_code") {
-      const code = String(form.get("code") ?? "");
-      const redirectUri = String(form.get("redirect_uri") ?? "");
-      const codeVerifier = String(form.get("code_verifier") ?? "");
+      const code = field("code");
+      const redirectUri = field("redirect_uri");
+      const codeVerifier = field("code_verifier");
       if (!code || !redirectUri || !codeVerifier) {
         return oauthError(
           "invalid_request",
@@ -46,7 +137,7 @@ export async function POST(request: Request) {
       });
     }
     if (grantType === "refresh_token") {
-      const currentRefreshToken = String(form.get("refresh_token") ?? "");
+      const currentRefreshToken = field("refresh_token");
       if (!currentRefreshToken) {
         return oauthError("invalid_request", "refresh_token is required");
       }

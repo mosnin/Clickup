@@ -1933,6 +1933,49 @@ export default defineSchema({
     .index("by_refresh_hash", ["refreshTokenHash"])
     .index("by_agent", ["agentId"]),
 
+  // OAuth 2.0 Device Authorization Grant (RFC 8628) — how an agent with no
+  // browser gets connected. The agent asks for a code, prints it, and a
+  // human types it at /link, signs in, and says what the agent may do. The
+  // API key is minted at the moment the poller collects it and returned
+  // exactly once, so it never renders on a screen and never enters a
+  // clipboard or a chat transcript.
+  //
+  // The device code is stored as a SHA-256 hash for the same reason
+  // agentKeys is: reading the database must not be enough to impersonate
+  // the agent. The user code is stored in the clear on purpose — it is the
+  // lookup key a human types, it authorizes nothing on its own, and
+  // approval is bound to the typist's Clerk session.
+  agentAuthRequests: defineTable({
+    deviceCodeHash: v.string(),
+    // WXYA-3479. Uppercase, no ambiguous glyphs (see DEVICE_CODE_ALPHABET).
+    userCode: v.string(),
+    // Self-reported by the agent runtime, shown on the consent screen so
+    // the human knows what they are approving. Untrusted display text.
+    clientName: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("denied"),
+      // Key issued. Terminal: a replayed device code gets invalid_grant.
+      v.literal("claimed"),
+    ),
+    approvedByClerkId: v.optional(v.string()),
+    agentId: v.optional(v.id("agents")),
+    // Whether approval created the agent, so the poller can tell the human
+    // "I made you an agent called X" rather than staying silent about it.
+    agentCreated: v.optional(v.boolean()),
+    // Rate limiting per RFC 8628 §3.5: a poller faster than the advertised
+    // interval gets slow_down, and the interval it must respect grows.
+    lastPolledAt: v.optional(v.number()),
+    pollIntervalSec: v.number(),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_user_code", ["userCode"])
+    .index("by_device_hash", ["deviceCodeHash"])
+    // Retention: expired rows are pruned by the daily cron.
+    .index("by_expires", ["expiresAt"]),
+
   // Append-only activity log. Every meaningful mutation (task created,
   // status changed, comment posted, sprint started, …) writes one row.
   // It powers three things: the human-facing activity feed, agent cursor

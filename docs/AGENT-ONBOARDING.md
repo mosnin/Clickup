@@ -36,12 +36,12 @@ shape is familiar to anybody who has connected a CLI to anything.
 ```
 agent                          operate.to                        human
   │                                 │                              │
-  ├─ POST /api/agent/device ───────►│                              │
+  ├─ POST /oauth/device ───────────►│                              │
   │  {client: "claude-code"}        │                              │
   │◄── {device_code, user_code, ────┤                              │
   │     verification_uri, interval} │                              │
   │                                 │                              │
-  ├─ prints: "open operate.to/link, enter WXYZ-1234" ─────────────►│
+  ├─ prints: "open operate.to/link, enter WXYA-3479" ─────────────►│
   │                                 │                              │
   │                                 │◄──── visits /link, signs in ─┤
   │                                 │      (Clerk session)         │
@@ -51,7 +51,7 @@ agent                          operate.to                        human
   │                                 │      daily budget            │
   │                                 │◄──── Approve ────────────────┤
   │                                 │                              │
-  ├─ POST /api/agent/token ────────►│  (polling at `interval`)     │
+  ├─ POST /oauth/token ────────────►│  (polling at `interval`)     │
   │◄── {api_key, agent_id, mcp_url} ┤                              │
 ```
 
@@ -83,7 +83,7 @@ One new table. Everything else already exists.
 ```ts
 agentAuthRequests: defineTable({
   deviceCodeHash: v.string(),   // SHA-256; never store the code
-  userCode: v.string(),         // WXYZ-1234, uppercase, no ambiguous glyphs
+  userCode: v.string(),         // WXYA-3479, uppercase, no ambiguous glyphs
   clientName: v.string(),       // "claude-code", for the consent screen
   status: v.union(
     v.literal("pending"),
@@ -143,8 +143,10 @@ Sections, in the order an agent needs them:
 GET /api/agent/manifest
 → 200 {
     apiVersion: 1,
-    tools:  { count: 132, hash: "sha256:…" },
-    skills: [{ slug: "sprint-planner", version: 3, updatedAt: … }, …],
+    mcpUrl: "…/api/mcp",
+    tools:  { count: 180, hash: "sha256:…", names: [...] },
+    skills: { install: "…/install/skills",
+              items: [{ slug: "operate-plan", sha256: "…", url: … }, …] },
   }
   ETag: "…"
 ```
@@ -152,16 +154,25 @@ GET /api/agent/manifest
 The agent stores the `ETag` and sends `If-None-Match` on boot and after any
 unexpected 4xx. A `304` is the common case and costs almost nothing. A `200`
 means something changed, and the body says exactly what — a new tool, or a
-skill whose `version` is ahead of the one the agent installed.
+skill whose digest is not the one the agent installed.
 
 **Why a hash over the tool list and not a version number:** a version number is
 maintained by a person and therefore forgotten. A hash of the registered tool
 names cannot be forgotten, and it changes exactly when the surface changes.
 Same argument as generating `/start` rather than writing it.
 
-Skills already carry the shape this needs — `convex/skills.ts` merges built-ins
-with custom rows by slug — so per-skill versioning is an added column, not a
-new concept.
+`names` ships alongside `count` because a count cannot distinguish "one tool
+added" from "one added and one removed" — and the second case is the one where
+the agent's stored instructions are actively wrong rather than merely
+incomplete.
+
+**Skills are versioned by content digest for the same reason.** The plan here
+was a `version` column; the shipped answer is the SHA-256 of the skill file,
+because the argument against a hand-maintained version number does not get
+weaker when it is applied to a skill instead of a tool list. `/install/skills`
+already computed exactly these digests to verify what it writes, so the
+installer and the manifest now read the same function and cannot disagree
+about what "current" means.
 
 ---
 
@@ -187,19 +198,49 @@ train people to stop reading them.
 
 ---
 
-## Build order
+## What shipped
 
-1. `agentAuthRequests` table + `convex/agentAuth.ts` (create / approve / claim,
-   all pure-JS SHA-256, no new dependency).
-2. `POST /api/agent/device`, `POST /api/agent/token` — RFC 8628 shapes and
-   error codes exactly (`authorization_pending`, `slow_down`, `expired_token`,
-   `access_denied`), because agent runtimes already know them.
-3. `/link` — the consent screen. Clerk-guarded. Scope, role, lists, budget.
-4. `GET /api/agent/manifest` + ETag.
-5. `GET /start` — generated from the registry, `text/markdown`.
-6. The homepage command block, with copy-to-clipboard, above the fold.
+| Piece | Where |
+| --- | --- |
+| `agentAuthRequests` table | `convex/schema.ts` |
+| create / approve / deny / claim | `convex/agentAuth.ts` |
+| Device authorization endpoint | `src/app/oauth/device/route.ts` |
+| Device grant on the token endpoint | `src/app/oauth/token/route.ts` |
+| Consent screen | `src/app/link/` |
+| Manifest | `src/app/api/agent/manifest/route.ts`, `src/lib/agent-manifest.ts` |
+| `/start` | `src/app/start/route.ts` |
+| Homepage command | `src/components/marketing/start-command.tsx` |
+| Tests | `tests/agent-device-flow.test.ts`, `agent-device-http.test.ts`, `agent-manifest.test.ts` |
 
-Steps 4 and 5 are independently shippable and useful before the flow exists —
-but `/start` must describe only what is built. A document that tells an agent
-to run a device flow that does not answer is worse than no document, and it is
-the same class of failure as a pricing page selling a plan nobody can buy.
+Three things went differently from the plan above, all for the same reason —
+the thing already existed and a second copy would have been the bug.
+
+**The device flow lives at `/oauth/*`, not `/api/agent/*`.** The plan assumed
+a parallel pair of endpoints; the repo already had a compliant OAuth 2.1
+server with discovery metadata, and RFC 8628 says the device grant belongs on
+the existing token endpoint. So `/oauth/device` was added,
+`grant_type=urn:ietf:params:oauth:grant-type:device_code` was added to
+`/oauth/token`, and `.well-known/oauth-authorization-server` advertises both
+— which means a client can *discover* the flow instead of being told about it.
+
+**The key is minted in the route, not at approval.** Minting at approval
+would mean storing a plaintext key for the ten minutes until the poller
+collects it. Instead the route generates it and passes only the hash into
+Convex — the same shape `oauth.ts` already uses for authorization codes — so
+the plaintext never exists in the database at any point.
+
+**Skills are digested, not version-numbered.** See above.
+
+### The part that needs watching
+
+`src/lib/mcp-tool-names.ts` is a transcription of the tool definitions in
+`src/app/api/[transport]/route.ts`, because a Next route file may only export
+HTTP handlers and the names cannot be exported from where they are declared.
+That is exactly the drift this document was written to avoid, so it is not
+trusted to good intentions: `tests/agent-manifest.test.ts` parses the route
+file and fails, by name, when the two disagree. The same technique pins the
+`DeviceRequestState` union across the Convex/Next boundary at compile time.
+
+`/start` must continue to describe only what is built. A document that tells
+an agent to run a flow that does not answer is worse than no document, and it
+is the same class of failure as a pricing page selling a plan nobody can buy.
