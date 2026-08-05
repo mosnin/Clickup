@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "vercel-build": "convex deploy --cmd 'next build'",
-    "gallery": "node scripts/build-gallery.mjs && node scripts/design-shots.mjs"
+    "gallery": "node scripts/build-gallery.mjs && node scripts/design-shots.mjs",
+    "verify:customize": "node scripts/verify-customize.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

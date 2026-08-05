@@ -17,12 +17,7 @@ import {
   usePanelAttention,
 } from "@/components/dashboard/panel-memory";
 import { useComponentStyle } from "@/components/appearance/use-component-style";
-import {
-  cornerCss,
-  fillClass,
-  frameClass,
-  padCss,
-} from "@/components/appearance/style-gallery";
+import { StyledSurface } from "@/components/dashboard/styled-surface";
 import { Stagger, StaggerItem } from "@/components/motion";
 import {
   ProvenanceSheet,
@@ -171,36 +166,23 @@ export function Panel({
   const width = Math.floor(bodyBox.width);
 
   const frame = (
-    <div
-      // How the non-chart half is drawn, as attributes rather than threaded
-      // props. Rows, tables and chips are rendered by four different
-      // components at three depths; passing `style` to each would mean four
-      // call sites to keep in agreement, and the fifth one somebody adds next
-      // month would silently ignore the reader's choice. CSS answers "how is
-      // a row drawn" from the panel root, exactly the way `data-list-style`
-      // on :root already answers it for the app.
-      data-row-divider={style.rowDivider}
-      data-row-marker={style.rowMarker}
-      data-row-emphasis={style.rowEmphasis}
-      data-table-header={style.tableHeader}
-      data-chip-shape={style.chipShape}
-      data-number-style={style.numberStyle}
-      className={cn(
-        // Deliberately NOT `overflow-hidden` here. Containment belongs to the
-        // body below, and putting it on the root as well cost more than it
-        // bought: a chart's end labels sit a pixel or two outside the frame by
-        // design, and clipping at the root cut "Jun 4" to "Jun " —
-        // tests/ui/panel-fit.test.tsx caught exactly that, which is the rule
-        // it exists for ("a word ending at a tile's edge reads as a shorter
-        // word"). The body scroller already stops a forty-row list painting
-        // over the tile beneath, which was the actual bug.
-        "flex h-full min-w-0 flex-col transition-shadow",
-        frameClass(style),
-        fillClass(style),
-        attentionClass,
-        className,
-      )}
-      style={{ borderRadius: cornerCss(style), padding: padCss(style) }}
+    // The surface is `StyledSurface`, shared with every built-in block on
+    // every screen — see that file for what having two of them cost. The
+    // resolved style is handed over rather than looked up again: this
+    // component needs it anyway (to decide what to DRAW), and it resolves with
+    // the definition's own layer underneath, which the surface cannot know
+    // about.
+    //
+    // `overflow` is overridden back to visible. Containment belongs to the
+    // body below, and clipping at the root cost more than it bought: a chart's
+    // end labels sit a pixel or two outside the frame by design, and clipping
+    // here cut "Jun 4" to "Jun " — tests/ui/panel-fit.test.tsx caught exactly
+    // that, which is the rule it exists for ("a word ending at a tile's edge
+    // reads as a shorter word").
+    <StyledSurface
+      panelId={panelId ?? null}
+      resolved={style}
+      className={cn("overflow-visible", attentionClass, className)}
     >
       <Header def={def} style={style} total={data?.total ?? 0} />
       {/* A list of records scrolls inside its own size rather than painting
@@ -255,7 +237,7 @@ export function Panel({
           Showing the first {data.total}. Narrow it to see everything.
         </p>
       )}
-    </div>
+    </StyledSurface>
   );
 
   return frame;

@@ -419,8 +419,65 @@ galleryData["userSettings.current"] = CUSTOMISED
     }
   : null;
 
-galleryData["appearance.forCurrentUser"] = null;
+/**
+ * Deliver a new subscription state to the page.
+ *
+ * The query stub reads `galleryData` during render, so a write is only visible
+ * once something re-renders — which is what a Convex subscription does for
+ * free and a module-scope handler cannot do for itself. `Page` installs the
+ * real one; before it mounts this is a no-op, which is correct: nothing has
+ * rendered yet to be stale.
+ */
+let rerender = () => {};
+function refreshAll() {
+  rerender();
+}
+
+// A backend that remembers what the studio wrote.
+//
+// It was `null` and had no mutation handler, so every pick in the customiser
+// resolved into nothing and the panel behind the sheet never moved — which is
+// indistinguishable, from the harness's side, from the studio being broken.
+// That is the exact complaint it exists to be able to answer, so the fixture
+// has to be able to be wrong about it. `scripts/verify-customize.mjs` walks
+// the whole sequence against this.
+galleryData["appearance.forCurrentUser"] = {
+  personal: null,
+  patchVersion: 2,
+  spaceOverrides: {},
+  componentStyle: null,
+  componentStyleBySpace: {},
+  panelStyles: {},
+  panelMemory: {},
+  panelWatches: {},
+};
 galleryData["appearance.spaceContext"] = null;
+
+/** Mirrors convex/appearance.ts savePanelStyle: empty patch deletes the key. */
+galleryMutations["appearance.savePanelStyle"] = (args) => {
+  const { panelId, patch } = args as { panelId: string; patch: unknown };
+  const row = galleryData["appearance.forCurrentUser"] as {
+    panelStyles: Record<string, unknown>;
+  };
+  const next = { ...row.panelStyles };
+  const empty =
+    !patch || typeof patch !== "object" || Object.keys(patch).length === 0;
+  if (empty) delete next[panelId];
+  else next[panelId] = patch;
+  galleryData["appearance.forCurrentUser"] = { ...row, panelStyles: next };
+  refreshAll();
+};
+galleryMutations["appearance.saveComponentStyle"] = (args) => {
+  const { patch } = args as { patch: unknown };
+  const row = galleryData["appearance.forCurrentUser"] as object;
+  const empty =
+    !patch || typeof patch !== "object" || Object.keys(patch).length === 0;
+  galleryData["appearance.forCurrentUser"] = {
+    ...row,
+    componentStyle: empty ? null : patch,
+  };
+  refreshAll();
+};
 
 // ── The studio, over Home ────────────────────────────────────────────────
 //
@@ -617,6 +674,9 @@ function Page() {
   // how this page delivers a new subscription state — what a Convex
   // subscription does, minus the socket.
   const [, refresh] = useReducer((n: number) => n + 1, 0);
+  // Module-scope mutation handlers write into `galleryData` and then need the
+  // tree to read it again. This is the only place that can be arranged.
+  rerender = refresh;
   // The dashboard layout's own composition, in its own order: toasts wrap
   // appearance (the appearance writer has to be able to say a save failed),
   // appearance wraps everything that reads a token, and there is exactly one

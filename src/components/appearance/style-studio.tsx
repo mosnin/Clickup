@@ -238,12 +238,49 @@ export function StyleStudio() {
     <MotionConfig reducedMotion="user">
       <DynamicIslandProvider initialSize={SIZE_PRESETS.COMPACT}>
         <ExpandableScreen layoutId="style-studio" lockScroll={false}>
+          <OpenOnSelect />
           <StudioIsland />
           <StudioSheet />
         </ExpandableScreen>
       </DynamicIslandProvider>
     </MotionConfig>
   );
+}
+
+/**
+ * Clicking a panel opens the controls for it.
+ *
+ * This is the fix for "the customise popup doesn't actually let you customise
+ * anything", and the report was exactly right about what it saw. Pressing
+ * Customise put the app in the mode and drew a black pill at the bottom of the
+ * screen; clicking a panel selected it and *relabelled that pill*. Every
+ * control — colour, card, rows, chart, only-when, new card — sat behind a
+ * chevron on a lozenge the width of its own caption. So the whole feature was
+ * one unexplained tap away from a person who had already said, twice, that
+ * they wanted to change something.
+ *
+ * Selecting a panel IS the request. Nothing else it could mean: the mode is
+ * already on, and the panel is not a link in this mode. So the sheet opens.
+ *
+ * Deliberately one-way. Deselecting does not close it — the sheet without a
+ * selection is the screen-level chapters, which is a legitimate place to be
+ * standing, and a sheet that snapped shut every time you clicked the canvas
+ * would be worse than one that never opened. Leaving is Done, the chevron, or
+ * dragging the handle, all of which already exist and all of which are labelled.
+ */
+function OpenOnSelect() {
+  const { selection } = useCustomize();
+  const { isExpanded, expand } = useExpandableScreen();
+  const id = selection?.id ?? null;
+  useEffect(() => {
+    if (id && !isExpanded) expand();
+    // `isExpanded` is deliberately NOT a dependency: including it would re-run
+    // this the instant somebody collapsed the sheet with a panel still
+    // selected, and re-open it under them. The effect is about a selection
+    // arriving, not about the sheet's state changing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+  return null;
 }
 
 /**
@@ -483,6 +520,7 @@ function StudioSheet() {
                       "inline-flex h-11 min-w-0 flex-auto items-center justify-center truncate px-1.5 text-[13px] sm:flex-none sm:px-4",
                       chapter === c.id && "segmented-on",
                     )}
+                    data-studio-chapter={c.id}
                     key={c.id}
                     onClick={() => {
                       setChapter(c.id);

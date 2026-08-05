@@ -63,6 +63,7 @@ import {
 } from "@/components/dashboard/screen/editable-grid";
 import { ActorGlyph } from "@/components/appearance/actor-glyph";
 import { Panel } from "@/components/dashboard/panel";
+import { StyledSurface } from "@/components/dashboard/styled-surface";
 import { useOfferMintablePanels } from "@/components/appearance/mintable-panels";
 import { OnlyWhenList } from "@/components/appearance/only-when";
 import { builtInPanelQuestion } from "@/lib/built-in-panel";
@@ -481,24 +482,44 @@ export default function DashboardHome() {
         />
       );
     }
+    // A built-in block is drawn on the SAME surface an authored panel is.
+    //
+    // Each of these used to write its own `bento rounded-2xl bg-card` and read
+    // nothing, so on the one screen everybody opens you could press Customise,
+    // click "Today's tasks", watch the sheet correctly title itself "Style
+    // Today's tasks", pick a card — and see nothing happen. The studio worked;
+    // there was simply nowhere on this screen for a pick to land. See
+    // `StyledSurface`.
+    //
+    // `pad={false}` throughout: every one of these draws a header band and
+    // rows that run to the card's edge, and the style's padding would inset
+    // their own dividers off it.
+    const surfaced = (node: React.ReactNode) => (
+      <StyledSurface pad={false} panelId={`${HOME_GRID_ID}:${id}`}>
+        {node}
+      </StyledSurface>
+    );
     switch (id) {
       case "stats":
+        // Not surfaced, and the exception is the honest one: this widget is a
+        // ROW of four cards rather than a card, so a frame around it would be
+        // a card containing cards. Its members are already the surface.
         return <StatsCards me={ov.me} agentsOnline={agentsOnline} />;
       case "today":
-        return <TodaysTasks rows={myWork ?? undefined} />;
+        return surfaced(<TodaysTasks rows={myWork ?? undefined} />);
       case "activity":
-        return <ActivityChart completions={ov.completions7d} />;
+        return surfaced(<ActivityChart completions={ov.completions7d} />);
       case "projects":
-        return (
+        return surfaced(
           <ProjectsTable
             projects={ov.projects}
             totalProjects={ov.totalProjects}
-          />
+          />,
         );
       case "live":
-        return <LiveFeed ticker={ov.ticker} />;
+        return surfaced(<LiveFeed ticker={ov.ticker} />);
       case "agents":
-        return <AgentsCard agents={ov.agents} />;
+        return surfaced(<AgentsCard agents={ov.agents} />);
     }
   }
 
@@ -506,7 +527,10 @@ export default function DashboardHome() {
     <div className="space-y-6">
       <WelcomeReveal />
 
-      <PageHeader icon={LayoutDashboard} title="Home" />
+      {/* Home writes its own headline — `WelcomeSection` greets you by name
+          and reads out the day, which is a better opening line than the word
+          "Home" at 30px. The sticky bar still says where you are. */}
+      <PageHeader headline={false} icon={LayoutDashboard} title="Home" />
 
       <WelcomeSection
         firstName={user?.firstName ?? undefined}
@@ -916,7 +940,7 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
   }
 
   return (
-    <div className="bento h-full rounded-2xl bg-card overflow-hidden">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden">
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <h3 className="text-base font-medium">Today&apos;s tasks</h3>
         {dueTasks.length > 0 && (
@@ -1045,7 +1069,7 @@ function ActivityChart({ completions }: { completions?: number[] }) {
   const plotHeight = measured > 0 ? Math.max(56, Math.min(175, measured)) : 175;
 
   return (
-    <div className="bento flex h-full flex-col overflow-hidden rounded-2xl bg-card">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden">
       <div className="shrink-0 border-b border-border px-4 py-3">
         <h3 className="text-base font-medium">Recent activity</h3>
       </div>
@@ -1178,10 +1202,7 @@ function ProjectsTable({
   const hidden = totalProjects - projects.length;
 
   return (
-    <div
-      className="bento rounded-2xl bg-card overflow-hidden"
-      ref={ref}
-    >
+    <div className="flex h-full min-w-0 flex-col overflow-hidden" ref={ref}>
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <h3 className="text-base font-medium">Projects</h3>
         <span className="shrink-0 text-xs text-muted-foreground">
@@ -1339,7 +1360,7 @@ function ProjectsTable({
 function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
   const visible = ticker.slice(0, 8);
   return (
-    <div className="bento h-full rounded-2xl bg-card overflow-hidden">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden">
       <div className="border-b border-border px-4 py-3">
         <h3 className="text-base font-medium">Live</h3>
       </div>
@@ -1413,7 +1434,7 @@ function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
 
 function AgentsCard({ agents }: { agents: Overview["agents"] }) {
   const card = (
-    <div className="bento h-full rounded-2xl bg-card overflow-hidden">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden">
       <div className="border-b border-border px-4 py-3">
         <h3 className="text-base font-medium">Agents online</h3>
       </div>
