@@ -2706,16 +2706,23 @@ a:hover > .message-ref {
   --chat-accent-fg: oklch(0.216 0.006 264);
 }
 
-/* A row in the rail or the sidebar. 2rem tall, the density Buzz uses
-   throughout — deliberately not --ui-row-height, which belongs to the
-   reader's density setting and is opt-in per surface everywhere else too. */
+/* A row in the rail or the sidebar.
+   Height comes from --ui-row-height, the SAME token the Work sidebar's rows
+   use. It was a hard 2rem on the reasoning that density is the reader's
+   setting and opt-in per surface — which is right in general and wrong here.
+   Nav rows are the element repeated most often in both halves of the product,
+   so they are the worst place of all to disagree: at the default they differ
+   by 4px, and the moment somebody changes their density one half moves and
+   the other does not. Opting in IS respecting the setting.
+   `min-height` rather than `height`, so a row whose label wraps grows instead
+   of clipping its own text. */
 .chat-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   width: 100%;
   min-width: 0;
-  height: 2rem;
+  min-height: var(--ui-row-height);
   padding: 0 0.5rem;
   /* --ui-radius-control, the same corner the Work sidebar's rows use. It was
      0.375rem, which is a different corner at the size a person actually reads

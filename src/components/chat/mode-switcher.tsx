@@ -82,7 +82,15 @@ export function ModeSwitcher({
             onClick={(event) => onModeClick(event, href)}
             aria-current={active === mode ? "page" : undefined}
             className={cn(
-              "flex-1 justify-center gap-1.5",
+              // `flex` is load-bearing and was missing. Without it the link
+              // is not a flex container, so `justify-center` and `gap` do
+              // nothing and the icon, label and badge lay out as inline
+              // content — which WRAPS. Chat's panel is wide enough that it
+              // happened to fit on one line; the Work sidebar is narrower, so
+              // there the label fell under its own icon and the two halves
+              // ran into each other. One control, two shells, and only one of
+              // them revealed the bug.
+              "flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap",
               active === mode && "segmented-on",
             )}
           >
