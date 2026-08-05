@@ -11,6 +11,7 @@ import { Stagger, StaggerItem } from "@/components/motion";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { PageTitle } from "@/components/dashboard/page-title";
 import {
   PriorityChip,
   PriorityDot,
@@ -94,6 +95,13 @@ export default function MyWorkPage() {
               : `${total} open task${total === 1 ? "" : "s"}`
         }
       />
+
+      <PageTitle
+        eyebrow="Everything on you"
+        title="My work"
+        description="Every task assigned to you across every space, with the ones that need moving first."
+      />
+
 
       {rows === undefined ? (
         <MyWorkSkeleton />

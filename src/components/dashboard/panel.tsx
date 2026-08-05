@@ -34,6 +34,7 @@ import {
   describePanel,
   isChartShape,
   isMetricShape,
+  isRecordShape,
   normalizePanel,
   type PanelDef,
 } from "@/lib/panel";
@@ -185,6 +186,14 @@ export function Panel({
       data-chip-shape={style.chipShape}
       data-number-style={style.numberStyle}
       className={cn(
+        // Deliberately NOT `overflow-hidden` here. Containment belongs to the
+        // body below, and putting it on the root as well cost more than it
+        // bought: a chart's end labels sit a pixel or two outside the frame by
+        // design, and clipping at the root cut "Jun 4" to "Jun " —
+        // tests/ui/panel-fit.test.tsx caught exactly that, which is the rule
+        // it exists for ("a word ending at a tile's edge reads as a shorter
+        // word"). The body scroller already stops a forty-row list painting
+        // over the tile beneath, which was the actual bug.
         "flex h-full min-w-0 flex-col transition-shadow",
         frameClass(style),
         fillClass(style),
@@ -194,7 +203,28 @@ export function Panel({
       style={{ borderRadius: cornerCss(style), padding: padCss(style) }}
     >
       <Header def={def} style={style} total={data?.total ?? 0} />
-      <div className="mt-2 min-h-0 flex-1" ref={bodyRef}>
+      {/* A list of records scrolls inside its own size rather than painting
+          over the tile beneath — the actual "everything is overlapping" bug.
+          `min-h-0` is what lets a flex child shrink below its content; without
+          it the track refuses to shrink and the overflow has nothing to clip.
+          The pair is load-bearing together.
+
+          Only RECORD shapes, and that restriction is the whole subtlety.
+          Setting `overflow-y` on a box forces its `overflow-x` to compute to
+          `auto` as well — so a scroller here also clips horizontally, and a
+          chart's end labels ("Jun 4") sit a pixel or two outside the plot by
+          design. Worse on the y axis: a radar's top label overflows ABOVE the
+          box, and scrollTop cannot go negative, so that text is clipped with
+          no way to reach it. tests/ui/panel-fit.test.tsx caught both.
+          Charts and metrics do not need containment anyway — they are already
+          measured into `room` by `chartHeight`/`spark` and shrink to fit. */}
+      <div
+        className={cn(
+          "mt-2 min-h-0 flex-1",
+          isRecordShape(def.shape) && "overflow-y-auto",
+        )}
+        ref={bodyRef}
+      >
         {data === undefined ? (
           <Skeleton />
         ) : (
