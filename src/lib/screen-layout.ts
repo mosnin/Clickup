@@ -22,8 +22,18 @@ export type WidgetSpan = 1 | 2 | 3;
  * owner: how much room a chart deserves on your screen is your judgement, not
  * the judgement of the person who wrote the chart. Absent means "the height
  * the panel was designed at", which is what keeps a layout sparse.
+ *
+ * **Six steps, not three, and the unit behind them is roughly half what it
+ * was.** A row was 10.5rem, so the shortest thing a screen could hold was
+ * 168px — and the shortest thing a screen actually *contains* is a row of stat
+ * cards, which measures 94. Every one of them shipped with 74px of nothing
+ * under the number, on the screen people open first, and no amount of dragging
+ * could fix it because one row was already the floor. A unit is now 6rem, and
+ * the ceiling moves from three units to six so nothing that used to fit
+ * stopped fitting. Absence still means "the height it was designed at", so
+ * anyone who never dragged a corner simply gets the better default.
  */
-export type WidgetRows = 1 | 2 | 3;
+export type WidgetRows = 1 | 2 | 3 | 4 | 5 | 6;
 
 export type ScreenWidget = {
   id: string;
@@ -34,7 +44,19 @@ export type ScreenWidget = {
 export type ScreenLayout = { widgets: ScreenWidget[] };
 
 const SPANS: WidgetSpan[] = [1, 2, 3];
-const ROWS: WidgetRows[] = [1, 2, 3];
+const ROWS: WidgetRows[] = [1, 2, 3, 4, 5, 6];
+
+/**
+ * The tallest a tile may be, as one number.
+ *
+ * There were three copies of it — here, in `pack.ts` and in `editable-grid.tsx`
+ * — and they disagreed the moment one moved: the grid and the layout type
+ * offered six rows while the packer silently clamped every tile to three, so
+ * Home's Projects panel was cut through its own last row and nothing in the
+ * code said why. A cap enforced in one place and declared in another is not a
+ * cap, it is a coincidence.
+ */
+export const MAX_WIDGET_ROWS: WidgetRows = 6;
 
 function clampSpan(value: unknown, fallback: WidgetSpan = 1): WidgetSpan {
   const n = typeof value === "number" ? Math.round(value) : Number.NaN;

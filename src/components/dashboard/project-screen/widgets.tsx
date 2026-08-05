@@ -25,7 +25,7 @@ import { errorMessage } from "@/lib/errors";
 import { timeAgo } from "@/lib/time";
 import { eventLabel } from "@/lib/event-labels";
 import { describePlan, planView, stateLabel } from "@/lib/plan";
-import type { WidgetSpan } from "@/lib/screen-layout";
+import type { WidgetRows, WidgetSpan } from "@/lib/screen-layout";
 
 // The widget registry.
 //
@@ -63,8 +63,14 @@ export type ProjectWidget = {
   defaultSpan: WidgetSpan;
   minSpan: WidgetSpan;
   maxSpan: WidgetSpan;
-  /** Height in grid rows. Real sizes are what make the screen look composed. */
-  rows: 1 | 2;
+  /**
+   * Height in grid rows. Real sizes are what make the screen look composed.
+   *
+   * Stated against the 5.5rem unit — these were 1 and 2 when a unit was
+   * 10.5rem, and doubled with it so nothing here got shorter. See
+   * `WidgetRows` for why the unit halved.
+   */
+  rows: WidgetRows;
   render: (ctx: ProjectWidgetContext) => React.ReactNode;
 };
 
@@ -371,7 +377,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 2,
     minSpan: 1,
     maxSpan: 3,
-    rows: 1,
+    rows: 2,
     render: (ctx) => <AboutWidget {...ctx} />,
   },
   {
@@ -381,7 +387,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 3,
-    rows: 1,
+    rows: 2,
     render: (ctx) => <ProgressWidget {...ctx} />,
   },
   {
@@ -393,7 +399,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     // is a worse list than a list.
     minSpan: 2,
     maxSpan: 3,
-    rows: 2,
+    rows: 4,
     render: (ctx) => <ListsWidget {...ctx} />,
   },
   {
@@ -403,7 +409,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 2,
-    rows: 1,
+    rows: 2,
     render: ({ project }) => <ProjectStatusCard project={project} />,
   },
   {
@@ -413,7 +419,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 2,
-    rows: 1,
+    rows: 2,
     render: ({ project, lists }) => (
       <ProjectOwnerCard project={project} anyListId={lists[0]?._id} />
     ),
@@ -425,7 +431,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 2,
-    rows: 1,
+    rows: 2,
     render: ({ project }) => <ProjectTargetDateCard project={project} />,
   },
   {
@@ -435,7 +441,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 3,
-    rows: 2,
+    rows: 4,
     render: (ctx) => <PagesWidget {...ctx} />,
   },
   {
@@ -445,7 +451,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 3,
-    rows: 1,
+    rows: 2,
     render: ({ project }) => <ProjectNotesCard project={project} />,
   },
   {
@@ -455,7 +461,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 3,
-    rows: 2,
+    rows: 4,
     render: (ctx) => <ActivityWidget {...ctx} />,
   },
   {
@@ -465,7 +471,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 2,
-    rows: 2,
+    rows: 4,
     render: ({ scope }) => (
       <Card className="h-full rounded-2xl p-5">
         <AgentStream scope={scope} />
@@ -479,7 +485,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 2,
-    rows: 2,
+    rows: 4,
     render: (ctx) => <PlanWidget {...ctx} />,
   },
 ];

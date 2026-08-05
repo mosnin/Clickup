@@ -16,6 +16,7 @@ import { DockSlot } from "@/components/appearance/dock-slot";
 import { CustomizeProvider } from "@/components/appearance/customize-provider";
 import { MintablePanelsProvider } from "@/components/appearance/mintable-panels";
 import { StyleStudio } from "@/components/appearance/style-studio";
+import { SHELL_INSET, SHELL_PAGE, SHELL_PROVIDER } from "@/lib/shell";
 
 export default async function DashboardLayout({
   children,
@@ -55,7 +56,7 @@ export default async function DashboardLayout({
           `children`, so a screen offering its built-ins for minting has to
           reach up here to be heard. */}
       <MintablePanelsProvider>
-        <SidebarProvider defaultOpen={defaultOpen} className="h-svh overflow-hidden">
+        <SidebarProvider defaultOpen={defaultOpen} className={SHELL_PROVIDER}>
           <EnsureUser />
           <NoSupportWidget />
           <CommandPalette />
@@ -81,11 +82,8 @@ export default async function DashboardLayout({
               thing all three design references share: a soft canvas with
               content floating above it. It is one line, and it is what makes
               `.bento` mean anything at all. */}
-          <SidebarInset
-            data-mode-surface="content"
-            className="h-full min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-contain bg-page"
-          >
-            <div className="w-full px-4 py-6 sm:px-6">{children}</div>
+          <SidebarInset data-mode-surface="content" className={SHELL_INSET}>
+            <div className={SHELL_PAGE}>{children}</div>
           </SidebarInset>
           {/* One continuous brand gradient across the entire viewport's bottom
               edge — the single strip of product flair, coherent by

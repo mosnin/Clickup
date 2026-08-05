@@ -72,7 +72,7 @@ import {
   panelIdFromWidgetId,
   panelWidgetId,
 } from "@/lib/panel";
-import { replaceWidget } from "@/lib/screen-layout";
+import { replaceWidget, type WidgetRows } from "@/lib/screen-layout";
 
 // Home: the Square dashboard-5 shell's page composition (Phase H), wired to
 // live Convex data. Two reactive queries drive every tile — homeOverview.get
@@ -178,21 +178,26 @@ function spanOf(id: WidgetId): 1 | 2 | 3 {
 // it — so one table answers for a phone, a split window and a desktop without
 // a second layout model.
 //
-// A row is 10.5rem plus a 1.5rem gap: 1 → 168px, 2 → 360px, 3 → 552px, and 3
-// is the ceiling the grid enforces. Where content exceeds 552 (Live at one
-// column is 546, Projects 458) the tallest honest row is what it gets.
+// A row is 6rem plus a 1.5rem gap: 1 → 96px, 2 → 216, 3 → 336, 4 → 456,
+// 5 → 576, 6 → 696, and 6 is the ceiling the grid enforces. The unit halved
+// because the old floor — 168px — was nearly twice the height of the shortest
+// thing on this screen, so the stat row shipped with 74px of nothing under
+// every number and no drag could take it back. 96 is what the stat row
+// actually measures at three columns, which is the point: the floor of the
+// ladder is the shortest real tile. Where content exceeds 696 (Projects at
+// one and two columns is 749) the tallest honest row is what it gets.
 //
 // This is a DEFAULT, never a write: it lands in the tile, not in the layout,
 // so nothing is persisted and a redesign of a block still reaches everyone who
 // never resized it. Anyone who has dragged a corner keeps their own height.
-const DEFAULT_ROWS: Record<BuiltInId, [one: 1 | 2 | 3, two: 1 | 2 | 3, three: 1 | 2 | 3]> = {
+const DEFAULT_ROWS: Record<BuiltInId, [one: WidgetRows, two: WidgetRows, three: WidgetRows]> = {
   //          1 col  2 cols  3 cols
-  stats: [2, 2, 1],
-  today: [3, 2, 2],
-  activity: [2, 2, 2],
-  projects: [3, 3, 3],
-  live: [3, 3, 3],
-  agents: [2, 2, 2],
+  stats: [3, 2, 1],
+  today: [5, 3, 3],
+  activity: [3, 3, 3],
+  projects: [6, 6, 4],
+  live: [5, 5, 5],
+  agents: [3, 3, 3],
 };
 /** Mirrors the grid's own thresholds (Tailwind's `@md` 28rem, `@3xl` 48rem). */
 function columnsFor(gridWidth: number): 1 | 2 | 3 {
@@ -207,7 +212,7 @@ function columnsFor(gridWidth: number): 1 | 2 | 3 {
  * panel that arrives too tall is a panel the reader can see and pull taller,
  * while one that arrives with 400px of white under it looks broken.
  */
-function defaultRowsOf(id: WidgetId, columns: 1 | 2 | 3): 1 | 2 | 3 {
+function defaultRowsOf(id: WidgetId, columns: 1 | 2 | 3): WidgetRows {
   const row = DEFAULT_ROWS[id as BuiltInId];
   return row ? row[columns - 1] : 1;
 }
@@ -280,7 +285,7 @@ export default function DashboardHome() {
     Record<WidgetId, 1 | 2 | 3>
   > | null>(null);
   const [rowDraft, setRowDraft] = useState<Partial<
-    Record<WidgetId, 1 | 2 | 3>
+    Record<WidgetId, WidgetRows>
   > | null>(null);
 
   const order = useMemo<WidgetId[]>(() => {
@@ -313,9 +318,9 @@ export default function DashboardHome() {
   // How tall each block is. Absent means "whatever it was designed at", which
   // is what keeps a layout sparse and lets a redesign of a block still reach
   // someone who never resized it.
-  const rows: Partial<Record<string, 1 | 2 | 3>> =
+  const rows: Partial<Record<string, WidgetRows>> =
     rowDraft ??
-    ((settings?.homeWidgetRows ?? {}) as Partial<Record<string, 1 | 2 | 3>>);
+    ((settings?.homeWidgetRows ?? {}) as Partial<Record<string, WidgetRows>>);
 
   /** This screen's arrangement in the shared layout vocabulary. */
   const layout = {
@@ -374,7 +379,7 @@ export default function DashboardHome() {
   function persist(
     next: WidgetId[] | null,
     nextSpans?: Partial<Record<WidgetId, 1 | 2 | 3>> | null,
-    nextRows?: Partial<Record<WidgetId, 1 | 2 | 3>> | null,
+    nextRows?: Partial<Record<WidgetId, WidgetRows>> | null,
   ) {
     void setHomeWidgets({ homeWidgets: next, spans: nextSpans, rows: nextRows })
       .then(() => {
@@ -398,7 +403,7 @@ export default function DashboardHome() {
   function applyLayout(
     next: WidgetId[],
     nextSpans?: Partial<Record<WidgetId, 1 | 2 | 3>>,
-    nextRows?: Partial<Record<WidgetId, 1 | 2 | 3>>,
+    nextRows?: Partial<Record<WidgetId, WidgetRows>>,
   ) {
     setDraft(next);
     if (nextSpans) setSpanDraft(nextSpans);
@@ -607,7 +612,7 @@ export default function DashboardHome() {
             // subscription update.
             Object.fromEntries(
               next.widgets.flatMap((w) => (w.rows ? [[w.id, w.rows]] : [])),
-            ) as Partial<Record<WidgetId, 1 | 2 | 3>>,
+            ) as Partial<Record<WidgetId, WidgetRows>>,
           );
           if (opts?.droppedAt !== undefined) {
             const grid = document.getElementById(HOME_GRID_ID);

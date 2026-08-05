@@ -18,6 +18,7 @@ import {
   screenKey,
   unusedWidgets,
   type ScreenLayout,
+  type WidgetRows,
 } from "@/lib/screen-layout";
 import { OnlyWhenList } from "@/components/appearance/only-when";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -225,7 +226,9 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
               // whatever its author wanted rather than to a designed size.
               minSpan: 1 as const,
               maxSpan: 3 as const,
-              rows: (isMetricShape(def.shape) ? 1 : 2) as 1 | 2,
+              // Against the 5.5rem unit: a single number is 176px,
+              // anything that draws records or a chart is 424.
+              rows: (isMetricShape(def.shape) ? 2 : 4) as WidgetRows,
               content: (
                 <Panel
                   definition={row.definition}

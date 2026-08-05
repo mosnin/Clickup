@@ -1,3 +1,7 @@
+// The cap on a tile's height. THE one, not a copy of one — see its
+// declaration in screen-layout for what three copies of it cost.
+import { MAX_WIDGET_ROWS as MAX_ROWS } from "@/lib/screen-layout";
+
 // Where every tile actually is.
 //
 // The canvas ran two layout models at once and they disagreed. CSS Grid placed
@@ -28,9 +32,6 @@
 // the column width and the row height. Keeping this in units is what lets the
 // same function answer for a phone (one column) and a desktop (three) without
 // a second code path — the failure mode that made mobile its own bug surface.
-
-/** Tallest a tile may be. Mirrors the grid's own cap; past this it is a page. */
-const MAX_ROWS = 3;
 
 /** A tile asking for space, in grid units. */
 export type PackItem = {

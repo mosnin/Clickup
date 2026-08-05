@@ -9,6 +9,9 @@ import {
 import { MintablePanelsProvider } from "@/components/appearance/mintable-panels";
 import { StyleStudio } from "@/components/appearance/style-studio";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+// The shell's classes come from the shell, never retyped — see lib/shell.ts
+// for what the drift cost the last time they were written out twice.
+import { SHELL_INSET, SHELL_PAGE, SHELL_PROVIDER } from "@/lib/shell";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import DashboardHome from "@/app/dashboard/page";
 import { galleryData, galleryMutations } from "./stubs/convex-react";
@@ -629,10 +632,10 @@ function Page() {
               has it: the studio is a sibling of the page, so a provider
               rendered by the page could never reach it. */}
           <MintablePanelsProvider>
-            <SidebarProvider className="h-svh overflow-hidden">
+            <SidebarProvider className={SHELL_PROVIDER}>
               <DashboardSidebar />
-              <SidebarInset className="h-full min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-contain">
-                <div className="w-full px-4 py-6 sm:px-6">
+              <SidebarInset className={SHELL_INSET}>
+                <div className={SHELL_PAGE}>
                   <DashboardHome />
                   {ARRIVAL && (
                     <LapseControl

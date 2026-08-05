@@ -24,6 +24,7 @@ import {
   hoveredIndex,
   removeWidget,
   slotForPointer,
+  MAX_WIDGET_ROWS,
   type ScreenLayout,
   type WidgetSpan,
   type WidgetRows,
@@ -147,10 +148,24 @@ function columnsFor(gridWidth: number): number {
   if (gridWidth >= 28 * rem) return 2;
   return 1;
 }
-/** Tallest a panel can be made. Past three rows it is a page, not a panel. */
-const MAX_ROWS = 3;
-/** One grid row (10.5rem) and the gap (1.5rem), in px at the root font size. */
-const ROW_UNIT = 10.5 * 16;
+/** Tallest a panel can be made. Past this it is a page, not a panel. */
+const MAX_ROWS = MAX_WIDGET_ROWS;
+/**
+ * One grid row and the gap, in px at the root font size.
+ *
+ * 6rem, roughly halved from 10.5. The old unit was chosen from the tallest
+ * thing a screen holds rather than the shortest, so the floor — one row,
+ * 168px — was nearly twice the height of a row of stat cards, and the screen
+ * everybody opens first shipped with 74px of nothing under every number.
+ * There was no way out of it from the UI either: one row was already the
+ * minimum.
+ *
+ * 96px is a stat card with its padding — measured, by scripts/measure-home.mjs,
+ * not guessed — which makes the shortest honest tile in the product exactly
+ * one unit. MAX_ROWS doubled at the same time so nothing that used to fit
+ * stopped fitting. See `WidgetRows`.
+ */
+const ROW_UNIT = 6 * 16;
 const ROW_GAP = 1.5 * 16;
 /** Matches the grid's `auto-rows`, for the first frame before measuring. */
 const ROW_HEIGHT_FALLBACK = ROW_UNIT;

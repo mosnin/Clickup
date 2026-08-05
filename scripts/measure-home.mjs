@@ -11,8 +11,9 @@
 // here. Each tile's box is freed (height:auto) and its content reports the
 // height it wants, at the three widths the grid draws 1, 2 and 3 columns at —
 // height cannot be one number, because the same four stat cards are 94px wide
-// and 224px narrow. The row ladder is 1 -> 168px, 2 -> 360px, 3 -> 552px, and
-// 3 is the ceiling the grid enforces.
+// and 224px narrow. A row is 5.5rem plus a 1.5rem gap: 1 -> 88px, 2 -> 200,
+// 3 -> 312, 4 -> 424, 5 -> 536, 6 -> 648, and 6 is the ceiling the grid
+// enforces.
 //
 // Run `npm run gallery` first; this reads the same built gallery the
 // screenshots do. Anything marked SCROLLS is a block whose default is a lie.
@@ -37,12 +38,12 @@ const browser = await chromium.launch({
   args: ["--no-sandbox"],
 });
 
-const ROW_UNIT = 10.5 * 16;
+const ROW_UNIT = 6 * 16;
 const ROW_GAP = 1.5 * 16;
 const heightOf = (r) => r * ROW_UNIT + (r - 1) * ROW_GAP;
 const rowsFor = (h) => {
-  for (let r = 1; r <= 3; r++) if (heightOf(r) >= h) return r;
-  return "3+";
+  for (let r = 1; r <= 6; r++) if (heightOf(r) >= h) return r;
+  return "6+";
 };
 
 for (const width of [1180, 900, 390]) {
