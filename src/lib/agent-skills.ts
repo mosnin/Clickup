@@ -84,3 +84,54 @@ export async function skillDigests(): Promise<
     })),
   );
 }
+
+// The shell that downloads, verifies and installs the skills.
+//
+// Shared by /install/skills (which wraps it in a standalone script) and
+// /connect (which embeds it mid-flow while a human is signing in). Two
+// copies of a checksum-verifying installer is two places for a verification
+// step to quietly go missing from.
+//
+// POSIX sh only — no bash-isms, no jq. The machines running this are as
+// often a slim container as a laptop.
+export function skillInstallFragment(
+  origin: string,
+  digests: { slug: string; sha256: string }[],
+  opts: { targetVar?: string; quiet?: boolean } = {},
+) {
+  const target = opts.targetVar ?? "target_dir";
+  const say = (text: string) => (opts.quiet ? "" : `echo "${text}"\n`);
+  const steps = digests
+    .map(
+      ({ slug, sha256 }) => `mkdir -p "$staging_dir/${slug}"
+curl -fsSL --retry 3 --retry-delay 1 "${origin}/skills/operate/${slug}" -o "$staging_dir/${slug}/SKILL.md"
+verify_sha256 "${sha256}" "$staging_dir/${slug}/SKILL.md"
+mkdir -p "$${target}/${slug}"
+mv "$staging_dir/${slug}/SKILL.md" "$${target}/${slug}/SKILL.md"
+${say(`  installed ${slug}`)}`,
+    )
+    .join("\n");
+
+  return `verify_sha256() {
+  expected="$1"
+  file="$2"
+  if command -v shasum >/dev/null 2>&1; then
+    actual="$(shasum -a 256 "$file" | awk '{print $1}')"
+  elif command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "$file" | awk '{print $1}')"
+  else
+    echo "Operate skills installer requires shasum or sha256sum." >&2
+    exit 1
+  fi
+  if [ "$actual" != "$expected" ]; then
+    echo "Checksum verification failed for $file." >&2
+    exit 1
+  fi
+}
+
+staging_dir="$(mktemp -d "\${TMPDIR:-/tmp}/operate-skills.XXXXXX")"
+trap 'rm -rf "$staging_dir"' EXIT HUP INT TERM
+
+mkdir -p "$${target}"
+${steps}`;
+}

@@ -259,6 +259,9 @@ const EVENT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const DELIVERY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const USAGE_RETENTION_DAYS = 14;
 const DEVICE_REQUEST_RETENTION_MS = 24 * 60 * 60 * 1000;
+// Comfortably longer than the longest rate-limit window, so pruning can
+// never hand somebody a fresh budget early.
+const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1000;
 const PRUNE_BATCH = 500;
 
 // Daily pruning. Tables are append-only, so oldest-by-_creationTime and
@@ -296,6 +299,17 @@ export const prune = internalMutation({
       )
       .take(PRUNE_BATCH);
     for (const request of oldAuthRequests) await ctx.db.delete(request._id);
+
+    // Rate-limit counters. One row per distinct caller, reused across
+    // windows, so this only reclaims callers who have gone quiet — a row is
+    // safe to drop once its window can no longer be the current one.
+    const coldLimits = await ctx.db
+      .query("rateLimits")
+      .withIndex("by_updated", (q) =>
+        q.lt("updatedAt", now - RATE_LIMIT_RETENTION_MS),
+      )
+      .take(PRUNE_BATCH);
+    for (const row of coldLimits) await ctx.db.delete(row._id);
 
     const cutoffDay = new Date(now - USAGE_RETENTION_DAYS * 86_400_000)
       .toISOString()

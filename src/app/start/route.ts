@@ -36,11 +36,31 @@ approving. ${manifest.tools.count} tools over MCP.
 
 ---
 
-## 1. Connect
+## 1. Connect — one command
 
-Do NOT ask the human for an API key. There isn't one to paste. Run this
-device authorization flow instead (OAuth 2.0, RFC 8628 — the same shape as
-\`gh auth login\`).
+Do NOT ask the human for an API key. There isn't one to paste.
+
+\`\`\`sh
+OPERATE_CLIENT="<your runtime, e.g. claude-code>" \\
+  sh -c 'curl -fsSL ${issuer}/connect | sh'
+\`\`\`
+
+That does all of it: requests a device code, prints a link for the human,
+installs the skills while they sign in, waits for approval, and writes the
+credential to \`.operate/credentials.json\` (mode 600). It prints the MCP
+config block rather than writing it, because it cannot know where your
+runtime keeps its config and guessing wrong overwrites somebody's file. Set
+\`OPERATE_MCP_CONFIG=<path>\` if you want it written.
+
+**Your whole job is to relay the link it prints and then keep working.**
+The human clicks it, chooses what you may do, and approves.
+
+Everything from here to section 2 is that same flow by hand. Read it if you
+are implementing the flow yourself or the script cannot run; otherwise skip
+to section 2.
+
+<details>
+<summary>The flow by hand (OAuth 2.0 device grant, RFC 8628)</summary>
 
 ### Step 1 — ask for a code
 
@@ -62,15 +82,26 @@ Returns:
 }
 \`\`\`
 
-### Step 2 — tell the human, in exactly these words
+### Step 2 — hand the human the link
 
-> Open **${issuer}/link** and enter the code **WXYA-3479**
+Print \`verification_uri_complete\` (which carries the code), and the
+address-plus-code beneath it as the alternative:
 
-Print the address and the code. Do not print the \`device_code\`, and do not
-turn the verification URI into a link you fetched from somewhere else — the
-human typing the address themselves is what makes this flow phishing-
-resistant. On that screen they choose which space you work in, whether you
-can write or only read, and your daily ceiling.
+> Open **${issuer}/link?code=WXYA-3479**
+> — or go to **${issuer}/link** and enter **WXYA-3479**
+
+Offer both, and never print the \`device_code\`.
+
+Two properties to preserve. **The link never approves anything** — it fills
+in the code and stops on the consent screen, where the human sees which
+space you would work in, whether you can write, and your daily ceiling, and
+has to click Approve. A link that self-approved would be a pasted key with
+extra steps. And **the typed path stays offered**, because following a link
+out of a terminal is a thing some people reasonably will not do; earlier
+versions of this document claimed typing the address was what made the flow
+phishing-resistant, which was only ever half true — you are already running
+on their machine with their trust. What protects them is the consent screen,
+not how they arrived at it.
 
 ### Step 3 — poll for the key
 
@@ -109,6 +140,8 @@ On approval you get, exactly once:
 again.** It does not expire; there is no refresh token and nothing to renew.
 If you lose it, run this flow again. If it leaks, the human revokes it from
 the Agents page and nothing else you hold is affected.
+
+</details>
 
 ---
 
@@ -156,10 +189,14 @@ bound to. Check that before you write anything.
 
 ---
 
-## 4. Install the skills
+## 4. The skills
 
 Playbooks for the work this product is for. Each is a markdown file your
-runtime reads as a skill:
+runtime reads as a skill.
+
+**If you ran the one command in section 1, these are already installed** —
+it does it while the human is signing in. To install them on their own, or
+to reinstall after the manifest says one changed:
 
 \`\`\`sh
 curl -fsSL ${issuer}/install/skills | sh

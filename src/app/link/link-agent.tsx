@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,30 @@ import { errorMessage } from "@/lib/errors";
 
 type Step = "code" | "where" | "what" | "done";
 
+// What lookupUserCode returns. Declared here rather than inferred because
+// the generated Convex types are a stub until `convex dev` runs, and the
+// screen branches on `state` for every one of its five outcomes.
+type LookupResult =
+  | { state: "not_found" | "expired" | "denied" | "approved" | "claimed" }
+  | {
+      state: "pending";
+      clientName: string;
+      expiresAt: number;
+      scopes: {
+        parentType: "user" | "workspace";
+        parentId: string;
+        name: string;
+        canManage: boolean;
+      }[];
+      agents: {
+        agentId: Id<"agents">;
+        name: string;
+        scopeId: string;
+        role: "member" | "readonly";
+        lastSeenAt: number | null;
+      }[];
+    };
+
 // The budgets people actually mean, rather than a number field. The daily
 // limit exists to bound a runaway loop, and nobody has a considered opinion
 // about 1500 vs 2000 — they have an opinion about "trial" vs "let it work".
@@ -33,18 +57,50 @@ const BUDGETS = [
 export function LinkAgent({ initialCode }: { initialCode: string }) {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const [code, setCode] = useState(initialCode);
-  // A code arriving in the URL is still shown for confirmation rather than
-  // acted on: verification_uri_complete is a convenience, and treating it as
-  // consent would hand the agent a way to skip the screen it is asking about.
   const [submitted, setSubmitted] = useState("");
   const [step, setStep] = useState<Step>("code");
 
-  const request = useQuery(
-    api.agentAuth.requestForUserCode,
-    submitted && isAuthenticated ? { userCode: submitted } : "skip",
-  );
+  // A mutation, not a query, because a lookup that must be rate-limited is a
+  // write — see convex/agentAuth.ts for why an unthrottled version of this
+  // is an agent-hijack oracle. So the result is held in state and fetched
+  // once, rather than being a live subscription.
+  const lookup = useMutation(api.agentAuth.lookupUserCode);
   const approve = useMutation(api.agentAuth.approveDeviceRequest);
   const deny = useMutation(api.agentAuth.denyDeviceRequest);
+  const [request, setRequest] = useState<LookupResult | undefined>(undefined);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
+  // Guards the auto-submit below against React 18 double-effects and against
+  // re-running when auth resolves: each spends a rate-limit attempt on a
+  // miss, and a page that quietly burns somebody's budget on mount is how a
+  // legitimate user gets locked out of their own connection.
+  const requested = useRef("");
+
+  const runLookup = useCallback(
+    async (value: string) => {
+      const clean = value.trim();
+      if (!clean || requested.current === clean) return;
+      requested.current = clean;
+      setSubmitted(clean);
+      setRequest(undefined);
+      setLookupError(null);
+      try {
+        setRequest((await lookup({ userCode: clean })) as LookupResult);
+      } catch (cause) {
+        setLookupError(errorMessage(cause, "Could not look up that code"));
+      }
+    },
+    [lookup],
+  );
+
+  // A code in the URL (RFC 8628's verification_uri_complete) skips the
+  // typing, not the consent: it lands on "where should it work", never on an
+  // approval. A link that self-approves is a pasted key with extra steps.
+  useEffect(() => {
+    if (!isAuthenticated || !initialCode) return;
+    void runLookup(initialCode);
+    setStep("where");
+  }, [isAuthenticated, initialCode, runLookup]);
 
   const [scopeId, setScopeId] = useState("");
   const [agentChoice, setAgentChoice] = useState<Id<"agents"> | "new">("new");
@@ -78,8 +134,19 @@ export function LinkAgent({ initialCode }: { initialCode: string }) {
   const submitCode = (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
-    setSubmitted(code.trim());
+    void runLookup(code);
     setStep("where");
+  };
+
+  const retryWithAnotherCode = () => {
+    // Clear the guard as well as the field, or the same code cannot be
+    // retried after a transient failure.
+    requested.current = "";
+    setSubmitted("");
+    setCode("");
+    setRequest(undefined);
+    setLookupError(null);
+    setStep("code");
   };
 
   const finish = async () => {
@@ -95,12 +162,20 @@ export function LinkAgent({ initialCode }: { initialCode: string }) {
               agentName: agentName.trim() || pending!.clientName,
             }
           : { agentId: agentChoice };
-      await approve({
+      const outcome = (await approve({
         userCode: submitted,
         ...chosen,
         role,
         dailyActionLimit: budget,
-      });
+      })) as { approved: boolean };
+      // A bad code comes back as a value rather than an exception, because
+      // the rate-limit counter behind it has to survive the call.
+      if (!outcome.approved) {
+        setError(
+          "That code is no longer valid. Ask your agent for a new one.",
+        );
+        return;
+      }
       setResult({
         name:
           agentChoice === "new"
@@ -126,9 +201,7 @@ export function LinkAgent({ initialCode }: { initialCode: string }) {
       // so a failure here costs nothing and a red banner would only confuse.
     }
     setBusy(false);
-    setStep("code");
-    setSubmitted("");
-    setCode("");
+    retryWithAnotherCode();
   };
 
   if (authLoading || !isAuthenticated) {
@@ -169,6 +242,30 @@ export function LinkAgent({ initialCode }: { initialCode: string }) {
     );
   }
 
+  // A thrown lookup is a different thing from a code that came back
+  // unrecognised, and the one that actually happens is the rate limit — so
+  // it says what it is rather than blaming the code.
+  if (lookupError) {
+    return (
+      <Shell>
+        <Eyebrow>Connect an agent</Eyebrow>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+          That didn&apos;t work
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          {lookupError}
+        </p>
+        <Button
+          variant="outline"
+          className="mt-6 w-full"
+          onClick={retryWithAnotherCode}
+        >
+          Try again
+        </Button>
+      </Shell>
+    );
+  }
+
   if (request === undefined) {
     return (
       <Shell>
@@ -196,11 +293,7 @@ export function LinkAgent({ initialCode }: { initialCode: string }) {
         <Button
           variant="outline"
           className="mt-6 w-full"
-          onClick={() => {
-            setSubmitted("");
-            setCode("");
-            setStep("code");
-          }}
+          onClick={retryWithAnotherCode}
         >
           Try another code
         </Button>

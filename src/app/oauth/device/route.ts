@@ -53,6 +53,17 @@ export async function POST(request: Request) {
   const issuer = oauthIssuer();
   const deviceCode = randomCredential("opd");
 
+  // Convex cannot see the caller's address, so the rate limit's subject has
+  // to be read here and passed in. The secret is what stops somebody calling
+  // that public mutation directly with an invented clientIp — see
+  // deviceRateSubject in convex/agentAuth.ts for how it degrades when unset.
+  const forwarded = request.headers.get("x-forwarded-for") ?? "";
+  const clientIp =
+    forwarded.split(",")[0].trim() ||
+    request.headers.get("x-real-ip")?.trim() ||
+    undefined;
+  const proxySecret = process.env.DEVICE_PROXY_SECRET;
+
   // A collision is a live user code being handed to two agents at once, and
   // the mutation refuses it rather than letting one human's approval reach
   // the wrong runtime. Retry with a fresh code; three attempts makes the
@@ -62,7 +73,7 @@ export async function POST(request: Request) {
     try {
       const result = await oauthConvexClient().mutation(
         api.agentAuth.createDeviceRequest,
-        { deviceCode, userCode: code, clientName },
+        { deviceCode, userCode: code, clientName, clientIp, proxySecret },
       );
       return oauthJson({
         device_code: deviceCode,
@@ -75,13 +86,20 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
-      if (!message.includes("collision")) {
-        return oauthError(
-          "server_error",
-          "Could not start device authorization",
-          500,
-        );
+      // A collision means this user code is live for somebody else; retrying
+      // with a fresh one is the correct response and costs nothing.
+      if (message.includes("collision")) continue;
+      // Anything else is terminal for this request. Rate limiting gets its
+      // own status because a client that retries a 429 as if it were a 500
+      // is precisely the client the limit exists to stop.
+      if (message.includes("Too many")) {
+        return oauthError("slow_down", message, 429);
       }
+      return oauthError(
+        "server_error",
+        "Could not start device authorization",
+        500,
+      );
     }
   }
   return oauthError("server_error", "Could not allocate a user code", 503);

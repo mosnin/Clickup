@@ -1933,6 +1933,20 @@ export default defineSchema({
     .index("by_refresh_hash", ["refreshTokenHash"])
     .index("by_agent", ["agentId"]),
 
+  // Generic fixed-window rate limiting (see _rateLimit.ts). One row per
+  // distinct caller-and-budget, reused across windows rather than inserted
+  // per hit — a table that grows per request is the thing being defended
+  // against. Pruned by the daily cron once a row goes cold.
+  rateLimits: defineTable({
+    // "<rule name>:<subject>" — subject is an IP or a Clerk subject.
+    key: v.string(),
+    window: v.number(),
+    count: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_key", ["key"])
+    .index("by_updated", ["updatedAt"]),
+
   // OAuth 2.0 Device Authorization Grant (RFC 8628) — how an agent with no
   // browser gets connected. The agent asks for a code, prints it, and a
   // human types it at /link, signs in, and says what the agent may do. The

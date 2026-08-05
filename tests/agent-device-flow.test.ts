@@ -129,7 +129,7 @@ describe("device authorization", () => {
     const { t, workspaceId } = await setup();
     await startRequest(t);
     const asOwner = t.withIdentity(OWNER);
-    const { agentId } = await asOwner.mutation(
+    const outcome = await asOwner.mutation(
       api.agentAuth.approveDeviceRequest,
       {
         userCode: USER_CODE,
@@ -140,11 +140,12 @@ describe("device authorization", () => {
         dailyActionLimit: 200,
       },
     );
+    if (!outcome.approved) throw new Error("approval was refused");
 
     // The whole argument for approving-then-minting rather than
     // minting-then-governing: there is no window in which this key exists
     // with broader powers than the human agreed to.
-    const agent = await t.run(async (ctx) => ctx.db.get(agentId));
+    const agent = await t.run(async (ctx) => ctx.db.get(outcome.agentId));
     expect(agent?.role).toBe("readonly");
     expect(agent?.dailyActionLimit).toBe(200);
   });
@@ -239,15 +240,21 @@ describe("device authorization", () => {
       ...KEY_MATERIAL,
     });
     expect(claimed.state).toBe("expired");
-    await expect(
-      t.withIdentity(OWNER).mutation(api.agentAuth.approveDeviceRequest, {
+    // Returned rather than thrown: this path counts against the caller's
+    // guess budget, and a throw would roll that increment back.
+    const late = await t
+      .withIdentity(OWNER)
+      .mutation(api.agentAuth.approveDeviceRequest, {
         userCode: USER_CODE,
         parentType: "workspace",
         parentId: workspaceId,
         agentName: "Late",
         role: "member",
-      }),
-    ).rejects.toThrow();
+      });
+    expect(late).toMatchObject({ approved: false });
+    expect(
+      await t.run(async (ctx) => ctx.db.query("agentKeys").collect()),
+    ).toHaveLength(0);
   });
 
   it("answers an unknown device code the same way as an expired one", async () => {
@@ -303,7 +310,7 @@ describe("device authorization", () => {
     const { t, workspaceId } = await setup();
     await startRequest(t);
     const asOwner = t.withIdentity(OWNER);
-    const { agentId } = await asOwner.mutation(
+    const outcome = await asOwner.mutation(
       api.agentAuth.approveDeviceRequest,
       {
         userCode: USER_CODE,
@@ -313,7 +320,10 @@ describe("device authorization", () => {
         role: "member",
       },
     );
-    await t.run(async (ctx) => ctx.db.patch(agentId, { status: "paused" }));
+    if (!outcome.approved) throw new Error("approval was refused");
+    await t.run(async (ctx) =>
+      ctx.db.patch(outcome.agentId, { status: "paused" }),
+    );
 
     const claimed = await t.mutation(api.agentAuth.claimDeviceRequest, {
       deviceCode: DEVICE_CODE,
@@ -352,7 +362,7 @@ describe("the consent screen's data", () => {
 
     const view = await t
       .withIdentity(OWNER)
-      .query(api.agentAuth.requestForUserCode, { userCode: "wxya3479" });
+      .mutation(api.agentAuth.lookupUserCode, { userCode: "wxya3479" });
     expect(view.state).toBe("pending");
     if (view.state !== "pending") throw new Error("unreachable");
     expect(view.clientName).toBe("claude-code");
@@ -363,7 +373,7 @@ describe("the consent screen's data", () => {
     // owner's workspaces — only their own personal space.
     const outside = await t
       .withIdentity(OUTSIDER)
-      .query(api.agentAuth.requestForUserCode, { userCode: USER_CODE });
+      .mutation(api.agentAuth.lookupUserCode, { userCode: USER_CODE });
     if (outside.state !== "pending") throw new Error("unreachable");
     expect(outside.scopes.map((s) => s.name)).toEqual(["Personal space"]);
     expect(outside.agents).toHaveLength(0);
@@ -374,7 +384,7 @@ describe("the consent screen's data", () => {
     await startRequest(t);
     const view = await t
       .withIdentity(MEMBER)
-      .query(api.agentAuth.requestForUserCode, { userCode: USER_CODE });
+      .mutation(api.agentAuth.lookupUserCode, { userCode: USER_CODE });
     if (view.state !== "pending") throw new Error("unreachable");
     const workspace = view.scopes.find((s) => s.name === "Device Flow");
     expect(workspace?.canManage).toBe(false);

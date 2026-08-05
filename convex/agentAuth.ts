@@ -5,6 +5,12 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
 import { sha256Hex } from "./_agentAuth";
 import { normalizeCapabilities } from "./capabilities";
+import {
+  CODE_LOOKUP_RULE,
+  DEVICE_REQUEST_RULE,
+  consumeRateLimit,
+} from "./_rateLimit";
+import { emitEvent } from "./events";
 
 // OAuth 2.0 Device Authorization Grant (RFC 8628) for agent runtimes.
 //
@@ -49,6 +55,29 @@ export function normalizeUserCode(input: string): string {
   return bare.length === 8 ? `${bare.slice(0, 4)}-${bare.slice(4)}` : bare;
 }
 
+// Which bucket a device-code request counts against.
+//
+// `createDeviceRequest` has to be public and unauthenticated — the caller is
+// a machine with no credential, which is the entire point of the grant — so
+// anyone can call it directly and pass whatever `clientIp` they like. A
+// per-IP limit that trusts an attacker-supplied IP is not a limit.
+//
+// So the route proves it is the route with a shared secret:
+//
+//   - Secret configured AND matches → trust clientIp, per-IP budgets.
+//   - Secret configured AND doesn't → every such caller shares ONE bucket,
+//     which makes direct flooding cost the flooder rather than the table.
+//   - Secret not configured at all → trust clientIp. Fail-open, deliberately:
+//     the alternative collapses every real user of an existing deployment
+//     into a single shared budget the moment they upgrade, and what is at
+//     stake here is storage growth, not an authorization boundary. Setting
+//     DEVICE_PROXY_SECRET on both Next and Convex is the hardened posture.
+function deviceRateSubject(clientIp?: string, proxySecret?: string): string {
+  const expected = process.env.DEVICE_PROXY_SECRET;
+  if (expected && proxySecret !== expected) return "unverified";
+  return clientIp && clientIp.length <= 64 ? clientIp : "unknown";
+}
+
 export type DeviceRequestState =
   | "pending"
   | "approved"
@@ -77,8 +106,21 @@ export const createDeviceRequest = mutation({
     deviceCode: v.string(),
     userCode: v.string(),
     clientName: v.string(),
+    // Read from request headers by /oauth/device — Convex cannot see the
+    // caller's address itself.
+    clientIp: v.optional(v.string()),
+    // Proves the caller really is our own route rather than someone driving
+    // this public mutation directly with a spoofed clientIp. See
+    // deviceRateSubject for what happens when it doesn't check out.
+    proxySecret: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await consumeRateLimit(
+      ctx,
+      DEVICE_REQUEST_RULE,
+      deviceRateSubject(args.clientIp, args.proxySecret),
+      "Too many connection attempts. Wait a few minutes and try again.",
+    );
     if (!isWellFormedUserCode(args.userCode)) {
       throw new ConvexError("Malformed user code");
     }
@@ -179,6 +221,25 @@ export const claimDeviceRequest = mutation({
       createdAt: now,
     });
     await ctx.db.patch(row._id, { status: "claimed" });
+
+    // Approval and collection are separate events because they are separate
+    // facts: a human said yes at one time, and a key came into existence at
+    // another. An approval never collected is worth being able to see.
+    await emitEvent(ctx, {
+      scopeType: agent.parentType,
+      scopeId: agent.parentId,
+      type: "agent.key_issued",
+      actor: { type: "system", id: "device_flow", name: "Device authorization" },
+      entityType: "agent",
+      entityId: agent._id,
+      entityTitle: agent.name,
+      payload: {
+        client: row.clientName,
+        keyPrefix: args.keyPrefix,
+        approvedBy: row.approvedByClerkId ?? null,
+        grant: "device_code",
+      },
+    });
     return {
       state: "approved",
       agentId: agent._id,
@@ -197,18 +258,41 @@ async function scopeNameFor(ctx: QueryCtx | MutationCtx, agent: Doc<"agents">) {
 
 // ── The human's side ───────────────────────────────────────────────────
 
-// What /link shows after the code is typed: who is asking, and every scope
+// What /link shows after the code is entered: who is asking, and every scope
 // and agent this particular human could point them at. Deliberately returns
 // a status rather than throwing on a bad code — "that code has expired" is a
 // thing the screen has to be able to say.
-export const requestForUserCode = query({
+//
+// A MUTATION, though it reads. That is not an accident and it is not
+// convenience: a lookup that must be counted is a write.
+//
+// Unthrottled, this is an enumeration oracle with a serious payoff. Anybody
+// with an account could sweep the user-code space, and a hit lets them call
+// approveDeviceRequest binding THEIR agent in THEIR workspace to somebody
+// else's pending device code — so the victim's runtime connects, with a
+// valid key, to an attacker-controlled workspace and starts taking
+// instructions from it. Nothing looks wrong from either side.
+//
+// Only FAILED lookups are counted. Somebody connecting an agent gets the
+// code right, so a legitimate user never approaches the ceiling no matter
+// how many agents they connect; an enumerator produces almost nothing but
+// failures. Counting successes too would rate-limit exactly the wrong people.
+export const lookupUserCode = mutation({
   args: { userCode: v.string() },
   handler: async (ctx, { userCode }) => {
     const identity = await requireIdentity(ctx);
+    const miss = async (state: "not_found" | "expired") => {
+      await consumeRateLimit(
+        ctx,
+        CODE_LOOKUP_RULE,
+        identity.subject,
+        "Too many incorrect codes. Wait a few minutes and try again.",
+      );
+      return { state } as const;
+    };
+
     const code = normalizeUserCode(userCode);
-    if (!isWellFormedUserCode(code)) {
-      return { state: "not_found" as const };
-    }
+    if (!isWellFormedUserCode(code)) return await miss("not_found");
     const rows = await ctx.db
       .query("agentAuthRequests")
       .withIndex("by_user_code", (q) => q.eq("userCode", code))
@@ -217,11 +301,13 @@ export const requestForUserCode = query({
     const row =
       rows.find((r) => r.status === "pending" && r.expiresAt > now) ??
       rows.sort((a, b) => b.createdAt - a.createdAt)[0];
-    if (!row) return { state: "not_found" as const };
+    if (!row) return await miss("not_found");
+    // A settled request is a real answer about a real code, so it is not a
+    // miss — but it is also not a hit worth spending somebody's budget on.
     if (row.status !== "pending") {
       return { state: row.status };
     }
-    if (row.expiresAt <= now) return { state: "expired" as const };
+    if (row.expiresAt <= now) return await miss("expired");
 
     // Every place this human could put an agent, and the agents already
     // there. Offering existing agents matters: reconnecting a runtime you
@@ -321,7 +407,26 @@ export const approveDeviceRequest = mutation({
       .collect();
     const now = Date.now();
     const row = rows.find((r) => r.status === "pending" && r.expiresAt > now);
-    if (!row) throw new ConvexError("That code has expired or was already used");
+    if (!row) {
+      // Counted for the same reason lookupUserCode is: skipping the lookup
+      // and guessing straight at approve would otherwise be an unthrottled
+      // path to the same oracle, and this one binds an agent on a hit.
+      //
+      // RETURNED, not thrown — and that distinction is the whole guard.
+      // A Convex mutation that throws rolls its transaction back, which
+      // discards the counter increment along with it, so a rate limit that
+      // counts and then throws in the same mutation counts nothing at all.
+      // The first version of this did exactly that and the test below
+      // caught it. Genuine authorization failures still throw, because
+      // those SHOULD roll back.
+      await consumeRateLimit(
+        ctx,
+        CODE_LOOKUP_RULE,
+        identity.subject,
+        "Too many incorrect codes. Wait a few minutes and try again.",
+      );
+      return { approved: false as const, reason: "invalid_code" as const };
+    }
 
     let agentId: Id<"agents">;
     let agentCreated = false;
@@ -374,7 +479,34 @@ export const approveDeviceRequest = mutation({
       agentId,
       agentCreated,
     });
-    return { approved: true, agentId, agentCreated };
+
+    // A credential grant must never be invisible. This is the moment a human
+    // hands a machine the ability to act as them, so it goes in the activity
+    // log with the full blast radius attached — not just "an agent appeared".
+    // It also fans out to webhooks, which is how a security team finds out.
+    const agent = (await ctx.db.get(agentId))!;
+    await emitEvent(ctx, {
+      scopeType: agent.parentType,
+      scopeId: agent.parentId,
+      type: "agent.authorized",
+      actor: {
+        type: "user",
+        id: identity.subject,
+        name: identity.subject,
+      },
+      entityType: "agent",
+      entityId: agentId,
+      entityTitle: agent.name,
+      payload: {
+        client: row.clientName,
+        agentCreated,
+        role: args.role,
+        dailyActionLimit: args.dailyActionLimit ?? null,
+        restrictedToLists: args.allowedListIds?.length ?? 0,
+        grant: "device_code",
+      },
+    });
+    return { approved: true as const, agentId, agentCreated };
   },
 });
 

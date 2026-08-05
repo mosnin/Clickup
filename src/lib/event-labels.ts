@@ -32,6 +32,10 @@ export const EVENT_LABEL: Record<string, string> = {
   "agent.error": "reported an error",
   "agent.stalled": "went quiet on a task",
   "agent.connected": "came online",
+  // The grant and the key are two facts, so they read as two lines: a human
+  // said yes at one moment, a credential came into existence at another.
+  "agent.authorized": "authorized",
+  "agent.key_issued": "issued a key to",
   "channel.created": "opened channel",
   "goal.progress": "updated goal",
   "goal.completed": "completed goal",

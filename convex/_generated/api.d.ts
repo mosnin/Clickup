@@ -16,6 +16,7 @@ import type * as _docText from "../_docText.js";
 import type * as _docToMarkdown from "../_docToMarkdown.js";
 import type * as _idempotency from "../_idempotency.js";
 import type * as _markdown from "../_markdown.js";
+import type * as _rateLimit from "../_rateLimit.js";
 import type * as _refs from "../_refs.js";
 import type * as _scope from "../_scope.js";
 import type * as _situations from "../_situations.js";
@@ -162,6 +163,7 @@ declare const fullApi: ApiFromModules<{
   _docToMarkdown: typeof _docToMarkdown;
   _idempotency: typeof _idempotency;
   _markdown: typeof _markdown;
+  _rateLimit: typeof _rateLimit;
   _refs: typeof _refs;
   _scope: typeof _scope;
   _situations: typeof _situations;
