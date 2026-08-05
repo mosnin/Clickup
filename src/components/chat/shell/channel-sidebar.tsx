@@ -38,7 +38,7 @@ import { cn } from "@/lib/utils";
 import { useChatShell } from "./chat-shell";
 import { useChannels } from "./channel-data";
 import { ChannelRow } from "./channel-row";
-import { ChatProfileCard } from "./profile-card";
+import { ChatCustomiseRow, ChatProfileCard } from "./profile-card";
 import { SidebarGrip } from "./sidebar-grip";
 import {
   sidebarSections,
@@ -311,12 +311,20 @@ export function ChannelSidebar() {
           ) : null}
         </SidebarScroller>
 
-        <div className="flex items-center gap-1 px-2 pb-2 pt-1">
+        {/* The footer says the same things, in the same order, as the Work
+            sidebar's: the way into customising, then how light it is, then
+            who you are. Chat used to offer only a profile card and a single
+            moon — so the two halves of one product disagreed about both what
+            a footer is for and what a theme control looks like, which is most
+            of why moving between them felt like moving between two apps.
+
+            Stacked rather than crammed onto one row: the three-way control is
+            `w-full` by design, and sharing a row with the profile card is what
+            forced the one-button form in the first place. */}
+        <div className="flex flex-col gap-1 px-2 pb-2 pt-1">
+          <ChatCustomiseRow />
+          <ThemeToggle />
           <ChatProfileCard />
-          {/* The one-button form. The three-way control is `w-full` and takes
-              the whole row, which left the profile card at zero width — a
-              footer that hid who you are behind a theme picker. */}
-          <ThemeToggle collapsed />
         </div>
       </div>
 

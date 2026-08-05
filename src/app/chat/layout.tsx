@@ -5,6 +5,8 @@ import { EnsureUser } from "@/components/dashboard/ensure-user";
 import { RequireBackend } from "@/components/require-backend";
 import { ToastProvider } from "@/components/toast";
 import { AppearanceProvider } from "@/components/appearance/appearance-provider";
+import { CustomizeProvider } from "@/components/appearance/customize-provider";
+import { StyleStudio } from "@/components/appearance/style-studio";
 import { ChatThemeScope } from "@/components/chat/chat-theme-scope";
 import { ChatShell } from "@/components/chat/shell/chat-shell";
 
@@ -49,10 +51,20 @@ export default async function ChatLayout({
     <RequireBackend>
       <ToastProvider>
         <AppearanceProvider>
-          <ChatThemeScope />
-          <EnsureUser />
-          <AgentOnlineWatcher />
-          <ChatShell>{children}</ChatShell>
+          {/* The same stack the Work dashboard wraps its shell in, in the same
+              order. Chat had every provider except these two, which meant
+              customising — the thing this product says it is about — simply
+              did not exist on one of its two halves. A reader who learned to
+              reshape a screen in Work found the idea absent in Chat, and a
+              capability that stops at a route boundary reads as two products
+              rather than one. */}
+          <CustomizeProvider>
+            <ChatThemeScope />
+            <EnsureUser />
+            <AgentOnlineWatcher />
+            <ChatShell>{children}</ChatShell>
+            <StyleStudio />
+          </CustomizeProvider>
         </AppearanceProvider>
       </ToastProvider>
     </RequireBackend>
