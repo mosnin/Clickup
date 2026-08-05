@@ -13,7 +13,7 @@
 // would mean a second, worse copy of something that already works.
 
 import { Sparkles } from "lucide-react";
-import { UserButton, useUser } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
 import { useCustomize } from "@/components/appearance/customize-provider";
 import { useChatShell } from "./chat-shell";
 
@@ -55,19 +55,18 @@ export function ChatCustomiseRow() {
 }
 
 export function ChatProfileCard() {
-  const { scopeName } = useChatShell();
-  const { user } = useUser();
-  const name = user?.fullName ?? user?.username ?? "Your account";
-
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-1 py-1 transition-colors hover:bg-muted/70">
+    // One line reading "Account", exactly as the Work sidebar's footer does.
+    //
+    // This used to stack your display name over the community name. Both
+    // halves became redundant the moment the community switcher moved to the
+    // top of the sidebar: the community is now named in the header, and your
+    // own name is one click away in the avatar's own menu. Saying the
+    // community twice on one screen is what makes a layout feel unconsidered,
+    // and the second copy was the one carrying no new information.
+    <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-1 py-1">
       <UserButton afterSignOutUrl="/" />
-      <span className="flex min-w-0 flex-1 flex-col leading-tight">
-        <span className="truncate text-[0.8125rem] font-semibold">{name}</span>
-        <span className="chat-quiet truncate text-[0.6875rem]">
-          {scopeName || " "}
-        </span>
-      </span>
+      <span className="chat-quiet min-w-0 flex-1 truncate text-xs">Account</span>
     </div>
   );
 }

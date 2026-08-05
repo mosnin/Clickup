@@ -48,7 +48,6 @@ import {
 import { ChannelsProvider } from "./channel-data";
 import { EnsureChatIdentity } from "./ensure-chat-identity";
 import { ChatTopChrome } from "./top-chrome";
-import { CommunityRail } from "./community-rail";
 import { ChannelSidebar } from "./channel-sidebar";
 import {
   DRAWER_BREAKPOINT_PX,
@@ -233,7 +232,6 @@ export function ChatShell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [navOpen]);
 
-  const hasRail = list.length > 1;
   const state: ShellState = useMemo(
     () => ({
       communities: list,
@@ -311,7 +309,6 @@ export function ChatShell({ children }: { children: ReactNode }) {
                   "md:static md:z-auto md:w-auto md:translate-x-0 md:bg-transparent",
                 )}
               >
-                {hasRail ? <CommunityRail /> : null}
                 <ChannelSidebar />
               </nav>
 

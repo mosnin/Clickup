@@ -15,7 +15,6 @@
 export const TOP_CHROME_HEIGHT_PX = 40;
 
 /** The community rail. Hidden entirely when there is only one community. */
-export const RAIL_WIDTH_PX = 56;
 
 export const SIDEBAR_DEFAULT_PX = 300;
 export const SIDEBAR_MIN_PX = 220;

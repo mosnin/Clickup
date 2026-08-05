@@ -176,13 +176,27 @@ describe("the Chat shell's regions", () => {
     expect(screen.getByText("the screen")).toBeTruthy();
   });
 
-  it("hides the community rail until there is more than one community", () => {
+  it("names the current community in the header, with one entry per community", () => {
+    // There is no community rail any more. A community IS a workspace, and
+    // Work already asks "which workspace" with a dropdown at the top of the
+    // sidebar — a second, differently-shaped navigation for the same question
+    // is what made the two halves of the product look like two products.
+    // See src/components/chat/shell/community-switcher.tsx.
     state.queries[SCOPES] = [
       { scopeType: "user", scopeId: "u1", name: "Personal" },
     ];
     state.queries[CHANNELS] = [];
     const solo = render(<ChatShell>{null}</ChatShell>);
     expect(solo.container.querySelector("[data-chat-rail]")).toBeNull();
+    // The current community is named even when it is the only one — the
+    // header is where you look to know where you are, and a control that
+    // appears only once you have two of something teaches nobody anything.
+    // Scoped to the sidebar: the top chrome names the community too, and an
+    // unscoped query would pass on the breadcrumb alone.
+    const soloNav = solo.container.querySelector("[data-chat-sidebar]");
+    expect(
+      within(soloNav as HTMLElement).getByText("Personal"),
+    ).toBeTruthy();
     solo.unmount();
 
     state.queries[SCOPES] = [
@@ -190,12 +204,13 @@ describe("the Chat shell's regions", () => {
       { scopeType: "workspace", scopeId: "w1", name: "Honeycomb Studios" },
     ];
     const pair = render(<ChatShell>{null}</ChatShell>);
-    const rail = pair.container.querySelector("[data-chat-rail]");
-    expect(rail).not.toBeNull();
-    // The first community is the one you land in, and it says so.
+    expect(pair.container.querySelector("[data-chat-rail]")).toBeNull();
+    // Still one trigger, still naming where you are — the second community
+    // lives inside the menu rather than adding a column to the screen.
+    const pairNav = pair.container.querySelector("[data-chat-sidebar]");
     expect(
-      within(rail as HTMLElement).getByRole("button", { name: "Personal" }),
-    ).toHaveProperty("dataset.active", "true");
+      within(pairNav as HTMLElement).getByText("Personal"),
+    ).toBeTruthy();
   });
 
   it("keeps the sidebar's resize grip off the drawer, where it means nothing", () => {

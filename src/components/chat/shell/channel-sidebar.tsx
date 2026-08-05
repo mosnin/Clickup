@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { useChatShell } from "./chat-shell";
 import { useChannels } from "./channel-data";
 import { ChannelRow } from "./channel-row";
+import { CommunitySwitcher } from "./community-switcher";
 import { ChatCustomiseRow, ChatProfileCard } from "./profile-card";
 import { SidebarGrip } from "./sidebar-grip";
 import {
@@ -104,6 +105,11 @@ export function ChannelSidebar() {
               which put the way out of the application in a different corner
               from the way around it. */}
           <ModeSwitcher className="mb-1.5" />
+          {/* Which community, in the same slot and the same shape as the Work
+              sidebar's workspace control. This replaced a 56px icon rail —
+              see community-switcher.tsx for why a second navigation for the
+              same question had to go rather than be restyled. */}
+          <CommunitySwitcher />
           <button
             type="button"
             // The palette is mounted by the shell and listens for this event —
@@ -112,7 +118,7 @@ export function ChannelSidebar() {
             onClick={() =>
               window.dispatchEvent(new Event("open-command-palette"))
             }
-            className="chat-row justify-start bg-muted/60 hover:bg-muted"
+            className="chat-row mt-1 justify-start hover:bg-[var(--chat-hover)]"
           >
             <Search aria-hidden className="chat-quiet size-3.5 shrink-0" />
             <span className="chat-quiet flex-1 truncate text-left">
