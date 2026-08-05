@@ -188,7 +188,7 @@ export function TaskContext({
           {(attached as Packet[]).map((packet) => (
             <details
               key={packet.packetId}
-              className="group rounded-xl border border-border bg-card"
+              className="bento group rounded-2xl bg-card"
             >
               <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-3">
                 <BookOpen className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-600" />

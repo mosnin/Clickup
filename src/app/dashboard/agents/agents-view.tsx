@@ -39,8 +39,8 @@ import { BillingTab } from "@/components/dashboard/billing-panel";
 import { ConnectSnippet } from "@/components/dashboard/connect-snippet";
 import { Tabs } from "@/components/interior/tabs";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { PageTitle } from "@/components/dashboard/page-title";
 import { TerminalSurface } from "@/components/terminal-surface";
-import TextType from "@/components/text-type";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { eventHref, eventLabel } from "@/lib/event-labels";
@@ -158,12 +158,15 @@ export function AgentsView() {
         />
       </PageHeader>
 
-      <TextType
-        as="p"
-        className="text-sm text-muted-foreground"
-        text="Mission control for the AI agents working in your spaces. See what they're doing live, hand them work, and manage their access."
-        typingSpeed={22}
-        loop={false}
+      {/* The page's own title block, under the sticky chrome.
+          This was a typewriter animating the description into place on every
+          visit — a paragraph that types itself is a paragraph you wait for,
+          and it left the screen with no title at all above it. The eyebrow
+          says what the screen is FOR; the heading is allowed to be large. */}
+      <PageTitle
+        eyebrow="Mission control"
+        title="Agents"
+        description="The AI agents working in your spaces. See what they're doing live, hand them work, and manage their access."
       />
 
       <motion.div

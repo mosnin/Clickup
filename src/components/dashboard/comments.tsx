@@ -85,7 +85,7 @@ export function Comments({
           {emptyHint ?? "No comments yet."}
         </p>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="bento overflow-hidden rounded-2xl bg-card">
           <ul className="divide-y divide-border">
             {topLevel.map((m) => (
               <motion.li

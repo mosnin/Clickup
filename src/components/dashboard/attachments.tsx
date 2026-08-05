@@ -107,7 +107,7 @@ export function Attachments({ taskId }: { taskId: Id<"tasks"> }) {
       ) : files.length === 0 ? (
         <p className="text-sm text-muted-foreground">No attachments yet.</p>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="bento overflow-hidden rounded-2xl bg-card">
           <Stagger className="divide-y divide-border">
             {files.map((f) => (
               <StaggerItem key={f._id}>

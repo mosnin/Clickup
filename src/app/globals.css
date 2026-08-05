@@ -1356,7 +1356,20 @@ body {
    template's discrete-card shape — card fill, hairline border, quiet
    shadow. Pair with a rounded-* utility (usually rounded-xl). The one
    surface treatment for shell panels that aren't a vendored Card. */
-.panel {
+/* The discrete surface: a card, a panel, a table's frame.
+
+   `.bento` is the name the brand system and CLAUDE.md use for this; `.panel`
+   is the name the CSS shipped with. Both are here because BOTH are already in
+   the codebase — `.bento` was written at 46 call sites against a rule that
+   did not exist, so every one of those surfaces silently had no background,
+   no radius and no shadow, and fell back to whatever else happened to be on
+   the element. That is a large part of why screens built at different times
+   do not look like each other.
+   One rule, two selectors, rather than a rename: renaming would touch 46
+   files to fix a problem that a comma fixes, and would leave anyone following
+   the documented name broken all over again. */
+.panel,
+.bento {
   background: var(--color-card);
   /* Surface + radius come from the user's appearance settings; the fallbacks
      in :root are the shipped values, so this is identical until someone
@@ -1365,7 +1378,12 @@ body {
   border-radius: var(--ui-radius-card);
   box-shadow: var(--ui-surface-shadow);
 }
-:root[data-theme="dark"] .panel {
+/* The twin rule, and it is not optional: the shadow is cancelled in dark by a
+   rule attached to the class BY NAME, so a second name needs its own entry or
+   it keeps a shadow that is invisible at best and muddy at worst. This is the
+   exact trap `.chat-surface` documents. */
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .bento {
   box-shadow: none;
 }
 

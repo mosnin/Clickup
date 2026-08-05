@@ -839,7 +839,7 @@ function StatsCards({
               and the slack fell between the rows as a ragged 130px hole. */}
           <Link
             href={stat.href}
-            className="block h-full rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/30"
+            className="bento block h-full rounded-2xl bg-card p-4 transition-colors hover:bg-muted/30"
           >
             <div className="flex items-start justify-between">
               <div className="space-y-1">
@@ -911,7 +911,7 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
   }
 
   return (
-    <div className="h-full rounded-xl border border-border bg-card overflow-hidden">
+    <div className="bento h-full rounded-2xl bg-card overflow-hidden">
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <h3 className="text-base font-medium">Today&apos;s tasks</h3>
         {dueTasks.length > 0 && (
@@ -1040,7 +1040,7 @@ function ActivityChart({ completions }: { completions?: number[] }) {
   const plotHeight = measured > 0 ? Math.max(56, Math.min(175, measured)) : 175;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card">
+    <div className="bento flex h-full flex-col overflow-hidden rounded-2xl bg-card">
       <div className="shrink-0 border-b border-border px-4 py-3">
         <h3 className="text-base font-medium">Recent activity</h3>
       </div>
@@ -1174,7 +1174,7 @@ function ProjectsTable({
 
   return (
     <div
-      className="rounded-xl border border-border bg-card overflow-hidden"
+      className="bento rounded-2xl bg-card overflow-hidden"
       ref={ref}
     >
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
@@ -1334,7 +1334,7 @@ function ProjectsTable({
 function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
   const visible = ticker.slice(0, 8);
   return (
-    <div className="h-full rounded-xl border border-border bg-card overflow-hidden">
+    <div className="bento h-full rounded-2xl bg-card overflow-hidden">
       <div className="border-b border-border px-4 py-3">
         <h3 className="text-base font-medium">Live</h3>
       </div>
@@ -1408,7 +1408,7 @@ function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
 
 function AgentsCard({ agents }: { agents: Overview["agents"] }) {
   const card = (
-    <div className="h-full rounded-xl border border-border bg-card overflow-hidden">
+    <div className="bento h-full rounded-2xl bg-card overflow-hidden">
       <div className="border-b border-border px-4 py-3">
         <h3 className="text-base font-medium">Agents online</h3>
       </div>

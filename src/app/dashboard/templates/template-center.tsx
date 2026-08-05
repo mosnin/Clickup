@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Picker, type PickerOption } from "@/components/ui/picker";
 import { BorderBeam } from "@/components/ui/beam";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { PageTitle } from "@/components/dashboard/page-title";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
@@ -238,6 +239,12 @@ export function TemplateCenter() {
             ? undefined
             : `${visible.length} of ${templates.length}`
         }
+      />
+
+      <PageTitle
+        eyebrow="Start from something"
+        title="Templates"
+        description="Ready-made lists, sprints and checklists. Pick one and it arrives with its statuses, fields and first tasks already in place."
       />
 
       <AnimatePresence mode="wait" initial={false}>

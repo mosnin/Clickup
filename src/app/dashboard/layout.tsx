@@ -70,9 +70,20 @@ export default async function DashboardLayout({
               values, which is what lets the browser morph one shell's
               navigation into the other's instead of cross-fading the whole
               viewport. See the transition block in globals.css. */}
+          {/* The canvas is TINTED, and the cards on it are not.
+              This sheet was `bg-background` — white — while every card on it
+              is `bg-card`, also white. So a card had nothing to sit on and
+              only its 1px border said where it ended, which is why the
+              surfaces read as flat next to a design that floats them, and
+              why removing those borders in favour of the bento shadow made
+              cards disappear entirely rather than lift.
+              `bg-page` is the same relationship Chat already has and the one
+              thing all three design references share: a soft canvas with
+              content floating above it. It is one line, and it is what makes
+              `.bento` mean anything at all. */}
           <SidebarInset
             data-mode-surface="content"
-            className="h-full min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-contain"
+            className="h-full min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-contain bg-page"
           >
             <div className="w-full px-4 py-6 sm:px-6">{children}</div>
           </SidebarInset>
