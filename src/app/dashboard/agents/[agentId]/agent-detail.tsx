@@ -122,6 +122,8 @@ export function AgentDetail({ agentId }: { agentId: string }) {
       </Link>
 
       <PageHeader
+        eyebrow={"Agent"}
+        description={agent.description || undefined}
         title={agent.name}
         context={
           <>

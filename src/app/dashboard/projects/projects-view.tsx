@@ -16,7 +16,6 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs } from "@/components/interior/tabs";
 import { Pagination } from "@/components/interior/pagination";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { PageTitle } from "@/components/dashboard/page-title";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
@@ -265,6 +264,8 @@ export function ProjectsView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="What you are running"
+        description="Every board across every space, in one directory you can sort and group."
         icon={FolderKanban}
         title="Projects"
         context={
@@ -328,11 +329,6 @@ export function ProjectsView() {
         />
       </PageHeader>
 
-      <PageTitle
-        eyebrow="What you are running"
-        title="Projects"
-        description="Every board across every space, in one directory you can sort and group."
-      />
 
       {/* The strip's panel, named rather than nested: the results are a page
           of content under a sticky header, not something that can live inside

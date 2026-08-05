@@ -137,6 +137,8 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow={"Workspace"}
+        description={"Everyone in it, everything they are running, and how it is going."}
         icon={Building2}
         title={workspace.name}
         context={

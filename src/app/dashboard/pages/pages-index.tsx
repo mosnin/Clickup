@@ -9,7 +9,6 @@ import { api } from "@convex/_generated/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { PageTitle } from "@/components/dashboard/page-title";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { useToast } from "@/components/toast";
@@ -99,6 +98,8 @@ export function PagesIndex() {
   return (
     <div className="space-y-8">
       <PageHeader
+        eyebrow="Everything written down"
+        description="Investigations, decisions and runbooks — the things that outlive a comment, written by people and agents alike."
         icon={FileText}
         title="Pages"
         context={
@@ -114,11 +115,6 @@ export function PagesIndex() {
         }
       />
 
-      <PageTitle
-        eyebrow="Everything written down"
-        title="Pages"
-        description="Investigations, decisions and runbooks — the things that outlive a comment, written by people and agents alike."
-      />
 
       <div className="flex flex-wrap items-center gap-3">
         {(scopes ?? []).length > 1 && (

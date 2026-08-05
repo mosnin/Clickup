@@ -66,6 +66,8 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
   return (
     <div className="space-y-8">
       <PageHeader
+        eyebrow={"Everything, everywhere"}
+        description={"Tasks, pages, boards and people across every space you can reach."}
         icon={Search}
         title="Search"
         context={

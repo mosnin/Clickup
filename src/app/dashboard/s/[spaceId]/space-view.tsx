@@ -136,6 +136,8 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow={"Space"}
+        description={space.description || "The projects, lists and pages inside this space."}
         icon={Boxes}
         title={space.name}
         context={

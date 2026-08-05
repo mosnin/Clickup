@@ -209,6 +209,8 @@ export function PageEditor({ pageId }: { pageId: string }) {
   return (
     <div className="space-y-6">
       <PageHeader
+        // A page's own title is the first thing IN the document.
+        headline={false}
         icon={FileText}
         title={title ?? page.title}
         context={

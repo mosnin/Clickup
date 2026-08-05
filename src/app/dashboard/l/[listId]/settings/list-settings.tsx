@@ -122,6 +122,8 @@ export function ListSettings({ listId }: { listId: string }) {
       </Link>
 
       <PageHeader
+        eyebrow={"List settings"}
+        description={"Statuses, custom fields, automations and schedules for this list."}
         icon={Settings}
         title={`${list.name} settings`}
         context={

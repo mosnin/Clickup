@@ -4,6 +4,7 @@ import { Menu, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/ui/sidebar";
+import { PageTitle } from "@/components/dashboard/page-title";
 
 // Shell fusion (Phase H): the sticky contextual header every dashboard
 // surface mounts at its top — the Square-style shell's grammar expressed
@@ -21,6 +22,24 @@ import { useSidebar } from "@/components/ui/sidebar";
 // scrolls (and sticks) with the header instead of permanently overlapping
 // whatever the page put at its own top edge (M6).
 
+// ── The big title, and why it is a default rather than a prop ──────────────
+//
+// Every inner page had chrome and no headline. All three design references
+// open a screen the same way — a quiet eyebrow, a large title, then the
+// content — and we had built the small half only, which is most of why Home
+// looked designed and the other twenty screens looked like a document. The
+// large half existed as `PageTitle` and had been adopted on seven pages in
+// four months, which is how you can tell that "add it to each page" was never
+// going to happen.
+//
+// So it is on by default here: every surface that mounts a header gets a
+// headline, and the ones that genuinely should not — full-bleed editors, where
+// the document IS the title — say `headline={false}` once.
+//
+// The `<h1>` moves with it. Two of them on one page is worse than a small
+// title, so the sticky bar's copy drops to a `<p>` exactly when the headline
+// is rendering the real one.
+
 export function PageHeader({
   icon: Icon,
   title,
@@ -28,6 +47,10 @@ export function PageHeader({
   actions,
   className,
   children,
+  headline = true,
+  eyebrow,
+  description,
+  headlineActions,
 }: {
   icon?: LucideIcon;
   title: string;
@@ -38,10 +61,31 @@ export function PageHeader({
   className?: string;
   /** Optional second row (tab strips, filter bars) inside the sticky area. */
   children?: ReactNode;
+  /**
+   * The large title block under the sticky bar.
+   *
+   * `true` (the default) renders `title` at headline size. A node replaces the
+   * text — a rename affordance, a name beside a status chip. `false` is for
+   * full-bleed editors only.
+   */
+  headline?: boolean | ReactNode;
+  /** What this screen is FOR. Omit rather than restating the title. */
+  eyebrow?: ReactNode;
+  /** One line under the headline. */
+  description?: ReactNode;
+  /**
+   * Actions that belong beside the headline rather than in the sticky bar.
+   *
+   * Most do not: an action that scrolls away is an action you have to scroll
+   * back for. This is for the ones that are about the title itself.
+   */
+  headlineActions?: ReactNode;
 }) {
   const { toggleSidebar } = useSidebar();
+  const Heading = headline === false ? "h1" : "p";
 
   return (
+    <>
     <div
       className={cn(
         // -mt-6 cancels the SidebarInset wrapper's top padding so the sticky
@@ -75,9 +119,9 @@ export function PageHeader({
               className="size-4 flex-shrink-0 text-muted-foreground"
             />
           )}
-          <h1 className="truncate text-sm font-semibold tracking-tight">
+          <Heading className="truncate text-sm font-semibold tracking-tight">
             {title}
-          </h1>
+          </Heading>
           {context && (
             <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
               {context}
@@ -90,5 +134,18 @@ export function PageHeader({
       </div>
       {children}
     </div>
+    {headline !== false && (
+      // Outside the sticky element on purpose: chrome sticks and stays small,
+      // the headline scrolls away and is allowed to be large. `mt-6` restores
+      // the gutter the header's own `-mt-6` cancelled.
+      <PageTitle
+        className="mt-6"
+        eyebrow={eyebrow}
+        title={headline === true ? title : headline}
+        description={description}
+        actions={headlineActions}
+      />
+    )}
+    </>
   );
 }

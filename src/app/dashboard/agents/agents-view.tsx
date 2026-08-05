@@ -39,7 +39,6 @@ import { BillingTab } from "@/components/dashboard/billing-panel";
 import { ConnectSnippet } from "@/components/dashboard/connect-snippet";
 import { Tabs } from "@/components/interior/tabs";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { PageTitle } from "@/components/dashboard/page-title";
 import { TerminalSurface } from "@/components/terminal-surface";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
@@ -113,6 +112,8 @@ export function AgentsView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Mission control"
+        description="The AI agents working in your spaces. See what they're doing live, hand them work, and manage their access."
         icon={Bot}
         title="Agents"
         context={
@@ -163,11 +164,6 @@ export function AgentsView() {
           visit — a paragraph that types itself is a paragraph you wait for,
           and it left the screen with no title at all above it. The eyebrow
           says what the screen is FOR; the heading is allowed to be large. */}
-      <PageTitle
-        eyebrow="Mission control"
-        title="Agents"
-        description="The AI agents working in your spaces. See what they're doing live, hand them work, and manage their access."
-      />
 
       <motion.div
         id={AGENTS_PANEL_ID}

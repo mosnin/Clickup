@@ -66,9 +66,11 @@ export type ProjectWidget = {
   /**
    * Height in grid rows. Real sizes are what make the screen look composed.
    *
-   * Stated against the 5.5rem unit — these were 1 and 2 when a unit was
-   * 10.5rem, and doubled with it so nothing here got shorter. See
-   * `WidgetRows` for why the unit halved.
+   * Stated against the 6rem unit, and MEASURED rather than guessed —
+   * `.measure-project.mjs` frees each tile's box and reads what its content
+   * actually wants, at 1180, 900 and 390. They were 1 and 2 against a 10.5rem
+   * unit, which is how the Lists panel came to be a 456px card holding 164px
+   * of list. See `WidgetRows` for why the unit changed.
    */
   rows: WidgetRows;
   render: (ctx: ProjectWidgetContext) => React.ReactNode;
@@ -80,11 +82,17 @@ function AboutWidget({ project }: ProjectWidgetContext) {
   const updateMeta = useMutation(api.projects.updateMeta);
   const { toast } = useToast();
   return (
-    <Card className="h-full rounded-2xl p-5">
+    <Card className="flex h-full flex-col rounded-2xl p-5">
       <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         About
       </span>
-      <input
+      {/* A textarea, not an input. A single-line field lays a long
+          description out at its full natural width and lets the card crop it,
+          so "…without a gap in invoicing" arrived on screen as "…without a
+          gap i" with nothing to say it had been cut. A description is a
+          sentence; sentences wrap. */}
+      <textarea
+        rows={3}
         defaultValue={project.description ?? ""}
         placeholder="What is this project about?"
         aria-label="Project description"
@@ -105,7 +113,7 @@ function AboutWidget({ project }: ProjectWidgetContext) {
         // encloses it, since pressing the card selects the card rather than
         // putting a caret in the field. So the box itself is the target. A
         // 20px-tall line of text was the whole of it; on touch it is 44.
-        className="mt-2 w-full bg-transparent text-sm focus:outline-none [@media(pointer:coarse)]:min-h-11"
+        className="mt-2 w-full flex-1 resize-none bg-transparent text-sm leading-6 focus:outline-none [@media(pointer:coarse)]:min-h-11"
       />
     </Card>
   );
@@ -117,9 +125,13 @@ function ListsWidget({ project, lists }: ProjectWidgetContext) {
   const [creating, setCreating] = useState(false);
 
   return (
-    <section className="h-full">
+    // A Card like every other panel on this screen. It was a bare <section>,
+    // so on a sheet of framed panels the Lists block read as a hole rather
+    // than as a deliberate choice — and its own heading was a different size
+    // and weight from the six micro-labels around it.
+    <Card className="flex h-full flex-col overflow-hidden rounded-2xl p-5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        <h2 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           Lists
         </h2>
         {!creating && (
@@ -179,8 +191,14 @@ function ListsWidget({ project, lists }: ProjectWidgetContext) {
         <Stagger className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {lists.map((l) => (
             <StaggerItem key={l._id}>
-              <Link href={`/dashboard/l/${l._id}`} className="lift block">
-                <Card className="rounded-2xl p-4">
+              <Link
+                href={`/dashboard/l/${l._id}`}
+                // `bento-tile` rather than `Card`: a card inside a card is two
+                // shadows arguing. The brand system's answer for a nested
+                // surface is a well.
+                className="lift bento-tile block rounded-xl p-3.5"
+              >
+                <div>
                   <div className="flex items-center gap-2">
                     <ListIcon className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
                     <span className="truncate text-sm font-medium">{l.name}</span>
@@ -190,13 +208,13 @@ function ListsWidget({ project, lists }: ProjectWidgetContext) {
                       {l.description}
                     </p>
                   )}
-                </Card>
+                </div>
               </Link>
             </StaggerItem>
           ))}
         </Stagger>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -399,7 +417,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     // is a worse list than a list.
     minSpan: 2,
     maxSpan: 3,
-    rows: 4,
+    rows: 3,
     render: (ctx) => <ListsWidget {...ctx} />,
   },
   {
@@ -441,7 +459,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 3,
-    rows: 4,
+    rows: 3,
     render: (ctx) => <PagesWidget {...ctx} />,
   },
   {
@@ -461,7 +479,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 3,
-    rows: 4,
+    rows: 3,
     render: (ctx) => <ActivityWidget {...ctx} />,
   },
   {
@@ -471,7 +489,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 2,
-    rows: 4,
+    rows: 3,
     render: ({ scope }) => (
       <Card className="h-full rounded-2xl p-5">
         <AgentStream scope={scope} />
@@ -485,7 +503,7 @@ export const PROJECT_WIDGETS: ProjectWidget[] = [
     defaultSpan: 1,
     minSpan: 1,
     maxSpan: 2,
-    rows: 4,
+    rows: 3,
     render: (ctx) => <PlanWidget {...ctx} />,
   },
 ];

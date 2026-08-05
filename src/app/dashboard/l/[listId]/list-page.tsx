@@ -211,6 +211,7 @@ export function ListPage({
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow={"List"}
         icon={Folder}
         title={list.name}
         context={

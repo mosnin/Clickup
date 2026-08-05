@@ -161,6 +161,7 @@ export function AppearanceStudio() {
   return (
     <div className="space-y-8">
       <PageHeader
+        eyebrow={"Appearance"}
         title={copy.title}
         context={
           space && editingPlaceOnly

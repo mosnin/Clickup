@@ -228,6 +228,7 @@ function TaskEditor({
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow={"Task"}
         icon={SquareCheck}
         title={task.title || "Untitled task"}
         context={

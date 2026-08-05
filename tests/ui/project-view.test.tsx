@@ -54,7 +54,12 @@ describe("ProjectView", () => {
 
     render(<ProjectView projectId="p1" />, { wrapper: DashboardShell });
 
-    expect(screen.getByText("Billing migration")).toBeDefined();
+    // The name appears twice on purpose: once small in the sticky chrome (so
+    // it survives scrolling) and once as the page's headline. Assert the
+    // heading, which is the one a reader is actually looking at.
+    expect(
+      screen.getByRole("heading", { name: "Billing migration" }),
+    ).toBeDefined();
     expect(screen.getByText("HQ")).toBeDefined();
     expect(screen.getByText("Backlog")).toBeDefined();
     expect(screen.getByText("Milestones")).toBeDefined();

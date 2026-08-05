@@ -8,7 +8,6 @@ import { api } from "@convex/_generated/api";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { Orb } from "@/components/dashboard/orb";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { PageTitle } from "@/components/dashboard/page-title";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -45,6 +44,8 @@ export function SpacesView() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Where work lives"
+        description="The containers your projects sit in, and who can reach them."
         icon={Shapes}
         title="Spaces"
         context={
@@ -70,11 +71,6 @@ export function SpacesView() {
         </div>
       </PageHeader>
 
-      <PageTitle
-        eyebrow="Where work lives"
-        title="Spaces"
-        description="The containers your projects sit in, and who can reach them."
-      />
 
       {data === undefined ? (
         <SpacesSkeleton />

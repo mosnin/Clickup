@@ -11,7 +11,6 @@ import { Stagger, StaggerItem } from "@/components/motion";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { PageTitle } from "@/components/dashboard/page-title";
 import {
   PriorityChip,
   PriorityDot,
@@ -85,6 +84,8 @@ export default function MyWorkPage() {
   return (
     <div className="space-y-8">
       <PageHeader
+        eyebrow="Everything on you"
+        description="Every task assigned to you across every space, with the ones that need moving first."
         icon={ListChecks}
         title="My work"
         context={
@@ -96,11 +97,6 @@ export default function MyWorkPage() {
         }
       />
 
-      <PageTitle
-        eyebrow="Everything on you"
-        title="My work"
-        description="Every task assigned to you across every space, with the ones that need moving first."
-      />
 
 
       {rows === undefined ? (

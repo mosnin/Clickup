@@ -226,9 +226,10 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
               // whatever its author wanted rather than to a designed size.
               minSpan: 1 as const,
               maxSpan: 3 as const,
-              // Against the 5.5rem unit: a single number is 176px,
-              // anything that draws records or a chart is 424.
-              rows: (isMetricShape(def.shape) ? 2 : 4) as WidgetRows,
+              // Against the 6rem unit: a single number is 216px, anything
+              // that draws records or a chart is 336 — which is what an
+              // authored panel measured at, not what looked about right.
+              rows: (isMetricShape(def.shape) ? 2 : 3) as WidgetRows,
               content: (
                 <Panel
                   definition={row.definition}

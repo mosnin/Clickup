@@ -69,6 +69,8 @@ export function WhiteboardEditor({
   return (
     <div className="space-y-3">
       <PageHeader
+        // The board is the surface; a headline above it is 80px of canvas lost.
+        headline={false}
         icon={Presentation}
         title={wb.title || "Untitled board"}
         actions={

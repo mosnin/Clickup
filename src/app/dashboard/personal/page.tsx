@@ -26,10 +26,12 @@ export default function PersonalPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader icon={User} title="Personal" />
-      <p className="text-sm text-muted-foreground">
-        Just for you. Nothing in here is shared.
-      </p>
+      <PageHeader
+        icon={User}
+        title="Personal"
+        eyebrow="Yours alone"
+        description="Just for you. Nothing in here is shared."
+      />
 
       {personal.projects.length === 0 && directLists.length === 0 ? (
         <div className="rounded-2xl panel p-10 text-center">

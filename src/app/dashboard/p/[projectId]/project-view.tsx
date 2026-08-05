@@ -50,6 +50,8 @@ export function ProjectView({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-8">
       <PageHeader
+        eyebrow={"Project"}
+        description={project.description || undefined}
         icon={Folder}
         title={project.name}
         context={

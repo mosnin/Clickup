@@ -9,7 +9,6 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { PageTitle } from "@/components/dashboard/page-title";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { parseMentionBody } from "@/lib/mentions";
 import { cn } from "@/lib/utils";
@@ -54,11 +53,6 @@ export function Inbox() {
       <div className="space-y-6">
         <PageHeader icon={InboxIcon} title="Inbox" />
 
-      <PageTitle
-        eyebrow="Waiting on you"
-        title="Inbox"
-        description="Mentions, approvals and handoffs — the things that do not move until you touch them."
-      />
 
         <div className="space-y-2">
           {[0, 1, 2].map((i) => (
@@ -80,6 +74,8 @@ export function Inbox() {
   return (
     <div className="space-y-8">
       <PageHeader
+        eyebrow="Waiting on you"
+        description="Mentions, approvals and handoffs — the things that do not move until you touch them."
         icon={InboxIcon}
         title="Inbox"
         context={
