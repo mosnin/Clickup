@@ -29,6 +29,8 @@ const TYPES = {
   ".html": "text/html",
   ".js": "text/javascript",
   ".css": "text/css",
+  // The vendored typefaces — without these the shot renders in a fallback face.
+  ".woff2": "font/woff2",
   ".map": "application/json",
 };
 
@@ -224,19 +226,20 @@ async function shootMintShelf(width, label) {
   await p.waitForTimeout(2200);
 
   // Clicking the tile IS the scope selector — the delegated capture-phase
-  // handler in customize-provider turns it into a selection.
+  // handler in customize-provider turns it into a selection, and a selection
+  // now OPENS the sheet rather than relabelling a lozenge (see OpenOnSelect).
+  // So the island is legitimately gone by the time this looks, and what it
+  // checks instead is that the sheet arrived naming the right panel.
   await p.locator('[data-tile="activity"]').click({ position: { x: 40, y: 30 } });
-  await p.waitForTimeout(400);
-  const selected = await p.locator("#style-island").innerText();
-  if (!/recent activity/i.test(selected)) {
+  await p.waitForTimeout(1400);
+  const sheet = await p.locator("[data-studio]").first().innerText();
+  if (!/recent activity/i.test(sheet)) {
     errors.push(
-      `mint shelf at ${width}px: clicking the tile did not select it ` +
-        `(island reads "${selected.trim()}")`,
+      `mint shelf at ${width}px: clicking the tile did not open the studio on ` +
+        `it (sheet reads "${sheet.slice(0, 120).trim()}")`,
     );
   }
 
-  await p.locator("#style-island button").first().click();
-  await p.waitForTimeout(1400);
   await p.getByRole("tab", { name: "Chart", exact: true }).click();
   await p.waitForTimeout(1800);
 
@@ -315,9 +318,8 @@ async function shootOnlyWhen(width, label) {
   p.on("pageerror", (e) => errors.push(String(e)));
   await p.goto("http://127.0.0.1:4599/home.html?studio=1");
   await p.waitForTimeout(2200);
+  // Selecting a tile opens the sheet on it — there is no island step any more.
   await p.locator('[data-tile="activity"]').click({ position: { x: 40, y: 30 } });
-  await p.waitForTimeout(400);
-  await p.locator("#style-island button").first().click();
   await p.waitForTimeout(1400);
   await p.getByRole("tab", { name: "Only when…" }).click();
   await p.waitForTimeout(1800);

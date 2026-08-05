@@ -23,7 +23,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 
 const OUT = "/tmp/design-gallery";
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2" };
 const server = createServer((req, res) => {
   const path = normalize(decodeURIComponent((req.url ?? "/").split("?")[0]));
   const file = join(OUT, path === "/" ? "index.html" : path);

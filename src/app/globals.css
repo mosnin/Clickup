@@ -25,10 +25,24 @@
      Exposed as a `font-title` utility for anything that needs it outside the
      h1-h3 rule further down. */
   --font-title:
-    var(--font-darker-grotesque), var(--font-instrument), "Inter", sans-serif;
+    var(--font-space-grotesk), var(--font-instrument), "Inter", sans-serif;
 
-  /* Canvas + surfaces */
-  --color-page: #ededf0;
+  /* Canvas + surfaces.
+
+     White on white, and the contrast lives in the NAV.
+
+     The canvas was #ededf0 — a grey sheet with white cards floating on it,
+     which is the 2013 admin-template arrangement and reads exactly as dated as
+     it is. What the good references have in common is not a tinted canvas: it
+     is one dark, committed edge (a black rail, a black shell) with everything
+     else bright, so the eye is anchored once and the content is the brightest
+     thing on the screen.
+
+     So the page and the cards are both #fff and a card is separated by its
+     shadow rather than by the absence of tint — which means the shadow has to
+     be able to carry that alone, and `--ui-surface-shadow` below is stronger
+     than it was for exactly this reason. */
+  --color-page: #ffffff;
   --color-background: #ffffff;
   --color-foreground: #101010;
   --color-muted: #f5f5f6;
@@ -67,6 +81,30 @@
   --color-pastel-purple: #e6defa;
   --color-pastel-pink: #f9e0f4;
   --color-pastel-foreground: #101010;
+
+  /* ── Signal colours ────────────────────────────────────────────────────
+     The system was pastels-only, and pastels are what a design looks like
+     when it is afraid to choose: six pale washes that all read as "a chip",
+     none of which can carry a block. Every dashboard worth copying spends
+     real colour in a few big places and stays monochrome everywhere else.
+
+     Four signals, each a fill with its own ink so a block is one decision
+     rather than two. They are for BLOCKS — a hero figure, a filled tile —
+     never for body text, never for a hairline, and never more than a couple
+     on one screen. Pastels stay exactly where they were, on chips, because a
+     status chip has to be quiet.
+
+     Values are fixed across themes for the same reason the pastels are: a
+     signal a colleague describes over a call has to be the same colour on
+     both screens. The ink that rides on them is fixed for the same reason. */
+  --color-signal-citrus: #e4fb54;
+  --color-signal-citrus-ink: #17190a;
+  --color-signal-teal: #0fb5a0;
+  --color-signal-teal-ink: #04211d;
+  --color-signal-violet: #7c5cff;
+  --color-signal-violet-ink: #f6f4ff;
+  --color-signal-coral: #ff6b54;
+  --color-signal-coral-ink: #2a0c06;
 
   /* Positive delta green (the only saturated color in the system) */
   --color-positive: #16a34a;
@@ -120,14 +158,16 @@
   --color-chart-3: #faeec7;
   --color-chart-4: #e6defa;
   --color-chart-5: #fadcd7;
-  --color-sidebar: #fafafb;
-  --color-sidebar-foreground: #101010;
-  --color-sidebar-primary: #131316;
-  --color-sidebar-primary-foreground: #ffffff;
-  --color-sidebar-accent: #ededf0;
-  --color-sidebar-accent-foreground: #101010;
-  --color-sidebar-border: #ececee;
-  --color-sidebar-ring: #8b8b94;
+  /* The nav is the dark edge. It is the only strong value in light mode and
+     it is what stops a white-on-white app reading as a blank document. */
+  --color-sidebar: #131316;
+  --color-sidebar-foreground: #f2f2f4;
+  --color-sidebar-primary: #ffffff;
+  --color-sidebar-primary-foreground: #131316;
+  --color-sidebar-accent: #26262b;
+  --color-sidebar-accent-foreground: #ffffff;
+  --color-sidebar-border: #2a2a30;
+  --color-sidebar-ring: #6f6f7a;
 
   --radius-pill: 9999px;
 }
@@ -140,16 +180,28 @@
    additive rather than a second theme to maintain. */
 :root {
   --ui-radius-card: 1rem;
-  --ui-radius-control: 0.5rem;
+  /* Fields and small surfaces. Deliberately NOT a pill: buttons and chips are
+     round (see ui/button.tsx), but a pill is wrong for anything you type more
+     than a word into — a multi-line box with 9999px corners is a lozenge with
+     text falling out of both ends. 0.75rem is the same family, one step down. */
+  --ui-radius-control: 0.75rem;
   --ui-radius-tile: 0.75rem;
   --ui-radius-pill: 9999px;
   --ui-gap: 0.75rem;
   --ui-pad: 1.25rem;
   --ui-row-height: 2.25rem;
-  --ui-surface-shadow: 0 1px 2px rgb(16 16 16 / 0.04),
-    0 8px 24px -12px rgb(16 16 16 / 0.1);
+  /* White card on a white canvas needs BOTH a hairline and a shadow.
+     
+     The bento language dropped borders on purpose — on a tinted canvas a card
+     was found by its fill and the shadow only had to lift it. On white there
+     is no fill difference left, so a shadow alone has to draw the entire
+     boundary, and a shadow soft enough to look good is not strong enough to do
+     that: the first pass came out as text floating in a void. The hairline
+     draws the edge, the shadow says which side of it is on top. */
+  --ui-surface-shadow: 0 1px 2px rgb(16 16 18 / 0.04),
+    0 8px 24px -14px rgb(16 16 18 / 0.16);
+  --ui-surface-border: 1px solid #ececed;
   --ui-surface-tile-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6);
-  --ui-surface-border: 1px solid transparent;
   --ui-font-scale: 1;
   --ui-motion-scale: 1;
   --ui-heading-weight: 700;
@@ -161,7 +213,7 @@
     var(--font-instrument), "Inter", -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --ui-font-display:
-    var(--font-darker-grotesque), var(--font-instrument), "Inter", sans-serif;
+    var(--font-space-grotesk), var(--font-instrument), "Inter", sans-serif;
   --ui-icon-stroke: 2;
   /* How far secondary text is pushed toward the foreground or the background.
      Exactly one is ever non-zero, and both are zero by default — a mix of 0%
@@ -893,9 +945,13 @@ body {
 .ui-dense-gap {
   gap: var(--ui-gap);
 }
+/* Nav rows are pills, like every other interactive thing in the product.
+   Declared here rather than in the vendored sidebar so one edit reaches the
+   button, the sub-button and anything either of them is composed into. */
 [data-slot="sidebar-menu-button"],
 [data-slot="sidebar-menu-sub-button"] {
   min-height: var(--ui-row-height);
+  border-radius: var(--ui-radius-pill);
 }
 
 /* Thin brand gradient strip — product flair on shell edges (PageHeader top,
@@ -1526,14 +1582,19 @@ body {
    Soft shadows are near-invisible on a dark canvas, so bento surfaces gain a
    hairline border in dark to stay legible as discrete panels. */
 :root[data-theme="dark"] {
-  /* Deep charcoal scheme: near-black canvas, charcoal surfaces one step
-     up, hairlines barely brighter than the card they sit on. */
-  --color-page: #080808;
-  --color-background: #0e0e0e;
-  --color-foreground: #f4f4f4;
-  --color-muted: #1a1a1a;
-  --color-muted-foreground: #9e9e9e;
-  --color-border: #232323;
+  /* Charcoal, not black.
+
+     This was #080808 on #0e0e0e — which is not a dark theme, it is the
+     absence of one: pure black has no material to it, every shadow vanishes
+     into it, and the whole app reads as a hole. Charcoal has a temperature and
+     lets a surface sit ON something. The canvas and the surfaces stay one step
+     apart the way they do in light, just with the values pulled down. */
+  --color-page: #141416;
+  --color-background: #1a1a1d;
+  --color-foreground: #f4f4f5;
+  --color-muted: #26262a;
+  --color-muted-foreground: #a1a1aa;
+  --color-border: #303036;
 
   /* Ink scale inverts: light chips become dark tiles, "ink" text becomes
      near-white. brand-600 stays a mid gray so both `bg-brand-600 text-white`
@@ -1550,27 +1611,30 @@ body {
 
   /* Shell fusion tones flip with the theme (ink inverts, like the
      template's dark scheme, kept in our hex language). */
-  --color-card: #121212;
-  --color-card-foreground: #f4f4f4;
-  --color-popover: #161616;
-  --color-popover-foreground: #f4f4f4;
+  --color-card: #202024;
+  --color-card-foreground: #f4f4f5;
+  --color-popover: #26262b;
+  --color-popover-foreground: #f4f4f5;
   --color-primary: #ededf0;
   --color-primary-foreground: #101010;
-  --color-secondary: #1a1a1a;
-  --color-secondary-foreground: #f4f4f4;
-  --color-accent: #1f1f1f;
-  --color-accent-foreground: #f4f4f4;
+  --color-secondary: #26262a;
+  --color-secondary-foreground: #f4f4f5;
+  --color-accent: #2c2c32;
+  --color-accent-foreground: #f4f4f5;
   --color-destructive: #e0685c;
-  --color-input: #242424;
-  --color-ring: #71717a;
-  --color-sidebar: #0a0a0a;
-  --color-sidebar-foreground: #f4f4f4;
-  --color-sidebar-primary: #ededf0;
-  --color-sidebar-primary-foreground: #101010;
-  --color-sidebar-accent: #1c1c1c;
-  --color-sidebar-accent-foreground: #f4f4f4;
-  --color-sidebar-border: #1f1f1f;
-  --color-sidebar-ring: #71717a;
+  --color-input: #33333a;
+  --color-ring: #7a7a86;
+  /* In dark the nav is the DEEPEST value rather than the brightest — same
+     job as light mode's ink rail (anchor the eye once, at the edge), read the
+     other way round because the content is now the light thing. */
+  --color-sidebar: #0f0f11;
+  --color-sidebar-foreground: #f4f4f5;
+  --color-sidebar-primary: #ffffff;
+  --color-sidebar-primary-foreground: #131316;
+  --color-sidebar-accent: #26262c;
+  --color-sidebar-accent-foreground: #ffffff;
+  --color-sidebar-border: #26262c;
+  --color-sidebar-ring: #7a7a86;
 }
 
 /* Slow drift for gradient scene blobs. */
@@ -1848,7 +1912,7 @@ h3,
      their headings a third too large. The token is set from the chosen face,
      and defaults to the shipped value so nothing moves for anyone who never
      opens the settings. */
-  font-size-adjust: var(--ui-display-size-adjust, 0.5);
+  font-size-adjust: var(--ui-display-size-adjust, none);
   letter-spacing: 0;
 }
 
@@ -2724,11 +2788,11 @@ a:hover > .message-ref {
   min-width: 0;
   min-height: var(--ui-row-height);
   padding: 0 0.5rem;
-  /* --ui-radius-control, the same corner the Work sidebar's rows use. It was
-     0.375rem, which is a different corner at the size a person actually reads
-     these at, and nav rows are the element repeated most often in both halves
-     — so of everything on screen they are the worst place to disagree. */
-  border-radius: var(--ui-radius-control);
+  /* --ui-radius-pill, the same corner the Work sidebar's rows use. Nav rows
+     are the element repeated most often in both halves of the product, so of
+     everything on screen they are the worst place to disagree — this token is
+     read from the same place on both sides for that reason. */
+  border-radius: var(--ui-radius-pill);
   font-size: 0.875rem;
   line-height: 1.25rem;
   color: inherit;

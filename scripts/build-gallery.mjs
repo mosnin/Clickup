@@ -20,6 +20,7 @@ import {
   existsSync,
   renameSync,
   rmSync,
+  cpSync,
 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -35,12 +36,35 @@ const FINAL = "/tmp/design-gallery";
 // thing that happens.
 const OUT = "/tmp/design-gallery.building";
 
+/**
+ * The app's compiled stylesheet, made usable outside Next.
+ *
+ * Two rewrites, and the gallery was silently wrong without either.
+ *
+ * **The typefaces.** next/font emits `@font-face` rules plus a generated class
+ * (`.__variable_e3b56d { --font-space-grotesk: … }`) that the root layout puts
+ * on <html>. The harness renders its own document, so that class was never
+ * there, every `--font-*` resolved to nothing, and the whole gallery fell
+ * through to the browser's default sans. Months of "does this look right"
+ * were answered in a typeface the product does not ship. Hoisting those
+ * declarations into `:root` is what makes the shot show the real face.
+ *
+ * **The font files.** Their URLs are absolute `/_next/static/media/…`, which
+ * the gallery's little static server does not serve. So they are pointed at
+ * `./media/…`, and the directory is copied in beside the HTML.
+ */
 function appCss() {
   const dir = join(ROOT, ".next/static/css");
   if (!existsSync(dir)) return null;
   const files = readdirSync(dir).filter((f) => f.endsWith(".css"));
   if (files.length === 0) return null;
-  return files.map((f) => readFileSync(join(dir, f), "utf8")).join("\n");
+  let css = files.map((f) => readFileSync(join(dir, f), "utf8")).join("\n");
+
+  const vars = [...css.matchAll(/\.__variable_[a-z0-9]+\{([^}]*)\}/g)]
+    .map((m) => m[1])
+    .join(";");
+  if (vars) css += `\n:root{${vars}}`;
+  return css.replaceAll("/_next/static/media/", "./media/");
 }
 
 const css = appCss();
@@ -123,6 +147,10 @@ for (const page of [
     readFileSync(html, "utf8").replace("<!--APP_CSS-->", `<style>${css}</style>`),
   );
 }
+
+// The font files the rewritten @font-face rules now point at.
+const media = join(ROOT, ".next/static/media");
+if (existsSync(media)) cpSync(media, join(OUT, "media"), { recursive: true });
 
 rmSync(FINAL, { recursive: true, force: true });
 renameSync(OUT, FINAL);

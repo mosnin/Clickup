@@ -56,7 +56,7 @@ export type FontFamily =
  * all", which is what someone reaching for a plainer app actually wants. A
  * pairing is a decision, and this is where it is made.
  */
-export type DisplayFont = "grotesque" | "match" | "serif" | "mono";
+export type DisplayFont = "space" | "grotesque" | "match" | "serif" | "mono";
 
 /** How a repeating row of things is drawn. */
 export type ListStyle = "rows" | "lines" | "cards" | "condensed";
@@ -125,7 +125,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   motionScale: 1,
   headingWeight: 700,
   fontFamily: "instrument",
-  displayFont: "grotesque",
+  displayFont: "space",
   contrast: 1,
   listStyle: "rows",
   chartStyle: "bar",
@@ -171,7 +171,7 @@ const ENUM_VALUES = {
   density: ["compact", "comfortable", "spacious"],
   surface: ["flat", "soft", "raised", "bordered"],
   fontFamily: ["instrument", "system", "serif", "mono", "rounded"],
-  displayFont: ["grotesque", "match", "serif", "mono"],
+  displayFont: ["space", "grotesque", "match", "serif", "mono"],
   listStyle: ["rows", "lines", "cards", "condensed"],
   chartStyle: ["bar", "ring", "line", "numeric"],
   agentIcon: ["orb", "monogram", "dot", "glyph"],
@@ -509,6 +509,12 @@ const FONT_STACKS: Record<FontFamily, string> = {
 
 /** "match" resolves against the body face, so it is applied separately. */
 const DISPLAY_STACKS: Record<Exclude<DisplayFont, "match">, string> = {
+  // The shipped face. Proportional geometric grotesque with distinctive
+  // numerals — see the note in app/layout.tsx for why it replaced the
+  // condensed one as the default.
+  space:
+    'var(--font-space-grotesk), var(--font-instrument), "Inter", sans-serif',
+  // Still offered, still bundled: a face somebody chose has to keep working.
   grotesque:
     'var(--font-darker-grotesque), var(--font-instrument), "Inter", sans-serif',
   serif: FONT_STACKS.serif,
@@ -558,9 +564,15 @@ const SURFACES: Record<SurfaceStyle, { shadow: string; tile: string; border: str
     border: "1px solid var(--color-border)",
   },
   soft: {
-    shadow: "0 1px 2px var(--ui-shade-weak), 0 8px 24px -12px var(--ui-shade)",
+    // A hairline AS WELL as the shadow, and that is the shipped default.
+    // The canvas is white and cards are white, so a shadow alone has to draw
+    // the whole boundary — and one soft enough to look good cannot. The
+    // hairline draws the edge; the shadow says which side is on top. Must
+    // match the `--ui-surface-border` fallback in globals.css, which is what
+    // renders before this ever runs.
+    shadow: "0 1px 2px var(--ui-shade-weak), 0 8px 24px -14px var(--ui-shade)",
     tile: "inset 0 1px 0 var(--ui-glint)",
-    border: "1px solid transparent",
+    border: "1px solid var(--color-border)",
   },
   raised: {
     shadow:
@@ -605,7 +617,7 @@ export function resolveTokens(input: Appearance): Record<string, string> {
   // stay in proportion instead of drifting apart at the extremes.
   const r = a.radiusScale;
   tokens["--ui-radius-card"] = `${(1 * r).toFixed(3)}rem`;
-  tokens["--ui-radius-control"] = `${(0.5 * r).toFixed(3)}rem`;
+  tokens["--ui-radius-control"] = `${(0.75 * r).toFixed(3)}rem`;
   tokens["--ui-radius-tile"] = `${(0.75 * r).toFixed(3)}rem`;
   // Pills stay pills until the scale is genuinely square, where a "pill" that
   // is still round next to square cards looks like a mistake.
@@ -630,10 +642,13 @@ export function resolveTokens(input: Appearance): Record<string, string> {
   tokens["--ui-font-body"] = body;
   tokens["--ui-font-display"] =
     a.displayFont === "match" ? body : DISPLAY_STACKS[a.displayFont];
-  // Darker Grotesque is condensed with a small x-height, so headings carry a
-  // font-size-adjust to restore their optical size. Every other face has an
-  // ordinary x-height and would be rendered a third too large by that same
-  // number — the correction belongs to the face, not to the heading.
+  // Darker Grotesque is condensed with a small x-height, so headings set in it
+  // carry a font-size-adjust to restore their optical size. Every other face
+  // has an ordinary x-height and would be rendered a third too large by that
+  // same number — the correction belongs to the face, not to the heading.
+  // Space Grotesk, the default, needs none, which is half the reason it is the
+  // default: a display face that requires a correction to sit level with body
+  // copy is a display face fighting the layout.
   tokens["--ui-display-size-adjust"] =
     a.displayFont === "grotesque" ? "0.5" : "none";
 

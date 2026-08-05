@@ -127,6 +127,8 @@ function serve(): Promise<Server> {
     ".html": "text/html",
     ".js": "text/javascript",
     ".css": "text/css",
+  // The vendored typefaces — without these the shot renders in a fallback face.
+  ".woff2": "font/woff2",
   };
   const server = createServer((req, res) => {
     const path = normalize(decodeURIComponent((req.url ?? "/").split("?")[0]));

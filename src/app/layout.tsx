@@ -14,10 +14,33 @@ const instrumentSans = localFont({
   display: "swap",
 });
 
-// Darker Grotesque (OFL) — the display face for headings. Two subsets of the
+// Space Grotesk (OFL) — the display face, and the one that gives this product
+// a voice. It replaced Darker Grotesque as the default, which was a tall
+// CONDENSED grotesk: condensed faces read as "poster", they need optical size
+// correction to sit level with body copy (we were carrying a
+// `font-size-adjust: 0.5` for exactly that), and at the sizes a dashboard
+// actually uses — a 30px page title, a 40px figure — they read cramped rather
+// than confident. Space Grotesk is proportional, geometric, and its numerals
+// are the reason it is right here specifically: this product is mostly
+// numbers, and its single-storey `a`, flat-topped `t` and slab-ish digits give
+// a figure presence at 48px without shouting.
+//
+// Darker Grotesque stays bundled below — it is still an option in the
+// appearance studio, and a face somebody chose has to keep working.
+const spaceGrotesk = localFont({
+  src: [
+    { path: "./fonts/SpaceGrotesk-Latin.woff2" },
+    { path: "./fonts/SpaceGrotesk-LatinExt.woff2" },
+  ],
+  weight: "300 700",
+  variable: "--font-space-grotesk",
+  display: "swap",
+});
+
+// Darker Grotesque (OFL) — kept for readers who chose it. Two subsets of the
 // variable file (latin + latin-ext), bundled locally for the same reason as
 // above: no runtime font-CDN request, no layout shift from a third-party
-// stylesheet. Applied to h1-h3 (and .font-title) in globals.css.
+// stylesheet.
 const darkerGrotesque = localFont({
   src: [
     { path: "./fonts/DarkerGrotesque-Latin.woff2" },
@@ -72,8 +95,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ededf0" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#141416" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -82,7 +105,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${instrumentSans.variable} ${darkerGrotesque.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${instrumentSans.variable} ${spaceGrotesk.variable} ${darkerGrotesque.variable}`}>
       <head>
         {/* Resolve the theme before first paint so there's no flash. The
             toggle writes localStorage "theme" = dark | light; anything else

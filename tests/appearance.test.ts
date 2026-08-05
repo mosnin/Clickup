@@ -103,7 +103,9 @@ describe("tokens", () => {
     const half = resolveTokens({ ...DEFAULT_APPEARANCE, radiusScale: 0.5 });
     expect(half["--ui-radius-card"]).toBe("0.500rem");
     expect(half["--ui-radius-tile"]).toBe("0.375rem");
-    expect(half["--ui-radius-control"]).toBe("0.250rem");
+    // 0.75 of the card, not 0.5: controls got a softer corner when buttons
+    // became pills, so a field beside a pill reads as the same family.
+    expect(half["--ui-radius-control"]).toBe("0.375rem");
   });
 
   it("squares the pills only when everything else is square", () => {

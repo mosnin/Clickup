@@ -27,7 +27,7 @@ if (!existsSync(join(OUT, "home.html"))) {
   console.error("No gallery at /tmp/design-gallery — run `npm run gallery`.");
   process.exit(1);
 }
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2" };
 const server = createServer((req, res) => {
   const path = normalize(decodeURIComponent((req.url ?? "/").split("?")[0]));
   const file = join(OUT, path === "/" ? "index.html" : path);

@@ -12,7 +12,8 @@
     "test": "vitest run",
     "vercel-build": "convex deploy --cmd 'next build'",
     "gallery": "node scripts/build-gallery.mjs && node scripts/design-shots.mjs",
-    "verify:customize": "node scripts/verify-customize.mjs"
+    "verify:customize": "node scripts/verify-customize.mjs",
+    "gallery:fresh": "(next build || true) && npm run gallery"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

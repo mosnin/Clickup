@@ -193,11 +193,11 @@ function spanOf(id: WidgetId): 1 | 2 | 3 {
 // never resized it. Anyone who has dragged a corner keeps their own height.
 const DEFAULT_ROWS: Record<BuiltInId, [one: WidgetRows, two: WidgetRows, three: WidgetRows]> = {
   //          1 col  2 cols  3 cols
-  stats: [3, 2, 1],
-  today: [5, 3, 3],
+  stats: [4, 4, 2],
+  today: [4, 3, 3],
   activity: [3, 3, 3],
   projects: [6, 6, 4],
-  live: [5, 5, 5],
+  live: [5, 4, 4],
   agents: [3, 3, 3],
 };
 /** Mirrors the grid's own thresholds (Tailwind's `@md` 28rem, `@3xl` 48rem). */
@@ -813,6 +813,24 @@ function WelcomeSection({
   );
 }
 
+/**
+ * The opening bento.
+ *
+ * This was four identical white cards with a 24px number and a grey icon
+ * chip — a shape that says nothing about which of the four you should look
+ * at, and the single most generic block in the product. Every dashboard
+ * worth copying opens the same way instead: ONE figure at display size
+ * carrying colour, and the rest small and quiet beside it. That is not
+ * decoration; it is the screen answering "what should I look at" before you
+ * have read a word.
+ *
+ * Which one is the hero is DERIVED, not fixed. Overdue work is the thing
+ * that costs you something, so it takes the block when there is any — in
+ * coral, which is the one place in this product an alarm colour is honest.
+ * With nothing overdue the hero is what is due today, in citrus, and a clear
+ * day says so at the same size a bad one does. A dashboard whose emphasis
+ * never moves is a dashboard that stops being read.
+ */
 function StatsCards({
   me,
   agentsOnline,
@@ -820,32 +838,49 @@ function StatsCards({
   me: Overview["me"];
   agentsOnline: number;
 }) {
-  const stats: {
-    title: string;
-    value: number;
-    icon: LucideIcon;
-    href: string;
-    danger?: boolean;
-  }[] = [
+  const overdue = me.overdue > 0;
+  const hero = overdue
+    ? {
+        title: "Overdue",
+        value: me.overdue,
+        href: "/dashboard/my-work",
+        caption:
+          me.overdue === 1 ? "task is past its date" : "tasks are past their date",
+        // Static class strings, not an inline `background: var(--color-…)`.
+        // Tailwind v4 only emits a `@theme` variable when some utility it
+        // generates actually uses it, so an inline `var()` reference resolved
+        // to nothing and the hero block painted transparent — a colour that is
+        // declared, referenced, and absent from the stylesheet.
+        fill: "bg-signal-coral text-signal-coral-ink",
+      }
+    : {
+        title: "Due today",
+        value: me.dueToday,
+        href: "/dashboard/my-work",
+        caption:
+          me.dueToday === 0 ? "nothing is due — a clear day" : "due before tonight",
+        fill: "bg-signal-citrus text-signal-citrus-ink",
+      };
+  const rest: { title: string; value: number; icon: LucideIcon; href: string }[] = [
     {
       title: "My open tasks",
       value: me.open,
       icon: ListChecks,
       href: "/dashboard/my-work",
     },
-    {
-      title: "Due today",
-      value: me.dueToday,
-      icon: Clock,
-      href: "/dashboard/my-work",
-    },
-    {
-      title: "Overdue",
-      value: me.overdue,
-      icon: AlertTriangle,
-      href: "/dashboard/my-work",
-      danger: me.overdue > 0,
-    },
+    overdue
+      ? {
+          title: "Due today",
+          value: me.dueToday,
+          icon: Clock,
+          href: "/dashboard/my-work",
+        }
+      : {
+          title: "Overdue",
+          value: me.overdue,
+          icon: AlertTriangle,
+          href: "/dashboard/my-work",
+        },
     {
       title: "Agents online",
       value: agentsOnline,
@@ -855,43 +890,69 @@ function StatsCards({
   ];
 
   return (
-    // Two across on a phone, four when the panel is wide enough for the
-    // labels — and measured against the GRID rather than the window, because
-    // this panel's width is decided by its span and by whether the nav is
-    // open, not by the viewport. Four stacked cards were 424px of content in
-    // a 168px box, which is what sliced "Due today" through its own number.
-    <Stagger className="grid grid-cols-2 gap-4 @3xl:grid-cols-4">
-      {stats.map((stat) => (
+    // The hero spans two of four columns and the three quiet tiles share the
+    // rest; on a phone the hero is full width above them. Measured against the
+    // GRID rather than the window, because this panel's width is decided by
+    // its span and by whether the nav is open, not by the viewport.
+    // FIVE columns, not four: the hero takes two and the three quiet tiles
+    // take one each. On a four-column grid that is five cells and the last
+    // tile wrapped onto a row of its own, which is the arithmetic showing.
+    <Stagger className="grid h-full grid-cols-2 gap-3 @3xl:grid-cols-5">
+      <StaggerItem className="col-span-2 h-full">
+        <Link
+          href={hero.href}
+          className={cn(
+            "lift flex h-full flex-col justify-between rounded-2xl p-5 transition-transform",
+            hero.fill,
+          )}
+        >
+          <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-70">
+            {hero.title}
+          </span>
+          <span className="flex items-end gap-3">
+            {/* Display size, and in the display face — this is the one number
+                on the screen that is allowed to be a headline. `font-title`
+                rather than a utility stack so it follows the reader's chosen
+                heading face like every other heading does. */}
+            <span className="font-title text-[3.25rem] font-bold leading-[0.85] tracking-tight">
+              <Counter
+                value={hero.value}
+                places={placesFor(hero.value)}
+                fontSize={52}
+                padding={2}
+                fontWeight={700}
+              />
+            </span>
+            <span className="pb-1 text-xs font-medium opacity-70">
+              {hero.caption}
+            </span>
+          </span>
+        </Link>
+      </StaggerItem>
+      {rest.map((stat) => (
         <StaggerItem key={stat.title} className="h-full">
-          {/* Fills its cell. The grid stretches its rows to the panel's
-              height either way; without this the card kept its content height
-              and the slack fell between the rows as a ragged 130px hole. */}
           <Link
             href={stat.href}
-            className="bento block h-full rounded-2xl bg-card p-4 transition-colors hover:bg-muted/30"
+            className="bento flex h-full flex-col justify-between rounded-2xl bg-card p-4 transition-colors hover:bg-muted/40"
           >
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">{stat.title}</p>
-                <p
-                  className={cn(
-                    "text-2xl font-medium tabular-nums",
-                    stat.danger && "text-destructive",
-                  )}
-                >
-                  <Counter
-                    value={stat.value}
-                    places={placesFor(stat.value)}
-                    fontSize={24}
-                    padding={4}
-                    fontWeight={500}
-                  />
-                </p>
-              </div>
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border bg-muted">
-                <stat.icon className="size-5 text-muted-foreground" />
-              </div>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                {stat.title}
+              </p>
+              <stat.icon
+                aria-hidden
+                className="size-3.5 shrink-0 text-muted-foreground"
+              />
             </div>
+            <p className="font-title text-3xl font-bold leading-none tracking-tight">
+              <Counter
+                value={stat.value}
+                places={placesFor(stat.value)}
+                fontSize={30}
+                padding={2}
+                fontWeight={700}
+              />
+            </p>
           </Link>
         </StaggerItem>
       ))}

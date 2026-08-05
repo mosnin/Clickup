@@ -83,6 +83,20 @@ describe("typography", () => {
   it("emits the shipped pairing by default", () => {
     const tokens = resolveTokens(DEFAULT_APPEARANCE);
     expect(tokens["--ui-font-body"]).toContain("var(--font-instrument)");
+    // Space Grotesk, not Darker Grotesque. And `none`, not 0.5: the optical
+    // correction belongs to the condensed face that needed it, and a default
+    // display face that needs no correction is half the reason it is the
+    // default. Darker Grotesque is still offered, and still carries its 0.5 —
+    // asserted below.
+    expect(tokens["--ui-font-display"]).toContain("var(--font-space-grotesk)");
+    expect(tokens["--ui-display-size-adjust"]).toBe("none");
+  });
+
+  it("keeps the condensed face's optical correction with the face", () => {
+    const tokens = resolveTokens({
+      ...DEFAULT_APPEARANCE,
+      displayFont: "grotesque",
+    });
     expect(tokens["--ui-font-display"]).toContain("var(--font-darker-grotesque)");
     expect(tokens["--ui-display-size-adjust"]).toBe("0.5");
   });
