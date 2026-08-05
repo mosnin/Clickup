@@ -102,6 +102,7 @@ import type * as myWork from "../myWork.js";
 import type * as network from "../network.js";
 import type * as notificationCenter from "../notificationCenter.js";
 import type * as notificationPrefs from "../notificationPrefs.js";
+import type * as nav from "../nav.js";
 import type * as notifications from "../notifications.js";
 import type * as oauth from "../oauth.js";
 import type * as onboarding from "../onboarding.js";
@@ -251,6 +252,7 @@ declare const fullApi: ApiFromModules<{
   network: typeof network;
   notificationCenter: typeof notificationCenter;
   notificationPrefs: typeof notificationPrefs;
+  nav: typeof nav;
   notifications: typeof notifications;
   oauth: typeof oauth;
   onboarding: typeof onboarding;

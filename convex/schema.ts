@@ -1981,6 +1981,31 @@ export default defineSchema({
     .index("by_scope", ["parentType", "parentId"])
     .index("by_holder", ["holderAgentId"]),
 
+  // What a workspace's navigation looks like before anybody personalises it.
+  //
+  // The product's claim is that you shape it around your company. That claim
+  // is empty if every new member of a marketing team still arrives to Sprints
+  // and Roadmaps in the nav — "they don't have to use them" is not the same
+  // as "they don't have to see them", and an unused destination on the one
+  // strip everybody reads all day is exactly the clutter the product exists
+  // to remove.
+  //
+  // Deliberately a DEFAULT rather than a policy: an admin omitting something
+  // means "most of us don't need this", not "you may not have it". Access is
+  // decided by the Convex functions, never by whether a link is drawn — see
+  // resolveNav, where an unlisted item is still reachable until the person
+  // themselves puts it away.
+  navDefaults: defineTable({
+    parentType: v.union(v.literal("user"), v.literal("workspace")),
+    parentId: v.string(),
+    /** `{ widgets: [{ id }], hidden: [id] }` — normalized on read, like
+     *  screenLayouts, so a row from a newer build degrades rather than
+     *  failing validation. */
+    layout: v.any(),
+    updatedByClerkId: v.string(),
+    updatedAt: v.number(),
+  }).index("by_parent", ["parentType", "parentId"]),
+
   // Generic fixed-window rate limiting (see _rateLimit.ts). One row per
   // distinct caller-and-budget, reused across windows rather than inserted
   // per hit — a table that grows per request is the thing being defended

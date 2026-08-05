@@ -82,6 +82,7 @@ import { ModeSwitcher } from "@/components/chat/mode-switcher";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
 import { useProjectExpanded } from "@/lib/project-collapse";
+import { useNav } from "@/lib/use-nav";
 
 type SidebarTree = NonNullable<ReturnType<typeof useTreeQuery>>;
 type SpaceNode = SidebarTree["workspaces"][number]["spaces"][number];
@@ -283,6 +284,18 @@ function SidebarHeaderSwitcher() {
 function SidebarContentBody() {
   const tree = useTreeQuery();
   const ctx = useCurrentContext(tree);
+  // Whose default applies. A personal space answers for itself; inside a
+  // workspace, the workspace's curated nav is the layer under yours.
+  const navScope = useMemo(
+    () =>
+      ctx.kind === "workspace"
+        ? { parentType: "workspace" as const, parentId: ctx.workspace._id as string }
+        : tree?.currentClerkId
+          ? { parentType: "user" as const, parentId: tree.currentClerkId }
+          : undefined,
+    [ctx, tree?.currentClerkId],
+  );
+  const { items: navItems } = useNav(navScope);
 
   return (
     <SidebarContent>
@@ -294,50 +307,29 @@ function SidebarContentBody() {
         <SidebarGroupContent>
           <SidebarMenu>
             <SearchMenuItem />
-            <NavMenuItem
-              href="/dashboard"
-              label="Home"
-              icon={Home}
-              exact
-            />
-            <InboxMenuItem />
-            <ChatMenuItem />
-            <NavMenuItem
-              href="/dashboard/my-work"
-              label="My work"
-              icon={ListTodo}
-              exact
-            />
-            <NavMenuItem
-              href="/dashboard/spaces"
-              label="Spaces"
-              icon={FolderKanban}
-              exact
-            />
-            {/* Two different questions: Spaces answers "where does this
-                live", Projects answers "what am I running" — a flat directory
-                of every list across every space, sortable and groupable. */}
-            <NavMenuItem
-              href="/dashboard/projects"
-              label="Projects"
-              icon={Columns3}
-              exact
-            />
-            <NavMenuItem
-              href="/dashboard/pages"
-              label="Pages"
-              icon={FileText}
-            />
-            <NavMenuItem
-              href="/dashboard/agents"
-              label="Agents"
-              icon={Bot}
-            />
-            <NavMenuItem
-              href="/dashboard/templates"
-              label="Templates"
-              icon={LayoutTemplate}
-            />
+            {/* The navigation, rendered from data.
+                Was ten hardcoded rows, identical for a solo founder and a
+                400-person agency — the one surface everybody reads all day
+                and the only thing in the product nobody could shape. The
+                registry, the layering and the "you can always get Home"
+                guarantee all live in src/lib/nav-items.ts, shared with the
+                dock so the two surfaces cannot disagree about what the
+                product contains. */}
+            {navItems.map((item) =>
+              item.id === "inbox" ? (
+                <InboxMenuItem key={item.id} />
+              ) : item.id === "chat" ? (
+                <ChatMenuItem key={item.id} />
+              ) : (
+                <NavMenuItem
+                  key={item.id}
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  exact={item.exact}
+                />
+              ),
+            )}
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>

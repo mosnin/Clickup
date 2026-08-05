@@ -5,18 +5,8 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { AnimatePresence, motion } from "motion/react";
-import {
-  Bot,
-  FileText,
-  FolderKanban,
-  Home,
-  Inbox,
-  LayoutGrid,
-  MessageSquare,
-  Search,
-  SquareCheck,
-} from "lucide-react";
 import { api } from "@convex/_generated/api";
+import { NAV_ITEMS, NAV_SCREEN_KEY, type NavItem } from "@/lib/nav-items";
 import { EASE, SPRING } from "@/components/motion";
 import { createAnimatable, scaled, type AnimatableObject } from "@/lib/anime";
 import { hoveredIndex, normalizeLayout } from "@/lib/screen-layout";
@@ -40,49 +30,29 @@ import { cn } from "@/lib/utils";
 // rearranging the dock uses the same store, the same mutation and the same
 // normalization as rearranging a project screen. There is no second concept.
 
-const NAV_KEY = "nav";
+const NAV_KEY = NAV_SCREEN_KEY;
 
-type DockItem = {
-  id: string;
-  label: string;
-  href: string;
-  icon: typeof Home;
-  /** Rendered in the panel that rises from this item. */
-  panel?: "inbox" | "agents" | "search";
+// The dock's items ARE the sidebar's items. One registry (src/lib/nav-items.ts)
+// so the two surfaces cannot advertise different products — this file used to
+// carry its own copy, which is how "Templates" existed in one nav and not the
+// other. Only the rising panel is dock-specific, so only that is mapped here.
+const DOCK_PANELS: Record<string, "inbox" | "agents" | "search" | undefined> = {
+  inbox: "inbox",
+  agents: "agents",
+  search: "search",
 };
 
-const DOCK_ITEMS: DockItem[] = [
-  { id: "home", label: "Home", href: "/dashboard", icon: Home },
-  { id: "my-work", label: "My work", href: "/dashboard/my-work", icon: SquareCheck },
-  { id: "spaces", label: "Spaces", href: "/dashboard/spaces", icon: LayoutGrid },
-  { id: "projects", label: "Projects", href: "/dashboard/projects", icon: FolderKanban },
-  { id: "pages", label: "Pages", href: "/dashboard/pages", icon: FileText },
-  { id: "chat", label: "Chat", href: "/dashboard/chat", icon: MessageSquare },
-  {
-    id: "inbox",
-    label: "Inbox",
-    href: "/dashboard/inbox",
-    icon: Inbox,
-    panel: "inbox",
-  },
-  {
-    id: "agents",
-    label: "Agents",
-    href: "/dashboard/agents",
-    icon: Bot,
-    panel: "agents",
-  },
-  {
-    id: "search",
-    label: "Search",
-    href: "/dashboard/search",
-    icon: Search,
-    panel: "search",
-  },
-];
+type DockItem = NavItem & { panel?: "inbox" | "agents" | "search" };
 
-const ITEM_BY_ID = new Map(DOCK_ITEMS.map((i) => [i.id, i]));
-const DEFAULT_ORDER = DOCK_ITEMS.map((i) => i.id);
+const DOCK_ITEMS: DockItem[] = NAV_ITEMS.map((item) => ({
+  ...item,
+  panel: DOCK_PANELS[item.id],
+}));
+
+// Keyed by plain string: ids arrive from a stored layout row and from route
+// state, neither of which is narrowed to NavItemId.
+const ITEM_BY_ID = new Map<string, DockItem>(DOCK_ITEMS.map((i) => [i.id, i]));
+const DEFAULT_ORDER: string[] = DOCK_ITEMS.map((i) => i.id);
 
 /** How far the cursor's influence reaches, in px. */
 const REACH = 130;
