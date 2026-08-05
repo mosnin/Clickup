@@ -187,6 +187,23 @@ Then, in order:
 \`whoami\` is still worth one call: it tells you which workspace your key is
 bound to. Check that before you write anything.
 
+### If you are running a fleet
+
+You do not need a human to approve each worker you start. If somebody has
+granted you a fleet, \`my_fleet\` tells you how many agents you may run and
+what ceiling they are capped at, and \`provision_agent\` mints a worker with
+its own key — no second consent screen, because the human already consented
+to the fleet rather than to each member of it.
+
+Ask for the narrowest governance the worker actually needs. Whatever you
+ask for is intersected with the grant and can only come back narrower, so
+asking for everything gets you the ceiling rather than an error — but a
+worker fenced to the two lists it needs is the difference between a fleet
+somebody keeps and a fleet somebody revokes.
+
+\`my_fleet\` returns null if nobody has granted you one. That is an answer,
+not a failure: carry on as a single agent.
+
 ---
 
 ## 4. The skills

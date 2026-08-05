@@ -26,6 +26,8 @@ export const CORE_MCP_TOOL_NAMES: string[] = [
   "propose_screen",
   "propose_panel",
   "brief",
+  "my_fleet",
+  "provision_agent",
   "find_decisions",
   "read_plan",
   "ask_question",

@@ -1,4 +1,4 @@
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
@@ -547,6 +547,52 @@ const TOOLS: ToolDef[] = [
       "Everything I need to be useful in this workspace, in one call: what has already been SETTLED (accepted plan decisions — read these first, they are the difference between doing the work and relitigating it), what is still open and who has to settle it, and my own governance limits. Call this at session start, before next_task. Presence-budget exempt — knowing what is expected of me should never cost budget.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.brief), { apiKey: k }),
+  },
+  {
+    name: "my_fleet",
+    description:
+      "The fleet I am allowed to run, if a human has granted me one: how many agents I may have, how many are live, what each is doing, and the ceiling every one of them is capped at. Returns null when I hold no grant — that is an answer, not an error. Check this before provision_agent so you know your headroom.",
+    shape: {},
+    run: (c, k) => c.query(asQuery(api.agentGrants.myFleet), { apiKey: k }),
+  },
+  {
+    name: "provision_agent",
+    description:
+      "Create a worker agent under my fleet grant and return ITS OWN API key, once. Use this to scale out — one human approved the fleet, so no further approval is needed per agent. The governance you ask for is INTERSECTED with my grant's ceiling and can only ever be narrower, never wider: ask for what the worker actually needs. The returned key is shown once and never again; hand it to the runtime you are starting and do not log it. Fails when the fleet is at its limit or no human has granted me one.",
+    shape: {
+      name: z.string().max(80).describe("what to call this worker"),
+      description: z.string().max(280).optional(),
+      capabilities: z
+        .array(z.string())
+        .optional()
+        .describe("normalized skill slugs used for task routing"),
+      role: z
+        .enum(["member", "readonly"])
+        .optional()
+        .describe("defaults to the grant's ceiling; readonly cannot mutate"),
+      allowedListIds: z
+        .array(z.string())
+        .optional()
+        .describe("fence this worker to specific lists"),
+      dailyActionLimit: z
+        .number()
+        .optional()
+        .describe("mutations/day; capped at the grant's ceiling"),
+    },
+    // The one tool whose key material is minted at the transport boundary
+    // rather than in Convex, for the same reason the device grant does it:
+    // a mutation has no CSPRNG, and the plaintext must never be stored.
+    run: (c, k, a) => {
+      const key = `cua_${randomBytes(24).toString("hex")}`;
+      return c
+        .mutation(asMutation(api.agentGrants.provisionAgent), {
+          apiKey: k,
+          ...a,
+          keyHash: createHash("sha256").update(key).digest("hex"),
+          keyPrefix: key.slice(0, 12),
+        })
+        .then((result) => ({ ...(result as object), api_key: key }));
+    },
   },
   {
     name: "find_decisions",

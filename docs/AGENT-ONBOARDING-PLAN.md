@@ -177,3 +177,67 @@ Phase 1 in full, plus every Phase 2 item — because a one-click path that is
 easier to reach is not something to ship ahead of its limits — plus Phase 3's
 audit events. The connections UI and per-workspace policy are specified above
 and deliberately not started.
+
+---
+
+## Phase 5 — the plural: fleets
+
+Everything above onboards *an* agent. It does not survive twenty of them:
+each needs its own device flow and its own human click, and a person
+clicking Approve twenty times is not consenting, they are dismissing a
+dialog. Individually-approved agents also leave twenty separate off
+switches, and nobody finds all of them under pressure.
+
+So the unit of consent moves from the agent to the **fleet**. A human says
+once — "this orchestrator may run up to N workers here, none stronger than
+this" — and the orchestrator provisions them itself with no further clicks.
+
+### The rule everything rests on
+
+`convex/_envelope.ts`, pure and dependency-free because it is the security
+boundary of the whole feature:
+
+> A provisioned agent's governance is the INTERSECTION of what was requested
+> and what the grant permits. Never the union, never the request, never the
+> grant alone.
+
+Attenuation is monotonic — provisioning can only narrow — which is what
+makes chaining safe: whatever an orchestrator does, and whatever an agent it
+provisioned goes on to do, nothing downstream holds a power the human at the
+top did not hand over. `tests/agent-fleet.test.ts` asserts that directly,
+including that attenuating an already-attenuated result never recovers
+authority.
+
+Two details worth keeping if this is rebuilt:
+
+- **An empty fence is a real fence.** `allowedListIds: []` means "fenced to
+  nothing"; `undefined` means "not fenced". Conflating them silently grants
+  the whole scope.
+- **A negative budget clamps to zero, it does not fall back.** The first
+  version treated `-5` as unreadable and handed back the *full* envelope —
+  a narrowing function that widened on hostile input. Only values it cannot
+  read at all (absent, NaN, Infinity) inherit the ceiling.
+
+### Why this is safer than N approvals, not just faster
+
+One grant is one off switch. `revokeFleet` pauses every member **and deletes
+their keys** — pausing alone is not revocation, because a paused agent still
+holds a valid credential. The grant row survives revocation rather than
+being deleted, so the fleet that existed stays in the audit record.
+
+### Shipped
+
+Schema (`agentGrants`, `agents.provisionedByGrantId`, `by_grant` index),
+`convex/agentGrants.ts` (grant / provision / revoke / fleet views), the
+`my_fleet` and `provision_agent` MCP tools, `fleet.*` events, and 19 tests.
+
+### Not started
+
+- **Fleet UI.** `agentGrants.listForScope` returns everything the Agents
+  page needs to group agents by fleet and offer one Revoke; the page does
+  not render it yet. Until it does, a fleet is manageable over MCP and
+  through the activity feed but not in the dashboard.
+- **Granting a fleet from the consent screen.** Today a grant is a separate
+  call after an agent exists; `/link` should offer it inline.
+- **Sub-fleets.** `withinEnvelope` is written and tested for it — an
+  orchestrator delegating to a sub-orchestrator — but nothing calls it yet.

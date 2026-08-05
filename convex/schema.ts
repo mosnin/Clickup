@@ -1793,6 +1793,12 @@ export default defineSchema({
     // an HMAC-SHA256 X-Ping-Signature header.
     notifyUrl: v.optional(v.string()),
     notifySecret: v.optional(v.string()),
+    // Fleet membership (see agentGrants). Exactly one of these is set on any
+    // agent that is part of a fleet, and they are deliberately separate
+    // fields: an orchestrator HOLDS a grant (may provision) while a worker
+    // was PRODUCED BY one (is revoked with it). Collapsing them into one
+    // column would make "revoke the fleet" ambiguous about the orchestrator.
+    provisionedByGrantId: v.optional(v.id("agentGrants")),
     createdByClerkId: v.string(),
     // Live presence over MCP. lastSeenAt remains the compatibility rollup
     // used for the green dot; the two source timestamps make diagnostics
@@ -1805,7 +1811,11 @@ export default defineSchema({
     currentTaskId: v.optional(v.id("tasks")),
     statusText: v.optional(v.string()),
     createdAt: v.number(),
-  }).index("by_parent", ["parentType", "parentId"]),
+  })
+    .index("by_parent", ["parentType", "parentId"])
+    // Revoking a fleet is an index range over its members, not a scan of
+    // every agent in the scope.
+    .index("by_grant", ["provisionedByGrantId"]),
 
   // One row per (agent, UTC day) counting mutations, for the daily action
   // budget. Cheap: single indexed read + patch per agent mutation.
@@ -1932,6 +1942,44 @@ export default defineSchema({
     .index("by_token_hash", ["tokenHash"])
     .index("by_refresh_hash", ["refreshTokenHash"])
     .index("by_agent", ["agentId"]),
+
+  // Fleet provisioning grants — one human approval, many agents.
+  //
+  // Approving agents one at a time does not survive contact with a real
+  // fleet: twenty agents is twenty clicks, and a person clicking Approve
+  // twenty times is not consenting, they are dismissing a dialog. A grant
+  // moves the unit of consent from the agent to the FLEET: a human says
+  // "this orchestrator may run up to N workers in this space, none stronger
+  // than this", once, and the orchestrator provisions them itself.
+  //
+  // The envelope is a ceiling, never a default: every provision intersects
+  // with it (see _envelope.ts), so nothing under a grant can hold a power
+  // the human did not hand over. Revoking the grant revokes the whole fleet
+  // in one act, which is the other half of why this is safer than N
+  // individually-approved agents — those have N separate off switches.
+  agentGrants: defineTable({
+    parentType: v.union(v.literal("user"), v.literal("workspace")),
+    parentId: v.string(),
+    // The agent allowed to provision with this grant. Its own key is the
+    // credential, so there is no second token type to steal or rotate.
+    holderAgentId: v.id("agents"),
+    // Self-reported client of the orchestrator, for the audit trail.
+    clientName: v.string(),
+    // The envelope. Mirrors _envelope.ts Envelope.
+    role: v.union(v.literal("member"), v.literal("readonly")),
+    allowedListIds: v.optional(v.array(v.id("lists"))),
+    dailyActionLimit: v.number(),
+    maxAgents: v.number(),
+    grantedByClerkId: v.string(),
+    // Revocation is a timestamp rather than a delete: the fleet that existed
+    // is part of the audit record, and a deleted grant would orphan the
+    // agents that point at it.
+    revokedAt: v.optional(v.number()),
+    revokedByClerkId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_scope", ["parentType", "parentId"])
+    .index("by_holder", ["holderAgentId"]),
 
   // Generic fixed-window rate limiting (see _rateLimit.ts). One row per
   // distinct caller-and-budget, reused across windows rather than inserted

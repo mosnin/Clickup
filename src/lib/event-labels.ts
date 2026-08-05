@@ -36,6 +36,12 @@ export const EVENT_LABEL: Record<string, string> = {
   // said yes at one moment, a credential came into existence at another.
   "agent.authorized": "authorized",
   "agent.key_issued": "issued a key to",
+  // Fleet lifecycle. "provisioned" is attributed to the orchestrator that
+  // ran it, which is what makes a fleet legible as one thing rather than a
+  // stream of agents appearing from nowhere.
+  "fleet.granted": "granted a fleet to",
+  "fleet.provisioned": "provisioned",
+  "fleet.revoked": "revoked the fleet of",
   "channel.created": "opened channel",
   "goal.progress": "updated goal",
   "goal.completed": "completed goal",
