@@ -12,9 +12,10 @@
 // account menu — manage account, sign out — and reproducing that surface here
 // would mean a second, worse copy of something that already works.
 
-import { Sparkles } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { useCustomize } from "@/components/appearance/customize-provider";
+import { MorphGlyph } from "@/components/morph-glyph";
+import { GLYPH } from "@/lib/glyphs";
 import { useChatShell } from "./chat-shell";
 
 /**
@@ -46,7 +47,14 @@ export function ChatCustomiseRow() {
       }}
       className="chat-row justify-start px-2 hover:bg-[var(--chat-hover)] aria-pressed:bg-[var(--chat-active)]"
     >
-      <Sparkles aria-hidden className="chat-quiet size-3.5 shrink-0" />
+      {/* The glyph is the state. Sparkles means "you could shape this",
+          a tick means "you are done shaping it" — the same object having
+          changed, which is the only thing worth morphing. */}
+      <MorphGlyph
+        icon={active ? GLYPH.check : GLYPH.sparkles}
+        size={14}
+        className="chat-quiet shrink-0"
+      />
       <span className="flex-1 truncate text-left">
         {active ? "Done customising" : "Customise"}
       </span>

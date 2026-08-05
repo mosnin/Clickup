@@ -72,6 +72,7 @@
     "lucide-react": "^0.468.0",
     "markdown-it": "14.3.0",
     "mcp-handler": "^1.1.0",
+    "morphicons": "^1.4.1",
     "motion": "^12.42.2",
     "next": "^15.5.21",
     "ogl": "^1.0.11",
