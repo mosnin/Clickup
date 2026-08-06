@@ -7,7 +7,6 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
-import { BorderBeam } from "@/components/ui/beam";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { useToast } from "@/components/toast";
@@ -479,11 +478,10 @@ function TemplateCard({
     </div>
   );
 
-  // The beam is emphasis, not decoration: only the card in focus wears it.
+  // Emphasis is the accent ring — the same lime that marks "current"
+  // everywhere else; a rainbow border was its own color system.
   return focused ? (
-    <BorderBeam size="md" colorVariant="colorful" className="flex h-full">
-      {card}
-    </BorderBeam>
+    <div className="flex h-full rounded-2xl ring-2 ring-signal-lime">{card}</div>
   ) : (
     card
   );

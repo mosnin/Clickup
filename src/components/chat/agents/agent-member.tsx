@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { useToast } from "@/components/toast";
 import type { ChatScope } from "@/lib/buzz/channel-types";
+import { AgentTag } from "@/components/chat/agent-tag";
 import { PresenceProvider, PresenceRow } from "@/components/chat/presence";
 import { AddAgentControl } from "./add-agent";
 import { AgentActivityLog } from "./activity-log";
@@ -189,13 +190,9 @@ export function AgentMemberRow({
           isAgent
           {...(agent.pubkey ? { pubkey: agent.pubkey } : {})}
         />
-        <span
-          // Text, not a bot glyph — the same chip the message row draws, so a
-          // name means the same thing in the list and in the transcript.
-          className="shrink-0 rounded-full bg-[var(--chat-active)] px-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-[var(--chat-quiet)]"
-        >
-          agent
-        </span>
+        {/* The same component the message row draws, so a name means the
+            same thing in the list and in the transcript. */}
+        <AgentTag />
         <button
           type="button"
           onClick={() => {

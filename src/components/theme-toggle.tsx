@@ -85,7 +85,7 @@ export function ThemeToggle({ collapsed }: { collapsed?: boolean }) {
         type="button"
         aria-label={`Theme: ${choice}. Click to change.`}
         onClick={() => pick(order[(order.indexOf(choice) + 1) % order.length])}
-        className="group relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="group relative inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         {/* suppressHydrationWarning: pre-mount the icon is a guess; the stored
             choice resolves on mount. */}
@@ -107,7 +107,7 @@ export function ThemeToggle({ collapsed }: { collapsed?: boolean }) {
           title={label}
           onClick={() => pick(key)}
           className={cn(
-            "inline-flex h-6 flex-1 items-center justify-center rounded-md transition-colors",
+            "inline-flex h-6 flex-1 items-center justify-center rounded-full transition-colors",
             mounted && choice === key
               ? "bg-accent font-medium text-foreground"
               : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",

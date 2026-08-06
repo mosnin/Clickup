@@ -6,11 +6,14 @@ import { cn } from "@/lib/utils";
 
 export type TaskPriority = "urgent" | "high" | "normal" | "low";
 
+// Theme tokens, not raw hex: the ramp lives in globals.css (@theme
+// --color-priority-*) so a theme can retune it, and every view that renders
+// priority through this module follows.
 export const PRIORITY_COLOR: Record<TaskPriority, string> = {
-  urgent: "#f2b3ab",
-  high: "#f2c291",
-  normal: "#a9c6f2",
-  low: "#c9ccd4",
+  urgent: "var(--color-priority-urgent)",
+  high: "var(--color-priority-high)",
+  normal: "var(--color-priority-normal)",
+  low: "var(--color-priority-low)",
 };
 
 export const PRIORITY_LABEL: Record<TaskPriority, string> = {
@@ -45,7 +48,7 @@ export function PriorityDot({
   );
 }
 
-/** Pastel pill with dot + label; the standard priority chip. */
+/** Outlined chip with the state dot — the one chip language. */
 export function PriorityChip({
   priority,
   className,
@@ -56,10 +59,9 @@ export function PriorityChip({
   return (
     <span
       className={cn(
-        "inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium text-foreground/80",
+        "ui-chip inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
         className,
       )}
-      style={{ backgroundColor: `${PRIORITY_COLOR[priority]}66` }}
     >
       <span
         aria-hidden

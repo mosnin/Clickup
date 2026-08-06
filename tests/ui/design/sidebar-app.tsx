@@ -101,6 +101,12 @@ galleryData["notifications.unreadCount"] = 1;
 galleryData["timeEntries.runningForCurrent"] = null;
 galleryData["users.current"] = { clerkId: "u1", name: "Ada Lovelace" };
 galleryData["admin.isPlatformAdmin"] = false;
+// The two keys whose absence rendered this surface with no nav rows at all —
+// resolveNav reads screens.layoutFor and the shell reads
+// appearance.forCurrentUser; null is legitimate for both (defaults apply),
+// undefined means "loading" forever.
+galleryData["screens.layoutFor"] = null;
+galleryData["appearance.forCurrentUser"] = null;
 // The studio's builder chapter: the scope resolver and one envelope, so the
 // live-panel shelves render with data instead of skeletons.
 galleryData["appearance.spaceContext"] = {

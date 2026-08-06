@@ -188,8 +188,12 @@ export function PageHeader({
  * than a titled div: whichever page you are on, the same two things hold the
  * right edge. One header is mounted at a time, so the unread subscriptions
  * here cost what the sidebar's badge already costs, not a multiple of it.
+ *
+ * Exported so Chat's top chrome (`chat/shell/top-chrome.tsx`) can mount the
+ * same cluster at the same end of its own capsule — one chrome, both modes,
+ * rather than a lookalike bell that can drift from this one.
  */
-function CapsuleCluster() {
+export function CapsuleCluster() {
   const me = useQuery(api.users.current, {});
   const unreadMentions = useQuery(api.mentions.unreadCountForCurrent, {});
   const unreadUpdates = useQuery(api.notificationCenter.unreadCount, {});

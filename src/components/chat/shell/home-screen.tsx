@@ -14,6 +14,7 @@
 
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
+import { FileText, Hash, Lock } from "lucide-react";
 import { timeAgo } from "@/lib/time";
 import { Stagger, StaggerItem } from "@/components/motion";
 import type { ChatChannelSummary } from "@/lib/buzz/channel-types";
@@ -90,14 +91,23 @@ function byClaim(a: ChatChannelSummary, b: ChatChannelSummary): number {
 function WaitingRow({ channel }: { channel: ChatChannelSummary }) {
   const mark = unreadMark(channel, false);
   const isDirect = channel.kind === "dm" || channel.kind === "group_dm";
+  const label = title(channel);
   return (
+    // `.chat-row` rather than a restated pill: the sidebar one column over is
+    // already this exact geometry (the pill radius, the row height token),
+    // and a second hand-rolled `rounded-xl px-3 py-2.5` here is a place that
+    // silently stops matching it the next time either one is tuned. `h-auto`
+    // because this row carries two lines (name, then a timestamp) where the
+    // sidebar's carries one — `.chat-row` sets a `min-height`, not a fixed
+    // one, so the second line is free to grow it.
     <Link
       href={channelHref(channel.channelId)}
-      className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/70"
+      className="chat-row h-auto py-1.5"
     >
+      <WaitingGlyph channel={channel} label={label} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">
-          {isDirect ? title(channel) : `#${channel.name}`}
+          {isDirect ? label : `#${channel.name}`}
         </span>
         <span className="chat-quiet block truncate text-xs">
           {channel.lastActivityAt
@@ -113,4 +123,38 @@ function WaitingRow({ channel }: { channel: ChatChannelSummary }) {
       ) : null}
     </Link>
   );
+}
+
+/**
+ * The leading glyph: `#` for a channel, a lock for a private one, a disc of
+ * initials for a direct message — the same vocabulary
+ * `shell/channel-row.tsx`'s `RoomGlyph` draws in the sidebar, reproduced
+ * rather than imported (that helper is not exported — it is that file's
+ * private detail), so the two lists read as one row language without either
+ * owning the other.
+ */
+function WaitingGlyph({
+  channel,
+  label,
+}: {
+  channel: ChatChannelSummary;
+  label: string;
+}) {
+  if (channel.kind === "dm" || channel.kind === "group_dm") {
+    return (
+      <span
+        aria-hidden
+        className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-[0.6875rem] font-semibold"
+      >
+        {label.slice(0, 1).toUpperCase()}
+      </span>
+    );
+  }
+  const Glyph =
+    channel.kind === "forum"
+      ? FileText
+      : channel.visibility === "private"
+        ? Lock
+        : Hash;
+  return <Glyph aria-hidden className="chat-quiet size-4 shrink-0" />;
 }

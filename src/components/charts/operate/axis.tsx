@@ -59,6 +59,21 @@ const LABEL_GUTTER_PX = 8;
 const MIN_ROW_PX = 16;
 
 /**
+ * Rough px width of a 10px-label string. There is no canvas measurement in
+ * this module, so the estimate errs generous (character count is a lower
+ * bound on glyph width for most alphabets at this size) rather than under,
+ * which would silently readmit the truncation this exists to prevent.
+ */
+const CHAR_PX = 6.2;
+
+/** Estimated rendered width of the widest label in a tick list. */
+function widestLabelPx(ticks: AxisTick[]): number {
+  let max = 0;
+  for (const t of ticks) max = Math.max(max, t.label.length * CHAR_PX);
+  return max;
+}
+
+/**
  * Keep every `stride`-th tick, where stride is the smallest number that gives
  * each survivor `min` px of room.
  *
@@ -116,7 +131,17 @@ export function AxisStrip({
   ticks: AxisTick[];
   width: number;
 }) {
-  const { kept, room } = useMemo(() => thin(ticks, MIN_LABEL_PX), [ticks]);
+  // Wordy category axes ("In progress", "Needs review") pass the plain
+  // tick-to-tick distance gate un-thinned and then truncate at every width —
+  // widening never helps, because the gate never looked at the words. Folding
+  // the widest label's estimated px into the threshold makes a 6-category
+  // axis thin exactly the way the 14-day date axis already does; short date
+  // labels never clear MIN_LABEL_PX on their own, so this is a no-op there.
+  const min = useMemo(
+    () => Math.max(MIN_LABEL_PX, widestLabelPx(ticks) + LABEL_GUTTER_PX),
+    [ticks],
+  );
+  const { kept, room } = useMemo(() => thin(ticks, min), [ticks, min]);
   const cap = Math.max(24, room - LABEL_GUTTER_PX);
 
   // The row keeps its height whether or not the ticks have arrived, so the

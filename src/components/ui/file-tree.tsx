@@ -333,7 +333,11 @@ export type FileTreeProps = {
 export function FileTree({
   elements,
   className,
-  highlightColor = "var(--color-accent-foreground, #f472b6)",
+  // Not accent-foreground: that token is ordinary body text in both
+  // themes, so highlight:true was invisible. --color-unread is the
+  // product's one emphasis accent — full-contrast ink that reads against
+  // the tree's muted rows in both themes.
+  highlightColor = "var(--color-unread)",
   indentSize = 24,
   showIcons = true,
   defaultOpenIds = [],

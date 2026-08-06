@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { BorderBeam } from "@/components/ui/beam";
 import {
   Sheet,
   SheetContent,
@@ -19,7 +18,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { useReducedMotion } from "motion/react";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { useToast } from "@/components/toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -86,7 +84,6 @@ export function ViewCustomizePanel({
 }) {
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
-  const reduced = useReducedMotion();
 
   const applies = APPLIES[view] ?? { display: false, group: false, fields: false };
 
@@ -126,15 +123,14 @@ export function ViewCustomizePanel({
         </SheetHeader>
 
         <div className="min-w-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
-          {/* The beam is emphasis, not decoration: it only lights up once
-              this view has actually been customized, and stays still for
-              anyone who asked for reduced motion. */}
-          <BorderBeam
-            size="md"
-            colorVariant="colorful"
-            theme="auto"
-            active={customized && !reduced}
-            className="flex min-w-0"
+          {/* Emphasis is the accent ring, present only once this view has
+              actually been customized. */}
+          <div
+            className={
+              customized
+                ? "flex min-w-0 rounded-2xl ring-2 ring-signal-lime"
+                : "flex min-w-0"
+            }
           >
             <div className="min-w-0 flex-1 rounded-2xl">
               <Stagger className="min-w-0 space-y-3">
@@ -178,7 +174,7 @@ export function ViewCustomizePanel({
                 />
               </Stagger>
             </div>
-          </BorderBeam>
+          </div>
         </div>
       </SheetContent>
     </Sheet>

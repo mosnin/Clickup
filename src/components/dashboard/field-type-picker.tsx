@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BorderBeam } from "@/components/ui/beam";
 import { Stagger, StaggerItem } from "@/components/motion";
 import {
   FIELD_GROUPS,
@@ -20,7 +19,7 @@ import {
 // money shows a formatted amount, progress shows a filled bar. You choose a
 // field by recognising it, not by reading its name.
 //
-// The chosen tile is wrapped in the vetted BorderBeam so the selection reads
+// The chosen tile wears the lime accent ring so the selection reads
 // as a deliberate, singular moment rather than another blue outline.
 
 export function FieldTypePicker({
@@ -158,9 +157,7 @@ function FieldTypeTile({
 
   if (!selected) return tile;
   return (
-    <BorderBeam size="md" colorVariant="colorful" className="flex h-full">
-      {tile}
-    </BorderBeam>
+    <div className="flex h-full rounded-2xl ring-2 ring-signal-lime">{tile}</div>
   );
 }
 

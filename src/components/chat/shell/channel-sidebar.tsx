@@ -47,7 +47,8 @@ import {
   unreadOverflow,
   type ChatSectionId,
 } from "./sections";
-import { TOP_CHROME_HEIGHT_PX, channelHref } from "./layout";
+import { channelHref } from "./layout";
+import { TOP_CHROME_BAND_HEIGHT_PX } from "./top-chrome";
 
 export function ChannelSidebar() {
   const { sidebarOpen, closeNav, channelId, isNarrow, scope } = useChatShell();
@@ -93,7 +94,7 @@ export function ChannelSidebar() {
         // grows into the space instead of jumping into it.
         "md:w-[var(--chat-sidebar-w)] md:overflow-hidden md:transition-[width] md:duration-200 md:ease-out",
       )}
-      style={{ paddingTop: isNarrow ? TOP_CHROME_HEIGHT_PX : 0 }}
+      style={{ paddingTop: isNarrow ? TOP_CHROME_BAND_HEIGHT_PX : 0 }}
     >
       <div className="flex min-h-0 w-full flex-1 flex-col">
         {/* Pinned header */}
@@ -373,9 +374,10 @@ function SidebarScroller({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    function measure() {
+
+    function apply(): string {
       const scroller = ref.current;
-      if (!scroller) return;
+      if (!scroller) return "";
       const view = scroller.getBoundingClientRect();
       const rows = Array.from(
         scroller.querySelectorAll<HTMLElement>("[data-unread-count]"),
@@ -391,16 +393,49 @@ function SidebarScroller({ children }: { children: React.ReactNode }) {
       setOverflow((prev) =>
         prev.above === next.above && prev.below === next.below ? prev : next,
       );
+      // A signature of where the rows actually sit, so the settle loop below
+      // can tell "the DOM changed shape" from "the rows are still sliding
+      // into place". The latter is a transform, invisible to the
+      // MutationObserver watching childList/subtree below, which is how a
+      // single post-mount measurement ended up permanently comparing the
+      // pill against a row's mid-entrance position instead of its rest one —
+      // nothing ever asked again once the childList stopped changing.
+      return rows.map((r) => `${r.top.toFixed(1)}:${r.bottom.toFixed(1)}`).join("|");
     }
-    measure();
-    const observer = new MutationObserver(measure);
+
+    let raf = 0;
+    let settledFrames = 0;
+    let lastSignature: string | null = null;
+
+    function tick() {
+      raf = 0;
+      const signature = apply();
+      if (signature === lastSignature) {
+        settledFrames += 1;
+      } else {
+        settledFrames = 0;
+        lastSignature = signature;
+      }
+      // Three consecutive frames reporting identical row positions is "at
+      // rest" — one frame cannot tell a paused-but-still-moving entrance from
+      // a finished one, and stopping at the first measurement is the bug
+      // this replaces.
+      if (settledFrames < 3) raf = requestAnimationFrame(tick);
+    }
+
+    tick();
+    const observer = new MutationObserver(() => {
+      settledFrames = 0;
+      if (!raf) raf = requestAnimationFrame(tick);
+    });
     observer.observe(el, { childList: true, subtree: true });
-    el.addEventListener("scroll", measure, { passive: true });
-    window.addEventListener("resize", measure);
+    el.addEventListener("scroll", apply, { passive: true });
+    window.addEventListener("resize", apply);
     return () => {
+      if (raf) cancelAnimationFrame(raf);
       observer.disconnect();
-      el.removeEventListener("scroll", measure);
-      window.removeEventListener("resize", measure);
+      el.removeEventListener("scroll", apply);
+      window.removeEventListener("resize", apply);
     };
   }, []);
 
@@ -420,12 +455,18 @@ function SidebarScroller({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative min-h-0 flex-1">
-      {/* `pb-9`: the floating unread pill's footprint. Without it the pill
-          sits ON the last row's text at full scroll — the audit caught it
-          covering a person's name, which is chrome that reads as broken. With
-          the reserve, the fully-scrolled state ends in air, and mid-scroll
-          the pill only ever overlaps the row it is pointing PAST. */}
-      <div ref={ref} className="chat-scroll absolute inset-0 pb-9">
+      {/* `bottom-9`, not `pb-9`: the floating unread pill's footprint has to
+          come out of the scroller's own clipped box, not out of its
+          scrollable content. Padding only reserves space at the END of the
+          content, which protects a fully-scrolled-to-bottom state and
+          nothing else — at rest, or anywhere mid-scroll, whatever row
+          happened to sit at the visible edge was still directly behind the
+          pill (this is what the audit caught covering "Jordan Brooks" without
+          anyone having scrolled at all). Shrinking the scroller's own box by
+          the same amount means no row can ever be positioned under the
+          pill's footprint, in any scroll position, because that strip is
+          never part of the visible viewport to begin with. */}
+      <div ref={ref} className="chat-scroll absolute inset-x-0 top-0 bottom-9">
         {children}
       </div>
       {overflow.above > 0 ? (

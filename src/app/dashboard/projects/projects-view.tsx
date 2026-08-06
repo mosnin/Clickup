@@ -8,7 +8,6 @@ import { FolderKanban, Star } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Stagger, StaggerItem } from "@/components/motion";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Picker } from "@/components/ui/picker";
 import { Tabs } from "@/components/interior/tabs";
@@ -55,15 +54,15 @@ const STATUS_CHIP: Record<
 > = {
   on_track: {
     label: "On track",
-    dot: "bg-pastel-green",
+    dot: "bg-signal-lime",
   },
   at_risk: {
     label: "At risk",
-    dot: "bg-pastel-yellow",
+    dot: "bg-signal-yellow",
   },
   off_track: {
     label: "Off track",
-    dot: "bg-pastel-red",
+    dot: "bg-danger",
   },
   paused: { label: "Paused", dot: "bg-muted-foreground/50" },
 };

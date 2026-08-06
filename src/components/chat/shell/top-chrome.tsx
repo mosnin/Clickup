@@ -1,12 +1,8 @@
 "use client";
 
-// The 40px strip across the top of the application.
+// The capsule across the top of the application.
 //
-// In Buzz this strip exists because a Tauri window has no title bar and
-// something has to be draggable. We are a web app inside a browser (and, per
-// D10, inside a desktop wrapper that draws its own frame), so the strip has to
-// earn its height differently: it is where the two questions the sidebar
-// cannot answer live.
+// It exists for the two questions the sidebar cannot answer.
 //
 //   • Where am I — when the sidebar is collapsed off-canvas, or you are on a
 //     phone with the drawer shut, nothing else on screen names the community
@@ -33,16 +29,35 @@
 // API cannot be asked whether going forward would do anything — so the
 // honest options are a pair of buttons that are always enabled and sometimes
 // no-ops, or none. The browser and the desktop wrapper both already draw them.
+//
+// The shape is Work's capsule, not a bare strip: `rounded-full border
+// border-border bg-card py-1.5 pl-4 pr-2 shadow-md`, the exact classes
+// `dashboard/page-header.tsx` floats over every Work page — because a bare
+// strip here and a floating capsule one dashboard over is the two halves of
+// one product disagreeing about what their own chrome looks like. It closes
+// with the same `CapsuleCluster` (bell + avatar) Work's capsule closes with,
+// imported rather than rebuilt, so notifications mean the same thing and cost
+// the same one subscription in both places.
 
 import { useMemo } from "react";
 import { PanelLeft } from "lucide-react";
 import { ChatSearchLauncher } from "@/components/chat/search";
 import { useRoster } from "@/components/chat/presence";
+import { CapsuleCluster } from "@/components/dashboard/page-header";
 import type { ResolvableAuthor } from "@/lib/buzz/search-query";
-import { TOP_CHROME_HEIGHT_PX } from "./layout";
 import { useChatShell } from "./chat-shell";
 import { useChannel, useChannels } from "./channel-data";
 import { title } from "./sections";
+
+/**
+ * The capsule's total footprint (its own height plus the band's padding),
+ * exported so the sidebar drawer (`channel-sidebar.tsx`) can reserve exactly
+ * this much space above its own content on a phone — the drawer overlays the
+ * room, including the space this capsule occupies, so the two have to agree
+ * on the number and there is no way to ask the DOM "how tall did the header
+ * render" before it has.
+ */
+export const TOP_CHROME_BAND_HEIGHT_PX = 64;
 
 export function ChatTopChrome({ onOpenNav }: { onOpenNav: () => void }) {
   const { isNarrow, sidebarOpen, setSidebarOpen, channelId, scopeName, scope } =
@@ -70,49 +85,52 @@ export function ChatTopChrome({ onOpenNav }: { onOpenNav: () => void }) {
   const rooms = useMemo(() => channels ?? [], [channels]);
 
   return (
-    <header
-      data-chat-top-chrome=""
-      style={{ height: TOP_CHROME_HEIGHT_PX }}
-      className="flex shrink-0 items-center gap-2 px-2"
-    >
-      <button
-        type="button"
-        // One control, two jobs, because they are the same job at two widths:
-        // "show me the navigation". Naming it after the effect rather than the
-        // mechanism keeps the label true in both.
-        onClick={() => (isNarrow ? onOpenNav() : setSidebarOpen(!sidebarOpen))}
-        aria-label={isNarrow ? "Show navigation" : "Toggle sidebar"}
-        aria-expanded={isNarrow ? undefined : sidebarOpen}
-        className="chat-icon-button tap-target shrink-0"
-      >
-        <PanelLeft aria-hidden className="size-4" />
-      </button>
+    <header data-chat-top-chrome="" className="flex shrink-0 items-center px-2 pb-2 pt-2">
+      <div className="flex min-h-12 w-full items-center gap-2 rounded-full border border-border bg-card py-1.5 pl-4 pr-2 shadow-md">
+        <button
+          type="button"
+          // One control, two jobs, because they are the same job at two widths:
+          // "show me the navigation". Naming it after the effect rather than the
+          // mechanism keeps the label true in both.
+          onClick={() => (isNarrow ? onOpenNav() : setSidebarOpen(!sidebarOpen))}
+          aria-label={isNarrow ? "Show navigation" : "Toggle sidebar"}
+          aria-expanded={isNarrow ? undefined : sidebarOpen}
+          className="chat-icon-button tap-target -ml-2 shrink-0"
+        >
+          <PanelLeft aria-hidden className="size-4" />
+        </button>
 
-      <p className="chat-quiet min-w-0 flex-1 truncate text-xs">
-        {scopeName ? <span>{scopeName}</span> : null}
-        {channel ? (
-          <>
-            <span aria-hidden className="px-1.5 opacity-50">
-              /
-            </span>
-            <span className="text-foreground">
-              {channel.kind === "dm" || channel.kind === "group_dm"
-                ? title(channel)
-                : `#${channel.name}`}
-            </span>
-          </>
-        ) : null}
-      </p>
+        <p className="chat-quiet min-w-0 flex-1 truncate text-xs">
+          {scopeName ? <span>{scopeName}</span> : null}
+          {channel ? (
+            <>
+              <span aria-hidden className="px-1.5 opacity-50">
+                /
+              </span>
+              <span className="text-foreground">
+                {channel.kind === "dm" || channel.kind === "group_dm"
+                  ? title(channel)
+                  : `#${channel.name}`}
+              </span>
+            </>
+          ) : null}
+        </p>
 
-      {/* `shrink-0` because the location line beside it is `flex-1 truncate`:
-          without it the two negotiate and the control is what gives way, which
-          at 390px means a search box squeezed to its padding. */}
-      <ChatSearchLauncher
-        scope={scope}
-        channels={rooms}
-        people={people}
-        className="shrink-0"
-      />
+        {/* `shrink-0` because the location line beside it is `flex-1
+            truncate`: without it the two negotiate and the control is what
+            gives way, which at 390px means a search box squeezed to its
+            padding. */}
+        <ChatSearchLauncher
+          scope={scope}
+          channels={rooms}
+          people={people}
+          className="shrink-0"
+        />
+
+        {/* The capsule's right end, same as Work's: notifications, then you.
+            One chrome, both modes — see the module comment. */}
+        <CapsuleCluster />
+      </div>
     </header>
   );
 }

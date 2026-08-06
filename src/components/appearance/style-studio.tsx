@@ -761,7 +761,14 @@ function StudioSheet() {
                   {selection ? "Match the others" : "Defaults"}
                 </SheetAction>
               </div>
+              {/* Quiet on purpose: every pick in this sheet applies the
+                  instant it is made, so Done is a dismissal, not a commit —
+                  and a filled Done stacked over a filled contextual action
+                  (the builder's "Add") was two identical primaries with
+                  nothing saying which one commits. One loud control per
+                  sheet, and it is the one that changes something. */}
               <Button
+                variant="outline"
                 className="h-11 shrink-0 rounded-full px-6"
                 onClick={() => setActive(false)}
                 type="button"

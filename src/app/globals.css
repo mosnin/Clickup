@@ -82,6 +82,12 @@
   --color-pastel-purple: #e6defa;
   --color-pastel-pink: #f9e0f4;
   --color-pastel-foreground: #101010;
+  /* Task priority ramp — read exclusively through PRIORITY_COLOR in
+     src/components/dashboard/priority.tsx. */
+  --color-priority-urgent: #f2b3ab;
+  --color-priority-high: #f2c291;
+  --color-priority-normal: #a9c6f2;
+  --color-priority-low: #c9ccd4;
 
   /* ── Signal colours ────────────────────────────────────────────────────
      The palette, taken from the reference this product is being built to
@@ -3016,15 +3022,50 @@ a:hover > .message-ref {
   background: var(--chat-hover);
 }
 .chat-row[data-active="true"] {
-  /* Flat tint, no shadow: the selection sits *on* the chrome rather than
-     floating above it. A raised pill here reads as a card and breaks the
-     "one continuous surface" the panes are trying to be. */
-  background: var(--chat-active);
+  /* The row itself no longer carries "you are here" — the leading glyph
+     does, below. Work marks its active nav row with a lime-filled icon chip
+     on a transparent row rather than a grey band, and a chat row that tinted
+     the whole line while Work filled a circle is the two halves of the
+     product disagreeing about what "selected" looks like. Two active
+     indicators on one row is one too many either way this is drawn. */
+  background: transparent;
   font-weight: 600;
   box-shadow: none;
 }
+.chat-row[data-active="true"]:hover {
+  background: var(--chat-hover);
+}
 .chat-row[data-muted="true"]:not([data-unread="true"]) {
   opacity: 0.5;
+}
+
+/* The leading glyph, carrying the state the row used to. The same recipe
+   Work's sidebar uses for an active nav icon
+   (`[data-slot="sidebar-menu-button"][data-active="true"] > svg:first-child`,
+   above in this file): a lime-filled circle behind the glyph, ink-coloured on
+   top of it. The padding is unconditional — every row's glyph reserves the
+   circle's footprint at rest, transparent until it is active — so toggling
+   `data-active` only ever changes a colour, never the row's width; a row
+   that widened when it became active is a row that nudges its neighbour's
+   text sideways on the one gesture people make most.
+   A DM row's glyph is an avatar disc, not an icon — filling it solid would
+   swallow the initial it is showing rather than mark it, so it takes a lime
+   RING instead, the acceptable variant for a row that cannot take a fill. */
+.chat-row > svg:first-child {
+  box-sizing: content-box;
+  padding: 0.4375rem;
+  border-radius: 9999px;
+  background: transparent;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
+}
+.chat-row[data-active="true"] > svg:first-child {
+  background: var(--color-signal-lime);
+  color: var(--color-signal-ink);
+}
+.chat-row[data-active="true"] > span:first-child {
+  box-shadow: 0 0 0 2px var(--color-signal-lime);
 }
 
 /* Section label: sentence case, quiet, and a button because it collapses. */

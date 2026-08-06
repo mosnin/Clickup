@@ -35,6 +35,7 @@ import { BridgeBody } from "@/components/chat/bridge";
 import { HuddleCard, useHuddleOrNull } from "@/components/chat/huddle";
 import { cn } from "@/lib/utils";
 import { motion } from "@/components/motion";
+import { AgentTag } from "@/components/chat/agent-tag";
 import { MessageMedia } from "@/components/chat/media";
 import type { VideoReviewContext } from "@/components/chat/media/video-review";
 import { MessageActionBar } from "./action-bar";
@@ -199,14 +200,11 @@ export function MessageRow({
             <header className="flex flex-wrap items-baseline gap-x-2">
               <span className="text-sm font-semibold">{message.author}</span>
               {message.isAgent ? (
-                <span
-                  // Text, not a bot glyph: "agent" is unambiguous at 10px and
-                  // the house rule spends icons on affordances, not labels.
-                  className="rounded-full bg-[var(--chat-hover)] px-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-[var(--chat-quiet)]"
+                // Text, not a bot glyph: "agent" is unambiguous at 10px and
+                // the house rule spends icons on affordances, not labels.
+                <AgentTag
                   title={message.ownerLabel ? `Runs for ${message.ownerLabel}` : undefined}
-                >
-                  agent
-                </span>
+                />
               ) : null}
               {message.role ? (
                 <span className="text-[0.625rem] uppercase tracking-wide text-[var(--chat-quiet)]">

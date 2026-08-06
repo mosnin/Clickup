@@ -31,7 +31,6 @@ import { InviteCards } from "@/components/dashboard/invite-cards";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { PriorityDot } from "@/components/dashboard/priority";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import GradientText from "@/components/gradient-text";
 import { errorMessage } from "@/lib/errors";
@@ -88,9 +87,9 @@ const HEALTH_CHIP: Record<
   NonNullable<Project["projectStatus"]>,
   { label: string; dot: string }
 > = {
-  on_track: { label: "On track", dot: "bg-pastel-green" },
-  at_risk: { label: "At risk", dot: "bg-pastel-yellow" },
-  off_track: { label: "Off track", dot: "bg-pastel-red" },
+  on_track: { label: "On track", dot: "bg-signal-lime" },
+  at_risk: { label: "At risk", dot: "bg-signal-yellow" },
+  off_track: { label: "Off track", dot: "bg-danger" },
   paused: { label: "Paused", dot: "bg-muted-foreground/50" },
 };
 
@@ -550,7 +549,7 @@ export default function DashboardHome() {
               onClick={() => setCustomizing((v) => !v)}
               className="tap-target text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
             >
-              {customizing ? "Done" : "Customize"}
+              {customizing ? "Done" : "Customise"}
             </button>
             <Button size="sm" className="h-9 gap-1.5" onClick={openCommandPalette}>
               <Plus className="size-4" />
@@ -677,7 +676,7 @@ export default function DashboardHome() {
               onClick={() => setCustomizing(true)}
               className="mt-2 text-sm font-medium underline-offset-2 hover:underline"
             >
-              Customize your Home
+              Customise your Home
             </button>
           </div>
         }
@@ -1206,15 +1205,22 @@ function ProjectCards({
   projects: Project[];
   totalProjects: number;
 }) {
-  const shown = projects.slice(0, 4);
   // The lime card is the project that needs attention soonest: most overdue
   // work, then nearest target date. Never "the first one" — a highlight that
-  // never moves is decoration.
-  const urgent = [...shown].sort(
+  // never moves is decoration. Chosen BEFORE the responsive slice and sorted
+  // to the front of it: cards 3 and 4 hide on narrow containers, and an
+  // urgent project hidden by the container width was the section silently
+  // dropping its one defining rule exactly where it matters most (a phone).
+  const pool = projects.slice(0, 4);
+  const urgent = [...pool].sort(
     (a, b) =>
       b.overdue - a.overdue ||
       (a.targetDate ?? Infinity) - (b.targetDate ?? Infinity),
   )[0];
+  const shown =
+    urgent === undefined
+      ? pool
+      : [urgent, ...pool.filter((p) => p !== urgent)];
   return (
     <section className="flex h-full min-w-0 flex-col">
       <div className="mb-3 flex items-center justify-between gap-3">

@@ -16,7 +16,6 @@ import { useToast } from "@/components/toast";
 import { ScrumBoard } from "@/components/dashboard/scrum-board";
 import { SprintPlanning } from "@/components/dashboard/sprint-planning";
 import { SprintTemplateGallery } from "@/components/dashboard/sprint-template-gallery";
-import { BorderBeam } from "@/components/ui/beam";
 import {
   AnimatedBar,
   AnimatedNumber,
@@ -201,10 +200,10 @@ function ActiveSprintHero({
   ];
 
   return (
-    <BorderBeam size="md" colorVariant="colorful" className="flex min-w-0">
+    <div className="flex min-w-0 rounded-2xl ring-2 ring-signal-lime">
       <div className="panel min-w-0 flex-1 rounded-2xl p-5">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] uppercase tracking-wider text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+          <span className="rounded-full bg-signal-lime px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-signal-ink">
             Active
           </span>
           <p className="min-w-0 truncate font-semibold tracking-tight">
@@ -263,7 +262,7 @@ function ActiveSprintHero({
           ))}
         </dl>
       </div>
-    </BorderBeam>
+    </div>
   );
 }
 
