@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 // One stacked lozenge in a column. `color` is a CSS color string — callers pass
@@ -18,6 +21,15 @@ export function StackedColumns({
   height?: number;
   className?: string;
 }) {
+  // Columns grow out of the baseline on arrival, left to right — the
+  // `.grow-col` transition in globals, staggered per column through the
+  // `--grow-delay` var, cut entirely under reduced motion.
+  const [grown, setGrown] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setGrown(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   // Every column scales against the LARGEST column total, not its own — a
   // per-column scale would make every stack full-height and the comparison
   // between columns (the whole point of the chart) would be gone.
@@ -40,8 +52,11 @@ export function StackedColumns({
         return (
           <div key={i} className="flex min-w-0 flex-1 flex-col items-center">
             <div
-              className="flex w-3.5 flex-col-reverse justify-start gap-[3px]"
-              style={{ height }}
+              className={cn(
+                "grow-col flex w-3.5 flex-col-reverse justify-start gap-[3px]",
+                grown && "grow-col-on",
+              )}
+              style={{ height, "--grow-delay": `${i * 55}ms` } as React.CSSProperties}
             >
               {empty ? (
                 // A measured-and-empty slot gets a muted dot; an absent bar

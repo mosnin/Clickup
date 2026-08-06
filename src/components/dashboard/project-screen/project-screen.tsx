@@ -13,9 +13,11 @@ import {
   addWidget,
   describeLayoutChange,
   insertWidget,
+  migrateStoredLayout,
   normalizeLayout,
   replaceWidget,
   screenKey,
+  stampLayout,
   unusedWidgets,
   type ScreenLayout,
   type WidgetRows,
@@ -90,7 +92,10 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
   // should keep a clear screen rather than get the defaults back.
   const ownLayout = useMemo<ScreenLayout>(() => {
     if (stored === undefined || stored === null) return DEFAULT_PROJECT_LAYOUT;
-    return normalizeLayout(stored.layout, availableIds);
+    // Through the unit migration first: rows stored before the 6rem row unit
+    // are in 10.5rem units. Proposals below deliberately skip it — an agent
+    // authors in current units.
+    return normalizeLayout(migrateStoredLayout(stored.layout), availableIds);
   }, [stored, availableIds]);
 
   // ── A suggestion from an agent ──
@@ -152,7 +157,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
       // thing that knows a panel has been offered and not yet accepted. A guard
       // restated per caller is a guard the next surface forgets.
       if (previewingProposal !== null) return;
-      void saveLayout({ screenKey: key, layout: next }).catch((e) =>
+      void saveLayout({ screenKey: key, layout: stampLayout(next) }).catch((e) =>
         toast(errorMessage(e, "Couldn't save the arrangement"), {
           kind: "error",
         }),

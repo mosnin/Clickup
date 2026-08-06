@@ -58,6 +58,77 @@ const ROWS: WidgetRows[] = [1, 2, 3, 4, 5, 6];
  */
 export const MAX_WIDGET_ROWS: WidgetRows = 6;
 
+/**
+ * The row-unit version stored layouts are stamped with.
+ *
+ * Version 2 is the 6rem row unit. Rows saved before it (no marker) were
+ * counted in 10.5rem units — a "2" meant ~360px, which the new unit renders
+ * at 216px, so every resized panel on every saved screen came back at about
+ * sixty per cent of the height its owner chose. The stored number is not
+ * wrong, it is in a different unit; these helpers convert instead of clamp.
+ */
+export const LAYOUT_ROWS_VERSION = 2;
+
+/** Old unit (10.5rem + gap ≈ 192px/row) → new (6rem + gap ≈ 120px/row). */
+function rescaleLegacyRows(value: number): number {
+  return Math.round(value * 1.6);
+}
+
+/**
+ * Home's rows record (`userSettings.homeWidgetRows`), converted to current
+ * units. The record carries its own version under the reserved `__v` key
+ * (written by the mutation); a record without it predates the 6rem unit and
+ * every value is rescaled. Total: hostile or stale input degrades to {}.
+ */
+export function migrateStoredRows(
+  raw: unknown,
+): Partial<Record<string, WidgetRows>> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const rec = raw as Record<string, unknown>;
+  const versioned =
+    typeof rec.__v === "number" && rec.__v >= LAYOUT_ROWS_VERSION;
+  const out: Partial<Record<string, WidgetRows>> = {};
+  for (const [id, value] of Object.entries(rec)) {
+    if (id === "__v") continue;
+    const rows = clampRows(versioned || typeof value !== "number"
+      ? value
+      : rescaleLegacyRows(value));
+    if (rows !== undefined) out[id] = rows;
+  }
+  return out;
+}
+
+/**
+ * A stored screen layout (`screens.layoutFor`), rows converted to current
+ * units when the blob predates the 6rem unit (no top-level `v`). Applied at
+ * the STORED-layout read site only — never inside `normalizeLayout` — so
+ * agent proposals and in-memory layouts, which are already in current units,
+ * are never rescaled by accident.
+ */
+export function migrateStoredLayout(input: unknown): unknown {
+  if (!input || typeof input !== "object") return input;
+  const version = (input as { v?: unknown }).v;
+  if (typeof version === "number" && version >= LAYOUT_ROWS_VERSION)
+    return input;
+  const raw = (input as { widgets?: unknown }).widgets;
+  if (!Array.isArray(raw)) return input;
+  return {
+    ...input,
+    v: LAYOUT_ROWS_VERSION,
+    widgets: raw.map((entry) => {
+      const rows = (entry as { rows?: unknown })?.rows;
+      return typeof rows === "number"
+        ? { ...entry, rows: rescaleLegacyRows(rows) }
+        : entry;
+    }),
+  };
+}
+
+/** What `saveLayout` should store: the layout stamped with its row unit. */
+export function stampLayout(layout: ScreenLayout): ScreenLayout & { v: number } {
+  return { ...layout, v: LAYOUT_ROWS_VERSION };
+}
+
 function clampSpan(value: unknown, fallback: WidgetSpan = 1): WidgetSpan {
   const n = typeof value === "number" ? Math.round(value) : Number.NaN;
   return (SPANS as number[]).includes(n) ? (n as WidgetSpan) : fallback;

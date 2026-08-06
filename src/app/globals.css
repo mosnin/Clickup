@@ -1016,6 +1016,65 @@ body {
   color: var(--color-foreground);
 }
 
+/* ── Entrances ────────────────────────────────────────────────────────────
+   The app's arrival language: things rise into place and settle, they do not
+   blink on. One curve (the long-tail ease-out the motion system already
+   uses), applied three ways — a block rising, a column growing from its
+   baseline, the nav cascading in. All of it collapses to "instant" under
+   reduced motion, which is what "no motion" should mean. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.rise-in {
+  animation: rise-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* A chart column growing out of its baseline. The delay rides a CSS var so a
+   row of columns can stagger without a rule per column. */
+.grow-col {
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1) var(--grow-delay, 0ms);
+}
+.grow-col-on {
+  transform: scaleY(1);
+}
+
+/* The nav arrives as a cascade — each row a beat after the one above it,
+   once, on load. Capped at twelve rows so a long tree doesn't spend a second
+   trickling in. */
+[data-slot="sidebar-content"] [data-slot="sidebar-menu-item"] {
+  animation: rise-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+[data-slot="sidebar-content"] [data-slot="sidebar-menu-item"]:nth-child(1) { animation-delay: 30ms; }
+[data-slot="sidebar-content"] [data-slot="sidebar-menu-item"]:nth-child(2) { animation-delay: 60ms; }
+[data-slot="sidebar-content"] [data-slot="sidebar-menu-item"]:nth-child(3) { animation-delay: 90ms; }
+[data-slot="sidebar-content"] [data-slot="sidebar-menu-item"]:nth-child(4) { animation-delay: 120ms; }
+[data-slot="sidebar-content"] [data-slot="sidebar-menu-item"]:nth-child(5) { animation-delay: 150ms; }
+[data-slot="sidebar-content"] [data-slot="sidebar-menu-item"]:nth-child(6) { animation-delay: 180ms; }
+[data-slot="sidebar-content"] [data-slot="sidebar-menu-item"]:nth-child(7) { animation-delay: 210ms; }
+[data-slot="sidebar-content"] [data-slot="sidebar-menu-item"]:nth-child(8) { animation-delay: 240ms; }
+[data-slot="sidebar-content"] [data-slot="sidebar-menu-item"]:nth-child(9) { animation-delay: 270ms; }
+[data-slot="sidebar-content"] [data-slot="sidebar-menu-item"]:nth-child(n + 10) { animation-delay: 300ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise-in,
+  [data-slot="sidebar-content"] [data-slot="sidebar-menu-item"] {
+    animation: none;
+  }
+  .grow-col {
+    transition: none;
+    transform: none;
+  }
+}
+
 /* The op-art breathing. Slow enough to be felt rather than seen — a mark that
    visibly spins is a loading indicator. */
 @keyframes slow-breathe {
@@ -1559,6 +1618,9 @@ body {
   color: var(--color-foreground);
 }
 .segmented-on {
+  /* A hairline as well as the fill — raised-white on a near-white sheet has
+     nothing to raise against, the same lesson `.panel` already paid for. */
+  box-shadow: inset 0 0 0 1px var(--color-border);
   background: var(--color-background);
   color: var(--color-foreground);
   font-weight: 500;

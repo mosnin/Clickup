@@ -35,4 +35,6 @@ export const SHELL_INSET =
 export const SHELL_PROVIDER = "app-slab flex";
 
 /** The gutter every dashboard page is drawn inside. */
-export const SHELL_PAGE = "w-full px-4 py-6 sm:px-6";
+// More air than it had: Apple's surfaces breathe, and the old 16px phone
+// gutter put cards two hairlines from the slab's own edge.
+export const SHELL_PAGE = "w-full px-5 py-7 sm:px-8";

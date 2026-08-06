@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 // Semicircular gauge (Cyberlock "Current Score" reference). Pure SVG + CSS —
@@ -18,12 +21,22 @@ export function GaugeArc({
 }) {
   // Guard max === 0 (and negative/NaN-ish inputs) — pct must land in [0,100]
   // or the dash pattern wraps and draws a phantom second arc.
-  const pct = max > 0 ? Math.min(Math.max(value / max, 0), 1) * 100 : 0;
+  const target = max > 0 ? Math.min(Math.max(value / max, 0), 1) * 100 : 0;
+  // First paint draws the arc at zero; the real value lands a frame later and
+  // the CSS dasharray transition sweeps it in — the needle EARNS its reading.
+  // Reduced motion never sees the zero frame: the transition below is cut by
+  // the same media query that cuts every other entrance.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setArmed(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  const pct = armed ? target : 0;
 
   // Knob position: 180° sweep over radius 80 centred at (100,100). pct 0 sits
   // at the left mouth (20,100), pct 100 at the right (180,100), so the angle
   // walks π → 0 as pct climbs. SVG y grows downward, hence the subtraction.
-  const theta = Math.PI * (1 - pct / 100);
+  const theta = Math.PI * (1 - target / 100);
   const knobX = 100 + 80 * Math.cos(theta);
   const knobY = 100 - 80 * Math.sin(theta);
 
@@ -47,18 +60,28 @@ export function GaugeArc({
           strokeLinecap="round"
           pathLength={100}
           strokeDasharray={`${pct} 100`}
-          style={{ transition: "stroke-dasharray 0.6s ease" }}
+          className="motion-reduce:transition-none"
+          style={{ transition: "stroke-dasharray 0.8s cubic-bezier(0.22, 1, 0.36, 1)" }}
         />
         {/* Knob at the arc's end. Skipped when max === 0: a needle pointing at
             "0 of nothing" asserts a reading that doesn't exist. */}
         {max > 0 && (
           <>
-            <circle cx={knobX} cy={knobY} r={9} fill="#fff" />
+            <circle
+              cx={knobX}
+              cy={knobY}
+              r={9}
+              fill="#fff"
+              opacity={armed ? 1 : 0}
+              style={{ transition: "opacity 0.3s ease 0.7s" }}
+            />
             <circle
               cx={knobX}
               cy={knobY}
               r={3.5}
               fill="var(--color-signal-ink)"
+              opacity={armed ? 1 : 0}
+              style={{ transition: "opacity 0.3s ease 0.7s" }}
             />
           </>
         )}

@@ -191,7 +191,10 @@ describe("resolving", () => {
     const forAlice = await t
       .withIdentity(ALICE)
       .query(api.screens.layoutFor, { screenKey });
-    expect(forAlice?.layout).toEqual(LAYOUT);
+    // Stamped with the row-unit version on acceptance: an agent authors in
+    // current units but doesn't stamp, and an unstamped blob would be
+    // rescaled by the client's legacy-unit migration on the next read.
+    expect(forAlice?.layout).toEqual({ ...LAYOUT, v: 2 });
     // Consent is per-person: Bob's screen did not move.
     const forBob = await t
       .withIdentity(BOB)

@@ -57,7 +57,11 @@ import {
   panelIdFromWidgetId,
   panelWidgetId,
 } from "@/lib/panel";
-import { replaceWidget, type WidgetRows } from "@/lib/screen-layout";
+import {
+  migrateStoredRows,
+  replaceWidget,
+  type WidgetRows,
+} from "@/lib/screen-layout";
 
 // Home: the Square dashboard-5 shell's page composition (Phase H), wired to
 // live Convex data. Two reactive queries drive every tile — homeOverview.get
@@ -173,13 +177,15 @@ function spanOf(id: WidgetId): 1 | 2 | 3 {
 // so nothing is persisted and a redesign of a block still reaches everyone who
 // never resized it. Anyone who has dragged a corner keeps their own height.
 const DEFAULT_ROWS: Record<BuiltInId, [one: WidgetRows, two: WidgetRows, three: WidgetRows]> = {
-  //          1 col  2 cols  3 cols
-  stats: [5, 5, 3],
-  today: [4, 3, 3],
-  activity: [5, 4, 4],
-  projects: [6, 6, 4],
-  live: [5, 5, 4],
-  agents: [3, 3, 3],
+  //          1 col  2 cols  3 cols   (measured: 365/365/260 · 462/309/309 …)
+  //          1 col  2 cols  3 cols — neighbours share heights so the grid's
+  //          bottoms LINE UP: today==activity, live==agents at three columns.
+  stats: [4, 4, 3],
+  today: [5, 4, 4],
+  activity: [4, 4, 4],
+  projects: [4, 5, 4],
+  live: [5, 4, 4],
+  agents: [3, 3, 4],
 };
 /** Mirrors the grid's own thresholds (Tailwind's `@md` 28rem, `@3xl` 48rem). */
 function columnsFor(gridWidth: number): 1 | 2 | 3 {
@@ -302,7 +308,10 @@ export default function DashboardHome() {
   // someone who never resized it.
   const rows: Partial<Record<string, WidgetRows>> =
     rowDraft ??
-    ((settings?.homeWidgetRows ?? {}) as Partial<Record<string, WidgetRows>>);
+    // Through the unit migration: rows saved before the 6rem row unit are in
+    // 10.5rem units and would otherwise render every resized panel at ~60%
+    // of the height its owner chose.
+    migrateStoredRows(settings?.homeWidgetRows);
 
   /** This screen's arrangement in the shared layout vocabulary. */
   const layout = {
@@ -409,11 +418,6 @@ export default function DashboardHome() {
       .filter((id) => !order.includes(id)),
   ];
 
-  // totalAgentsOnline counts the whole fleet; overview.agents is a display
-  // preview capped at 8 and would undercount larger fleets.
-  const agentsOnline =
-    overview.totalAgentsOnline ??
-    overview.agents.filter((a) => a.online).length;
   const waiting = agents
     ? [...agents.personal, ...agents.workspaces.flatMap((w) => w.agents)].filter(
         (a) => a.status === "active" && a.lastSeenAt === undefined,
@@ -487,8 +491,6 @@ export default function DashboardHome() {
         // a card containing cards. Its members are already the surface.
         return (
           <StatsCards
-            agents={ov.agents}
-            agentsOnline={agentsOnline}
             completions7d={ov.completions7d}
             me={ov.me}
             // The one thing on the whole screen that says what to do NEXT
@@ -799,30 +801,22 @@ function WelcomeReveal() {
 
 function StatsCards({
   me,
-  agentsOnline,
-  agents,
   completions7d,
   nextTask,
 }: {
   me: Overview["me"];
-  agentsOnline: number;
-  agents: Overview["agents"];
   completions7d?: number[];
   nextTask?: { title: string; href: string } | null;
 }) {
   const doneThisWeek = (completions7d ?? []).reduce((a, b) => a + b, 0);
 
   return (
-    // Two columns on a phone (the tall block takes both), four from `@3xl`:
-    // the tall block takes two, the stacked pair one, the card one. Measured
-    // against the GRID, never the window — this panel's width is decided by
-    // its span and by whether the nav is open.
-    // Explicit placement from `@3xl`, because auto-flow gets this wrong in a
-    // way that looks like a bug: the two small blocks want to be STACKED in
-    // one column with the card beside them spanning both rows, and left to
-    // itself the grid put them side by side and wrapped the card underneath.
-    // Four columns, two rows: headline 1-2, the pair stacked in 3, card in 4.
-    <Stagger className="grid h-full grid-cols-2 grid-rows-2 gap-3 @3xl:grid-cols-4">
+    // THREE columns above @3xl, matching the outer grid's own thirds, with
+    // the SAME 24px gap the grid uses between tiles (gap-6 = ROW_GAP). This
+    // is what makes the hero's internal seams land exactly on the seams of
+    // the panels below it — "the cards don't line up" was this block running
+    // its own four-column, 12px world inside a three-column, 24px page.
+    <Stagger className="grid h-full grid-cols-2 grid-rows-2 gap-6 @3xl:grid-cols-3">
       {/* ── The headline block ─────────────────────────────────────────── */}
       <StaggerItem lift className="col-span-2 row-span-2 min-h-0">
         <Link
@@ -948,72 +942,6 @@ function StatsCards({
         </Link>
       </StaggerItem>
 
-      {/* ── The white card ─────────────────────────────────────────────── */}
-      {/* A list belongs in a card and not on a colour field: the reference
-          does exactly this, and it is not an aesthetic preference — three
-          names in three weights over a saturated fill is unreadable. */}
-      <StaggerItem lift className="col-span-2 row-span-2 min-h-0 @3xl:col-span-1 @3xl:col-start-4 @3xl:row-start-1">
-        {/* White even when the app is dark — the reference's fourth block is a
-              white card on the dark window, and the island class is what keeps
-              every token inside it (muted text, hairlines) drawn for white. */}
-          <div className="ui-light-island bento flex h-full min-h-0 flex-col overflow-hidden rounded-2xl p-4">
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Agents
-            </span>
-            <span className="ui-figure text-[11px] text-muted-foreground">
-              {agentsOnline} online
-            </span>
-          </div>
-          {agents.length === 0 ? (
-            <Link
-              href="/dashboard/agents"
-              className="mt-auto flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              Connect your first agent
-              <ArrowRight aria-hidden className="size-3.5" />
-            </Link>
-          ) : (
-            <ul className="mt-2 min-h-0 overflow-hidden">
-              {agents.slice(0, 3).map((agent) => (
-                <li key={agent.agentId}>
-                  {/* Name, a slashed descriptor, and an arrow out — the
-                      reference's list row, which says what a thing IS beside
-                      its name rather than under it. */}
-                  <Link
-                    href={`/dashboard/agents/${agent.agentId}`}
-                    className="group flex items-center gap-2 border-b border-border py-2 last:border-b-0"
-                  >
-                    <span className="truncate text-sm font-semibold group-hover:underline">
-                      {agent.name}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                      / {agent.statusText || "idle"}
-                    </span>
-                    <ArrowUpRight
-                      aria-hidden
-                      className="size-3.5 shrink-0 text-muted-foreground"
-                    />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-          {agents.length > 0 && (
-            // Pinned to the bottom rather than sitting under the last row: the
-            // card is two rows tall by design and three agents do not fill it,
-            // so without this the slack fell as a hole under the list instead
-            // of as the card's own footer.
-            <Link
-              href="/dashboard/agents"
-              className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              All agents
-              <ArrowRight aria-hidden className="size-3.5" />
-            </Link>
-          )}
-        </div>
-      </StaggerItem>
     </Stagger>
   );
 }
@@ -1042,7 +970,7 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
     const tomorrowStart = startOfToday() + 24 * 60 * 60 * 1000;
     return rows
       .filter((r) => r.dueDate !== undefined && r.dueDate < tomorrowStart)
-      .slice(0, 8);
+      .slice(0, 7);
   }, [rows]);
 
   async function complete(row: MyWorkRow) {
@@ -1059,8 +987,8 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+    <div className="flex h-full min-w-0 flex-col">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
         <h3 className="text-base font-medium">Today&apos;s tasks</h3>
         {dueTasks.length > 0 && (
           <span className="text-xs text-muted-foreground">
@@ -1096,7 +1024,7 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
                     the meta drops to its own line underneath and the title
                     gets the whole width, and when there is room they sit on
                     one line exactly as before. */}
-                <div className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/20">
+                <div className="flex items-start gap-3 px-5 py-2.5 transition-colors hover:bg-muted/20">
                   <Checkbox
                     className="mt-0.5 flex-shrink-0"
                     aria-label={`Mark "${row.title}" complete`}
@@ -1151,6 +1079,13 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
           })}
         </Stagger>
       )}
+      <Link
+        href="/dashboard/my-work"
+        className="mt-auto flex items-center justify-between gap-2 border-t border-border px-5 py-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        Open my work
+        <ArrowRight aria-hidden className="size-3.5" />
+      </Link>
     </div>
   );
 }
@@ -1180,18 +1115,24 @@ function PulsePanel({
   projects: Project[];
 }) {
   const done = (completions7d ?? []).reduce((a, b) => a + b, 0);
-  const columns = projects.slice(0, 8).map((project) => ({
-    label: project.name.split(/[ —–-]/)[0] || project.name,
-    segments: [
-      { value: project.done, color: "var(--color-signal-lime)" },
-      { value: project.inProgress, color: "var(--color-signal-teal)" },
-      { value: project.dueSoon, color: "var(--color-signal-yellow)" },
-      { value: project.overdue, color: "var(--color-danger)" },
-    ],
-  }));
+  // Six columns, and a label is abbreviated DELIBERATELY (first three
+  // letters) rather than ellipsised mid-word by CSS — "Onb…" is not a label,
+  // "Onb" at least admits to being an abbreviation.
+  const columns = projects.slice(0, 6).map((project) => {
+    const word = project.name.split(/[ —–-]/)[0] || project.name;
+    return {
+      label: word.length > 7 ? word.slice(0, 3) : word,
+      segments: [
+        { value: project.done, color: "var(--color-signal-lime)" },
+        { value: project.inProgress, color: "var(--color-signal-teal)" },
+        { value: project.dueSoon, color: "var(--color-signal-yellow)" },
+        { value: project.overdue, color: "var(--color-danger)" },
+      ],
+    };
+  });
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+    <div className="flex h-full min-w-0 flex-col">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
         <h3 className="text-base font-medium">Pulse</h3>
         <span className="text-xs text-muted-foreground">last 7 days</span>
       </div>
@@ -1206,7 +1147,7 @@ function PulsePanel({
           <StackedColumns items={columns} height={116} />
           {/* The key, in the same four colours. A multicolour chart with no
               key is a mood; with one it is a reading. */}
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-muted-foreground @md:flex @md:flex-wrap @md:items-center">
             {(
               [
                 ["done", "var(--color-signal-lime)"],
@@ -1304,10 +1245,26 @@ function ProjectCards({
         </Link>
       </div>
       <Stagger className="grid grid-cols-1 gap-3 @2xl:grid-cols-2">
-        {shown.map((project) => {
+        {shown.map((project, index) => {
           const lime = project === urgent;
           return (
-            <StaggerItem key={project.listId} lift className="min-w-0">
+            <StaggerItem
+              key={project.listId}
+              lift
+              className={cn(
+                "min-w-0",
+                // The fourth card exists only where the grid is two-across.
+                // Stacked single-file it pushed the section past the tallest
+                // tile the screen allows, and a section that scrolls its own
+                // cards is a hole wearing a scrollbar.
+                index === 3 && "hidden @2xl:block",
+                // And the third only where there is at least a phablet of
+                // room — two cards on a phone, three on a tablet, four on a
+                // desktop. The count follows the container, like everything
+                // else in a panel.
+                index === 2 && "hidden @sm:block",
+              )}
+            >
               <NotchCard
                 tone={lime ? "lime" : "panel"}
                 corner={
@@ -1391,10 +1348,10 @@ function ProjectCards({
   );
 }
 function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
-  const visible = ticker.slice(0, 8);
+  const visible = ticker.slice(0, 7);
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden">
-      <div className="border-b border-border px-4 py-3">
+    <div className="flex h-full min-w-0 flex-col">
+      <div className="border-b border-border px-5 py-3.5">
         <h3 className="text-base font-medium">Live</h3>
       </div>
       <div className="p-4">
@@ -1467,11 +1424,13 @@ function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
 
 function AgentsCard({ agents }: { agents: Overview["agents"] }) {
   const card = (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden">
-      <div className="border-b border-border px-4 py-3">
+    <div className="flex h-full min-w-0 flex-col">
+      <div className="border-b border-border px-5 py-3.5">
         <h3 className="text-base font-medium">Agents online</h3>
       </div>
-      <div className="p-4">
+      {/* Own scroll region + bottom padding clearing the resize grip's
+          corner, so the last row is read, not bisected. */}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-8">
         {agents.length === 0 ? (
           <EmptyState
             compact

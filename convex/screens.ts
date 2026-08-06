@@ -144,6 +144,15 @@ export const resolveProposal = mutation({
     });
 
     if (accept) {
+      // Agents author in current row units but don't stamp the version
+      // marker; storing the blob unstamped would make the client's legacy
+      // unit migration (src/lib/screen-layout.ts) rescale it on next read.
+      const layout =
+        proposal.layout &&
+        typeof proposal.layout === "object" &&
+        !Array.isArray(proposal.layout)
+          ? { ...(proposal.layout as Record<string, unknown>), v: 2 }
+          : proposal.layout;
       const existing = await ctx.db
         .query("screenLayouts")
         .withIndex("by_user_and_screen", (q) =>
@@ -154,14 +163,14 @@ export const resolveProposal = mutation({
         .unique();
       if (existing) {
         await ctx.db.patch(existing._id, {
-          layout: proposal.layout,
+          layout,
           updatedAt: Date.now(),
         });
       } else {
         await ctx.db.insert("screenLayouts", {
           userClerkId: identity.subject,
           screenKey: proposal.screenKey,
-          layout: proposal.layout,
+          layout,
           updatedAt: Date.now(),
         });
       }

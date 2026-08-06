@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Bell, Menu, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useQuery } from "convex/react";
+import { motion } from "motion/react";
+import { SPRING } from "@/components/motion";
 import { api } from "@convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -109,7 +111,22 @@ export function PageHeader({
         className,
       )}
     >
-      <div className="ui-light-island flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-full border border-border py-1.5 pl-4 pr-2 shadow-md">
+      {/* Surface tokens, not a light island. The white-in-dark capsule was
+          taken from the reference and it read as a defect — "a massive light
+          strip at the top" — because unlike the reference we are not
+          pitch-black everywhere else: against our charcoal panels and lime
+          backdrop a huge white bar is a third loud thing, and Apple would
+          never open a dark surface with one. The capsule is chrome; chrome
+          wears the theme. */}
+      {/* Arrives from above and settles on the spring every other moving
+          thing in the app uses. It replays on route changes, which is the
+          point: the chrome greets each screen instead of being furniture. */}
+      <motion.div
+        initial={{ y: -14, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={SPRING}
+        className="flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-full border border-border bg-card py-1.5 pl-4 pr-2 shadow-md"
+      >
         <div className="flex min-w-0 items-center gap-2.5">
           <button
             type="button"
@@ -141,7 +158,7 @@ export function PageHeader({
           {actions}
           <CapsuleCluster />
         </div>
-      </div>
+      </motion.div>
       {children && <div className="pt-2">{children}</div>}
     </div>
     {headline !== false && (
@@ -179,7 +196,7 @@ function CapsuleCluster() {
       <Link
         href="/dashboard/inbox"
         aria-label={unread > 0 ? `Inbox, ${unread} unread` : "Inbox"}
-        className="relative flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-muted"
+        className="relative flex size-9 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-muted"
       >
         <Bell aria-hidden className="size-4" />
         {unread > 0 && (

@@ -415,7 +415,9 @@ galleryData["userSettings.current"] = CUSTOMISED
         live: 2,
         agents: 1,
       },
-      homeWidgetRows: { today: 2, activity: 1, live: 1, agents: 2 },
+      // `__v: 2` = current 6rem row units, the marker the real mutation
+      // stamps; without it these would be migrated as legacy 10.5rem rows.
+      homeWidgetRows: { __v: 2, today: 2, activity: 1, live: 1, agents: 2 },
     }
   : null;
 
@@ -617,7 +619,7 @@ if (ARRIVAL) {
     clerkId: "u1",
     homeWidgets: ["stats", "today", "activity", "projects", "live"],
     homeWidgetSpans: { stats: 3, today: 2, activity: 1, projects: 3, live: 2 },
-    homeWidgetRows: { today: 2, activity: 1, live: 1 },
+    homeWidgetRows: { __v: 2, today: 2, activity: 1, live: 1 },
   };
   galleryData["situations.forScreen"] = [ARRIVING_ROW];
 
@@ -639,7 +641,8 @@ if (ARRIVAL) {
       clerkId: "u1",
       homeWidgets: a.homeWidgets ?? undefined,
       homeWidgetSpans: a.spans ?? {},
-      homeWidgetRows: a.rows ?? {},
+      // The real mutation stamps the row-unit version on every write.
+      homeWidgetRows: a.rows ? { ...a.rows, __v: 2 } : {},
     };
   };
 }

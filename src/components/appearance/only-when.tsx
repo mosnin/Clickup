@@ -505,7 +505,7 @@ export function OnlyWhenList({ screenKey }: { screenKey: string }) {
   if (visible.length === 0) return null;
 
   return (
-    <section className="mt-4 border-t border-border/60 pt-4">
+    <section className="-mx-4 mt-4 border-t border-border/60 px-4 pt-4">
       <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         Only here sometimes
       </span>

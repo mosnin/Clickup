@@ -49,8 +49,11 @@ export const setHomeWidgets = mutation({
         if (span === 1 || span === 2 || span === 3) homeWidgetSpans[id] = span;
       }
     }
-    // Same shape as spans: only widths this build understands, so a row
-    // written by a newer one cannot put a panel at nine rows tall.
+    // Same shape as spans: only heights this build understands, so a row
+    // written by a newer one cannot put a panel at nine rows tall. Six steps
+    // since the 6rem row unit — the old 1–3 clamp silently dropped every
+    // drag past three rows, so tall tiles snapped back on the next
+    // subscription update while the mutation reported success.
     let homeWidgetRows: Record<string, number> | undefined;
     if (args.rows === null) {
       homeWidgetRows = undefined;
@@ -59,8 +62,19 @@ export const setHomeWidgets = mutation({
       for (const [id, value] of Object.entries(
         args.rows as Record<string, unknown>,
       )) {
-        if (value === 1 || value === 2 || value === 3) homeWidgetRows[id] = value;
+        if (
+          typeof value === "number" &&
+          Number.isInteger(value) &&
+          value >= 1 &&
+          value <= 6
+        ) {
+          homeWidgetRows[id] = value;
+        }
       }
+      // The record carries its own unit version: rows stored before the
+      // 6rem row unit (no marker) are in 10.5rem units and are rescaled on
+      // read — see migrateStoredRows in src/lib/screen-layout.ts.
+      homeWidgetRows.__v = 2;
     }
 
     const patch = {

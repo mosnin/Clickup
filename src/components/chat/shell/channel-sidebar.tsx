@@ -420,7 +420,12 @@ function SidebarScroller({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="relative min-h-0 flex-1">
-      <div ref={ref} className="chat-scroll absolute inset-0">
+      {/* `pb-9`: the floating unread pill's footprint. Without it the pill
+          sits ON the last row's text at full scroll — the audit caught it
+          covering a person's name, which is chrome that reads as broken. With
+          the reserve, the fully-scrolled state ends in air, and mid-scroll
+          the pill only ever overlaps the row it is pointing PAST. */}
+      <div ref={ref} className="chat-scroll absolute inset-0 pb-9">
         {children}
       </div>
       {overflow.above > 0 ? (

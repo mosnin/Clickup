@@ -14,6 +14,10 @@ import {
   insertWidget,
   describeLayoutChange,
   hoveredIndex,
+  migrateStoredRows,
+  migrateStoredLayout,
+  stampLayout,
+  LAYOUT_ROWS_VERSION,
 } from "../src/lib/screen-layout";
 
 // The layout engine. The property that shapes all of it:
@@ -374,5 +378,65 @@ describe("which tile a drag is over", () => {
     expect(
       hoveredIndex([boxes[0], null, boxes[2]], { x: 50, y: 150 }, 0),
     ).toBe(2);
+  });
+});
+
+describe("legacy row-unit migration", () => {
+  // The 6rem row unit halved what a stored number means. Rows written before
+  // it (no version marker) are in 10.5rem units — a "2" meant ~360px, which
+  // the new unit renders at 216px. Migration converts, never clamps blindly:
+  // old 1 → 2, 2 → 3, 3 → 5 (nearest new rows by pixel height).
+
+  it("rescales an unversioned Home rows record", () => {
+    expect(migrateStoredRows({ a: 1, b: 2, c: 3 })).toEqual({
+      a: 2,
+      b: 3,
+      c: 5,
+    });
+  });
+
+  it("leaves a versioned rows record alone and strips the marker", () => {
+    expect(migrateStoredRows({ __v: 2, a: 1, b: 6 })).toEqual({ a: 1, b: 6 });
+  });
+
+  it("degrades hostile rows input to nothing", () => {
+    for (const input of [null, undefined, 42, "x", [1, 2]]) {
+      expect(migrateStoredRows(input)).toEqual({});
+    }
+    // Junk values are dropped, not repaired into a height nobody chose.
+    expect(migrateStoredRows({ a: "tall", b: Number.NaN, c: 99 })).toEqual({});
+  });
+
+  it("rescales an unversioned stored layout's rows", () => {
+    const migrated = migrateStoredLayout({
+      widgets: [
+        { id: "about", span: 1, rows: 2 },
+        { id: "lists", span: 2 },
+      ],
+    }) as { v: number; widgets: { id: string; rows?: number }[] };
+    expect(migrated.v).toBe(LAYOUT_ROWS_VERSION);
+    expect(migrated.widgets[0].rows).toBe(3);
+    // A widget that never declared a height still doesn't have one.
+    expect(migrated.widgets[1].rows).toBeUndefined();
+  });
+
+  it("leaves a stamped layout untouched", () => {
+    const stamped = { v: 2, widgets: [{ id: "about", span: 1, rows: 2 }] };
+    expect(migrateStoredLayout(stamped)).toBe(stamped);
+  });
+
+  it("round-trips: what save stamps, the read migration trusts", () => {
+    const saved = stampLayout({ widgets: [{ id: "about", span: 1, rows: 4 }] });
+    const back = normalizeLayout(migrateStoredLayout(saved), AVAILABLE);
+    expect(back.widgets).toEqual([{ id: "about", span: 1, rows: 4 }]);
+  });
+
+  it("migrated legacy rows survive normalizeLayout's clamp", () => {
+    const back = normalizeLayout(
+      migrateStoredLayout({ widgets: [{ id: "about", span: 1, rows: 3 }] }),
+      AVAILABLE,
+    );
+    // Old 3 (the old maximum, ~552px) lands at 5 (~576px), inside 1–6.
+    expect(back.widgets[0].rows).toBe(5);
   });
 });

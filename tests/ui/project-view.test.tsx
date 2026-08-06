@@ -15,6 +15,8 @@ vi.mock("@/components/motion", () => ({
   motion: { div: "div" },
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
   EASE: [0, 0, 1, 1],
+  // PageHeader's capsule rides the shared spring now.
+  SPRING: {},
 }));
 
 const { ProjectView } = await import(

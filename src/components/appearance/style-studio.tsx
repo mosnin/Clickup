@@ -835,7 +835,7 @@ function ShelfHint({ applyOnCentre }: { applyOnCentre: boolean }) {
         ⇢
       </motion.span>
       {applyOnCentre
-        ? "Swipe — the middle one is applied"
+        ? "Swipe — the centred card is applied"
         : "Swipe, then press to use one"}
     </motion.p>
   );
