@@ -408,7 +408,10 @@ async function shootOnlyWhenList(width, label) {
   await p.goto("http://127.0.0.1:4599/home.html?situations=1");
   await p.waitForTimeout(2000);
   // Through the page's own switch — the tray only exists while arranging.
-  await p.getByRole("button", { name: "Customize", exact: true }).click();
+  // .last(): the spelling unification made the sidebar footer's Customise and
+  // the capsule's identical; the capsule's (inside the inset, later in DOM) is
+  // the one this flow means.
+  await p.getByRole("button", { name: "Customise", exact: true }).last().click();
   await p.waitForTimeout(900);
   const list = p.getByText("Only here sometimes");
   await list.scrollIntoViewIfNeeded().catch(() => {});
