@@ -77,16 +77,6 @@ export default async function DashboardLayout({
           <SidebarInset data-mode-surface="content" className={SHELL_INSET}>
             <div className={SHELL_PAGE}>{children}</div>
           </SidebarInset>
-          {/* One continuous brand gradient across the entire viewport's bottom
-              edge — the single strip of product flair, coherent by
-              construction (unlike per-panel strips that restart at seams). */}
-          {/* `absolute`, not `fixed`: the strip belongs to the app window's
-              bottom edge, and fixed would pin it to the viewport — outside the
-              slab, lying on the backdrop. */}
-          <div
-            aria-hidden
-            className="gradient-strip pointer-events-none absolute inset-x-0 bottom-0 z-50"
-          />
           {/* The way back to the nav when it is floating and hidden. A
               floating sidebar that can be dismissed with no visible way to
               return is a trap, and the shell's own trigger lives inside the

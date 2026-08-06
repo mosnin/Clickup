@@ -251,7 +251,7 @@ function TaskRow({
             the row's own width, not a viewport breakpoint. */}
         <span className="flex flex-shrink-0 flex-wrap items-center gap-1.5">
           {needsApproval && (
-            <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] font-medium text-foreground/80 dark:text-neutral-900/80">
+            <span className="ui-chip inline-flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium">
               <ShieldAlert className="h-3 w-3" aria-hidden /> Approval
             </span>
           )}

@@ -33,7 +33,6 @@ import { PriorityDot } from "@/components/dashboard/priority";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { BorderBeam } from "@/components/ui/beam";
 import GradientText from "@/components/gradient-text";
 import { errorMessage } from "@/lib/errors";
 import { wake } from "@/lib/anime";
@@ -44,7 +43,7 @@ import {
 import { ActorGlyph } from "@/components/appearance/actor-glyph";
 import { Panel } from "@/components/dashboard/panel";
 import { StyledSurface } from "@/components/dashboard/styled-surface";
-import { OpRings, SparkMark } from "@/components/dashboard/op-art";
+import { SparkMark } from "@/components/dashboard/op-art";
 import { GaugeArc } from "@/components/charts/gauge-arc";
 import { StackedColumns } from "@/components/charts/stacked-columns";
 import { NotchCard } from "@/components/dashboard/notch-card";
@@ -80,23 +79,19 @@ type MyWorkRows = NonNullable<
 >;
 type MyWorkRow = MyWorkRows[number];
 
+// One chip language everywhere: outlined, with a small solid dot carrying
+// the state colour. The pastel FILLS were a third colour system fighting the
+// signal palette — a chip that shouts its fill reads as a button, and four
+// shouting chips beside a saturated bento is three colour systems on one
+// screen.
 const HEALTH_CHIP: Record<
   NonNullable<Project["projectStatus"]>,
-  { label: string; className: string }
+  { label: string; dot: string }
 > = {
-  on_track: {
-    label: "On track",
-    className: "bg-pastel-green dark:text-neutral-900",
-  },
-  at_risk: {
-    label: "At risk",
-    className: "bg-pastel-yellow dark:text-neutral-900",
-  },
-  off_track: {
-    label: "Off track",
-    className: "bg-pastel-red dark:text-neutral-900",
-  },
-  paused: { label: "Paused", className: "bg-muted" },
+  on_track: { label: "On track", dot: "bg-pastel-green" },
+  at_risk: { label: "At risk", dot: "bg-pastel-yellow" },
+  off_track: { label: "Off track", dot: "bg-pastel-red" },
+  paused: { label: "Paused", dot: "bg-muted-foreground/50" },
 };
 
 
@@ -579,7 +574,6 @@ export default function DashboardHome() {
             transition={{ duration: 0.5, ease: EASE }}
             className="overflow-hidden"
           >
-            <BorderBeam size="md" colorVariant="colorful">
             <Link
               href="/dashboard/agents"
               className="lift relative flex items-center gap-4 rounded-2xl panel p-5"
@@ -590,7 +584,7 @@ export default function DashboardHome() {
                     turns green on first heartbeat. A gentle pulse signals
                     waiting without the whole avatar strobing. */}
                 <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-card">
-                  <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-pastel-yellow" />
+                  <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-signal-yellow" />
                 </span>
               </span>
               <span className="min-w-0 flex-1">
@@ -604,7 +598,6 @@ export default function DashboardHome() {
               </span>
               <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
             </Link>
-            </BorderBeam>
           </motion.div>
         )}
       </AnimatePresence>
@@ -823,15 +816,9 @@ function StatsCards({
           href="/dashboard/my-work"
           className="relative flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-yellow p-5 text-signal-ink"
         >
-          {/* The mark. The reference's yellow block is mostly a hypnotic set
-              of rings, and it is the reason that block reads as a poster
-              rather than as a big form field — a saturated block must carry
-              art or it is carrying nothing. Full-contrast ink, like the
-              reference; breathing on a 16s cycle, off under reduced motion. */}
-          <OpRings
-            aria-hidden
-            className="slow-breathe pointer-events-none absolute -right-8 top-1/2 hidden h-64 w-64 -translate-y-1/2 @sm:block"
-          />
+          {/* No art mark — the founder cut the rings ("weird symbol"). The
+              block carries its figure and nothing else; the type IS the
+              poster. */}
           <span className="relative text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
             My work
           </span>
@@ -1175,15 +1162,10 @@ function HealthChip({ status }: { status: Project["projectStatus"] }) {
   const chip = status ? HEALTH_CHIP[status] : null;
   if (!chip) return <span className="text-sm text-muted-foreground">—</span>;
   return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "whitespace-nowrap border-transparent text-foreground",
-        chip.className,
-      )}
-    >
+    <span className="ui-chip inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium">
+      <span aria-hidden className={cn("size-1.5 rounded-full", chip.dot)} />
       {chip.label}
-    </Badge>
+    </span>
   );
 }
 
@@ -1481,14 +1463,9 @@ function AgentsCard({ agents }: { agents: Overview["agents"] }) {
       </div>
     </div>
   );
-  // Someone's actually online → the beam marks the card as live.
-  return agents.length > 0 ? (
-    <BorderBeam size="md" colorVariant="colorful" className="h-full">
-      {card}
-    </BorderBeam>
-  ) : (
-    card
-  );
+  // Presence dots already say "live" — a rainbow border around the card was
+  // a fourth colour system announcing what the rows announce quietly.
+  return card;
 }
 
 function DashboardSkeleton() {

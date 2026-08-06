@@ -48,23 +48,24 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: "paused", label: "Paused" },
 ];
 
+// Outlined chip + status dot — the one chip language, matching Home.
 const STATUS_CHIP: Record<
   NonNullable<ProjectRow["projectStatus"]>,
-  { label: string; className: string }
+  { label: string; dot: string }
 > = {
   on_track: {
     label: "On track",
-    className: "bg-pastel-green dark:text-neutral-900",
+    dot: "bg-pastel-green",
   },
   at_risk: {
     label: "At risk",
-    className: "bg-pastel-yellow dark:text-neutral-900",
+    dot: "bg-pastel-yellow",
   },
   off_track: {
     label: "Off track",
-    className: "bg-pastel-red dark:text-neutral-900",
+    dot: "bg-pastel-red",
   },
-  paused: { label: "Paused", className: "bg-muted" },
+  paused: { label: "Paused", dot: "bg-muted-foreground/50" },
 };
 
 // ── Sort ─────────────────────────────────────────────────────────────
@@ -435,15 +436,10 @@ function HealthChip({ status }: { status: ProjectRow["projectStatus"] }) {
   const chip = status ? STATUS_CHIP[status] : null;
   if (!chip) return null;
   return (
-    <Badge
-      variant="outline"
-      className={cn(
-        "whitespace-nowrap border-transparent text-foreground",
-        chip.className,
-      )}
-    >
+    <span className="ui-chip inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium">
+      <span aria-hidden className={cn("size-1.5 rounded-full", chip.dot)} />
       {chip.label}
-    </Badge>
+    </span>
   );
 }
 

@@ -40,7 +40,6 @@ import { ConnectSnippet } from "@/components/dashboard/connect-snippet";
 import { Tabs } from "@/components/interior/tabs";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { TerminalSurface } from "@/components/terminal-surface";
-import { OpRings } from "@/components/dashboard/op-art";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { eventHref, eventLabel } from "@/lib/event-labels";
@@ -421,10 +420,6 @@ function AgentsStatBento({
         {/* ── The headline block: agents online right now ─────────────── */}
         <StaggerItem lift className="col-span-2 row-span-2 min-h-0">
           <div className="relative flex h-full min-h-[10rem] flex-col justify-between overflow-hidden rounded-2xl bg-signal-yellow p-5 text-signal-ink">
-            <OpRings
-              aria-hidden
-              className="slow-breathe pointer-events-none absolute -right-8 top-1/2 hidden h-56 w-56 -translate-y-1/2 @sm:block"
-            />
             <span className="relative text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
               Fleet
             </span>
