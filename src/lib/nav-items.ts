@@ -5,9 +5,7 @@ import {
   FolderKanban,
   Home,
   Inbox,
-  LayoutTemplate,
   ListTodo,
-  MessageSquare,
   Search,
   type LucideIcon,
 } from "lucide-react";
@@ -23,16 +21,20 @@ import {
 //
 // One registry, both surfaces. Adding a destination is one entry.
 
+// "chat" and "templates" are deliberately NOT destinations. Chat is the other
+// half of the mode switcher at the top of the rail — a row for it below the
+// switcher was the same door twice. Templates are an act, not a place: they
+// are offered where a space is being created, and a gallery page you visit on
+// its own shows blueprints applied to nothing. Stored prefs holding either id
+// degrade silently through navPrefFrom's registry filter.
 export type NavItemId =
   | "home"
   | "inbox"
-  | "chat"
   | "my-work"
   | "spaces"
   | "projects"
   | "pages"
   | "agents"
-  | "templates"
   | "search";
 
 export type NavItem = {
@@ -51,7 +53,6 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   { id: "home", label: "Home", href: "/dashboard", icon: Home, exact: true, required: true },
   { id: "inbox", label: "Inbox", href: "/dashboard/inbox", icon: Inbox },
-  { id: "chat", label: "Chat", href: "/dashboard/chat", icon: MessageSquare },
   { id: "my-work", label: "My work", href: "/dashboard/my-work", icon: ListTodo, exact: true },
   { id: "spaces", label: "Spaces", href: "/dashboard/spaces", icon: FolderKanban, exact: true },
   // Two different questions: Spaces answers "where does this live", Projects
@@ -59,7 +60,6 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "projects", label: "Projects", href: "/dashboard/projects", icon: Columns3, exact: true },
   { id: "pages", label: "Pages", href: "/dashboard/pages", icon: FileText },
   { id: "agents", label: "Agents", href: "/dashboard/agents", icon: Bot },
-  { id: "templates", label: "Templates", href: "/dashboard/templates", icon: LayoutTemplate },
   { id: "search", label: "Search", href: "/dashboard/search", icon: Search, dockOnly: true },
 ];
 

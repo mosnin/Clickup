@@ -59,7 +59,6 @@ export default async function DashboardLayout({
         {/* The backdrop the window floats on. Fixed and behind everything so
             it survives the slab's own scrolling, and scoped to /dashboard so
             the marketing site keeps its own canvas. */}
-        <div aria-hidden className="app-backdrop fixed inset-0 -z-10" />
         <SidebarProvider defaultOpen={defaultOpen} className={SHELL_PROVIDER}>
           <EnsureUser />
           <NoSupportWidget />

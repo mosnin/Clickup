@@ -973,24 +973,8 @@ body {
    behind it. That is also what lets light mode be "all white" without being a
    blank document — the white is a defined object with edges, sitting on
    something. */
-/* The backdrop the window floats on. Explicit colours rather than
-   `--color-page`, because --color-page is read by surfaces INSIDE the app
-   (the studio sheet, plinths) and the backdrop must never leak onto them.
-
-   Light is AIHub's plain warm grey. Dark is Cyberlock's: the brand lime with
-   a tone-on-tone doodle scribbled across it — the single loudest thing either
-   reference does, and the thing that makes the dark window read as a designed
-   object instead of as a screenshot of an app. The doodle is an inline SVG
-   tile at ~7% ink, so it reads as texture at arm's length and as drawing up
-   close. */
-.app-backdrop {
-  background-color: #e8e8ec;
-}
-:root[data-theme="dark"] .app-backdrop {
-  background-color: var(--color-signal-lime);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23101010' stroke-opacity='0.07' stroke-width='7' stroke-linecap='round'%3E%3Cpath d='M-8 26 q 18 -26 36 0 t 36 0 t 36 0 t 36 0'/%3E%3Cpath d='M-8 86 q 18 -26 36 0 t 36 0 t 36 0 t 36 0'/%3E%3C/g%3E%3C/svg%3E");
-  background-size: 120px 120px;
-}
+/* (The `.app-backdrop` lime-doodle plane is gone with the window frame: the
+   app is full-bleed, so there is no longer any surface behind it to paint.) */
 
 /* A LIGHT ISLAND — a patch of the light theme carried into the dark app.
    Cyberlock's welcome capsule and AIHub's fourth bento block are both white
@@ -1097,33 +1081,23 @@ body {
 }
 
 .app-slab {
+  /* FULL BLEED — the inset "window on a backdrop" frame is gone by founder
+     decree: a border around the entire application read as ornament, not
+     structure. The class survives because its OTHER duties are load-bearing:
+     `position: relative` scopes the absolutely-positioned sidebar rail, and
+     pinning the height with its own overflow is what makes the inset — not
+     the document — the real scroll container, which is what lets a page's
+     sticky header actually stick.
+
+     `!important` is still earned: the vendored shell wrapper carries
+     `flex min-h-svh w-full` in the same cascade layer, so a plain rule loses
+     on source order. */
   position: relative;
-  /* `!important` on the box, and it is earned. The vendored shell wrapper
-     carries `flex min-h-svh w-full`, which are Tailwind utilities in the same
-     layer as anything written here — so a plain rule loses on source order and
-     the window renders full-bleed with no frame at all, which is exactly how
-     the first attempt shipped. The three properties overridden are the three
-     that decide whether this is a window or a page. */
   min-height: 0 !important;
-  height: calc(100svh - 0.75rem) !important;
-  width: calc(100% - 0.75rem) !important;
-  margin: 0.375rem;
-  border-radius: var(--ui-radius-app);
+  height: 100svh !important;
+  width: 100% !important;
   background: var(--color-background);
   overflow: hidden;
-  box-shadow:
-    0 1px 2px rgb(16 16 18 / 0.06),
-    0 24px 64px -28px rgb(16 16 18 / 0.3);
-}
-@media (min-width: 640px) {
-  .app-slab {
-    height: calc(100svh - 1.25rem) !important;
-    width: calc(100% - 1.25rem) !important;
-    margin: 0.625rem;
-  }
-}
-:root[data-theme="dark"] .app-slab {
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.06);
 }
 
 /* Nav rows are pills, like every other interactive thing in the product.
@@ -1149,14 +1123,19 @@ body {
   box-sizing: content-box;
   padding: 0.4375rem;
   border-radius: 9999px;
-  background: var(--color-sidebar-accent);
+  /* Resting glyphs are BARE. A grey coin behind every icon made the rail a
+     column of buttons before anything was chosen — the chip fill is reserved
+     for the one row that earned it (active = lime), which is also what makes
+     that fill legible as state rather than decoration. The padding stays so
+     the active circle lands without the row shifting. */
+  background: transparent;
   color: var(--color-sidebar-foreground);
   transition:
     background-color 0.18s ease,
     color 0.18s ease;
 }
 [data-slot="sidebar-menu-button"]:hover > svg:first-child {
-  background: color-mix(in srgb, var(--color-foreground) 12%, transparent);
+  background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
 }
 [data-slot="sidebar-menu-button"][data-active="true"] > svg:first-child {
   background: var(--color-signal-lime);

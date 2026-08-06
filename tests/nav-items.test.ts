@@ -26,7 +26,7 @@ describe("the shipped default", () => {
 
 describe("a person's own arrangement", () => {
   it("wins over the workspace's", () => {
-    const workspace = { order: ["home", "chat"] as NavItemId[], hidden: [] };
+    const workspace = { order: ["home", "pages"] as NavItemId[], hidden: [] };
     const personal = { order: ["home", "agents"] as NavItemId[], hidden: [] };
     expect(ids(resolveNav(personal, workspace)).slice(0, 2)).toEqual([
       "home",
@@ -37,10 +37,10 @@ describe("a person's own arrangement", () => {
   it("hides what they put away", () => {
     const personal = {
       order: DEFAULT_NAV_ORDER,
-      hidden: ["templates", "pages"] as NavItemId[],
+      hidden: ["my-work", "pages"] as NavItemId[],
     };
     const out = ids(resolveNav(personal, null));
-    expect(out).not.toContain("templates");
+    expect(out).not.toContain("my-work");
     expect(out).not.toContain("pages");
     expect(out).toContain("agents");
   });
@@ -61,19 +61,19 @@ describe("a person's own arrangement", () => {
 describe("a workspace default", () => {
   it("curates what somebody starts with", () => {
     const workspace = {
-      order: ["home", "my-work", "chat"] as NavItemId[],
-      hidden: ["templates", "pages", "spaces"] as NavItemId[],
+      order: ["home", "my-work", "inbox"] as NavItemId[],
+      hidden: ["pages", "spaces"] as NavItemId[],
     };
     const out = ids(resolveNav(null, workspace));
-    expect(out.slice(0, 3)).toEqual(["home", "my-work", "chat"]);
-    expect(out).not.toContain("templates");
+    expect(out.slice(0, 3)).toEqual(["home", "my-work", "inbox"]);
+    expect(out).not.toContain("pages");
   });
 
   it("is a starting point, not a prohibition", () => {
     // An admin omitting something means "most of us don't need this", not
     // "you may not have it". Governance lives in the Convex functions, never
     // in whether a link is drawn.
-    const workspace = { order: ["home", "chat"] as NavItemId[], hidden: [] };
+    const workspace = { order: ["home", "inbox"] as NavItemId[], hidden: [] };
     expect(ids(resolveNav(null, workspace))).toContain("agents");
   });
 });
@@ -122,10 +122,15 @@ describe("reading a stored row", () => {
       hidden: [],
     });
     // A bare array, and duplicates collapsed.
-    expect(navPrefFrom(["home", "home", "chat"])).toEqual({
-      order: ["home", "chat"],
+    expect(navPrefFrom(["home", "home", "agents"])).toEqual({
+      order: ["home", "agents"],
       hidden: [],
     });
+    // Retired destinations (chat and templates left the nav) degrade
+    // silently out of stored prefs instead of rendering dead rows.
+    expect(
+      navPrefFrom({ widgets: [{ id: "home" }, { id: "chat" }, { id: "templates" }] }),
+    ).toEqual({ order: ["home"], hidden: [] });
     expect(
       navPrefFrom({ widgets: [{ id: "home" }], hidden: ["pages", "bogus"] }),
     ).toEqual({ order: ["home"], hidden: ["pages"] });
@@ -134,7 +139,7 @@ describe("reading a stored row", () => {
   it("round-trips through the stored shape", () => {
     const pref = {
       order: ["agents", "home"] as NavItemId[],
-      hidden: ["templates"] as NavItemId[],
+      hidden: ["pages"] as NavItemId[],
     };
     expect(navPrefFrom(navLayoutFor(pref))).toEqual(pref);
   });

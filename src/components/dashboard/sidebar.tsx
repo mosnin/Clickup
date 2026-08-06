@@ -15,7 +15,6 @@ import {
   Folder,
   FolderInput,
   Inbox,
-  MessagesSquare,
   LayoutGrid,
   List as ListIcon,
   Lock,
@@ -316,8 +315,7 @@ function SidebarContentBody() {
             {navItems.map((item) =>
               item.id === "inbox" ? (
                 <InboxMenuItem key={item.id} />
-              ) : item.id === "chat" ? (
-                <ChatMenuItem key={item.id} />
+
               ) : (
                 <NavMenuItem
                   key={item.id}
@@ -431,36 +429,9 @@ function InboxMenuItem() {
   );
 }
 
-function ChatMenuItem() {
-  const pathname = usePathname();
-  // Unread across every scope the person can chat in, so the badge answers
-  // "is anyone waiting on me" without opening the page.
-  const scopes = useQuery(api.chat.scopesForCurrentUser, {});
-  const first = useQuery(
-    api.chat.channels,
-    scopes?.[0]
-      ? { scopeType: scopes[0].scopeType, scopeId: scopes[0].scopeId }
-      : "skip",
-  );
-  const unread = (first ?? []).reduce((sum, c) => sum + c.unread, 0);
-  const active = pathname === "/dashboard/chat";
-
-  return (
-    <SidebarMenuItem>
-      <SidebarMenuButton asChild isActive={active} tooltip="Chat">
-        <Link href="/dashboard/chat" aria-current={active ? "page" : undefined}>
-          <MessagesSquare />
-          <span>Chat</span>
-        </Link>
-      </SidebarMenuButton>
-      {unread > 0 && (
-        <SidebarMenuBadge className="ink-coin">
-          {unread > 99 ? "99+" : unread}
-        </SidebarMenuBadge>
-      )}
-    </SidebarMenuItem>
-  );
-}
+// (No ChatMenuItem: Chat is the other half of the mode switcher at the top of
+// the rail. A second door to the same place, three rows below the first, was
+// navigation clutter wearing a feature's clothes.)
 
 // ── Favorites ────────────────────────────────────────────────────────────
 
@@ -644,6 +615,14 @@ function WorkspaceTreeGroup({
   workspace: SidebarTree["workspaces"][number];
 }) {
   const [addingSpace, setAddingSpace] = useState(false);
+  // A just-created space, still empty, being offered its templates. This is
+  // where the template gallery lives now — a blueprint is a way to START a
+  // space, not a destination in the nav (the /dashboard/templates row is
+  // gone). Closing the picker keeps the empty space; nothing is forced.
+  const [templateForSpace, setTemplateForSpace] = useState<Id<"spaces"> | null>(
+    null,
+  );
+  const router = useRouter();
   const createSpace = useMutation(api.spaces.create);
   const { toast } = useToast();
 
@@ -662,12 +641,13 @@ function WorkspaceTreeGroup({
                 onCancel={() => setAddingSpace(false)}
                 onSubmit={async (name) => {
                   try {
-                    await createSpace({
+                    const spaceId = await createSpace({
                       name,
                       parentType: "workspace",
                       parentId: workspace._id,
                     });
                     setAddingSpace(false);
+                    if (spaceId) setTemplateForSpace(spaceId);
                   } catch (e) {
                     toast(errorMessage(e, "Couldn't create space"), {
                       kind: "error",
@@ -695,6 +675,19 @@ function WorkspaceTreeGroup({
           ))}
         </SidebarMenu>
       </SidebarGroupContent>
+      <TemplatePicker
+        open={templateForSpace !== null}
+        parent={
+          templateForSpace !== null
+            ? { kind: "space", spaceId: templateForSpace }
+            : null
+        }
+        onClose={() => setTemplateForSpace(null)}
+        onCreated={(listId) => {
+          setTemplateForSpace(null);
+          router.push(`/dashboard/l/${listId}`);
+        }}
+      />
     </SidebarGroup>
   );
 }
