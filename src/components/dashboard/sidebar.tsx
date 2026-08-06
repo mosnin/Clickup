@@ -219,7 +219,7 @@ function SidebarHeaderSwitcher() {
         </svg>
       </span>
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex w-full min-w-0 items-center gap-2 rounded-lg p-1 text-left outline-none hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center">
+        <DropdownMenuTrigger className="flex w-full min-w-0 items-center gap-2 rounded-full py-1 pl-1 pr-2 text-left outline-none hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:pr-1">
           <Orb seed={currentSeed} label={currentName} shape="squircle" size="sm" />
           <span className="min-w-0 flex-1 truncate font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
             {currentName}
@@ -416,12 +416,16 @@ function InboxMenuItem() {
     <SidebarMenuItem>
       <SidebarMenuButton asChild isActive={active} tooltip="Inbox">
         <Link href="/dashboard/inbox" aria-current={active ? "page" : undefined}>
-          <Inbox className="text-cyan-500" />
+          {/* No per-destination hue — the chip rules colour every glyph the
+              same way, and cyan here was the one leftover breaking that. */}
+          <Inbox />
           <span>Inbox</span>
         </Link>
       </SidebarMenuButton>
       {unread > 0 && (
-        <SidebarMenuBadge>{unread > 99 ? "99+" : unread}</SidebarMenuBadge>
+        <SidebarMenuBadge className="ink-coin">
+          {unread > 99 ? "99+" : unread}
+        </SidebarMenuBadge>
       )}
     </SidebarMenuItem>
   );
@@ -450,7 +454,9 @@ function ChatMenuItem() {
         </Link>
       </SidebarMenuButton>
       {unread > 0 && (
-        <SidebarMenuBadge>{unread > 99 ? "99+" : unread}</SidebarMenuBadge>
+        <SidebarMenuBadge className="ink-coin">
+          {unread > 99 ? "99+" : unread}
+        </SidebarMenuBadge>
       )}
     </SidebarMenuItem>
   );
@@ -1349,7 +1355,10 @@ function SidebarFooterBody() {
   const collapsed = !isMobile && state === "collapsed";
 
   return (
-    <SidebarFooter>
+    // The hairline closes the rail the way the capsule opens the page: the
+    // utility cluster is chrome about the app, not part of the tree, and a
+    // rule above it is what keeps it from reading as four more nav rows.
+    <SidebarFooter className="border-t border-sidebar-border pt-2">
       <div className="group-data-[collapsible=icon]:hidden">
         <RunningTimerChip />
       </div>
@@ -1358,7 +1367,7 @@ function SidebarFooterBody() {
       <div className="px-1">
         <ThemeToggle collapsed={collapsed} />
       </div>
-      <div className="flex items-center gap-2 px-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:px-0">
+      <div className="flex items-center gap-2 rounded-full px-1 py-0.5 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:px-0">
         <UserButton afterSignOutUrl="/" />
         <span className="flex-1 truncate text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
           Account

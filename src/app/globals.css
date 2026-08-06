@@ -1173,6 +1173,17 @@ body {
   background: var(--color-sidebar-accent);
 }
 
+/* The unread counter as an ink coin — a filled circle with the count knocked
+   out, the way both references draw every count. Attribute+class compound so
+   it outranks the badge primitive's own hover/active text-colour utilities. */
+[data-slot="sidebar-menu-badge"].ink-coin {
+  border-radius: 9999px;
+  background: var(--color-foreground);
+  color: var(--color-background);
+  font-size: 0.625rem;
+  font-weight: 600;
+}
+
 /* Thin brand gradient strip — product flair on shell edges (PageHeader top,
    sidebar top). 2px tall; pastel ramp reads in both themes. Use height-only
    variants sparingly: this is an accent, not a divider system. */

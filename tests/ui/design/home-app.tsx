@@ -417,7 +417,11 @@ galleryData["userSettings.current"] = CUSTOMISED
       },
       // `__v: 2` = current 6rem row units, the marker the real mutation
       // stamps; without it these would be migrated as legacy 10.5rem rows.
-      homeWidgetRows: { __v: 2, today: 2, activity: 1, live: 1, agents: 2 },
+      // Sizes chosen to be custom but COHERENT — near what the content needs,
+      // with one genuinely-shrunk tile (agents) exercising the scroll
+      // contract. A showcase of half-empty and clipped tiles reads as the
+      // product broken, not as the feature demonstrated.
+      homeWidgetRows: { __v: 2, today: 3, activity: 4, live: 4, agents: 2 },
     }
   : null;
 
@@ -619,7 +623,7 @@ if (ARRIVAL) {
     clerkId: "u1",
     homeWidgets: ["stats", "today", "activity", "projects", "live"],
     homeWidgetSpans: { stats: 3, today: 2, activity: 1, projects: 3, live: 2 },
-    homeWidgetRows: { __v: 2, today: 2, activity: 1, live: 1 },
+    homeWidgetRows: { __v: 2, today: 3, activity: 4, live: 4 },
   };
   galleryData["situations.forScreen"] = [ARRIVING_ROW];
 

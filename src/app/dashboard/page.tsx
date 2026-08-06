@@ -1234,7 +1234,7 @@ function ProjectCards({
       (a.targetDate ?? Infinity) - (b.targetDate ?? Infinity),
   )[0];
   return (
-    <section className="h-full min-w-0">
+    <section className="flex h-full min-w-0 flex-col">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="font-title text-xl font-bold tracking-tight">Projects</h2>
         <Link
@@ -1244,7 +1244,11 @@ function ProjectCards({
           View all {totalProjects}
         </Link>
       </div>
-      <Stagger className="grid grid-cols-1 gap-3 @2xl:grid-cols-2">
+      {/* `flex-1 auto-rows-fr`: the card rows absorb the tile's slack instead
+          of leaving a dead strip under the grid — a taller tile means taller
+          cards (each has a bottom action band, so stretching reads composed),
+          never emptiness with a resize grip floating in it. */}
+      <Stagger className="grid flex-1 auto-rows-fr grid-cols-1 gap-3 @2xl:grid-cols-2">
         {shown.map((project, index) => {
           const lime = project === urgent;
           return (
@@ -1252,7 +1256,7 @@ function ProjectCards({
               key={project.listId}
               lift
               className={cn(
-                "min-w-0",
+                "h-full min-w-0",
                 // The fourth card exists only where the grid is two-across.
                 // Stacked single-file it pushed the section past the tallest
                 // tile the screen allows, and a section that scrolls its own
@@ -1354,7 +1358,9 @@ function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
       <div className="border-b border-border px-5 py-3.5">
         <h3 className="text-base font-medium">Live</h3>
       </div>
-      <div className="p-4">
+      {/* Fills the tile and scrolls when shrunk — the same contract as every
+          other block, so a resized tile never shows a dead band below rows. */}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {visible.length === 0 ? (
           <EmptyState
             compact

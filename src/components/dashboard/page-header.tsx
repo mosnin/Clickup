@@ -103,11 +103,14 @@ export function PageHeader({
         values that work on white. In light mode the island is a no-op and the
         capsule separates by hairline and shadow.
 
-        The sticky wrapper keeps a soft blur band so content scrolling under
-        the capsule dims instead of colliding with it. */}
+        The sticky wrapper is OPAQUE. It was bg-background/80 + blur, and a
+        card scrolling under an 80% band doesn't read as "behind the chrome" —
+        it reads as two components overlapping, which is exactly the defect
+        report it earned. Chrome either owns its band completely or it isn't
+        chrome. */}
     <div
       className={cn(
-        "sticky top-0 z-20 -mx-4 -mt-6 bg-background/80 px-4 pb-2 pt-3 backdrop-blur-md sm:-mx-6 sm:px-6",
+        "sticky top-0 z-20 -mx-4 -mt-6 bg-background px-4 pb-2 pt-3 sm:-mx-6 sm:px-6",
         className,
       )}
     >
