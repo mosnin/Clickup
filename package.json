@@ -10,7 +10,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "vercel-build": "convex deploy --cmd 'next build'",
+    "vercel-build": "node scripts/check-backend.mjs && convex deploy --cmd 'next build'",
     "gallery": "node scripts/build-gallery.mjs && node scripts/design-shots.mjs",
     "verify:customize": "node scripts/verify-customize.mjs",
     "gallery:fresh": "(next build || true) && npm run gallery"
