@@ -233,7 +233,15 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
+          // `absolute`, not `fixed`, and `h-full`, not `h-svh`.
+          //
+          // The app is a rounded window inset from the viewport (`.app-slab`),
+          // and a FIXED rail is positioned against the viewport rather than
+          // against that window — so it escaped the frame on the left and the
+          // top, running to the screen edge with a square corner while every
+          // other edge was inset and round. Absolute scopes it to the slab,
+          // which is `position: relative` for exactly this.
+          "absolute inset-y-0 z-10 hidden h-full w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",

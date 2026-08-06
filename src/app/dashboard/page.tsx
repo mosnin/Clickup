@@ -889,10 +889,10 @@ function StatsCards({
     // Four columns, two rows: headline 1-2, the pair stacked in 3, card in 4.
     <Stagger className="grid h-full grid-cols-2 grid-rows-2 gap-3 @3xl:grid-cols-4">
       {/* ── The headline block ─────────────────────────────────────────── */}
-      <StaggerItem className="col-span-2 row-span-2 min-h-0">
+      <StaggerItem lift className="col-span-2 row-span-2 min-h-0">
         <Link
           href="/dashboard/my-work"
-          className="lift flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-yellow p-5 text-signal-ink"
+          className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-yellow p-5 text-signal-ink"
         >
           <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
             My work
@@ -938,10 +938,10 @@ function StatsCards({
       </StaggerItem>
 
       {/* ── The two that move, stacked in one column ───────────────────── */}
-      <StaggerItem className="min-h-0 @3xl:col-start-3 @3xl:row-start-1">
+      <StaggerItem lift className="min-h-0 @3xl:col-start-3 @3xl:row-start-1">
         <Link
           href="/dashboard/my-work"
-          className="lift flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-teal p-4 text-signal-ink"
+          className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-teal p-4 text-signal-ink"
         >
           <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
             Due today
@@ -963,10 +963,10 @@ function StatsCards({
         </Link>
       </StaggerItem>
 
-      <StaggerItem className="min-h-0 @3xl:col-start-3 @3xl:row-start-2">
+      <StaggerItem lift className="min-h-0 @3xl:col-start-3 @3xl:row-start-2">
         <Link
           href="/dashboard/my-work"
-          className="lift flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-pink p-4 text-signal-ink"
+          className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-pink p-4 text-signal-ink"
         >
           <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
             Done this week
@@ -990,7 +990,7 @@ function StatsCards({
       {/* A list belongs in a card and not on a colour field: the reference
           does exactly this, and it is not an aesthetic preference — three
           names in three weights over a saturated fill is unreadable. */}
-      <StaggerItem className="col-span-2 row-span-2 min-h-0 @3xl:col-span-1 @3xl:col-start-4 @3xl:row-start-1">
+      <StaggerItem lift className="col-span-2 row-span-2 min-h-0 @3xl:col-span-1 @3xl:col-start-4 @3xl:row-start-1">
         <div className="bento flex h-full min-h-0 flex-col overflow-hidden rounded-2xl bg-card p-4">
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">

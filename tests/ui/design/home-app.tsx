@@ -688,6 +688,9 @@ function Page() {
     <ToastProvider>
       <AppearanceProvider>
         <CustomizeProvider>
+          {/* The backdrop the app window floats on — the dashboard layout's
+              own, so the harness frames the app the way the app does. */}
+          <div aria-hidden className="fixed inset-0 -z-10 bg-page" />
           {/* Up here rather than around Home, exactly as the dashboard layout
               has it: the studio is a sibling of the page, so a provider
               rendered by the page could never reach it. */}

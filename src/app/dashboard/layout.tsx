@@ -56,6 +56,10 @@ export default async function DashboardLayout({
           `children`, so a screen offering its built-ins for minting has to
           reach up here to be heard. */}
       <MintablePanelsProvider>
+        {/* The backdrop the window floats on. Fixed and behind everything so
+            it survives the slab's own scrolling, and scoped to /dashboard so
+            the marketing site keeps its own canvas. */}
+        <div aria-hidden className="fixed inset-0 -z-10 bg-page" />
         <SidebarProvider defaultOpen={defaultOpen} className={SHELL_PROVIDER}>
           <EnsureUser />
           <NoSupportWidget />
@@ -71,26 +75,18 @@ export default async function DashboardLayout({
               values, which is what lets the browser morph one shell's
               navigation into the other's instead of cross-fading the whole
               viewport. See the transition block in globals.css. */}
-          {/* The canvas is TINTED, and the cards on it are not.
-              This sheet was `bg-background` — white — while every card on it
-              is `bg-card`, also white. So a card had nothing to sit on and
-              only its 1px border said where it ended, which is why the
-              surfaces read as flat next to a design that floats them, and
-              why removing those borders in favour of the bento shadow made
-              cards disappear entirely rather than lift.
-              `bg-page` is the same relationship Chat already has and the one
-              thing all three design references share: a soft canvas with
-              content floating above it. It is one line, and it is what makes
-              `.bento` mean anything at all. */}
           <SidebarInset data-mode-surface="content" className={SHELL_INSET}>
             <div className={SHELL_PAGE}>{children}</div>
           </SidebarInset>
           {/* One continuous brand gradient across the entire viewport's bottom
               edge — the single strip of product flair, coherent by
               construction (unlike per-panel strips that restart at seams). */}
+          {/* `absolute`, not `fixed`: the strip belongs to the app window's
+              bottom edge, and fixed would pin it to the viewport — outside the
+              slab, lying on the backdrop. */}
           <div
             aria-hidden
-            className="gradient-strip pointer-events-none fixed inset-x-0 bottom-0 z-50"
+            className="gradient-strip pointer-events-none absolute inset-x-0 bottom-0 z-50"
           />
           {/* The way back to the nav when it is floating and hidden. A
               floating sidebar that can be dismissed with no visible way to

@@ -42,7 +42,8 @@
      shadow rather than by the absence of tint — which means the shadow has to
      be able to carry that alone, and `--ui-surface-shadow` below is stronger
      than it was for exactly this reason. */
-  --color-page: #ffffff;
+  /* The backdrop the app FLOATS ON, not the app. See `.app-slab`. */
+  --color-page: #e8e8ec;
   --color-background: #ffffff;
   --color-foreground: #101010;
   --color-muted: #f5f5f6;
@@ -166,16 +167,22 @@
   --color-chart-3: #faeec7;
   --color-chart-4: #e6defa;
   --color-chart-5: #fadcd7;
-  /* The nav is the dark edge. It is the only strong value in light mode and
-     it is what stops a white-on-white app reading as a blank document. */
-  --color-sidebar: #131316;
-  --color-sidebar-foreground: #f2f2f4;
-  --color-sidebar-primary: #ffffff;
-  --color-sidebar-primary-foreground: #131316;
-  --color-sidebar-accent: #26262b;
-  --color-sidebar-accent-foreground: #ffffff;
-  --color-sidebar-border: #2a2a30;
-  --color-sidebar-ring: #6f6f7a;
+  /* The nav is part of the slab, not a wall beside it.
+     It was ink — one dark edge to anchor a white-on-white app — and that was
+     the wrong reading of the references: neither of them has a dark rail
+     against a light body. AIHub has no rail at all, and Cyberlock's is the
+     same black as everything else in its window. What carries the eye in both
+     is the ROW ITSELF: a circular icon chip that fills with the accent when
+     the row is active. So the surface goes quiet and the chip does the work
+     (`[data-slot="sidebar-menu-button"] > svg` further down). */
+  --color-sidebar: #ffffff;
+  --color-sidebar-foreground: #101010;
+  --color-sidebar-primary: #131316;
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: #f2f2f4;
+  --color-sidebar-accent-foreground: #101010;
+  --color-sidebar-border: #ececed;
+  --color-sidebar-ring: #8b8b94;
 
   --radius-pill: 9999px;
 }
@@ -187,7 +194,9 @@
    run yet, and on the logged-out site — which is why personalising is
    additive rather than a second theme to maintain. */
 :root {
-  --ui-radius-card: 1rem;
+  --ui-radius-card: 1.25rem;
+  /* The app window's own corner. See `.app-slab`. */
+  --ui-radius-app: 1.75rem;
   /* Fields and small surfaces. Deliberately NOT a pill: buttons and chips are
      round (see ui/button.tsx), but a pill is wrong for anything you type more
      than a word into — a multi-line box with 9999px corners is a lozenge with
@@ -953,6 +962,47 @@ body {
 .ui-dense-gap {
   gap: var(--ui-gap);
 }
+/* ── The app is a window, not a page ──────────────────────────────────────
+   Both references are one rounded slab floating on a tinted backdrop, inset
+   from every edge, with the page colour visible all the way round. It is the
+   single most structural thing they share and the reason they read as
+   applications rather than as websites: the frame says "this is a tool", and
+   everything inside it can then be quiet.
+
+   The slab owns the surface colour; `--color-page` is only ever the backdrop
+   behind it. That is also what lets light mode be "all white" without being a
+   blank document — the white is a defined object with edges, sitting on
+   something. */
+.app-slab {
+  position: relative;
+  /* `!important` on the box, and it is earned. The vendored shell wrapper
+     carries `flex min-h-svh w-full`, which are Tailwind utilities in the same
+     layer as anything written here — so a plain rule loses on source order and
+     the window renders full-bleed with no frame at all, which is exactly how
+     the first attempt shipped. The three properties overridden are the three
+     that decide whether this is a window or a page. */
+  min-height: 0 !important;
+  height: calc(100svh - 0.75rem) !important;
+  width: calc(100% - 0.75rem) !important;
+  margin: 0.375rem;
+  border-radius: var(--ui-radius-app);
+  background: var(--color-background);
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px rgb(16 16 18 / 0.06),
+    0 24px 64px -28px rgb(16 16 18 / 0.3);
+}
+@media (min-width: 640px) {
+  .app-slab {
+    height: calc(100svh - 1.25rem) !important;
+    width: calc(100% - 1.25rem) !important;
+    margin: 0.625rem;
+  }
+}
+:root[data-theme="dark"] .app-slab {
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.06);
+}
+
 /* Nav rows are pills, like every other interactive thing in the product.
    Declared here rather than in the vendored sidebar so one edit reaches the
    button, the sub-button and anything either of them is composed into. */
@@ -960,6 +1010,44 @@ body {
 [data-slot="sidebar-menu-sub-button"] {
   min-height: var(--ui-row-height);
   border-radius: var(--ui-radius-pill);
+}
+
+/* ── The nav row's circular icon chip ────────────────────────────────────
+   Cyberlock's signature and the thing that makes its rail readable without a
+   background colour of its own: every row's glyph sits in its own circle, and
+   the ACTIVE row's circle fills with the accent. It is a much better active
+   indicator than a tinted row — a filled circle is unmissable at a glance and
+   survives the rail collapsing to icons, which a row tint does not.
+
+   Done here rather than at the ~30 call sites that render a nav glyph, so it
+   reaches Inbox, Chat, favourites, spaces and anything added later without
+   any of them having to know. */
+[data-slot="sidebar-menu-button"] > svg:first-child {
+  box-sizing: content-box;
+  padding: 0.4375rem;
+  border-radius: 9999px;
+  background: var(--color-sidebar-accent);
+  color: var(--color-sidebar-foreground);
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
+}
+[data-slot="sidebar-menu-button"]:hover > svg:first-child {
+  background: color-mix(in srgb, var(--color-foreground) 12%, transparent);
+}
+[data-slot="sidebar-menu-button"][data-active="true"] > svg:first-child {
+  background: var(--color-signal-lime);
+  color: var(--color-signal-ink);
+}
+/* The row itself stops shouting once the chip is doing it: an active row is a
+   filled circle and a heavier label, not a grey band. Two active indicators
+   on one row is one too many. */
+[data-slot="sidebar-menu-button"][data-active="true"] {
+  background: transparent;
+  font-weight: 600;
+}
+[data-slot="sidebar-menu-button"][data-active="true"]:hover {
+  background: var(--color-sidebar-accent);
 }
 
 /* Thin brand gradient strip — product flair on shell edges (PageHeader top,
@@ -1597,7 +1685,7 @@ body {
      into it, and the whole app reads as a hole. Charcoal has a temperature and
      lets a surface sit ON something. The canvas and the surfaces stay one step
      apart the way they do in light, just with the values pulled down. */
-  --color-page: #141416;
+  --color-page: #0b0b0c;
   --color-background: #1a1a1d;
   --color-foreground: #f4f4f5;
   --color-muted: #26262a;
@@ -1632,16 +1720,14 @@ body {
   --color-destructive: #e0685c;
   --color-input: #33333a;
   --color-ring: #7a7a86;
-  /* In dark the nav is the DEEPEST value rather than the brightest — same
-     job as light mode's ink rail (anchor the eye once, at the edge), read the
-     other way round because the content is now the light thing. */
-  --color-sidebar: #0f0f11;
+  /* Part of the slab in dark too — same surface as the content beside it. */
+  --color-sidebar: #1a1a1d;
   --color-sidebar-foreground: #f4f4f5;
   --color-sidebar-primary: #ffffff;
   --color-sidebar-primary-foreground: #131316;
   --color-sidebar-accent: #26262c;
   --color-sidebar-accent-foreground: #ffffff;
-  --color-sidebar-border: #26262c;
+  --color-sidebar-border: #2b2b31;
   --color-sidebar-ring: #7a7a86;
 }
 

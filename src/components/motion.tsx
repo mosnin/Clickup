@@ -75,9 +75,24 @@ export function Stagger({
 export function StaggerItem({
   children,
   className,
+  lift = false,
 }: {
   children: React.ReactNode;
   className?: string;
+  /**
+   * Make the item a physical object under the pointer.
+   *
+   * Off by default, because most staggered items are rows in a list and a
+   * list where every line rises under the cursor is a list that will not hold
+   * still long enough to be read. On for the things that ARE objects — a
+   * bento block, a card — where the lift is what says it can be picked up.
+   *
+   * A spring rather than a duration: the block should arrive at rest rather
+   * than stop at a time, and the difference is the whole of why one reads as
+   * alive and the other as animated. Respects reduced motion through the
+   * `MotionConfig` the shell mounts, like everything else here.
+   */
+  lift?: boolean;
 }) {
   return (
     <motion.div
@@ -91,6 +106,13 @@ export function StaggerItem({
           transition: { duration: 0.5, ease: EASE },
         },
       }}
+      {...(lift
+        ? {
+            whileHover: { y: -5, scale: 1.006 },
+            whileTap: { scale: 0.994 },
+            transition: SPRING,
+          }
+        : null)}
     >
       {children}
     </motion.div>
