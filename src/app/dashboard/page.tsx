@@ -9,6 +9,7 @@ import { useMutation, useQuery } from "convex/react";
 import {
   AlertTriangle,
   ArrowRight,
+  ArrowUpRight,
   Bot,
   Clock,
   LayoutDashboard,
@@ -193,7 +194,7 @@ function spanOf(id: WidgetId): 1 | 2 | 3 {
 // never resized it. Anyone who has dragged a corner keeps their own height.
 const DEFAULT_ROWS: Record<BuiltInId, [one: WidgetRows, two: WidgetRows, three: WidgetRows]> = {
   //          1 col  2 cols  3 cols
-  stats: [4, 4, 2],
+  stats: [5, 5, 3],
   today: [4, 3, 3],
   activity: [3, 3, 3],
   projects: [6, 6, 4],
@@ -504,7 +505,25 @@ export default function DashboardHome() {
         // Not surfaced, and the exception is the honest one: this widget is a
         // ROW of four cards rather than a card, so a frame around it would be
         // a card containing cards. Its members are already the surface.
-        return <StatsCards me={ov.me} agentsOnline={agentsOnline} />;
+        return (
+          <StatsCards
+            agents={ov.agents}
+            agentsOnline={agentsOnline}
+            completions7d={ov.completions7d}
+            me={ov.me}
+            // The one thing on the whole screen that says what to do NEXT
+            // rather than how much there is. Same source as Today's tasks —
+            // the soonest-due open task assigned to you.
+            nextTask={
+              myWork && myWork.length > 0
+                ? {
+                    title: myWork[0].title,
+                    href: `/dashboard/l/${myWork[0].listId}/t/${myWork[0]._id}`,
+                  }
+                : null
+            }
+          />
+        );
       case "today":
         return surfaced(<TodaysTasks rows={myWork ?? undefined} />);
       case "activity":
@@ -816,171 +835,220 @@ function WelcomeSection({
 /**
  * The opening bento.
  *
- * This was four identical white cards with a 24px number and a grey icon
- * chip — a shape that says nothing about which of the four you should look
- * at, and the single most generic block in the product. Every dashboard
- * worth copying opens the same way instead: ONE figure at display size
- * carrying colour, and the rest small and quiet beside it. That is not
- * decoration; it is the screen answering "what should I look at" before you
- * have read a word.
+ * Four blocks of unequal size, three of them saturated, one a white card —
+ * the arrangement the reference opens with, and the reason it reads as a
+ * product rather than as a report:
  *
- * Which one is the hero is DERIVED, not fixed. Overdue work is the thing
- * that costs you something, so it takes the block when there is any — in
- * coral, which is the one place in this product an alarm colour is honest.
- * With nothing overdue the hero is what is due today, in citrus, and a clear
- * day says so at the same size a bad one does. A dashboard whose emphasis
- * never moves is a dashboard that stops being read.
+ *     ┌───────────────┬─────────┬──────────┐
+ *     │               │  teal   │  white   │
+ *     │    yellow     ├─────────┤  card    │
+ *     │    (tall)     │  pink   │  (list)  │
+ *     └───────────────┴─────────┴──────────┘
+ *
+ * The version this replaced was four identical tiles in a row with one of
+ * them painted, which is not a bento — it is a stat row with a highlight, and
+ * a single coloured card among white ones reads as an error state rather than
+ * as a design. The colour has to be spent all at once, in one place, or it is
+ * not worth spending.
+ *
+ * What goes in each block is the mapping that makes it honest rather than
+ * decorative: the tall block is the thing you opened the app to see (what is
+ * on you, and the next thing to do about it), the two small ones are the two
+ * numbers that change day to day, and the white card is the fleet — which is
+ * a LIST, so it belongs in a card and not on a colour field.
+ *
+ * Nothing here is status-coloured. Yellow is not "good" and pink is not "bad";
+ * they are the product's colours, and a block keeps its colour on the day the
+ * number is zero. Alarm still exists and is still just `text-danger` on the
+ * figure that has earned it.
  */
 function StatsCards({
   me,
   agentsOnline,
+  agents,
+  completions7d,
+  nextTask,
 }: {
   me: Overview["me"];
   agentsOnline: number;
+  agents: Overview["agents"];
+  completions7d?: number[];
+  nextTask?: { title: string; href: string } | null;
 }) {
-  const overdue = me.overdue > 0;
-  const hero = overdue
-    ? {
-        title: "Overdue",
-        value: me.overdue,
-        href: "/dashboard/my-work",
-        caption:
-          me.overdue === 1 ? "task is past its date" : "tasks are past their date",
-        // Static class strings, not an inline `background: var(--color-…)`.
-        // Tailwind v4 only emits a `@theme` variable when some utility it
-        // generates actually uses it, so an inline `var()` reference resolved
-        // to nothing and the hero block painted transparent — a colour that is
-        // declared, referenced, and absent from the stylesheet.
-        fill: "bg-signal-coral text-signal-coral-ink",
-      }
-    : {
-        title: "Due today",
-        value: me.dueToday,
-        href: "/dashboard/my-work",
-        caption:
-          me.dueToday === 0 ? "nothing is due — a clear day" : "due before tonight",
-        fill: "bg-signal-citrus text-signal-citrus-ink",
-      };
-  const rest: {
-    title: string;
-    value: number;
-    icon: LucideIcon;
-    href: string;
-    caption: string;
-  }[] = [
-    {
-      title: "My open tasks",
-      value: me.open,
-      icon: ListChecks,
-      href: "/dashboard/my-work",
-      caption: "assigned to you",
-    },
-    overdue
-      ? {
-          title: "Due today",
-          value: me.dueToday,
-          icon: Clock,
-          href: "/dashboard/my-work",
-          caption: "before tonight",
-        }
-      : {
-          title: "Overdue",
-          value: me.overdue,
-          icon: AlertTriangle,
-          href: "/dashboard/my-work",
-          caption: "nothing is late",
-        },
-    {
-      title: "Agents online",
-      value: agentsOnline,
-      icon: Bot,
-      href: "/dashboard/agents",
-      caption: agentsOnline === 1 ? "checking in" : "checking in",
-    },
-  ];
+  const doneThisWeek = (completions7d ?? []).reduce((a, b) => a + b, 0);
 
   return (
-    // The hero spans two of four columns and the three quiet tiles share the
-    // rest; on a phone the hero is full width above them. Measured against the
-    // GRID rather than the window, because this panel's width is decided by
-    // its span and by whether the nav is open, not by the viewport.
-    // FIVE columns, not four: the hero takes two and the three quiet tiles
-    // take one each. On a four-column grid that is five cells and the last
-    // tile wrapped onto a row of its own, which is the arithmetic showing.
-    <Stagger className="grid h-full grid-cols-2 gap-3 @3xl:grid-cols-5">
-      <StaggerItem className="col-span-2 h-full">
+    // Two columns on a phone (the tall block takes both), four from `@3xl`:
+    // the tall block takes two, the stacked pair one, the card one. Measured
+    // against the GRID, never the window — this panel's width is decided by
+    // its span and by whether the nav is open.
+    // Explicit placement from `@3xl`, because auto-flow gets this wrong in a
+    // way that looks like a bug: the two small blocks want to be STACKED in
+    // one column with the card beside them spanning both rows, and left to
+    // itself the grid put them side by side and wrapped the card underneath.
+    // Four columns, two rows: headline 1-2, the pair stacked in 3, card in 4.
+    <Stagger className="grid h-full grid-cols-2 grid-rows-2 gap-3 @3xl:grid-cols-4">
+      {/* ── The headline block ─────────────────────────────────────────── */}
+      <StaggerItem className="col-span-2 row-span-2 min-h-0">
         <Link
-          href={hero.href}
-          className={cn(
-            "lift flex h-full flex-col justify-between rounded-2xl p-5 transition-transform",
-            hero.fill,
-          )}
+          href="/dashboard/my-work"
+          className="lift flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-yellow p-5 text-signal-ink"
         >
-          <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-70">
-            {hero.title}
+          <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+            My work
           </span>
-          <span className="mt-auto flex items-end gap-3">
-            {/* Display size, and in the display face — this is the one number
-                on the screen that is allowed to be a headline. `font-title`
-                rather than a utility stack so it follows the reader's chosen
-                heading face like every other heading does. */}
-            <span className="font-title text-[3.25rem] font-bold leading-[0.85] tracking-tight">
+          {/* A headline, the way the reference's tall block is a headline —
+              the figure IS the sentence, at display size, and the line under
+              it says what to do next rather than restating the number. */}
+          <span className="mt-3 min-w-0">
+            <span className="font-title block text-[3.5rem] font-bold leading-[0.85] tracking-tight">
               <Counter
-                value={hero.value}
-                places={placesFor(hero.value)}
-                fontSize={52}
+                value={me.open}
+                places={placesFor(me.open)}
+                fontSize={56}
                 padding={2}
                 fontWeight={700}
               />
             </span>
-            <span className="pb-1 text-xs font-medium opacity-70">
-              {hero.caption}
+            <span className="mt-1.5 block text-sm font-medium opacity-70">
+              open {me.open === 1 ? "task" : "tasks"} assigned to you
             </span>
           </span>
-          {/* The rule and the way in. The block was a label at the top, a
-              figure at the bottom and 110px of nothing between them — a void
-              that read as a rendering fault rather than as breathing room.
-              A hero block should also be the door to the thing it is about. */}
-          <span className="mt-4 flex items-center justify-between gap-2 border-t border-current/20 pt-2.5 text-xs font-medium">
-            <span className="opacity-70">Open my work</span>
-            <ArrowRight aria-hidden className="size-3.5" />
+          <span className="mt-4 min-w-0 border-t border-current/20 pt-2.5">
+            {nextTask ? (
+              <>
+                <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-55">
+                  Next up
+                </span>
+                <span className="mt-0.5 flex items-center gap-2">
+                  <span className="line-clamp-1 min-w-0 flex-1 text-sm font-semibold">
+                    {nextTask.title}
+                  </span>
+                  <ArrowRight aria-hidden className="size-3.5 shrink-0" />
+                </span>
+              </>
+            ) : (
+              <span className="flex items-center justify-between gap-2 text-xs font-medium">
+                <span className="opacity-70">Nothing is waiting on you</span>
+                <ArrowRight aria-hidden className="size-3.5" />
+              </span>
+            )}
           </span>
         </Link>
       </StaggerItem>
-      {rest.map((stat) => (
-        <StaggerItem key={stat.title} className="h-full">
-          <Link
-            href={stat.href}
-            className="bento flex h-full flex-col justify-between rounded-2xl bg-card p-4 transition-colors hover:bg-muted/40"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                {stat.title}
-              </p>
-              <stat.icon
-                aria-hidden
-                className="size-3.5 shrink-0 text-muted-foreground"
-              />
-            </div>
-            {/* Figure and caption together at the bottom, so the tile reads
-                as label-then-answer rather than as two things at opposite
-                ends of a void. The caption is what stops a bare number being
-                a number: "37" and "37 assigned to you" are different claims. */}
-            <p className="mt-auto font-title text-3xl font-bold leading-none tracking-tight">
-              <Counter
-                value={stat.value}
-                places={placesFor(stat.value)}
-                fontSize={30}
-                padding={2}
-                fontWeight={700}
-              />
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {stat.caption}
-            </p>
-          </Link>
-        </StaggerItem>
-      ))}
+
+      {/* ── The two that move, stacked in one column ───────────────────── */}
+      <StaggerItem className="min-h-0 @3xl:col-start-3 @3xl:row-start-1">
+        <Link
+          href="/dashboard/my-work"
+          className="lift flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-teal p-4 text-signal-ink"
+        >
+          <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+            Due today
+          </span>
+          <span className="font-title mt-2 block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
+            <Counter
+              value={me.dueToday}
+              places={placesFor(me.dueToday)}
+              fontSize={36}
+              padding={2}
+              fontWeight={700}
+            />
+          </span>
+          <span className="mt-2 border-t border-current/20 pt-2 text-[11px] font-medium opacity-70">
+            {me.overdue > 0
+              ? `${me.overdue} also past their date`
+              : "nothing is late"}
+          </span>
+        </Link>
+      </StaggerItem>
+
+      <StaggerItem className="min-h-0 @3xl:col-start-3 @3xl:row-start-2">
+        <Link
+          href="/dashboard/my-work"
+          className="lift flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-pink p-4 text-signal-ink"
+        >
+          <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+            Done this week
+          </span>
+          <span className="font-title mt-2 block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
+            <Counter
+              value={doneThisWeek}
+              places={placesFor(doneThisWeek)}
+              fontSize={36}
+              padding={2}
+              fontWeight={700}
+            />
+          </span>
+          <span className="mt-2 border-t border-current/20 pt-2 text-[11px] font-medium opacity-70">
+            completed · last 7 days
+          </span>
+        </Link>
+      </StaggerItem>
+
+      {/* ── The white card ─────────────────────────────────────────────── */}
+      {/* A list belongs in a card and not on a colour field: the reference
+          does exactly this, and it is not an aesthetic preference — three
+          names in three weights over a saturated fill is unreadable. */}
+      <StaggerItem className="col-span-2 row-span-2 min-h-0 @3xl:col-span-1 @3xl:col-start-4 @3xl:row-start-1">
+        <div className="bento flex h-full min-h-0 flex-col overflow-hidden rounded-2xl bg-card p-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Agents
+            </span>
+            <span className="ui-figure text-[11px] text-muted-foreground">
+              {agentsOnline} online
+            </span>
+          </div>
+          {agents.length === 0 ? (
+            <Link
+              href="/dashboard/agents"
+              className="mt-auto flex items-center justify-between gap-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              Connect your first agent
+              <ArrowRight aria-hidden className="size-3.5" />
+            </Link>
+          ) : (
+            <ul className="mt-2 min-h-0 overflow-hidden">
+              {agents.slice(0, 3).map((agent) => (
+                <li key={agent.agentId}>
+                  {/* Name, a slashed descriptor, and an arrow out — the
+                      reference's list row, which says what a thing IS beside
+                      its name rather than under it. */}
+                  <Link
+                    href={`/dashboard/agents/${agent.agentId}`}
+                    className="group flex items-center gap-2 border-b border-border py-2 last:border-b-0"
+                  >
+                    <span className="truncate text-sm font-semibold group-hover:underline">
+                      {agent.name}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                      / {agent.statusText || "idle"}
+                    </span>
+                    <ArrowUpRight
+                      aria-hidden
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                    />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {agents.length > 0 && (
+            // Pinned to the bottom rather than sitting under the last row: the
+            // card is two rows tall by design and three agents do not fill it,
+            // so without this the slack fell as a hole under the list instead
+            // of as the card's own footer.
+            <Link
+              href="/dashboard/agents"
+              className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              All agents
+              <ArrowRight aria-hidden className="size-3.5" />
+            </Link>
+          )}
+        </div>
+      </StaggerItem>
     </Stagger>
   );
 }

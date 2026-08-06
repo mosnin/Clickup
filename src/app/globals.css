@@ -83,28 +83,36 @@
   --color-pastel-foreground: #101010;
 
   /* ── Signal colours ────────────────────────────────────────────────────
-     The system was pastels-only, and pastels are what a design looks like
-     when it is afraid to choose: six pale washes that all read as "a chip",
-     none of which can carry a block. Every dashboard worth copying spends
-     real colour in a few big places and stays monochrome everywhere else.
+     The palette, taken from the reference this product is being built to
+     look like rather than invented: a golden yellow, a teal, a hot pink, and
+     a lime for marks. Black ink on every one of them.
 
-     Four signals, each a fill with its own ink so a block is one decision
-     rather than two. They are for BLOCKS — a hero figure, a filled tile —
-     never for body text, never for a hairline, and never more than a couple
-     on one screen. Pastels stay exactly where they were, on chips, because a
-     status chip has to be quiet.
+     Two things about them are decisions, not defaults.
 
-     Values are fixed across themes for the same reason the pastels are: a
-     signal a colleague describes over a call has to be the same colour on
-     both screens. The ink that rides on them is fixed for the same reason. */
-  --color-signal-citrus: #e4fb54;
-  --color-signal-citrus-ink: #17190a;
-  --color-signal-teal: #0fb5a0;
-  --color-signal-teal-ink: #04211d;
-  --color-signal-violet: #7c5cff;
-  --color-signal-violet-ink: #f6f4ff;
-  --color-signal-coral: #ff6b54;
-  --color-signal-coral-ink: #2a0c06;
+     **They are IDENTITY, not status.** The first attempt at this shipped a
+     single coral block and pointed it at "overdue", which is a status use —
+     and it was wrong twice over: coral is in neither reference, and a palette
+     spent on alarm can only ever appear when something is wrong. These are
+     the product's colours. A block is yellow because it is the headline
+     block, not because its number is bad.
+
+     **They are used TOGETHER.** One coloured card on a screen of white ones
+     is a mistake that looks like a highlight. The reference puts three
+     saturated blocks side by side in one bento and leaves everything else
+     monochrome, and that contrast — a loud opening, a quiet rest of the page
+     — is the whole effect. Spend them in one place, all at once.
+
+     Fixed across themes, with fixed ink, for the same reason the pastels are:
+     a colour a colleague names on a call has to be the same colour on both
+     screens. Black ink on all four is what the reference does and it is also
+     what the contrast maths wants — every one of these is a light fill. */
+  --color-signal-yellow: #ffc400;
+  --color-signal-teal: #12b29c;
+  --color-signal-pink: #ff7fe3;
+  --color-signal-lime: #d9f24e;
+  /* One ink for all four. Near-black rather than pure, so it sits with the
+     rest of the product's foreground rather than punching a hole in it. */
+  --color-signal-ink: #101010;
 
   /* Positive delta green (the only saturated color in the system) */
   --color-positive: #16a34a;
