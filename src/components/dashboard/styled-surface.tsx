@@ -83,7 +83,11 @@ export function StyledSurface({
       data-number-style={style.numberStyle}
       {...rest}
       className={cn(
-        "flex h-full min-w-0 flex-col overflow-hidden transition-shadow",
+        // `@container`: a row inside a panel has to size itself against the
+        // PANEL, never the viewport. The same list is two columns wide on one
+        // screen and full width on another, and a `sm:` breakpoint would show
+        // the wide layout in a narrow tile on a desktop.
+        "@container flex h-full min-w-0 flex-col overflow-hidden transition-shadow",
         frameClass(style),
         fillClass(style),
         className,

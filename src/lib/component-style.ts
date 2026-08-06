@@ -141,12 +141,18 @@ export const DEFAULT_STYLE: ComponentStyle = {
   markers: "none",
   stackMode: "none",
   donutHole: 0.62,
-  // The shipped look for the non-chart half: hairline-separated rows, no
-  // leading marker, medium-weight titles, tiny uppercase table headers,
-  // rounded-full chips, tabular figures.
+  // The shipped look for the non-chart half: hairline-separated rows, a
+  // zero-padded index down the left margin, heavy titles, tiny uppercase table
+  // headers, outlined pill tags, tabular figures.
+  //
+  // The index and the heavy title are the two that changed and they changed
+  // together. A list of equal-weight sentences with nothing in front of them
+  // is a paragraph wearing a table's clothes; a ranked list with the title
+  // carrying the weight is a thing you scan. Both are still one pick away in
+  // the Rows chapter, which is the point of them being style rather than markup.
   rowDivider: "hairline",
-  rowMarker: "none",
-  rowEmphasis: "medium",
+  rowMarker: "index",
+  rowEmphasis: "strong",
   tableHeader: "caps",
   chipShape: "pill",
   numberStyle: "tabular",

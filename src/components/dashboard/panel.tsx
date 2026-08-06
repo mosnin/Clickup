@@ -33,6 +33,7 @@ import {
   normalizePanel,
   type PanelDef,
 } from "@/lib/panel";
+import { identityFill } from "@/lib/identity-color";
 import { timeAgo } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
@@ -532,6 +533,33 @@ const CLAMP = { 1: "line-clamp-1", 2: "line-clamp-2" } as const;
  * moves. A table keeps one line because a column with a variable row height
  * stops being a column.
  */
+/**
+ * The row's mark: a small filled circle carrying the record's first letter.
+ *
+ * Its colour comes from `identityFill`, the same ramp every teammate avatar in
+ * the product already uses, seeded on the row id — so a record keeps its
+ * colour wherever it appears and two records never collide by having similar
+ * names. It is NOT semantic and does not try to be: a colour that encoded
+ * status would be a second status indicator disagreeing with the chip that
+ * already says so.
+ *
+ * What it is for is scanning. A column of text rows is uniform grey; a column
+ * with a mark in front of each one has a rhythm, and returning to a list you
+ * half-remember, you find the row by its colour before you have read a word.
+ */
+function RowGlyph({ row }: { row: Envelope["rows"][number] }) {
+  const initial = (Array.from(row.title.trim())[0] ?? "?").toUpperCase();
+  return (
+    <span
+      aria-hidden
+      className="ui-row-glyph mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+      style={identityFill(row.id)}
+    >
+      {initial}
+    </span>
+  );
+}
+
 function RowTitle({
   row,
   lines = 2,
@@ -574,11 +602,30 @@ function RowBody({
   def: PanelDef;
   row: Envelope["rows"][number];
 }) {
+  // Glyph · title · tags, on one line.
+  //
+  // The old row was a two-line block — title above, grey middot sentence below
+  // — which is the shape of a search result rather than of a list you work
+  // from. One line with the facts pushed right is what makes a column of rows
+  // scannable: the eye runs down the titles, and each kind of fact is always
+  // in the same place.
   const inner = (
-    <>
-      <RowTitle row={row} />
-      <MetaLine def={def} row={row} />
-    </>
+    // `items-start`, not `items-center`: in a narrow tile the tags wrap under
+    // the title, and centring hung the glyph beside the TAGS rather than
+    // beside the thing it marks. A mark that does not line up with its title
+    // is not a mark.
+    <span className="flex min-w-0 items-start gap-2.5">
+      <RowGlyph row={row} />
+      <span className="min-w-0 flex-1">
+        {/* Two lines. One was right when the tags lived under the title and
+            the row was already two lines tall; now the tags sit to the RIGHT
+            wherever there is room, so the title has the row to itself and
+            clipping it at one line would cut sentences that fit. */}
+        <RowTitle lines={2} row={row} />
+        <RowTagsStacked def={def} row={row} />
+      </span>
+      <RowTags def={def} row={row} />
+    </span>
   );
   if (!row.href) return inner;
   // Wrapping both lines made the row ONE target; `.tap-row` makes it a target
@@ -593,34 +640,103 @@ function RowBody({
   );
 }
 
-/** A row's chosen fields, as one line. */
-function MetaLine({ def, row }: { def: PanelDef; row: Envelope["rows"][number] }) {
-  const bits: string[] = [];
-  for (const field of def.fields) {
-    const value = row.meta[field];
-    if (value === null || value === undefined || value === "") continue;
-    if (
-      (field === "due" ||
-        field === "added" ||
-        field === "updated" ||
-        field === "when") &&
-      typeof value === "number"
-    ) {
-      bits.push(field === "due" ? `due ${timeAgo(value)}` : timeAgo(value));
-    } else if (field === "assignee" && typeof value === "number") {
-      if (value > 0) bits.push(`${value} assigned`);
-    } else if (field === "blocked" && typeof value === "number") {
-      if (value > 0) bits.push(`${value} blocking`);
-    } else if (field === "estimate" && typeof value === "number") {
-      bits.push(`${value} pts`);
-    } else {
-      bits.push(String(value));
-    }
+/**
+ * A row's chosen fields, as separate tags rather than one grey sentence.
+ *
+ * They used to be joined with middots into a single muted line — "due 3d · 2
+ * assigned · High" — which is four facts rendered as one unreadable one: you
+ * cannot scan a column of them, you cannot tell which part is a date and which
+ * is a priority, and the whole line reads as an afterthought under the title.
+ * Discrete tags scan down the column, because the same kind of fact lands in
+ * the same place on every row.
+ *
+ * Outlined, not filled (see `.ui-chip`): three coloured lozenges on a row
+ * compete with the title they are about, and meaning already lives in the
+ * index and the glyph.
+ */
+function fieldLabel(field: string, value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (
+    (field === "due" ||
+      field === "added" ||
+      field === "updated" ||
+      field === "when") &&
+    typeof value === "number"
+  ) {
+    return field === "due" ? `due ${timeAgo(value)}` : timeAgo(value);
   }
-  if (bits.length === 0) return null;
+  if (field === "assignee" && typeof value === "number") {
+    return value > 0 ? `${value} assigned` : null;
+  }
+  if (field === "blocked" && typeof value === "number") {
+    return value > 0 ? `${value} blocking` : null;
+  }
+  if (field === "estimate" && typeof value === "number") return `${value} pts`;
+  return String(value);
+}
+
+/**
+ * How many tags a row shows before it stops.
+ *
+ * Four is where a row stops being scannable and starts being a paragraph of
+ * lozenges, and it is also roughly where they stop fitting beside a title on
+ * anything narrower than a desktop. The ones dropped are the ones the panel's
+ * own field order put last, which is the order somebody chose.
+ */
+const MAX_ROW_TAGS = 3;
+
+function RowTags({ def, row }: { def: PanelDef; row: Envelope["rows"][number] }) {
+  const tags: string[] = [];
+  for (const field of def.fields) {
+    const label = fieldLabel(field, row.meta[field]);
+    if (label) tags.push(label);
+  }
+  if (tags.length === 0) return null;
   return (
-    <span className="line-clamp-1 block break-words text-[11px] text-muted-foreground">
-      {bits.join(" · ")}
+    <span className="hidden shrink-0 items-center gap-1.5 @sm:flex">
+      {tags.slice(0, MAX_ROW_TAGS).map((tag) => (
+        <span
+          key={tag}
+          className="ui-chip whitespace-nowrap px-2 py-0.5 text-[11px] text-muted-foreground"
+        >
+          {tag}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * The same fields, stacked, for a row too narrow to hold them beside the title.
+ *
+ * A phone cannot fit a title and three tags on one line, and hiding them
+ * outright would mean the same panel says less on the device most of it is
+ * read on. So below `@sm` they go back under the title — as tags, not as a
+ * middot sentence, so the register is the same one.
+ */
+function RowTagsStacked({
+  def,
+  row,
+}: {
+  def: PanelDef;
+  row: Envelope["rows"][number];
+}) {
+  const tags: string[] = [];
+  for (const field of def.fields) {
+    const label = fieldLabel(field, row.meta[field]);
+    if (label) tags.push(label);
+  }
+  if (tags.length === 0) return null;
+  return (
+    <span className="mt-1 flex flex-wrap items-center gap-1 @sm:hidden">
+      {tags.slice(0, MAX_ROW_TAGS).map((tag) => (
+        <span
+          key={tag}
+          className="ui-chip px-1.5 py-0.5 text-[10px] text-muted-foreground"
+        >
+          {tag}
+        </span>
+      ))}
     </span>
   );
 }
@@ -641,7 +757,13 @@ function Cards({ def, rows }: { def: PanelDef; rows: Envelope["rows"] }) {
   return (
     <Stagger className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       {rows.map((row) => (
-        <StaggerItem key={row.id} className="bento-tile min-w-0 p-3">
+        // `@container` on the CELL, not just on the panel. A row asks "have I
+        // room for tags beside the title" and in this shape the answer is
+        // about the card it sits in, which is half the panel's width — asking
+        // the panel meant a two-column grid showed the wide layout in narrow
+        // cards and clipped both the title and every tag. Caught by
+        // tests/ui/panel-fit.test.tsx, twenty-seven cuts across two themes.
+        <StaggerItem key={row.id} className="@container bento-tile min-w-0 p-3">
           <RowBody def={def} row={row} />
         </StaggerItem>
       ))}

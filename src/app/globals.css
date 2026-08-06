@@ -3082,18 +3082,29 @@ a:hover > .message-ref {
 /* Leading marks ------------------------------------------------------------
    A counter rather than content on the row itself: the row components are
    shared with surfaces that have no panel around them, and none of them
-   should have to know they are being numbered. */
+   should have to know they are being numbered.
+
+   `index` is the shipped default now, and it is the single most recognisable
+   thing about the layout language this product is built on: a list reads as a
+   RANKED list — 01, 02, 03 down the left margin — rather than as a stack of
+   equivalent sentences. Zero-padded, in the display face, and given real room,
+   because an 11px grey `1` tucked against the title is a bullet with delusions
+   rather than an index. */
 [data-row-marker="dot"] .ui-list,
 [data-row-marker="index"] .ui-list,
 [data-row-marker="rule"] .ui-list {
   counter-reset: ui-row;
 }
 [data-row-marker="dot"] .ui-list > *,
-[data-row-marker="index"] .ui-list > *,
 [data-row-marker="rule"] .ui-list > * {
   counter-increment: ui-row;
   position: relative;
   padding-left: 1.25rem;
+}
+[data-row-marker="index"] .ui-list > * {
+  counter-increment: ui-row;
+  position: relative;
+  padding-left: 2.5rem;
 }
 [data-row-marker="dot"] .ui-list > *::before {
   content: "";
@@ -3106,13 +3117,20 @@ a:hover > .message-ref {
   background: var(--color-muted-foreground);
 }
 [data-row-marker="index"] .ui-list > *::before {
-  content: counter(ui-row);
+  /* `decimal-leading-zero`, not `decimal`. "01" is a catalogue number and "1"
+     is a bullet point; the difference is the whole reason the mark is there. */
+  content: counter(ui-row, decimal-leading-zero);
   position: absolute;
   left: 0;
-  top: 0.5em;
-  font-size: 0.6875rem;
+  top: 0.6em;
+  width: 1.75rem;
+  font-family: var(--ui-font-display);
+  font-size: 0.8125rem;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
   color: var(--color-muted-foreground);
+  opacity: 0.65;
 }
 [data-row-marker="rule"] .ui-list > *::before {
   content: "";
@@ -3154,6 +3172,20 @@ a:hover > .message-ref {
 }
 
 /* Chips ------------------------------------------------------------------- */
+/* The shipped tag is an OUTLINED pill: a hairline ring, the row's own ink, no
+   fill. A row carrying three filled pastel lozenges is three coloured objects
+   competing with the title they are about — and once meaning moved into the
+   glyph and the index, the fill was carrying nothing. Outlined tags sit in a
+   row without shouting, which is what lets there be several of them.
+   `.ui-chip-solid` opts a chip back into a fill for the few that genuinely
+   encode a state (a status pill, a health chip). */
+.ui-chip {
+  border: 1px solid var(--color-border);
+  background: transparent;
+}
+.ui-chip-solid {
+  border-color: transparent;
+}
 [data-chip-shape="pill"] .ui-chip {
   border-radius: 9999px;
 }

@@ -861,12 +861,19 @@ function StatsCards({
           me.dueToday === 0 ? "nothing is due — a clear day" : "due before tonight",
         fill: "bg-signal-citrus text-signal-citrus-ink",
       };
-  const rest: { title: string; value: number; icon: LucideIcon; href: string }[] = [
+  const rest: {
+    title: string;
+    value: number;
+    icon: LucideIcon;
+    href: string;
+    caption: string;
+  }[] = [
     {
       title: "My open tasks",
       value: me.open,
       icon: ListChecks,
       href: "/dashboard/my-work",
+      caption: "assigned to you",
     },
     overdue
       ? {
@@ -874,18 +881,21 @@ function StatsCards({
           value: me.dueToday,
           icon: Clock,
           href: "/dashboard/my-work",
+          caption: "before tonight",
         }
       : {
           title: "Overdue",
           value: me.overdue,
           icon: AlertTriangle,
           href: "/dashboard/my-work",
+          caption: "nothing is late",
         },
     {
       title: "Agents online",
       value: agentsOnline,
       icon: Bot,
       href: "/dashboard/agents",
+      caption: agentsOnline === 1 ? "checking in" : "checking in",
     },
   ];
 
@@ -909,7 +919,7 @@ function StatsCards({
           <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-70">
             {hero.title}
           </span>
-          <span className="flex items-end gap-3">
+          <span className="mt-auto flex items-end gap-3">
             {/* Display size, and in the display face — this is the one number
                 on the screen that is allowed to be a headline. `font-title`
                 rather than a utility stack so it follows the reader's chosen
@@ -926,6 +936,14 @@ function StatsCards({
             <span className="pb-1 text-xs font-medium opacity-70">
               {hero.caption}
             </span>
+          </span>
+          {/* The rule and the way in. The block was a label at the top, a
+              figure at the bottom and 110px of nothing between them — a void
+              that read as a rendering fault rather than as breathing room.
+              A hero block should also be the door to the thing it is about. */}
+          <span className="mt-4 flex items-center justify-between gap-2 border-t border-current/20 pt-2.5 text-xs font-medium">
+            <span className="opacity-70">Open my work</span>
+            <ArrowRight aria-hidden className="size-3.5" />
           </span>
         </Link>
       </StaggerItem>
@@ -944,7 +962,11 @@ function StatsCards({
                 className="size-3.5 shrink-0 text-muted-foreground"
               />
             </div>
-            <p className="font-title text-3xl font-bold leading-none tracking-tight">
+            {/* Figure and caption together at the bottom, so the tile reads
+                as label-then-answer rather than as two things at opposite
+                ends of a void. The caption is what stops a bare number being
+                a number: "37" and "37 assigned to you" are different claims. */}
+            <p className="mt-auto font-title text-3xl font-bold leading-none tracking-tight">
               <Counter
                 value={stat.value}
                 places={placesFor(stat.value)}
@@ -952,6 +974,9 @@ function StatsCards({
                 padding={2}
                 fontWeight={700}
               />
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {stat.caption}
             </p>
           </Link>
         </StaggerItem>
@@ -1062,19 +1087,27 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
                     <span className="min-w-0 flex-1 basis-48 text-sm font-medium line-clamp-2 group-hover:underline">
                       {row.title}
                     </span>
-                    <span className="flex flex-shrink-0 items-center gap-2">
-                      <span className="rounded-lg border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
+                    {/* Outlined tags, the same register the panel renderer's
+                        rows use — `ui-chip` so the reader's chip-shape choice
+                        reaches them too. The list name used to be a filled
+                        grey box and the date bare text, which made two facts
+                        of the same importance look like two different kinds
+                        of thing. */}
+                    <span className="flex flex-shrink-0 items-center gap-1.5">
+                      <span className="ui-chip whitespace-nowrap px-2 py-0.5 text-[11px] text-muted-foreground">
                         {row.listName}
                       </span>
                       {row.priority && <PriorityDot priority={row.priority} />}
                       {row.dueDate !== undefined && (
                         <span
                           className={cn(
-                            "text-xs font-medium tabular-nums",
-                            overdue ? "text-danger" : "text-muted-foreground",
+                            "ui-chip ui-figure whitespace-nowrap px-2 py-0.5 text-[11px] font-medium",
+                            overdue
+                              ? "border-danger/40 text-danger"
+                              : "text-muted-foreground",
                           )}
                         >
-                          Due: {formatDate(row.dueDate)}
+                          {formatDate(row.dueDate)}
                         </span>
                       )}
                     </span>
