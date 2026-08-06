@@ -973,6 +973,70 @@ body {
    behind it. That is also what lets light mode be "all white" without being a
    blank document — the white is a defined object with edges, sitting on
    something. */
+/* The backdrop the window floats on. Explicit colours rather than
+   `--color-page`, because --color-page is read by surfaces INSIDE the app
+   (the studio sheet, plinths) and the backdrop must never leak onto them.
+
+   Light is AIHub's plain warm grey. Dark is Cyberlock's: the brand lime with
+   a tone-on-tone doodle scribbled across it — the single loudest thing either
+   reference does, and the thing that makes the dark window read as a designed
+   object instead of as a screenshot of an app. The doodle is an inline SVG
+   tile at ~7% ink, so it reads as texture at arm's length and as drawing up
+   close. */
+.app-backdrop {
+  background-color: #e8e8ec;
+}
+:root[data-theme="dark"] .app-backdrop {
+  background-color: var(--color-signal-lime);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23101010' stroke-opacity='0.07' stroke-width='7' stroke-linecap='round'%3E%3Cpath d='M-8 26 q 18 -26 36 0 t 36 0 t 36 0 t 36 0'/%3E%3Cpath d='M-8 86 q 18 -26 36 0 t 36 0 t 36 0 t 36 0'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 120px 120px;
+}
+
+/* A LIGHT ISLAND — a patch of the light theme carried into the dark app.
+   Cyberlock's welcome capsule and AIHub's fourth bento block are both white
+   surfaces sitting on a dark window, and everything drawn on them (rows,
+   hairlines, muted text, buttons) has to be drawn with light-theme values.
+   Re-declaring the tokens is what makes that true for components that have
+   never heard of the island: they keep reading the same variables and the
+   island answers with the light set. In light mode this is a no-op by
+   construction — the values are the theme's own. */
+.ui-light-island {
+  --color-background: #ffffff;
+  --color-foreground: #101010;
+  --color-card: #ffffff;
+  --color-card-foreground: #101010;
+  --color-muted: #f5f5f6;
+  --color-muted-foreground: #6b6b75;
+  --color-border: #ececee;
+  --color-accent: #f0f0f2;
+  --color-accent-foreground: #101010;
+  --color-primary: #131316;
+  --color-primary-foreground: #ffffff;
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+/* The op-art breathing. Slow enough to be felt rather than seen — a mark that
+   visibly spins is a loading indicator. */
+@keyframes slow-breathe {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.05) rotate(3deg);
+  }
+}
+.slow-breathe {
+  animation: slow-breathe 16s ease-in-out infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .slow-breathe {
+    animation: none;
+  }
+}
+
 .app-slab {
   position: relative;
   /* `!important` on the box, and it is earned. The vendored shell wrapper
@@ -1686,11 +1750,14 @@ body {
      lets a surface sit ON something. The canvas and the surfaces stay one step
      apart the way they do in light, just with the values pulled down. */
   --color-page: #0b0b0c;
-  --color-background: #1a1a1d;
+  /* The slab register both references sit in: a near-black window with panels
+     one step up. #1a1a1d was a mid-charcoal that read as "dark mode"; this
+     reads as the object the backdrop's lime is framing. */
+  --color-background: #131316;
   --color-foreground: #f4f4f5;
-  --color-muted: #26262a;
+  --color-muted: #222226;
   --color-muted-foreground: #a1a1aa;
-  --color-border: #303036;
+  --color-border: #2e2e34;
 
   /* Ink scale inverts: light chips become dark tiles, "ink" text becomes
      near-white. brand-600 stays a mid gray so both `bg-brand-600 text-white`
@@ -1707,7 +1774,7 @@ body {
 
   /* Shell fusion tones flip with the theme (ink inverts, like the
      template's dark scheme, kept in our hex language). */
-  --color-card: #202024;
+  --color-card: #1e1e22;
   --color-card-foreground: #f4f4f5;
   --color-popover: #26262b;
   --color-popover-foreground: #f4f4f5;
@@ -1721,7 +1788,7 @@ body {
   --color-input: #33333a;
   --color-ring: #7a7a86;
   /* Part of the slab in dark too — same surface as the content beside it. */
-  --color-sidebar: #1a1a1d;
+  --color-sidebar: #131316;
   --color-sidebar-foreground: #f4f4f5;
   --color-sidebar-primary: #ffffff;
   --color-sidebar-primary-foreground: #131316;

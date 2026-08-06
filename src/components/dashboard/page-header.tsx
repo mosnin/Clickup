@@ -86,30 +86,35 @@ export function PageHeader({
 
   return (
     <>
+    {/* ── The capsule ──────────────────────────────────────────────────────
+        The reference's welcome bar: one rounded-full capsule holding the
+        page's name on the left and its controls on the right, floating over
+        the content, WHITE even when the app is dark. That last part is the
+        whole trick — a light island on a dark window is what makes the bar
+        read as chrome that belongs to the product rather than to the page —
+        and `.ui-light-island` re-declares the light theme's tokens inside it
+        so everything a page passes in (buttons, chips, counts) is drawn with
+        values that work on white. In light mode the island is a no-op and the
+        capsule separates by hairline and shadow.
+
+        The sticky wrapper keeps a soft blur band so content scrolling under
+        the capsule dims instead of colliding with it. */}
     <div
       className={cn(
-        // -mt-6 cancels the SidebarInset wrapper's top padding so the sticky
-        // header sits flush against the top of the scroll container — no
-        // miscolored bg-background band above it.
-        "sticky top-0 z-20 -mx-4 -mt-6 border-b border-border bg-card/95 px-4 backdrop-blur-sm sm:-mx-6 sm:px-6",
+        "sticky top-0 z-20 -mx-4 -mt-6 bg-background/80 px-4 pb-2 pt-3 backdrop-blur-md sm:-mx-6 sm:px-6",
         className,
       )}
     >
-      <div className="flex min-h-[52px] flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2">
+      <div className="ui-light-island flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-full border border-border py-1.5 pl-4 pr-2 shadow-md">
         <div className="flex min-w-0 items-center gap-2.5">
           <button
             type="button"
             aria-label="Open navigation"
             onClick={toggleSidebar}
-            // 44px on a phone, and it matters more here than anywhere: this is
-            // the only way to the sidebar below `md`, and it shipped at 32x32
-            // — a target that needs aim in BOTH directions at once, which is
-            // exactly the case the floor exists for. A real `size-11` box
-            // rather than `.tap-target`'s invisible halo, because there is
-            // room for one and a target you can see is better than one you
-            // have to trust. The negative margin keeps the glyph on the same
-            // optical line it was on.
-            className="-ml-3 flex size-11 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground md:hidden"
+            // The only way to the sidebar below `md`, so it keeps a real
+            // 44px-class target — drawn as one of the capsule's circular
+            // controls rather than as an invisible halo.
+            className="-ml-2 flex size-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-foreground md:hidden"
           >
             <Menu className="size-4" aria-hidden />
           </button>
@@ -119,7 +124,7 @@ export function PageHeader({
               className="size-4 flex-shrink-0 text-muted-foreground"
             />
           )}
-          <Heading className="truncate text-sm font-semibold tracking-tight">
+          <Heading className="truncate text-sm font-bold tracking-tight">
             {title}
           </Heading>
           {context && (
@@ -132,7 +137,7 @@ export function PageHeader({
           <div className="flex flex-shrink-0 items-center gap-2">{actions}</div>
         )}
       </div>
-      {children}
+      {children && <div className="pt-2">{children}</div>}
     </div>
     {headline !== false && (
       // Outside the sticky element on purpose: chrome sticks and stays small,

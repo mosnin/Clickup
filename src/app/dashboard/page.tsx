@@ -65,6 +65,7 @@ import {
 import { ActorGlyph } from "@/components/appearance/actor-glyph";
 import { Panel } from "@/components/dashboard/panel";
 import { StyledSurface } from "@/components/dashboard/styled-surface";
+import { OpRings, SparkMark } from "@/components/dashboard/op-art";
 import { useOfferMintablePanels } from "@/components/appearance/mintable-panels";
 import { OnlyWhenList } from "@/components/appearance/only-when";
 import { builtInPanelQuestion } from "@/lib/built-in-panel";
@@ -113,7 +114,10 @@ const HEALTH_CHIP: Record<
 };
 
 const chartConfig: ChartConfig = {
-  completed: { label: "Completed", color: "var(--color-chart-1)" },
+  // The brand lime, not a neutral: both references draw their one chart in
+  // the accent (Cyberlock's risk bars, AIHub's coloured glyph column), and a
+  // grey chart on the dark window disappears into it.
+  completed: { label: "Completed", color: "var(--color-signal-lime)" },
 };
 
 // ── Home widgets ─────────────────────────────────────────────────────────
@@ -892,15 +896,24 @@ function StatsCards({
       <StaggerItem lift className="col-span-2 row-span-2 min-h-0">
         <Link
           href="/dashboard/my-work"
-          className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-yellow p-5 text-signal-ink"
+          className="relative flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-yellow p-5 text-signal-ink"
         >
-          <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+          {/* The mark. The reference's yellow block is mostly a hypnotic set
+              of rings, and it is the reason that block reads as a poster
+              rather than as a big form field — a saturated block must carry
+              art or it is carrying nothing. Full-contrast ink, like the
+              reference; breathing on a 16s cycle, off under reduced motion. */}
+          <OpRings
+            aria-hidden
+            className="slow-breathe pointer-events-none absolute -right-8 top-1/2 hidden h-64 w-64 -translate-y-1/2 @sm:block"
+          />
+          <span className="relative text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
             My work
           </span>
           {/* A headline, the way the reference's tall block is a headline —
               the figure IS the sentence, at display size, and the line under
               it says what to do next rather than restating the number. */}
-          <span className="mt-3 min-w-0">
+          <span className="relative mt-3 min-w-0">
             <span className="font-title block text-[3.5rem] font-bold leading-[0.85] tracking-tight">
               <Counter
                 value={me.open}
@@ -914,7 +927,7 @@ function StatsCards({
               open {me.open === 1 ? "task" : "tasks"} assigned to you
             </span>
           </span>
-          <span className="mt-4 min-w-0 border-t border-current/20 pt-2.5">
+          <span className="relative mt-4 min-w-0 border-t border-current/20 pt-2.5">
             {nextTask ? (
               <>
                 <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-55">
@@ -943,22 +956,33 @@ function StatsCards({
           href="/dashboard/my-work"
           className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-teal p-4 text-signal-ink"
         >
-          <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
-            Due today
+          {/* Chip-then-figure on one line, label under the rule — the
+              reference teal block's own anatomy (its white squircle glyph
+              beside "95.5+"). The chip is a semantic indicator for the
+              metric, on its own surface, per the icon rules. */}
+          <span className="flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/85 shadow-sm">
+              <Clock aria-hidden className="size-4" />
+            </span>
+            <span className="font-title block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
+              <Counter
+                value={me.dueToday}
+                places={placesFor(me.dueToday)}
+                fontSize={36}
+                padding={2}
+                fontWeight={700}
+              />
+            </span>
           </span>
-          <span className="font-title mt-2 block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
-            <Counter
-              value={me.dueToday}
-              places={placesFor(me.dueToday)}
-              fontSize={36}
-              padding={2}
-              fontWeight={700}
-            />
-          </span>
-          <span className="mt-2 border-t border-current/20 pt-2 text-[11px] font-medium opacity-70">
-            {me.overdue > 0
-              ? `${me.overdue} also past their date`
-              : "nothing is late"}
+          <span className="mt-auto border-t border-current/20 pt-2">
+            <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+              Due today
+            </span>
+            <span className="mt-0.5 block text-[11px] font-medium opacity-70">
+              {me.overdue > 0
+                ? `${me.overdue} also past their date`
+                : "nothing is late"}
+            </span>
           </span>
         </Link>
       </StaggerItem>
@@ -968,20 +992,27 @@ function StatsCards({
           href="/dashboard/my-work"
           className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-pink p-4 text-signal-ink"
         >
-          <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
-            Done this week
+          <span className="flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/85 shadow-sm">
+              <SparkMark aria-hidden className="size-4" />
+            </span>
+            <span className="font-title block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
+              <Counter
+                value={doneThisWeek}
+                places={placesFor(doneThisWeek)}
+                fontSize={36}
+                padding={2}
+                fontWeight={700}
+              />
+            </span>
           </span>
-          <span className="font-title mt-2 block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
-            <Counter
-              value={doneThisWeek}
-              places={placesFor(doneThisWeek)}
-              fontSize={36}
-              padding={2}
-              fontWeight={700}
-            />
-          </span>
-          <span className="mt-2 border-t border-current/20 pt-2 text-[11px] font-medium opacity-70">
-            completed · last 7 days
+          <span className="mt-auto border-t border-current/20 pt-2">
+            <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+              Done this week
+            </span>
+            <span className="mt-0.5 block text-[11px] font-medium opacity-70">
+              completed · last 7 days
+            </span>
           </span>
         </Link>
       </StaggerItem>
@@ -991,7 +1022,10 @@ function StatsCards({
           does exactly this, and it is not an aesthetic preference — three
           names in three weights over a saturated fill is unreadable. */}
       <StaggerItem lift className="col-span-2 row-span-2 min-h-0 @3xl:col-span-1 @3xl:col-start-4 @3xl:row-start-1">
-        <div className="bento flex h-full min-h-0 flex-col overflow-hidden rounded-2xl bg-card p-4">
+        {/* White even when the app is dark — the reference's fourth block is a
+              white card on the dark window, and the island class is what keeps
+              every token inside it (muted text, hairlines) drawn for white. */}
+          <div className="ui-light-island bento flex h-full min-h-0 flex-col overflow-hidden rounded-2xl p-4">
           <div className="flex items-baseline justify-between gap-2">
             <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               Agents
@@ -1273,9 +1307,11 @@ function ActivityChart({ completions }: { completions?: number[] }) {
               />
               <YAxis hide allowDecimals={false} />
               <ChartTooltip content={<ChartTooltipContent />} />
+              {/* Fully rounded lozenges rather than square-bottomed bars —
+                  every mark in the references is a pill. */}
               <Bar
                 dataKey="completed"
-                radius={[4, 4, 0, 0]}
+                radius={[8, 8, 8, 8]}
                 fill="var(--color-completed)"
               />
             </BarChart>

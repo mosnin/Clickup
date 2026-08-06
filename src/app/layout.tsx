@@ -95,8 +95,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#141416" },
+    { media: "(prefers-color-scheme: light)", color: "#e8e8ec" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b0b0c" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -108,11 +108,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning className={`${instrumentSans.variable} ${spaceGrotesk.variable} ${darkerGrotesque.variable}`}>
       <head>
         {/* Resolve the theme before first paint so there's no flash. The
-            toggle writes localStorage "theme" = dark | light; anything else
-            (or nothing) follows the OS. */}
+            toggle writes localStorage "theme" = dark | light. DARK is the
+            default — the dark window on the lime backdrop is the product's
+            face, the one both design references wear — and light is the
+            explicit choice, not the OS's. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light';}catch(e){}})();`,
+            __html: `(function(){var d='dark';try{if(localStorage.getItem('theme')==='light')d='light';}catch(e){}document.documentElement.dataset.theme=d;})();`,
           }}
         />
       </head>
