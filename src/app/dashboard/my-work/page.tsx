@@ -113,28 +113,35 @@ export default function MyWorkPage() {
             if (items.length === 0) return null;
             return (
               <section key={key}>
-                <div className="mb-3 flex items-baseline justify-between">
-                  <h2
-                    className={cn(
-                      "text-sm font-semibold uppercase tracking-wider",
-                      key === "overdue"
-                        ? "text-danger"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {label}
-                    <span className="ml-2 font-normal normal-case tracking-normal text-muted-foreground">
+                {/* Group headings sit ON the slab, like every other section
+                    heading in the app — a count chip beside the title rather
+                    than the old uppercase micro-label. Overdue gets no red
+                    wash here: the group itself is never painted, only the
+                    date chip on each overdue row earns the alarm colour. */}
+                <div className="mb-3 flex items-baseline justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-title text-xl font-bold tracking-tight">
+                      {label}
+                    </h2>
+                    <span className="ui-chip rounded-full px-3 py-1 text-xs font-medium text-muted-foreground">
                       {items.length}
                     </span>
-                  </h2>
-                  <span className="text-xs text-muted-foreground">{hint}</span>
+                  </div>
+                  <span className="hidden text-xs text-muted-foreground sm:inline">
+                    {hint}
+                  </span>
                 </div>
-                <Card className="gap-0 overflow-hidden rounded-2xl py-0">
+                {/* @container so each row can stack its chips under the title
+                    when the panel itself is narrow — never a viewport
+                    breakpoint, since a group card can be narrow on a wide
+                    screen (split view, a docked sidebar) and vice versa. */}
+                <Card className="@container gap-0 overflow-hidden rounded-2xl py-0">
                   <Stagger>
                     {items.map((r, i) => (
                       <StaggerItem key={r._id}>
                         <TaskRow
                           row={r}
+                          index={i}
                           overdue={key === "overdue"}
                           isLast={i === items.length - 1}
                         />
@@ -160,10 +167,12 @@ function formatDue(ts: number): string {
 
 function TaskRow({
   row,
+  index,
   overdue,
   isLast,
 }: {
   row: Row;
+  index: number;
   overdue: boolean;
   isLast: boolean;
 }) {
@@ -211,46 +220,67 @@ function TaskRow({
         aria-label={`Mark "${row.title}" complete`}
         onCheckedChange={() => complete()}
       />
-      <Link href={href} className="flex min-w-0 flex-1 items-center gap-3">
+      {/* Zero-padded index down the left margin — the row language's
+          catalogue number, muted and out of the tab/reading flow. Hidden
+          below the panel's own @sm width rather than the viewport's, so a
+          narrow group card on a wide screen behaves the same as a phone. */}
+      <span
+        aria-hidden
+        className="hidden w-5 flex-shrink-0 text-right font-title text-xs tabular-nums text-muted-foreground @sm:inline-block"
+      >
+        {String(index + 1).padStart(2, "0")}
+      </span>
+      <Link
+        href={href}
+        className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5"
+      >
+        {/* The glyph: the list's own status colour, already rendered here
+            before the restyle — kept as the row's small circular monogram. */}
         <span
           aria-hidden
           className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
           style={{ backgroundColor: row.statusColor }}
           title={row.statusName}
         />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{row.title}</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {row.listName} · {row.statusName}
-          </p>
-        </div>
+        <span className="min-w-0 flex-1 basis-48 truncate text-sm font-semibold">
+          {row.title}
+        </span>
 
-        {needsApproval && (
-          <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] font-medium text-foreground/80 dark:text-neutral-900/80">
-            <ShieldAlert className="h-3 w-3" aria-hidden /> Approval
+        {/* Metadata as outlined chips, pushed right and wrapping under the
+            title once the row runs out of room — driven by flex-wrap against
+            the row's own width, not a viewport breakpoint. */}
+        <span className="flex flex-shrink-0 flex-wrap items-center gap-1.5">
+          {needsApproval && (
+            <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] font-medium text-foreground/80 dark:text-neutral-900/80">
+              <ShieldAlert className="h-3 w-3" aria-hidden /> Approval
+            </span>
+          )}
+
+          {row.priority && (
+            <>
+              <PriorityChip
+                priority={row.priority}
+                className="hidden @sm:inline-flex"
+              />
+              <PriorityDot priority={row.priority} className="@sm:hidden" />
+            </>
+          )}
+
+          <span className="ui-chip whitespace-nowrap px-2 py-0.5 text-[11px] text-muted-foreground">
+            {row.listName}
           </span>
-        )}
 
-        {row.priority && (
-          <>
-            <PriorityChip
-              priority={row.priority}
-              className="hidden sm:inline-flex"
-            />
-            <PriorityDot priority={row.priority} className="sm:hidden" />
-          </>
-        )}
-
-        {row.dueDate !== undefined && (
-          <span
-            className={cn(
-              "flex-shrink-0 text-xs font-medium tabular-nums",
-              overdue ? "text-danger" : "text-muted-foreground",
-            )}
-          >
-            {formatDue(row.dueDate)}
-          </span>
-        )}
+          {row.dueDate !== undefined && (
+            <span
+              className={cn(
+                "ui-chip ui-figure whitespace-nowrap px-2 py-0.5 text-[11px] font-medium",
+                overdue ? "border-danger/40 text-danger" : "text-muted-foreground",
+              )}
+            >
+              {formatDue(row.dueDate)}
+            </span>
+          )}
+        </span>
       </Link>
     </div>
   );

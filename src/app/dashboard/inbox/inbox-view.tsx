@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
-import { Inbox as InboxIcon } from "lucide-react";
+import { Bell, Inbox as InboxIcon, ShieldCheck } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState } from "@/components/dashboard/empty-state";
+import { ActorGlyph } from "@/components/appearance/actor-glyph";
 import { parseMentionBody } from "@/lib/mentions";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
@@ -29,6 +29,11 @@ import { NotificationSettings } from "@/components/dashboard/notification-settin
 // order of urgency: approvals to grant, mentions to answer, updates to skim.
 // One unread language (the small ink dot), one "Mark all read" that clears
 // the whole surface.
+//
+// Row language throughout: a zero-padded index in the margin, a small
+// circular glyph, a heavy title, outlined chips pushed right. Approvals sit
+// in a quietly emphasized frame — the page's one focal moment — without
+// reaching for alarm colour to say so.
 
 const CONTEXT_KIND: Record<string, string> = {
   task: "Task",
@@ -40,6 +45,10 @@ const CONTEXT_KIND: Record<string, string> = {
   // `mentions.feedForCurrent`.
   room: "Room",
 };
+
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
 
 export function Inbox() {
   const mentions = useQuery(api.mentions.feedForCurrent, {});
@@ -116,26 +125,30 @@ export function Inbox() {
                 label="Mentions"
                 unread={unreadMentions}
               />
-              <Stagger className="mt-3 space-y-2">
-                {mentions.map((mention) => (
-                  <StaggerItem key={mention._id}>
-                    <MentionItem mention={mention} />
-                  </StaggerItem>
-                ))}
-              </Stagger>
+              <div className="panel mt-3 overflow-hidden rounded-2xl">
+                <Stagger className="divide-y divide-border">
+                  {mentions.map((mention, index) => (
+                    <StaggerItem key={mention._id}>
+                      <MentionItem mention={mention} index={index} />
+                    </StaggerItem>
+                  ))}
+                </Stagger>
+              </div>
             </section>
           )}
 
           {updates.length > 0 && (
             <section>
               <SectionHeading label="Updates" unread={unreadUpdates} />
-              <Stagger className="mt-3 space-y-2">
-                {updates.map((n) => (
-                  <StaggerItem key={n._id}>
-                    <UpdateItem n={n} />
-                  </StaggerItem>
-                ))}
-              </Stagger>
+              <div className="panel mt-3 overflow-hidden rounded-2xl">
+                <Stagger className="divide-y divide-border">
+                  {updates.map((n, index) => (
+                    <StaggerItem key={n._id}>
+                      <UpdateItem n={n} index={index} />
+                    </StaggerItem>
+                  ))}
+                </Stagger>
+              </div>
             </section>
           )}
         </>
@@ -157,24 +170,26 @@ export function Inbox() {
 
 function SectionHeading({ label, unread }: { label: string; unread: number }) {
   return (
-    <h2 className="flex items-baseline gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-      {label}
+    <div className="flex items-center gap-2">
+      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </h2>
       {unread > 0 && (
-        <span className="font-normal normal-case tracking-normal">
+        <span className="ui-chip rounded-full px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
           {unread} new
         </span>
       )}
-    </h2>
+    </div>
   );
 }
 
-/** The one unread indicator: a small ink dot. */
+/** The one unread indicator: a small dot. Never a row tint. */
 function UnreadDot({ visible }: { visible: boolean }) {
   return (
     <span
       aria-hidden
       className={cn(
-        "mt-2 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full",
+        "inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full",
         visible ? "bg-unread" : "bg-transparent",
       )}
     />
@@ -182,7 +197,9 @@ function UnreadDot({ visible }: { visible: boolean }) {
 }
 
 // Gated tasks where agents finished (or are working) and a human needs to
-// sign off. Approve inline or click through to review first.
+// sign off. Approve inline or click through to review first. The one focal
+// moment on this page — a quiet frame rather than an alarm colour, because a
+// gate waiting on a human is not a status, it is the page's whole subject.
 function ApprovalsQueue({
   approvals,
 }: {
@@ -211,47 +228,63 @@ function ApprovalsQueue({
   return (
     <section>
       <SectionHeading label="Waiting on your approval" unread={approvals.length} />
-      <ul className="mt-3 space-y-2">
-        <AnimatePresence initial={false}>
-          {approvals.map((a) => (
-            <motion.li
-              key={a.taskId}
-              layout
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, x: 24, height: 0, marginBottom: 0 }}
-              transition={{ duration: 0.35, ease: EASE }}
-              className="overflow-hidden"
-            >
-              <Card className="gap-0 rounded-2xl py-0">
-                <CardContent className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
-                  <Link
-                    href={`/dashboard/l/${a.listId}/t/${a.taskId}`}
-                    className="min-w-0 flex-1 truncate font-medium hover:underline"
-                  >
-                    {a.title}
-                  </Link>
-                  {a.checklistTotal > 0 && (
-                    <span
-                      className={cn(
-                        "text-xs",
-                        a.checklistDone === a.checklistTotal
-                          ? "text-positive"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      {a.checklistDone}/{a.checklistTotal} checklist
+      <div className="mt-3 rounded-[1.625rem] border border-border bg-muted/30 p-1.5">
+        <div className="overflow-hidden rounded-2xl panel">
+          <div className="border-b border-border px-5 py-3.5">
+            <h3 className="text-base font-medium">Ready for review</h3>
+          </div>
+          <ul className="divide-y divide-border">
+            <AnimatePresence initial={false}>
+              {approvals.map((a, index) => (
+                <motion.li
+                  key={a.taskId}
+                  layout
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: 24, height: 0, marginBottom: 0 }}
+                  transition={{ duration: 0.35, ease: EASE }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex flex-wrap items-center gap-3 px-5 py-3">
+                    <span className="w-6 shrink-0 font-title text-xs tabular-nums text-muted-foreground">
+                      {pad(index + 1)}
                     </span>
-                  )}
-                  <Button size="sm" onClick={() => onApprove(a.taskId)}>
-                    Approve
-                  </Button>
-                </CardContent>
-              </Card>
-            </motion.li>
-          ))}
-        </AnimatePresence>
-      </ul>
+                    <span className="icon-tile flex-shrink-0" aria-hidden>
+                      <ShieldCheck className="size-4" />
+                    </span>
+                    <Link
+                      href={`/dashboard/l/${a.listId}/t/${a.taskId}`}
+                      className="min-w-0 flex-1 basis-48 truncate text-sm font-semibold hover:underline"
+                    >
+                      {a.title}
+                    </Link>
+                    <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1.5">
+                      {a.checklistTotal > 0 && (
+                        <span
+                          className={cn(
+                            "ui-chip px-2 py-0.5 text-[11px] font-medium",
+                            a.checklistDone === a.checklistTotal
+                              ? "text-positive"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {a.checklistDone}/{a.checklistTotal} checklist
+                        </span>
+                      )}
+                      <span className="ui-chip ui-figure px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {timeAgo(a.createdAt)}
+                      </span>
+                      <Button size="sm" onClick={() => onApprove(a.taskId)}>
+                        Approve
+                      </Button>
+                    </div>
+                  </div>
+                </motion.li>
+              ))}
+            </AnimatePresence>
+          </ul>
+        </div>
+      </div>
     </section>
   );
 }
@@ -267,33 +300,59 @@ type MentionRow = {
   contextLabel: string;
 };
 
-function MentionItem({ mention }: { mention: MentionRow }) {
+function MentionItem({
+  mention,
+  index,
+}: {
+  mention: MentionRow;
+  index: number;
+}) {
   const markRead = useMutation(api.mentions.markRead);
   const preview = renderInlineBody(mention.body);
   const kind = CONTEXT_KIND[mention.parentType] ?? "Comment";
+  const unread = !mention.readAt;
 
-  const inner = (
-    <div className="flex items-start gap-3">
-      <UnreadDot visible={!mention.readAt} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-xs font-medium text-muted-foreground">
-            {mention.authorName ? `${mention.authorName} · ` : ""}
+  // 01 · glyph · title · [tag][tag] — the row is the whole tap target: the
+  // meta line and chips share the same destination as the title.
+  const row = (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <span
+        aria-hidden
+        className="w-5 shrink-0 font-title text-[11px] tabular-nums text-muted-foreground"
+      >
+        {pad(index + 1)}
+      </span>
+      <ActorGlyph
+        name={mention.authorName || "Someone"}
+        seed={mention._id}
+        size="sm"
+      />
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
+        <div className="min-w-0 flex-1 basis-48">
+          <p
+            className={cn(
+              "truncate text-sm",
+              unread ? "font-semibold" : "font-medium",
+            )}
+          >
+            {preview || "…"}
+          </p>
+          {mention.authorName && (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {mention.authorName}
+            </p>
+          )}
+        </div>
+        <span className="flex flex-shrink-0 items-center gap-1.5">
+          <UnreadDot visible={unread} />
+          <span className="ui-chip whitespace-nowrap px-2 py-0.5 text-[11px] text-muted-foreground">
             {kind}
             {mention.contextLabel ? ` · ${mention.contextLabel}` : ""}
           </span>
-          <span className="flex-shrink-0 text-xs text-muted-foreground">
+          <span className="ui-chip ui-figure whitespace-nowrap px-2 py-0.5 text-[11px] text-muted-foreground">
             {timeAgo(mention.createdAt)}
           </span>
-        </div>
-        <p
-          className={cn(
-            "mt-1 truncate text-sm",
-            !mention.readAt && "font-medium",
-          )}
-        >
-          {preview || "…"}
-        </p>
+        </span>
       </div>
     </div>
   );
@@ -301,11 +360,7 @@ function MentionItem({ mention }: { mention: MentionRow }) {
   // A mention whose target no longer exists stays informative but quiet:
   // no dead link, no silent mark-read on click.
   if (!mention.href) {
-    return (
-      <Card className="gap-0 rounded-2xl py-0 opacity-70">
-        <CardContent className="p-4">{inner}</CardContent>
-      </Card>
-    );
+    return <div className="opacity-70">{row}</div>;
   }
 
   return (
@@ -314,16 +369,14 @@ function MentionItem({ mention }: { mention: MentionRow }) {
       onClick={() => {
         if (!mention.readAt) markRead({ mentionId: mention._id });
       }}
-      className="lift block"
+      className="block transition-colors hover:bg-muted/20"
     >
-      <Card className="gap-0 rounded-2xl py-0">
-        <CardContent className="p-4">{inner}</CardContent>
-      </Card>
+      {row}
     </Link>
   );
 }
 
-function UpdateItem({ n }: { n: Doc<"notifications"> }) {
+function UpdateItem({ n, index }: { n: Doc<"notifications">; index: number }) {
   const markRead = useMutation(api.notificationCenter.markRead);
   const router = useRouter();
   const unread = n.readAt === undefined;
@@ -336,30 +389,38 @@ function UpdateItem({ n }: { n: Doc<"notifications"> }) {
         if (unread) void markRead({ notificationId: n._id });
         if (n.href) router.push(n.href);
       }}
-      className={cn("lift block w-full text-left", !n.href && "cursor-default")}
+      className={cn(
+        "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/20",
+        !n.href && "cursor-default",
+      )}
     >
-      <Card className="gap-0 rounded-2xl py-0">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <UnreadDot visible={unread} />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className={cn("truncate text-sm", unread && "font-medium")}>
-                  {n.title}
-                </span>
-                <span className="flex-shrink-0 text-xs text-muted-foreground">
-                  {timeAgo(n.createdAt)}
-                </span>
-              </div>
-              {body && (
-                <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                  {body}
-                </p>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <span
+        aria-hidden
+        className="w-5 shrink-0 font-title text-[11px] tabular-nums text-muted-foreground"
+      >
+        {pad(index + 1)}
+      </span>
+      <span className="icon-tile flex-shrink-0" aria-hidden>
+        <Bell className="size-4" />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5">
+        <div className="min-w-0 flex-1 basis-48">
+          <p className={cn("truncate text-sm", unread && "font-semibold")}>
+            {n.title}
+          </p>
+          {body && (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {body}
+            </p>
+          )}
+        </div>
+        <span className="flex flex-shrink-0 items-center gap-1.5">
+          <UnreadDot visible={unread} />
+          <span className="ui-chip ui-figure whitespace-nowrap px-2 py-0.5 text-[11px] text-muted-foreground">
+            {timeAgo(n.createdAt)}
+          </span>
+        </span>
+      </div>
     </button>
   );
 }

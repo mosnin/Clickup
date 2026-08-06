@@ -76,26 +76,29 @@ export function ViewTabs({
     return qs ? `/dashboard/l/${listId}?${qs}` : `/dashboard/l/${listId}`;
   }
   return (
-    <nav
-      aria-label="Views"
-      className="flex items-center gap-1 overflow-x-auto overscroll-x-contain text-sm"
-    >
-      {VIEWS.map(({ key, label, Icon }) => (
-        <Link
-          key={key}
-          href={href(key)}
-          aria-current={active === key ? "page" : undefined}
-          className={cn(
-            "inline-flex flex-shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors",
-            active === key
-              ? "bg-accent font-medium text-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-          )}
-        >
-          <Icon className="h-4 w-4" />
-          <span>{label}</span>
-        </Link>
-      ))}
+    // The app's raised-white-on-recessed-track segmented control
+    // (`.segmented`/`.segmented-on`, straight from globals.css) — same look
+    // as every other view/mode toggle. Still a `<nav>` of real `<Link>`s
+    // (not the Tabs primitive): this strip changes the URL and needs
+    // `aria-current`, ⌘-click and shareable addresses, which a tablist
+    // built for in-page panes doesn't give you.
+    <nav aria-label="Views" className="max-w-full overflow-x-auto overscroll-x-contain">
+      <div className="segmented">
+        {VIEWS.map(({ key, label, Icon }) => (
+          <Link
+            key={key}
+            href={href(key)}
+            aria-current={active === key ? "page" : undefined}
+            className={cn(
+              "inline-flex flex-shrink-0 items-center gap-1.5",
+              active === key && "segmented-on",
+            )}
+          >
+            <Icon className="h-4 w-4" />
+            <span>{label}</span>
+          </Link>
+        ))}
+      </div>
     </nav>
   );
 }

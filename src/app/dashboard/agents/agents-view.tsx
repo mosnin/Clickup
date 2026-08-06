@@ -40,6 +40,7 @@ import { ConnectSnippet } from "@/components/dashboard/connect-snippet";
 import { Tabs } from "@/components/interior/tabs";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { TerminalSurface } from "@/components/terminal-surface";
+import { OpRings } from "@/components/dashboard/op-art";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { eventHref, eventLabel } from "@/lib/event-labels";
@@ -218,6 +219,7 @@ function AgentsTab({
   setTemplating: (v: boolean) => void;
 }) {
   const data = useQuery(api.agents.listForCurrentUser, {});
+  const now = usePresenceClock();
 
   const allAgents = useMemo(() => {
     if (!data) return [];
@@ -229,6 +231,12 @@ function AgentsTab({
   const taskTitles = useQuery(api.agents.currentTaskTitles, {
     taskIds: currentTaskIds,
   });
+  // Same figures the header badge derives, computed here too — this is
+  // where the bento that reads them lives.
+  const { onlineCount, totalCount } = useMemo(() => {
+    const online = allAgents.filter((a) => agentPresence(a, now).online).length;
+    return { onlineCount: online, totalCount: allAgents.length };
+  }, [allAgents, now]);
 
   if (data === undefined) {
     return <AgentsSkeleton />;
@@ -242,10 +250,13 @@ function AgentsTab({
   return (
     <div className="space-y-6">
       <ConnectHint retired={anyConnected} />
-      <FleetSpend />
+
+      {/* The page's one signal bento: fleet presence + spend, spent all at
+          once so the rest of the screen can stay monochrome. */}
+      <AgentsStatBento onlineCount={onlineCount} totalCount={totalCount} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        <h2 className="font-title text-xl font-bold tracking-tight">
           Your agents
         </h2>
         <div className="flex items-center gap-2">
@@ -317,23 +328,26 @@ function AgentsTab({
 }
 
 function AgentsSkeleton() {
-  // Shaped like the loaded page: hint card, section header, agent cards.
+  // Shaped like the loaded page: hint card, stat bento, section header, rows.
   return (
     <div className="space-y-6">
       <div className="h-28 animate-pulse rounded-2xl border border-border bg-muted/30" />
-      <div className="h-4 w-28 animate-pulse rounded-full bg-muted" />
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid grid-cols-2 grid-rows-2 gap-4 @3xl:grid-cols-3">
+        <div className="col-span-2 row-span-2 h-40 animate-pulse rounded-2xl bg-muted/30" />
+        <div className="h-16 animate-pulse rounded-2xl bg-muted/30" />
+        <div className="h-16 animate-pulse rounded-2xl bg-muted/30" />
+      </div>
+      <div className="h-6 w-28 animate-pulse rounded-full bg-muted" />
+      <div className="overflow-hidden rounded-2xl border border-border">
+        <div className="h-12 border-b border-border bg-muted/20" />
         {[0, 1].map((i) => (
-          <Card
+          <div
             key={i}
-            className="space-y-3 rounded-2xl p-4"
+            className="flex items-center gap-3 border-b border-border px-5 py-3 last:border-b-0"
           >
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
-              <div className="h-4 w-32 animate-pulse rounded-full bg-muted" />
-            </div>
-            <div className="h-3 w-3/4 animate-pulse rounded-full bg-muted/70" />
-          </Card>
+            <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
+            <div className="h-4 w-32 animate-pulse rounded-full bg-muted" />
+          </div>
         ))}
       </div>
     </div>
@@ -386,38 +400,100 @@ function ConnectHint({ retired = false }: { retired?: boolean }) {
   );
 }
 
-// Fleet cost visibility — total agent spend over 7/30 days plus the top
-// spenders. Only shown once agents have reported runs with cost, so it
-// stays out of the way until it's meaningful.
-function FleetSpend() {
+// The page's one signal bento: fleet presence (the tall block, art-carrying)
+// beside spend over the last 7 days — the two figures this screen already
+// computes elsewhere (the header badge, the old FleetSpend row) drawn once,
+// saturated, together. Top spenders stays a plain outlined list underneath —
+// it's the one thing on this screen that's a LIST, and a list of names over a
+// fill is unreadable (see StatsCards on Home for the same rule).
+function AgentsStatBento({
+  onlineCount,
+  totalCount,
+}: {
+  onlineCount: number;
+  totalCount: number;
+}) {
   const spend = useQuery(api.agents.fleetSpend, {});
-  if (!spend || spend.runs7 === 0) return null;
+
   return (
     <div className="space-y-3">
-      <Stagger className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StaggerItem>
-          <SpendStat label="Spend · 7d" value={`$${spend.cost7.toFixed(2)}`} />
+      <Stagger className="grid grid-cols-2 grid-rows-2 gap-4 @3xl:grid-cols-3">
+        {/* ── The headline block: agents online right now ─────────────── */}
+        <StaggerItem lift className="col-span-2 row-span-2 min-h-0">
+          <div className="relative flex h-full min-h-[10rem] flex-col justify-between overflow-hidden rounded-2xl bg-signal-yellow p-5 text-signal-ink">
+            <OpRings
+              aria-hidden
+              className="slow-breathe pointer-events-none absolute -right-8 top-1/2 hidden h-56 w-56 -translate-y-1/2 @sm:block"
+            />
+            <span className="relative text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+              Fleet
+            </span>
+            <span className="relative mt-3 min-w-0">
+              <span className="font-title block text-[3.5rem] font-bold leading-[0.85] tracking-tight">
+                <AnimatedNumber value={onlineCount} />
+              </span>
+              <span className="mt-1.5 block text-sm font-medium opacity-70">
+                {onlineCount === 1 ? "agent" : "agents"} online right now
+              </span>
+            </span>
+            <span className="relative mt-4 min-w-0 border-t border-current/20 pt-2.5">
+              <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-55">
+                Fleet size
+              </span>
+              <span className="mt-0.5 block text-sm font-semibold">
+                {totalCount} {totalCount === 1 ? "agent" : "agents"} total
+              </span>
+            </span>
+          </div>
         </StaggerItem>
-        <StaggerItem>
-          <SpendStat
-            label="Spend · 30d"
-            value={`$${spend.cost30.toFixed(2)}`}
-          />
+
+        {/* ── The two that move, stacked in one column ─────────────────── */}
+        <StaggerItem lift className="min-h-0 @3xl:col-start-3 @3xl:row-start-1">
+          <div className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-teal p-4 text-signal-ink">
+            <span className="flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/85 shadow-sm">
+                <Wallet aria-hidden className="size-4" />
+              </span>
+              <span className="font-title block truncate text-[2.25rem] font-bold leading-[0.85] tracking-tight">
+                ${(spend?.cost7 ?? 0).toFixed(2)}
+              </span>
+            </span>
+            <span className="mt-auto border-t border-current/20 pt-2">
+              <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+                Spend · 7d
+              </span>
+              <span className="mt-0.5 block text-[11px] font-medium opacity-70">
+                {spend ? `$${spend.cost30.toFixed(2)} over 30d` : "no spend yet"}
+              </span>
+            </span>
+          </div>
         </StaggerItem>
-        <StaggerItem>
-          <SpendStat
-            label="Tokens · 7d"
-            value={compactNumber(spend.tokens7)}
-          />
-        </StaggerItem>
-        <StaggerItem>
-          {/* The only genuinely integer value here — the others are
-              pre-formatted currency/compact strings, so only this one
-              springs via AnimatedNumber. */}
-          <SpendStat label="Runs · 7d" value={spend.runs7} />
+
+        <StaggerItem lift className="min-h-0 @3xl:col-start-3 @3xl:row-start-2">
+          <div className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-pink p-4 text-signal-ink">
+            <span className="flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/85 shadow-sm">
+                <Activity aria-hidden className="size-4" />
+              </span>
+              <span className="font-title block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
+                <AnimatedNumber value={spend?.runs7 ?? 0} />
+              </span>
+            </span>
+            <span className="mt-auto border-t border-current/20 pt-2">
+              <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+                Runs · 7d
+              </span>
+              <span className="mt-0.5 block text-[11px] font-medium opacity-70">
+                {spend && spend.tokens7 > 0
+                  ? `${compactNumber(spend.tokens7)} tokens`
+                  : "nothing run yet"}
+              </span>
+            </span>
+          </div>
         </StaggerItem>
       </Stagger>
-      {spend.topSpenders.length > 0 && (
+
+      {spend && spend.topSpenders.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Top spend
@@ -425,31 +501,16 @@ function FleetSpend() {
           {spend.topSpenders.map((a) => (
             <span
               key={a.name}
-              className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs"
+              className="ui-chip inline-flex items-center gap-1.5 whitespace-nowrap px-2 py-0.5 text-xs text-muted-foreground"
             >
               <ActorGlyph seed={a.name} name={a.name} size="xs" isAgent />
-              {a.name}
-              <span className="tabular-nums text-muted-foreground">
-                ${a.cost.toFixed(2)}
-              </span>
+              <span className="text-foreground">{a.name}</span>
+              <span className="tabular-nums">${a.cost.toFixed(2)}</span>
             </span>
           ))}
         </div>
       )}
     </div>
-  );
-}
-
-function SpendStat({ label, value }: { label: string; value: number | string }) {
-  return (
-    <Card className="gap-1 rounded-2xl p-3">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-0.5 text-xl font-bold tabular-nums tracking-tight">
-        <AnimatedNumber value={value} />
-      </p>
-    </Card>
   );
 }
 
@@ -789,21 +850,20 @@ function AgentGroup({
 }) {
   if (agents.length === 0) return null;
   return (
-    <section>
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {label}
-        </h3>
+    <section className="@container overflow-hidden rounded-2xl panel">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3.5">
+        <h3 className="text-base font-medium">{label}</h3>
         {!canManage && (
           <span className="text-xs text-muted-foreground">
             Owners and admins manage access
           </span>
         )}
       </div>
-      <Stagger className="grid gap-3 lg:grid-cols-2">
-        {agents.map((agent) => (
+      <Stagger className="divide-y divide-border">
+        {agents.map((agent, index) => (
           <StaggerItem key={agent._id}>
-            <AgentCard
+            <AgentRow
+              index={index + 1}
               agent={agent}
               taskTitles={taskTitles}
               canManage={canManage}
@@ -815,11 +875,18 @@ function AgentGroup({
   );
 }
 
-function AgentCard({
+// The row language: `01 · glyph · title · [tag] [tag]` — a zero-padded
+// index in the margin, the agent's glyph, a heavy name, and presence as an
+// outlined chip pushed right. Everything below the row header (description,
+// signal detail, current status) reads as prose rather than tags, the same
+// way Today's tasks on Home keeps its meta line under the title.
+function AgentRow({
+  index,
   agent,
   taskTitles,
   canManage,
 }: {
+  index: number;
   agent: Doc<"agents">;
   taskTitles: Record<string, string>;
   canManage: boolean;
@@ -852,29 +919,36 @@ function AgentCard({
         : presence.detail;
 
   return (
-    <Card className="lift gap-3 rounded-2xl p-4">
-      <div className="flex items-start gap-3">
-        <ActorGlyph seed={agent._id} name={agent.name} size="lg" isAgent />
+    <div>
+      <div className="flex items-start gap-3 px-5 py-3">
+        <span
+          aria-hidden
+          className="w-6 flex-shrink-0 pt-1.5 text-right font-title text-xs tabular-nums text-muted-foreground"
+        >
+          {String(index).padStart(2, "0")}
+        </span>
+        <ActorGlyph
+          seed={agent._id}
+          name={agent.name}
+          size="lg"
+          isAgent
+          className="flex-shrink-0"
+        />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <Link
               href={`/dashboard/agents/${agent._id}`}
-              className="font-medium hover:underline"
+              className="min-w-0 flex-1 basis-40 truncate text-sm font-semibold hover:underline"
             >
               {agent.name}
             </Link>
-            <Badge
-              variant="secondary"
-              className={cn(
-                "gap-1.5 uppercase tracking-wider",
-                presence.online &&
-                  "bg-pastel-green text-foreground dark:text-neutral-900",
-              )}
+            <span
+              className="ui-chip inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap px-2 py-0.5 text-[11px] text-muted-foreground"
               title={presence.detail}
             >
               <PresenceDot online={presence.online} />
               {statusLabel}
-            </Badge>
+            </span>
           </div>
           {agent.description && (
             <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -885,7 +959,7 @@ function AgentCard({
             Signal: {signalLabel}
           </p>
           {(agent.statusText || currentTitle) && (
-            <p className="mt-2 rounded-2xl bg-muted/50 px-3 py-1.5 text-xs">
+            <p className="mt-2 rounded-xl bg-muted/50 px-3 py-1.5 text-xs">
               <span className="font-medium">
                 {presence.online ? "Now:" : "Last status:"}
               </span>{" "}
@@ -948,13 +1022,13 @@ function AgentCard({
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.35, ease: EASE }}
-            className="overflow-hidden"
+            className="overflow-hidden px-5 pb-4"
           >
             <KeysPanel agentId={agent._id} />
           </motion.div>
         )}
       </AnimatePresence>
-    </Card>
+    </div>
   );
 }
 

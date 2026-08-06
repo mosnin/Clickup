@@ -84,9 +84,9 @@ export function ListView({
       })),
     [visibleFields, fields],
   );
-  // Total column count: select + complete + title, the metadata columns, and
-  // the trailing action cell.
-  const columnCount = columns.length + 4;
+  // Total column count: select + complete + index + title, the metadata
+  // columns, and the trailing action cell.
+  const columnCount = columns.length + 5;
 
   // Assignee names (humans AND agents) are needed for the Assignees column
   // and for assignee grouping — fetched only when one of those is on.
@@ -182,7 +182,10 @@ export function ListView({
 
   return (
     <>
-      <Card className="gap-0 overflow-hidden py-0">
+      {/* @container so column visibility below answers "does THIS card have
+          room", never the viewport — a narrow group card on a wide screen
+          behaves the same as a phone, and vice versa. */}
+      <Card className="@container gap-0 overflow-hidden rounded-2xl py-0">
         <CardContent className="px-0 py-0">
           <Table>
             <TableHeader>
@@ -197,14 +200,22 @@ export function ListView({
                   />
                 </TableHead>
                 <TableHead scope="col" className="w-10" />
-                <TableHead scope="col">Title</TableHead>
+                {/* The row language's catalogue-number column — a header
+                    label would repeat what the numbers already say. */}
+                <TableHead scope="col" className="w-8" />
+                <TableHead
+                  scope="col"
+                  className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+                >
+                  Title
+                </TableHead>
                 {columns.map((c, i) => (
                   <TableHead
                     scope="col"
                     key={c.key}
                     className={cn(
-                      "truncate",
-                      i < 2 ? "hidden sm:table-cell" : "hidden md:table-cell",
+                      "truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground",
+                      i < 2 ? "hidden @sm:table-cell" : "hidden @md:table-cell",
                     )}
                   >
                     {c.label}
@@ -416,10 +427,13 @@ function GroupHeaderRow({
   columnCount: number;
 }) {
   return (
+    // The same header-band language as a card's own header: a hairline
+    // underneath, breathing room on all sides, a micro-label rather than a
+    // headline — this band sits INSIDE the card, between rows, not atop it.
     <TableRow className="hover:bg-transparent">
       <TableCell
         colSpan={columnCount}
-        className="whitespace-normal bg-muted/40 py-2"
+        className="whitespace-normal border-b border-border bg-muted/40 px-5 py-3.5"
       >
         <span className="flex min-w-0 items-center gap-2">
           {color && (
@@ -432,7 +446,7 @@ function GroupHeaderRow({
           <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             {label}
           </span>
-          <span className="flex-shrink-0 text-[11px] tabular-nums text-muted-foreground">
+          <span className="ui-chip ui-figure flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] text-muted-foreground">
             {count}
           </span>
         </span>
@@ -937,6 +951,14 @@ function TaskRow({
           </motion.svg>
         </motion.button>
       </TableCell>
+      {/* The row language's catalogue number: zero-padded, tabular, in the
+          display face, muted and out of the tab order — decoration, not a
+          fourth way to select a row. */}
+      <TableCell aria-hidden className="text-right">
+        <span className="font-title text-xs tabular-nums text-muted-foreground">
+          {String(index + 1).padStart(2, "0")}
+        </span>
+      </TableCell>
       <TableCell className={cn("min-w-0", wrap && "whitespace-normal")}>
         <span
           className={cn(
@@ -971,7 +993,7 @@ function TaskRow({
             href={taskPeekHref(searchParams, task._id)}
             scroll={false}
             className={cn(
-              "min-w-0 hover:underline",
+              "min-w-0 font-semibold hover:underline",
               wrap ? "break-words" : "truncate",
               isDone && "text-muted-foreground line-through",
             )}
@@ -981,12 +1003,12 @@ function TaskRow({
           <TaskBadges task={task} />
           <ChecklistChip checklist={task.checklist} />
           {task.estimatePoints != null && (
-            <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+            <span className="ui-chip ui-figure flex-shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
               {task.estimatePoints} pts
             </span>
           )}
           {subtasks.length > 0 && (
-            <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+            <span className="ui-chip ui-figure flex-shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
               {subtasks.length}
             </span>
           )}
@@ -1000,7 +1022,7 @@ function TaskRow({
         <TableCell
           key={c.key}
           className={cn(
-            i < 2 ? "hidden sm:table-cell" : "hidden md:table-cell",
+            i < 2 ? "hidden @sm:table-cell" : "hidden @md:table-cell",
           )}
         >
           {renderCell(c.key)}
@@ -1031,7 +1053,7 @@ function TaskRow({
               task={child}
               listId={listId}
               statuses={statuses}
-              colSpan={columnCount - 2}
+              colSpan={columnCount - 3}
               settings={settings}
               parentTitle={settings.showSubtaskParents ? task.title : undefined}
               locationLabel={locationLabel}
@@ -1125,6 +1147,10 @@ function ChildTaskRow({
       className="border-b bg-muted/20 align-middle"
     >
       <TableCell />
+      {/* Placeholder matching the parent row's index column, so a subtask's
+          title lines up under its parent's rather than under the catalogue
+          number. */}
+      <TableCell />
       <TableCell>
         <motion.button
           type="button"
@@ -1182,7 +1208,7 @@ function ChildTaskRow({
               href={taskPeekHref(searchParams, task._id)}
               scroll={false}
               className={cn(
-                "min-w-0 text-xs hover:underline",
+                "min-w-0 text-xs font-medium hover:underline",
                 settings.wrapText ? "break-words" : "truncate",
                 isDone && "text-muted-foreground line-through",
               )}
@@ -1190,7 +1216,7 @@ function ChildTaskRow({
               {task.title}
             </Link>
             {task.dueDate && (
-              <span className="flex-shrink-0 text-[11px] text-muted-foreground">
+              <span className="ui-chip ui-figure flex-shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[11px] text-muted-foreground">
                 {toDateInputValue(task.dueDate)}
               </span>
             )}
@@ -1233,7 +1259,7 @@ function NewTaskRow({ listId }: { listId: Id<"lists"> }) {
   }
 
   return (
-    <form onSubmit={submit} className="border-t border-border px-4 py-3">
+    <form onSubmit={submit} className="border-t border-border px-5 py-3">
       <div className="flex items-center gap-2">
         <Plus className="h-4 w-4 text-muted-foreground" aria-hidden />
         <input

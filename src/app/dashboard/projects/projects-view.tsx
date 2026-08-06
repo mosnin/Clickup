@@ -8,17 +8,17 @@ import { FolderKanban, Star } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Stagger, StaggerItem } from "@/components/motion";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Picker } from "@/components/ui/picker";
-import { Progress } from "@/components/ui/progress";
 import { Tabs } from "@/components/interior/tabs";
 import { Pagination } from "@/components/interior/pagination";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState } from "@/components/dashboard/empty-state";
+import { NotchCard } from "@/components/dashboard/notch-card";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
+import { timeAgo } from "@/lib/time";
 
 // All-projects directory: every list the current user can access, across
 // their personal space and every workspace they belong to, in one
@@ -249,6 +249,15 @@ export function ProjectsView() {
     [paged, group],
   );
 
+  // The one signal-colour moment on this page: exactly one card, chosen by
+  // urgency — most overdue open work, then nearest target date — never by
+  // position. Computed over the whole visible page so grouping never splits
+  // the highlight across sections. Mirrors Home's ProjectCards rule.
+  const urgentProjectId = useMemo(
+    () => pickUrgentProjectId(paged),
+    [paged],
+  );
+
   async function onToggleFavorite(listId: Id<"projects">, wasFavorited: boolean) {
     try {
       await toggleFavorite({ entityType: "project", entityId: listId });
@@ -353,6 +362,7 @@ export function ProjectsView() {
               projects={paged}
               favoritedProjectIds={favoritedProjectIds}
               onToggleFavorite={onToggleFavorite}
+              urgentProjectId={urgentProjectId}
             />
           ) : (
             <div className="space-y-8">
@@ -368,6 +378,7 @@ export function ProjectsView() {
                     projects={g.rows}
                     favoritedProjectIds={favoritedProjectIds}
                     onToggleFavorite={onToggleFavorite}
+                    urgentProjectId={urgentProjectId}
                   />
                 </section>
               ))}
@@ -397,23 +408,65 @@ export function ProjectsView() {
   );
 }
 
+// The project that needs attention soonest: most overdue open work, then
+// nearest target date. Never "the first one" — a highlight that never moves
+// is decoration. The directory doesn't carry a per-project overdue task
+// count (unlike Home's rollup), so "most overdue" is read off how far past
+// its target date a project with open work still sits.
+function pickUrgentProjectId(rows: ProjectRow[]): string | null {
+  if (rows.length === 0) return null;
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const today = startOfToday.getTime();
+  function overdueBy(p: ProjectRow): number {
+    if (p.targetDate === undefined) return 0;
+    if (p.total - p.done <= 0) return 0; // no open work left to be late on
+    return p.targetDate < today ? today - p.targetDate : 0;
+  }
+  const urgent = [...rows].sort(
+    (a, b) =>
+      overdueBy(b) - overdueBy(a) ||
+      (a.targetDate ?? Infinity) - (b.targetDate ?? Infinity),
+  )[0];
+  return urgent.projectId;
+}
+
+function HealthChip({ status }: { status: ProjectRow["projectStatus"] }) {
+  const chip = status ? STATUS_CHIP[status] : null;
+  if (!chip) return null;
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "whitespace-nowrap border-transparent text-foreground",
+        chip.className,
+      )}
+    >
+      {chip.label}
+    </Badge>
+  );
+}
+
 function ProjectsGrid({
   projects,
   favoritedProjectIds,
   onToggleFavorite,
+  urgentProjectId,
 }: {
   projects: ProjectRow[];
   favoritedProjectIds: Set<string>;
   onToggleFavorite: (listId: Id<"projects">, wasFavorited: boolean) => void;
+  urgentProjectId: string | null;
 }) {
   return (
-    <Stagger className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <Stagger className="grid auto-rows-fr grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
       {projects.map((project) => (
-        <StaggerItem key={project.projectId}>
+        <StaggerItem key={project.projectId} lift className="h-full min-w-0">
           <ProjectCard
             project={project}
             favorited={favoritedProjectIds.has(project.projectId)}
             onToggleFavorite={onToggleFavorite}
+            lime={project.projectId === urgentProjectId}
           />
         </StaggerItem>
       ))}
@@ -421,19 +474,22 @@ function ProjectsGrid({
   );
 }
 
+// Cyberlock notch card, carrying a project instead of a campaign: corner
+// scoop holds the favorite toggle, the body splits into a content cell and a
+// done/total figure cell, and a footer band holds the open action. Exactly
+// one card on the page — the one `urgentProjectId` names — wears signal lime;
+// every other card stays the plain panel tone. See Home's ProjectCards.
 function ProjectCard({
   project,
   favorited,
   onToggleFavorite,
+  lime,
 }: {
   project: ProjectRow;
   favorited: boolean;
   onToggleFavorite: (listId: Id<"projects">, wasFavorited: boolean) => void;
+  lime: boolean;
 }) {
-  const pct = project.total > 0 ? (project.done / project.total) * 100 : 0;
-  const chip = project.projectStatus
-    ? STATUS_CHIP[project.projectStatus]
-    : null;
   const hasOpenWork = project.total - project.done > 0;
   // targetDate is a local-midnight day stamp: only overdue once the whole
   // target day has passed, not the instant the clock crosses midnight.
@@ -445,111 +501,119 @@ function ProjectCard({
     hasOpenWork;
 
   return (
-    <Link href={`/dashboard/p/${project.projectId}`} className="lift block">
-      <Card className="gap-0 rounded-2xl py-5">
-        <CardContent className="px-5">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                {project.color && (
-                  <span
-                    aria-hidden
-                    className="h-2 w-2 flex-shrink-0 rounded-full"
-                    style={{ backgroundColor: project.color }}
-                  />
-                )}
-                <p className="truncate font-semibold">{project.name}</p>
-              </div>
-              <p className="truncate text-xs text-muted-foreground">
-                {project.place}
-              </p>
-            </div>
-            <div className="flex flex-shrink-0 items-center gap-1">
-              {chip && (
-                <Badge className={cn("text-[10px] text-foreground", chip.className)}>
-                  {chip.label}
-                </Badge>
-              )}
-              <button
-                type="button"
-                aria-label={
-                  favorited
-                    ? `Remove ${project.name} from favorites`
-                    : `Add ${project.name} to favorites`
-                }
-                aria-pressed={favorited}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onToggleFavorite(project.projectId, favorited);
-                }}
+    <NotchCard
+      tone={lime ? "lime" : "panel"}
+      corner={
+        <button
+          type="button"
+          aria-label={
+            favorited
+              ? `Remove ${project.name} from favorites`
+              : `Add ${project.name} to favorites`
+          }
+          aria-pressed={favorited}
+          onClick={() => onToggleFavorite(project.projectId, favorited)}
+          className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-muted"
+        >
+          <Star
+            className={cn("size-4", favorited && "fill-current")}
+            aria-hidden
+          />
+        </button>
+      }
+      className="h-full"
+    >
+      <div className="grid grid-cols-[1fr_auto]">
+        <div className="min-w-0 p-4 pr-2">
+          {/* Clears the notch: the title starts below the scoop's reach so a
+              long name never runs under the favorite control. */}
+          <div className="flex items-center gap-1.5 pr-10">
+            {project.color && (
+              <span
+                aria-hidden
+                className="size-2 flex-shrink-0 rounded-full"
+                style={{ backgroundColor: project.color }}
+              />
+            )}
+            <p className="line-clamp-2 font-title text-base font-bold leading-snug">
+              {project.name}
+            </p>
+          </div>
+          <p className={cn("mt-1 truncate text-xs", lime ? "opacity-60" : "text-muted-foreground")}>
+            {project.place}
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {project.projectStatus && <HealthChip status={project.projectStatus} />}
+            {overdue && (
+              <span
                 className={cn(
-                  "tap-target inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full transition-colors",
-                  favorited
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
+                  "ui-chip px-2 py-0.5 text-[11px] font-medium",
+                  !lime && "border-danger/40 text-danger",
                 )}
               >
-                <Star
-                  className={cn("h-4 w-4", favorited && "fill-current")}
-                  aria-hidden
-                />
-              </button>
-            </div>
-          </div>
-
-          {project.description && (
-            <p className="mt-2 line-clamp-1 text-sm text-muted-foreground">
-              {project.description}
-            </p>
-          )}
-
-          {project.roadmapName && (
-            <Badge
-              className={cn(
-                "mt-2 max-w-full text-[10px] text-foreground",
-                "bg-pastel-purple dark:text-neutral-900",
-              )}
-            >
-              <span className="truncate">
+                Past target
+              </span>
+            )}
+            {project.roadmapName && (
+              <span className={cn("ui-chip max-w-full truncate px-2 py-0.5 text-[11px]", !lime && "text-muted-foreground")}>
                 {project.roadmapName}
                 {project.phaseName ? ` · ${project.phaseName}` : ""}
               </span>
-            </Badge>
-          )}
-
-          <div className="mt-4">
-            <Progress value={pct} className="h-1.5" />
-            <p className="mt-1.5 text-xs text-muted-foreground">
-              {project.done} of {project.total} task
-              {project.total === 1 ? "" : "s"}
-            </p>
+            )}
+            {project.targetDate !== undefined && (
+              <span className={cn("ui-chip ui-figure px-2 py-0.5 text-[11px]", !lime && "text-muted-foreground")}>
+                {formatTargetDate(project.targetDate)}
+              </span>
+            )}
           </div>
-
-          {project.targetDate !== undefined && (
-            <p
-              className={cn(
-                "mt-3 text-xs",
-                overdue ? "font-medium text-danger" : "text-muted-foreground",
-              )}
-            >
-              Target {formatTargetDate(project.targetDate)}
-            </p>
+        </div>
+        <div
+          className={cn(
+            // pt-14, not centred: the scoop owns the cell's top 56px, and a
+            // centred figure on a short card lands exactly under it.
+            "flex min-w-[6.5rem] flex-col items-center justify-start border-l px-3 pb-4 pt-14",
+            lime ? "border-current/15" : "border-border",
           )}
-        </CardContent>
-      </Card>
-    </Link>
+        >
+          <span className="font-title whitespace-nowrap text-2xl font-bold leading-none tracking-tight">
+            {project.done}
+            <span className="text-sm font-semibold opacity-50">
+              /{project.total}
+            </span>
+          </span>
+          <span className={cn("mt-1 text-[10px] font-medium uppercase tracking-wider", lime ? "opacity-60" : "text-muted-foreground")}>
+            done
+          </span>
+        </div>
+      </div>
+      <div className={cn("flex items-center justify-between gap-3 border-t px-4 py-2.5", lime ? "border-current/15" : "border-border")}>
+        <span className={cn("truncate text-[11px]", lime ? "opacity-60" : "text-muted-foreground")}>
+          active {timeAgo(project.activityAt)}
+        </span>
+        <Link
+          href={`/dashboard/p/${project.projectId}`}
+          className={cn(
+            "flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform hover:scale-[1.03]",
+            lime
+              ? "bg-signal-ink text-signal-lime"
+              : "bg-primary text-primary-foreground",
+          )}
+        >
+          Open project
+        </Link>
+      </div>
+    </NotchCard>
   );
 }
 
 function ProjectsSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid auto-rows-fr grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
       {[0, 1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className="rounded-2xl panel p-5">
+        <div key={i} className="rounded-2xl border border-border bg-card p-5">
           <div className="h-4 w-2/3 animate-pulse rounded-full bg-muted" />
           <div className="mt-2 h-3 w-1/3 animate-pulse rounded-full bg-muted/60" />
-          <div className="mt-6 h-1.5 w-full animate-pulse rounded-full bg-muted" />
+          <div className="mt-6 h-8 w-1/4 animate-pulse rounded-full bg-muted" />
           <div className="mt-2 h-3 w-1/4 animate-pulse rounded-full bg-muted/60" />
         </div>
       ))}
