@@ -7,6 +7,13 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { SidebarDock } from "@/components/appearance/sidebar-dock";
 import { FileTree } from "@/components/ui/file-tree";
 import { galleryData } from "./stubs/convex-react";
+
+// The tree ships COLLAPSED behind the "Your spaces" disclosure (the rail
+// opens sparse, per the references). This page exists to exercise the tree,
+// so pre-open it the way a tree-dwelling user's machine would remember it.
+try {
+  localStorage.setItem("sidebar_spaces_open", "true");
+} catch {}
 import { StyleStudio } from "@/components/appearance/style-studio";
 import { useCustomize } from "@/components/appearance/customize-provider";
 import { useEffect } from "react";

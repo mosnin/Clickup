@@ -9,6 +9,7 @@ import {
   Bot,
   Check,
   ChevronDown,
+  ChevronRight,
   Columns3,
   FileText,
   Folder,
@@ -27,6 +28,7 @@ import {
   Star,
   Trash2,
   X,
+  Boxes,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -330,17 +332,26 @@ function SidebarContentBody() {
         </SidebarGroupContent>
       </SidebarGroup>
 
-      <FavoritesGroup />
+      {/* The tree folds away, and the rail opens SPARSE.
 
-      {tree === undefined ? (
-        <TreeLoadingGroup />
-      ) : tree === null ? (
-        <p className="px-4 text-sm text-muted-foreground">Sign in to see your spaces.</p>
-      ) : ctx.kind === "workspace" ? (
-        <WorkspaceTreeGroup workspace={ctx.workspace} />
-      ) : (
-        <PersonalTreeGroup personal={tree.personal} />
-      )}
+          Both references are a short rail of icon-chip rows — neither has a
+          tree against the window. Ours cannot delete its tree (lists and
+          projects are the product), so the tree becomes one press away and
+          the press is remembered per machine: first sight is the reference
+          rail, and anyone who lives in the tree opens it once and keeps it. */}
+      <SpacesDisclosure>
+        <FavoritesGroup />
+
+        {tree === undefined ? (
+          <TreeLoadingGroup />
+        ) : tree === null ? (
+          <p className="px-4 text-sm text-muted-foreground">Sign in to see your spaces.</p>
+        ) : ctx.kind === "workspace" ? (
+          <WorkspaceTreeGroup workspace={ctx.workspace} />
+        ) : (
+          <PersonalTreeGroup personal={tree.personal} />
+        )}
+      </SpacesDisclosure>
       </TreeHighlight>
     </SidebarContent>
   );
@@ -446,6 +457,65 @@ function ChatMenuItem() {
 }
 
 // ── Favorites ────────────────────────────────────────────────────────────
+
+/**
+ * The disclosure the tree lives behind.
+ *
+ * localStorage rather than Convex, deliberately: which machine you are on is
+ * exactly what this should vary by — the laptop where you work the tree keeps
+ * it open, the phone where you glance at Home keeps the rail sparse. The
+ * default (closed) is what a new account sees, which is the reference.
+ */
+const SPACES_OPEN_KEY = "sidebar_spaces_open";
+
+function SpacesDisclosure({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    try {
+      setOpen(localStorage.getItem(SPACES_OPEN_KEY) === "true");
+    } catch {
+      // Storage denied = the default, which is fine.
+    }
+  }, []);
+  const toggle = () => {
+    setOpen((cur) => {
+      const next = !cur;
+      try {
+        localStorage.setItem(SPACES_OPEN_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  };
+  return (
+    <>
+      <SidebarGroup>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                type="button"
+                onClick={toggle}
+                aria-expanded={open}
+                tooltip="Your spaces"
+              >
+                <Boxes />
+                <span className="flex-1">Your spaces</span>
+                <ChevronRight
+                  aria-hidden
+                  className={cn(
+                    "size-3.5 shrink-0 text-muted-foreground transition-transform",
+                    open && "rotate-90",
+                  )}
+                />
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+      {open && children}
+    </>
+  );
+}
 
 function FavoritesGroup() {
   const pathname = usePathname();

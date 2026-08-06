@@ -7,17 +7,11 @@ import useMeasure from "react-use-measure";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import {
-  AlertTriangle,
   ArrowRight,
   ArrowUpRight,
-  Bot,
   Clock,
-  LayoutDashboard,
-  ListChecks,
   Plus,
-  type LucideIcon,
 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { api } from "@convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
@@ -39,23 +33,8 @@ import { PriorityDot } from "@/components/dashboard/priority";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Progress } from "@/components/ui/progress";
 import { BorderBeam } from "@/components/ui/beam";
 import GradientText from "@/components/gradient-text";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
 import { errorMessage } from "@/lib/errors";
 import { wake } from "@/lib/anime";
 import {
@@ -66,6 +45,9 @@ import { ActorGlyph } from "@/components/appearance/actor-glyph";
 import { Panel } from "@/components/dashboard/panel";
 import { StyledSurface } from "@/components/dashboard/styled-surface";
 import { OpRings, SparkMark } from "@/components/dashboard/op-art";
+import { GaugeArc } from "@/components/charts/gauge-arc";
+import { StackedColumns } from "@/components/charts/stacked-columns";
+import { NotchCard } from "@/components/dashboard/notch-card";
 import { useOfferMintablePanels } from "@/components/appearance/mintable-panels";
 import { OnlyWhenList } from "@/components/appearance/only-when";
 import { builtInPanelQuestion } from "@/lib/built-in-panel";
@@ -113,12 +95,6 @@ const HEALTH_CHIP: Record<
   paused: { label: "Paused", className: "bg-muted" },
 };
 
-const chartConfig: ChartConfig = {
-  // The brand lime, not a neutral: both references draw their one chart in
-  // the accent (Cyberlock's risk bars, AIHub's coloured glyph column), and a
-  // grey chart on the dark window disappears into it.
-  completed: { label: "Completed", color: "var(--color-signal-lime)" },
-};
 
 // ── Home widgets ─────────────────────────────────────────────────────────
 // Each distinct block on Home has a stable id; the user's saved layout
@@ -200,9 +176,9 @@ const DEFAULT_ROWS: Record<BuiltInId, [one: WidgetRows, two: WidgetRows, three: 
   //          1 col  2 cols  3 cols
   stats: [5, 5, 3],
   today: [4, 3, 3],
-  activity: [3, 3, 3],
+  activity: [5, 4, 4],
   projects: [6, 6, 4],
-  live: [5, 4, 4],
+  live: [5, 5, 4],
   agents: [3, 3, 3],
 };
 /** Mirrors the grid's own thresholds (Tailwind's `@md` 28rem, `@3xl` 48rem). */
@@ -531,13 +507,18 @@ export default function DashboardHome() {
       case "today":
         return surfaced(<TodaysTasks rows={myWork ?? undefined} />);
       case "activity":
-        return surfaced(<ActivityChart completions={ov.completions7d} />);
-      case "projects":
         return surfaced(
-          <ProjectsTable
+          <PulsePanel
+            completions7d={ov.completions7d}
+            me={ov.me}
             projects={ov.projects}
-            totalProjects={ov.totalProjects}
           />,
+        );
+      case "projects":
+        // NOT surfaced: the reference's campaign grid is cards ON the slab
+        // under a section heading, not cards inside a card.
+        return (
+          <ProjectCards projects={ov.projects} totalProjects={ov.totalProjects} />
         );
       case "live":
         return surfaced(<LiveFeed ticker={ov.ticker} />);
@@ -550,16 +531,36 @@ export default function DashboardHome() {
     <div className="space-y-6">
       <WelcomeReveal />
 
-      {/* Home writes its own headline — `WelcomeSection` greets you by name
-          and reads out the day, which is a better opening line than the word
-          "Home" at 30px. The sticky bar still says where you are. */}
-      <PageHeader headline={false} icon={LayoutDashboard} title="Home" />
-
-      <WelcomeSection
-        firstName={user?.firstName ?? undefined}
-        me={overview.me}
-        customizing={customizing}
-        onToggleCustomize={() => setCustomizing((v) => !v)}
+      {/* The greeting IS the capsule — the reference's welcome bar says
+          "Welcome!" in the chrome, not in a section below it. The two page
+          actions ride the capsule for the same reason: one bar owns the top. */}
+      <PageHeader
+        headline={false}
+        title={
+          user?.firstName ? `Welcome back, ${user.firstName}.` : "Welcome back."
+        }
+        context={
+          overview?.me ? (
+            <span className="hidden truncate @2xl:inline">
+              {overview.me.dueToday} due today · {overview.me.overdue} overdue
+            </span>
+          ) : undefined
+        }
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => setCustomizing((v) => !v)}
+              className="tap-target text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              {customizing ? "Done" : "Customize"}
+            </button>
+            <Button size="sm" className="h-9 gap-1.5" onClick={openCommandPalette}>
+              <Plus className="size-4" />
+              New task
+            </Button>
+          </>
+        }
       />
 
       <InviteCards />
@@ -796,76 +797,6 @@ function WelcomeReveal() {
   );
 }
 
-function WelcomeSection({
-  firstName,
-  me,
-  customizing,
-  onToggleCustomize,
-}: {
-  firstName?: string;
-  me: Overview["me"];
-  customizing: boolean;
-  onToggleCustomize: () => void;
-}) {
-  return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
-          Welcome back{firstName ? `, ${firstName}` : ""}.
-        </h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          {me.dueToday} Task{me.dueToday === 1 ? "" : "s"} Due Today,{" "}
-          {me.overdue} Overdue Task{me.overdue === 1 ? "" : "s"}, {me.open}{" "}
-          Open Task{me.open === 1 ? "" : "s"}
-        </p>
-      </div>
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onToggleCustomize}
-          className="tap-target text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-        >
-          {customizing ? "Done" : "Customize"}
-        </button>
-        <Button size="sm" className="h-9 gap-1.5" onClick={openCommandPalette}>
-          <Plus className="size-4" />
-          New task
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/**
- * The opening bento.
- *
- * Four blocks of unequal size, three of them saturated, one a white card —
- * the arrangement the reference opens with, and the reason it reads as a
- * product rather than as a report:
- *
- *     ┌───────────────┬─────────┬──────────┐
- *     │               │  teal   │  white   │
- *     │    yellow     ├─────────┤  card    │
- *     │    (tall)     │  pink   │  (list)  │
- *     └───────────────┴─────────┴──────────┘
- *
- * The version this replaced was four identical tiles in a row with one of
- * them painted, which is not a bento — it is a stat row with a highlight, and
- * a single coloured card among white ones reads as an error state rather than
- * as a design. The colour has to be spent all at once, in one place, or it is
- * not worth spending.
- *
- * What goes in each block is the mapping that makes it honest rather than
- * decorative: the tall block is the thing you opened the app to see (what is
- * on you, and the next thing to do about it), the two small ones are the two
- * numbers that change day to day, and the white card is the fleet — which is
- * a LIST, so it belongs in a card and not on a colour field.
- *
- * Nothing here is status-coloured. Yellow is not "good" and pink is not "bad";
- * they are the product's colours, and a block keeps its colour on the day the
- * number is zero. Alarm still exists and is still just `text-danger` on the
- * figure that has earned it.
- */
 function StatsCards({
   me,
   agentsOnline,
@@ -1228,114 +1159,77 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
 // derived client-side from the (capped) home ticker — no new server query.
 // Honestly labeled "Recent activity" rather than "Performance" since the
 // ticker only carries the newest ~10 events across every scope.
-function ActivityChart({ completions }: { completions?: number[] }) {
-  // Server-bucketed 7-day completion counts (index 0 = six days ago,
-  // 6 = today), computed over a real event window rather than the
-  // 10-item ticker that used to undercount busy scopes.
-  const data = useMemo(() => {
-    const days: { day: string; completed: number }[] = [];
-    const now = new Date();
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      days.push({
-        day: d.toLocaleDateString(undefined, { weekday: "short" }),
-        completed: completions?.[6 - i] ?? 0,
-      });
-    }
-    return days;
-  }, [completions]);
-
-  const total = data.reduce((sum, d) => sum + d.completed, 0);
-
-  // The chart is as tall as the box it was given, never a constant.
-  //
-  // It used to declare `h-[175px]` inside a card the packer hands 168px, so on
-  // a phone the plot ran straight through the card's bottom edge and all you
-  // could see of a week of work was one bar sliced in half. Measured rather
-  // than assumed, because the header, the count line and the card's padding
-  // are four different numbers and the tile's height is a fifth that this
-  // component does not choose.
-  //
-  // Shrink-only: in a card with no height of its own the measured box IS the
-  // plot, so a plot that grew to fill it would grow it, and the two would
-  // chase each other. `min` terminates.
-  const [plotRef, plotBox] = useMeasure();
-  const measured = Math.floor(plotBox.height);
-  const plotHeight = measured > 0 ? Math.max(56, Math.min(175, measured)) : 175;
-
+/**
+ * The pulse panel — the reference's top module, with our numbers in it.
+ *
+ * Cyberlock opens its content with ONE wide panel holding a semicircular
+ * gauge, a short list, and a multicoloured stacked chart. This is that panel:
+ * the gauge reads the week (done against done-plus-open, which is the honest
+ * "how is it going" a score implies), and the stacked columns are the
+ * portfolio — one column per project, its tasks stacked by state in the four
+ * signal colours. Multicoloured because the STATES are four real categories,
+ * not because the reference was; the reference is why they are lozenges.
+ */
+function PulsePanel({
+  completions7d,
+  me,
+  projects,
+}: {
+  completions7d?: number[];
+  me: Overview["me"];
+  projects: Project[];
+}) {
+  const done = (completions7d ?? []).reduce((a, b) => a + b, 0);
+  const columns = projects.slice(0, 8).map((project) => ({
+    label: project.name.split(/[ —–-]/)[0] || project.name,
+    segments: [
+      { value: project.done, color: "var(--color-signal-lime)" },
+      { value: project.inProgress, color: "var(--color-signal-teal)" },
+      { value: project.dueSoon, color: "var(--color-signal-yellow)" },
+      { value: project.overdue, color: "var(--color-danger)" },
+    ],
+  }));
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-border px-4 py-3">
-        <h3 className="text-base font-medium">Recent activity</h3>
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <h3 className="text-base font-medium">Pulse</h3>
+        <span className="text-xs text-muted-foreground">last 7 days</span>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col p-4">
-        <div className="mb-4 flex shrink-0 items-baseline gap-2">
-          <span className="text-3xl font-semibold tabular-nums">
-            <Counter
-              value={total}
-              places={placesFor(total)}
-              fontSize={30}
-              padding={4}
-              fontWeight={600}
-            />
-          </span>
-          <span className="text-sm text-muted-foreground">
-            completed · last 7 days
-          </span>
+      <div className="grid min-h-0 flex-1 items-center gap-6 p-4 @xl:grid-cols-[minmax(10rem,1fr)_2fr]">
+        <GaugeArc
+          value={done}
+          max={done + me.open}
+          caption={`done · ${me.open} still open`}
+          className="mx-auto w-full max-w-[13rem]"
+        />
+        <div className="min-w-0">
+          <StackedColumns items={columns} height={116} />
+          {/* The key, in the same four colours. A multicolour chart with no
+              key is a mood; with one it is a reading. */}
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+            {(
+              [
+                ["done", "var(--color-signal-lime)"],
+                ["in progress", "var(--color-signal-teal)"],
+                ["due soon", "var(--color-signal-yellow)"],
+                ["overdue", "var(--color-danger)"],
+              ] as const
+            ).map(([label, color]) => (
+              <span key={label} className="inline-flex items-center gap-1">
+                <span
+                  aria-hidden
+                  className="size-2 rounded-full"
+                  style={{ backgroundColor: color }}
+                />
+                {label}
+              </span>
+            ))}
+          </div>
         </div>
-        <div className="min-h-0 w-full flex-1" ref={plotRef}>
-          <ChartContainer
-            config={chartConfig}
-            className="w-full"
-            style={{ height: plotHeight }}
-          >
-            <BarChart
-              data={data}
-              margin={{ top: 8, right: 8, left: 8, bottom: 0 }}
-            >
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="var(--color-border)"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="day"
-                tickLine={false}
-                axisLine={false}
-                tick={{ fontSize: 11 }}
-              />
-              <YAxis hide allowDecimals={false} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              {/* Fully rounded lozenges rather than square-bottomed bars —
-                  every mark in the references is a pill. */}
-              <Bar
-                dataKey="completed"
-                radius={[8, 8, 8, 8]}
-                fill="var(--color-completed)"
-              />
-            </BarChart>
-          </ChartContainer>
-        </div>
-        {total === 0 && (
-          <p className="mt-3 shrink-0 text-xs text-muted-foreground">
-            No completions in the last few events yet — this fills in as work
-            wraps up.
-          </p>
-        )}
       </div>
     </div>
   );
 }
-
-/**
- * Health as a word, drawn the same way wherever the row is read.
- *
- * One component because the chip is the one thing in this table that must
- * never truncate: "At r" and "Off" are not shorter ways of saying "At risk"
- * and "Off track", they are different claims, and a reader cannot tell that a
- * word was cut. So it never sits in a column that can be squeezed.
- */
 function HealthChip({ status }: { status: Project["projectStatus"] }) {
   const chip = status ? HEALTH_CHIP[status] : null;
   if (!chip) return <span className="text-sm text-muted-foreground">—</span>;
@@ -1352,17 +1246,6 @@ function HealthChip({ status }: { status: Project["projectStatus"] }) {
   );
 }
 
-/**
- * Five columns need this much room before they stop being columns.
- *
- * Below it the table was still a table and the panel's edge did the editing:
- * the Health header read "Hea" and every chip under it was sliced mid-word by
- * the tile boundary — not by an ellipsis, which at least admits to it. The old
- * escape hatch was a horizontal scroller, and a horizontal scrollbar inside a
- * card on a phone is a control most people never find; the same five facts
- * read down the page instead, which is what a phone is shaped like.
- */
-const PROJECTS_TABLE_MIN_PX = 620;
 
 /**
  * How many project rows fit the tallest box the grid will ever give this panel.
@@ -1381,180 +1264,125 @@ const PROJECTS_TABLE_MIN_PX = 620;
  * Re-run `npm run gallery && node scripts/measure-home.mjs` after touching the
  * row's contents — if this block reports SCROLLS again, this number is wrong.
  */
-const HOME_PROJECT_ROWS = 6;
 
-function ProjectsTable({
-  projects: allProjects,
+/**
+ * The project grid — the reference's campaign cards, carrying our projects.
+ *
+ * Everything structural about the reference card is here: the section heading
+ * sits ON the slab (cards under a heading, never a table inside a card); each
+ * card splits into a content cell and a figure cell with a hairline between
+ * them; a footer band holds the action; the top-right corner is SCOOPED and
+ * the control sits in the notch; and exactly one card — the one that needs
+ * you soonest — is the lime one. The corner control is an open-link rather
+ * than the reference's ⋮, because a menu button with no menu is a lie.
+ */
+function ProjectCards({
+  projects,
   totalProjects,
 }: {
   projects: Project[];
   totalProjects: number;
 }) {
-  const [ref, box] = useMeasure();
-  const narrow = box.width > 0 && box.width < PROJECTS_TABLE_MIN_PX;
-
-  // Bounded here rather than in `homeOverview.ts`: the directory page wants
-  // more of them, and the query is shared. What the PANEL can draw is a fact
-  // about the panel's box.
-  const projects = allProjects.slice(0, HOME_PROJECT_ROWS);
-  const hidden = totalProjects - projects.length;
-
+  const shown = projects.slice(0, 4);
+  // The lime card is the project that needs attention soonest: most overdue
+  // work, then nearest target date. Never "the first one" — a highlight that
+  // never moves is decoration.
+  const urgent = [...shown].sort(
+    (a, b) =>
+      b.overdue - a.overdue ||
+      (a.targetDate ?? Infinity) - (b.targetDate ?? Infinity),
+  )[0];
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden" ref={ref}>
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <h3 className="text-base font-medium">Projects</h3>
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {hidden <= 0
-            ? `${totalProjects} project${totalProjects === 1 ? "" : "s"}`
-            : `${projects.length} of ${totalProjects}`}
-        </span>
+    <section className="h-full min-w-0">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="font-title text-xl font-bold tracking-tight">Projects</h2>
+        <Link
+          href="/dashboard/projects"
+          className="ui-chip rounded-full px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+        >
+          View all {totalProjects}
+        </Link>
       </div>
-      {projects.length === 0 ? (
-        <EmptyState
-          compact
-          title="No projects yet"
-          message="Create a list inside your personal space or a workspace and it'll show up here, live."
-        />
-      ) : narrow ? (
-        <ul className="divide-y divide-border">
-          {projects.map((p) => {
-            const pct = p.total > 0 ? (p.done / p.total) * 100 : 0;
-            const targetOverdue =
-              p.targetDate !== undefined &&
-              p.targetDate < startOfToday() &&
-              p.done < p.total;
-            return (
-              <li className="px-4 py-3" key={p.listId}>
-                <div className="flex items-start justify-between gap-3">
-                  {/* Name and place are one target, for the same reason as the
-                      task rows above: they are two lines about one project,
-                      and only the top one used to be pressable. */}
+      <Stagger className="grid grid-cols-1 gap-3 @2xl:grid-cols-2">
+        {shown.map((project) => {
+          const lime = project === urgent;
+          return (
+            <StaggerItem key={project.listId} lift className="min-w-0">
+              <NotchCard
+                tone={lime ? "lime" : "panel"}
+                corner={
                   <Link
-                    href={`/dashboard/l/${p.listId}`}
-                    className="tap-row group block min-w-0"
+                    href={`/dashboard/l/${project.listId}`}
+                    aria-label={`Open ${project.name}`}
+                    className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-muted"
                   >
-                    <span className="block truncate font-medium text-foreground group-hover:underline">
-                      {p.name}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {p.place}
-                    </span>
+                    <ArrowUpRight aria-hidden className="size-4" />
                   </Link>
-                  <HealthChip status={p.projectStatus} />
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <Progress value={pct} className="h-2 flex-1" />
-                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                    {p.done}/{p.total}
-                  </span>
-                </div>
-                <p className="mt-1 truncate text-xs text-muted-foreground">
-                  {p.targetDate !== undefined && (
-                    <span className={cn(targetOverdue && "text-danger")}>
-                      Target {formatDate(p.targetDate)} ·{" "}
-                    </span>
-                  )}
-                  {timeAgo(p.lastActivityAt)}
-                </p>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>Project</TableHead>
-                <TableHead>Health</TableHead>
-                <TableHead>Progress</TableHead>
-                <TableHead>Target date</TableHead>
-                <TableHead>Last activity</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {projects.map((p) => {
-                const pct = p.total > 0 ? (p.done / p.total) * 100 : 0;
-                const targetOverdue =
-                  p.targetDate !== undefined &&
-                  p.targetDate < startOfToday() &&
-                  p.done < p.total;
-                return (
-                  <TableRow key={p.listId}>
-                    <TableCell>
-                      <Link
-                        href={`/dashboard/l/${p.listId}`}
-                        className="tap-row group block"
-                      >
-                        <span className="block font-medium text-foreground group-hover:underline">
-                          {p.name}
-                        </span>
-                        <span className="block text-xs text-muted-foreground">
-                          {p.place}
-                        </span>
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <HealthChip status={p.projectStatus} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex min-w-[140px] items-center gap-2">
-                        <Progress value={pct} className="h-2 flex-1" />
-                        {/* `min-w`, not `w`: a fixed 3rem holds "9/9" and not
-                            "118/121", and a number wider than its own box runs
-                            into the next column — a count and a date read as
-                            one string with nothing to say they are two. */}
-                        <span className="min-w-12 flex-shrink-0 text-sm tabular-nums text-muted-foreground">
-                          {p.done}/{p.total}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {p.targetDate !== undefined ? (
-                        <span
-                          className={cn(
-                            "text-sm",
-                            targetOverdue ? "text-danger" : "text-muted-foreground",
-                          )}
-                        >
-                          {formatDate(p.targetDate)}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
+                }
+                className="h-full"
+              >
+                <div className="grid grid-cols-[1fr_auto]">
+                  <div className="min-w-0 p-4 pr-2">
+                    {/* Clears the notch: the title starts below the scoop's
+                        reach so a long name never runs under the control. */}
+                    <p className="line-clamp-2 pr-10 font-title text-base font-bold leading-snug">
+                      {project.name}
+                    </p>
+                    <p className={cn("mt-1 truncate text-xs", lime ? "opacity-60" : "text-muted-foreground")}>
+                      {project.place}
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                      {project.projectStatus && (
+                        <HealthChip status={project.projectStatus} />
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-muted-foreground">
-                        {timeAgo(p.lastActivityAt)}
+                      {project.overdue > 0 && (
+                        <span className="ui-chip px-2 py-0.5 text-[11px] font-medium">
+                          {project.overdue} overdue
+                        </span>
+                      )}
+                      {project.targetDate !== undefined && (
+                        <span className={cn("ui-chip ui-figure px-2 py-0.5 text-[11px]", !lime && "text-muted-foreground")}>
+                          {formatDate(project.targetDate)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className={cn("flex min-w-[6.5rem] flex-col items-center justify-center border-l px-3 py-4", lime ? "border-current/15" : "border-border")}>
+                    <span className="font-title whitespace-nowrap text-2xl font-bold leading-none tracking-tight">
+                      {project.done}
+                      <span className="text-sm font-semibold opacity-50">
+                        /{project.total}
                       </span>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-      {hidden > 0 && (
-        // The padding belongs to the LINK, not to the strip around it: a 16px
-        // line of text in a 40px bar meant the bar looked pressable and only
-        // the words were. Now the strip is the target, and `.tap-row` takes it
-        // to 44 on touch.
-        <div className="border-t border-border px-4">
-          <Link
-            href="/dashboard/projects"
-            className="tap-row group flex items-center py-3 text-sm font-medium"
-          >
-            <span className="group-hover:underline">
-              View all {totalProjects} projects
-            </span>
-          </Link>
-        </div>
-      )}
-    </div>
+                    </span>
+                    <span className={cn("mt-1 text-[10px] font-medium uppercase tracking-wider", lime ? "opacity-60" : "text-muted-foreground")}>
+                      done
+                    </span>
+                  </div>
+                </div>
+                <div className={cn("flex items-center justify-between gap-3 border-t px-4 py-2.5", lime ? "border-current/15" : "border-border")}>
+                  <span className={cn("text-[11px]", lime ? "opacity-60" : "text-muted-foreground")}>
+                    active {timeAgo(project.lastActivityAt)}
+                  </span>
+                  <Link
+                    href={`/dashboard/l/${project.listId}`}
+                    className={cn(
+                      "rounded-full px-3.5 py-1.5 text-xs font-semibold transition-transform hover:scale-[1.03]",
+                      lime
+                        ? "bg-signal-ink text-signal-lime"
+                        : "bg-primary text-primary-foreground",
+                    )}
+                  >
+                    Open board
+                  </Link>
+                </div>
+              </NotchCard>
+            </StaggerItem>
+          );
+        })}
+      </Stagger>
+    </section>
   );
 }
-
 function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
   const visible = ticker.slice(0, 8);
   return (

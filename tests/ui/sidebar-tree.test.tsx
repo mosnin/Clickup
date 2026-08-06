@@ -71,6 +71,12 @@ beforeEach(() => resetHarness());
 
 describe("DashboardSidebar", () => {
   function seed() {
+    // The tree ships behind the "Your spaces" disclosure now — the rail opens
+    // sparse, per the design references — and the press is remembered per
+    // machine in localStorage. These tests are ABOUT the tree, so they run as
+    // the machine of someone who opened it: flag set before render, exactly
+    // what the disclosure's effect reads.
+    localStorage.setItem("sidebar_spaces_open", "true");
     // The sidebar renders the tree of whichever workspace the current URL
     // belongs to, so say we are looking at one of Acme's lists.
     navState.pathname = "/dashboard/l/l1";

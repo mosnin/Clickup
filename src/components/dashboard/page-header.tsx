@@ -1,9 +1,13 @@
 "use client";
 
-import { Menu, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { Bell, Menu, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/ui/sidebar";
+import { Monogram } from "@/components/dashboard/monogram";
 import { PageTitle } from "@/components/dashboard/page-title";
 
 // Shell fusion (Phase H): the sticky contextual header every dashboard
@@ -133,9 +137,10 @@ export function PageHeader({
             </div>
           )}
         </div>
-        {actions && (
-          <div className="flex flex-shrink-0 items-center gap-2">{actions}</div>
-        )}
+        <div className="flex flex-shrink-0 items-center gap-2">
+          {actions}
+          <CapsuleCluster />
+        </div>
       </div>
       {children && <div className="pt-2">{children}</div>}
     </div>
@@ -152,5 +157,39 @@ export function PageHeader({
       />
     )}
     </>
+  );
+}
+
+/**
+ * The capsule's right end: notifications, then you.
+ *
+ * The reference's welcome bar closes with exactly this — a circular bell and
+ * the avatar — and it is what makes the capsule the product's chrome rather
+ * than a titled div: whichever page you are on, the same two things hold the
+ * right edge. One header is mounted at a time, so the unread subscriptions
+ * here cost what the sidebar's badge already costs, not a multiple of it.
+ */
+function CapsuleCluster() {
+  const me = useQuery(api.users.current, {});
+  const unreadMentions = useQuery(api.mentions.unreadCountForCurrent, {});
+  const unreadUpdates = useQuery(api.notificationCenter.unreadCount, {});
+  const unread = (unreadMentions ?? 0) + (unreadUpdates ?? 0);
+  return (
+    <div className="flex items-center gap-1.5 border-l border-border pl-2.5">
+      <Link
+        href="/dashboard/inbox"
+        aria-label={unread > 0 ? `Inbox, ${unread} unread` : "Inbox"}
+        className="relative flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-muted"
+      >
+        <Bell aria-hidden className="size-4" />
+        {unread > 0 && (
+          <span
+            aria-hidden
+            className="absolute right-1 top-1 size-2 rounded-full bg-signal-lime ring-2 ring-card"
+          />
+        )}
+      </Link>
+      {me?.name ? <Monogram name={me.name} seed={me.clerkId} size="md" /> : null}
+    </div>
   );
 }
