@@ -1347,7 +1347,14 @@ function ProjectCards({
                       )}
                     </div>
                   </div>
-                  <div className={cn("flex min-w-[6.5rem] flex-col items-center justify-center border-l px-3 py-4", lime ? "border-current/15" : "border-border")}>
+                  <div className={cn(
+                      // `pt-14`, not centred: the scoop owns the cell's top
+                      // 56px, and a centred figure on a short card lands
+                      // exactly under it — "31/48" rendered as "3…" behind
+                      // the notch until this cleared it.
+                      "flex min-w-[6.5rem] flex-col items-center justify-start border-l px-3 pb-4 pt-14",
+                      lime ? "border-current/15" : "border-border",
+                    )}>
                     <span className="font-title whitespace-nowrap text-2xl font-bold leading-none tracking-tight">
                       {project.done}
                       <span className="text-sm font-semibold opacity-50">
