@@ -277,6 +277,22 @@ export function EditableGrid({
   // takes it from there.
   const { active: customizing, selection } = useCustomize();
 
+  // The floating "hold and drag" bar reserves no space of its own — it is
+  // `fixed`, so the document never knows it is there — which means whatever
+  // scrolls to the bottom while editing parks right where a thumb cannot
+  // reach it. Measured rather than guessed, because a guessed constant drifts
+  // the moment the pill's own copy or padding changes and nobody remembers to
+  // update a number two components away.
+  const [helperBarRef, helperBarBox] = useMeasure();
+  /** Matches `bottom-6` on the bar itself. */
+  const HELPER_BAR_OFFSET = 24;
+  /** Daylight between the last tile and the bar sitting over it. */
+  const HELPER_BAR_CLEARANCE = 16;
+  const helperBarReserve =
+    editing && helperBarBox.height > 0
+      ? Math.ceil(helperBarBox.height) + HELPER_BAR_OFFSET + HELPER_BAR_CLEARANCE
+      : 0;
+
   // ── A panel arriving because a condition became true ──
   //
   // It lives here rather than beside each caller, and that placement is the
@@ -737,13 +753,19 @@ export function EditableGrid({
   const canvasHeight = packedRows(packed) * (ROW_UNIT + ROW_GAP) - ROW_GAP;
 
   return (
-    <div className="space-y-4">
+    <div
+      className="space-y-4"
+      // The bar's exact footprint, added back as space nothing else claims —
+      // see `helperBarReserve` above. `undefined` rather than `0` while not
+      // editing, so this never fights the `space-y-4` gap with an inline 0.
+      style={{ paddingBottom: helperBarReserve || undefined }}
+    >
       {/* The only chrome in reading mode: nothing. Editing announces itself with
           the wobble, and this bar is the way out plus the keyboard entrance. */}
       <div className="flex items-center justify-between gap-2">
         <span
           aria-live="polite"
-          className="text-[11px] uppercase tracking-wider text-muted-foreground"
+          className="text-tiny uppercase tracking-wider text-muted-foreground"
         >
           {editing ? "Hold and drag to rearrange" : ""}
         </span>
@@ -944,6 +966,21 @@ export function EditableGrid({
                   // it, which is why the gate now also checks content (see
                   // scripts/verify-resize.mjs).
                   "h-full overflow-y-auto [&>*]:h-full",
+                  // The card drawn inside (`StyledSurface`) clips to its OWN
+                  // rounded corner but is deliberately given `overflow-visible`
+                  // by `Panel` — see the comment on its root, guarded by
+                  // tests/ui/panel-fit.test.tsx — so a chart's end labels are
+                  // never sliced. That leaves THIS box as the only thing that
+                  // still clips, and until now it clipped to a plain
+                  // rectangle: content that overflowed the card's rounded
+                  // corner (a loading skeleton, a stray row) painted past it,
+                  // square, onto the bare canvas below. Rounding this box to
+                  // the same `--ui-radius-card` the card's own default corner
+                  // resolves to makes the two edges coincide for the shipped
+                  // look; `getBoundingClientRect()` — what the fit and overlap
+                  // gates measure — is unaffected by `border-radius`, so
+                  // nothing that gate guards changes.
+                  "rounded-[var(--ui-radius-card)]",
                 )}
               >
                 {tile.content}
@@ -1071,7 +1108,10 @@ export function EditableGrid({
             transition={SPRING}
             className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4"
           >
-            <div className="pointer-events-auto flex items-center gap-3 rounded-full bg-foreground px-4 py-2 text-background shadow-xl">
+            <div
+              className="pointer-events-auto flex items-center gap-3 rounded-full bg-foreground px-4 py-2 text-background shadow-xl"
+              ref={helperBarRef}
+            >
               <span className="text-xs">
                 Hold and drag to move. Drag a corner to resize.
               </span>

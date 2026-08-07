@@ -24,10 +24,12 @@ import { useCallback, useReducer, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import {
   Bot,
+  Check,
   FileText,
   GitBranch,
   Hash,
   Lock,
+  MoreHorizontal,
   NotebookText,
   PanelRight,
   SquareKanban,
@@ -36,6 +38,12 @@ import {
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import type { ChatChannelSummary } from "@/lib/buzz/channel-types";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   ChannelTranscript,
   MyPubkeyProvider,
@@ -210,9 +218,12 @@ export function ChannelScreen({ channelId }: { channelId: string }) {
         selfName={selfName}
       >
         <ContentSurface>
-          <header className="flex h-13 shrink-0 items-center gap-2 px-5">
+          {/* `@container`: the four secondary toggles below answer "is THIS
+              header wide enough", not "is the viewport" — a room narrowed by
+              a docked aux pane folds them exactly as a phone would. */}
+          <header className="@container flex h-13 shrink-0 items-center gap-2 px-5">
             <RoomGlyph channel={channel} />
-            <h1 className="shrink-0 truncate text-[0.9375rem] font-semibold">
+            <h1 className="shrink-0 truncate text-compact font-semibold">
               {isDirect ? label : channel.name}
             </h1>
             {channel.topic ? (
@@ -255,7 +266,9 @@ export function ChannelScreen({ channelId }: { channelId: string }) {
                 call lives. */}
             <HuddleStartButton className="shrink-0" />
             {/* The room's machines. An affordance, not an ornament: the same
-                toggle contract as every other pane button beside it. */}
+                toggle contract as every other pane button beside it. Stays
+                inline at every width — the one secondary toggle that does not
+                fold away below, alongside Huddle above. */}
             <button
               type="button"
               onClick={() =>
@@ -269,66 +282,154 @@ export function ChannelScreen({ channelId }: { channelId: string }) {
             >
               <Bot aria-hidden className="size-4" />
             </button>
-            {/* The canvas — one markdown document per room, docked in the same
-                pane threads and details use. Only one pane at a time, which is
-                the shell's rule and not this screen's: two panes beside a room
-                leave the room narrower than either of them. */}
-            <button
-              type="button"
-              onClick={() =>
-                setAux((current) =>
-                  current.kind === "canvas" ? { kind: "none" } : { kind: "canvas" },
-                )
-              }
-              aria-pressed={aux.kind === "canvas"}
-              aria-label="Canvas"
-              className="chat-icon-button tap-target"
-            >
-              <NotebookText aria-hidden className="size-4" />
-            </button>
-            {!isDirect ? (
+
+            {/* Canvas / Branch / Work / Details: four toggles, drawn twice —
+                once inline for a header with the room to spare, once folded
+                into one menu for a header that doesn't. Same `aux` state,
+                same handlers, either way — only which markup is on screen
+                changes. The wrapper spans (not the buttons) carry the
+                visibility utilities: `.chat-icon-button` sets its own
+                `display` outside any Tailwind layer, which outranks a layered
+                utility placed on that same element, so hiding one of these
+                buttons has to happen an element up. */}
+            <span className="hidden @lg:contents">
+              {/* The canvas — one markdown document per room, docked in the
+                  same pane threads and details use. Only one pane at a time,
+                  which is the shell's rule and not this screen's: two panes
+                  beside a room leave the room narrower than either of them. */}
               <button
                 type="button"
                 onClick={() =>
                   setAux((current) =>
-                    current.kind === "branch" ? { kind: "none" } : { kind: "branch" },
+                    current.kind === "canvas" ? { kind: "none" } : { kind: "canvas" },
                   )
                 }
-                aria-pressed={aux.kind === "branch"}
-                aria-label="Branch"
+                aria-pressed={aux.kind === "canvas"}
+                aria-label="Canvas"
                 className="chat-icon-button tap-target"
               >
-                <GitBranch aria-hidden className="size-4" />
+                <NotebookText aria-hidden className="size-4" />
               </button>
-            ) : null}
-            {!isDirect ? (
+              {!isDirect ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAux((current) =>
+                      current.kind === "branch" ? { kind: "none" } : { kind: "branch" },
+                    )
+                  }
+                  aria-pressed={aux.kind === "branch"}
+                  aria-label="Branch"
+                  className="chat-icon-button tap-target"
+                >
+                  <GitBranch aria-hidden className="size-4" />
+                </button>
+              ) : null}
+              {!isDirect ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAux((current) =>
+                      current.kind === "work" ? { kind: "none" } : { kind: "work" },
+                    )
+                  }
+                  aria-pressed={aux.kind === "work"}
+                  aria-label="Work"
+                  className="chat-icon-button tap-target"
+                >
+                  <SquareKanban aria-hidden className="size-4" />
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() =>
                   setAux((current) =>
-                    current.kind === "work" ? { kind: "none" } : { kind: "work" },
+                    current.kind === "details" ? { kind: "none" } : { kind: "details" },
                   )
                 }
-                aria-pressed={aux.kind === "work"}
-                aria-label="Work"
+                aria-pressed={aux.kind === "details"}
+                aria-label="Room details"
                 className="chat-icon-button tap-target"
               >
-                <SquareKanban aria-hidden className="size-4" />
+                <PanelRight aria-hidden className="size-4" />
               </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={() =>
-                setAux((current) =>
-                  current.kind === "details" ? { kind: "none" } : { kind: "details" },
-                )
-              }
-              aria-pressed={aux.kind === "details"}
-              aria-label="Room details"
-              className="chat-icon-button tap-target"
-            >
-              <PanelRight aria-hidden className="size-4" />
-            </button>
+            </span>
+
+            {/* The same four toggles, below the threshold: one trigger, one
+                menu. Each item keeps its own handler and a visible label —
+                the Check mark carries the "already open" state the inline
+                buttons say with `aria-pressed`, the same convention the
+                community switcher above this room uses for "which one is
+                current". */}
+            <span className="@lg:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  type="button"
+                  aria-label="More room panels"
+                  className="chat-icon-button tap-target"
+                >
+                  <MoreHorizontal aria-hidden className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      setAux((current) =>
+                        current.kind === "canvas" ? { kind: "none" } : { kind: "canvas" },
+                      )
+                    }
+                  >
+                    <NotebookText aria-hidden className="size-4" />
+                    <span className="min-w-0 flex-1">Canvas</span>
+                    {aux.kind === "canvas" ? (
+                      <Check aria-hidden className="size-4 shrink-0" />
+                    ) : null}
+                  </DropdownMenuItem>
+                  {!isDirect ? (
+                    <DropdownMenuItem
+                      onSelect={() =>
+                        setAux((current) =>
+                          current.kind === "branch" ? { kind: "none" } : { kind: "branch" },
+                        )
+                      }
+                    >
+                      <GitBranch aria-hidden className="size-4" />
+                      <span className="min-w-0 flex-1">Branch</span>
+                      {aux.kind === "branch" ? (
+                        <Check aria-hidden className="size-4 shrink-0" />
+                      ) : null}
+                    </DropdownMenuItem>
+                  ) : null}
+                  {!isDirect ? (
+                    <DropdownMenuItem
+                      onSelect={() =>
+                        setAux((current) =>
+                          current.kind === "work" ? { kind: "none" } : { kind: "work" },
+                        )
+                      }
+                    >
+                      <SquareKanban aria-hidden className="size-4" />
+                      <span className="min-w-0 flex-1">Work</span>
+                      {aux.kind === "work" ? (
+                        <Check aria-hidden className="size-4 shrink-0" />
+                      ) : null}
+                    </DropdownMenuItem>
+                  ) : null}
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      setAux((current) =>
+                        current.kind === "details" ? { kind: "none" } : { kind: "details" },
+                      )
+                    }
+                  >
+                    <PanelRight aria-hidden className="size-4" />
+                    <span className="min-w-0 flex-1">Room details</span>
+                    {aux.kind === "details" ? (
+                      <Check aria-hidden className="size-4 shrink-0" />
+                    ) : null}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </span>
           </header>
 
           {showingPosts ? (

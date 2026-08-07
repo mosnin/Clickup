@@ -18,34 +18,29 @@ import { useRef, useState } from "react";
 import { UsersRound, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover } from "@/components/chat/transcript/popover";
+import { ActorAvatar } from "@/components/chat/transcript/avatar";
 import { useHuddle, type HuddleRosterEntry } from "./huddle-provider";
 
 /**
- * A deterministic colour for a pubkey.
- *
- * Buzz's `HexAvatar`: an HSL hue from the first four hex characters, with the
- * next six shown as text. Deterministic matters more than pretty — the same
- * person is the same colour in every call, in every room, forever, so a roster
- * is scannable before any name is read.
+ * The roster's face, routed through the transcript's own `ActorAvatar` rather
+ * than a second, hand-rolled tint — its own comment already states the rule
+ * this file used to violate: "the same person is the same colour in every
+ * room". A pubkey hashed to a colour here and hashed to a *different* colour
+ * there is the same person looking like two people depending which pane you
+ * are looking at.
  */
-export function pubkeyTint(pubkey: string): string {
-  const seed = Number.parseInt(pubkey.slice(0, 4) || "0", 16) || 0;
-  return `hsl(${seed % 360} 62% 45%)`;
-}
-
 function ParticipantAvatar({ entry }: { entry: HuddleRosterEntry }) {
   return (
-    <span
+    <ActorAvatar
+      label={entry.name}
+      pubkey={entry.pubkey}
+      isAgent={entry.isAgent}
+      size={28}
       className={cn(
-        "relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[0.625rem] font-semibold text-white",
         // The speaking ring: 2px, and only when the transport said so.
-        entry.speaking ? "ring-2 ring-emerald-500 ring-offset-1 ring-offset-transparent" : "",
+        entry.speaking && "ring-2 ring-emerald-500 ring-offset-1 ring-offset-transparent",
       )}
-      style={{ backgroundColor: pubkeyTint(entry.pubkey) }}
-      aria-hidden
-    >
-      {entry.name.slice(0, 2).toUpperCase()}
-    </span>
+    />
   );
 }
 
@@ -73,11 +68,11 @@ function ParticipantRow({
     >
       <ParticipantAvatar entry={entry} />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[0.8125rem] font-medium">
+        <span className="block truncate text-mini font-medium">
           {entry.name}
           {entry.isSelf ? " (you)" : ""}
         </span>
-        <span className="chat-quiet block truncate text-[0.6875rem]">{subtitle}</span>
+        <span className="chat-quiet block truncate text-tiny">{subtitle}</span>
       </span>
       {onRemove ? (
         <button
@@ -108,7 +103,7 @@ export function ParticipantsControl() {
         aria-label={`Participants (${roster.length})`}
         data-testid="huddle-participants"
         onClick={() => setOpen((value) => !value)}
-        className="tap-target flex items-center gap-1.5 rounded-full bg-black/5 px-3 py-1.5 text-[0.8125rem] font-medium hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15"
+        className="tap-target flex items-center gap-1.5 rounded-full bg-black/5 px-3 py-1.5 text-mini font-medium hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15"
       >
         <UsersRound aria-hidden className="h-4 w-4" />
         <span className="tabular-nums">{roster.length}</span>
@@ -126,7 +121,7 @@ export function ParticipantsControl() {
             <ParticipantRow key={entry.pubkey} entry={entry} />
           ))}
           {roster.length === 0 ? (
-            <li className="chat-quiet px-2 py-2 text-[0.8125rem]">Nobody is in this huddle.</li>
+            <li className="chat-quiet px-2 py-2 text-mini">Nobody is in this huddle.</li>
           ) : null}
         </ul>
       </Popover>
@@ -153,7 +148,7 @@ export function ParticipantStrip({ max = 6 }: { max?: number }) {
         </span>
       ))}
       {rest > 0 ? (
-        <span className="chat-quiet pl-3 text-[0.6875rem] tabular-nums">+{rest}</span>
+        <span className="chat-quiet pl-3 text-tiny tabular-nums">+{rest}</span>
       ) : null}
     </span>
   );

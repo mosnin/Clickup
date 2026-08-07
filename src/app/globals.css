@@ -1696,6 +1696,22 @@ body {
   box-shadow: none;
 }
 
+/* NotchCard's "panel" tone (dashboard/notch-card.tsx): the same border +
+   shadow `.panel` draws, borrowed as two properties rather than composed via
+   the `.panel` class itself. `.panel` is unlayered (see above), so its
+   `border-radius: var(--ui-radius-card)` would beat ANY Tailwind radius
+   utility applied alongside it — and NotchCard owns a wider radius
+   (rounded-[1.375rem]) so the scoop's own curvature lines up. Two properties,
+   not the whole class. Same twin-dark-mode-rule trap `.chat-surface`
+   documents. */
+.notch-panel {
+  border: var(--ui-surface-border);
+  box-shadow: var(--ui-surface-shadow);
+}
+:root[data-theme="dark"] .notch-panel {
+  box-shadow: none;
+}
+
 /* Interactive-card hover: a quiet lift with a soft, wide shadow. */
 .lift {
   transition:

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useLayoutEffect, useState } from "react";
 import useMeasure from "react-use-measure";
 import {
   arcPath,
@@ -29,6 +29,7 @@ import {
   seriesColor,
   type ComponentStyle,
 } from "@/lib/component-style";
+import { identityInk } from "@/lib/identity-color";
 import { cn } from "@/lib/utils";
 
 // The charts.
@@ -185,7 +186,7 @@ function Legend({
   return (
     <ul
       className={cn(
-        "mt-2 flex gap-x-3 gap-y-1 text-[10px] text-muted-foreground",
+        "mt-2 flex gap-x-3 gap-y-1 text-micro text-muted-foreground",
         style.legend === "right" ? "flex-col" : "flex-wrap",
       )}
     >
@@ -850,6 +851,58 @@ function Waterfall({
   );
 }
 
+// ── Treemap label ink ────────────────────────────────────────────────────
+//
+// A tile's fill is whatever the palette says: a `var(--chart-*)` token for
+// five of the six palettes, and for the default `mono` palette a
+// `color-mix()` of the theme's own foreground and background whose result
+// flips which end is dark as the THEME flips, not as the palette does (see
+// the ramp's own comment in `component-style.ts`). There is no static
+// mapping from "which stop" to "how light" — the browser has to be asked
+// what it actually painted.
+//
+// `identityInk` (`lib/identity-color`) already does the measuring-not-
+// guessing WCAG math that guarantees legibility against any colour; the one
+// thing its hand-rolled parser cannot read is what Chromium serializes a
+// resolved `color-mix()` down to — `color(srgb …)`, not `rgb()` — which is
+// the exact blind spot `tests/ui/panel-fit.test.tsx`'s own contrast gate
+// documents having been written around already. A 1×1 canvas is the
+// browser's own colour parser, so handing it the resolved value (rather
+// than re-implementing every syntax the app can emit) reads correctly
+// regardless of which one a given fill happens to be.
+let inkProbe: HTMLSpanElement | null = null;
+// `undefined` = not attempted yet; `null` = attempted and unavailable (e.g.
+// jsdom, which has no 2D context and logs a warning on every attempt) — the
+// two must stay distinguishable so a canvas-less environment is asked once
+// and then left alone, not re-probed (and re-warned about) on every tile.
+let inkCanvas: CanvasRenderingContext2D | null | undefined;
+
+function resolveTileInk(css: string): string {
+  if (typeof document === "undefined") return "var(--color-foreground)";
+  if (inkCanvas === undefined) {
+    inkCanvas = document.createElement("canvas").getContext("2d");
+  }
+  if (!inkCanvas) return "var(--color-foreground)";
+  if (!inkProbe) {
+    inkProbe = document.createElement("span");
+    inkProbe.style.cssText = "position:absolute;opacity:0;pointer-events:none;";
+    document.body.appendChild(inkProbe);
+  }
+  // Resolve var()/color-mix() against the live cascade first — that needs a
+  // real element sitting in the document, which is why a bare string alone
+  // can't do it.
+  inkProbe.style.color = "";
+  inkProbe.style.color = css;
+  const resolved = getComputedStyle(inkProbe).color;
+  // Then let the canvas parse whatever THAT serialized to.
+  inkCanvas.clearRect(0, 0, 1, 1);
+  inkCanvas.fillStyle = "#000";
+  inkCanvas.fillStyle = resolved;
+  inkCanvas.fillRect(0, 0, 1, 1);
+  const [r, g, b] = inkCanvas.getImageData(0, 0, 1, 1).data;
+  return identityInk(`rgb(${r}, ${g}, ${b})`);
+}
+
 function Treemap({
   series,
   style,
@@ -869,6 +922,38 @@ function Treemap({
     height,
   );
   const gap = 1.5;
+
+  // Measured per tile, never guessed — see `resolveTileInk`. Re-measured on
+  // a theme flip too: the reader's dark/light switch repaints every fill
+  // through CSS custom properties without React ever re-rendering this
+  // component (the toggle writes `data-theme` straight to the DOM), so a
+  // plain effect dependency list would leave labels wearing the ink of
+  // whichever theme was active when the chart first mounted.
+  const [ink, setInk] = useState<Record<string, string>>({});
+  useLayoutEffect(() => {
+    const measure = () => {
+      const next: Record<string, string> = {};
+      tiles.forEach((tile, i) => {
+        const point = series[0].points.find((p) => p.key === tile.key);
+        const color = point?.color ?? seriesColor(style.palette, i);
+        next[tile.key] = resolveTileInk(color);
+      });
+      setInk((prev) => {
+        const keys = Object.keys(next);
+        const unchanged =
+          keys.length === Object.keys(prev).length &&
+          keys.every((k) => prev[k] === next[k]);
+        return unchanged ? prev : next;
+      });
+    };
+    measure();
+    const observer = new MutationObserver(measure);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => observer.disconnect();
+  }, [tiles, series, style]);
 
   return (
     <>
@@ -892,22 +977,13 @@ function Treemap({
             {/* A label only where one fits. Clipped text in a treemap reads
                 as a rendering fault rather than as a small tile. */}
             {w > 46 && h > 20 && (
-              // Ink with a card-coloured halo, rather than the background
-              // colour flat. A tile's fill is whatever the palette says, and a
-              // fixed label colour is legible on roughly half of them: this
-              // shipped as white-on-pale in daylight and black-on-charcoal at
-              // night, i.e. a treemap whose labels you could read half of.
-              // `paint-order: stroke` draws the halo first, so the glyph
-              // separates from any fill without anyone having to know which
-              // fill it landed on.
+              // Ink on a light fill, paper on a dark one — measured from
+              // THIS tile's own colour rather than haloed against every
+              // fill at once, which is what a stroke was standing in for.
               <text
                 x={tile.x + 6}
                 y={tile.y + 14}
-                fill="var(--color-foreground)"
-                paintOrder="stroke"
-                stroke="var(--color-card)"
-                strokeWidth={3}
-                strokeLinejoin="round"
+                fill={ink[tile.key] ?? "var(--color-foreground)"}
                 className="pointer-events-none"
               >
                 {categoryLabel({ key: tile.key, label: tile.label })}

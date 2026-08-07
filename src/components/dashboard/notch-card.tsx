@@ -13,8 +13,13 @@ import { cn } from "@/lib/utils";
 type Tone = "panel" | "lime" | "island";
 
 // Resolved through records, never string-built, so Tailwind's scanner sees every class.
+// "panel" draws its separation the way every other surface in the app does —
+// a value step (bg-card sits one step above the canvas) plus `.notch-panel`'s
+// border-token + shadow — never a bare hairline. See `.notch-panel` in
+// globals.css for why that's a small dedicated class and not the `.panel`
+// class itself.
 const TONE_ROOT: Record<Tone, string> = {
-  panel: "bg-card border border-border",
+  panel: "notch-panel bg-card",
   lime: "bg-signal-lime text-signal-ink",
   // ui-light-island re-declares the light tokens inside itself, so the smoother
   // spans below can keep using bg-card and still match the island's surface.
@@ -88,7 +93,11 @@ export function NotchMenuButton({
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground"
+      // No border: the scoop is already a colour cutout (bg-background) and
+      // this button's own bg-card is the value step that separates it —
+      // matching the corner controls at both call sites, which never drew a
+      // ring of their own.
+      className="flex size-9 items-center justify-center rounded-full bg-card text-foreground"
     >
       <span aria-hidden className="flex flex-col items-center gap-[3px]">
         <span className="size-[3px] rounded-full bg-current" />

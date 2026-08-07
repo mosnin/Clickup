@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, MotionConfig, motion, useDragControls } from "motion/react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -214,7 +215,7 @@ function RowSpecimen({ patch }: { patch: StylePatch }) {
             <span className="ui-row-title min-w-0 flex-1 truncate text-sm">
               {row.title}
             </span>
-            <span className="ui-chip bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            <span className="ui-chip bg-muted px-1.5 py-0.5 text-micro text-muted-foreground">
               {row.meta}
             </span>
             <span className="ui-figure text-xs text-muted-foreground">
@@ -394,6 +395,54 @@ const CHAPTERS: { id: Chapter; label: string }[] = [
 ];
 
 /**
+ * Where a chapter's own contextual action row pins.
+ *
+ * The sheet's body scrolls; a control planted at the bottom of that scroller
+ * is a control a tall specimen can slice in half or push off the sheet
+ * entirely, with no scroll affordance saying it is still reachable — the
+ * "New card" chapter's Add button did exactly that. `StudioSheet` owns a slot
+ * OUTSIDE the scrollable region, the same technique the Defaults/Done footer
+ * already uses, and hands the target node down through context; a chapter
+ * that has a contextual CTA (only the builder does today) portals it in
+ * rather than rendering it inline. Null while the sheet hasn't mounted the
+ * slot yet, which is why every consumer guards on it.
+ */
+const ChapterCtaContext = createContext<HTMLDivElement | null>(null);
+
+/**
+ * Whether a scrollable element still has content below the fold.
+ *
+ * A scroll region gives no other sign of itself here — no scrollbar on most
+ * touch devices, no visible edge — so a chapter that runs long enough to need
+ * scrolling has to say so some other way. Recomputed on scroll AND on resize:
+ * switching chapters changes the content height without the element ever
+ * scrolling, which a scroll-only listener would miss entirely.
+ */
+function useBottomOverflow(
+  ref: React.RefObject<HTMLDivElement | null>,
+  deps: React.DependencyList,
+): boolean {
+  const [hasMore, setHasMore] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      setHasMore(el.scrollHeight - el.scrollTop - el.clientHeight > 4);
+    };
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return hasMore;
+}
+
+/**
  * The opened state: a sheet across the bottom, the canvas alive above it.
  *
  * Why a sheet and not the screen it used to be: see the file header. The
@@ -420,6 +469,16 @@ function StudioSheet() {
   const [centred, setCentred] = useState<string | null>(null);
   const hint = useShelfHint();
   const drag = useDragControls();
+  // The pinned CTA slot's own DOM node — `useState` rather than `useRef`
+  // because a portal target has to be committed to a render for
+  // `createPortal` to see it; a ref alone stays `null` through the frame
+  // that first needs it.
+  const [ctaSlot, setCtaSlot] = useState<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // A fade at the bottom edge is the only affordance a touch scroller gets —
+  // there is no scrollbar to glance at — so it has to actually reflect
+  // whether there is more below rather than being permanently on.
+  const hasMoreBelow = useBottomOverflow(scrollRef, [chapter, selection?.id]);
 
   // The shell reserves room under the sheet only while it is open — a
   // reservation that outlived the component is the bug this mode already
@@ -448,8 +507,15 @@ function StudioSheet() {
               // dark mode a shadow over near-black separates nothing — the
               // sheet's own edge disappeared into the canvas.
               "ring-1 ring-border",
-              "h-[58svh] min-h-[22rem] rounded-t-3xl shadow-[0_-14px_44px_-16px_rgb(0_0_0/0.32)]",
-              "sm:h-[min(34rem,72svh)] sm:max-w-[42rem] sm:rounded-3xl sm:shadow-[0_18px_54px_-18px_rgb(0_0_0/0.34)]",
+              // A CAP, not a fixed height: a short chapter (a placeholder
+              // sentence, a two-card shelf) used to be stretched to this
+              // number regardless, stranding 150-180px of dead air above the
+              // footer. Sizing to content and only clamping at this ceiling
+              // means the sheet is exactly as tall as what it holds, right up
+              // until it isn't — at which point the scroll region inside it
+              // (not the sheet itself) is what gives.
+              "max-h-[58svh] min-h-[22rem] rounded-t-3xl shadow-[0_-14px_44px_-16px_rgb(0_0_0/0.32)]",
+              "sm:max-h-[min(34rem,72svh)] sm:max-w-[42rem] sm:rounded-3xl sm:shadow-[0_18px_54px_-18px_rgb(0_0_0/0.34)]",
             )}
             data-studio
             dragConstraints={{ top: 0, bottom: 0 }}
@@ -517,7 +583,7 @@ function StudioSheet() {
                       // afford it while "Card" sat in 78px of air. Sizing from
                       // content and then sharing what is left over means the
                       // long one is the one that gets the room.
-                      "inline-flex h-11 min-w-0 flex-auto items-center justify-center truncate px-1.5 text-[13px] sm:flex-none sm:px-4",
+                      "inline-flex h-11 min-w-0 flex-auto items-center justify-center truncate px-1.5 text-mini sm:flex-none sm:px-4",
                       chapter === c.id && "segmented-on",
                     )}
                     data-studio-chapter={c.id}
@@ -535,8 +601,21 @@ function StudioSheet() {
               </div>
             </div>
 
+            <ChapterCtaContext.Provider value={ctaSlot}>
             <ShelfHintContext.Provider value={hint}>
-              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-1 text-center">
+              <div
+                className={cn(
+                  "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-1 text-center",
+                  // The scroll region's only affordance on a touch device —
+                  // there is no scrollbar to glance at — so it has to be
+                  // honest about whether there is more below, not permanently
+                  // on. `[mask-image]`/the -webkit twin because Tailwind has
+                  // no first-class mask utility and this is a one-off.
+                  hasMoreBelow &&
+                    "[-webkit-mask-image:linear-gradient(to_bottom,black_calc(100%-28px),transparent_100%)] [mask-image:linear-gradient(to_bottom,black_calc(100%-28px),transparent_100%)]",
+                )}
+                ref={scrollRef}
+              >
                 {chapter !== "only" && (
                   <Rise delay={0}>
                     {/* One plain question per chapter, and one plain sentence
@@ -739,6 +818,12 @@ function StudioSheet() {
               </div>
             </ShelfHintContext.Provider>
 
+            {/* Where a chapter's contextual action pins — see
+                `ChapterCtaContext`. Empty and heightless until a chapter
+                portals something into it, so every other chapter draws
+                exactly as it did before. */}
+            <div className="shrink-0" ref={setCtaSlot} />
+
             {/* The action bar. Done is a filled pill at the bottom edge of a
                 sheet whose bottom edge is the bottom of the phone — the one
                 place a thumb rests — rather than the underlined word at the
@@ -776,6 +861,7 @@ function StudioSheet() {
                 Done
               </Button>
             </footer>
+            </ChapterCtaContext.Provider>
           </motion.div>
         </div>
       )}
@@ -829,7 +915,7 @@ function ShelfHint({ applyOnCentre }: { applyOnCentre: boolean }) {
   return (
     <motion.p
       animate={{ opacity: 1, y: 0 }}
-      className="pointer-events-none mx-auto mt-1.5 flex w-max max-w-[94%] items-center gap-1.5 rounded-full bg-foreground px-3 py-1 text-[11px] font-medium text-background"
+      className="pointer-events-none mx-auto mt-1.5 flex w-max max-w-[94%] items-center gap-1.5 rounded-full bg-foreground px-3 py-1 text-tiny font-medium text-background"
       initial={{ opacity: 0, y: 6 }}
       transition={{ duration: 0.4, ease: EASE, delay: 0.5 }}
     >
@@ -928,7 +1014,7 @@ function CardSpecimen({
               "block",
               style.titleAlign === "center" && "text-center",
               style.titleStyle === "micro" &&
-                "text-[11px] font-medium uppercase tracking-wider text-muted-foreground",
+                "text-tiny font-medium uppercase tracking-wider text-muted-foreground",
               style.titleStyle === "plain" && "text-sm",
               style.titleStyle === "large" && "text-base font-medium",
             )}
@@ -1042,7 +1128,7 @@ function HeroShelf({
         )}
       >
         <div className={cn(!applyOnCentre && "min-w-0 text-right")}>
-          <p className="truncate text-[15px] font-semibold sm:text-base">
+          <p className="truncate text-compact font-semibold sm:text-base">
             {current?.label}
           </p>
           {/* The description is desktop-only, and that is a decision about
@@ -1051,7 +1137,7 @@ function HeroShelf({
               through the middle reads as a rendering fault. The name — the
               answer to "which one is this" — always fits. */}
           {current?.hint && (
-            <p className="mx-auto hidden line-clamp-2 max-w-md text-[12px] text-muted-foreground sm:block">
+            <p className="mx-auto hidden line-clamp-2 max-w-md text-xs text-muted-foreground sm:block">
               {current.hint}
             </p>
           )}
@@ -1083,7 +1169,7 @@ function HeroShelf({
  */
 function StudioHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="mt-1 px-6 text-[15px] font-semibold sm:text-base">
+    <h2 className="mt-1 px-6 text-compact font-semibold sm:text-base">
       {children}
     </h2>
   );
@@ -1091,7 +1177,7 @@ function StudioHeading({ children }: { children: React.ReactNode }) {
 
 function StudioSub({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mt-0.5 px-6 text-[12px] text-muted-foreground sm:text-[13px]">
+    <p className="mt-0.5 px-6 text-xs text-muted-foreground sm:text-mini">
       {children}
     </p>
   );
@@ -1132,7 +1218,7 @@ function SheetAction({
 }) {
   return (
     <button
-      className="inline-flex h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className="inline-flex h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3 text-mini text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       onClick={onClick}
       type="button"
     >
@@ -1159,10 +1245,14 @@ function BuilderChapter({
   const builder = useCardBuilder();
   const scope = useBuilderScope();
   const add = useAddCard(builder.back);
+  // The sheet's own pinned slot, OUTSIDE the scroll region — see
+  // `ChapterCtaContext`. Null for the one render before the sheet has
+  // mounted it, which resolves on its own before anything paints.
+  const ctaSlot = useContext(ChapterCtaContext);
 
   if (!scope) {
     return (
-      <p className="mx-auto max-w-md px-6 py-8 text-[13px] text-muted-foreground">
+      <p className="mx-auto max-w-md px-6 py-8 text-mini text-muted-foreground">
         Still connecting…
       </p>
     );
@@ -1198,17 +1288,34 @@ function BuilderChapter({
         }}
         title="How should it be drawn?"
       />
-      <div className="mt-2 flex flex-wrap items-center justify-center gap-2 px-3">
-        <SheetAction onClick={builder.back}>← Watch something else</SheetAction>
-        {def && (
-          <Button
-            className="h-11 rounded-full px-5"
-            onClick={() => add.add(def, scope)}
-          >
-            Add &ldquo;{def.title}&rdquo;
-          </Button>
-        )}
-      </div>
+      {/* Pinned OUTSIDE the scroll region rather than rendered inline here —
+          this is the sheet's only actionable control on this chapter, and a
+          tall specimen shelf used to be able to slice it in half or push it
+          off the sheet with no scroll affordance saying so. Falls back to
+          drawing inline for the one render before the sheet's slot exists,
+          so there is never a frame with no way to add the card at all. */}
+      {(() => {
+        const row = (
+          // No drawn rim: this pins into the same page-coloured sheet the
+          // scroll region above it sits on, so there is no value-step to
+          // separate — a hairline here would be an edge drawn for its own
+          // sake rather than one marking a real surface boundary.
+          <div className="flex flex-wrap items-center justify-center gap-2 px-3 pb-2 pt-1">
+            <SheetAction onClick={builder.back}>
+              ← Watch something else
+            </SheetAction>
+            {def && (
+              <Button
+                className="h-11 rounded-full px-5"
+                onClick={() => add.add(def, scope)}
+              >
+                Add &ldquo;{def.title}&rdquo;
+              </Button>
+            )}
+          </div>
+        );
+        return ctaSlot ? createPortal(row, ctaSlot) : row;
+      })()}
     </div>
   );
 }
@@ -1275,7 +1382,7 @@ function ShapeShelf({
 
   if (!base || !scope) {
     return (
-      <p className="mx-auto max-w-md px-6 py-8 text-[13px] leading-relaxed text-muted-foreground">
+      <p className="mx-auto max-w-md px-6 py-8 text-mini leading-relaxed text-muted-foreground">
         This panel is built in, so its shape is fixed — colour and card still
         change how it looks.
       </p>
@@ -1337,7 +1444,7 @@ function ShapeShelf({
   return (
     <div>
       {!stored && (
-        <p className="mx-auto max-w-md px-6 text-[12px] text-muted-foreground">
+        <p className="mx-auto max-w-md px-6 text-xs text-muted-foreground">
           Picking one makes this card your own.
         </p>
       )}
@@ -1445,11 +1552,11 @@ function OnlyWhenChapter({
         </StudioSub>
         <div className="mx-auto mt-3 max-w-md px-4">
           <p className="bento rounded-2xl bg-card p-4 text-left">
-            <span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="block text-tiny font-medium uppercase tracking-wider text-muted-foreground">
               Only here when
             </span>
             {/* The server's own `describeSituation`, unchanged. */}
-            <span className="mt-0.5 block text-[15px] font-semibold">
+            <span className="mt-0.5 block text-compact font-semibold">
               {live.description}
             </span>
             <span className="mt-1 block text-xs text-muted-foreground">
@@ -1555,15 +1662,15 @@ function OnlyWhenChapter({
             enough to make one condition read as two different conditions
             depending on where you meet it. */}
         <p aria-live="polite" className="mt-4 px-4 text-center">
-          <span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <span className="block text-tiny font-medium uppercase tracking-wider text-muted-foreground">
             Only here when
           </span>
-          <span className="mt-0.5 block text-[15px] font-semibold">
+          <span className="mt-0.5 block text-compact font-semibold">
             {describeSituation(situation)}
           </span>
         </p>
         {problem && (
-          <p className="mt-2 px-4 text-center text-[12px] leading-relaxed text-muted-foreground">
+          <p className="mt-2 px-4 text-center text-xs leading-relaxed text-muted-foreground">
             {problem}
           </p>
         )}
