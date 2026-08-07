@@ -128,7 +128,7 @@ export function PageHeader({
         initial={{ y: -14, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={SPRING}
-        className="flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-full border border-border bg-card py-1.5 pl-4 pr-2 shadow-md"
+        className="flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-full bg-card py-1.5 pl-4 pr-2 shadow-md"
       >
         <div className="flex min-w-0 items-center gap-2.5">
           <button
@@ -203,7 +203,7 @@ export function CapsuleCluster() {
       <Link
         href="/dashboard/inbox"
         aria-label={unread > 0 ? `Inbox, ${unread} unread` : "Inbox"}
-        className="relative flex size-9 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors hover:bg-muted"
+        className="relative flex size-9 items-center justify-center rounded-full bg-background text-foreground transition-colors hover:bg-muted"
       >
         <Bell aria-hidden className="size-4" />
         {unread > 0 && (

@@ -564,15 +564,17 @@ const SURFACES: Record<SurfaceStyle, { shadow: string; tile: string; border: str
     border: "1px solid var(--color-border)",
   },
   soft: {
-    // A hairline AS WELL as the shadow, and that is the shipped default.
-    // The canvas is white and cards are white, so a shadow alone has to draw
-    // the whole boundary — and one soft enough to look good cannot. The
-    // hairline draws the edge; the shadow says which side is on top. Must
-    // match the `--ui-surface-border` fallback in globals.css, which is what
-    // renders before this ever runs.
+    // NO hairline, and that is the shipped default. The canvas sits one
+    // value-step below the cards (light #f7f7f8 under #fff, dark #131316
+    // under #1e1e22), so the step + the shadow draw the card and a rim
+    // around every surface — "obnoxious white borders" in the founder's
+    // words — is exactly what this used to be. `--ui-surface-edge` is the
+    // per-theme stabilizer globals.css declares (transparent in light, 4%
+    // white in dark), so the token stays theme-correct without this module
+    // knowing which theme is on.
     shadow: "0 1px 2px var(--ui-shade-weak), 0 8px 24px -14px var(--ui-shade)",
     tile: "inset 0 1px 0 var(--ui-glint)",
-    border: "1px solid var(--color-border)",
+    border: "var(--ui-surface-edge)",
   },
   raised: {
     shadow:

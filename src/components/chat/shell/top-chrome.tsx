@@ -86,7 +86,7 @@ export function ChatTopChrome({ onOpenNav }: { onOpenNav: () => void }) {
 
   return (
     <header data-chat-top-chrome="" className="flex shrink-0 items-center px-2 pb-2 pt-2">
-      <div className="flex min-h-12 w-full items-center gap-2 rounded-full border border-border bg-card py-1.5 pl-4 pr-2 shadow-md">
+      <div className="flex min-h-12 w-full items-center gap-2 rounded-full bg-card py-1.5 pl-4 pr-2 shadow-md">
         <button
           type="button"
           // One control, two jobs, because they are the same job at two widths:
