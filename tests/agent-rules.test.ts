@@ -137,6 +137,38 @@ describe("blockers", () => {
     });
     await t.mutation(api.agentApi.completeTask, { apiKey, taskId: blocked });
   });
+
+  it("refuses a dependency cycle, direct and transitive", async () => {
+    const { t, alice, listId, apiKey } = await setup();
+    const a = await alice.mutation(api.tasks.create, { listId, title: "A" });
+    const b = await alice.mutation(api.tasks.create, { listId, title: "B" });
+    const c = await alice.mutation(api.tasks.create, { listId, title: "C" });
+    // A ← B (B blocked by A) is fine…
+    await alice.mutation(api.tasks.update, {
+      taskId: b,
+      blockedByTaskIds: [a],
+    });
+    // …but closing the loop is not: completion is refused while a blocker
+    // is open, so A→B→A is two tasks neither of which can ever complete —
+    // and agents wire dependencies programmatically, which is how the wedge
+    // gets built without anyone noticing.
+    await expect(
+      alice.mutation(api.tasks.update, { taskId: a, blockedByTaskIds: [b] }),
+    ).rejects.toThrow(/cycle/);
+    // Transitive too, and over the agent path: C blocked by B, then A
+    // blocked by C would close A→C→B→A.
+    await alice.mutation(api.tasks.update, {
+      taskId: c,
+      blockedByTaskIds: [b],
+    });
+    await expect(
+      t.mutation(api.agentApi.addDependency, {
+        apiKey,
+        taskId: a,
+        blockedByTaskId: c,
+      }),
+    ).rejects.toThrow(/cycle/);
+  });
 });
 
 describe("approval gates", () => {

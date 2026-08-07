@@ -258,6 +258,38 @@ async function validateBlockers(
       throw new ConvexError("Blocking task is outside this scope");
     }
   }
+
+  // Refuse cycles, not only self-blocks. Completion is refused while a
+  // blocker is open, so A→B→A is two tasks neither of which can ever be
+  // completed — and agents wire dependencies programmatically, which is
+  // exactly how a wedge like that gets built without anyone noticing. The
+  // plan compiler has had this check from day one (agentApi.ts, "Dependency
+  // cycle detected"); ad-hoc edits deserve the same floor. Walk from each
+  // proposed blocker up its own blocker chain; reaching the task being
+  // edited means the proposal closes a loop. Bounded so a pathological
+  // graph degrades to a refusal rather than an unbounded read.
+  if (selfId !== undefined) {
+    const visited = new Set<string>();
+    const stack = [...blockerIds];
+    let budget = 500;
+    while (stack.length > 0) {
+      const id = stack.pop()!;
+      if (id === selfId) {
+        throw new ConvexError(
+          "That dependency would create a cycle — these tasks would block each other forever",
+        );
+      }
+      if (visited.has(id)) continue;
+      visited.add(id);
+      if (--budget < 0) {
+        throw new ConvexError(
+          "Dependency chain is too deep to verify — simplify the graph first",
+        );
+      }
+      const node = await ctx.db.get(id);
+      for (const next of node?.blockedByTaskIds ?? []) stack.push(next);
+    }
+  }
 }
 
 export async function validateTaskAssignees(
