@@ -116,7 +116,7 @@ export function PresenceRail({
                   : `${v.name}${v.editing ? " is writing" : " is here"}`
               }
               className={cn(
-                "flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-medium",
+                "flex h-6 w-6 items-center justify-center rounded-full text-micro font-medium",
                 v.actorType === "agent"
                   ? "bg-foreground text-background"
                   : "bg-brand-100 text-brand-700",

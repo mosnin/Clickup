@@ -60,7 +60,7 @@ export function PanelsStudio() {
             <button
               type="button"
               onClick={() => clear([keyName], "personal")}
-              className="flex-shrink-0 text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+              className="flex-shrink-0 text-tiny text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
             >
               Reset
             </button>

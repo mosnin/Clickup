@@ -141,7 +141,7 @@ export function OAuthAuthorize() {
             onChange={(event) =>
               setAgentId(event.target.value as Id<"agents"> | "")
             }
-            className="mt-2 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none ring-brand-500/20 focus:ring-4"
+            className="mt-2 h-11 w-full rounded-xl bg-background px-3 text-sm outline-none ring-brand-500/20 focus:ring-4"
           >
             <option value="">Choose an agent…</option>
             {request.agents.map((agent) => (
@@ -151,7 +151,7 @@ export function OAuthAuthorize() {
               </option>
             ))}
           </select>
-          <div className="mt-5 rounded-xl border border-border bg-muted/40 p-3">
+          <div className="mt-5 rounded-xl bg-muted/40 p-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Requested access
             </p>
@@ -202,7 +202,7 @@ export function OAuthAuthorize() {
 function OAuthShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-page p-5">
-      <div className="w-full max-w-lg rounded-3xl border border-border bg-card p-6 shadow-xl sm:p-8">
+      <div className="w-full max-w-lg rounded-3xl bg-card p-6 shadow-xl sm:p-8">
         <Link href="/" aria-label="Operate home">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

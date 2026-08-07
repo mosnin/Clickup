@@ -127,7 +127,7 @@ export function CreateChannelView({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="new-channel-name" className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <label htmlFor="new-channel-name" className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           Name
         </label>
         <div className="soft-field flex items-center gap-1 px-3">
@@ -156,7 +156,7 @@ export function CreateChannelView({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="new-channel-description" className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <label htmlFor="new-channel-description" className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           Description
         </label>
         <textarea
@@ -170,7 +170,7 @@ export function CreateChannelView({
       </div>
 
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <legend className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           Start from
         </legend>
         <div className="segmented flex-wrap" role="radiogroup" aria-label="Template">
@@ -193,7 +193,7 @@ export function CreateChannelView({
       </fieldset>
 
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <legend className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           Visibility
         </legend>
         <div className="segmented" role="radiogroup" aria-label="Visibility">
@@ -216,7 +216,7 @@ export function CreateChannelView({
       </fieldset>
 
       <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <legend className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           Lifetime
         </legend>
         <div className="segmented" role="radiogroup" aria-label="Lifetime">

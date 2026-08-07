@@ -151,7 +151,7 @@ export function IntentComposer({
 
   return (
     <section>
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         Just say it
       </span>
 
@@ -184,7 +184,7 @@ export function IntentComposer({
                 setSentence(example);
                 void ask(example);
               }}
-              className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+              className="rounded-full bg-muted px-2 py-0.5 text-micro text-muted-foreground transition-colors hover:text-foreground"
             >
               {example}
             </button>
@@ -193,7 +193,7 @@ export function IntentComposer({
       )}
 
       {message && (
-        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="mt-2 text-tiny leading-relaxed text-muted-foreground">
           {message}
         </p>
       )}
@@ -207,7 +207,7 @@ export function IntentComposer({
             transition={{ duration: 0.22, ease: EASE }}
             className="mt-3 rounded-lg bg-page p-2.5 ring-1 ring-border"
           >
-            <p className="text-[11px] leading-relaxed">{proposal.said}</p>
+            <p className="text-tiny leading-relaxed">{proposal.said}</p>
 
             {/* Derived from the two definitions, so it cannot claim a change
                 that normalization dropped. */}
@@ -215,7 +215,7 @@ export function IntentComposer({
               {proposal.changes.slice(0, 6).map((change) => (
                 <li
                   key={change.key}
-                  className="flex items-baseline justify-between gap-2 text-[11px]"
+                  className="flex items-baseline justify-between gap-2 text-tiny"
                 >
                   <span className="min-w-0 truncate text-muted-foreground">
                     {change.label}
@@ -226,7 +226,7 @@ export function IntentComposer({
                 </li>
               ))}
               {proposal.changes.length > 6 && (
-                <li className="text-[10px] text-muted-foreground">
+                <li className="text-micro text-muted-foreground">
                   and {proposal.changes.length - 6} more
                 </li>
               )}

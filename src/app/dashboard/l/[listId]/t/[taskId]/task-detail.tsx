@@ -87,7 +87,7 @@ export function TaskDetail({
   }
   if (!list || !task) {
     return (
-      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center">
+      <div className="rounded-2xl bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
           This task doesn&apos;t exist or you don&apos;t have access.
         </p>
@@ -449,7 +449,7 @@ function TaskEditor({
                   toast(msg || "Couldn't update status", { kind: "error" });
                 }
               }}
-              className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
             >
               {statuses.map((s) => (
                 <option key={s._id} value={s._id}>
@@ -471,7 +471,7 @@ function TaskEditor({
                   priority: (v || null) as TaskPriority | null,
                 });
               }}
-              className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
             >
               <option value="">No priority</option>
               {PRIORITY_OPTIONS.map((p) => (
@@ -552,7 +552,7 @@ function TaskEditor({
                     startDate: fromDateInputValue(e.currentTarget.value) ?? null,
                   })
                 }
-                className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+                className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
               />
             </Field>
             <Field label="Due date">
@@ -565,7 +565,7 @@ function TaskEditor({
                     dueDate: fromDateInputValue(e.currentTarget.value) ?? null,
                   })
                 }
-                className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+                className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
               />
             </Field>
           </div>
@@ -622,7 +622,7 @@ function TaskEditor({
                 }
               }}
               placeholder="typescript, backend"
-              className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
             />
             <p className="mt-1 text-xs text-muted-foreground">
               Agents missing any capability cannot be assigned or claim this
@@ -651,7 +651,7 @@ function TaskEditor({
                   recurrence: (v || null) as TaskRecurrence | null,
                 });
               }}
-              className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
             >
               <option value="">No recurrence</option>
               {(Object.keys(RECURRENCE_LABEL) as TaskRecurrence[]).map((r) => (

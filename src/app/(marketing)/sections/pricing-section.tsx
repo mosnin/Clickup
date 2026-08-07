@@ -135,7 +135,7 @@ export function PricingSection() {
             >
               Annual
               {teamAnnualNote && (
-                <span className="mk-gradient-fill inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                <span className="mk-gradient-fill inline-flex items-center rounded-full px-2 py-0.5 text-micro font-semibold uppercase tracking-wide">
                   {teamAnnualNote}
                 </span>
               )}
@@ -154,7 +154,7 @@ export function PricingSection() {
                 onMouseEnter={(e) => handleCardEnter(e, tier.featured)}
                 onMouseLeave={(e) => handleCardLeave(e, tier.featured)}
                 className={cn(
-                  "relative flex w-full flex-col rounded-[20px] p-7",
+                  "relative flex w-full flex-col rounded-card-lg p-7",
                   tier.featured
                     ? "mk-panel-2 text-white shadow-2xl"
                     : "bg-background ring-1 ring-border",
@@ -256,7 +256,7 @@ export function PricingSection() {
         </GsapReveal>
 
         {/* Enterprise row */}
-        <div className="mt-8 flex flex-col items-start justify-between gap-4 rounded-[20px] bg-muted px-7 py-6 sm:flex-row sm:items-center">
+        <div className="mt-8 flex flex-col items-start justify-between gap-4 rounded-card-lg bg-muted px-7 py-6 sm:flex-row sm:items-center">
           <div>
             <p className="font-semibold text-foreground">
               {PRICING.enterprise.title}

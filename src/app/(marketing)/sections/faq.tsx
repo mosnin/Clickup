@@ -85,7 +85,7 @@ function FaqItem({ q, a, id }: { q: string; a: string; id: string }) {
 
   return (
     <div
-      className={`overflow-hidden rounded-[20px] bg-muted transition-colors ${
+      className={`overflow-hidden rounded-card-lg bg-muted transition-colors ${
         open ? "" : "hover:bg-muted/80"
       }`}
     >
@@ -96,7 +96,7 @@ function FaqItem({ q, a, id }: { q: string; a: string; id: string }) {
         aria-controls={id}
         className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left"
       >
-        <span className="text-[15px] font-medium text-foreground">{q}</span>
+        <span className="text-compact font-medium text-foreground">{q}</span>
         <ChevronDown ref={chevronRef} className="size-4 shrink-0 text-muted-foreground" />
       </button>
       <div

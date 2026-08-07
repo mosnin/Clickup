@@ -439,7 +439,7 @@ export default function DashboardHome() {
     const row = panelId ? panelsById.get(panelId) : undefined;
     if (!row) return null;
     return (
-      <span className="mt-0.5 block max-w-[22rem] truncate text-[11px] font-normal text-muted-foreground">
+      <span className="mt-0.5 block max-w-[22rem] truncate text-tiny font-normal text-muted-foreground">
         {describePanel(normalizePanel(row.definition))}
       </span>
     );
@@ -685,7 +685,7 @@ export default function DashboardHome() {
           editing ? (
             <div className="rounded-2xl panel p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="min-w-0 flex-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <span className="min-w-0 flex-1 text-tiny font-medium uppercase tracking-wider text-muted-foreground">
                   {hidden.length > 0
                     ? "Drag a block back onto your Home"
                     : "Everything is on your Home"}
@@ -775,7 +775,7 @@ function WelcomeReveal() {
             initial={{ scale: 0.6, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: "spring", stiffness: 200, damping: 18 }}
-            className="inline-block h-8 w-8 rounded-[8px] bg-foreground"
+            className="inline-block h-8 w-8 rounded-lg bg-foreground"
           />
           <motion.p
             initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
@@ -818,7 +818,7 @@ function StatsCards({
           {/* No art mark — the founder cut the rings ("weird symbol"). The
               block carries its figure and nothing else; the type IS the
               poster. */}
-          <span className="relative text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+          <span className="relative text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
             My work
           </span>
           {/* A headline, the way the reference's tall block is a headline —
@@ -841,7 +841,7 @@ function StatsCards({
           <span className="relative mt-4 min-w-0 border-t border-current/20 pt-2.5">
             {nextTask ? (
               <>
-                <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-55">
+                <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-55">
                   Next up
                 </span>
                 <span className="mt-0.5 flex items-center gap-2">
@@ -872,7 +872,7 @@ function StatsCards({
               beside "95.5+"). The chip is a semantic indicator for the
               metric, on its own surface, per the icon rules. */}
           <span className="flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/85 shadow-sm">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/85 shadow-[var(--ui-shadow-sm)]">
               <Clock aria-hidden className="size-4" />
             </span>
             <span className="font-title block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
@@ -886,10 +886,10 @@ function StatsCards({
             </span>
           </span>
           <span className="mt-auto border-t border-current/20 pt-2">
-            <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+            <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
               Due today
             </span>
-            <span className="mt-0.5 block text-[11px] font-medium opacity-70">
+            <span className="mt-0.5 block text-tiny font-medium opacity-70">
               {me.overdue > 0
                 ? `${me.overdue} also past their date`
                 : "nothing is late"}
@@ -904,7 +904,7 @@ function StatsCards({
           className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-pink p-4 text-signal-ink"
         >
           <span className="flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/85 shadow-sm">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/85 shadow-[var(--ui-shadow-sm)]">
               <SparkMark aria-hidden className="size-4" />
             </span>
             <span className="font-title block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
@@ -918,10 +918,10 @@ function StatsCards({
             </span>
           </span>
           <span className="mt-auto border-t border-current/20 pt-2">
-            <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+            <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
               Done this week
             </span>
-            <span className="mt-0.5 block text-[11px] font-medium opacity-70">
+            <span className="mt-0.5 block text-tiny font-medium opacity-70">
               completed · last 7 days
             </span>
           </span>
@@ -1041,14 +1041,14 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
                         of the same importance look like two different kinds
                         of thing. */}
                     <span className="flex flex-shrink-0 items-center gap-1.5">
-                      <span className="ui-chip whitespace-nowrap px-2 py-0.5 text-[11px] text-muted-foreground">
+                      <span className="ui-chip whitespace-nowrap px-2 py-0.5 text-tiny text-muted-foreground">
                         {row.listName}
                       </span>
                       {row.priority && <PriorityDot priority={row.priority} />}
                       {row.dueDate !== undefined && (
                         <span
                           className={cn(
-                            "ui-chip ui-figure whitespace-nowrap px-2 py-0.5 text-[11px] font-medium",
+                            "ui-chip ui-figure whitespace-nowrap px-2 py-0.5 text-tiny font-medium",
                             overdue
                               ? "border-danger/40 text-danger"
                               : "text-muted-foreground",
@@ -1133,7 +1133,7 @@ function PulsePanel({
           <StackedColumns items={columns} height={116} />
           {/* The key, in the same four colours. A multicolour chart with no
               key is a mood; with one it is a reading. */}
-          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-muted-foreground @md:flex @md:flex-wrap @md:items-center">
+          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-micro text-muted-foreground @md:flex @md:flex-wrap @md:items-center">
             {(
               [
                 ["done", "var(--color-signal-lime)"],
@@ -1161,7 +1161,7 @@ function HealthChip({ status }: { status: Project["projectStatus"] }) {
   const chip = status ? HEALTH_CHIP[status] : null;
   if (!chip) return <span className="text-sm text-muted-foreground">—</span>;
   return (
-    <span className="ui-chip inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium">
+    <span className="ui-chip inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-tiny font-medium">
       <span aria-hidden className={cn("size-1.5 rounded-full", chip.dot)} />
       {chip.label}
     </span>
@@ -1263,7 +1263,7 @@ function ProjectCards({
                   <Link
                     href={`/dashboard/l/${project.listId}`}
                     aria-label={`Open ${project.name}`}
-                    className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-muted"
+                    className="flex size-9 items-center justify-center rounded-full bg-card text-foreground transition-colors hover:bg-muted"
                   >
                     <ArrowUpRight aria-hidden className="size-4" />
                   </Link>
@@ -1285,12 +1285,12 @@ function ProjectCards({
                         <HealthChip status={project.projectStatus} />
                       )}
                       {project.overdue > 0 && (
-                        <span className="ui-chip px-2 py-0.5 text-[11px] font-medium">
+                        <span className="ui-chip px-2 py-0.5 text-tiny font-medium">
                           {project.overdue} overdue
                         </span>
                       )}
                       {project.targetDate !== undefined && (
-                        <span className={cn("ui-chip ui-figure px-2 py-0.5 text-[11px]", !lime && "text-muted-foreground")}>
+                        <span className={cn("ui-chip ui-figure px-2 py-0.5 text-tiny", !lime && "text-muted-foreground")}>
                           {formatDate(project.targetDate)}
                         </span>
                       )}
@@ -1310,13 +1310,13 @@ function ProjectCards({
                         /{project.total}
                       </span>
                     </span>
-                    <span className={cn("mt-1 text-[10px] font-medium uppercase tracking-wider", lime ? "opacity-60" : "text-muted-foreground")}>
+                    <span className={cn("mt-1 text-micro font-medium uppercase tracking-wider", lime ? "opacity-60" : "text-muted-foreground")}>
                       done
                     </span>
                   </div>
                 </div>
                 <div className={cn("flex items-center justify-between gap-3 border-t px-4 py-2.5", lime ? "border-current/15" : "border-border")}>
-                  <span className={cn("text-[11px]", lime ? "opacity-60" : "text-muted-foreground")}>
+                  <span className={cn("text-tiny", lime ? "opacity-60" : "text-muted-foreground")}>
                     active {timeAgo(project.lastActivityAt)}
                   </span>
                   <Link
@@ -1489,15 +1489,15 @@ function DashboardSkeleton() {
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
-            className="h-24 animate-pulse rounded-xl border border-border bg-muted/20"
+            className="h-24 animate-pulse rounded-xl bg-muted/20"
           />
         ))}
       </div>
       <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3">
-        <div className="h-72 animate-pulse rounded-xl border border-border bg-muted/20 lg:col-span-2" />
-        <div className="h-72 animate-pulse rounded-xl border border-border bg-muted/20" />
+        <div className="h-72 animate-pulse rounded-xl bg-muted/20 lg:col-span-2" />
+        <div className="h-72 animate-pulse rounded-xl bg-muted/20" />
       </div>
-      <div className="h-64 animate-pulse rounded-xl border border-border bg-muted/20" />
+      <div className="h-64 animate-pulse rounded-xl bg-muted/20" />
     </div>
   );
 }

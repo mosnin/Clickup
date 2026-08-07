@@ -82,13 +82,13 @@ export function ProvenanceSheet({
     >
       <div className="mt-2 rounded-lg bg-page p-2.5 ring-1 ring-border">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <span className="text-micro font-medium uppercase tracking-wider text-muted-foreground">
             Why this number
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="text-[10px] text-muted-foreground hover:text-foreground"
+            className="text-micro text-muted-foreground hover:text-foreground"
           >
             Close
           </button>
@@ -99,7 +99,7 @@ export function ProvenanceSheet({
           ))}
         </ol>
         {decisions === undefined && (
-          <p className="mt-1.5 text-[10px] text-muted-foreground">
+          <p className="mt-1.5 text-micro text-muted-foreground">
             Looking for the decision behind it…
           </p>
         )}
@@ -112,7 +112,7 @@ function Step({ step }: { step: ProvenanceStep }) {
   const text = (
     <span
       className={cn(
-        "block text-[11px] leading-relaxed",
+        "block text-tiny leading-relaxed",
         step.kind === "decision" && "text-foreground",
         step.kind !== "decision" && "text-muted-foreground",
       )}

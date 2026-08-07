@@ -22,7 +22,7 @@ export default async function PlanRoute({
     <div className="space-y-4">
       <Link
         href={`/dashboard/p/${projectId}`}
-        className="text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+        className="text-tiny text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
       >
         ← Back to the project
       </Link>

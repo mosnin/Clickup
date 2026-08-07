@@ -49,8 +49,8 @@ export function AttachmentTray({
           ) : null}
 
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[0.6875rem] font-medium">{slot.name}</span>
-            <span className="chat-quiet block text-[0.625rem]">
+            <span className="block truncate text-tiny font-medium">{slot.name}</span>
+            <span className="chat-quiet block text-micro">
               {slot.status === "failed"
                 ? (slot.error ?? "Upload failed")
                 : slot.status === "uploading"

@@ -44,7 +44,7 @@ export function Placeholder({
         className,
       )}
     >
-      <span className="px-4 text-center text-[11px] font-semibold uppercase tracking-widest text-white/90">
+      <span className="px-4 text-center text-tiny font-semibold uppercase tracking-widest text-white/90">
         Placeholder — {label}
       </span>
     </div>
@@ -65,7 +65,7 @@ export function Eyebrow({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-widest",
+        "inline-flex items-center rounded-full px-3 py-1 text-tiny font-semibold uppercase tracking-widest",
         tone === "light"
           ? "bg-azure-500/15 text-azure-300 ring-1 ring-inset ring-azure-400/25"
           : "bg-white/10 text-white/80",
@@ -203,13 +203,13 @@ export function ScreenshotFrame({
     <div
       data-tone={tone}
       className={cn(
-        "relative overflow-hidden rounded-[20px] p-1.5 shadow-2xl mk-panel-2",
+        "relative overflow-hidden rounded-card-lg p-1.5 shadow-2xl mk-panel-2",
         className,
       )}
     >
       {video ? (
         <div
-          className="overflow-hidden rounded-[14px]"
+          className="overflow-hidden rounded-xl"
           style={{ aspectRatio: ratio }}
           // Inline HTML, not JSX: React drops the `muted` attribute when
           // server-rendering <video>, and iOS/Android refuse to autoplay an
@@ -221,7 +221,7 @@ export function ScreenshotFrame({
         />
       ) : src ? (
         <div
-          className="overflow-hidden rounded-[14px]"
+          className="overflow-hidden rounded-xl"
           style={{ aspectRatio: ratio }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -232,7 +232,7 @@ export function ScreenshotFrame({
           />
         </div>
       ) : (
-        <Placeholder label={label} ratio={ratio} className="rounded-[14px]" />
+        <Placeholder label={label} ratio={ratio} className="rounded-xl" />
       )}
     </div>
   );

@@ -24,7 +24,7 @@ export function AgentTag({
     <span
       title={title}
       className={cn(
-        "ui-chip inline-flex shrink-0 items-center rounded-full px-1.5 text-[0.625rem] font-medium uppercase tracking-wide text-[var(--chat-quiet)]",
+        "ui-chip inline-flex shrink-0 items-center rounded-full px-1.5 text-micro font-medium uppercase tracking-wide text-[var(--chat-quiet)]",
         className,
       )}
     >

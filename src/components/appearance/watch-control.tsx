@@ -51,14 +51,14 @@ export function WatchControl({ panelId }: { panelId: string }) {
   return (
     <section>
       <span className="flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           Keep an eye on it
         </span>
         {watch && (
           <button
             type="button"
             onClick={() => update(null)}
-            className="text-[10px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+            className="text-micro text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
           >
             Stop
           </button>
@@ -81,7 +81,7 @@ export function WatchControl({ panelId }: { panelId: string }) {
                 )
               }
               className={cn(
-                "rounded-lg px-2 py-1.5 text-left text-[11px] transition-all",
+                "rounded-lg px-2 py-1.5 text-left text-tiny transition-all",
                 selected
                   ? "bg-foreground text-background"
                   : "bg-muted text-muted-foreground hover:text-foreground",
@@ -98,7 +98,7 @@ export function WatchControl({ panelId }: { panelId: string }) {
           that does nothing. */}
       {watch && !isMovementOp(watch.op) && (
         <label className="mt-2 flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">Number</span>
+          <span className="text-tiny text-muted-foreground">Number</span>
           <input
             type="number"
             value={watch.threshold}
@@ -114,7 +114,7 @@ export function WatchControl({ panelId }: { panelId: string }) {
       )}
 
       {watch && (
-        <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="mt-2 text-tiny leading-relaxed text-muted-foreground">
           {describeWatchIntent(watch)}.{" "}
           {isMovementOp(watch.op)
             ? "Measured against what it showed you last time."

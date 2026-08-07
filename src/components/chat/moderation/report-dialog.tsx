@@ -109,7 +109,7 @@ export function ReportMessageDialog({
           </div>
 
           <fieldset className="mt-4">
-            <legend className="chat-quiet text-[0.6875rem] uppercase tracking-wider">
+            <legend className="chat-quiet text-tiny uppercase tracking-wider">
               What is wrong with it
             </legend>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -133,7 +133,7 @@ export function ReportMessageDialog({
           </fieldset>
 
           <label className="mt-4 block">
-            <span className="chat-quiet text-[0.6875rem] uppercase tracking-wider">
+            <span className="chat-quiet text-tiny uppercase tracking-wider">
               Anything moderators should know (optional)
             </span>
             <textarea

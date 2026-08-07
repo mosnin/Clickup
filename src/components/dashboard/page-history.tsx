@@ -51,10 +51,10 @@ export function PageHistory({ pageId }: { pageId: Id<"pages"> }) {
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-2 text-left"
       >
-        <span className="flex-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="flex-1 text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           History
         </span>
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-tiny text-muted-foreground">
           {revisions.length}
           {revisions.length === 30 ? "+" : ""}
         </span>
@@ -76,11 +76,11 @@ export function PageHistory({ pageId }: { pageId: Id<"pages"> }) {
                     <span className="block truncate text-xs font-medium">
                       Before {r.actorName || "someone"} edited
                     </span>
-                    <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                    <span className="mt-0.5 block text-tiny text-muted-foreground">
                       {timeAgo(r.createdAt)}
                     </span>
                     {r.excerpt ? (
-                      <span className="mt-1 line-clamp-2 block text-[11px] leading-relaxed text-muted-foreground">
+                      <span className="mt-1 line-clamp-2 block text-tiny leading-relaxed text-muted-foreground">
                         {r.excerpt}
                       </span>
                     ) : null}
@@ -115,18 +115,18 @@ export function PageHistory({ pageId }: { pageId: Id<"pages"> }) {
                     {preview === undefined ? (
                       <div className="h-12 animate-pulse rounded bg-muted" />
                     ) : preview === null ? (
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-tiny text-muted-foreground">
                         That version is no longer available.
                       </p>
                     ) : (
                       <>
-                        <p className="text-[11px] font-medium">
+                        <p className="text-tiny font-medium">
                           {preview.title}
                         </p>
                         {/* Plain text, not a second editor: this is a glance
                             before deciding, and the full page is one click
                             away once restored. */}
-                        <pre className="mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap break-words font-sans text-[11px] leading-relaxed text-muted-foreground">
+                        <pre className="mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap break-words font-sans text-tiny leading-relaxed text-muted-foreground">
                           {preview.markdown || "(empty)"}
                         </pre>
                       </>

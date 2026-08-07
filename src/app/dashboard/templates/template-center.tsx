@@ -596,10 +596,10 @@ function TemplateCard({
       )}
     >
       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-foreground">
+        <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-micro font-medium uppercase tracking-wider text-foreground">
           {ENTITY_NOUN[template.entityType]}
         </span>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+        <span className="rounded-full bg-muted px-2 py-0.5 text-micro uppercase tracking-wider text-muted-foreground">
           {template.complexity}
         </span>
       </div>
@@ -612,7 +612,7 @@ function TemplateCard({
       <dl className="mt-4 grid grid-cols-3 gap-2">
         {template.stats.map((stat) => (
           <div key={stat.label} className="bento-tile min-w-0 px-2.5 py-2">
-            <dt className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
+            <dt className="truncate text-micro uppercase tracking-wider text-muted-foreground">
               {stat.label}
             </dt>
             <dd className="text-sm font-semibold tabular-nums">{stat.value}</dd>
@@ -622,7 +622,7 @@ function TemplateCard({
 
       {template.samples.length > 0 && (
         <div className="mt-4 min-w-0">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <p className="text-micro uppercase tracking-wider text-muted-foreground">
             {template.sampleLabel}
           </p>
           <ul className="mt-1.5 space-y-1">
@@ -642,7 +642,7 @@ function TemplateCard({
         {template.useCases.slice(0, 3).map((u) => (
           <span
             key={u}
-            className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground"
+            className="rounded-full bg-muted px-2 py-0.5 text-micro text-muted-foreground"
           >
             {u}
           </span>
@@ -653,7 +653,7 @@ function TemplateCard({
         <Button size="sm" onClick={onUse}>
           Use template
         </Button>
-        <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+        <span className="min-w-0 flex-1 truncate text-tiny text-muted-foreground">
           {template.outcome}
         </span>
       </div>
@@ -808,7 +808,7 @@ function ConfirmStep({
   return (
     <section className="panel min-w-0 space-y-5 rounded-2xl p-5 sm:p-6">
       <div className="min-w-0">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+        <p className="text-micro uppercase tracking-wider text-muted-foreground">
           {ENTITY_NOUN[template.entityType]} template
         </p>
         <h2 className="mt-1 text-lg font-semibold tracking-tight">
@@ -822,7 +822,7 @@ function ConfirmStep({
       <dl className="grid max-w-md grid-cols-3 gap-2">
         {template.stats.map((stat) => (
           <div key={stat.label} className="bento-tile min-w-0 px-3 py-2">
-            <dt className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
+            <dt className="truncate text-micro uppercase tracking-wider text-muted-foreground">
               {stat.label}
             </dt>
             <dd className="text-sm font-semibold tabular-nums">{stat.value}</dd>
@@ -832,7 +832,7 @@ function ConfirmStep({
 
       <div className="min-w-0 space-y-4">
         <div className="min-w-0 space-y-1.5">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <p className="text-micro uppercase tracking-wider text-muted-foreground">
             Create in
           </p>
           <p className="text-xs text-muted-foreground">{destinationHelp}</p>
@@ -857,7 +857,7 @@ function ConfirmStep({
         <div className="min-w-0 space-y-1.5">
           <label
             htmlFor="template-name"
-            className="block text-[10px] uppercase tracking-wider text-muted-foreground"
+            className="block text-micro uppercase tracking-wider text-muted-foreground"
           >
             Name
           </label>

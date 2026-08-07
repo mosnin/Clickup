@@ -53,7 +53,7 @@ export function StartCommand() {
           itself if a font substitution makes it wider than expected, but at
           full width it does not have to. */}
       <div className="mt-3 flex flex-col gap-1.5 rounded-2xl bg-white/[0.06] p-1.5 ring-1 ring-white/15 backdrop-blur sm:flex-row sm:items-center sm:gap-2 sm:pl-4">
-        <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap px-2.5 py-2 text-left font-mono text-[0.8rem] text-white/90 sm:px-0 sm:text-sm">
+        <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap px-2.5 py-2 text-left font-mono text-mini text-white/90 sm:px-0 sm:text-sm">
           <span className="select-none text-white/35">$ </span>
           {COMMAND}
         </code>

@@ -417,7 +417,7 @@ export function ChannelBrowserDialog({
                     <span className="icon-tile size-8 rounded-lg bg-background">
                       <Plus aria-hidden className="size-4" />
                     </span>
-                    <span className="truncate text-[15px] font-semibold">
+                    <span className="truncate text-compact font-semibold">
                       {canonicalChannelName(query).length > 0
                         ? `Create ${noun} “#${canonicalChannelName(query)}”`
                         : `Create a new ${noun}`}
@@ -506,7 +506,7 @@ function BrowseEmptyState({
   return (
     <div className="flex flex-col items-center gap-1 px-6 py-12 text-center">
       <p className="text-sm font-semibold">{title}</p>
-      <p className="max-w-xs text-[13px] text-muted-foreground">{description}</p>
+      <p className="max-w-xs text-mini text-muted-foreground">{description}</p>
     </div>
   );
 }

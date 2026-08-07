@@ -573,7 +573,7 @@ function ProjectSection({
                 {project.name}
               </Link>
             </h2>
-            <span className="flex-shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="flex-shrink-0 text-micro font-medium uppercase tracking-wider text-muted-foreground">
               Project
             </span>
             <DropdownMenu>
@@ -719,7 +719,7 @@ function ProjectCard({
           {chip && (
             <span
               className={cn(
-                "rounded-full px-2 py-0.5 text-[10px] font-medium text-foreground",
+                "rounded-full px-2 py-0.5 text-micro font-medium text-foreground",
                 chip.className,
               )}
             >
@@ -965,7 +965,7 @@ function PageList({
               />
               <span className="truncate">{d.title}</span>
               {d.pinned && (
-                <span className="ml-auto flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                <span className="ml-auto flex-shrink-0 text-micro uppercase tracking-wider text-muted-foreground">
                   context
                 </span>
               )}
@@ -1270,7 +1270,7 @@ function DefaultStatusesCard({
                 style={{ backgroundColor: s.color }}
               />
               <span className="flex-1 truncate">{s.name}</span>
-              <span className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <span className="flex-shrink-0 text-micro uppercase tracking-wider text-muted-foreground">
                 {CATEGORY_LABEL[s.category]}
               </span>
               <button
@@ -1572,7 +1572,7 @@ function PageSkeleton() {
         <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
         <div className="h-4 w-1/2 animate-pulse rounded-full bg-muted" />
       </div>
-      <div className="flex gap-1 rounded-full border border-border p-1">
+      <div className="flex gap-1 rounded-full bg-muted p-1">
         {[0, 1].map((i) => (
           <div
             key={i}

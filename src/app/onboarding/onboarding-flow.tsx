@@ -54,9 +54,9 @@ export function OnboardingFlow({ firstName }: { firstName: string }) {
             <div className="flex items-center gap-2.5">
               <span
                 aria-hidden
-                className="inline-block h-3.5 w-3.5 rounded-[4px] bg-foreground"
+                className="inline-block h-3.5 w-3.5 rounded bg-foreground"
               />
-              <span className="text-[13px] font-extrabold uppercase tracking-[0.22em]">
+              <span className="text-mini font-extrabold uppercase tracking-[0.22em]">
                 operate.to
               </span>
             </div>
@@ -411,14 +411,14 @@ function LivePreview({
       <div className="flex items-center gap-2">
         <motion.span
           layout
-          className="inline-block h-3 w-3 rounded-[4px]"
+          className="inline-block h-3 w-3 rounded"
           animate={{ backgroundColor: workspaceName.trim() ? "#6366f1" : "#d9d9de" }}
           transition={{ duration: 0.4 }}
         />
         <motion.span layout className="truncate text-sm font-semibold">
           {ws}
         </motion.span>
-        <span className="ml-auto text-[10px] uppercase tracking-wider text-muted-foreground">
+        <span className="ml-auto text-micro uppercase tracking-wider text-muted-foreground">
           HQ
         </span>
       </div>
@@ -437,7 +437,7 @@ function LivePreview({
               transition={{ delay: 0.15 + i * 0.08, duration: 0.4, ease: EASE }}
             >
               <span className="inline-block h-3 w-3 rounded-full border-2 border-border" />
-              <span className="truncate text-[13px] text-foreground/70">{t}</span>
+              <span className="truncate text-mini text-foreground/70">{t}</span>
             </motion.div>
           ))}
       </div>
@@ -452,7 +452,7 @@ function LivePreview({
             className="mt-4 overflow-hidden"
           >
             <BeamWhen active={stage === "live"}>
-            <div className="flex items-center gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5">
+            <div className="flex items-center gap-2.5 rounded-xl bg-background px-3 py-2.5">
               <Orb
                 seed={agentName.trim() || "Your agent"}
                 label={agentName.trim() || "Your agent"}
@@ -462,7 +462,7 @@ function LivePreview({
                 <p className="truncate text-sm font-medium">
                   {agentName.trim() || "Your agent"}
                 </p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-tiny text-muted-foreground">
                   {stage === "live" ? "Online" : "Ready to connect"}
                 </p>
               </div>
@@ -618,7 +618,7 @@ function BuildStep({
               className="mt-10"
             >
               <div className="rounded-2xl panel p-5">
-                <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <p className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
                   {agentName}&apos;s API key, shown once
                 </p>
                 <div className="mt-2 flex items-center gap-2">

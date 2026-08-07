@@ -120,7 +120,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
 
   if (!workspace) {
     return (
-      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center">
+      <div className="rounded-2xl bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
           This workspace doesn&apos;t exist or you&apos;re not a member.
         </p>
@@ -235,7 +235,7 @@ export function WorkspaceView({ workspaceId }: { workspaceId: string }) {
                                 className="group flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted"
                               >
                                 <span className="truncate">{list.name}</span>
-                                <span className="flex-shrink-0 text-[11px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+                                <span className="flex-shrink-0 text-tiny text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
                                   List · Board · Gantt
                                 </span>
                               </Link>
@@ -475,7 +475,7 @@ function Skeleton() {
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="h-24 animate-pulse rounded-2xl border border-border bg-muted/40"
+            className="h-24 animate-pulse rounded-2xl bg-muted/40"
           />
         ))}
       </div>

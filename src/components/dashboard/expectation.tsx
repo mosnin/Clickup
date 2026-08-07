@@ -78,16 +78,16 @@ export function ExpectationControl({
       : evaluate(stored, null, Date.now());
     return (
       <div className="mt-3 rounded-lg bg-page p-2.5 ring-1 ring-border">
-        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="text-micro font-medium uppercase tracking-wider text-muted-foreground">
           What was expected
         </span>
-        <p className="mt-1 text-[11px] leading-relaxed">
+        <p className="mt-1 text-tiny leading-relaxed">
           {describeExpectation(stored)}
           {stored.note ? ` — ${stored.note}` : ""}
         </p>
         <p
           className={cn(
-            "mt-1.5 text-[11px] leading-relaxed",
+            "mt-1.5 text-tiny leading-relaxed",
             verdict.verdict === "met" &&
               "rounded bg-[var(--color-pastel-green)] px-1.5 py-0.5",
             verdict.verdict === "missed" &&
@@ -115,7 +115,7 @@ export function ExpectationControl({
                 }),
               )
             }
-            className="mt-1.5 text-[10px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+            className="mt-1.5 text-micro text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
           >
             Withdraw the claim
           </button>
@@ -130,7 +130,7 @@ export function ExpectationControl({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-3 text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+        className="mt-3 text-tiny text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
       >
         What do you expect this to change?
       </button>
@@ -145,7 +145,7 @@ export function ExpectationControl({
 
   return (
     <div className="mt-3 rounded-lg bg-page p-2.5 ring-1 ring-border">
-      <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="text-micro font-medium uppercase tracking-wider text-muted-foreground">
         What do you expect this to change?
       </span>
 
@@ -157,7 +157,7 @@ export function ExpectationControl({
           aria-label="What to watch"
           value={presetId}
           onChange={(e) => setPresetId(e.currentTarget.value)}
-          className="soft-field w-full px-2 py-1 text-[11px]"
+          className="soft-field w-full px-2 py-1 text-tiny"
         >
           {PANEL_PRESETS.map((p) => (
             <option key={p.id} value={p.id}>
@@ -176,7 +176,7 @@ export function ExpectationControl({
               aria-pressed={d === direction}
               onClick={() => setDirection(d)}
               className={cn(
-                "min-w-0 flex-1 whitespace-nowrap px-1.5 py-1 text-[10px]",
+                "min-w-0 flex-1 whitespace-nowrap px-1.5 py-1 text-micro",
                 d === direction && "segmented-on",
               )}
             >
@@ -197,7 +197,7 @@ export function ExpectationControl({
             onChange={(e) => setTarget(Number(e.currentTarget.value))}
             className="w-full accent-foreground"
           />
-          <span className="text-[10px] tabular-nums text-muted-foreground">
+          <span className="text-micro tabular-nums text-muted-foreground">
             {target}
           </span>
         </Row>
@@ -212,7 +212,7 @@ export function ExpectationControl({
               aria-pressed={h.days === days}
               onClick={() => setDays(h.days)}
               className={cn(
-                "min-w-0 flex-1 whitespace-nowrap px-1.5 py-1 text-[10px]",
+                "min-w-0 flex-1 whitespace-nowrap px-1.5 py-1 text-micro",
                 h.days === days && "segmented-on",
               )}
             >
@@ -252,7 +252,7 @@ export function ExpectationControl({
         </Button>
       </div>
 
-      <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+      <p className="mt-2 text-micro leading-relaxed text-muted-foreground">
         The number is read now and compared later. That is why it can only be
         set here — a baseline taken afterwards already contains the effect.
       </p>
@@ -269,7 +269,7 @@ function Row({
 }) {
   return (
     <div className="mt-2">
-      <span className="block text-[10px] text-muted-foreground">{label}</span>
+      <span className="block text-micro text-muted-foreground">{label}</span>
       <div className="mt-1 flex items-center gap-2">{children}</div>
     </div>
   );
@@ -298,7 +298,7 @@ export function CalibrationSummary({
   const graded = met + missed;
 
   return (
-    <p className="text-[11px] leading-relaxed text-muted-foreground">
+    <p className="text-tiny leading-relaxed text-muted-foreground">
       {graded === 0
         ? `${outcomes.length} claim${outcomes.length === 1 ? "" : "s"} waiting to be checked.`
         : `${met} of ${graded} claims held (${Math.round((met / graded) * 100)}%).`}

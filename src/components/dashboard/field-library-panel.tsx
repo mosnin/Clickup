@@ -172,7 +172,7 @@ export function FieldLibraryPanel({
                 >
                   {field.name}
                 </span>
-                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                <span className="rounded-full bg-muted px-2 py-0.5 text-tiny font-medium text-muted-foreground">
                   {TYPE_LABEL[field.type]}
                 </span>
                 {field.type === "dropdown" && (
@@ -280,7 +280,7 @@ function CreateFieldForm({
       </div>
       {type === "dropdown" && (
         <label className="block">
-          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="mb-1 block text-micro font-semibold uppercase tracking-wider text-muted-foreground">
             Options — one per line
           </span>
           <textarea

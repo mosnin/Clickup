@@ -60,7 +60,7 @@ export function CtaPanel() {
     <section className="bg-background py-24">
       <Container>
         <BorderBeam size="md" colorVariant="colorful">
-        <div className="relative overflow-hidden rounded-[28px] mk-band ring-1 ring-white/10">
+        <div className="relative overflow-hidden rounded-sheet mk-band ring-1 ring-white/10">
           <svg
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.04]"
@@ -87,7 +87,7 @@ export function CtaPanel() {
             <div className="px-8 py-12 sm:px-14 sm:py-16">
               <span
                 data-cta-item
-                className="text-[11px] font-semibold uppercase tracking-widest text-white/50"
+                className="text-tiny font-semibold uppercase tracking-widest text-white/50"
               >
                 {CTA_PANEL.eyebrow}
               </span>

@@ -53,7 +53,7 @@ export function WorkPane({
       <BindingSection scope={scope} channelId={channelId} binding={binding} />
 
       <section>
-        <h3 className="chat-quiet text-[0.6875rem] font-medium uppercase tracking-wider">
+        <h3 className="chat-quiet text-tiny font-medium uppercase tracking-wider">
           Activity
         </h3>
         {rows.length === 0 ? (
@@ -94,7 +94,7 @@ export function WorkPane({
       </section>
 
       <section>
-        <h3 className="chat-quiet text-[0.6875rem] font-medium uppercase tracking-wider">
+        <h3 className="chat-quiet text-tiny font-medium uppercase tracking-wider">
           Fleet
         </h3>
         {fleet.length === 0 ? (
@@ -176,7 +176,7 @@ function BindingSection({
   return (
     <section>
       {subscription}
-      <h3 className="chat-quiet text-[0.6875rem] font-medium uppercase tracking-wider">
+      <h3 className="chat-quiet text-tiny font-medium uppercase tracking-wider">
         Project
       </h3>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">

@@ -37,7 +37,7 @@ export function LegalDocPage({ doc }: { doc: LegalDoc }) {
           Last updated {LEGAL_UPDATED} &middot; {LEGAL_ENTITY}
         </p>
 
-        <p className="mt-6 text-[15px] leading-relaxed text-foreground/80">
+        <p className="mt-6 text-compact leading-relaxed text-foreground/80">
           {doc.summary}
         </p>
 
@@ -47,7 +47,7 @@ export function LegalDocPage({ doc }: { doc: LegalDoc }) {
 
         <div className="mt-10 space-y-4">
           {doc.intro.map((p, i) => (
-            <p key={i} className="text-[15px] leading-relaxed text-foreground/80">
+            <p key={i} className="text-compact leading-relaxed text-foreground/80">
               {p}
             </p>
           ))}
@@ -57,12 +57,12 @@ export function LegalDocPage({ doc }: { doc: LegalDoc }) {
           <section key={s.heading} id={anchorId(s.heading)} className="scroll-mt-28">
             <h2 className="mt-10 text-lg font-semibold">{s.heading}</h2>
             {s.body.map((p, i) => (
-              <p key={i} className="mt-4 text-[15px] leading-relaxed text-foreground/80">
+              <p key={i} className="mt-4 text-compact leading-relaxed text-foreground/80">
                 {p}
               </p>
             ))}
             {s.bullets && (
-              <ul className="mt-4 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-foreground/80">
+              <ul className="mt-4 list-disc space-y-2 pl-5 text-compact leading-relaxed text-foreground/80">
                 {s.bullets.map((b, i) => (
                   <li key={i}>{b}</li>
                 ))}

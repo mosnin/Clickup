@@ -33,7 +33,7 @@ export function DayDivider({ at }: { at: number }) {
         aria-hidden
         className="absolute inset-x-0 top-1/2 h-px bg-[var(--chat-hairline)]"
       />
-      <span className="relative rounded-full bg-background px-2 text-[0.6875rem] font-medium text-[var(--chat-quiet)]">
+      <span className="relative rounded-full bg-background px-2 text-tiny font-medium text-[var(--chat-quiet)]">
         {formatDayHeading(at)}
       </span>
     </div>
@@ -61,7 +61,7 @@ export function UnreadDivider({ count }: { count: number }) {
       {/* Centred, matching the reference composition — the same axis a day
           divider sits on, so the two read as one family of separator rather
           than as two unrelated marks. */}
-      <span className="relative rounded-full bg-[var(--chat-accent)] px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wider text-[var(--chat-accent-fg)]">
+      <span className="relative rounded-full bg-[var(--chat-accent)] px-2 py-0.5 text-micro font-semibold uppercase tracking-wider text-[var(--chat-accent-fg)]">
         {count > 0 ? `${count} new` : "New"}
       </span>
     </div>

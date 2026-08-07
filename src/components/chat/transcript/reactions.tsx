@@ -41,7 +41,7 @@ export function MessageReactions({
             onClick={() => onToggle(reaction.emoji, reaction.mine)}
             data-reaction={reaction.emoji}
             className={cn(
-              "flex h-5 items-center gap-1 rounded-full px-1.5 text-[0.6875rem] tabular-nums transition-colors",
+              "flex h-5 items-center gap-1 rounded-full px-1.5 text-tiny tabular-nums transition-colors",
               reaction.mine
                 ? "bg-[var(--chat-active)] font-semibold"
                 : "bg-[var(--chat-hover)] hover:bg-[var(--chat-active)]",

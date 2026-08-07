@@ -65,7 +65,7 @@ export function Simpler() {
         </GsapReveal>
         <div
           ref={panelRef}
-          className="gs-reveal mt-10 overflow-hidden rounded-[28px] p-8 ring-1 ring-white/10 sm:p-12"
+          className="gs-reveal mt-10 overflow-hidden rounded-sheet p-8 ring-1 ring-white/10 sm:p-12"
           data-gs-hidden=""
           style={{
             // Pure-neutral charcoal (equal-RGB only — no warm/blush fills).

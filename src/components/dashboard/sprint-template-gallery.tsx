@@ -437,10 +437,10 @@ function TemplateCard({
       )}
     >
       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+        <span className="rounded-full bg-muted px-2 py-0.5 text-micro uppercase tracking-wider text-muted-foreground">
           {template.category}
         </span>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+        <span className="rounded-full bg-muted px-2 py-0.5 text-micro uppercase tracking-wider text-muted-foreground">
           {template.complexity}
         </span>
       </div>
@@ -455,7 +455,7 @@ function TemplateCard({
           { label: "Tasks", value: template.taskCount },
         ].map((stat) => (
           <div key={stat.label} className="bento-tile min-w-0 px-2.5 py-2">
-            <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            <dt className="text-micro uppercase tracking-wider text-muted-foreground">
               {stat.label}
             </dt>
             <dd className="text-sm font-semibold tabular-nums">{stat.value}</dd>

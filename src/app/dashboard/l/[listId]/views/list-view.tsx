@@ -205,7 +205,7 @@ export function ListView({
                 <TableHead scope="col" className="w-8" />
                 <TableHead
                   scope="col"
-                  className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+                  className="text-tiny font-semibold uppercase tracking-wider text-muted-foreground"
                 >
                   Title
                 </TableHead>
@@ -214,7 +214,7 @@ export function ListView({
                     scope="col"
                     key={c.key}
                     className={cn(
-                      "truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground",
+                      "truncate text-tiny font-semibold uppercase tracking-wider text-muted-foreground",
                       i < 2 ? "hidden @sm:table-cell" : "hidden @md:table-cell",
                     )}
                   >
@@ -443,10 +443,10 @@ function GroupHeaderRow({
               style={{ backgroundColor: color }}
             />
           )}
-          <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="truncate text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
             {label}
           </span>
-          <span className="ui-chip ui-figure flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] text-muted-foreground">
+          <span className="ui-chip ui-figure flex-shrink-0 rounded-full px-2 py-0.5 text-tiny text-muted-foreground">
             {count}
           </span>
         </span>
@@ -844,7 +844,7 @@ function TaskRow({
             );
           })}
           {task.assigneeClerkIds.length > 3 && (
-            <span className="pl-2.5 text-[11px] text-muted-foreground">
+            <span className="pl-2.5 text-tiny text-muted-foreground">
               +{task.assigneeClerkIds.length - 3}
             </span>
           )}
@@ -1003,12 +1003,12 @@ function TaskRow({
           <TaskBadges task={task} />
           <ChecklistChip checklist={task.checklist} />
           {task.estimatePoints != null && (
-            <span className="ui-chip ui-figure flex-shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+            <span className="ui-chip ui-figure flex-shrink-0 whitespace-nowrap px-1.5 py-0.5 text-micro font-medium text-muted-foreground">
               {task.estimatePoints} pts
             </span>
           )}
           {subtasks.length > 0 && (
-            <span className="ui-chip ui-figure flex-shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+            <span className="ui-chip ui-figure flex-shrink-0 whitespace-nowrap px-1.5 py-0.5 text-micro font-medium text-muted-foreground">
               {subtasks.length}
             </span>
           )}
@@ -1076,7 +1076,7 @@ function RowContext({
 }) {
   if (!location && !parentTitle) return null;
   return (
-    <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+    <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 text-tiny text-muted-foreground">
       {parentTitle && (
         <span className="min-w-0 max-w-full truncate">↳ {parentTitle}</span>
       )}
@@ -1216,7 +1216,7 @@ function ChildTaskRow({
               {task.title}
             </Link>
             {task.dueDate && (
-              <span className="ui-chip ui-figure flex-shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[11px] text-muted-foreground">
+              <span className="ui-chip ui-figure flex-shrink-0 whitespace-nowrap px-1.5 py-0.5 text-tiny text-muted-foreground">
                 {toDateInputValue(task.dueDate)}
               </span>
             )}

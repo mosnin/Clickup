@@ -125,7 +125,7 @@ export function ChannelSidebar() {
             <span className="chat-quiet flex-1 truncate text-left">
               Search everything
             </span>
-            <kbd className="chat-quiet shrink-0 text-[0.6875rem] font-medium">
+            <kbd className="chat-quiet shrink-0 text-tiny font-medium">
               ⌘K
             </kbd>
           </button>
@@ -502,7 +502,7 @@ function UnreadPill({
       onClick={onClick}
       data-unread-pill={direction}
       className={cn(
-        "absolute left-1/2 z-10 flex h-7 -translate-x-1/2 items-center gap-1 rounded-full bg-background/95 px-2 text-[0.6875rem] shadow-lg backdrop-blur-sm",
+        "absolute left-1/2 z-10 flex h-7 -translate-x-1/2 items-center gap-1 rounded-full bg-background/95 px-2 text-tiny shadow-lg backdrop-blur-sm",
         direction === "above" ? "top-1" : "bottom-1",
       )}
     >

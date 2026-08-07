@@ -48,22 +48,22 @@ export function ChannelRow({
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-[15px] font-semibold">
+          <span className="truncate text-compact font-semibold">
             <span aria-hidden className="text-muted-foreground">#</span>
             {channel.displayName || channel.name}
           </span>
           {channel.visibility === "private" ? (
-            <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+            <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-tiny uppercase tracking-wider text-muted-foreground">
               Private
             </span>
           ) : null}
           {archived ? (
-            <span className="shrink-0 rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] uppercase tracking-wider text-foreground">
+            <span className="shrink-0 rounded-full bg-pastel-yellow px-2 py-0.5 text-tiny uppercase tracking-wider text-foreground">
               Archived
             </span>
           ) : null}
         </div>
-        <p className="truncate text-[13px] text-muted-foreground">
+        <p className="truncate text-mini text-muted-foreground">
           {members}
           {channel.description ? ` · ${channel.description}` : ""}
         </p>

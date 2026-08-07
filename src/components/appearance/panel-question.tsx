@@ -83,7 +83,7 @@ export function PanelQuestion({ selectionId }: { selectionId: string }) {
   return (
     <section>
       <span className="flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           What it asks
         </span>
         {changes.length > 0 && (
@@ -93,14 +93,14 @@ export function PanelQuestion({ selectionId }: { selectionId: string }) {
               setDraft(null);
               setProposed(null);
             }}
-            className="text-[10px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+            className="text-micro text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
           >
             Reset
           </button>
         )}
       </span>
 
-      <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+      <p className="mt-1.5 text-tiny leading-relaxed text-muted-foreground">
         {describePanel(showing)}
       </p>
 
@@ -155,7 +155,7 @@ export function PanelQuestion({ selectionId }: { selectionId: string }) {
           }
           className="mt-0.5"
         />
-        <span className="min-w-0 text-[11px] leading-relaxed text-muted-foreground">
+        <span className="min-w-0 text-tiny leading-relaxed text-muted-foreground">
           Offer this to everyone here. It appears in their tray, never on
           their screen.
         </span>
@@ -163,7 +163,7 @@ export function PanelQuestion({ selectionId }: { selectionId: string }) {
 
       {changes.length > 0 && (
         <div className="mt-3 rounded-lg bg-page p-2.5 ring-1 ring-border">
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
+          <p className="text-tiny leading-relaxed text-muted-foreground">
             {summarizeChanges(changes)}
           </p>
           <Button

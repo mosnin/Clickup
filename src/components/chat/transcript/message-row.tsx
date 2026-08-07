@@ -182,7 +182,7 @@ export function MessageRow({
             // The gutter is not empty — it holds the time, revealed on hover.
             // Reserving the width is what keeps a continuation's text aligned
             // with the header row's above it.
-            <span className="mt-1 block text-right text-[0.625rem] tabular-nums text-[var(--chat-quiet)] opacity-0 transition-opacity group-hover/message:opacity-100">
+            <span className="mt-1 block text-right text-micro tabular-nums text-[var(--chat-quiet)] opacity-0 transition-opacity group-hover/message:opacity-100">
               {formatTime(message.createdAt)}
             </span>
           ) : (
@@ -207,22 +207,22 @@ export function MessageRow({
                 />
               ) : null}
               {message.role ? (
-                <span className="text-[0.625rem] uppercase tracking-wide text-[var(--chat-quiet)]">
+                <span className="text-micro uppercase tracking-wide text-[var(--chat-quiet)]">
                   {message.role}
                 </span>
               ) : null}
               <time
                 dateTime={new Date(message.createdAt * 1000).toISOString()}
                 title={formatFullDateTime(message.createdAt)}
-                className="text-[0.6875rem] tabular-nums text-[var(--chat-quiet)]"
+                className="text-tiny tabular-nums text-[var(--chat-quiet)]"
               >
                 {formatTime(message.createdAt)}
               </time>
               {message.pending ? (
-                <span className="text-[0.6875rem] text-[var(--chat-quiet)]">Sending…</span>
+                <span className="text-tiny text-[var(--chat-quiet)]">Sending…</span>
               ) : null}
               {message.failed ? (
-                <span className="text-[0.6875rem] font-medium text-destructive">
+                <span className="text-tiny font-medium text-destructive">
                   Not sent
                 </span>
               ) : null}
@@ -244,12 +244,12 @@ export function MessageRow({
           ) : (
             <>
               {visibleBody || media.length === 0 ? (
-                <p className="whitespace-pre-wrap break-words text-[0.9375rem] leading-relaxed">
+                <p className="whitespace-pre-wrap break-words text-compact leading-relaxed">
                   <MessageBody body={visibleBody} />
                   {message.edited ? (
                     <span
                       title="This message has been edited"
-                      className="ml-1 align-baseline text-[0.6875rem] text-[var(--chat-quiet)]"
+                      className="ml-1 align-baseline text-tiny text-[var(--chat-quiet)]"
                     >
                       (edited)
                     </span>
@@ -380,9 +380,9 @@ function EditField({
             commit();
           }
         }}
-        className="soft-field w-full resize-none px-2 py-1.5 text-[0.9375rem] outline-none"
+        className="soft-field w-full resize-none px-2 py-1.5 text-compact outline-none"
       />
-      <div className="mt-1 flex items-center gap-2 text-[0.6875rem] text-[var(--chat-quiet)]">
+      <div className="mt-1 flex items-center gap-2 text-tiny text-[var(--chat-quiet)]">
         <button
           type="button"
           onClick={commit}

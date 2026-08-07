@@ -368,7 +368,7 @@ export function ProjectsView() {
             <div className="space-y-8">
               {groups.map((g) => (
                 <section key={g.label} aria-label={g.label}>
-                  <h2 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  <h2 className="mb-3 text-tiny font-medium uppercase tracking-wider text-muted-foreground">
                     {g.label}
                     <span className="ml-2 normal-case tracking-normal">
                       {g.rows.length}
@@ -435,7 +435,7 @@ function HealthChip({ status }: { status: ProjectRow["projectStatus"] }) {
   const chip = status ? STATUS_CHIP[status] : null;
   if (!chip) return null;
   return (
-    <span className="ui-chip inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium">
+    <span className="ui-chip inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-tiny font-medium">
       <span aria-hidden className={cn("size-1.5 rounded-full", chip.dot)} />
       {chip.label}
     </span>
@@ -508,7 +508,7 @@ function ProjectCard({
           }
           aria-pressed={favorited}
           onClick={() => onToggleFavorite(project.projectId, favorited)}
-          className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-muted"
+          className="flex size-9 items-center justify-center rounded-full bg-card text-foreground transition-colors hover:bg-muted"
         >
           <Star
             className={cn("size-4", favorited && "fill-current")}
@@ -542,7 +542,7 @@ function ProjectCard({
             {overdue && (
               <span
                 className={cn(
-                  "ui-chip px-2 py-0.5 text-[11px] font-medium",
+                  "ui-chip px-2 py-0.5 text-tiny font-medium",
                   !lime && "border-danger/40 text-danger",
                 )}
               >
@@ -550,13 +550,13 @@ function ProjectCard({
               </span>
             )}
             {project.roadmapName && (
-              <span className={cn("ui-chip max-w-full truncate px-2 py-0.5 text-[11px]", !lime && "text-muted-foreground")}>
+              <span className={cn("ui-chip max-w-full truncate px-2 py-0.5 text-tiny", !lime && "text-muted-foreground")}>
                 {project.roadmapName}
                 {project.phaseName ? ` · ${project.phaseName}` : ""}
               </span>
             )}
             {project.targetDate !== undefined && (
-              <span className={cn("ui-chip ui-figure px-2 py-0.5 text-[11px]", !lime && "text-muted-foreground")}>
+              <span className={cn("ui-chip ui-figure px-2 py-0.5 text-tiny", !lime && "text-muted-foreground")}>
                 {formatTargetDate(project.targetDate)}
               </span>
             )}
@@ -576,13 +576,13 @@ function ProjectCard({
               /{project.total}
             </span>
           </span>
-          <span className={cn("mt-1 text-[10px] font-medium uppercase tracking-wider", lime ? "opacity-60" : "text-muted-foreground")}>
+          <span className={cn("mt-1 text-micro font-medium uppercase tracking-wider", lime ? "opacity-60" : "text-muted-foreground")}>
             done
           </span>
         </div>
       </div>
       <div className={cn("flex items-center justify-between gap-3 border-t px-4 py-2.5", lime ? "border-current/15" : "border-border")}>
-        <span className={cn("truncate text-[11px]", lime ? "opacity-60" : "text-muted-foreground")}>
+        <span className={cn("truncate text-tiny", lime ? "opacity-60" : "text-muted-foreground")}>
           active {timeAgo(project.activityAt)}
         </span>
         <Link
@@ -605,7 +605,7 @@ function ProjectsSkeleton() {
   return (
     <div className="grid auto-rows-fr grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
       {[0, 1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className="rounded-2xl border border-border bg-card p-5">
+        <div key={i} className="rounded-2xl bg-card p-5">
           <div className="h-4 w-2/3 animate-pulse rounded-full bg-muted" />
           <div className="mt-2 h-3 w-1/3 animate-pulse rounded-full bg-muted/60" />
           <div className="mt-6 h-8 w-1/4 animate-pulse rounded-full bg-muted" />

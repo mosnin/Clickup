@@ -504,7 +504,7 @@ function NodeCard({
 
       <Badge
         variant="secondary"
-        className="w-fit gap-1.5 border-transparent text-[11px] text-foreground/80"
+        className="w-fit gap-1.5 border-transparent text-tiny text-foreground/80"
         style={{ backgroundColor: `${task.statusColor}4d` }}
       >
         <span
@@ -523,7 +523,7 @@ function NodeCard({
           {task.estimatePoints !== undefined && (
             <Badge
               variant="secondary"
-              className="gap-0 border-transparent bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+              className="gap-0 border-transparent bg-muted px-1.5 py-0.5 text-micro text-muted-foreground"
             >
               {task.estimatePoints} pt{task.estimatePoints === 1 ? "" : "s"}
             </Badge>
@@ -540,7 +540,7 @@ function NodeCard({
               />
             ))}
             {extraAssignees > 0 && (
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground ring-2 ring-background">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-micro font-medium text-muted-foreground ring-2 ring-background">
                 +{extraAssignees}
               </span>
             )}
@@ -553,7 +553,7 @@ function NodeCard({
           {node.inCycle && (
             <Badge
               variant="secondary"
-              className="gap-0 border-transparent text-[10px] text-foreground/80 dark:text-neutral-900/80"
+              className="gap-0 border-transparent text-micro text-foreground/80 dark:text-neutral-900/80"
               style={{ backgroundColor: "var(--color-pastel-red)" }}
               title="Part of a dependency cycle"
             >
@@ -563,7 +563,7 @@ function NodeCard({
           {task.crossListBlockers.length > 0 && (
             <Badge
               variant="secondary"
-              className="gap-0 border-transparent bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+              className="gap-0 border-transparent bg-muted px-1.5 py-0.5 text-micro text-muted-foreground"
               title={task.crossListBlockers
                 .map((b) => `${b.title} (${b.listName})`)
                 .join(", ")}

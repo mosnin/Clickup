@@ -275,7 +275,7 @@ export function AppDock() {
               <>
                 <Icon className="h-5 w-5" />
                 {badge > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-[9px] font-medium text-background">
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground px-1 text-micro font-medium text-background">
                     {badge > 9 ? "9+" : badge}
                   </span>
                 )}
@@ -360,7 +360,7 @@ function DockPanel({ id, onClose }: { id: string; onClose: () => void }) {
 function PanelHeader({ title, href, onClose }: { title: string; href: string; onClose: () => void }) {
   return (
     <div className="flex items-baseline justify-between gap-2">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         {title}
       </span>
       <Link
@@ -448,7 +448,7 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
       <PanelHeader title="Search" href="/dashboard/search" onClose={onClose} />
       <p className="mt-3 text-xs text-muted-foreground">
         Press{" "}
-        <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">
+        <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-micro">
           ⌘K
         </kbd>{" "}
         anywhere to jump to a list, page, task or agent.

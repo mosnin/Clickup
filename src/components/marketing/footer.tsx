@@ -25,7 +25,7 @@ function FooterColumn({
 }) {
   return (
     <div>
-      <h3 className="text-[11px] font-semibold uppercase tracking-widest text-white/60">
+      <h3 className="text-tiny font-semibold uppercase tracking-widest text-white/60">
         {title}
       </h3>
       <ul className="mt-4 space-y-1">

@@ -254,7 +254,7 @@ function ClipCard({ clip }: { clip: Doc<"clips"> }) {
         )}
       </div>
       <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
-        <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+        <Badge variant="outline" className="text-micro font-normal text-muted-foreground">
           {clip.durationMs ? formatDuration(clip.durationMs) : "-"}
         </Badge>
         <span className="ml-auto">{timeAgo(clip.createdAt)}</span>

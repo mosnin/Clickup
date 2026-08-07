@@ -804,7 +804,7 @@ function SeriesLegend({
     >
       <LegendItem className="flex items-center gap-1.5 px-1.5 py-0.5">
         <LegendMarker className="h-2 w-2" />
-        <LegendLabel className="text-[10px] text-muted-foreground" />
+        <LegendLabel className="text-micro text-muted-foreground" />
       </LegendItem>
     </Legend>
   );

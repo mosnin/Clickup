@@ -133,7 +133,7 @@ export function UseCaseContent({ uc }: { uc: UseCase }) {
                 </span>
                 <span
                   className={cn(
-                    "mt-0.5 flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                    "mt-0.5 flex-shrink-0 rounded-full px-2 py-0.5 text-tiny font-medium",
                     d.actor === "agent"
                       ? "bg-azure-600/15 text-azure-300"
                       : "bg-muted text-foreground/60",
@@ -161,9 +161,9 @@ export function UseCaseContent({ uc }: { uc: UseCase }) {
             {uc.plays.map((p, i) => (
               <div
                 key={p.title}
-                className="rounded-[20px] mk-panel p-7 transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+                className="rounded-card-lg mk-panel p-7 transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-lg"
               >
-                <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                <span className="text-tiny font-semibold uppercase tracking-widest text-muted-foreground">
                   Play {String(i + 1).padStart(2, "0")}
                 </span>
                 <h3 className="mt-3 text-base font-semibold tracking-tight text-foreground">
@@ -181,7 +181,7 @@ export function UseCaseContent({ uc }: { uc: UseCase }) {
       {/* Quote */}
       <section className="mk-band py-16 sm:py-20">
         <Container className="max-w-2xl">
-          <GsapReveal className="rounded-[28px] mk-panel-2 px-8 py-12 text-center sm:px-14 sm:py-14">
+          <GsapReveal className="rounded-sheet mk-panel-2 px-8 py-12 text-center sm:px-14 sm:py-14">
             <p className="text-xl font-medium leading-relaxed tracking-[-0.01em] text-white sm:text-2xl">
               &quot;{uc.quote.quote}&quot;
             </p>

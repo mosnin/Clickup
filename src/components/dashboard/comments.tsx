@@ -181,7 +181,7 @@ function MessageItem({
               {message.editedAt && " · edited"}
             </span>
             {assignee && (
-              <Badge className="bg-brand-50 text-[10px] uppercase tracking-wider text-brand-700">
+              <Badge className="bg-brand-50 text-micro uppercase tracking-wider text-brand-700">
                 Assigned to {assignee.name ?? "user"}
               </Badge>
             )}

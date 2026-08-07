@@ -35,7 +35,7 @@ export {
 export { HuddleBar } from "./huddle-bar";
 export { HuddleCard, HuddleStartButton, huddleCardStatus } from "./huddle-card";
 export { MicControls, SpeakerControls, useAudioDevices, PUSH_TO_TALK_HINT } from "./controls";
-export { ParticipantsControl, ParticipantStrip, pubkeyTint } from "./participants";
+export { ParticipantsControl, ParticipantStrip } from "./participants";
 export { ReactionBurst, ReactionControl, HUDDLE_REACTIONS } from "./reactions";
 export { TranscriptPane, TranscriptToggle } from "./transcript-pane";
 export { AddAgentControl } from "./add-agent";

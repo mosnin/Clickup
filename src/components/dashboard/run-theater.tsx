@@ -44,7 +44,7 @@ export function RunTheater({ taskId }: { taskId: Id<"tasks"> }) {
                 is working: {run.title}
               </span>
             </p>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-tiny text-muted-foreground">
               started {timeAgo(run.startedAt)}
             </span>
           </div>
@@ -107,7 +107,7 @@ export function RunTheater({ taskId }: { taskId: Id<"tasks"> }) {
                 .slice(0, 8)
                 .map(([label, value]) => (
                   <div key={label} className="min-w-0">
-                    <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <span className="block text-micro uppercase tracking-wider text-muted-foreground">
                       {label}
                     </span>
                     <span className="text-sm tabular-nums">
@@ -152,7 +152,7 @@ function StepMark({ status }: { status: "running" | "done" | "failed" }) {
     return (
       <span
         aria-label="failed"
-        className="mt-0.5 flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full border-2 border-foreground text-[9px] font-bold"
+        className="mt-0.5 flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full border-2 border-foreground text-micro font-bold"
       >
         !
       </span>

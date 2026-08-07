@@ -142,7 +142,7 @@ function FieldTypeTile({
     >
       <span className="flex min-w-0 items-baseline justify-between gap-2">
         <span className="truncate text-sm font-semibold">{meta.label}</span>
-        <span className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+        <span className="flex-shrink-0 text-micro uppercase tracking-wider text-muted-foreground">
           {meta.group}
         </span>
       </span>
@@ -175,7 +175,7 @@ function Chip({
 }) {
   return (
     <span
-      className="inline-flex max-w-full items-center truncate rounded-full px-2 py-0.5 text-[11px] text-foreground"
+      className="inline-flex max-w-full items-center truncate rounded-full px-2 py-0.5 text-tiny text-foreground"
       style={{ backgroundColor: color ?? "var(--color-background)" }}
     >
       {children}
@@ -282,7 +282,7 @@ function FieldMiniature({ type }: { type: FieldType }) {
           >
             <span className="block h-full w-[68%] rounded-full bg-foreground" />
           </span>
-          <span className="flex-shrink-0 text-[11px] tabular-nums text-muted-foreground">
+          <span className="flex-shrink-0 text-tiny tabular-nums text-muted-foreground">
             68%
           </span>
         </span>
@@ -290,10 +290,10 @@ function FieldMiniature({ type }: { type: FieldType }) {
     case "voting":
       return (
         <span className="flex items-center gap-2">
-          <span className="rounded-full bg-background px-2 py-0.5 text-[11px] tabular-nums">
+          <span className="rounded-full bg-background px-2 py-0.5 text-tiny tabular-nums">
             ▲ 12
           </span>
-          <span className="text-[11px] text-muted-foreground">upvotes</span>
+          <span className="text-tiny text-muted-foreground">upvotes</span>
         </span>
       );
     case "email":
@@ -320,7 +320,7 @@ function FieldMiniature({ type }: { type: FieldType }) {
           <span className="truncate text-xs text-foreground">
             Lisbon, Portugal
           </span>
-          <span className="truncate text-[10px] tabular-nums text-muted-foreground">
+          <span className="truncate text-micro tabular-nums text-muted-foreground">
             38.7223, −9.1393
           </span>
         </span>
@@ -336,7 +336,7 @@ function FieldMiniature({ type }: { type: FieldType }) {
       return (
         <span className="flex min-w-0 items-center gap-1">
           <Chip>Auth epic</Chip>
-          <span className="flex-shrink-0 text-[11px] text-muted-foreground">
+          <span className="flex-shrink-0 text-tiny text-muted-foreground">
             +2
           </span>
         </span>
@@ -347,7 +347,7 @@ function FieldMiniature({ type }: { type: FieldType }) {
           <span className="text-xs font-medium tabular-nums text-foreground">
             34
           </span>
-          <span className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
+          <span className="truncate text-micro uppercase tracking-wider text-muted-foreground">
             sum of subtasks
           </span>
         </span>
@@ -358,7 +358,7 @@ function FieldMiniature({ type }: { type: FieldType }) {
           <span className="text-xs font-medium tabular-nums text-foreground">
             2,400
           </span>
-          <span className="truncate font-mono text-[10px] text-muted-foreground">
+          <span className="truncate font-mono text-micro text-muted-foreground">
             {"{Hours} × {Rate}"}
           </span>
         </span>

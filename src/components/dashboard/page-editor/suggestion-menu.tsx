@@ -43,7 +43,7 @@ export function SuggestionMenu<T>({
             section.rows.length === 0 ? null : (
               <div key={section.heading ?? i}>
                 {section.heading && (
-                  <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <p className="px-3 pb-1 pt-2 text-micro font-semibold uppercase tracking-wider text-muted-foreground">
                     {section.heading}
                   </p>
                 )}
@@ -73,12 +73,12 @@ export function SuggestionMenu<T>({
                         {row.label}
                       </span>
                       {row.meta && (
-                        <span className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                        <span className="flex-shrink-0 text-micro uppercase tracking-wider text-muted-foreground">
                           {row.meta}
                         </span>
                       )}
                       {row.hint && (
-                        <span className="flex-shrink-0 font-mono text-[11px] text-muted-foreground">
+                        <span className="flex-shrink-0 font-mono text-tiny text-muted-foreground">
                           {row.hint}
                         </span>
                       )}

@@ -14,7 +14,7 @@ import { identityFill } from "@/lib/identity-color";
 // surrogate pair.
 
 const SIZE = {
-  sm: "h-6 w-6 text-[10px]",
+  sm: "h-6 w-6 text-micro",
   md: "h-8 w-8 text-xs",
   lg: "h-10 w-10 text-sm",
 } as const;

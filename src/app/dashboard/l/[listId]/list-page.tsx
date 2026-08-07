@@ -133,7 +133,7 @@ export function ListPage({
 
   if (list === null) {
     return (
-      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center">
+      <div className="rounded-2xl bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
           This list doesn&apos;t exist or you don&apos;t have access to it.
         </p>
@@ -428,7 +428,7 @@ function SavedViewsBar({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {visible.length > 0 && (
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-micro font-semibold uppercase tracking-wider text-muted-foreground">
           Views
         </span>
       )}
@@ -688,7 +688,7 @@ function PageSkeleton() {
   return (
     <div className="space-y-6">
       <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
-      <div className="flex gap-1 rounded-full border border-border p-1">
+      <div className="flex gap-1 rounded-full bg-muted p-1">
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
@@ -696,7 +696,7 @@ function PageSkeleton() {
           />
         ))}
       </div>
-      <div className="overflow-hidden rounded-2xl border border-border">
+      <div className="overflow-hidden rounded-2xl bg-card">
         <div className="h-9 animate-pulse bg-muted/50" />
         {[0, 1, 2, 3, 4].map((i) => (
           <div

@@ -47,7 +47,7 @@ export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2">
                     <span className="truncate font-medium">{m.name}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <span className="text-micro uppercase tracking-wider text-muted-foreground">
                       {m.role}
                     </span>
                   </div>
@@ -114,7 +114,7 @@ function RunningTaskLink({
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
     <div>
-      <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
+      <dt className="text-micro uppercase tracking-wider text-muted-foreground">
         {label}
       </dt>
       <dd className="text-lg font-bold tracking-tight"><AnimatedNumber value={value} /></dd>

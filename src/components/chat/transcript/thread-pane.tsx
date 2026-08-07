@@ -248,7 +248,7 @@ export function ThreadPane({
           {drawMessage(head, false)}
           <div className="mx-4 my-2 flex items-center gap-2">
             <span aria-hidden className="h-px flex-1 bg-[var(--chat-hairline)]" />
-            <span className="text-[0.6875rem] text-[var(--chat-quiet)]">
+            <span className="text-tiny text-[var(--chat-quiet)]">
               {replies.length === 0
                 ? "No replies yet"
                 : `${replies.length} ${replies.length === 1 ? "reply" : "replies"}`}

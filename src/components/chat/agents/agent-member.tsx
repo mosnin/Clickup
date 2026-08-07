@@ -129,7 +129,7 @@ export function RoomAgentsPanel({
         />
 
         {room.error ?? signal.error ? (
-          <p className="chat-quiet text-[0.6875rem]">
+          <p className="chat-quiet text-tiny">
             {/* The reason, verbatim. On a deployment that has not run
                 `npx convex dev` this reads "Could not find public function …",
                 which is the sentence that tells whoever is looking what is
@@ -228,7 +228,7 @@ export function AgentMemberRow({
             onClick={() => setOpen((value) => !value)}
             aria-expanded={open}
             data-agent-activity-toggle={agent.agentId}
-            className="tap-target chat-quiet -ml-1 flex min-w-0 max-w-full items-center gap-1.5 rounded px-1 text-[0.6875rem] hover:text-foreground"
+            className="tap-target chat-quiet -ml-1 flex min-w-0 max-w-full items-center gap-1.5 rounded px-1 text-tiny hover:text-foreground"
           >
             <WorkingPulse />
             <span className="min-w-0 truncate">{turn.narration?.trim() || "Working"}</span>
@@ -238,7 +238,7 @@ export function AgentMemberRow({
           // Not "offline" and not silence: a turn that stopped mid-sentence is
           // a thing that went wrong a moment ago, and the room saying nothing
           // would read as the agent deciding not to answer.
-          <p className="chat-quiet text-[0.6875rem]">
+          <p className="chat-quiet text-tiny">
             {/* The exact silence, not `timeAgo`: a turn goes stalled after 25
                 seconds, and `timeAgo` says "just now" for the first minute —
                 which is the opposite of what this sentence is reporting. */}
@@ -246,13 +246,13 @@ export function AgentMemberRow({
             — its runtime may have quit.
           </p>
         ) : reading === "idle" ? (
-          <p className="chat-quiet text-[0.6875rem]">
+          <p className="chat-quiet text-tiny">
             {agent.lastSeenAt
               ? `Idle — last seen ${timeAgo(agent.lastSeenAt)}.`
               : "Idle."}
           </p>
         ) : (
-          <p className="chat-quiet text-[0.6875rem]">Never connected.</p>
+          <p className="chat-quiet text-tiny">Never connected.</p>
         )}
 
         {open && turn ? (

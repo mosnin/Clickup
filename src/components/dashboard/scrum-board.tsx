@@ -457,7 +457,7 @@ function TaskCardBody({
         )}
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium leading-snug">{task.title}</p>
-          <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="truncate text-micro font-semibold uppercase tracking-wider text-muted-foreground">
             {task.listName}
           </p>
         </div>
@@ -481,7 +481,7 @@ function TaskCardBody({
             />
           ))}
           {task.assignees.length > 4 && (
-            <span className="ml-1 text-[10px] text-muted-foreground">
+            <span className="ml-1 text-micro text-muted-foreground">
               +{task.assignees.length - 4}
             </span>
           )}
@@ -495,12 +495,12 @@ function TaskCardBody({
           disabled={dragging}
         />
         {task.checklistTotal > 0 && (
-          <Badge variant="secondary" className="text-[11px] font-medium">
+          <Badge variant="secondary" className="text-tiny font-medium">
             {task.checklistDone}/{task.checklistTotal}
           </Badge>
         )}
         {task.blockedOpenCount > 0 && (
-          <Badge variant="destructive" className="text-[11px] font-medium">
+          <Badge variant="destructive" className="text-tiny font-medium">
             Blocked
           </Badge>
         )}
@@ -555,7 +555,7 @@ function EstimateBadge({
 
   if (disabled) {
     return points != null ? (
-      <Badge variant="secondary" className="text-[11px] font-medium">
+      <Badge variant="secondary" className="text-tiny font-medium">
         {points} pts
       </Badge>
     ) : null;
@@ -572,7 +572,7 @@ function EstimateBadge({
       <Badge
         asChild
         variant="secondary"
-        className="cursor-pointer text-[11px] font-medium hover:bg-accent"
+        className="cursor-pointer text-tiny font-medium hover:bg-accent"
       >
         <button
           type="button"

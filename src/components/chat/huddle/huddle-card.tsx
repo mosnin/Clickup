@@ -60,7 +60,7 @@ export function HuddleCard({ eventId, className }: { eventId: string; className?
         <Headphones className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[0.8125rem] font-medium">
+        <span className="block truncate text-mini font-medium">
           {huddleCardStatus(snapshot)}
         </span>
       </span>
@@ -69,7 +69,7 @@ export function HuddleCard({ eventId, className }: { eventId: string; className?
           type="button"
           onClick={() => void leave()}
           aria-busy={busy}
-          className="tap-target rounded-full bg-black/5 px-3 py-1.5 text-[0.8125rem] font-medium hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15"
+          className="tap-target rounded-full bg-black/5 px-3 py-1.5 text-mini font-medium hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15"
         >
           Leave
         </button>
@@ -79,7 +79,7 @@ export function HuddleCard({ eventId, className }: { eventId: string; className?
           onClick={() => void join(eventId)}
           aria-busy={busy}
           data-testid="huddle-card-join"
-          className="tap-target rounded-full bg-foreground px-3 py-1.5 text-[0.8125rem] font-medium text-background"
+          className="tap-target rounded-full bg-foreground px-3 py-1.5 text-mini font-medium text-background"
         >
           Join
         </button>
@@ -110,7 +110,7 @@ export function HuddleStartButton({ className }: { className?: string }) {
       data-testid="huddle-start"
       onClick={() => (joinable && live ? void join(live.huddleId) : void start())}
       className={cn(
-        "tap-target flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.8125rem] font-medium",
+        "tap-target flex items-center gap-1.5 rounded-full px-3 py-1.5 text-mini font-medium",
         joinable
           ? "bg-emerald-600 text-white hover:bg-emerald-700"
           : "bg-black/5 hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/15",

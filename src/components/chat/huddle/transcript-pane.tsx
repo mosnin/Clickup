@@ -87,18 +87,18 @@ export function TranscriptPane({ className }: { className?: string }) {
           place this surface says the captions are not being kept, and at
           390px a `justify-between` row clips exactly that half. */}
       <header className="flex flex-wrap items-baseline justify-between gap-x-2">
-        <h3 className="text-[0.6875rem] font-semibold uppercase tracking-wider">Transcript</h3>
-        <p className="chat-quiet text-[0.6875rem]">Not recorded — this clears when the huddle ends.</p>
+        <h3 className="text-tiny font-semibold uppercase tracking-wider">Transcript</h3>
+        <p className="chat-quiet text-tiny">Not recorded — this clears when the huddle ends.</p>
       </header>
       <div ref={scroller} className="chat-scroll flex max-h-40 flex-col gap-1 overflow-y-auto">
         {captions.map((line) => (
-          <p key={`${line.pubkey}-${line.at}`} className="text-[0.8125rem] leading-snug">
+          <p key={`${line.pubkey}-${line.at}`} className="text-mini leading-snug">
             <span className="font-medium">{line.name}</span>{" "}
             <span className="chat-quiet">{line.text}</span>
           </p>
         ))}
         {captions.length === 0 ? (
-          <p className="chat-quiet text-[0.8125rem] leading-snug">
+          <p className="chat-quiet text-mini leading-snug">
             {capturing
               ? "Listening."
               : transport.capabilities.captions

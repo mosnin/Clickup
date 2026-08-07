@@ -128,7 +128,7 @@ export function PageHeader({
         initial={{ y: -14, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={SPRING}
-        className="flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-full bg-card py-1.5 pl-4 pr-2 shadow-md"
+        className="flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-full bg-card py-1.5 pl-4 pr-2 shadow-[var(--ui-shadow-md)]"
       >
         <div className="flex min-w-0 items-center gap-2.5">
           <button
@@ -199,7 +199,7 @@ export function CapsuleCluster() {
   const unreadUpdates = useQuery(api.notificationCenter.unreadCount, {});
   const unread = (unreadMentions ?? 0) + (unreadUpdates ?? 0);
   return (
-    <div className="flex items-center gap-1.5 border-l border-border pl-2.5">
+    <div className="flex items-center gap-1.5 pl-1">
       <Link
         href="/dashboard/inbox"
         aria-label={unread > 0 ? `Inbox, ${unread} unread` : "Inbox"}

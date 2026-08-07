@@ -109,7 +109,7 @@ export function GlassStat({
         {value}
         {suffix ? <span className="text-sm">{suffix}</span> : null}
       </div>
-      <div className="text-[11px] uppercase tracking-wide text-white/60">
+      <div className="text-tiny uppercase tracking-wide text-white/60">
         {label}
       </div>
     </div>
@@ -132,7 +132,7 @@ export function GlassChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2 py-1 text-[11px] uppercase tracking-wide transition-transform duration-300 hover:-translate-y-px",
+        "inline-flex items-center rounded-full border px-2 py-1 text-tiny uppercase tracking-wide transition-transform duration-300 hover:-translate-y-px",
         tones[tone],
       )}
     >

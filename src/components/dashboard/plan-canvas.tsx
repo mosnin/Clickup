@@ -104,7 +104,7 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
             aria-pressed={needsHuman}
             onClick={() => setNeedsHuman((v) => !v)}
             className={cn(
-              "mt-2 rounded-full px-3 py-1 text-[11px] transition-colors",
+              "mt-2 rounded-full px-3 py-1 text-tiny transition-colors",
               needsHuman
                 ? "bg-foreground text-background"
                 : "bento-tile text-muted-foreground hover:text-foreground",
@@ -131,7 +131,7 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
               Each of these is worth keeping after it has done its teaching
               job, so taking one is not a tutorial step you throw away. */}
           <div className="bento rounded-2xl p-4">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
               Worth asking about most projects
             </span>
             <ul className="mt-2 space-y-1">
@@ -153,7 +153,7 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
                     className="flex w-full items-baseline justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
                   >
                     <span className="min-w-0">{q.body}</span>
-                    <span className="flex-shrink-0 text-[10px] text-muted-foreground">
+                    <span className="flex-shrink-0 text-micro text-muted-foreground">
                       {q.needsHuman ? "yours to settle" : "anyone can settle"}
                     </span>
                   </button>
@@ -174,7 +174,7 @@ export function PlanCanvas({ projectId }: { projectId: string }) {
 
       {view.settled.length > 0 && (
         <section>
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
             Settled
           </span>
           <div className="mt-2 space-y-1.5">
@@ -192,7 +192,7 @@ function StateChip({ state }: { state: QuestionState }) {
   return (
     <span
       className={cn(
-        "flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
+        "flex-shrink-0 rounded-full px-2 py-0.5 text-micro font-medium",
         STATE_CHIP[state],
       )}
     >
@@ -220,7 +220,7 @@ function OpenQuestion({ question }: { question: QuestionView }) {
           <p className="text-sm font-medium leading-relaxed">
             {question.node.body}
           </p>
-          <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <p className="mt-0.5 flex items-center gap-1.5 text-tiny text-muted-foreground">
             <ActorGlyph
               name={question.node.authorName}
               isAgent={question.node.authorType === "agent"}
@@ -310,7 +310,7 @@ function OpenQuestion({ question }: { question: QuestionView }) {
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+            className="text-tiny text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
           >
             {question.options.length === 0
               ? "Offer an answer"
@@ -329,7 +329,7 @@ function OpenQuestion({ question }: { question: QuestionView }) {
             className="overflow-hidden"
           >
             <div className="mt-3 rounded-lg bg-page p-3 ring-1 ring-border">
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-tiny text-muted-foreground">
                 Settling it on:{" "}
                 {
                   question.options.find((o) => o.node.id === deciding)?.node
@@ -369,7 +369,7 @@ function Retracted({ question }: { question: QuestionView }) {
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+        className="text-tiny text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
       >
         {question.retracted.length} taken back
       </button>
@@ -377,7 +377,7 @@ function Retracted({ question }: { question: QuestionView }) {
         <ul className="mt-1.5 space-y-1">
           {question.retracted.map((node) => (
             <li key={node.id} className="flex items-baseline gap-2">
-              <span className="min-w-0 flex-1 text-[11px] leading-relaxed text-muted-foreground line-through">
+              <span className="min-w-0 flex-1 text-tiny leading-relaxed text-muted-foreground line-through">
                 {node.body}
               </span>
               <button
@@ -390,7 +390,7 @@ function Retracted({ question }: { question: QuestionView }) {
                       }),
                   )
                 }
-                className="flex-shrink-0 text-[10px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+                className="flex-shrink-0 text-micro text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
               >
                 put it back
               </button>
@@ -425,7 +425,7 @@ function Option({
       <p className="text-xs font-medium leading-relaxed">{option.node.body}</p>
 
       {/* The shape of the argument, before you read any of it. */}
-      <p className="mt-1 text-[10px] tabular-nums text-muted-foreground">
+      <p className="mt-1 text-micro tabular-nums text-muted-foreground">
         {option.evidence.length === 0
           ? "nothing said about this yet"
           : `${option.supports} for · ${option.refutes} against`}
@@ -440,7 +440,7 @@ function Option({
               <span
                 aria-label={e.stance}
                 className={cn(
-                  "mt-[3px] flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-[4px] text-[9px] font-semibold leading-none",
+                  "mt-[3px] flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded text-micro font-semibold leading-none",
                   e.stance === "supports" &&
                     "bg-[var(--color-pastel-green)] text-foreground",
                   e.stance === "refutes" &&
@@ -450,7 +450,7 @@ function Option({
               >
                 {e.stance === "supports" ? "+" : e.stance === "refutes" ? "−" : "·"}
               </span>
-              <span className="min-w-0 text-[11px] leading-relaxed">
+              <span className="min-w-0 text-tiny leading-relaxed">
                 {e.body}
                 <span className="text-muted-foreground"> — {e.authorName}</span>
               </span>
@@ -467,7 +467,7 @@ function Option({
                 key={s}
                 type="button"
                 onClick={() => setStance(s)}
-                className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                className="rounded-full bg-muted px-2 py-0.5 text-micro text-muted-foreground transition-colors hover:text-foreground"
               >
                 {s === "supports" ? "+ for" : "− against"}
               </button>
@@ -476,7 +476,7 @@ function Option({
               <button
                 type="button"
                 onClick={onDecide}
-                className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                className="rounded-full bg-muted px-2 py-0.5 text-micro text-muted-foreground transition-colors hover:text-foreground"
               >
                 go with this
               </button>
@@ -535,7 +535,7 @@ function SettledQuestion({ question }: { question: QuestionView }) {
         <span className="min-w-0 flex-[2] truncate text-xs">
           {chosen?.node.body ?? question.decision?.body}
         </span>
-        <span className="flex-shrink-0 text-[10px] text-muted-foreground">
+        <span className="flex-shrink-0 text-micro text-muted-foreground">
           {question.decision?.acceptedByName ?? question.decision?.authorName}
         </span>
       </button>
@@ -575,7 +575,7 @@ function SettledQuestion({ question }: { question: QuestionView }) {
                       }),
                     )
                   }
-                  className="mt-3 text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+                  className="mt-3 text-tiny text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
                 >
                   Reopen this
                 </button>

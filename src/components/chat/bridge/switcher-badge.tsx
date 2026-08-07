@@ -45,7 +45,7 @@ export function ModeBadge({ count, label }: { count: number; label: string }) {
   return (
     <span
       aria-label={`${count} waiting in ${label}`}
-      className="ml-1 inline-flex min-w-4 shrink-0 items-center justify-center rounded-full bg-foreground px-1 text-[0.625rem] font-semibold leading-4 text-background"
+      className="ml-1 inline-flex min-w-4 shrink-0 items-center justify-center rounded-full bg-foreground px-1 text-micro font-semibold leading-4 text-background"
     >
       {text}
     </span>

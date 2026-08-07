@@ -18,7 +18,7 @@ const TldrawCanvas = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-[70vh] items-center justify-center rounded-2xl border border-border bg-muted/40 text-sm text-muted-foreground">
+      <div className="flex h-[70vh] items-center justify-center rounded-2xl bg-muted/40 text-sm text-muted-foreground">
         Loading whiteboard…
       </div>
     ),
@@ -52,7 +52,7 @@ export function WhiteboardEditor({
   }
   if (wb === null) {
     return (
-      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center">
+      <div className="rounded-2xl bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
           This whiteboard doesn&apos;t exist or you don&apos;t have access.
         </p>

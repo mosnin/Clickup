@@ -118,7 +118,7 @@ export function ChatSearchLauncher({
         <span className="chat-quiet truncate">{label}</span>
         {/* A shortcut hint, not an icon: it says the same thing the listener
             does, in the one place somebody would look for it. */}
-        <kbd className="chat-quiet ml-auto hidden shrink-0 font-sans text-[10px] tracking-wider sm:inline">
+        <kbd className="chat-quiet ml-auto hidden shrink-0 font-sans text-micro tracking-wider sm:inline">
           ⌘⇧F
         </kbd>
       </button>

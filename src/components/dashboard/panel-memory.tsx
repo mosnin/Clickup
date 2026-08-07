@@ -124,7 +124,7 @@ export function PanelDelta({
           transition={{ duration: 0.25, ease: EASE }}
           aria-live="polite"
           className={cn(
-            "text-[11px] leading-snug",
+            "text-tiny leading-snug",
             state?.tone === "alert"
               ? "font-medium text-foreground"
               : "text-muted-foreground",

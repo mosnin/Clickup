@@ -15,7 +15,7 @@ export default function PersonalPage() {
   }
   if (tree === null || !tree.personal) {
     return (
-      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl bg-muted/30 p-10 text-center text-sm text-muted-foreground">
         Setting up your personal space…
       </div>
     );
@@ -112,7 +112,7 @@ function Skeleton() {
         {[0, 1, 2].map((i) => (
           <div
             key={i}
-            className="h-24 animate-pulse rounded-2xl border border-border bg-muted/40"
+            className="h-24 animate-pulse rounded-2xl bg-muted/40"
           />
         ))}
       </div>

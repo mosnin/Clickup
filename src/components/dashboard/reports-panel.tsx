@@ -148,7 +148,7 @@ function Stat({
     <StaggerItem>
       <Card className="gap-2 py-5">
         <CardHeader className="px-5">
-          <CardDescription className="text-[11px] font-medium uppercase tracking-wider">
+          <CardDescription className="text-tiny font-medium uppercase tracking-wider">
             {label}
           </CardDescription>
         </CardHeader>

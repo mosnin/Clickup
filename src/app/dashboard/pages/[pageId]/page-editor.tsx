@@ -329,7 +329,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
                 queueSave({ markdown: e.currentTarget.value });
               }}
               placeholder={"# A heading\n- a point\n[[Link to another page]]"}
-              className="soft-field min-h-[28rem] w-full resize-y px-4 py-3 font-mono text-[13px] leading-relaxed"
+              className="soft-field min-h-[28rem] w-full resize-y px-4 py-3 font-mono text-mini leading-relaxed"
             />
           ) : (
             <PageBodyEditor
@@ -349,7 +349,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
         <div className="space-y-4">
           <Card className="rounded-2xl p-5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
                 Inside this page
               </span>
               <button
@@ -397,7 +397,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
 
           <Card className="rounded-2xl p-5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
                 Where this appears
               </span>
               <AttachPageButton pageId={id} scopeId={page.scopeId} />
@@ -470,7 +470,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
                     >
                       <Pin className="h-3 w-3" />
                     </button>
-                    <span className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <span className="flex-shrink-0 text-micro uppercase tracking-wider text-muted-foreground">
                       {a.pinned ? "context" : a.targetType}
                     </span>
                     <button
@@ -500,7 +500,7 @@ export function PageEditor({ pageId }: { pageId: string }) {
               than inside it: an agent reading the page should get the decision,
               not the argument that produced it. */}
           <Card className="rounded-2xl p-5">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
               Discussion
             </span>
             <div className="mt-3">
@@ -509,13 +509,13 @@ export function PageEditor({ pageId }: { pageId: string }) {
           </Card>
 
           <Card className="rounded-2xl p-5">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
               Linked from
             </span>
             {backlinks.length === 0 ? (
               <p className="mt-3 text-xs text-muted-foreground">
                 Nothing links here yet. Write{" "}
-                <code className="rounded bg-muted px-1 py-0.5 text-[11px]">
+                <code className="rounded bg-muted px-1 py-0.5 text-tiny">
                   [[{page.title}]]
                 </code>{" "}
                 in another page to connect them.

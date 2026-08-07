@@ -288,7 +288,7 @@ function ResultRow({
     >
       {row.kind === "channel" ? (
         <>
-          <p className="truncate text-[15px] font-semibold">
+          <p className="truncate text-compact font-semibold">
             {row.channel.kind === "dm" || row.channel.kind === "group_dm"
               ? row.channel.displayName || "Direct message"
               : `#${row.channel.name}`}

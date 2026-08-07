@@ -518,13 +518,13 @@ function ExecutionPlanProvenance({
               {plan.projectCount} workstreams · {plan.taskCount} tasks
             </span>
             {plan.openQuestionCount > 0 && (
-              <span className="rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] font-medium text-neutral-900">
+              <span className="rounded-full bg-pastel-yellow px-2 py-0.5 text-tiny font-medium text-neutral-900">
                 {plan.openQuestionCount} open question
                 {plan.openQuestionCount === 1 ? "" : "s"}
               </span>
             )}
             {plan.contextRevision > 0 && (
-              <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-[11px] font-medium text-brand-700 dark:text-brand-300">
+              <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-tiny font-medium text-brand-700 dark:text-brand-300">
                 context v{plan.contextRevision + 1}
               </span>
             )}
@@ -536,19 +536,19 @@ function ExecutionPlanProvenance({
         <ChevronDown className="mt-1 h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
       </summary>
       <div className="grid gap-4 border-t border-brand-500/15 px-4 py-4 text-sm md:grid-cols-2">
-        <div className="md:col-span-2 rounded-xl border border-border bg-background/60 p-3">
+        <div className="md:col-span-2 rounded-xl bg-background/60 p-3">
           <div className="flex flex-wrap items-start gap-3">
             <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400">
               <ShieldCheck className="h-4 w-4" />
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <p className="text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
                   Dispatch authorization
                 </p>
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-[11px] font-medium capitalize text-neutral-900",
+                    "rounded-full px-2 py-0.5 text-tiny font-medium capitalize text-neutral-900",
                     readiness &&
                     !readiness.dispatchAuthorized &&
                     plan.reviewStatus === "approved"
@@ -591,7 +591,7 @@ function ExecutionPlanProvenance({
                 }
                 placeholder="Record what you reviewed and why this plan should proceed or be revised."
                 rows={2}
-                className="w-full resize-y rounded-lg border border-border bg-background px-2.5 py-2 text-xs outline-none transition focus:border-brand-500"
+                className="w-full resize-y rounded-lg bg-background px-2.5 py-2 text-xs outline-none transition focus:border-brand-500"
               />
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -619,7 +619,7 @@ function ExecutionPlanProvenance({
               {plan.reviews.slice(0, 3).map((review) => (
                 <li
                   key={review.reviewId}
-                  className="text-[11px] leading-4 text-muted-foreground"
+                  className="text-tiny leading-4 text-muted-foreground"
                 >
                   <span className="font-medium text-foreground/80">
                     {review.reviewerName}
@@ -633,7 +633,7 @@ function ExecutionPlanProvenance({
           )}
         </div>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
             Success criteria
           </p>
           <ul className="mt-2 space-y-1.5 text-foreground/80">
@@ -643,19 +643,19 @@ function ExecutionPlanProvenance({
           </ul>
         </div>
         {assurance && (
-          <div className="md:col-span-2 rounded-xl border border-border bg-background/60 p-3">
+          <div className="md:col-span-2 rounded-xl bg-background/60 p-3">
             <div className="flex flex-wrap items-start gap-2">
               <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400">
                 <ShieldCheck className="h-3.5 w-3.5" />
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  <p className="text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
                     Outcome assurance
                   </p>
                   <span
                     className={cn(
-                      "rounded-full px-2 py-0.5 text-[11px] font-medium capitalize text-neutral-900",
+                      "rounded-full px-2 py-0.5 text-tiny font-medium capitalize text-neutral-900",
                       assurance.status === "verified"
                         ? "bg-pastel-green"
                         : assurance.status === "failed"
@@ -667,7 +667,7 @@ function ExecutionPlanProvenance({
                   >
                     {assurance.status.replace("_", " ")}
                   </span>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-tiny text-muted-foreground">
                     {assurance.passed}/{assurance.total} independently verified
                   </span>
                 </div>
@@ -681,7 +681,7 @@ function ExecutionPlanProvenance({
               {assurance.checks.map((check) => (
                 <li
                   key={check.criterionIndex}
-                  className="rounded-xl border border-border/70 px-3 py-2.5"
+                  className="rounded-xl bg-muted/40 px-3 py-2.5"
                 >
                   <div className="flex min-w-0 items-start gap-2">
                     {check.status === "passed" ? (
@@ -696,12 +696,12 @@ function ExecutionPlanProvenance({
                         <p className="min-w-0 flex-1 text-xs font-medium">
                           {check.criterion}
                         </p>
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-micro font-medium capitalize text-muted-foreground">
                           {check.status}
                         </span>
                       </div>
                       {check.evidenceSummary && (
-                        <p className="mt-1.5 text-[11px] leading-4 text-foreground/70">
+                        <p className="mt-1.5 text-tiny leading-4 text-foreground/70">
                           {check.evidenceSummary}
                         </p>
                       )}
@@ -713,7 +713,7 @@ function ExecutionPlanProvenance({
                               href={link}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-600 hover:underline dark:text-brand-400"
+                              className="inline-flex items-center gap-1 text-tiny font-medium text-brand-600 hover:underline dark:text-brand-400"
                             >
                               Evidence {index + 1}
                               <ExternalLink className="h-2.5 w-2.5" />
@@ -722,13 +722,13 @@ function ExecutionPlanProvenance({
                         </div>
                       )}
                       {check.reviewNote && (
-                        <p className="mt-1.5 text-[11px] text-muted-foreground">
+                        <p className="mt-1.5 text-tiny text-muted-foreground">
                           Review by {check.reviewerName ?? "reviewer"}:{" "}
                           {check.reviewNote}
                         </p>
                       )}
                       {check.staleDueToContextRevision && (
-                        <p className="mt-1.5 rounded-lg bg-pastel-yellow px-2 py-1.5 text-[11px] text-neutral-900">
+                        <p className="mt-1.5 rounded-lg bg-pastel-yellow px-2 py-1.5 text-tiny text-neutral-900">
                           Plan context changed after this evidence was
                           submitted. Submit current evidence before review.
                         </p>
@@ -741,7 +741,7 @@ function ExecutionPlanProvenance({
                               setReviewingIndex(check.criterionIndex);
                               setReviewNote("");
                             }}
-                            className="mt-2 text-[11px] font-semibold text-brand-600 hover:underline dark:text-brand-400"
+                            className="mt-2 text-tiny font-semibold text-brand-600 hover:underline dark:text-brand-400"
                           >
                             Review evidence
                           </button>
@@ -755,7 +755,7 @@ function ExecutionPlanProvenance({
                             }
                             placeholder="What did you verify, and why does the evidence pass or fail?"
                             rows={2}
-                            className="w-full resize-y rounded-lg border border-border bg-background px-2.5 py-2 text-xs outline-none transition focus:border-brand-500"
+                            className="w-full resize-y rounded-lg bg-background px-2.5 py-2 text-xs outline-none transition focus:border-brand-500"
                           />
                           <div className="flex flex-wrap gap-2">
                             <Button
@@ -809,7 +809,7 @@ function ExecutionPlanProvenance({
         )}
         <div className="space-y-4">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
               Explicit assumptions
             </p>
             <ul className="mt-2 space-y-1.5 text-foreground/80">
@@ -824,7 +824,7 @@ function ExecutionPlanProvenance({
           </div>
           {plan.openQuestions.length > 0 && (
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
                 Open questions
               </p>
               <ul className="mt-2 space-y-1.5 text-foreground/80">
@@ -836,7 +836,7 @@ function ExecutionPlanProvenance({
           )}
         </div>
         <div className="md:col-span-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
             Confirmed source
           </p>
           <pre className="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap rounded-xl bg-background/70 p-3 font-sans text-xs leading-5 text-foreground/75">
@@ -845,7 +845,7 @@ function ExecutionPlanProvenance({
         </div>
         {plan.revisions.length > 0 && (
           <div className="md:col-span-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
               Context revisions
             </p>
             <p className="mt-1 text-xs text-foreground/70">
@@ -856,13 +856,13 @@ function ExecutionPlanProvenance({
               {plan.revisions.map((revision) => (
                 <li
                   key={revision.revisionId}
-                  className="rounded-xl border border-border/70 bg-background/50 px-3 py-2.5"
+                  className="rounded-xl/70 bg-background/50 px-3 py-2.5"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-semibold">
                       Revision {revision.revision}
                     </span>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-tiny text-muted-foreground">
                       {fmtExecutionTime(revision.createdAt)} ·{" "}
                       {revision.affectedPacketCount} workstreams ·{" "}
                       {revision.affectedTaskCount} tasks revalidated
@@ -871,7 +871,7 @@ function ExecutionPlanProvenance({
                   <p className="mt-1 text-xs text-foreground/80">
                     {revision.changeSummary}
                   </p>
-                  <pre className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap rounded-lg bg-muted/40 p-2.5 font-sans text-[11px] leading-4 text-foreground/70">
+                  <pre className="mt-2 max-h-36 overflow-y-auto whitespace-pre-wrap rounded-lg bg-muted/40 p-2.5 font-sans text-tiny leading-4 text-foreground/70">
                     {revision.sourceAddendum}
                   </pre>
                 </li>
@@ -880,14 +880,14 @@ function ExecutionPlanProvenance({
           </div>
         )}
         {readiness && (
-          <div className="md:col-span-2 rounded-xl border border-border bg-background/50 p-3">
+          <div className="md:col-span-2 rounded-xl bg-background/50 p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
                 Next dispatch wave
               </p>
               <span
                 className={cn(
-                  "rounded-full px-2 py-0.5 text-[11px] font-medium text-neutral-900",
+                  "rounded-full px-2 py-0.5 text-tiny font-medium text-neutral-900",
                   readiness.dispatchAuthorized
                     ? "bg-pastel-green"
                     : "bg-pastel-yellow",
@@ -901,7 +901,7 @@ function ExecutionPlanProvenance({
               {readiness.skipped.filter(
                 (item) => item.reason === "capability_gap",
               ).length > 0 && (
-                <span className="rounded-full bg-pastel-red px-2 py-0.5 text-[11px] font-medium text-neutral-900">
+                <span className="rounded-full bg-pastel-red px-2 py-0.5 text-tiny font-medium text-neutral-900">
                   {
                     readiness.skipped.filter(
                       (item) => item.reason === "capability_gap",
@@ -910,11 +910,11 @@ function ExecutionPlanProvenance({
                   capability gap
                 </span>
               )}
-              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              <span className="rounded-full bg-muted px-2 py-0.5 text-tiny font-medium text-muted-foreground">
                 {readiness.policyCapacityRemaining} policy capacity · 24h
               </span>
               {readiness.recommendations.length > 0 && (
-                <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                <span className="rounded-full bg-muted px-2 py-0.5 text-tiny font-medium text-muted-foreground">
                   {fmtContextTokens(
                     readiness.recommendations.reduce(
                       (total, item) => total + item.estimatedContextTokens,
@@ -927,7 +927,7 @@ function ExecutionPlanProvenance({
               {readiness.skipped.filter(
                 (item) => item.reason === "capacity_exhausted",
               ).length > 0 && (
-                <span className="rounded-full bg-pastel-yellow px-2 py-0.5 text-[11px] font-medium text-neutral-900">
+                <span className="rounded-full bg-pastel-yellow px-2 py-0.5 text-tiny font-medium text-neutral-900">
                   {
                     readiness.skipped.filter(
                       (item) => item.reason === "capacity_exhausted",
@@ -965,24 +965,24 @@ function ExecutionPlanProvenance({
                 {readiness.recommendations.slice(0, 6).map((item) => (
                   <li
                     key={item.taskId}
-                    className="flex min-w-0 items-center gap-2 rounded-xl border border-border/70 px-3 py-2"
+                    className="flex min-w-0 items-center gap-2 rounded-xl bg-muted/40 px-3 py-2"
                   >
                     <span className="min-w-0 flex-1 truncate text-xs font-medium">
                       {item.title}
                     </span>
-                    <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px]">
+                    <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-tiny">
                       {item.recommendedAgentName}
                     </span>
                     <span
                       title={`${item.contextPacketCount} current context packet${item.contextPacketCount === 1 ? "" : "s"} must be acknowledged before work starts.`}
-                      className="flex-shrink-0 text-[10px] text-muted-foreground"
+                      className="flex-shrink-0 text-micro text-muted-foreground"
                     >
                       {fmtContextTokens(item.estimatedContextTokens)}
                     </span>
                     {!item.notifyConfigured && (
                       <span
                         title="This runtime must poll next_task because it has no notify URL."
-                        className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground"
+                        className="flex-shrink-0 text-micro uppercase tracking-wider text-muted-foreground"
                       >
                         poll
                       </span>
@@ -1008,9 +1008,9 @@ function ExecutionPlanProvenance({
           </div>
         )}
         {control && control.assignmentCount > 0 && (
-          <div className="md:col-span-2 rounded-xl border border-border bg-background/50 p-3">
+          <div className="md:col-span-2 rounded-xl bg-background/50 p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="mr-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="mr-1 text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
                 Execution ledger
               </p>
               {(
@@ -1049,7 +1049,7 @@ function ExecutionPlanProvenance({
                   <span
                     key={label}
                     className={cn(
-                      "rounded-full px-2 py-0.5 text-[11px] font-medium text-neutral-900",
+                      "rounded-full px-2 py-0.5 text-tiny font-medium text-neutral-900",
                       className,
                     )}
                   >
@@ -1062,17 +1062,17 @@ function ExecutionPlanProvenance({
               {control.assignments.slice(0, 6).map((assignment) => (
                 <li
                   key={assignment.assignmentId}
-                  className="min-w-0 rounded-xl border border-border/70 px-3 py-2"
+                  className="min-w-0 rounded-xl bg-muted/40 px-3 py-2"
                 >
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-xs font-medium">
                       {assignment.taskTitle}
                     </span>
-                    <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] capitalize">
+                    <span className="flex-shrink-0 rounded-full bg-muted px-2 py-0.5 text-tiny capitalize">
                       {assignment.status}
                     </span>
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 text-tiny text-muted-foreground">
                     <span>{assignment.agentName}</span>
                     <span>attempt {assignment.attempt}</span>
                     <span>
@@ -1130,7 +1130,7 @@ function ExecutionPlanProvenance({
                   {(assignment.error || assignment.summary) && (
                     <p
                       className={cn(
-                        "mt-1.5 line-clamp-2 text-[11px]",
+                        "mt-1.5 line-clamp-2 text-tiny",
                         assignment.error
                           ? "text-red-700 dark:text-red-300"
                           : "text-foreground/70",
@@ -1147,7 +1147,7 @@ function ExecutionPlanProvenance({
                           href={link}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-[11px] font-medium text-brand-600 hover:underline dark:text-brand-400"
+                          className="text-tiny font-medium text-brand-600 hover:underline dark:text-brand-400"
                         >
                           Evidence {index + 1}
                         </a>
@@ -1310,7 +1310,7 @@ function PhaseColumn({
       {phase.targetDate !== undefined && (
         <p
           className={cn(
-            "mt-0.5 text-[11px] uppercase tracking-wider",
+            "mt-0.5 text-tiny uppercase tracking-wider",
             overdue ? "font-medium text-danger" : "text-muted-foreground",
           )}
         >
@@ -1481,7 +1481,7 @@ function PhaseMenu({
                   className="w-56 rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-lg"
                 >
             <label className="block px-1.5 pt-1">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="mb-1 block text-micro font-semibold uppercase tracking-wider text-muted-foreground">
                 Target date
               </span>
               <input
@@ -1601,7 +1601,7 @@ function ProjectCard({
         {chip && (
           <span
             className={cn(
-              "rounded-full px-2 py-0.5 text-[10px] font-medium",
+              "rounded-full px-2 py-0.5 text-micro font-medium",
               chip.className,
             )}
           >
@@ -1679,7 +1679,7 @@ function UnassignedRail({
                   {p.name}
                 </Link>
                 {p.spaceName && (
-                  <span className="truncate text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <span className="truncate text-tiny uppercase tracking-wider text-muted-foreground">
                     {p.spaceName}
                   </span>
                 )}

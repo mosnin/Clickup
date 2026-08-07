@@ -145,7 +145,7 @@ function ScopeBilling({ scope }: { scope: Scope }) {
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Balance */}
         <Card className="gap-2 p-6">
-          <CardDescription className="text-[11px] font-medium uppercase tracking-wider">
+          <CardDescription className="text-tiny font-medium uppercase tracking-wider">
             Credit balance
           </CardDescription>
           <p
@@ -196,7 +196,7 @@ function ScopeBilling({ scope }: { scope: Scope }) {
 
         {/* Pricing */}
         <Card className="gap-2 p-6 lg:col-span-2">
-          <CardDescription className="text-[11px] font-medium uppercase tracking-wider">
+          <CardDescription className="text-tiny font-medium uppercase tracking-wider">
             Pricing
           </CardDescription>
           <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
@@ -231,7 +231,7 @@ function ScopeBilling({ scope }: { scope: Scope }) {
 
       {/* How agents pay */}
       <Card className="gap-2 p-6">
-        <CardDescription className="text-[11px] font-medium uppercase tracking-wider">
+        <CardDescription className="text-tiny font-medium uppercase tracking-wider">
           How agents top up
         </CardDescription>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
@@ -370,7 +370,7 @@ function Row({
           // long unbroken strings — they must wrap inside the grid cell, not
           // stretch the card past the viewport on mobile.
           "mt-0.5 break-words font-medium",
-          mono && "break-all font-mono text-[13px]",
+          mono && "break-all font-mono text-mini",
         )}
       >
         {value}

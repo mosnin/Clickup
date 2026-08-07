@@ -141,11 +141,11 @@ export function CalendarShowcase() {
             </div>
             <p className="text-sm font-medium text-white">July 14 – 18</p>
             <div className="ml-auto flex items-center gap-2">
-              <span className="hidden items-center gap-2 rounded-full bg-white/[0.06] px-3 py-1.5 text-[11px] text-white/45 sm:flex">
+              <span className="hidden items-center gap-2 rounded-full bg-white/[0.06] px-3 py-1.5 text-tiny text-white/45 sm:flex">
                 <Search className="size-3" aria-hidden />
                 Search tasks
               </span>
-              <span className="rounded-full bg-white/[0.06] px-2.5 py-1.5 text-[11px] text-white/70">
+              <span className="rounded-full bg-white/[0.06] px-2.5 py-1.5 text-tiny text-white/70">
                 Engineering
               </span>
               <span
@@ -162,15 +162,15 @@ export function CalendarShowcase() {
           <div className="grid grid-cols-1 lg:grid-cols-[210px_minmax(0,1fr)]">
             {/* Left rail */}
             <div className="border-b border-white/[0.07] p-4 lg:border-b-0 lg:border-r">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-white/40">
+              <p className="text-tiny font-semibold uppercase tracking-widest text-white/40">
                 July
               </p>
-              <div className="mt-2 grid grid-cols-7 gap-y-1 text-center text-[10px] text-white/30">
+              <div className="mt-2 grid grid-cols-7 gap-y-1 text-center text-micro text-white/30">
                 {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
                   <span key={i}>{d}</span>
                 ))}
               </div>
-              <div className="mt-1 grid grid-cols-7 gap-y-0.5 text-center text-[11px]">
+              <div className="mt-1 grid grid-cols-7 gap-y-0.5 text-center text-tiny">
                 {MINI_WEEKS.flat().map((d, i) => (
                   <span
                     key={i}
@@ -188,7 +188,7 @@ export function CalendarShowcase() {
                 ))}
               </div>
 
-              <p className="mt-6 text-[11px] font-semibold uppercase tracking-widest text-white/40">
+              <p className="mt-6 text-tiny font-semibold uppercase tracking-widest text-white/40">
                 Show on calendar
               </p>
               <ul className="mt-2 space-y-1.5">
@@ -229,7 +229,7 @@ export function CalendarShowcase() {
                 ))}
               </ul>
 
-              <p className="mt-6 text-[11px] font-semibold uppercase tracking-widest text-white/40">
+              <p className="mt-6 text-tiny font-semibold uppercase tracking-widest text-white/40">
                 Next up
               </p>
               <ul className="mt-2 space-y-2">
@@ -241,7 +241,7 @@ export function CalendarShowcase() {
                     <p className="truncate text-xs text-white/85">
                       {item.title}
                     </p>
-                    <p className="mt-0.5 truncate text-[10px] text-white/45">
+                    <p className="mt-0.5 truncate text-micro text-white/45">
                       {item.when} · {item.who}
                     </p>
                   </li>
@@ -260,7 +260,7 @@ export function CalendarShowcase() {
                       key={day.name}
                       className="px-2 py-2 text-center"
                     >
-                      <p className="text-[10px] uppercase tracking-widest text-white/40">
+                      <p className="text-micro uppercase tracking-widest text-white/40">
                         {day.name}
                       </p>
                       <p
@@ -283,7 +283,7 @@ export function CalendarShowcase() {
                     {HOURS.map((hour) => (
                       <div
                         key={hour}
-                        className="h-[72px] pr-2 pt-1 text-right text-[10px] text-white/30"
+                        className="h-[72px] pr-2 pt-1 text-right text-micro text-white/30"
                       >
                         {hour}
                       </div>
@@ -314,10 +314,10 @@ export function CalendarShowcase() {
                             height: event.span * 72 - 6,
                           }}
                         >
-                          <p className="truncate text-[11px] font-medium">
+                          <p className="truncate text-tiny font-medium">
                             {event.title}
                           </p>
-                          <p className="truncate text-[10px] opacity-70">
+                          <p className="truncate text-micro opacity-70">
                             {event.meta}
                           </p>
                         </div>
@@ -330,7 +330,7 @@ export function CalendarShowcase() {
           </div>
 
           {/* Footer bar */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/[0.07] px-4 py-3 text-[11px]">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/[0.07] px-4 py-3 text-tiny">
             <span className="flex items-center gap-2 text-white/60">
               <span
                 aria-hidden

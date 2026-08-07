@@ -158,7 +158,7 @@ function AttachmentCard({ row }: { row: AttachmentRow }) {
         <p className="truncate text-sm font-medium">{row.name}</p>
         <Badge
           variant="outline"
-          className="mt-1 text-[10px] font-normal text-muted-foreground"
+          className="mt-1 text-micro font-normal text-muted-foreground"
         >
           {formatBytes(row.sizeBytes)}
         </Badge>

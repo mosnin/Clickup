@@ -186,7 +186,7 @@ function ChannelRail({
                     )
                   }
                   className={cn(
-                    "min-w-0 flex-1 truncate px-2 py-1 text-[11px]",
+                    "min-w-0 flex-1 truncate px-2 py-1 text-tiny",
                     on && "segmented-on",
                   )}
                 >
@@ -244,13 +244,13 @@ function ChannelRail({
                           {c.name}
                         </span>
                         {c.unread > 0 && (
-                          <span className="flex-shrink-0 rounded-full bg-foreground px-1.5 text-[10px] font-medium text-background">
+                          <span className="flex-shrink-0 rounded-full bg-foreground px-1.5 text-micro font-medium text-background">
                             {c.unread > 99 ? "99+" : c.unread}
                           </span>
                         )}
                       </span>
                       {c.lastMessagePreview && (
-                        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                        <span className="mt-0.5 block truncate text-tiny text-muted-foreground">
                           {c.lastMessageByName
                             ? `${c.lastMessageByName}: ${c.lastMessagePreview}`
                             : c.lastMessagePreview}
@@ -493,7 +493,7 @@ function Room({
               : "Messages are live; typing indicators are unavailable"
           }
           className={cn(
-            "flex flex-shrink-0 items-center gap-1 text-[10px] uppercase tracking-wider",
+            "flex flex-shrink-0 items-center gap-1 text-micro uppercase tracking-wider",
             status === "live" ? "text-foreground" : "text-muted-foreground",
           )}
         >
@@ -504,7 +504,7 @@ function Room({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         {thread.truncated && (
-          <p className="pb-4 text-center text-[11px] text-muted-foreground">
+          <p className="pb-4 text-center text-tiny text-muted-foreground">
             Showing the most recent {TRANSCRIPT_LIMIT} messages.
           </p>
         )}
@@ -540,11 +540,11 @@ function Room({
                           {m.authorName}
                         </span>
                         {m.authorIsAgent && (
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                          <span className="text-micro uppercase tracking-wider text-muted-foreground">
                             agent
                           </span>
                         )}
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className="text-tiny text-muted-foreground">
                           {timeAgo(m.createdAt)}
                         </span>
                       </p>
@@ -568,7 +568,7 @@ function Room({
       <div className="border-t border-border px-4 py-3">
         <div className="h-4">
           {typingNames.length > 0 && (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-tiny text-muted-foreground">
               {typingNames.length === 1
                 ? `${typingNames[0]} is typing…`
                 : `${typingNames.length} people are typing…`}

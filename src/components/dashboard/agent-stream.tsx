@@ -77,13 +77,13 @@ export function AgentStream({
             live && "scale-150 bg-[var(--color-pastel-green)]",
           )}
         />
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           Agents, live
         </span>
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-[13px] leading-relaxed text-muted-foreground">
+        <p className="text-mini leading-relaxed text-muted-foreground">
           Nothing from your agents yet. The moment one claims a task, comments,
           or finishes something, it lands here.
         </p>
@@ -123,7 +123,7 @@ function Row({
   return (
     <div className="bento-tile flex items-center gap-2.5 rounded-xl px-2.5 py-2">
       <ActorGlyph isAgent name={event.actorName} seed={event.actorId} size="sm" />
-      <span className="min-w-0 flex-1 truncate text-[13px]">
+      <span className="min-w-0 flex-1 truncate text-mini">
         <span className="font-medium">{event.actorName}</span>{" "}
         <span className="text-muted-foreground">{eventLabel(event.type)}</span>{" "}
         {href ? (
@@ -134,7 +134,7 @@ function Row({
           <span className="font-medium">{title}</span>
         )}
       </span>
-      <span className="flex-shrink-0 text-[11px] tabular-nums text-muted-foreground">
+      <span className="flex-shrink-0 text-tiny tabular-nums text-muted-foreground">
         {timeAgo(event.createdAt)}
       </span>
     </div>

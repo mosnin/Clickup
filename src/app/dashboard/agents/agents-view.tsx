@@ -330,14 +330,14 @@ function AgentsSkeleton() {
   // Shaped like the loaded page: hint card, stat bento, section header, rows.
   return (
     <div className="space-y-6">
-      <div className="h-28 animate-pulse rounded-2xl border border-border bg-muted/30" />
+      <div className="h-28 animate-pulse rounded-2xl bg-muted/30" />
       <div className="grid grid-cols-2 grid-rows-2 gap-4 @3xl:grid-cols-3">
         <div className="col-span-2 row-span-2 h-40 animate-pulse rounded-2xl bg-muted/30" />
         <div className="h-16 animate-pulse rounded-2xl bg-muted/30" />
         <div className="h-16 animate-pulse rounded-2xl bg-muted/30" />
       </div>
       <div className="h-6 w-28 animate-pulse rounded-full bg-muted" />
-      <div className="overflow-hidden rounded-2xl border border-border">
+      <div className="overflow-hidden rounded-2xl bg-card">
         <div className="h-12 border-b border-border bg-muted/20" />
         {[0, 1].map((i) => (
           <div
@@ -373,7 +373,7 @@ function ConnectHint({ retired = false }: { retired?: boolean }) {
   return (
     <div className="overflow-hidden rounded-2xl panel text-sm">
       <TerminalSurface className="h-24" contentClassName="flex h-full items-end px-5 pb-3">
-        <span className="font-mono text-[11px] tracking-wider text-white/70">
+        <span className="font-mono text-tiny tracking-wider text-white/70">
           listening for your first agent…
         </span>
       </TerminalSurface>
@@ -420,7 +420,7 @@ function AgentsStatBento({
         {/* ── The headline block: agents online right now ─────────────── */}
         <StaggerItem lift className="col-span-2 row-span-2 min-h-0">
           <div className="relative flex h-full min-h-[10rem] flex-col justify-between overflow-hidden rounded-2xl bg-signal-yellow p-5 text-signal-ink">
-            <span className="relative text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+            <span className="relative text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
               Fleet
             </span>
             <span className="relative mt-3 min-w-0">
@@ -432,7 +432,7 @@ function AgentsStatBento({
               </span>
             </span>
             <span className="relative mt-4 min-w-0 border-t border-current/20 pt-2.5">
-              <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-55">
+              <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-55">
                 Fleet size
               </span>
               <span className="mt-0.5 block text-sm font-semibold">
@@ -454,10 +454,10 @@ function AgentsStatBento({
               </span>
             </span>
             <span className="mt-auto border-t border-current/20 pt-2">
-              <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+              <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
                 Spend · 7d
               </span>
-              <span className="mt-0.5 block text-[11px] font-medium opacity-70">
+              <span className="mt-0.5 block text-tiny font-medium opacity-70">
                 {spend ? `$${spend.cost30.toFixed(2)} over 30d` : "no spend yet"}
               </span>
             </span>
@@ -475,10 +475,10 @@ function AgentsStatBento({
               </span>
             </span>
             <span className="mt-auto border-t border-current/20 pt-2">
-              <span className="block text-[0.6875rem] font-semibold uppercase tracking-[0.14em] opacity-60">
+              <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
                 Runs · 7d
               </span>
-              <span className="mt-0.5 block text-[11px] font-medium opacity-70">
+              <span className="mt-0.5 block text-tiny font-medium opacity-70">
                 {spend && spend.tokens7 > 0
                   ? `${compactNumber(spend.tokens7)} tokens`
                   : "nothing run yet"}
@@ -490,7 +490,7 @@ function AgentsStatBento({
 
       {spend && spend.topSpenders.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="text-micro font-semibold uppercase tracking-wider text-muted-foreground">
             Top spend
           </span>
           {spend.topSpenders.map((a) => (
@@ -618,7 +618,7 @@ function TemplateGallery({
                 <span className="mt-3 flex flex-wrap gap-1.5">
                   <span
                     className={cn(
-                      "rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider",
+                      "rounded-full px-2 py-0.5 text-micro uppercase tracking-wider",
                       t.role === "readonly"
                         ? "bg-pastel-yellow text-foreground dark:text-neutral-900"
                         : "bg-pastel-blue text-foreground dark:text-neutral-900",
@@ -626,11 +626,11 @@ function TemplateGallery({
                   >
                     {t.role}
                   </span>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-micro uppercase tracking-wider text-muted-foreground">
                     {t.dailyActionLimit.toLocaleString()}/day
                   </span>
                   {needsWorkspace && (
-                    <span className="rounded-full bg-pastel-yellow px-2 py-0.5 text-[10px] uppercase tracking-wider text-foreground dark:text-neutral-900">
+                    <span className="rounded-full bg-pastel-yellow px-2 py-0.5 text-micro uppercase tracking-wider text-foreground dark:text-neutral-900">
                       Needs a workspace
                     </span>
                   )}
@@ -685,7 +685,7 @@ function CreateAgentForm({
           className="h-28"
           contentClassName="flex h-full items-end px-5 pb-3"
         >
-          <span className="font-mono text-[11px] tracking-wider text-white/70">
+          <span className="font-mono text-tiny tracking-wider text-white/70">
             waiting for {connect.name.toLowerCase()} to check in…
           </span>
         </TerminalSurface>
@@ -773,7 +773,7 @@ function CreateAgentForm({
             value={name}
             onChange={(e) => setName(e.currentTarget.value)}
             placeholder="Scout"
-            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
             autoFocus
           />
         </label>
@@ -784,7 +784,7 @@ function CreateAgentForm({
           <select
             value={scope}
             onChange={(e) => setScope(e.currentTarget.value)}
-            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
           >
             <option value="personal">Personal space</option>
             {workspaces.map((w) => (
@@ -803,7 +803,7 @@ function CreateAgentForm({
           value={description}
           onChange={(e) => setDescription(e.currentTarget.value)}
           placeholder="Triage bot that keeps the backlog clean"
-          className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
         />
       </label>
       <label className="block">
@@ -814,7 +814,7 @@ function CreateAgentForm({
           value={capabilities}
           onChange={(e) => setCapabilities(e.currentTarget.value)}
           placeholder="typescript, backend, quality-assurance"
-          className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
         />
         <span className="mt-1 block text-xs text-muted-foreground">
           Comma-separated contracts used to route only compatible work.
@@ -938,7 +938,7 @@ function AgentRow({
               {agent.name}
             </Link>
             <span
-              className="ui-chip inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap px-2 py-0.5 text-[11px] text-muted-foreground"
+              className="ui-chip inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap px-2 py-0.5 text-tiny text-muted-foreground"
               title={presence.detail}
             >
               <PresenceDot online={presence.online} />
@@ -950,7 +950,7 @@ function AgentRow({
               {agent.description}
             </p>
           )}
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-tiny text-muted-foreground">
             Signal: {signalLabel}
           </p>
           {(agent.statusText || currentTitle) && (
@@ -1036,7 +1036,7 @@ function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
   const [pending, setPending] = useState(false);
 
   return (
-    <div className="mt-3 space-y-2 rounded-2xl border border-border bg-muted/20 p-3">
+    <div className="mt-3 space-y-2 rounded-2xl bg-muted/20 p-3">
       {freshKey && (
         <motion.div
           initial={{ opacity: 0, scale: 0.97, y: -4 }}
@@ -1062,17 +1062,17 @@ function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
         </motion.div>
       )}
       {(keys ?? []).length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-border">
+        <div className="overflow-hidden rounded-xl bg-card">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-[11px] uppercase tracking-wider">
+                <TableHead className="text-tiny uppercase tracking-wider">
                   Key
                 </TableHead>
-                <TableHead className="text-[11px] uppercase tracking-wider">
+                <TableHead className="text-tiny uppercase tracking-wider">
                   Status
                 </TableHead>
-                <TableHead className="text-right text-[11px] uppercase tracking-wider">
+                <TableHead className="text-right text-tiny uppercase tracking-wider">
                   Action
                 </TableHead>
               </TableRow>
@@ -1174,7 +1174,7 @@ export function ActivityFeed({
         >
           <span
             className={cn(
-              "flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider",
+              "flex-shrink-0 rounded-full px-2 py-0.5 text-micro font-medium uppercase tracking-wider",
               e.actorType === "agent"
                 ? "bg-brand-50 text-brand-700"
                 : e.actorType === "system"
@@ -1342,7 +1342,7 @@ function WebhooksTab() {
             value={url}
             onChange={(e) => setUrl(e.currentTarget.value)}
             placeholder="https://my-runtime.example.com/hooks"
-            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
           />
         </label>
         <label className="block">
@@ -1352,7 +1352,7 @@ function WebhooksTab() {
           <select
             value={scope}
             onChange={(e) => setScope(e.currentTarget.value)}
-            className="rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            className="rounded-full bg-background px-3 py-1.5 text-sm"
           >
             <option value="personal">Personal space</option>
             {(agents?.workspaces ?? [])
@@ -1372,7 +1372,7 @@ function WebhooksTab() {
             value={types}
             onChange={(e) => setTypes(e.currentTarget.value)}
             placeholder="task.created, task.completed"
-            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
           />
         </label>
         <Button type="submit" size="sm" disabled={!url.trim()}>
@@ -1526,7 +1526,7 @@ function SkillsTab() {
         <select
           value={scope}
           onChange={(e) => setScope(e.currentTarget.value)}
-          className="rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="rounded-full bg-background px-3 py-1.5 text-sm"
         >
           <option value="personal">Personal space</option>
           {(agents?.workspaces ?? []).map((w) => (
@@ -1594,12 +1594,12 @@ function SkillRow({
         className="flex w-full items-center gap-2 text-left"
       >
         <span className="font-medium">{skill.name}</span>
-        <code className="rounded bg-muted px-1.5 py-0.5 text-[10px]">
+        <code className="rounded bg-muted px-1.5 py-0.5 text-micro">
           {skill.slug}
         </code>
         <span
           className={cn(
-            "rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider",
+            "rounded-full px-2 py-0.5 text-micro uppercase tracking-wider",
             skill.builtin
               ? "bg-muted text-muted-foreground"
               : "bg-brand-50 text-brand-700",
@@ -1691,7 +1691,7 @@ function CreateSkillForm({
             value={name}
             onChange={(e) => setName(e.currentTarget.value)}
             placeholder="Release checklist"
-            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
           />
         </label>
         <label className="block">
@@ -1702,7 +1702,7 @@ function CreateSkillForm({
             value={description}
             onChange={(e) => setDescription(e.currentTarget.value)}
             placeholder="How we cut and verify a release"
-            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
           />
         </label>
       </div>

@@ -300,7 +300,7 @@ export function PanelBuilder({
                   )}
                 >
                   <ShapeSpecimen shape={shape} />
-                  <span className="mt-1 block truncate text-[10px] text-muted-foreground">
+                  <span className="mt-1 block truncate text-micro text-muted-foreground">
                     {shapeLabel(shape)}
                   </span>
                 </button>
@@ -419,7 +419,7 @@ export function PanelBuilder({
               <label className="block">
                 <span className="flex items-baseline justify-between">
                   <Label>How many</Label>
-                  <span className="text-[11px] tabular-nums text-muted-foreground">
+                  <span className="text-tiny tabular-nums text-muted-foreground">
                     {showing.query.limit}
                   </span>
                 </span>
@@ -465,13 +465,13 @@ export function PanelBuilder({
                     height={36}
                     label={preset.name}
                   />
-                  <span className="mt-1 block truncate text-[11px] font-medium">
+                  <span className="mt-1 block truncate text-tiny font-medium">
                     {preset.name}
                   </span>
                 </button>
               ))}
             </div>
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
+            <p className="text-tiny leading-relaxed text-muted-foreground">
               Every other detail — frame, colour, grid, bars — is changed by
               pointing at the panel once it&apos;s on your screen, over your own
               data.
@@ -624,7 +624,7 @@ function ShapeSpecimen({ shape }: { shape: PanelShape }) {
 
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+    <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
       {children}
     </span>
   );

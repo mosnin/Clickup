@@ -69,22 +69,37 @@ async function census(pageName, theme) {
     // element whose border luminance exceeds its own background's by > 60
     // (out of 255) in dark — the "white rim" census.
     const bright = [];
-    const lum = (c) => {
-      const m = c.match(/\d+/g);
-      if (!m) return 0;
-      return 0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2];
+    // Composite an rgba() over a resolved background before measuring, so
+    // an alpha hairline is judged by what it actually renders as (4% white
+    // over #1e1e22 is a delta-9 step, not delta-240). oklab() and other
+    // non-rgb syntaxes return null and are skipped rather than mis-scored.
+    const parse = (c) => {
+      const m = c.match(/^rgba?\(([\d.]+)[, ]+([\d.]+)[, ]+([\d.]+)(?:[,/ ]+([\d.]+))?\)$/);
+      if (!m) return null;
+      return { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] };
+    };
+    const lum = (c, over) => {
+      const p = parse(c);
+      if (!p) return null;
+      const bg = over ? parse(over) : null;
+      const r = bg ? p.r * p.a + bg.r * (1 - p.a) : p.r;
+      const g = bg ? p.g * p.a + bg.g * (1 - p.a) : p.g;
+      const b = bg ? p.b * p.a + bg.b * (1 - p.a) : p.b;
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
     };
     for (const el of document.querySelectorAll("*")) {
       const cs = getComputedStyle(el);
       if (cs.borderTopStyle !== "solid" || parseFloat(cs.borderTopWidth) === 0) continue;
-      const bl = lum(cs.borderTopColor);
       let bg = el;
       let bgc = "rgba(0, 0, 0, 0)";
       while (bg && (bgc === "rgba(0, 0, 0, 0)" || bgc === "transparent")) {
         bgc = getComputedStyle(bg).backgroundColor;
         bg = bg.parentElement;
       }
-      const delta = bl - lum(bgc);
+      const bl = lum(cs.borderTopColor, bgc);
+      const bgl = lum(bgc);
+      if (bl === null || bgl === null) continue;
+      const delta = bl - bgl;
       if (delta > 60 && el.getBoundingClientRect().width > 40) {
         bright.push({
           tag: el.tagName.toLowerCase(),

@@ -185,7 +185,7 @@ export function AnimatedBar({
         className="meter-ring relative inline-flex h-9 w-9 items-center justify-center align-middle"
         style={{ ["--meter-turn" as string]: `${clamped / 100}turn` }}
       >
-        <span className="relative text-[10px] font-medium tabular-nums">
+        <span className="relative text-micro font-medium tabular-nums">
           {Math.round(clamped)}
         </span>
       </span>

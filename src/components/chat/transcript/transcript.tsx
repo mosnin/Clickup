@@ -554,7 +554,7 @@ function OlderHistoryChip({
     return (
       <div
         data-testid="message-timeline-fetching-older"
-        className="flex justify-center py-2 text-[0.6875rem] text-[var(--chat-quiet)]"
+        className="flex justify-center py-2 text-tiny text-[var(--chat-quiet)]"
       >
         Loading earlier messages…
       </div>
@@ -566,7 +566,7 @@ function OlderHistoryChip({
         <button
           type="button"
           onClick={onFetch}
-          className="tap-target rounded-full bg-[var(--chat-hover)] px-3 py-1 text-[0.6875rem] font-medium hover:bg-[var(--chat-active)]"
+          className="tap-target rounded-full bg-[var(--chat-hover)] px-3 py-1 text-tiny font-medium hover:bg-[var(--chat-active)]"
         >
           Load earlier messages
         </button>
@@ -575,7 +575,7 @@ function OlderHistoryChip({
   }
   if (exhausted) {
     return (
-      <div className="px-5 pb-2 pt-4 text-[0.6875rem] text-[var(--chat-quiet)]">
+      <div className="px-5 pb-2 pt-4 text-tiny text-[var(--chat-quiet)]">
         This is the beginning of the room.
       </div>
     );

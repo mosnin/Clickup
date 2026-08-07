@@ -66,7 +66,7 @@ export function EntityCard({
               <span
                 key={tag.label}
                 className={cn(
-                  "rounded-full px-2 py-0.5 text-[0.6875rem] font-medium",
+                  "rounded-full px-2 py-0.5 text-tiny font-medium",
                   TONE[tag.tone ?? "neutral"],
                 )}
               >

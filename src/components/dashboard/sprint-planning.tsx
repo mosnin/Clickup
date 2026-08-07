@@ -264,7 +264,7 @@ function Row({
       {task.priority && <PriorityDot priority={task.priority} />}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm">{task.title}</p>
-        <p className="truncate text-[11px] text-muted-foreground">
+        <p className="truncate text-tiny text-muted-foreground">
           {task.listName}
           {task.sprintName ? ` · in ${task.sprintName}` : ""}
         </p>

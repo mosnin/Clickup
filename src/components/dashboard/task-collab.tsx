@@ -243,7 +243,7 @@ export function TaskAssignees({
             {reason && (
               <span
                 title={`This agent can't act on this task (${reason})`}
-                className="text-[10px] uppercase tracking-wider text-muted-foreground"
+                className="text-micro uppercase tracking-wider text-muted-foreground"
               >
                 {reason}
               </span>
@@ -732,12 +732,12 @@ function ChecklistTemplates({
                         <span className="min-w-0 flex-1 truncate">
                           {t.name}
                         </span>
-                        <span className="flex-shrink-0 text-[10px] text-muted-foreground">
+                        <span className="flex-shrink-0 text-micro text-muted-foreground">
                           {t.items.length} item
                           {t.items.length === 1 ? "" : "s"}
                         </span>
                         {t.source === "personal" && (
-                          <span className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                          <span className="flex-shrink-0 text-micro uppercase tracking-wider text-muted-foreground">
                             Personal
                           </span>
                         )}

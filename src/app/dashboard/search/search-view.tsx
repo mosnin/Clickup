@@ -133,7 +133,7 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
                       {chip && (
                         <span
                           className={cn(
-                            "rounded-full px-2 py-0.5 text-[10px] font-medium text-foreground",
+                            "rounded-full px-2 py-0.5 text-micro font-medium text-foreground",
                             chip.className,
                           )}
                         >
@@ -193,7 +193,7 @@ function ResultSection({ title, children }: { title: string; children: React.Rea
   if (count === 0) return null;
   return (
     <section className="space-y-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <p className="text-micro font-semibold uppercase tracking-wider text-muted-foreground">
         {title}
       </p>
       <Stagger className="space-y-2">{children}</Stagger>

@@ -142,7 +142,7 @@ export function PostComposer({
         }}
         aria-label="Post title"
         placeholder="Title"
-        className="w-full bg-transparent px-1.5 py-1 text-[0.9375rem] font-semibold outline-none"
+        className="w-full bg-transparent px-1.5 py-1 text-compact font-semibold outline-none"
       />
       <div
         className="chat-scroll max-h-64 min-h-16 px-1.5 py-1"

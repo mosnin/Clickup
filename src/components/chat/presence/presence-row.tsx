@@ -56,7 +56,7 @@ export function PresenceRow({
         <PresenceAvatarDot status={status} />
       </span>
       <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
-        <span className="truncate text-[0.8125rem]">{name}</span>
+        <span className="truncate text-mini">{name}</span>
         {custom ? (
           // The status sits *after* the name and truncates first: the name is
           // the thing being identified, and a long status must never be able
@@ -74,7 +74,7 @@ export function PresenceRow({
           default reading, and offline is the absence of colour. "Away" is the
           one people misread as "busy" or "do not disturb". */}
       {status === "away" ? (
-        <span className="chat-quiet shrink-0 text-[0.6875rem]">
+        <span className="chat-quiet shrink-0 text-tiny">
           {entry?.lastSeenAt ? timeAgo(entry.lastSeenAt) : PRESENCE_LABEL.away}
         </span>
       ) : null}
@@ -118,7 +118,7 @@ export function MyPresenceControl({
             onClick={() => presence.setPreference(option.value)}
             aria-pressed={presence.preference === option.value}
             className={cn(
-              "tap-target flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[0.8125rem] transition-colors",
+              "tap-target flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-mini transition-colors",
               presence.preference === option.value
                 ? "bg-[var(--chat-hover)] font-medium"
                 : "hover:bg-[var(--chat-hover)]",
@@ -138,7 +138,7 @@ export function MyPresenceControl({
             <span className="min-w-0 flex-1 truncate">{option.label}</span>
           </button>
         ))}
-        <p className="chat-quiet px-2 pt-1 text-[0.6875rem]">
+        <p className="chat-quiet px-2 pt-1 text-tiny">
           {PREFERENCES.find((o) => o.value === presence.preference)?.hint}
         </p>
       </div>
@@ -150,7 +150,7 @@ export function MyPresenceControl({
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="tap-target w-full rounded-lg px-2 py-1.5 text-left text-[0.8125rem] transition-colors hover:bg-[var(--chat-hover)]"
+            className="tap-target w-full rounded-lg px-2 py-1.5 text-left text-mini transition-colors hover:bg-[var(--chat-hover)]"
           >
             Set a status
           </button>

@@ -198,18 +198,18 @@ function Section({
     <StaggerItem>
       <section className="bento-tile min-w-0 p-4">
         <header className="flex min-w-0 items-baseline justify-between gap-2">
-          <h3 className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <h3 className="truncate text-micro font-semibold uppercase tracking-wider text-muted-foreground">
             {title}
           </h3>
           {meta && (
-            <span className="flex-shrink-0 text-[11px] text-muted-foreground">
+            <span className="flex-shrink-0 text-tiny text-muted-foreground">
               {meta}
             </span>
           )}
         </header>
         <div className="mt-2 min-w-0">{children}</div>
         {note && (
-          <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+          <p className="mt-3 text-tiny leading-relaxed text-muted-foreground">
             {note}
           </p>
         )}
@@ -233,7 +233,7 @@ function ToggleRow({
     <div className="flex min-w-0 items-start justify-between gap-3 py-1.5">
       <div className="min-w-0">
         <p className="truncate text-sm font-medium">{label}</p>
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
+        <p className="text-tiny leading-relaxed text-muted-foreground">
           {hint}
         </p>
       </div>
@@ -636,7 +636,7 @@ function ActionRow({
     <div className="flex min-w-0 items-start justify-between gap-3">
       <div className="min-w-0">
         <p className="truncate text-sm font-medium">{label}</p>
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
+        <p className="text-tiny leading-relaxed text-muted-foreground">
           {hint}
         </p>
       </div>

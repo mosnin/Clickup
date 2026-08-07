@@ -126,7 +126,7 @@ export function EmojiPicker({
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="pb-1">
-      <p className="chat-quiet px-1 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider">
+      <p className="chat-quiet px-1 pb-1 pt-2 text-micro font-semibold uppercase tracking-wider">
         {label}
       </p>
       <div className="flex flex-wrap gap-0.5">{children}</div>

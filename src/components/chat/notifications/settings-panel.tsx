@@ -100,7 +100,7 @@ function OptionRow({
         <div className="flex items-center gap-2">
           <span className="font-medium">{label}</span>
           {badge ? (
-            <span className="rounded-full bg-foreground/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="rounded-full bg-foreground/10 px-2 py-0.5 text-micro font-medium uppercase tracking-wider text-muted-foreground">
               {badge}
             </span>
           ) : null}
@@ -302,7 +302,7 @@ export function NotificationSettingsPanel({ className }: { className?: string })
         </OptionGroup>
 
         <div>
-          <h2 className="mb-3 px-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <h2 className="mb-3 px-1 text-tiny font-medium uppercase tracking-wider text-muted-foreground">
             Sound
           </h2>
           <OptionGroup>

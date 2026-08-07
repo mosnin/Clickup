@@ -190,7 +190,7 @@ export function ProjectScreen({ projectId }: { projectId: string }) {
                     />
                     {refs && refs.branches.length > 0 ? (
                       <div>
-                        <h3 className="chat-quiet text-[0.6875rem] uppercase tracking-wider">
+                        <h3 className="chat-quiet text-tiny uppercase tracking-wider">
                           Refs
                         </h3>
                         <ul className="mt-2 space-y-1">
@@ -294,7 +294,7 @@ function OpenBranchRoom({ repoAddress }: { repoAddress: string }) {
   return (
     <div className="panel rounded-2xl p-4">
       <label className="block">
-        <span className="chat-quiet text-[0.6875rem] uppercase tracking-wider">Branch</span>
+        <span className="chat-quiet text-tiny uppercase tracking-wider">Branch</span>
         <input
           autoFocus
           value={branch}
@@ -308,7 +308,7 @@ function OpenBranchRoom({ repoAddress }: { repoAddress: string }) {
       ) : null}
 
       <label className="mt-3 block">
-        <span className="chat-quiet text-[0.6875rem] uppercase tracking-wider">
+        <span className="chat-quiet text-tiny uppercase tracking-wider">
           Merging into
         </span>
         <input
@@ -320,7 +320,7 @@ function OpenBranchRoom({ repoAddress }: { repoAddress: string }) {
       </label>
 
       <label className="mt-3 block">
-        <span className="chat-quiet text-[0.6875rem] uppercase tracking-wider">
+        <span className="chat-quiet text-tiny uppercase tracking-wider">
           What it is for
         </span>
         <input

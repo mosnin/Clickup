@@ -288,7 +288,7 @@ function PersonRow({
           <div className="flex items-center gap-2">
             <p className="truncate text-sm font-medium">{bucket.name}</p>
             {bucket.kind === "agent" && (
-              <Badge variant="secondary" className="uppercase tracking-wider text-[10px]">
+              <Badge variant="secondary" className="uppercase tracking-wider text-micro">
                 Agent
               </Badge>
             )}
@@ -312,7 +312,7 @@ function PersonRow({
       <div className="flex items-center gap-2">
         <Progress value={clampedPct} className="h-1.5 flex-1" />
         {mode === "points" && bucket.unestimatedCount > 0 && (
-          <Badge variant="secondary" className="flex-shrink-0 text-[10px]">
+          <Badge variant="secondary" className="flex-shrink-0 text-micro">
             {bucket.unestimatedCount} unestimated
           </Badge>
         )}
@@ -332,7 +332,7 @@ function PersonRow({
               )}
               <span className="truncate">{task.title}</span>
               {mode === "points" && task.estimatePoints !== undefined && (
-                <span className="flex-shrink-0 rounded-full bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                <span className="flex-shrink-0 rounded-full bg-background px-1.5 py-0.5 text-micro font-medium text-muted-foreground">
                   {task.estimatePoints}
                 </span>
               )}

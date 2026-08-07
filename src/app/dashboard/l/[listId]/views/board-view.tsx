@@ -554,7 +554,7 @@ function LaneHeader({
         {lane.kind === "agent" && (
           <Badge
             variant="secondary"
-            className="gap-0 border-transparent bg-muted px-1.5 py-0.5 text-[9px] tracking-wider text-muted-foreground uppercase"
+            className="gap-0 border-transparent bg-muted px-1.5 py-0.5 text-micro tracking-wider text-muted-foreground uppercase"
           >
             Agent
           </Badge>
@@ -642,14 +642,14 @@ function Column({
         </span>
         <span className="flex flex-shrink-0 items-center gap-1.5">
           {pointsTotal > 0 && (
-            <span className="text-[11px] font-normal normal-case text-muted-foreground">
+            <span className="text-tiny font-normal normal-case text-muted-foreground">
               {pointsTotal} pts
             </span>
           )}
           {overLimit && (
             <Badge
               variant="destructive"
-              className="px-1.5 py-0.5 text-[10px] normal-case"
+              className="px-1.5 py-0.5 text-micro normal-case"
             >
               Over WIP
             </Badge>
@@ -745,7 +745,7 @@ function ColumnMenu({ status }: { status: Doc<"listStatuses"> }) {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52 p-3 normal-case">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="text-micro font-semibold uppercase tracking-wider text-muted-foreground">
           WIP limit
         </p>
         <form
@@ -973,7 +973,7 @@ function CardContext({
 }) {
   if (!parentTitle && !location) return null;
   return (
-    <div className="flex min-w-0 flex-col text-[11px] text-muted-foreground">
+    <div className="flex min-w-0 flex-col text-tiny text-muted-foreground">
       {parentTitle && <span className="truncate">↳ {parentTitle}</span>}
       {location && <span className="truncate">{location}</span>}
     </div>
@@ -1004,7 +1004,7 @@ function CardMeta({ task }: { task: Doc<"tasks"> }) {
         </span>
       )}
       {hasEstimate && (
-        <Badge variant="secondary" className="px-1.5 py-0.5 text-[11px] font-medium">
+        <Badge variant="secondary" className="px-1.5 py-0.5 text-tiny font-medium">
           {task.estimatePoints} pts
         </Badge>
       )}

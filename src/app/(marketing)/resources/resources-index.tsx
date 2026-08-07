@@ -74,9 +74,9 @@ export function ResourcesIndex() {
               <Link
                 key={r.slug}
                 href={`/resources/${r.slug}`}
-                className="group flex flex-col rounded-[20px] bg-muted p-6 transition-colors hover:bg-muted/70"
+                className="group flex flex-col rounded-card-lg bg-muted p-6 transition-colors hover:bg-muted/70"
               >
-                <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                <span className="text-tiny font-semibold uppercase tracking-widest text-muted-foreground">
                   {r.eyebrow}
                 </span>
                 <h2 className="mt-3 text-lg font-semibold tracking-tight text-foreground">

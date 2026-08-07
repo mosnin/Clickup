@@ -809,7 +809,7 @@ function AssigneeStack({
             title={person ? `${name}${person.kind === "agent" ? " (agent)" : ""}` : name}
             style={identityFill(id)}
             className={cn(
-              "inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-white ring-2 ring-background",
+              "inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-micro font-medium text-white ring-2 ring-background",
               i > 0 && "-ml-2",
             )}
           >
@@ -818,7 +818,7 @@ function AssigneeStack({
         );
       })}
       {extra > 0 && (
-        <span className="-ml-2 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground ring-2 ring-background">
+        <span className="-ml-2 inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-muted text-micro font-medium text-muted-foreground ring-2 ring-background">
           +{extra}
         </span>
       )}

@@ -30,7 +30,7 @@ export function ChecklistChip({
     <span
       title={`${done} of ${total} checklist items done`}
       className={cn(
-        "inline-flex flex-shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
+        "inline-flex flex-shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-micro font-medium tabular-nums",
         allDone
           ? "bg-pastel-green text-foreground dark:text-black"
           : "bg-muted text-muted-foreground",

@@ -251,7 +251,7 @@ function TaskRow({
             the row's own width, not a viewport breakpoint. */}
         <span className="flex flex-shrink-0 flex-wrap items-center gap-1.5">
           {needsApproval && (
-            <span className="ui-chip inline-flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium">
+            <span className="ui-chip inline-flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-tiny font-medium">
               <ShieldAlert className="h-3 w-3" aria-hidden /> Approval
             </span>
           )}
@@ -266,14 +266,14 @@ function TaskRow({
             </>
           )}
 
-          <span className="ui-chip whitespace-nowrap px-2 py-0.5 text-[11px] text-muted-foreground">
+          <span className="ui-chip whitespace-nowrap px-2 py-0.5 text-tiny text-muted-foreground">
             {row.listName}
           </span>
 
           {row.dueDate !== undefined && (
             <span
               className={cn(
-                "ui-chip ui-figure whitespace-nowrap px-2 py-0.5 text-[11px] font-medium",
+                "ui-chip ui-figure whitespace-nowrap px-2 py-0.5 text-tiny font-medium",
                 overdue ? "border-danger/40 text-danger" : "text-muted-foreground",
               )}
             >

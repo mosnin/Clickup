@@ -93,7 +93,7 @@ export function GaugeArc({
           {value}
         </span>
         {caption && (
-          <span className="text-[11px] text-muted-foreground">{caption}</span>
+          <span className="text-tiny text-muted-foreground">{caption}</span>
         )}
       </div>
     </div>

@@ -78,7 +78,7 @@ export function StatusChip({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[0.6875rem] font-medium text-foreground",
+        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-tiny font-medium text-foreground",
         OUTCOME_TONE[outcome],
         className,
       )}
@@ -150,7 +150,7 @@ export function BranchRow({
           />
         ) : null}
         {changes > 0 ? <StatusChip outcome="changes_requested" /> : null}
-        <span className="chat-quiet ml-auto shrink-0 text-[0.6875rem]">
+        <span className="chat-quiet ml-auto shrink-0 text-tiny">
           {room.patches.length === 1 ? "1 patch" : `${room.patches.length} patches`}
           {room.lastActivityAt > 0 ? ` · ${agoOf(room.lastActivityAt)}` : ""}
         </span>
@@ -207,7 +207,7 @@ export function PatchBlock({
           </p>
         </div>
       </header>
-      <pre className="bento-tile mt-3 overflow-x-auto rounded-xl p-3 text-[0.6875rem] leading-relaxed">
+      <pre className="bento-tile mt-3 overflow-x-auto rounded-xl p-3 text-tiny leading-relaxed">
         <code className="font-mono">{shown.join("\n")}</code>
       </pre>
       {lines.length > 8 ? (
@@ -256,7 +256,7 @@ export function ActivityFeed({
               {item.verb}
               {item.detail ? ` ${item.detail}` : ""}
             </span>
-            <span className="chat-quiet shrink-0 text-[0.6875rem]">{agoOf(item.at)}</span>
+            <span className="chat-quiet shrink-0 text-tiny">{agoOf(item.at)}</span>
           </Link>
         </li>
       ))}
@@ -270,7 +270,7 @@ export function StatPills({ stats }: { stats: readonly [string, string][] }) {
     <dl className="flex flex-wrap gap-2">
       {stats.map(([label, value]) => (
         <div key={label} className="panel rounded-2xl px-4 py-3">
-          <dt className="chat-quiet text-[0.6875rem] uppercase tracking-wider">{label}</dt>
+          <dt className="chat-quiet text-tiny uppercase tracking-wider">{label}</dt>
           <dd className="mt-0.5 text-lg font-semibold tabular-nums">{value}</dd>
         </div>
       ))}

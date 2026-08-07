@@ -103,7 +103,7 @@ function DeviceList({
 }) {
   return (
     <div className="flex flex-col gap-1 px-1 py-1.5">
-      <p className="chat-quiet px-2 text-[0.625rem] font-semibold uppercase tracking-wider">
+      <p className="chat-quiet px-2 text-micro font-semibold uppercase tracking-wider">
         {label}
       </p>
       <ul className="flex flex-col">
@@ -117,7 +117,7 @@ function DeviceList({
                 aria-checked={active}
                 role="menuitemradio"
                 onClick={() => onSelect(value)}
-                className="tap-target flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[0.8125rem] hover:bg-black/5 dark:hover:bg-white/10"
+                className="tap-target flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-mini hover:bg-black/5 dark:hover:bg-white/10"
               >
                 <span className="w-4 shrink-0">
                   {active ? <Check aria-hidden className="h-3.5 w-3.5" /> : null}
@@ -129,7 +129,7 @@ function DeviceList({
         })}
       </ul>
       {footnote ? (
-        <p className="chat-quiet px-2 pt-1 text-[0.6875rem] leading-snug">{footnote}</p>
+        <p className="chat-quiet px-2 pt-1 text-tiny leading-snug">{footnote}</p>
       ) : null}
     </div>
   );
@@ -189,7 +189,7 @@ export function MicControls() {
         data-testid="huddle-mic-toggle"
         onClick={() => dispatch({ type: "set_mic_muted", muted: !session.micMuted })}
         className={cn(
-          "tap-target flex items-center gap-1.5 px-3 py-1.5 text-[0.8125rem] font-medium",
+          "tap-target flex items-center gap-1.5 px-3 py-1.5 text-mini font-medium",
           canUseAudio ? "hover:bg-black/5 dark:hover:bg-white/10" : "cursor-not-allowed opacity-45",
           session.micMuted && canUseAudio ? "text-red-600 dark:text-red-400" : "",
         )}
@@ -230,9 +230,9 @@ export function MicControls() {
       >
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between gap-3 px-2 py-1.5">
-            <span className="text-[0.8125rem] font-medium">Push to talk</span>
+            <span className="text-mini font-medium">Push to talk</span>
             <span className="flex items-center gap-2">
-              <kbd className="chat-quiet rounded border border-black/10 px-1 py-0.5 text-[0.625rem] dark:border-white/15">
+              <kbd className="chat-quiet rounded border border-black/10 px-1 py-0.5 text-micro dark:border-white/15">
                 {PUSH_TO_TALK_HINT}
               </kbd>
               <button
@@ -266,7 +266,7 @@ export function MicControls() {
           </div>
 
           <label className="flex flex-col gap-1 px-2 py-1.5">
-            <span className="flex items-center justify-between text-[0.8125rem] font-medium">
+            <span className="flex items-center justify-between text-mini font-medium">
               Input volume
               <span className="chat-quiet tabular-nums">{Math.round(session.gain * 100)}%</span>
             </span>
@@ -295,7 +295,7 @@ export function MicControls() {
               footnote="A change takes effect on the next huddle."
             />
           ) : (
-            <p className="chat-quiet px-2 py-1.5 text-[0.6875rem] leading-snug">
+            <p className="chat-quiet px-2 py-1.5 text-tiny leading-snug">
               {/* The transport's own sentence, verbatim. A paraphrase here would
                   be a second description of one deployment fact, and the two
                   would eventually say different things. */}
@@ -345,7 +345,7 @@ export function SpeakerControls() {
         }
         onClick={() => dispatch({ type: "set_speaker_muted", muted: !session.speakerMuted })}
         className={cn(
-          "tap-target flex items-center gap-1.5 px-3 py-1.5 text-[0.8125rem] font-medium",
+          "tap-target flex items-center gap-1.5 px-3 py-1.5 text-mini font-medium",
           canUseAudio ? "hover:bg-black/5 dark:hover:bg-white/10" : "cursor-not-allowed opacity-45",
           session.speakerMuted && canUseAudio ? "text-red-600 dark:text-red-400" : "",
         )}
@@ -386,9 +386,9 @@ export function SpeakerControls() {
             onSelect={(deviceId) => dispatch({ type: "set_output_device", deviceId })}
           />
         ) : (
-          <p className="chat-quiet px-2 py-1.5 text-[0.6875rem] leading-snug">{reason}</p>
+          <p className="chat-quiet px-2 py-1.5 text-tiny leading-snug">{reason}</p>
         )}
-        <p className="chat-quiet border-t border-black/5 px-2 py-1.5 text-[0.6875rem] leading-snug dark:border-white/10">
+        <p className="chat-quiet border-t border-black/5 px-2 py-1.5 text-tiny leading-snug dark:border-white/10">
           This silences agent speech only. Nothing here mutes another person.
         </p>
       </Popover>

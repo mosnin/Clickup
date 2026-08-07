@@ -297,7 +297,7 @@ function PostBody({
         >
           <ArrowLeft aria-hidden className="size-4" />
         </Link>
-        <h1 className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold">
+        <h1 className="min-w-0 flex-1 truncate text-compact font-semibold">
           {title || (head ? "Untitled post" : "Post")}
         </h1>
         <span className="chat-quiet shrink-0 text-xs">#{channel.name}</span>
@@ -324,7 +324,7 @@ function PostBody({
             {drawMessage(head, false)}
             <div className="mx-5 my-2 flex items-center gap-2">
               <span aria-hidden className="h-px flex-1 bg-[var(--chat-hairline)]" />
-              <span className="text-[0.6875rem] text-[var(--chat-quiet)]">
+              <span className="text-tiny text-[var(--chat-quiet)]">
                 {comments.length === 0
                   ? "No comments yet"
                   : `${comments.length} ${comments.length === 1 ? "comment" : "comments"}`}

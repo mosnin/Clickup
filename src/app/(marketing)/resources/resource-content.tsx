@@ -116,7 +116,7 @@ function Guide({ resource }: { resource: Resource }) {
             {s.heading}
           </h2>
           {s.body && (
-            <p className="mt-3 text-[15px] leading-relaxed text-foreground/80">
+            <p className="mt-3 text-compact leading-relaxed text-foreground/80">
               {s.body}
             </p>
           )}
@@ -128,7 +128,7 @@ function Guide({ resource }: { resource: Resource }) {
                     aria-hidden
                     className="mt-1.5 size-1.5 flex-shrink-0 rounded-full bg-azure-500"
                   />
-                  <span className="text-[15px] leading-relaxed text-foreground/80">
+                  <span className="text-compact leading-relaxed text-foreground/80">
                     {b}
                   </span>
                 </li>
@@ -137,7 +137,7 @@ function Guide({ resource }: { resource: Resource }) {
           )}
           {s.code && (
             <div className="mt-5 overflow-hidden rounded-2xl mk-panel">
-              <p className="border-b border-border px-4 py-2 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
+              <p className="border-b border-border px-4 py-2 text-tiny font-medium uppercase tracking-widest text-muted-foreground">
                 {s.code.label}
               </p>
               <pre className="overflow-x-auto overscroll-x-contain p-4 font-mono text-xs leading-relaxed text-azure-200">
@@ -156,7 +156,7 @@ function Changelog({ resource }: { resource: Resource }) {
     <GsapReveal stagger className="space-y-8">
       {(resource.releases ?? []).map((r) => (
         <div key={r.tag} className="border-l-2 border-azure-500 py-0.5 pl-5">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          <p className="text-tiny font-semibold uppercase tracking-widest text-muted-foreground">
             {r.tag}
           </p>
           <h2 className="mt-1.5 text-xl font-semibold tracking-tight text-foreground">
@@ -169,7 +169,7 @@ function Changelog({ resource }: { resource: Resource }) {
                   aria-hidden
                   className="mt-1.5 size-1.5 flex-shrink-0 rounded-full bg-azure-300"
                 />
-                <span className="text-[15px] leading-relaxed text-foreground/80">
+                <span className="text-compact leading-relaxed text-foreground/80">
                   {item}
                 </span>
               </li>

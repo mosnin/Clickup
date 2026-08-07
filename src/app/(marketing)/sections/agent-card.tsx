@@ -170,11 +170,11 @@ export function AgentCard() {
                         <span className="h-2 w-2 rounded-full bg-amber-500/60" />
                         <span className="h-2 w-2 rounded-full bg-emerald-500/60" />
                       </div>
-                      <span className="truncate rounded-full border border-white/10 bg-neutral-900/60 px-2 py-1 text-[11px] text-white/60">
+                      <span className="truncate rounded-full border border-white/10 bg-neutral-900/60 px-2 py-1 text-tiny text-white/60">
                         run 4f2c · 12m ago
                       </span>
                     </div>
-                    <div className="grid grid-cols-[30px_1fr] text-[11px] leading-5">
+                    <div className="grid grid-cols-[30px_1fr] text-tiny leading-5">
                       <div
                         aria-hidden
                         className="select-none border-r border-white/5 bg-neutral-950/30 px-2 py-2 text-right text-white/25"
@@ -218,7 +218,7 @@ export function AgentCard() {
                 </div>
 
                 <div
-                  className="mb-4 overflow-hidden rounded px-2 py-1 font-mono text-[11px]"
+                  className="mb-4 overflow-hidden rounded px-2 py-1 font-mono text-tiny"
                   style={{
                     background:
                       "linear-gradient(90deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.14) 50%, rgba(255,255,255,0.06) 100%)",

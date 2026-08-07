@@ -208,7 +208,7 @@ export function Picker({
                   >
                     <span className="min-w-0 flex-1 truncate">{o.label}</span>
                     {o.hint && (
-                      <span className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      <span className="flex-shrink-0 text-micro uppercase tracking-wider text-muted-foreground">
                         {o.hint}
                       </span>
                     )}

@@ -37,7 +37,7 @@ export type AxisTick = {
 
 /** The one axis-label typography. Every axis in this file renders through it. */
 const LABEL_CLASS =
-  "absolute truncate text-[10px] leading-4 text-muted-foreground";
+  "absolute truncate text-micro leading-4 text-muted-foreground";
 
 /** Right-aligned against the plot, so the words end where the bars begin. */
 const ROW_LABEL_CLASS = `${LABEL_CLASS} left-0 right-2 text-right`;
@@ -197,7 +197,7 @@ export function AxisColumn({ ticks }: { ticks: AxisTick[] }) {
           claims room the panel does not have. */}
       <div aria-hidden className="invisible flex h-0 flex-col overflow-hidden">
         {ticks.map((tick) => (
-          <span className="truncate text-[10px] leading-4" key={tick.key}>
+          <span className="truncate text-micro leading-4" key={tick.key}>
             {tick.label}
           </span>
         ))}

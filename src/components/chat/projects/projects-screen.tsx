@@ -107,7 +107,7 @@ export function ProjectsScreen() {
             <div className="mt-8 space-y-8">
               {grouped.sections.map((section) => (
                 <section key={section.id}>
-                  <h2 className="chat-quiet text-[0.6875rem] uppercase tracking-wider">
+                  <h2 className="chat-quiet text-tiny uppercase tracking-wider">
                     {section.label}
                   </h2>
                   <ProjectCards rows={section.members} actors={actors} />
@@ -116,7 +116,7 @@ export function ProjectsScreen() {
               {grouped.rest.length > 0 ? (
                 <section>
                   {grouped.sections.length > 0 ? (
-                    <h2 className="chat-quiet text-[0.6875rem] uppercase tracking-wider">
+                    <h2 className="chat-quiet text-tiny uppercase tracking-wider">
                       Everything else
                     </h2>
                   ) : null}
@@ -150,7 +150,7 @@ function ProjectCards({
             <p className="chat-quiet mt-1 line-clamp-2 text-xs">
               {project.description || "No description."}
             </p>
-            <p className="chat-quiet mt-3 truncate text-[0.6875rem]">
+            <p className="chat-quiet mt-3 truncate text-tiny">
               {labelOf(actors, project.owner)} ·{" "}
               {branchRooms === 1 ? "1 branch room" : `${branchRooms} branch rooms`}
               {lastActivityAt > 0 ? ` · ${timeAgo(lastActivityAt)}` : ""}
@@ -225,7 +225,7 @@ function AnnounceProject() {
   return (
     <div className="panel rounded-2xl p-4">
       <label className="block">
-        <span className="chat-quiet text-[0.6875rem] uppercase tracking-wider">Name</span>
+        <span className="chat-quiet text-tiny uppercase tracking-wider">Name</span>
         <input
           autoFocus
           value={name}
@@ -239,7 +239,7 @@ function AnnounceProject() {
       </p>
 
       <label className="mt-3 block">
-        <span className="chat-quiet text-[0.6875rem] uppercase tracking-wider">
+        <span className="chat-quiet text-tiny uppercase tracking-wider">
           Description
         </span>
         <input
@@ -250,7 +250,7 @@ function AnnounceProject() {
       </label>
 
       <label className="mt-3 block">
-        <span className="chat-quiet text-[0.6875rem] uppercase tracking-wider">
+        <span className="chat-quiet text-tiny uppercase tracking-wider">
           Clone URL
         </span>
         <input

@@ -158,7 +158,7 @@ function RoomGlyph({
     return (
       <span
         aria-hidden
-        className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-[0.6875rem] font-semibold"
+        className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-tiny font-semibold"
       >
         {label.slice(0, 1).toUpperCase()}
       </span>
@@ -242,7 +242,7 @@ function RowMenu({
             item.run();
           }}
           className={cn(
-            "chat-row h-7 text-[0.8125rem]",
+            "chat-row h-7 text-mini",
             item.destructive && "text-danger",
           )}
         >

@@ -49,7 +49,7 @@ export function ThreadSummaryRow({
         {replyCountLabel(summary.replyCount)}
       </span>
       {summary.lastReplyAt > 0 ? (
-        <span className="text-[0.6875rem] text-[var(--chat-quiet)]">
+        <span className="text-tiny text-[var(--chat-quiet)]">
           {formatThreadSummaryLastReplyTime(summary.lastReplyAt)}
         </span>
       ) : null}

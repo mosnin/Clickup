@@ -394,7 +394,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
       {(editing) =>
         editing && unplaced.length > 0 ? (
           <div className="panel rounded-2xl p-4">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
               Drag a panel onto the screen
             </span>
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -476,7 +476,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
                             },
                           });
                         }}
-                        className="tap-target flex-shrink-0 self-start text-[11px] text-muted-foreground hover:text-foreground"
+                        className="tap-target flex-shrink-0 self-start text-tiny text-muted-foreground hover:text-foreground"
                       >
                         ×
                       </button>

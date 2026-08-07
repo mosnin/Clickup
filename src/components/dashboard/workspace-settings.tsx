@@ -279,7 +279,7 @@ function ExecutionPolicyForm({
                 setMaxPlanTasks(Number(event.currentTarget.value))
               }
             />
-            <span className="block text-[11px] text-muted-foreground">
+            <span className="block text-tiny text-muted-foreground">
               1–100
             </span>
           </label>
@@ -295,7 +295,7 @@ function ExecutionPolicyForm({
                 setMaxTasksPerWave(Number(event.currentTarget.value))
               }
             />
-            <span className="block text-[11px] text-muted-foreground">
+            <span className="block text-tiny text-muted-foreground">
               1–25
             </span>
           </label>
@@ -311,7 +311,7 @@ function ExecutionPolicyForm({
                 setDailyTaskLimit(Number(event.currentTarget.value))
               }
             />
-            <span className="block text-[11px] text-muted-foreground">
+            <span className="block text-tiny text-muted-foreground">
               1–1,000
             </span>
           </label>

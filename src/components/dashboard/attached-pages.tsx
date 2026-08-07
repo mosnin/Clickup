@@ -63,7 +63,7 @@ export function AttachedPages({
   return (
     <Card className="rounded-2xl p-5">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           {title}
         </span>
         {!creating && (

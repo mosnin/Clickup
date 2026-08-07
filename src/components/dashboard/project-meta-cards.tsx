@@ -58,7 +58,7 @@ export function ProjectStatusCard({ project }: { project: Doc<"projects"> }) {
 
   return (
     <Card className="rounded-2xl p-5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         Status
       </span>
       <div className="mt-3 flex flex-wrap gap-1.5">
@@ -130,7 +130,7 @@ export function ProjectOwnerCard({
 
   return (
     <Card className="rounded-2xl p-5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         Owner
       </span>
       <div className="mt-3 space-y-3">
@@ -187,7 +187,7 @@ export function ProjectTargetDateCard({
   return (
     <Card className="rounded-2xl p-5">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           Target date
         </span>
         {project.targetDate !== undefined && (
@@ -220,7 +220,7 @@ export function ProjectNotesCard({ project }: { project: Doc<"projects"> }) {
 
   return (
     <Card className="rounded-2xl p-5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         Notes
       </span>
       <textarea

@@ -62,7 +62,7 @@ export function AddAgentControl() {
         className="w-72 p-1"
       >
         {full ? (
-          <p className="chat-quiet px-2 py-2 text-[0.8125rem] leading-snug">
+          <p className="chat-quiet px-2 py-2 text-mini leading-snug">
             This huddle already holds {MAX_HUDDLE_AGENTS} agents.
           </p>
         ) : null}
@@ -89,21 +89,21 @@ export function AddAgentControl() {
                       : "hover:bg-black/5 dark:hover:bg-white/10",
                   )}
                 >
-                  <span className="text-[0.8125rem] font-medium">{agent.name}</span>
+                  <span className="text-mini font-medium">{agent.name}</span>
                   {already ? (
-                    <span className="chat-quiet text-[0.6875rem]">Already in the huddle</span>
+                    <span className="chat-quiet text-tiny">Already in the huddle</span>
                   ) : agent.blockedReason && !agent.attached ? (
                     // The reason, verbatim from the server. Each of the common
                     // ones is something a person can fix in ten seconds if
                     // anybody tells them.
-                    <span className="chat-quiet text-[0.6875rem]">{agent.blockedReason}</span>
+                    <span className="chat-quiet text-tiny">{agent.blockedReason}</span>
                   ) : null}
                 </button>
               </li>
             );
           })}
           {agents !== undefined && agents !== null && agents.length === 0 ? (
-            <li className="chat-quiet px-2 py-2 text-[0.8125rem] leading-snug">
+            <li className="chat-quiet px-2 py-2 text-mini leading-snug">
               No agents in this community yet.
             </li>
           ) : null}

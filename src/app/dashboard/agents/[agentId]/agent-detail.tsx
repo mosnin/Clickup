@@ -70,17 +70,17 @@ export function AgentDetail({ agentId }: { agentId: string }) {
           {[0, 1, 2, 3, 4, 5].map((i) => (
             <div
               key={i}
-              className="h-16 animate-pulse rounded-2xl border border-border bg-muted/30"
+              className="h-16 animate-pulse rounded-2xl bg-muted/30"
             />
           ))}
         </div>
-        <div className="h-40 animate-pulse rounded-2xl border border-border bg-muted/30" />
+        <div className="h-40 animate-pulse rounded-2xl bg-muted/30" />
       </div>
     );
   }
   if (detail === null) {
     return (
-      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center">
+      <div className="rounded-2xl bg-muted/30 p-10 text-center">
         <p className="text-sm text-muted-foreground">
           This agent doesn&apos;t exist or you don&apos;t have access.
         </p>
@@ -442,7 +442,7 @@ function ConnectionDiagnostics({
       <dl className="grid gap-2 sm:grid-cols-3">
         {signals.map((signal) => (
           <div key={signal.label} className="rounded-xl bg-muted/40 px-3 py-2">
-            <dt className="text-[11px] text-muted-foreground">
+            <dt className="text-tiny text-muted-foreground">
               {signal.label}
             </dt>
             <dd className="mt-0.5 text-sm font-medium">{signal.value}</dd>
@@ -493,7 +493,7 @@ function StatsRow({
             <p className="text-lg font-bold tracking-tight">
               <AnimatedNumber value={t.value} />
             </p>
-            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <p className="mt-0.5 text-micro uppercase tracking-wider text-muted-foreground">
               {t.label}
             </p>
           </Card>
@@ -590,7 +590,7 @@ function GovernancePanel({
                 "Role",
               )
             }
-            className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
           >
             <option value="member">Member (read + write)</option>
             <option value="readonly">Read-only (no mutations)</option>
@@ -626,7 +626,7 @@ function GovernancePanel({
                   );
                 }
               }}
-              className="w-28 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              className="w-28 rounded-full bg-background px-3 py-1.5 text-sm"
             />
             <span className="text-xs text-muted-foreground">
               {usageToday} used today ({usagePct}%)
@@ -662,7 +662,7 @@ function GovernancePanel({
                 }
               }}
               placeholder="https://my-runtime.example.com/wake"
-              className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
             />
           </label>
           <label className="block">
@@ -691,7 +691,7 @@ function GovernancePanel({
                   ? "Secret set. Type to replace it."
                   : "Add a secret to sign pings"
               }
-              className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+              className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
             />
             {hasNotifySecret && (
               <button
@@ -736,7 +736,7 @@ function GovernancePanel({
                   }
                 }}
                 placeholder="typescript, backend, quality-assurance"
-                className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+                className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
               />
               <span className="mt-1 block text-xs text-muted-foreground">
                 Only tasks whose complete requirement set matches can be
@@ -769,7 +769,7 @@ function GovernancePanel({
                     );
                   }
                 }}
-                className="w-28 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+                className="w-28 rounded-full bg-background px-3 py-1.5 text-sm"
               />
               <span className="mt-1 block text-xs text-muted-foreground">
                 Hard ceiling used by dispatch planning.

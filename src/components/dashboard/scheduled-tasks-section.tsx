@@ -172,7 +172,7 @@ function CreateScheduleForm({
           onChange={(e) => setTitle(e.currentTarget.value)}
           placeholder="Weekly standup notes"
           autoFocus
-          className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
         />
       </label>
       <label className="block">
@@ -184,7 +184,7 @@ function CreateScheduleForm({
           onChange={(e) =>
             setCadence(e.currentTarget.value as typeof cadence)
           }
-          className="rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="rounded-full bg-background px-3 py-1.5 text-sm"
         >
           <option value="hourly">Hourly</option>
           <option value="daily">Daily</option>
@@ -200,7 +200,7 @@ function CreateScheduleForm({
           <select
             value={dayOfWeek}
             onChange={(e) => setDayOfWeek(Number(e.currentTarget.value))}
-            className="rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            className="rounded-full bg-background px-3 py-1.5 text-sm"
           >
             {WEEKDAYS.map((d, i) => (
               <option key={d} value={i}>
@@ -221,7 +221,7 @@ function CreateScheduleForm({
             max={28}
             value={dayOfMonth}
             onChange={(e) => setDayOfMonth(Number(e.currentTarget.value))}
-            className="w-20 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            className="w-20 rounded-full bg-background px-3 py-1.5 text-sm"
           />
         </label>
       )}
@@ -236,7 +236,7 @@ function CreateScheduleForm({
             max={23}
             value={hourUtc}
             onChange={(e) => setHourUtc(Number(e.currentTarget.value))}
-            className="w-20 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+            className="w-20 rounded-full bg-background px-3 py-1.5 text-sm"
           />
         </label>
       )}
@@ -250,7 +250,7 @@ function CreateScheduleForm({
           value={dueInDays}
           onChange={(e) => setDueInDays(e.currentTarget.value)}
           placeholder="-"
-          className="w-20 rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="w-20 rounded-full bg-background px-3 py-1.5 text-sm"
         />
       </label>
       <div className="flex gap-2">

@@ -57,7 +57,7 @@ export function NotifyExplainer({
         "rule 8" is a thing they can look up, quote in a bug report, and check
         against what they thought they had configured.
       */}
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+      <p className="text-micro uppercase tracking-wider text-muted-foreground/70">
         {answer.item !== null
           ? `Suppression ${answer.item} · ${answer.reason}`
           : `Delivered · ${answer.reason}`}
@@ -68,7 +68,7 @@ export function NotifyExplainer({
         quietly giving an answer that is right about the durable path and wrong
         about the one the person is asking about.
       */}
-      <p className="text-[10px] text-muted-foreground/70">
+      <p className="text-micro text-muted-foreground/70">
         Your browser also decides: an alert is skipped for a conversation you
         already have open, for anything already shown this session, and while
         the first page of history loads.

@@ -46,7 +46,7 @@ export function PostCard({
         message.pending && "opacity-60",
       )}
     >
-      <h3 className="text-[0.9375rem] font-semibold leading-snug">
+      <h3 className="text-compact font-semibold leading-snug">
         <Link
           href={forumPostHref(channelId, message.id)}
           // Stretched over the card: the heading is the accessible name of the
@@ -63,7 +63,7 @@ export function PostCard({
       <p className="chat-quiet mt-1 flex flex-wrap items-center gap-x-2 text-xs">
         <span className="font-medium">{label(message.pubkey)}</span>
         {message.isAgent ? (
-          <span className="rounded-full bg-[var(--chat-hover)] px-1.5 text-[0.625rem] font-medium uppercase tracking-wide">
+          <span className="rounded-full bg-[var(--chat-hover)] px-1.5 text-micro font-medium uppercase tracking-wide">
             agent
           </span>
         ) : null}

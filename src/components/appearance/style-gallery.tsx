@@ -125,7 +125,7 @@ export function GalleryTile({
       <span className="flex items-baseline justify-between gap-2 border-t border-border px-3 py-2">
         <span className="truncate text-xs font-medium">{label}</span>
         {hint && (
-          <span className="flex-shrink-0 text-[10px] text-muted-foreground">
+          <span className="flex-shrink-0 text-micro text-muted-foreground">
             {hint}
           </span>
         )}
@@ -240,7 +240,7 @@ export function PresetTile({
       </span>
       <span className="block border-t border-border bg-card px-3 py-2">
         <span className="block text-xs font-medium">{name}</span>
-        <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+        <span className="mt-0.5 block text-tiny leading-snug text-muted-foreground">
           {description}
         </span>
       </span>
@@ -280,7 +280,7 @@ export function PanelPreview({
             "block",
             style.titleAlign === "center" && "text-center",
             style.titleStyle === "micro" &&
-              "text-[10px] font-medium uppercase tracking-wider text-muted-foreground",
+              "text-micro font-medium uppercase tracking-wider text-muted-foreground",
             style.titleStyle === "plain" && "text-xs",
             style.titleStyle === "large" && "text-sm font-medium",
           )}

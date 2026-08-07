@@ -227,14 +227,14 @@ export function Panel({
         // Stated flatly, and never softened: a missed claim is the most
         // valuable thing this product can tell you, and hedging it is how a
         // team quietly stops being wrong about anything.
-        <p className="mt-2 text-[11px] text-muted-foreground">
+        <p className="mt-2 text-tiny text-muted-foreground">
           You expected: {broken.claim}.
         </p>
       )}
       {data?.truncated && (
         // Said out loud rather than silently capped: a number that only counts
         // what the walk reached is a number people will act on.
-        <p className="mt-2 text-[10px] text-muted-foreground">
+        <p className="mt-2 text-micro text-muted-foreground">
           Showing the first {data.total}. Narrow it to see everything.
         </p>
       )}
@@ -265,7 +265,7 @@ function Header({
         className={cn(
           "line-clamp-1 min-w-0 break-words",
           style.titleStyle === "micro" &&
-            "text-[11px] font-medium uppercase tracking-wider text-muted-foreground",
+            "text-tiny font-medium uppercase tracking-wider text-muted-foreground",
           style.titleStyle === "plain" && "text-sm",
           style.titleStyle === "large" && "text-base font-medium",
         )}
@@ -273,7 +273,7 @@ function Header({
         {def.title}
       </span>
       {total > def.query.limit && style.titleAlign !== "center" && (
-        <span className="ui-figure flex-shrink-0 text-[11px] text-muted-foreground">
+        <span className="ui-figure flex-shrink-0 text-tiny text-muted-foreground">
           {def.query.limit} of {total}
         </span>
       )}
@@ -487,7 +487,7 @@ function Metric({
           </div>
         )}
 
-      <p className="mt-1 line-clamp-1 break-words text-[11px] leading-relaxed text-muted-foreground">
+      <p className="mt-1 line-clamp-1 break-words text-tiny leading-relaxed text-muted-foreground">
         {def.caption || describePanel(def)}
       </p>
     </div>
@@ -552,7 +552,7 @@ function RowGlyph({ row }: { row: Envelope["rows"][number] }) {
   return (
     <span
       aria-hidden
-      className="ui-row-glyph mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+      className="ui-row-glyph mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-tiny font-semibold text-white"
       style={identityFill(row.id)}
     >
       {initial}
@@ -697,7 +697,7 @@ function RowTags({ def, row }: { def: PanelDef; row: Envelope["rows"][number] })
       {tags.slice(0, MAX_ROW_TAGS).map((tag) => (
         <span
           key={tag}
-          className="ui-chip whitespace-nowrap px-2 py-0.5 text-[11px] text-muted-foreground"
+          className="ui-chip whitespace-nowrap px-2 py-0.5 text-tiny text-muted-foreground"
         >
           {tag}
         </span>
@@ -732,7 +732,7 @@ function RowTagsStacked({
       {tags.slice(0, MAX_ROW_TAGS).map((tag) => (
         <span
           key={tag}
-          className="ui-chip px-1.5 py-0.5 text-[10px] text-muted-foreground"
+          className="ui-chip px-1.5 py-0.5 text-micro text-muted-foreground"
         >
           {tag}
         </span>
@@ -801,7 +801,7 @@ function Table({
     <div className="-mx-1 overflow-x-auto px-1">
       <table className="w-full text-left text-xs">
         <thead>
-          <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <tr className="text-micro uppercase tracking-wider text-muted-foreground">
             <th className="pb-1 pr-3 font-medium">Title</th>
             {def.fields.map((f) => (
               <th key={f} className="pb-1 pr-3 font-medium capitalize">

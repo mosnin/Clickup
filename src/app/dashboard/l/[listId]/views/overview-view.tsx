@@ -82,7 +82,7 @@ function AboutCard({
 
   return (
     <Card className="rounded-2xl p-5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         About
       </span>
       <input
@@ -98,7 +98,7 @@ function AboutCard({
         className="mt-2 w-full bg-transparent text-sm focus:outline-none"
       />
 
-      <span className="mt-6 block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="mt-6 block text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         Notes
       </span>
       <textarea
@@ -127,7 +127,7 @@ function StatTile({
 }) {
   return (
     <StaggerItem className="bento-tile p-3">
-      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+      <p className="text-micro font-medium uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
       <p
@@ -195,7 +195,7 @@ function ProgressCard({
 
   return (
     <Card className="rounded-2xl p-5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         Progress
       </span>
 
@@ -348,7 +348,7 @@ function MilestonesCard({ listId }: { listId: Id<"lists"> }) {
   return (
     <Card className="rounded-2xl p-5">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           Milestones
         </span>
         {!creating && (
@@ -560,7 +560,7 @@ function DetailsCard({
 
   return (
     <div className="rounded-2xl bento-tile p-5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         Details
       </span>
       <dl className="mt-3 space-y-2 text-sm">

@@ -193,7 +193,7 @@ function StatTile({
   return (
     <StaggerItem>
       <div className="rounded-2xl panel p-4 sm:p-5">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <p className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           {label}
         </p>
         <p
@@ -274,7 +274,7 @@ function SchedulesSection({ schedules }: { schedules: Schedule[] }) {
           Schedules
         </h2>
         {schedules.length > 0 && (
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-tiny text-muted-foreground">
             work the machine creates on a clock
           </span>
         )}
@@ -302,20 +302,20 @@ function SchedulesSection({ schedules }: { schedules: Schedule[] }) {
                     </span>
                     {s.blueprintName && (
                       <span
-                        className="max-w-40 truncate rounded-full bg-pastel-blue px-2 py-0.5 text-[10px] font-medium dark:text-neutral-900"
+                        className="max-w-40 truncate rounded-full bg-pastel-blue px-2 py-0.5 text-micro font-medium dark:text-neutral-900"
                         title={`Blueprint: ${s.blueprintName}`}
                       >
                         {s.blueprintName}
                       </span>
                     )}
                     {!s.enabled && (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-micro font-medium text-muted-foreground">
                         Paused
                       </span>
                     )}
                     {s.lastError && (
                       <span
-                        className="max-w-56 truncate rounded-full bg-pastel-red px-2 py-0.5 text-[10px] font-medium text-neutral-900"
+                        className="max-w-56 truncate rounded-full bg-pastel-red px-2 py-0.5 text-micro font-medium text-neutral-900"
                         title={s.lastError}
                       >
                         Failed {s.consecutiveFailures}×
@@ -374,7 +374,7 @@ function RoutedSection({ routedLists }: { routedLists: RoutedList[] }) {
           Routed lists
         </h2>
         {routedLists.length > 0 && (
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-tiny text-muted-foreground">
             new tasks assign themselves
           </span>
         )}
@@ -398,7 +398,7 @@ function RoutedSection({ routedLists }: { routedLists: RoutedList[] }) {
               >
                 {r.name}
               </Link>
-              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              <span className="rounded-full bg-muted px-2 py-0.5 text-micro font-medium text-muted-foreground">
                 {ROUTING_MODE_LABEL[r.mode]}
               </span>
               <span className="text-xs text-muted-foreground">
@@ -406,7 +406,7 @@ function RoutedSection({ routedLists }: { routedLists: RoutedList[] }) {
               </span>
               <span
                 className={cn(
-                  "ml-auto rounded-full px-2 py-0.5 text-[10px] font-medium",
+                  "ml-auto rounded-full px-2 py-0.5 text-micro font-medium",
                   r.openUnassigned > 0
                     ? "bg-pastel-yellow dark:text-neutral-900"
                     : "bg-muted text-muted-foreground",
@@ -510,7 +510,7 @@ function BlueprintsSection({
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Blueprints
           </h2>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
+          <p className="mt-0.5 text-tiny text-muted-foreground">
             Reusable task definitions — instantiate one here or attach it to
             a schedule. Pair them with playbooks in the{" "}
             <Link
@@ -606,19 +606,19 @@ function BlueprintsSection({
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                   {bp.priority && <PriorityChip priority={bp.priority} />}
                   {bp.estimatePoints !== undefined && (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-micro font-medium text-muted-foreground">
                       {bp.estimatePoints} pt
                       {bp.estimatePoints === 1 ? "" : "s"}
                     </span>
                   )}
                   {bp.checklist.length > 0 && (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-micro font-medium text-muted-foreground">
                       {bp.checklist.length} step
                       {bp.checklist.length === 1 ? "" : "s"}
                     </span>
                   )}
                   {bp.requiresApproval && (
-                    <span className="rounded-full bg-pastel-yellow px-2 py-0.5 text-[10px] font-medium dark:text-neutral-900">
+                    <span className="rounded-full bg-pastel-yellow px-2 py-0.5 text-micro font-medium dark:text-neutral-900">
                       Approval gate
                     </span>
                   )}
@@ -715,7 +715,7 @@ function BlueprintEditor({
     <div className="mt-3 space-y-3 border-t border-border pt-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
-          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="mb-1 block text-micro font-semibold uppercase tracking-wider text-muted-foreground">
             Blueprint name
           </span>
           <input
@@ -726,7 +726,7 @@ function BlueprintEditor({
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="mb-1 block text-micro font-semibold uppercase tracking-wider text-muted-foreground">
             Task title
           </span>
           <input
@@ -738,7 +738,7 @@ function BlueprintEditor({
         </label>
       </div>
       <label className="block">
-        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="mb-1 block text-micro font-semibold uppercase tracking-wider text-muted-foreground">
           Description
         </span>
         <textarea
@@ -750,7 +750,7 @@ function BlueprintEditor({
         />
       </label>
       <label className="block">
-        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="mb-1 block text-micro font-semibold uppercase tracking-wider text-muted-foreground">
           Checklist — one item per line
         </span>
         <textarea
@@ -763,7 +763,7 @@ function BlueprintEditor({
       </label>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
         <div>
-          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="mb-1 block text-micro font-semibold uppercase tracking-wider text-muted-foreground">
             Priority
           </span>
           <Picker
@@ -782,7 +782,7 @@ function BlueprintEditor({
           />
         </div>
         <label className="block">
-          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="mb-1 block text-micro font-semibold uppercase tracking-wider text-muted-foreground">
             Estimate (pts)
           </span>
           <input
@@ -795,7 +795,7 @@ function BlueprintEditor({
           />
         </label>
         <div>
-          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="mb-1 block text-micro font-semibold uppercase tracking-wider text-muted-foreground">
             Approval gate
           </span>
           <div className="flex min-h-9 items-center gap-2">

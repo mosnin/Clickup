@@ -673,7 +673,7 @@ export function CommandPalette() {
                 }
                 className="w-full bg-transparent text-sm focus:outline-none"
               />
-              <kbd className="hidden flex-shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
+              <kbd className="hidden flex-shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-micro text-muted-foreground sm:block">
                 esc
               </kbd>
             </div>
@@ -697,7 +697,7 @@ export function CommandPalette() {
                   return (
                     <div key={item.key}>
                       {showGroup && (
-                        <p className="px-3 pb-1 pt-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        <p className="px-3 pb-1 pt-2.5 text-micro font-semibold uppercase tracking-wider text-muted-foreground">
                           {item.group}
                         </p>
                       )}

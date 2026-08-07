@@ -48,7 +48,7 @@ export default function PluginsPage() {
       </div>
 
       <section className="mt-12 grid gap-5 lg:grid-cols-2">
-        <div className="min-w-0 rounded-3xl border border-border bg-card p-6 sm:p-8">
+        <div className="min-w-0 rounded-3xl bg-card p-6 sm:p-8">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Project skill pack
           </p>
@@ -79,7 +79,7 @@ export default function PluginsPage() {
           </p>
         </div>
 
-        <div className="min-w-0 rounded-3xl border border-border bg-card p-6 sm:p-8">
+        <div className="min-w-0 rounded-3xl bg-card p-6 sm:p-8">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Remote MCP
           </p>
@@ -107,7 +107,7 @@ export default function PluginsPage() {
           {SKILLS.map(([name, description]) => (
             <article
               key={name}
-              className="rounded-2xl border border-border bg-card p-5"
+              className="rounded-2xl bg-card p-5"
             >
               <h3 className="font-semibold">{name}</h3>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">

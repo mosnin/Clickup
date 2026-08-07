@@ -83,8 +83,8 @@ export function AgentActivityLog({
       className={cn("flex min-w-0 flex-col gap-2", className)}
     >
       <header className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <h3 className="text-[0.8125rem] font-semibold">{name}</h3>
-        <span className="chat-quiet text-[0.6875rem] uppercase tracking-wide">
+        <h3 className="text-mini font-semibold">{name}</h3>
+        <span className="chat-quiet text-tiny uppercase tracking-wide">
           {/* The liveness ladder's own word, not a boolean. "stalled" is the
               one a person most needs — an agent that stopped reporting is not
               an agent that finished, and drawing them the same way is how a
@@ -119,7 +119,7 @@ export function AgentActivityLog({
             <li key={run.key} className="contents">
               {multiSession ? (
                 <div className="flex items-center gap-2 pb-1 pt-2">
-                  <span className="chat-quiet text-[0.625rem] uppercase tracking-wide">
+                  <span className="chat-quiet text-micro uppercase tracking-wide">
                     {run.sessionId === "unknown" ? "Session" : `Session ${short(run.sessionId)}`}
                   </span>
                   <span className="h-px min-w-0 flex-1 bg-[var(--chat-hairline)]" />
@@ -182,7 +182,7 @@ function SummaryRow({
         />
         <span className="min-w-0 truncate font-medium">{segment.label}</span>
         {tone ? (
-          <span className="chat-quiet shrink-0 text-[0.625rem] uppercase tracking-wide">
+          <span className="chat-quiet shrink-0 text-micro uppercase tracking-wide">
             {tone}
           </span>
         ) : null}
@@ -237,7 +237,7 @@ function StepRow({ item, now }: { item: ClassifiedStep; now: number }) {
       ) : (
         <span className="min-w-0 flex-1" />
       )}
-      <span className="chat-quiet shrink-0 tabular-nums text-[0.625rem]">
+      <span className="chat-quiet shrink-0 tabular-nums text-micro">
         {running
           ? formatTurnElapsed(Math.max(0, now - item.step.startedAt))
           : finished

@@ -256,7 +256,7 @@ function AgentConsoleCard() {
         <div className="relative mt-4 overflow-hidden rounded-2xl bg-zinc-950/80 ring-1 ring-white/10">
           {/* header */}
           <div className="flex items-center justify-between border-b border-white/5 px-4 py-2.5">
-            <span className="inline-flex items-center gap-2 rounded-full bg-blue-900/30 px-3 py-0.5 text-[11px] text-blue-200 ring-1 ring-blue-700">
+            <span className="inline-flex items-center gap-2 rounded-full bg-blue-900/30 px-3 py-0.5 text-tiny text-blue-200 ring-1 ring-blue-700">
               <span className="h-1.5 w-1.5 animate-breathe rounded-full bg-blue-400" />
               Working
               <span className="typing-dots" aria-hidden>
@@ -265,7 +265,7 @@ function AgentConsoleCard() {
                 <i />
               </span>
             </span>
-            <span className="text-[11px] text-neutral-400">
+            <span className="text-tiny text-neutral-400">
               atlas-01 · operate MCP
             </span>
           </div>
@@ -291,13 +291,13 @@ function AgentConsoleCard() {
             <div className="flex items-start gap-2">
               <Orb hue={205} className="h-6 w-6" delay=".1s" />
               <div className="max-w-[80%] overflow-hidden rounded-xl bg-neutral-900 ring-1 ring-white/10">
-                <div className="border-b border-white/5 px-3 py-1.5 text-[11px] text-neutral-400">
+                <div className="border-b border-white/5 px-3 py-1.5 text-tiny text-neutral-400">
                   Tool call · claim_task
                 </div>
-                <pre className="whitespace-pre-wrap px-3 py-2 font-mono text-[11px] leading-5 text-neutral-300">
+                <pre className="whitespace-pre-wrap px-3 py-2 font-mono text-tiny leading-5 text-neutral-300">
                   <Typewriter text={'claim_task({ task: "OPS-241", ttl: "60m" })'} />
                 </pre>
-                <div className="flex items-center gap-2 border-t border-white/5 px-3 py-1.5 text-[11px]">
+                <div className="flex items-center gap-2 border-t border-white/5 px-3 py-1.5 text-tiny">
                   <span className="h-1.5 w-1.5 animate-breathe rounded-full bg-cyan-300" />
                   <span className="text-neutral-400">
                     Claimed · approval gate raised
@@ -347,7 +347,7 @@ function AutomationCard() {
           title="Automations"
           body="Rules that fire inside the same transaction as the change."
           chip={
-            <span className="inline-flex shrink-0 animate-breathe items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] text-blue-200 ring-1 ring-blue-500/40">
+            <span className="inline-flex shrink-0 animate-breathe items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-tiny text-blue-200 ring-1 ring-blue-500/40">
               3 actions
             </span>
           }
@@ -364,11 +364,11 @@ function AutomationCard() {
               className="h-2 w-2 animate-breathe rounded-full bg-emerald-500/80"
               style={{ animationDelay: ".2s" }}
             />
-            <span className="caret ml-3 text-[11px] text-neutral-400">
+            <span className="caret ml-3 text-tiny text-neutral-400">
               on task created
             </span>
           </div>
-          <div className="p-3 font-mono text-[11px] leading-5">
+          <div className="p-3 font-mono text-tiny leading-5">
             <pre className="whitespace-pre-wrap">
               <span className="text-neutral-500">01</span>{" "}
               <span className="text-neutral-400">{"// before"}</span>
@@ -392,7 +392,7 @@ function AutomationCard() {
               </span>
             </pre>
           </div>
-          <div className="flex items-center justify-between border-t border-white/5 px-3 py-2 text-[11px]">
+          <div className="flex items-center justify-between border-t border-white/5 px-3 py-2 text-tiny">
             <div className="flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
               <span className="text-neutral-400">Live on this list</span>
@@ -423,7 +423,7 @@ function FieldsCard() {
         />
 
         <div className="mt-4 rounded-xl bg-zinc-950/80 p-3 ring-1 ring-white/10">
-          <p className="mb-2 text-[11px] uppercase tracking-wide text-blue-200">
+          <p className="mb-2 text-tiny uppercase tracking-wide text-blue-200">
             Field type
           </p>
           <div className="grid grid-cols-[1fr_auto] items-center gap-3">
@@ -462,13 +462,13 @@ function FieldsCard() {
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-neutral-300 ring-1 ring-white/10">
+            <span className="rounded-full bg-white/5 px-2 py-1 text-tiny text-neutral-300 ring-1 ring-white/10">
               Rollup
             </span>
-            <span className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-neutral-300 ring-1 ring-white/10">
+            <span className="rounded-full bg-white/5 px-2 py-1 text-tiny text-neutral-300 ring-1 ring-white/10">
               Formula
             </span>
-            <span className="animate-breathe rounded-full bg-blue-500/10 px-2 py-1 text-[11px] text-blue-200 ring-1 ring-blue-400/50">
+            <span className="animate-breathe rounded-full bg-blue-500/10 px-2 py-1 text-tiny text-blue-200 ring-1 ring-blue-400/50">
               Currency: USD
             </span>
           </div>
@@ -496,7 +496,7 @@ function ApprovalCard() {
             <span className="ml-1 truncate text-xs text-neutral-400">
               atlas-01 · scout-02
             </span>
-            <span className="ml-auto shrink-0 animate-breathe rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300 ring-1 ring-emerald-500/40">
+            <span className="ml-auto shrink-0 animate-breathe rounded-full bg-emerald-500/10 px-2 py-0.5 text-tiny text-emerald-300 ring-1 ring-emerald-500/40">
               2 waiting
             </span>
           </div>
@@ -554,11 +554,11 @@ function TemplatesCard() {
                 <p className="truncate text-sm text-neutral-200">
                   {template.name}
                 </p>
-                <p className="truncate text-[11px] text-neutral-500">
+                <p className="truncate text-tiny text-neutral-500">
                   {template.meta}
                 </p>
               </div>
-              <span className="shrink-0 animate-breathe rounded-full bg-blue-900/30 px-2 py-0.5 text-[11px] text-blue-200 ring-1 ring-blue-700">
+              <span className="shrink-0 animate-breathe rounded-full bg-blue-900/30 px-2 py-0.5 text-tiny text-blue-200 ring-1 ring-blue-700">
                 {template.cta}
               </span>
             </div>

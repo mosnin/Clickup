@@ -26,8 +26,8 @@ export function FileCard({ media }: { media: MediaDescriptor }) {
       className="bento tap-target flex max-w-sm items-center gap-3 rounded-xl px-3 py-2 no-underline"
     >
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[0.8125rem] font-medium">{name}</span>
-        <span className="chat-quiet block text-[0.6875rem]">
+        <span className="block truncate text-mini font-medium">{name}</span>
+        <span className="chat-quiet block text-tiny">
           {media.sizeBytes ? formatBytes(media.sizeBytes) : media.mime}
         </span>
       </span>

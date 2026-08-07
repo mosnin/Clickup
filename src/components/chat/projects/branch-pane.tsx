@@ -133,7 +133,7 @@ export function BranchPane({
       </section>
 
       <section className="space-y-2">
-        <h4 className="chat-quiet text-[0.6875rem] uppercase tracking-wider">Verdicts</h4>
+        <h4 className="chat-quiet text-tiny uppercase tracking-wider">Verdicts</h4>
         <div className="flex flex-wrap items-center gap-1.5">
           {room.check ? (
             <StatusChip outcome={room.check.outcome} />
@@ -155,7 +155,7 @@ export function BranchPane({
                       hiding it reads as Ada never looking. */}
                   {review.current ? "" : " · against an older commit"}
                 </span>
-                <span className="chat-quiet shrink-0 text-[0.6875rem]">
+                <span className="chat-quiet shrink-0 text-tiny">
                   {agoOf(review.at)}
                 </span>
               </li>
@@ -172,7 +172,7 @@ export function BranchPane({
       />
 
       <section className="space-y-2">
-        <h4 className="chat-quiet text-[0.6875rem] uppercase tracking-wider">
+        <h4 className="chat-quiet text-tiny uppercase tracking-wider">
           Patches ({room.patches.length})
         </h4>
         <PostPatch scope={scope} channelId={channelId} />
@@ -244,7 +244,7 @@ function BranchActions({
 
   return (
     <section className="space-y-2">
-      <h4 className="chat-quiet text-[0.6875rem] uppercase tracking-wider">Decide</h4>
+      <h4 className="chat-quiet text-tiny uppercase tracking-wider">Decide</h4>
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
@@ -364,7 +364,7 @@ function PostPatch({ scope, channelId }: { scope: ChatScope | null; channelId: s
   return (
     <div className="panel rounded-2xl p-4">
       <label className="block">
-        <span className="chat-quiet text-[0.6875rem] uppercase tracking-wider">Subject</span>
+        <span className="chat-quiet text-tiny uppercase tracking-wider">Subject</span>
         <input
           autoFocus
           value={title}
@@ -373,7 +373,7 @@ function PostPatch({ scope, channelId }: { scope: ChatScope | null; channelId: s
         />
       </label>
       <label className="mt-3 block">
-        <span className="chat-quiet text-[0.6875rem] uppercase tracking-wider">Diff</span>
+        <span className="chat-quiet text-tiny uppercase tracking-wider">Diff</span>
         <textarea
           value={body}
           onChange={(event) => setBody(event.target.value)}
@@ -383,7 +383,7 @@ function PostPatch({ scope, channelId }: { scope: ChatScope | null; channelId: s
         />
       </label>
       <label className="mt-3 block">
-        <span className="chat-quiet text-[0.6875rem] uppercase tracking-wider">Commit</span>
+        <span className="chat-quiet text-tiny uppercase tracking-wider">Commit</span>
         <input
           value={commit}
           onChange={(event) => setCommit(event.target.value)}
@@ -480,7 +480,7 @@ function BindRoom({ scope, channelId }: { scope: ChatScope | null; channelId: st
       </p>
 
       <label className="block">
-        <span className="chat-quiet text-[0.6875rem] uppercase tracking-wider">
+        <span className="chat-quiet text-tiny uppercase tracking-wider">
           Repository
         </span>
         <select
@@ -497,7 +497,7 @@ function BindRoom({ scope, channelId }: { scope: ChatScope | null; channelId: st
       </label>
 
       <label className="block">
-        <span className="chat-quiet text-[0.6875rem] uppercase tracking-wider">Branch</span>
+        <span className="chat-quiet text-tiny uppercase tracking-wider">Branch</span>
         <input
           value={branch}
           onChange={(event) => setBranch(event.target.value)}
@@ -507,7 +507,7 @@ function BindRoom({ scope, channelId }: { scope: ChatScope | null; channelId: st
       </label>
 
       <label className="block">
-        <span className="chat-quiet text-[0.6875rem] uppercase tracking-wider">
+        <span className="chat-quiet text-tiny uppercase tracking-wider">
           Merging into
         </span>
         <input

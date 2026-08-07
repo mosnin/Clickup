@@ -45,7 +45,7 @@ export function MessageToTask({
   return (
     <div className="min-w-56 max-w-72">
       {subscription}
-      <p className="chat-quiet px-2 py-1 text-[0.6875rem] font-medium uppercase tracking-wider">
+      <p className="chat-quiet px-2 py-1 text-tiny font-medium uppercase tracking-wider">
         Make a task in…
       </p>
       {lists.length === 0 ? (

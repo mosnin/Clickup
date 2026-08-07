@@ -237,7 +237,7 @@ function SidebarHeaderSwitcher() {
                   label="My workspace"
                   shape="squircle"
                   size="xs"
-                  className="mr-1 h-5 w-5 text-[9px]"
+                  className="mr-1 h-5 w-5 text-micro"
                 />
                 <span className="truncate">My workspace</span>
                 {ctx.kind === "personal" && <Check className="ml-auto size-4" />}
@@ -252,10 +252,10 @@ function SidebarHeaderSwitcher() {
                   label={ws.name}
                   shape="squircle"
                   size="xs"
-                  className="mr-1 h-5 w-5 text-[9px]"
+                  className="mr-1 h-5 w-5 text-micro"
                 />
                 <span className="min-w-0 flex-1 truncate">{ws.name}</span>
-                <span className="flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                <span className="flex-shrink-0 text-micro uppercase tracking-wider text-muted-foreground">
                   {ws.role}
                 </span>
                 {ctx.kind === "workspace" && ctx.workspace._id === ws._id && (
@@ -521,7 +521,7 @@ function FavoritesGroup() {
                         label={f.name}
                         shape="squircle"
                         size="xs"
-                        className="h-4 w-4 text-[8px]"
+                        className="h-4 w-4 text-micro"
                       />
                     ) : f.color ? (
                       <span
@@ -849,7 +849,7 @@ function SpaceTree({
               color={space.color}
               shape="squircle"
               size="xs"
-              className="h-4 w-4 text-[8px]"
+              className="h-4 w-4 text-micro"
             />
             <span className="truncate">{visibleName}</span>
             {space.private && <Lock className="ml-auto size-3 flex-shrink-0" aria-hidden />}
@@ -869,7 +869,7 @@ function SpaceTree({
         <SidebarMenuSub>
           {adding && (
             <SidebarMenuSubItem className="py-1">
-              <p className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              <p className="mb-1 px-1 text-micro font-medium uppercase tracking-wider text-muted-foreground">
                 New {ADD_LABEL[adding]} in {visibleName}
               </p>
               <InlineCreate
@@ -1307,7 +1307,7 @@ function PageSubItem({
           <FileText aria-hidden />
           <span className="truncate">{title}</span>
           {pinned && (
-            <span className="ml-auto flex-shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <span className="ml-auto flex-shrink-0 text-micro uppercase tracking-wider text-muted-foreground">
               context
             </span>
           )}
@@ -1436,7 +1436,7 @@ function AdminMenuItem() {
           <Link href="/dashboard/admin" aria-current={active ? "page" : undefined}>
             <ShieldCheck className="text-muted-foreground" />
             <span className="flex-1 truncate">Admin console</span>
-            <span className="rounded-full bg-sidebar-primary px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-sidebar-primary-foreground group-data-[collapsible=icon]:hidden">
+            <span className="rounded-full bg-sidebar-primary px-1.5 py-0.5 text-micro font-medium uppercase tracking-wider text-sidebar-primary-foreground group-data-[collapsible=icon]:hidden">
               {me.role === "superadmin" ? "Super" : "Admin"}
             </span>
           </Link>

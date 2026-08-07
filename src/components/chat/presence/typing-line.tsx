@@ -41,7 +41,7 @@ export function TypingLine({
       {...(label ? { "data-testid": "message-typing-indicator" } : {})}
       className={cn(
         "flex items-center gap-1.5 overflow-hidden",
-        activity ? "h-4 text-[0.6875rem]" : "h-5 px-1 text-xs",
+        activity ? "h-4 text-tiny" : "h-5 px-1 text-xs",
         className,
       )}
     >

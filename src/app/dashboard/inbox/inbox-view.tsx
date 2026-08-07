@@ -171,11 +171,11 @@ export function Inbox() {
 function SectionHeading({ label, unread }: { label: string; unread: number }) {
   return (
     <div className="flex items-center gap-2">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </h2>
       {unread > 0 && (
-        <span className="ui-chip rounded-full px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+        <span className="ui-chip rounded-full px-2 py-0.5 text-tiny font-medium text-muted-foreground">
           {unread} new
         </span>
       )}
@@ -228,7 +228,7 @@ function ApprovalsQueue({
   return (
     <section>
       <SectionHeading label="Waiting on your approval" unread={approvals.length} />
-      <div className="mt-3 rounded-[1.625rem] border border-border bg-muted/30 p-1.5">
+      <div className="mt-3 rounded-[1.625rem] bg-muted/30 p-1.5">
         <div className="overflow-hidden rounded-2xl panel">
           <div className="border-b border-border px-5 py-3.5">
             <h3 className="text-base font-medium">Ready for review</h3>
@@ -262,7 +262,7 @@ function ApprovalsQueue({
                       {a.checklistTotal > 0 && (
                         <span
                           className={cn(
-                            "ui-chip px-2 py-0.5 text-[11px] font-medium",
+                            "ui-chip px-2 py-0.5 text-tiny font-medium",
                             a.checklistDone === a.checklistTotal
                               ? "text-positive"
                               : "text-muted-foreground",
@@ -271,7 +271,7 @@ function ApprovalsQueue({
                           {a.checklistDone}/{a.checklistTotal} checklist
                         </span>
                       )}
-                      <span className="ui-chip ui-figure px-2 py-0.5 text-[11px] text-muted-foreground">
+                      <span className="ui-chip ui-figure px-2 py-0.5 text-tiny text-muted-foreground">
                         {timeAgo(a.createdAt)}
                       </span>
                       <Button size="sm" onClick={() => onApprove(a.taskId)}>
@@ -318,7 +318,7 @@ function MentionItem({
     <div className="flex items-center gap-3 px-4 py-3">
       <span
         aria-hidden
-        className="w-5 shrink-0 font-title text-[11px] tabular-nums text-muted-foreground"
+        className="w-5 shrink-0 font-title text-tiny tabular-nums text-muted-foreground"
       >
         {pad(index + 1)}
       </span>
@@ -345,11 +345,11 @@ function MentionItem({
         </div>
         <span className="flex flex-shrink-0 items-center gap-1.5">
           <UnreadDot visible={unread} />
-          <span className="ui-chip whitespace-nowrap px-2 py-0.5 text-[11px] text-muted-foreground">
+          <span className="ui-chip whitespace-nowrap px-2 py-0.5 text-tiny text-muted-foreground">
             {kind}
             {mention.contextLabel ? ` · ${mention.contextLabel}` : ""}
           </span>
-          <span className="ui-chip ui-figure whitespace-nowrap px-2 py-0.5 text-[11px] text-muted-foreground">
+          <span className="ui-chip ui-figure whitespace-nowrap px-2 py-0.5 text-tiny text-muted-foreground">
             {timeAgo(mention.createdAt)}
           </span>
         </span>
@@ -396,7 +396,7 @@ function UpdateItem({ n, index }: { n: Doc<"notifications">; index: number }) {
     >
       <span
         aria-hidden
-        className="w-5 shrink-0 font-title text-[11px] tabular-nums text-muted-foreground"
+        className="w-5 shrink-0 font-title text-tiny tabular-nums text-muted-foreground"
       >
         {pad(index + 1)}
       </span>
@@ -416,7 +416,7 @@ function UpdateItem({ n, index }: { n: Doc<"notifications">; index: number }) {
         </div>
         <span className="flex flex-shrink-0 items-center gap-1.5">
           <UnreadDot visible={unread} />
-          <span className="ui-chip ui-figure whitespace-nowrap px-2 py-0.5 text-[11px] text-muted-foreground">
+          <span className="ui-chip ui-figure whitespace-nowrap px-2 py-0.5 text-tiny text-muted-foreground">
             {timeAgo(n.createdAt)}
           </span>
         </span>

@@ -260,7 +260,7 @@ function MoneyInput({ field, value, onCommit, size }: Props) {
 
   return (
     <span className="flex min-w-0 items-center gap-1">
-      <span className="flex-shrink-0 text-[11px] uppercase tracking-wider text-muted-foreground">
+      <span className="flex-shrink-0 text-tiny uppercase tracking-wider text-muted-foreground">
         {currency}
       </span>
       <DebouncedText
@@ -406,7 +406,7 @@ function ProgressInput({ field, value, onCommit, size }: Props) {
           />
         </span>
       </div>
-      <span className="w-9 flex-shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
+      <span className="w-9 flex-shrink-0 text-right text-tiny tabular-nums text-muted-foreground">
         {pct}%
       </span>
     </span>
@@ -512,7 +512,7 @@ function LabelsInput({ field, value, onCommit }: Props) {
           return (
             <span
               key={id}
-              className="max-w-full truncate rounded-full px-2 py-0.5 text-[11px]"
+              className="max-w-full truncate rounded-full px-2 py-0.5 text-tiny"
               style={{ backgroundColor: optionColor(idx, opt?.color) }}
             >
               {opt?.label ?? id}
@@ -621,7 +621,7 @@ function LocationInput({ value, onCommit, size }: Props) {
         <button
           type="button"
           onClick={() => setShowCoords(true)}
-          className="self-start text-[11px] text-muted-foreground hover:text-foreground"
+          className="self-start text-tiny text-muted-foreground hover:text-foreground"
         >
           + coordinates
         </button>
@@ -648,7 +648,7 @@ function PeopleInput({ field, value, onCommit }: Props) {
       {selected.map((id) => (
         <span
           key={id}
-          className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px]"
+          className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-tiny"
         >
           <span className="truncate">{byId.get(id)?.name ?? id}</span>
           <button
@@ -702,7 +702,7 @@ function RelationshipInput({ field, value, onCommit, taskId }: Props) {
       {selected.map((id) => (
         <span
           key={id}
-          className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px]"
+          className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-tiny"
         >
           <span className="max-w-32 truncate">
             {byId.get(id)?.title ?? "Linked task"}
@@ -803,7 +803,7 @@ function FilesInput({ field, value, onCommit, taskId }: Props) {
             return (
               <li
                 key={f.storageId}
-                className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px]"
+                className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-tiny"
               >
                 {href ? (
                   <a
@@ -850,7 +850,7 @@ function FilesInput({ field, value, onCommit, taskId }: Props) {
           void upload(e.dataTransfer.files);
         }}
         className={cn(
-          "rounded-xl border border-dashed px-2 py-1.5 text-center text-[11px] transition-colors",
+          "rounded-xl border border-dashed px-2 py-1.5 text-center text-tiny transition-colors",
           over
             ? "border-foreground/40 bg-muted text-foreground"
             : "border-border text-muted-foreground",
@@ -927,7 +927,7 @@ function ComputedValue({ field, computed, size }: Props) {
     >
       <span className="font-medium">{formatComputed(computed)}</span>
       {size === "md" && hint && (
-        <span className="truncate font-mono text-[10px] text-muted-foreground">
+        <span className="truncate font-mono text-micro text-muted-foreground">
           {hint}
         </span>
       )}

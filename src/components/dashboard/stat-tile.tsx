@@ -65,7 +65,7 @@ export function StatTile({
           {delta ? (
             <span
               className={cn(
-                "rounded-full px-1.5 py-0.5 text-[0.6875rem] font-medium tabular-nums",
+                "rounded-full px-1.5 py-0.5 text-tiny font-medium tabular-nums",
                 // Green is reserved for a positive delta, per the brand
                 // system. A fall is ink rather than red: fewer overdue tasks
                 // is a fall, and colouring every decrease as a warning is how

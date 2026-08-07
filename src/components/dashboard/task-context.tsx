@@ -38,6 +38,10 @@ export function TaskContext({
   const { toast } = useToast();
 
   const [editing, setEditing] = useState<Packet | "new" | null>(null);
+  // Packets hidden pending an undo window — the delete only fires when the
+  // window closes (the Phase 18 contract; this was the last window.confirm
+  // in src/, and a native modal cannot be undone).
+  const [deleting, setDeleting] = useState<string[]>([]);
   const [title, setTitle] = useState("");
   const [summary, setSummary] = useState("");
   const [content, setContent] = useState("");
@@ -185,7 +189,9 @@ export function TaskContext({
         </div>
       ) : (
         <div className="space-y-2">
-          {(attached as Packet[]).map((packet) => (
+          {(attached as Packet[])
+            .filter((packet) => !deleting.includes(packet.packetId))
+            .map((packet) => (
             <details
               key={packet.packetId}
               className="bento group rounded-2xl bg-card"
@@ -236,8 +242,8 @@ export function TaskContext({
                   );
                   if (!state || state.agents.length === 0) return null;
                   return (
-                    <div className="mt-3 rounded-lg border border-border/70 bg-muted/30 px-3 py-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <div className="mt-3 rounded-lg bg-muted/30 px-3 py-2">
+                      <p className="text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
                         Agent context
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
@@ -297,22 +303,24 @@ export function TaskContext({
                     size="sm"
                     variant="ghost"
                     className="text-destructive hover:text-destructive"
-                    onClick={async () => {
-                      if (
-                        !window.confirm(
-                          `Delete “${packet.title}” for every task in this list? This cannot be undone.`,
-                        )
-                      ) {
-                        return;
-                      }
-                      try {
-                        await remove({ packetId: packet.packetId });
-                        toast("Context packet deleted");
-                      } catch (err) {
-                        toast(errorMessage(err, "Couldn't delete context"), {
-                          kind: "error",
-                        });
-                      }
+                    onClick={() => {
+                      const id = packet.packetId;
+                      setDeleting((cur) => [...cur, id]);
+                      toast(`Deleted “${packet.title}” for every task in this list`, {
+                        action: {
+                          label: "Undo",
+                          onClick: () =>
+                            setDeleting((cur) => cur.filter((p) => p !== id)),
+                        },
+                        onExpire: () => {
+                          void remove({ packetId: id }).catch((err) => {
+                            setDeleting((cur) => cur.filter((p) => p !== id));
+                            toast(errorMessage(err, "Couldn't delete context"), {
+                              kind: "error",
+                            });
+                          });
+                        },
+                      });
                     }}
                   >
                     <Trash2 className="h-3.5 w-3.5" />

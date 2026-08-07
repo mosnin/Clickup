@@ -223,7 +223,7 @@ export function TurnElapsed({
       // truncating narration the counter is the flex item that gives, and
       // "1m 35s" breaking across two lines makes the row two lines tall and
       // then snaps back the moment the sentence gets shorter.
-      className={cn("chat-quiet whitespace-nowrap tabular-nums text-[0.6875rem]", className)}
+      className={cn("chat-quiet whitespace-nowrap tabular-nums text-tiny", className)}
       title="How long this turn has been running"
     >
       {formatTurnElapsed(Math.max(0, now - since))}

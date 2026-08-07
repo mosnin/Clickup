@@ -143,14 +143,14 @@ export function PortfolioTimeline({
             style={{ left: todayLeft }}
           >
             <div className="h-full w-px bg-foreground/25" />
-            <span className="absolute left-1.5 top-1 whitespace-nowrap text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="absolute left-1.5 top-1 whitespace-nowrap text-micro font-medium uppercase tracking-wider text-muted-foreground">
               Today
             </span>
           </div>
 
           {/* Month axis header */}
           <div className="relative flex h-10 border-b border-border">
-            <div className="sticky left-0 z-30 w-[220px] flex-shrink-0 bg-card px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="sticky left-0 z-30 w-[220px] flex-shrink-0 bg-card px-4 py-2.5 text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
               Project
             </div>
             <div className="relative" style={{ width: layout.totalWidth }}>
@@ -159,7 +159,7 @@ export function PortfolioTimeline({
                 return (
                   <div
                     key={m.getTime()}
-                    className="absolute top-0 flex h-10 items-center whitespace-nowrap border-l border-border/60 pl-2 text-[10px] uppercase tracking-wider text-muted-foreground"
+                    className="absolute top-0 flex h-10 items-center whitespace-nowrap border-l border-border/60 pl-2 text-micro uppercase tracking-wider text-muted-foreground"
                     style={{ left: layout.dayOffset(m.getTime()) }}
                   >
                     {format(m, "MMM")}
@@ -245,13 +245,13 @@ function ProjectRow({ row, layout }: { row: PortfolioRow; layout: Layout }) {
         >
           {row.name}
         </Link>
-        <p className="truncate text-[11px] uppercase tracking-wider text-muted-foreground">
+        <p className="truncate text-tiny uppercase tracking-wider text-muted-foreground">
           {row.spaceName}
         </p>
         {chip && (
           <Badge
             className={cn(
-              "mt-1.5 border-transparent text-[10px]",
+              "mt-1.5 border-transparent text-micro",
               chip.className,
               chip.textClassName,
             )}

@@ -17,6 +17,25 @@
   is reserved for positive deltas.
 */
 @theme {
+  /* ── The type scale below text-xs ──────────────────────────────────────
+     Named, and rem ON PURPOSE: the root scales type via
+     `font-size: calc(100% * var(--ui-font-scale))`, and rem is the only
+     unit that inherits it. The product used to carry 526 `text-[Npx]`
+     literals — px does not scale off the root, so the type-size setting
+     (an accessibility control) was inert across most of the UI. These four
+     rungs replace every one of them; tests/design-tokens.test.ts fails the
+     build if a px font literal returns. No paired line-heights: the
+     arbitrary values they replace set only font-size, and matching that
+     exactly is what makes this sweep layout-neutral. */
+  --text-micro: 0.625rem;
+  --text-tiny: 0.6875rem;
+  --text-mini: 0.8125rem;
+  --text-compact: 0.9375rem;
+
+  /* Radius rungs the arbitrary literals were reaching for. */
+  --radius-card-lg: 1.25rem;
+  --radius-sheet: 1.75rem;
+
   --font-sans:
     var(--font-instrument), "Inter", -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -132,7 +151,7 @@
   /* Semantic states. Danger is a muted brick, never alarm-red; unread is the
      single accent used by every unread indicator in the app. */
   --color-danger: #c2453a;
-  --color-unread: #101010;
+  --color-unread: #5f7d00;
 
   /* Marketing v2 palette — electric azure over deep navy for the hero
      band, white content sections on the shared neutral tokens. Never use
@@ -232,6 +251,13 @@
   /* What the provider's "soft" surface resolves its border to, per theme —
      see SURFACES in src/lib/appearance.ts. */
   --ui-surface-edge: 1px solid transparent;
+  /* The elevation ladder. Three rungs, derived from the surface language,
+     theme-aware through the shade tokens — so "how high" is one decision
+     made once, not a stock Tailwind shadow-md/xl picked per call site
+     (four uncoordinated recipes on one screen is what that produced). */
+  --ui-shadow-sm: 0 1px 2px var(--ui-shade-weak);
+  --ui-shadow-md: 0 2px 6px var(--ui-shade-weak), 0 12px 32px -16px var(--ui-shade);
+  --ui-shadow-lg: 0 4px 12px var(--ui-shade-weak), 0 24px 56px -20px var(--ui-shade);
   --ui-surface-tile-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6);
   --ui-font-scale: 1;
   --ui-motion-scale: 1;
@@ -1623,15 +1649,15 @@ body {
   color: var(--color-foreground);
 }
 .segmented-on {
-  /* A hairline as well as the fill — raised-white on a near-white sheet has
-     nothing to raise against, the same lesson `.panel` already paid for. */
-  box-shadow: inset 0 0 0 1px var(--color-border);
+  /* ONE box-shadow. This rule used to declare it twice — a documented
+     hairline immediately overridden by a second declaration in the same
+     block — so the rule lied about what it did. The raised fill + soft
+     lift is the whole treatment; the fill against the track's muted step
+     is the separation. */
   background: var(--color-background);
   color: var(--color-foreground);
   font-weight: 500;
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.08),
-    0 0 0 1px rgb(0 0 0 / 0.03);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
 }
 
 /* ── Shell fusion panel (Phase H) ─────────────────────────────────────────
@@ -1842,7 +1868,7 @@ body {
   --color-brand-700: #ededf0;
 
   --color-danger: #e0685c;
-  --color-unread: #f4f4f4;
+  --color-unread: #d9f24e;
 
   /* Shell fusion tones flip with the theme (ink inverts, like the
      template's dark scheme, kept in our hex language). */
@@ -3173,6 +3199,21 @@ a:hover > .message-ref {
 .chat-icon-button:hover {
   background: var(--chat-hover);
   color: var(--color-foreground);
+}
+/* Pressed = the pane behind it is open. Same fill the rest of the product
+   uses for "this one is on" — a lime step, ink on top of it, round rather
+   than a drawn border — see [data-slot="sidebar-menu-button"][data-active="true"]
+   > svg:first-child and .chat-row[data-active="true"] > svg:first-child,
+   both above in this file. Fixed lime/ink tokens, so the step reads the same
+   in light and dark. */
+.chat-icon-button[aria-pressed="true"] {
+  border-radius: 9999px;
+  background: var(--color-signal-lime);
+  color: var(--color-signal-ink);
+}
+.chat-icon-button[aria-pressed="true"]:hover {
+  background: var(--color-signal-lime);
+  color: var(--color-signal-ink);
 }
 
 /* A community tile on the rail. The resting squircle squares off on select —

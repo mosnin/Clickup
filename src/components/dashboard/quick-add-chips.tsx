@@ -26,7 +26,7 @@ export function QuickAddChips({ parsed }: { parsed: ParsedQuickAdd }) {
           {parsed.matched.map((m) => (
             <span
               key={`${m.kind}-${m.label}`}
-              className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground/80"
+              className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-tiny font-medium text-foreground/80"
             >
               {m.kind === "due" ? (
                 <CalendarDays className="h-3 w-3 text-muted-foreground" aria-hidden />

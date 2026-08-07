@@ -83,7 +83,7 @@ function AboutWidget({ project }: ProjectWidgetContext) {
   const { toast } = useToast();
   return (
     <Card className="flex h-full flex-col rounded-2xl p-5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         About
       </span>
       {/* A textarea, not an input. A single-line field lays a long
@@ -131,7 +131,7 @@ function ListsWidget({ project, lists }: ProjectWidgetContext) {
     // and weight from the six micro-labels around it.
     <Card className="flex h-full flex-col overflow-hidden rounded-2xl p-5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <h2 className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           Lists
         </h2>
         {!creating && (
@@ -239,7 +239,7 @@ function ProgressWidget({ project, lists }: ProjectWidgetContext) {
 
   return (
     <Card className="h-full rounded-2xl p-5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         Progress
       </span>
       {total === 0 ? (
@@ -289,7 +289,7 @@ function ActivityWidget({ project }: ProjectWidgetContext) {
 
   return (
     <Card className="h-full rounded-2xl p-5">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         Activity
       </span>
       {events.length === 0 ? (
@@ -352,7 +352,7 @@ function PlanWidget({ project }: ProjectWidgetContext) {
 
   return (
     <Card className="flex h-full flex-col p-4">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         Open questions
       </span>
       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -369,7 +369,7 @@ function PlanWidget({ project }: ProjectWidgetContext) {
               >
                 {q.node.body}
               </Link>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-micro text-muted-foreground">
                 {stateLabel(q.state).toLowerCase()}
               </span>
             </li>
@@ -379,7 +379,7 @@ function PlanWidget({ project }: ProjectWidgetContext) {
 
       <Link
         href={`/dashboard/p/${project._id}/plan`}
-        className="mt-3 text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
+        className="mt-3 text-tiny text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground"
       >
         {view.questions.length === 0 ? "Raise the first one" : "Open the plan"}
       </Link>

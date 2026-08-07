@@ -79,7 +79,7 @@ export function HuddleBar({ className }: { className?: string }) {
       <div className="flex min-w-0 flex-col gap-1">
         <div className="flex min-w-0 items-center gap-2">
           <ParticipantStrip />
-          <p className="min-w-0 truncate text-[0.8125rem] font-medium">
+          <p className="min-w-0 truncate text-mini font-medium">
             {phraseFor(session.phase, roster.length)}
           </p>
         </div>
@@ -89,14 +89,14 @@ export function HuddleBar({ className }: { className?: string }) {
           // is what the deployment *is*, and the call itself is entirely real.
           <p
             data-testid="huddle-media-notice"
-            className="chat-quiet max-w-prose text-[0.6875rem] leading-snug"
+            className="chat-quiet max-w-prose text-tiny leading-snug"
           >
             {mediaNotice}
           </p>
         ) : null}
 
         {signalTransport === "unavailable" && !mediaNotice ? (
-          <p className="chat-quiet text-[0.6875rem] leading-snug">
+          <p className="chat-quiet text-tiny leading-snug">
             Reactions and captions need a realtime service; the roster is live either way.
           </p>
         ) : null}
@@ -105,7 +105,7 @@ export function HuddleBar({ className }: { className?: string }) {
           <p
             role="alert"
             data-testid="huddle-error"
-            className="flex items-center gap-1.5 text-[0.6875rem] leading-snug text-red-600 dark:text-red-400"
+            className="flex items-center gap-1.5 text-tiny leading-snug text-red-600 dark:text-red-400"
           >
             {error}
             <button
@@ -133,7 +133,7 @@ export function HuddleBar({ className }: { className?: string }) {
           onClick={() => void leave()}
           aria-busy={busy}
           data-testid="huddle-leave"
-          className="tap-target flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1.5 text-[0.8125rem] font-medium text-white hover:bg-red-700"
+          className="tap-target flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1.5 text-mini font-medium text-white hover:bg-red-700"
         >
           <PhoneOff aria-hidden className="h-4 w-4" />
           Leave

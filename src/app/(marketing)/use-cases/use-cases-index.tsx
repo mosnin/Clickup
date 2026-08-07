@@ -2,7 +2,7 @@
 
 // Use-cases index (marketing v2) — compact hero band matching the
 // /features treatment, then a grid of typographic industry tiles in the
-// bento grammar (rounded-[20px] mk-panel cards, asset-free covers).
+// bento grammar (rounded-card-lg mk-panel cards, asset-free covers).
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -81,13 +81,13 @@ export function UseCasesIndex() {
               <Link
                 key={uc.slug}
                 href={`/use-cases/${uc.slug}`}
-                className="group block rounded-[20px] mk-panel p-2 transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+                className="group block rounded-card-lg mk-panel p-2 transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-lg"
               >
                 {/* Typographic tile instead of an illustration: charcoal
                     editorial cover with an oversized index and the industry
                     as gradient type. Asset-free by design. */}
                 <div
-                  className="relative flex items-end overflow-hidden rounded-[14px] p-5 ring-1 ring-white/[0.06]"
+                  className="relative flex items-end overflow-hidden rounded-xl p-5 ring-1 ring-white/[0.06]"
                   style={{
                     aspectRatio: "16/10",
                     background:

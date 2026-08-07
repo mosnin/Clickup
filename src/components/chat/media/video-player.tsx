@@ -205,7 +205,7 @@ function VideoReviewOverlay({
               )}
             </button>
 
-            <span className="font-mono text-[0.625rem] tabular-nums text-white/70">
+            <span className="font-mono text-micro tabular-nums text-white/70">
               {formatTimecode(currentTime)}
             </span>
 
@@ -234,7 +234,7 @@ function VideoReviewOverlay({
                     aria-label={`Seek to ${comment.author}'s comment`}
                     onClick={() => seek(seconds)}
                     style={{ left: `${(seconds / duration) * 100}%` }}
-                    className="pointer-events-auto absolute -top-3 size-4 -translate-x-1/2 rounded-full border border-white/70 bg-[var(--chat-accent)] text-[0.5rem] text-[var(--chat-accent-fg)]"
+                    className="pointer-events-auto absolute -top-3 size-4 -translate-x-1/2 rounded-full border border-white/70 bg-[var(--chat-accent)] text-micro text-[var(--chat-accent-fg)]"
                   >
                     {comment.author.slice(0, 1).toUpperCase()}
                   </button>
@@ -242,7 +242,7 @@ function VideoReviewOverlay({
               </div>
             </div>
 
-            <span className="font-mono text-[0.625rem] tabular-nums text-white/70">
+            <span className="font-mono text-micro tabular-nums text-white/70">
               {formatTimecode(duration)}
             </span>
           </div>

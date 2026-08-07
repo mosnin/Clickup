@@ -94,7 +94,7 @@ export function PanelProposal({
             </p>
             {/* Said in the product's words, derived from the definition — the
                 agent's own account of what it built is not the record. */}
-            <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+            <p className="mt-2 text-tiny leading-relaxed text-muted-foreground">
               {describePanel(def)}
             </p>
 

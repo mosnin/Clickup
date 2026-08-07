@@ -80,7 +80,7 @@ export function RevisionsPanel({
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Revisions
           {open.length > 0 ? (
-            <span className="ml-2 rounded-full bg-pastel-yellow px-1.5 py-0.5 text-[10px] font-semibold text-foreground">
+            <span className="ml-2 rounded-full bg-pastel-yellow px-1.5 py-0.5 text-micro font-semibold text-foreground">
               {open.length}
             </span>
           ) : null}
@@ -156,7 +156,7 @@ export function RevisionsPanel({
                   </p>
                   <span
                     className={cn(
-                      "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                      "shrink-0 rounded-full px-2 py-0.5 text-micro font-semibold",
                       STATUS_STYLES[revision.status],
                     )}
                   >
@@ -164,13 +164,13 @@ export function RevisionsPanel({
                   </span>
                 </div>
 
-                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                <p className="mt-1.5 text-tiny text-muted-foreground">
                   {revision.requestedByName} · {timeAgo(revision.createdAt)}
                 </p>
 
                 {revision.responseNote && (
                   <div className="mt-2 rounded-lg bg-muted p-2.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <p className="text-micro font-semibold uppercase tracking-wider text-muted-foreground">
                       {revision.addressedByName ?? "Response"}
                     </p>
                     <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">

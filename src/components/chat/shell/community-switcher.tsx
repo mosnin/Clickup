@@ -79,7 +79,7 @@ export function CommunitySwitcher() {
                 label={community.name}
                 shape="squircle"
                 size="xs"
-                className="mr-1 h-5 w-5 text-[9px]"
+                className="mr-1 h-5 w-5 text-micro"
               />
               <span className="min-w-0 flex-1 truncate">{community.name}</span>
               {isActive ? <Check className="ml-1 size-4 shrink-0" /> : null}

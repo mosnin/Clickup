@@ -87,7 +87,7 @@ export function SpacesView() {
         <div className="space-y-8">
           {groups.map(([workspaceName, spaces]) => (
             <section key={workspaceName} aria-label={workspaceName}>
-              <h2 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <h2 className="mb-3 text-tiny font-medium uppercase tracking-wider text-muted-foreground">
                 {workspaceName}
                 <span className="ml-2 normal-case tracking-normal">
                   {spaces.length}

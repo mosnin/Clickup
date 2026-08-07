@@ -64,7 +64,7 @@ export function StudioChrome({
           Back to the app
         </Link>
 
-        <p className="px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <p className="px-2 text-tiny font-medium uppercase tracking-wider text-muted-foreground">
           Appearance
         </p>
 
@@ -87,7 +87,7 @@ export function StudioChrome({
                   )}
                 >
                   {section.label}
-                  <span className="hidden text-[11px] text-muted-foreground md:block">
+                  <span className="hidden text-tiny text-muted-foreground md:block">
                     {section.blurb}
                   </span>
                 </Link>

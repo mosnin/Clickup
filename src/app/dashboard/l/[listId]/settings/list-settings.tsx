@@ -73,7 +73,7 @@ const CATEGORY_LABEL: Record<StatusCategory, string> = {
 // visually consistent without duplicating the wrapper markup.
 function RowList({ children }: { children: React.ReactNode }) {
   return (
-    <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+    <div className="divide-y divide-border overflow-hidden rounded-xl bg-card">
       {children}
     </div>
   );
@@ -106,7 +106,7 @@ export function ListSettings({ listId }: { listId: string }) {
   }
   if (list === null) {
     return (
-      <div className="rounded-2xl border border-border bg-muted/30 p-10 text-center text-sm text-muted-foreground">
+      <div className="rounded-2xl bg-muted/30 p-10 text-center text-sm text-muted-foreground">
         List not found.
       </div>
     );
@@ -949,7 +949,7 @@ function FieldRow({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Badge
           variant="secondary"
-          className="flex-shrink-0 text-[10px] uppercase tracking-wider"
+          className="flex-shrink-0 text-micro uppercase tracking-wider"
         >
           {fieldTypeLabel(field.type)}
         </Badge>
@@ -1264,7 +1264,7 @@ function FieldConfigEditor({
 
       {type === "formula" && (
         <div className="space-y-1">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <p className="text-micro uppercase tracking-wider text-muted-foreground">
             Formula
           </p>
           <Input
@@ -1405,7 +1405,7 @@ function ConfigRow({
 }) {
   return (
     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+      <span className="text-micro uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
       <span className="min-w-0">{children}</span>

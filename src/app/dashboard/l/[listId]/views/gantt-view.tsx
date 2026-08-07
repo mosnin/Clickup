@@ -587,7 +587,7 @@ export function GanttView({
           >
             <div className="flex">
               <div
-                className="flex flex-shrink-0 items-center px-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+                className="flex flex-shrink-0 items-center px-4 text-tiny font-semibold uppercase tracking-wider text-muted-foreground"
                 style={{ width: HEADER_COL_PX, height: headerHeight }}
               >
                 Task
@@ -599,7 +599,7 @@ export function GanttView({
                       <div
                         key={d.getTime()}
                         className={cn(
-                          "flex h-10 flex-col items-center justify-center text-[10px] uppercase tracking-wider text-muted-foreground",
+                          "flex h-10 flex-col items-center justify-center text-micro uppercase tracking-wider text-muted-foreground",
                           isWeekend(d) && "bg-muted/40",
                           isSameDay(d, today) &&
                             "bg-muted font-semibold text-foreground",
@@ -618,7 +618,7 @@ export function GanttView({
                       {weekMonthGroups.map((g) => (
                         <div
                           key={g.key}
-                          className="flex h-8 items-center justify-center text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+                          className="flex h-8 items-center justify-center text-micro font-medium uppercase tracking-wider text-muted-foreground"
                           style={{ width: g.count * DAY_PX }}
                         >
                           {g.label}
@@ -634,7 +634,7 @@ export function GanttView({
                           <div
                             key={g.key}
                             className={cn(
-                              "flex h-8 items-center justify-center text-[10px] uppercase tracking-wider text-muted-foreground",
+                              "flex h-8 items-center justify-center text-micro uppercase tracking-wider text-muted-foreground",
                               hasToday && "bg-muted font-semibold text-foreground",
                             )}
                             style={{ width: g.count * DAY_PX }}
@@ -656,7 +656,7 @@ export function GanttView({
                         <div
                           key={g.key}
                           className={cn(
-                            "flex h-8 items-center justify-center text-[10px] uppercase tracking-wider text-muted-foreground",
+                            "flex h-8 items-center justify-center text-micro uppercase tracking-wider text-muted-foreground",
                             hasToday && "bg-muted font-semibold text-foreground",
                           )}
                           style={{ width: g.count * DAY_PX }}
@@ -678,10 +678,10 @@ export function GanttView({
                     className="flex items-center bg-muted/40 px-4"
                     style={{ height: GROUP_HEADER_PX }}
                   >
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
                       {row.label}
                     </span>
-                    <span className="ml-1.5 text-[11px] normal-case tracking-normal text-muted-foreground">
+                    <span className="ml-1.5 text-tiny normal-case tracking-normal text-muted-foreground">
                       {row.count}
                     </span>
                   </div>
@@ -845,7 +845,7 @@ export function GanttView({
                   />
                   <span
                     aria-hidden
-                    className="absolute -translate-y-1/2 whitespace-nowrap rounded-full bg-foreground px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-background"
+                    className="absolute -translate-y-1/2 whitespace-nowrap rounded-full bg-foreground px-1.5 py-0.5 text-micro font-medium uppercase tracking-wider text-background"
                     style={{ left: todayOffset * DAY_PX + 4, top: headerHeight }}
                   >
                     Today

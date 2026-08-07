@@ -83,14 +83,14 @@ export function AppearanceOverview() {
             <PanelPreview style={style} title="Throughput" kind="column" />
             <PanelPreview style={style} title="By status" kind="donut" />
             <div className="panel rounded-2xl p-5">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <p className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
                 A list
               </p>
               <div className="ui-list mt-3">
                 {["Ship the migration", "Review the audit"].map((t) => (
                   <div key={t} className="min-w-0">
                     <span className="block truncate text-sm">{t}</span>
-                    <span className="block text-[11px] text-muted-foreground">
+                    <span className="block text-tiny text-muted-foreground">
                       due tomorrow
                     </span>
                   </div>

@@ -180,17 +180,17 @@ function CommentCard({
             disabled={!seekable}
             onClick={() => parsed.seconds !== null && onSeek(parsed.seconds)}
             aria-label={`Seek to ${parsed.timecode}`}
-            className="rounded-full bg-[var(--chat-accent)] px-1.5 py-0.5 font-mono text-[0.625rem] text-[var(--chat-accent-fg)] disabled:opacity-40"
+            className="rounded-full bg-[var(--chat-accent)] px-1.5 py-0.5 font-mono text-micro text-[var(--chat-accent-fg)] disabled:opacity-40"
           >
             {parsed.timecode}
           </button>
         ) : null}
         <span className="text-xs font-semibold">{comment.author}</span>
-        <span className="chat-quiet text-[0.625rem]">
+        <span className="chat-quiet text-micro">
           {comment.pending ? "now" : timeAgo(comment.createdAt * 1000)}
         </span>
       </div>
-      <p className="mt-0.5 whitespace-pre-wrap break-words text-[0.8125rem] leading-snug">
+      <p className="mt-0.5 whitespace-pre-wrap break-words text-mini leading-snug">
         {parsed.text}
       </p>
       {canReply ? (
@@ -201,7 +201,7 @@ function CommentCard({
           // level), so the label has to say where it will actually land.
           aria-label={`Reply to ${replyTo}`}
           onClick={onReply}
-          className="chat-quiet mt-0.5 text-[0.625rem] underline underline-offset-2"
+          className="chat-quiet mt-0.5 text-micro underline underline-offset-2"
         >
           Reply
         </button>
@@ -270,12 +270,12 @@ function CommentComposer({
   return (
     <div className="border-t border-[var(--chat-hairline)] p-3">
       {failure ? (
-        <p role="alert" className="mb-1.5 text-[0.6875rem] text-destructive">
+        <p role="alert" className="mb-1.5 text-tiny text-destructive">
           Not sent — {failure}
         </p>
       ) : null}
 
-      <div className="mb-1.5 flex items-center justify-between gap-2 text-[0.6875rem]">
+      <div className="mb-1.5 flex items-center justify-between gap-2 text-tiny">
         {replyTo ? (
           <>
             <span className="chat-quiet truncate">Replying to {replyTo.author}</span>
@@ -299,7 +299,7 @@ function CommentComposer({
             <span
               data-testid="timecode-chip"
               className={cn(
-                "rounded-full px-1.5 py-0.5 font-mono text-[0.625rem]",
+                "rounded-full px-1.5 py-0.5 font-mono text-micro",
                 willStamp
                   ? "bg-[var(--chat-accent)] text-[var(--chat-accent-fg)]"
                   : "bg-[var(--chat-hover)] text-[var(--chat-quiet)]",
@@ -328,7 +328,7 @@ function CommentComposer({
             void submit();
           }
         }}
-        className="soft-field w-full resize-none px-2 py-1.5 text-[0.8125rem] outline-none"
+        className="soft-field w-full resize-none px-2 py-1.5 text-mini outline-none"
       />
 
       <div className="mt-1.5 flex items-center justify-end">

@@ -310,7 +310,7 @@ export function TimelineView({
         <div style={{ minWidth: HEADER_PX + totalWidth }}>
           <div className="flex">
             <div
-              className="sticky left-0 z-10 flex-shrink-0 bg-background px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+              className="sticky left-0 z-10 flex-shrink-0 bg-background px-4 py-2.5 text-tiny font-semibold uppercase tracking-wider text-muted-foreground"
               style={{ width: HEADER_PX }}
             >
               Assignee
@@ -321,7 +321,7 @@ export function TimelineView({
                   <div
                     key={d.getTime()}
                     className={cn(
-                      "flex h-10 flex-col items-center justify-center text-[10px] uppercase tracking-wider text-muted-foreground",
+                      "flex h-10 flex-col items-center justify-center text-micro uppercase tracking-wider text-muted-foreground",
                       isWeekend(d) && "bg-muted/40",
                       isSameDay(d, today) &&
                         "bg-muted font-semibold text-foreground",
@@ -353,7 +353,7 @@ export function TimelineView({
                       {lane.kind === "agent" && (
                         <Badge
                           variant="secondary"
-                          className="flex-shrink-0 gap-0 border-transparent bg-muted px-1.5 py-0.5 text-[9px] tracking-wider text-muted-foreground uppercase"
+                          className="flex-shrink-0 gap-0 border-transparent bg-muted px-1.5 py-0.5 text-micro tracking-wider text-muted-foreground uppercase"
                         >
                           Agent
                         </Badge>

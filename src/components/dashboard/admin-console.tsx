@@ -652,7 +652,7 @@ function BillingAdminTab({ isSuper }: { isSuper: boolean }) {
       <Stagger className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <StaggerItem>
           <Card className="gap-1 p-4">
-            <CardDescription className="text-[11px] font-medium uppercase tracking-wider">
+            <CardDescription className="text-tiny font-medium uppercase tracking-wider">
               Credits sold
             </CardDescription>
             <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums">
@@ -662,7 +662,7 @@ function BillingAdminTab({ isSuper }: { isSuper: boolean }) {
         </StaggerItem>
         <StaggerItem>
           <Card className="gap-1 p-4">
-            <CardDescription className="text-[11px] font-medium uppercase tracking-wider">
+            <CardDescription className="text-tiny font-medium uppercase tracking-wider">
               Settled payments
             </CardDescription>
             <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums">
@@ -672,7 +672,7 @@ function BillingAdminTab({ isSuper }: { isSuper: boolean }) {
         </StaggerItem>
         <StaggerItem>
           <Card className="gap-1 p-4">
-            <CardDescription className="text-[11px] font-medium uppercase tracking-wider">
+            <CardDescription className="text-tiny font-medium uppercase tracking-wider">
               Funded wallets
             </CardDescription>
             <p className="mt-2 text-3xl font-bold tracking-tight tabular-nums">
@@ -682,7 +682,7 @@ function BillingAdminTab({ isSuper }: { isSuper: boolean }) {
         </StaggerItem>
         <StaggerItem>
           <Card className="gap-1 p-4">
-            <CardDescription className="text-[11px] font-medium uppercase tracking-wider">
+            <CardDescription className="text-tiny font-medium uppercase tracking-wider">
               Metering
             </CardDescription>
             <p className="mt-2 text-lg font-semibold">
@@ -965,7 +965,7 @@ function AdminsTab({ isSuper }: { isSuper: boolean }) {
   return (
     <div className="space-y-5">
       {!isSuper && (
-        <p className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+        <p className="rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground">
           Only superadmins can grant or revoke admin access. You have read
           access to the roster.
         </p>

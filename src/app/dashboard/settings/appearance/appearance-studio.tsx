@@ -650,7 +650,7 @@ export function AppearanceStudio() {
               {["To do", "In progress", "Done"].map((s) => (
                 <span
                   key={s}
-                  className="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] text-brand-700"
+                  className="rounded-full bg-brand-100 px-2 py-0.5 text-tiny text-brand-700"
                 >
                   {s}
                 </span>
@@ -671,7 +671,7 @@ export function AppearanceStudio() {
                 (t) => (
                   <div key={t} className="min-w-0">
                     <span className="block truncate text-sm">{t}</span>
-                    <span className="block text-[11px] text-muted-foreground">
+                    <span className="block text-tiny text-muted-foreground">
                       due tomorrow
                     </span>
                   </div>
@@ -787,7 +787,7 @@ function ChoiceGrid<T extends string>({
           <span className="flex h-12 items-center overflow-hidden">
             {render(v)}
           </span>
-          <span className="truncate text-[11px] text-muted-foreground">
+          <span className="truncate text-tiny text-muted-foreground">
             {label}
           </span>
         </button>
@@ -858,7 +858,7 @@ function ChartSpecimen({ style }: { style: ChartStyle }) {
         className="meter-ring relative inline-flex h-9 w-9 items-center justify-center"
         style={{ ["--meter-turn" as string]: "0.62turn" }}
       >
-        <span className="relative text-[10px] tabular-nums">62</span>
+        <span className="relative text-micro tabular-nums">62</span>
       </span>
     );
   }
@@ -908,7 +908,7 @@ function GlyphSpecimen({ style }: { style: AgentIconStyle }) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+    <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
       {children}
     </span>
   );
@@ -952,7 +952,7 @@ function Field({
       </span>
       <div className="mt-2">{children}</div>
       {shadowed && (
-        <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="mt-1.5 text-tiny leading-relaxed text-muted-foreground">
           You have your own version of this here, so changing it for the space
           won&apos;t move your view.
         </p>
@@ -967,7 +967,7 @@ function FieldStatusLabel({ owned, inheritedFrom, onClear }: FieldStatus) {
       <button
         type="button"
         onClick={onClear}
-        className="tap-target text-[11px] text-muted-foreground underline decoration-dotted hover:text-foreground"
+        className="tap-target text-tiny text-muted-foreground underline decoration-dotted hover:text-foreground"
       >
         Set here — clear
       </button>
@@ -975,7 +975,7 @@ function FieldStatusLabel({ owned, inheritedFrom, onClear }: FieldStatus) {
   }
   if (inheritedFrom) {
     return (
-      <span className="text-[11px] text-muted-foreground">{inheritedFrom}</span>
+      <span className="text-tiny text-muted-foreground">{inheritedFrom}</span>
     );
   }
   return null;
@@ -1052,7 +1052,7 @@ function Slider({
         <SectionLabel>{label}</SectionLabel>
         <span className="flex items-baseline gap-2">
           {status && <FieldStatusLabel {...status} />}
-          <span className="font-mono text-[11px] text-muted-foreground">
+          <span className="font-mono text-tiny text-muted-foreground">
             {format(local)}
           </span>
         </span>
@@ -1088,7 +1088,7 @@ function Slider({
         </span>
       )}
       {status?.shadowed && (
-        <span className="mt-1.5 block text-[11px] leading-relaxed text-muted-foreground">
+        <span className="mt-1.5 block text-tiny leading-relaxed text-muted-foreground">
           You have your own version of this here, so changing it for the space
           won&apos;t move your view.
         </span>

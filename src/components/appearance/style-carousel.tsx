@@ -237,13 +237,13 @@ export function StyleCarousel({
                   look this mode exists to not be. */}
               {!hero && (
                 <>
-                  <span className="mt-2 block truncate text-[12px] font-medium">
+                  <span className="mt-2 block truncate text-xs font-medium">
                     {item.label}
                   </span>
                   {item.hint && (
                     <span
                       className={cn(
-                        "mt-0.5 block truncate text-[11px]",
+                        "mt-0.5 block truncate text-tiny",
                         tone === "dark"
                           ? "text-background/50"
                           : "text-muted-foreground",

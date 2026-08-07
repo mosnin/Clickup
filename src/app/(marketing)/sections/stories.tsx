@@ -130,7 +130,7 @@ export function Stories() {
               <article
                 key={story.org}
                 className={cn(
-                  "group relative flex min-h-[560px] flex-col bg-gradient-to-b text-[#141414]",
+                  "group relative flex min-h-[560px] flex-col bg-gradient-to-b text-navy-950",
                   story.gradient,
                   i < STORIES.length - 1 &&
                     "border-b border-black/10 md:border-b-0 md:border-r",
@@ -143,7 +143,7 @@ export function Stories() {
                 />
 
                 <header className="relative z-20 flex items-start justify-between gap-4 p-7 pb-0">
-                  <p className="text-[19px] font-medium tracking-tight">
+                  <p className="text-[1.1875rem] font-medium tracking-tight">
                     {story.org}
                     {story.orgNote ? (
                       <span className="ml-1 text-sm font-light">
@@ -152,8 +152,8 @@ export function Stories() {
                     ) : null}
                   </p>
                   <div className="text-right">
-                    <p className="text-[15px] font-medium">{story.role}</p>
-                    <p className="mt-0.5 text-[13px] opacity-70">
+                    <p className="text-compact font-medium">{story.role}</p>
+                    <p className="mt-0.5 text-mini opacity-70">
                       {story.teamShape}
                     </p>
                   </div>
@@ -171,7 +171,7 @@ export function Stories() {
                     across all three columns and read as a rendering bug. */}
                 <div className="relative mt-2 flex h-[260px] w-full shrink-0 items-center justify-center overflow-hidden px-7">
                   <div className="relative z-10 w-full rounded-xl bg-black/[0.07] p-4 ring-1 ring-black/10 backdrop-blur-[2px]">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest opacity-55">
+                    <p className="text-micro font-semibold uppercase tracking-widest opacity-55">
                       On this team
                     </p>
                     <div className="mt-3 flex items-center">
@@ -216,14 +216,14 @@ export function Stories() {
                 </div>
 
                 <div className="relative z-20 flex flex-1 flex-col p-7 pt-2">
-                  <blockquote className="mb-8 text-[18px] font-normal leading-[1.32] tracking-tight text-[#111] sm:text-[20px]">
+                  <blockquote className="mb-8 text-lg font-normal leading-[1.32] tracking-tight text-navy-950 sm:text-xl">
                     &ldquo;{story.quote}&rdquo;
                   </blockquote>
 
                   <div className="mt-auto flex items-center justify-between gap-3">
                     <Link
                       href={story.href}
-                      className="text-[13px] font-medium underline-offset-4 transition-opacity hover:opacity-60 hover:underline"
+                      className="text-mini font-medium underline-offset-4 transition-opacity hover:opacity-60 hover:underline"
                     >
                       See how this team works
                     </Link>

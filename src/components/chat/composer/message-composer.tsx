@@ -612,7 +612,7 @@ export function MessageComposer({
         </div>
       </div>
 
-      <p className="chat-quiet mt-1.5 hidden text-[0.6875rem] sm:block">
+      <p className="chat-quiet mt-1.5 hidden text-tiny sm:block">
         Enter to send · Shift + Enter for a new line
       </p>
     </div>

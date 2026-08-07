@@ -203,7 +203,7 @@ function ActiveSprintHero({
     <div className="flex min-w-0 rounded-2xl ring-2 ring-signal-lime">
       <div className="panel min-w-0 flex-1 rounded-2xl p-5">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="rounded-full bg-signal-lime px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-signal-ink">
+          <span className="rounded-full bg-signal-lime px-2 py-0.5 text-micro font-semibold uppercase tracking-wider text-signal-ink">
             Active
           </span>
           <p className="min-w-0 truncate font-semibold tracking-tight">
@@ -254,7 +254,7 @@ function ActiveSprintHero({
         <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {stats.map((s) => (
             <div key={s.label} className="bento-tile min-w-0 px-3 py-2">
-              <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <dt className="text-micro uppercase tracking-wider text-muted-foreground">
                 {s.label}
               </dt>
               <dd className="text-lg font-semibold tabular-nums">{s.value}</dd>
@@ -313,7 +313,7 @@ function CreateSprintForm({
           onChange={(e) => setName(e.currentTarget.value)}
           placeholder="Sprint 12"
           autoFocus
-          className="rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="rounded-full bg-background px-3 py-1.5 text-sm"
         />
       </label>
       <label className="block min-w-40 flex-1">
@@ -324,7 +324,7 @@ function CreateSprintForm({
           value={goal}
           onChange={(e) => setGoal(e.currentTarget.value)}
           placeholder="Ship the onboarding revamp"
-          className="w-full rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="w-full rounded-full bg-background px-3 py-1.5 text-sm"
         />
       </label>
       <label className="block">
@@ -335,7 +335,7 @@ function CreateSprintForm({
           type="date"
           value={start}
           onChange={(e) => setStart(e.currentTarget.value)}
-          className="rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="rounded-full bg-background px-3 py-1.5 text-sm"
         />
       </label>
       <label className="block">
@@ -346,7 +346,7 @@ function CreateSprintForm({
           type="date"
           value={end}
           onChange={(e) => setEnd(e.currentTarget.value)}
-          className="rounded-full border border-border bg-background px-3 py-1.5 text-sm"
+          className="rounded-full bg-background px-3 py-1.5 text-sm"
         />
       </label>
       <div className="flex gap-2">
@@ -441,7 +441,7 @@ function SprintCard({
         <span className="font-medium">{sprint.name}</span>
         <span
           className={cn(
-            "rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider",
+            "rounded-full px-2 py-0.5 text-micro uppercase tracking-wider",
             STATUS_STYLE[sprint.status],
           )}
         >

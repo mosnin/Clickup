@@ -56,7 +56,7 @@ function BackendWatchdog({ children }: { children: React.ReactNode }) {
             contentClassName="flex h-full items-end px-8 pb-3"
             tint="#e0685c"
           >
-            <span className="font-mono text-[11px] tracking-wider text-white/70">
+            <span className="font-mono text-tiny tracking-wider text-white/70">
               backend unreachable
             </span>
           </TerminalSurface>
@@ -94,7 +94,7 @@ export function RequireBackend({ children }: { children: React.ReactNode }) {
             contentClassName="flex h-full items-end px-8 pb-3"
             tint="#e0685c"
           >
-            <span className="font-mono text-[11px] tracking-wider text-white/70">
+            <span className="font-mono text-tiny tracking-wider text-white/70">
               no backend connection
             </span>
           </TerminalSurface>

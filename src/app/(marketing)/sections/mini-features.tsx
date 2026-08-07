@@ -74,12 +74,12 @@ export function MiniFeatures() {
           {DETAILS.cards.map((card) => (
             <div
               key={card.title}
-              className="mb-5 break-inside-avoid rounded-[20px] bg-muted/70 p-6 text-center ring-1 ring-white/[0.06]"
+              className="mb-5 break-inside-avoid rounded-card-lg bg-muted/70 p-6 text-center ring-1 ring-white/[0.06]"
             >
-              <h3 className="text-[15px] font-semibold tracking-tight text-foreground">
+              <h3 className="text-compact font-semibold tracking-tight text-foreground">
                 {card.title}
               </h3>
-              <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+              <p className="mt-2 text-mini leading-relaxed text-muted-foreground">
                 {card.body}
               </p>
               {card.art && (

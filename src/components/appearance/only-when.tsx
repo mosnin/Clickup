@@ -179,7 +179,7 @@ export function QuestionCard({
     // shelf whose cards are half the height of every other shelf's reads as an
     // unfinished chapter, and the sheet has the room.
     <span className="bento flex h-[13rem] flex-col rounded-3xl bg-card p-5 text-left sm:h-[15rem] sm:p-6">
-      <span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="block text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         Right now
       </span>
       <span className="flex flex-1 items-center text-5xl font-semibold tabular-nums sm:text-6xl">
@@ -189,7 +189,7 @@ export function QuestionCard({
       {/* The question itself, in the sentence the whole product reads a query
           back in. A condition you cannot audit is one you should not trust to
           decide what is on your screen. */}
-      <span className="mt-0.5 line-clamp-2 block text-[11px] leading-relaxed text-muted-foreground">
+      <span className="mt-0.5 line-clamp-2 block text-tiny leading-relaxed text-muted-foreground">
         {describeQuery(query)}
       </span>
     </span>
@@ -312,7 +312,7 @@ export function WhenStep({
             onClick={() => onCompare(c)}
             type="button"
           >
-            <span className="block truncate text-[12px] font-medium">
+            <span className="block truncate text-xs font-medium">
               {comparisonLabel(c)}
             </span>
             <ComparisonGauge
@@ -347,7 +347,7 @@ export function WhenStep({
 
       {/* Against the live reading, which is the whole reason a threshold can be
           chosen rather than guessed at. */}
-      <p className="mt-3 text-center text-[12px] leading-relaxed text-muted-foreground">
+      <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground">
         {value === null ? (
           "Measuring…"
         ) : (
@@ -506,7 +506,7 @@ export function OnlyWhenList({ screenKey }: { screenKey: string }) {
 
   return (
     <section className="-mx-4 mt-4 border-t border-border/60 px-4 pt-4">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
         Only here sometimes
       </span>
       <ul className="mt-3 space-y-2">

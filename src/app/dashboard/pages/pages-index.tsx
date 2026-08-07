@@ -233,7 +233,7 @@ function PageCard({
           )}
         </ul>
       )}
-      <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
+      <div className="mt-4 flex items-center gap-2 text-tiny text-muted-foreground">
         <span>
           {page.updatedByName
             ? `${page.updatedByName} · ${timeAgo(page.updatedAt)}`

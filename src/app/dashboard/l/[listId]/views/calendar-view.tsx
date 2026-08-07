@@ -131,7 +131,7 @@ export function CalendarView({
       )}
 
       <div className="overflow-hidden rounded-2xl panel">
-        <div className="grid grid-cols-7 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="grid grid-cols-7 text-center text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
             <div key={d} className="py-2.5">
               {d}
@@ -173,7 +173,7 @@ export function CalendarView({
                   >
                     <div
                       className={cn(
-                        "pointer-events-none mb-1 flex h-5 w-5 items-center justify-center text-[11px]",
+                        "pointer-events-none mb-1 flex h-5 w-5 items-center justify-center text-tiny",
                         today &&
                           "rounded-full bg-foreground font-medium text-background",
                       )}
@@ -199,7 +199,7 @@ export function CalendarView({
                                 return next;
                               });
                             }}
-                            className="text-[11px] text-muted-foreground hover:text-foreground"
+                            className="text-tiny text-muted-foreground hover:text-foreground"
                           >
                             {isExpanded
                               ? "Show less"
@@ -264,7 +264,7 @@ function TaskChip({ task, pill }: { task: Doc<"tasks">; pill?: boolean }) {
       }}
       onClick={(e) => e.stopPropagation()}
       className={cn(
-        "flex cursor-grab items-center gap-1 truncate rounded-full bg-muted text-[11px] transition-colors hover:bg-brand-100 hover:text-brand-700 active:cursor-grabbing",
+        "flex cursor-grab items-center gap-1 truncate rounded-full bg-muted text-tiny transition-colors hover:bg-brand-100 hover:text-brand-700 active:cursor-grabbing",
         pill ? "px-2 py-1 text-xs" : "px-1.5 py-0.5",
       )}
     >
@@ -313,7 +313,7 @@ function QuickAdd({
         }}
         placeholder="New task…"
         aria-label="New task title"
-        className="soft-field w-full px-1.5 py-1 text-[11px]"
+        className="soft-field w-full px-1.5 py-1 text-tiny"
       />
     </form>
   );
