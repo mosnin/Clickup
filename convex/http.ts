@@ -4,6 +4,7 @@ import { Webhook } from "svix";
 import type { WebhookEvent } from "@clerk/backend";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { admetosOwner } from "./native";
 
 // Clerk -> Convex user sync.
 //
@@ -153,8 +154,111 @@ const fireWebhookRef = anyApi.buzz.workflows.fireWebhook as unknown as FunctionR
   { status: string; runId?: string; workflowId?: string }
 >;
 
+// ---------------------------------------------------------------------------
+// Admetos Native Provisioning Protocol (v1): the mint-a-native-identity door.
+// ---------------------------------------------------------------------------
+
+/**
+ * `POST /native/provision`
+ *
+ * Admetos Cloud owns a native identity on operate.to. When a user creates an
+ * owned account, Admetos POSTs a request signed with the shared
+ * ADMETOS_PROVISION_SECRET; there is no Clerk user behind it, so the HMAC IS
+ * the authentication. On success we mint (or return the existing) agent in the
+ * designated host workspace plus a fresh `cua_` key, and answer the protocol's
+ * `{ remoteId, credentialRef }`.
+ *
+ * Idempotent per account id; privileged and server-to-server, so it fails
+ * closed when the secret or host workspace is not configured.
+ */
+const handleNativeProvision = httpAction(async (ctx, request) => {
+  const secret = process.env.ADMETOS_PROVISION_SECRET;
+  const workspaceId = process.env.ADMETOS_PROVISION_WORKSPACE_ID;
+  if (!secret || !workspaceId) {
+    return Response.json(
+      { error: "Native provisioning is not enabled on this deployment." },
+      { status: 503 },
+    );
+  }
+
+  const raw = await request.text();
+  const signature = request.headers.get("x-admetos-signature") ?? "";
+  if (!signature || !(await verifyAdmetosSignature(secret, raw, signature))) {
+    return Response.json({ error: "Invalid provisioning signature." }, { status: 401 });
+  }
+
+  let body: {
+    account?: { id?: string; displayName?: string; email?: string };
+  };
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+  const account = body.account;
+  if (!account?.id || !account.displayName) {
+    return Response.json({ error: "Malformed provisioning request." }, { status: 400 });
+  }
+
+  const { agentId } = await ctx.runMutation(internal.native.provisionAgent, {
+    accountId: account.id,
+    displayName: account.displayName,
+    workspaceId,
+  });
+
+  // Mint a cua_ key with the isolate's Web Crypto CSPRNG; store only its hash.
+  const keyBytes = new Uint8Array(24);
+  crypto.getRandomValues(keyBytes);
+  const key = `cua_${toHex(keyBytes)}`;
+  const keyPrefix = key.slice(0, 12);
+  const keyHash = toHex(new Uint8Array(await crypto.subtle.digest("SHA-256", encodeUtf8(key))));
+  await ctx.runMutation(internal.native.storeKey, { agentId, keyHash, keyPrefix });
+
+  return Response.json({
+    remoteId: agentId,
+    credentialRef: admetosOwner(account.id),
+    credentialPreview: `${keyPrefix}…`,
+  });
+});
+
+function encodeUtf8(input: string): Uint8Array<ArrayBuffer> {
+  // TextEncoder always allocates a fresh ArrayBuffer; the assertion narrows
+  // the generic so crypto.subtle accepts it under strict typed-array libs.
+  return new TextEncoder().encode(input) as Uint8Array<ArrayBuffer>;
+}
+
+function toHex(bytes: Uint8Array): string {
+  let out = "";
+  for (const b of bytes) out += b.toString(16).padStart(2, "0");
+  return out;
+}
+
+/** Constant-time verify of the `sha256=<hex>` Admetos provisioning signature. */
+async function verifyAdmetosSignature(
+  secret: string,
+  rawBody: string,
+  signature: string,
+): Promise<boolean> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encodeUtf8(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, encodeUtf8(rawBody));
+  const expected = `sha256=${toHex(new Uint8Array(sig))}`;
+  if (signature.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < signature.length; i++) {
+    diff |= signature.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 const http = httpRouter();
 http.route({ path: "/clerk", method: "POST", handler: handleClerkWebhook });
 // pathPrefix, because the community and the workflow id are path segments.
 http.route({ pathPrefix: "/hooks/", method: "POST", handler: fireWorkflowWebhook });
+http.route({ path: "/native/provision", method: "POST", handler: handleNativeProvision });
 export default http;
