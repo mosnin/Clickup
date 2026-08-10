@@ -1787,6 +1787,16 @@ export default defineSchema({
     // Mutations per UTC day before the agent is throttled. Undefined =
     // DEFAULT_DAILY_ACTION_LIMIT (see _agentAuth.ts).
     dailyActionLimit: v.optional(v.number()),
+    /**
+     * Daily spend ceiling in USD. Absent = uncapped (the shipped default,
+     * because a ceiling nobody set must not silently halt a working fleet).
+     *
+     * The twin of `dailyActionLimit`, and the one that was missing: writes
+     * were budgeted while MONEY was only charted, so an agent could burn
+     * hundreds of dollars of tokens inside three mutations. Enforced in
+     * `_agentAuth.requireAgentByKey`.
+     */
+    dailySpendUsdLimit: v.optional(v.number()),
     // Direct push endpoint: assignments and mentions POST a small ping
     // here even when the agent has no webhook subscription, so "assign an
     // agent" works out of the box. When notifySecret is set, pings carry
@@ -1826,6 +1836,8 @@ export default defineSchema({
     // Sliding burst window: mutations in the current minute.
     minute: v.optional(v.string()), // "YYYY-MM-DDTHH:MM" UTC
     minuteCount: v.optional(v.number()),
+    /** Self-reported USD spent by this agent on this UTC day. */
+    spendUsd: v.optional(v.number()),
   }).index("by_agent_day", ["agentId", "day"]),
 
   // Structured work sessions ("runs") agents report over MCP: started X,
@@ -2587,6 +2599,22 @@ export default defineSchema({
     lifetimeSpent: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
+    /**
+     * The FLEET's daily spend ceiling in USD, and its rolling counter.
+     *
+     * Per-agent ceilings alone do not answer the question an agency owner
+     * actually asks: ten agents at twenty dollars each is a two-hundred
+     * dollar day nobody agreed to. This is the number they set. It lives on
+     * the wallet because the wallet is already this scope's money object,
+     * and it is already loaded on the metered path — so the fleet ceiling
+     * costs no extra read.
+     *
+     * `spendDay` is the UTC day `spendUsdToday` accumulates against; a
+     * counter from an older day reads as zero rather than being swept.
+     */
+    dailySpendUsdLimit: v.optional(v.number()),
+    spendDay: v.optional(v.string()),
+    spendUsdToday: v.optional(v.number()),
   }).index("by_scope", ["scopeType", "scopeId"]),
 
   // Ledger of x402 settlements. One row per top-up (settled or failed).

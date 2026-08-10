@@ -11,6 +11,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import {
   agentActor,
   agentCanTouchList,
+  recordAgentSpend,
   requireAgentByKey,
   requireProjectAccessForAgent,
   requireListAccessForAgent,
@@ -4086,6 +4087,36 @@ export const finishRun = mutation({
       costUsd: args.costUsd,
       finishedAt: Date.now(),
     });
+    // Spend counts against today's ceilings the moment it is reported —
+    // never gated on those ceilings, because the money is already gone and
+    // the only thing refusing to record it would achieve is hiding the
+    // overrun from whoever set the limit. See recordAgentSpend.
+    if (args.costUsd !== undefined) {
+      const crossed = await recordAgentSpend(ctx, agent, args.costUsd);
+      // One event per ceiling per day, emitted where it can actually commit.
+      // This is the whole story a person needs: the fleet stopped, and here
+      // is which budget ran out and who was spending it.
+      if (crossed.agentCrossed) {
+        await emitEvent(ctx, {
+          scopeType: agent.parentType,
+          scopeId: agent.parentId,
+          type: "agent.budget_exhausted",
+          actor: agentActor(agent),
+          entityType: "agent",
+          entityId: agent._id,
+        });
+      }
+      if (crossed.fleetCrossed) {
+        await emitEvent(ctx, {
+          scopeType: agent.parentType,
+          scopeId: agent.parentId,
+          type: "fleet.budget_exhausted",
+          actor: agentActor(agent),
+          entityType: "agent",
+          entityId: agent._id,
+        });
+      }
+    }
     if (run.executionAssignmentId) {
       await finishExecutionAssignment(
         ctx,

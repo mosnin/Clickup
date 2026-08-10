@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Picker } from "@/components/ui/picker";
 import { Card, CardContent, CardDescription } from "@/components/ui/card";
@@ -17,6 +17,9 @@ import {
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import Counter, { placesFor } from "@/components/counter";
+import { AnimatedBar } from "@/components/motion";
+import { useToast } from "@/components/toast";
+import { errorMessage } from "@/lib/errors";
 
 // x402 billing for agents. A prepaid credit wallet per scope (personal space
 // or a workspace); agents top it up by paying via x402 and metered actions
@@ -142,6 +145,12 @@ function ScopeBilling({ scope }: { scope: Scope }) {
 
   return (
     <div className="space-y-4">
+      <FleetSpendCeiling
+        scopeType={scope.type}
+        scopeId={scope.id}
+        limit={wallet.dailySpendUsdLimit}
+        spentToday={wallet.spendTodayUsd}
+      />
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Balance */}
         <Card className="gap-2 p-6">
@@ -376,5 +385,99 @@ function Row({
         {value}
       </dd>
     </div>
+  );
+}
+
+/**
+ * The fleet's daily spend ceiling.
+ *
+ * Per-agent ceilings cannot express the sentence an agency owner actually
+ * says: ten agents at twenty dollars each is a two-hundred dollar day nobody
+ * agreed to. This is the one number that stops the whole space, so it sits
+ * above the credit balance rather than inside the governance of any one
+ * agent — and it states what happens when it trips, because a limit whose
+ * consequence is unstated is a limit nobody trusts enough to set.
+ */
+function FleetSpendCeiling({
+  scopeType,
+  scopeId,
+  limit,
+  spentToday,
+}: {
+  scopeType: "user" | "workspace";
+  scopeId: string;
+  limit: number | null;
+  spentToday: number;
+}) {
+  const setLimit = useMutation(api.x402.setFleetSpendLimit);
+  const { toast } = useToast();
+  const [draft, setDraft] = useState(limit === null ? "" : String(limit));
+  const pct =
+    limit === null ? 0 : Math.min(100, Math.round((spentToday / limit) * 100));
+  const stopped = limit !== null && spentToday >= limit;
+
+  function commit() {
+    const trimmed = draft.trim();
+    const next = trimmed === "" ? null : Number(trimmed);
+    if (next !== null && (!Number.isFinite(next) || next <= 0)) {
+      setDraft(limit === null ? "" : String(limit));
+      toast("A daily budget has to be more than $0", { kind: "error" });
+      return;
+    }
+    if (next === limit) return;
+    void setLimit({ scopeType, scopeId, dailySpendUsdLimit: next })
+      .then(() =>
+        toast(next === null ? "Daily budget removed" : "Daily budget saved"),
+      )
+      .catch((e) => {
+        setDraft(limit === null ? "" : String(limit));
+        toast(errorMessage(e, "Couldn't save the daily budget"), {
+          kind: "error",
+        });
+      });
+  }
+
+  return (
+    <Card className="gap-2 p-6">
+      <CardDescription className="text-tiny font-medium uppercase tracking-wider">
+        Daily budget for every agent here
+      </CardDescription>
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl font-bold tracking-tight">$</span>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            inputMode="decimal"
+            placeholder="No limit"
+            aria-label="Daily spend budget for this space, in dollars"
+            value={draft}
+            onChange={(e) => setDraft(e.currentTarget.value)}
+            onBlur={commit}
+            className="w-32 rounded-full bg-background px-3 py-1.5 text-lg font-semibold tabular-nums"
+          />
+        </div>
+        <span className="text-sm text-muted-foreground">
+          ${spentToday.toFixed(2)} spent today
+          {limit === null ? " · no limit set" : ""}
+        </span>
+      </div>
+      {limit !== null && (
+        <AnimatedBar
+          pct={pct}
+          className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted"
+          barClassName={cn(
+            "h-full rounded-full",
+            stopped ? "bg-danger" : "bg-brand-600",
+          )}
+        />
+      )}
+      <p className="mt-3 text-xs text-muted-foreground">
+        {stopped
+          ? "Reached — every agent in this space has stopped until tomorrow, or until you raise it."
+          : "When this is reached, every agent in this space stops until tomorrow. Spend is what agents report when a run finishes."}
+      </p>
+    </Card>
   );
 }

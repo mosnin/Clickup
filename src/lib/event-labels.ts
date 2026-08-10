@@ -32,6 +32,10 @@ export const EVENT_LABEL: Record<string, string> = {
   "agent.error": "reported an error",
   "agent.stalled": "went quiet on a task",
   "agent.connected": "came online",
+  // Deliberately plain. A budget stop is not an error and not an alarm — it
+  // is the ceiling somebody set doing exactly what they set it to do.
+  "agent.budget_exhausted": "reached its daily spend limit",
+  "fleet.budget_exhausted": "spent this space's daily budget",
   // The grant and the key are two facts, so they read as two lines: a human
   // said yes at one moment, a credential came into existence at another.
   "agent.authorized": "authorized",

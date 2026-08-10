@@ -67,9 +67,17 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
 - [x] **P6 — agent-readable run history.** `list_runs` / `get_run` MCP tools
       plus `recentOutcomes` inline on `get_task`; a teammate's run is
       readable in scope, fenced per task on the way out. — iteration 1
-- [ ] **P10 — cost ceilings that bind.** Spend is charted, never enforced; the
-      only enforced budget counts mutations. Nobody should switch on
-      `bounded_autonomous` until money has a ceiling.
+- [x] **P10 — cost ceilings that bind.** Two ceilings, because they answer two
+      questions: per-agent (`agents.dailySpendUsdLimit`) and per-FLEET
+      (`agentWallets.dailySpendUsdLimit`) — the second is the one an agency
+      owner actually sets, since ten agents at $20 is a $200 day nobody
+      agreed to. A circuit breaker, not a pre-authorization: cost is known
+      when a run ends, so crossing stops the NEXT action. Recording is
+      never gated on the ceiling (the money is already gone; refusing to
+      write it down would only hide the overrun). The crossing announces
+      itself once from `recordAgentSpend` — a refusal cannot, because a
+      Convex mutation that throws rolls back everything it wrote. Both
+      numbers are settable and visible. — iteration 3
 - [ ] **P3 — a stop signal.** Pausing the whole agent is the only halt, and it
       is invisible to a run in flight. `agentPingDeliveries` is already a
       working wake channel; cancellation is one more `sourceKind`.
@@ -86,9 +94,47 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
 - [ ] **P7 — one-call task context with a budget.**
 - [ ] **P12 — assignment recovery sweep.** Abandoned assignments are never
       re-dispatched; `attempt` exists, no cron reads it.
-- [ ] **CF-2 — capability-scoped external access + action log.**
+- ~~CF-2 — capability-scoped external access + action log.~~ **CUT** by the
+      Jobs panel: the only proposal in either document with no verified gap
+      behind it. Every other item names the file or table it extends; CF-2
+      names an architecture. The product already answers "what can an agent
+      reach" with SSRF guards, HMAC-signed webhooks, `allowedListIds`,
+      readonly roles and attenuated grants. Revisit the day one concrete
+      integration demands "this agent may touch this one channel" — then
+      scope the grant to that one thing and stop.
+- ~~P9 — failures distilled into reviewed skills.~~ **CUT**: its failure mode
+      makes the product worse rather than merely no better (an accumulating
+      file of unreviewed advice polluting `brief` and skills), and shipped P6
+      already delivers the practical memory benefit at a fraction of the
+      cost.
+
+## The order, judged
+
+A Steve Jobs panel (three lenses — customer, risk, coherence — then a
+synthesis) ranked the queue on 2026-08-07. Its critical path, in one
+sentence a founder can repeat:
+
+> **Cap the money for real, give the fleet one stop button, and put everything
+> waiting on a human into one aging queue — only then is it safe to let agents
+> work through approvals instead of freezing on them.**
+
+So: **P10 → P3 → P5 → CF-1**, with P11, P12, P7 behind them and CF-2 + P9 cut
+outright. Two of its rulings are worth keeping visible. P5 was moved ABOVE the
+flagship because CF-1's entire output is obligations, and building the producer
+before the consumer ships approvals into no surface — "a deferred approval
+nobody sees is exactly the week-away disaster CF-1 exists to prevent". And the
+panel refused to call CF-1 first: "ship it first and you have built the
+accelerator before the brakes".
 
 ## Iteration log
+
+**3.** Convened the Jobs panel to set the order (above), then shipped P10 to
+its spec. The panel's sharpest catch was in the working tree rather than the
+plan: the ceiling was written and the wire was cut — `finishRun` validated
+`costUsd`, wrote it onto the run, and never counted it, so the enforcement read
+as if money were capped while nothing could ever trip it. That is worse than no
+ceiling, because it is the one thing that would let a founder switch on
+`bounded_autonomous` believing a lie.
 
 **2.** Verified the three production UI reports against the live site rather
 than assuming: production's CSS carried every fix already (`.notch-panel` with

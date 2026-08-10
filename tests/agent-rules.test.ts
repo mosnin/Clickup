@@ -543,3 +543,184 @@ describe("dispatch — one selector, not two", () => {
     expect(after.dispatch.availableSlots).toBe(2);
   });
 });
+
+describe("spend ceilings", () => {
+  // The ceiling that was charted and never enforced. Money is the one budget
+  // where "we show you a graph" is not a control: an agent could burn
+  // hundreds of dollars of tokens inside three mutations while the only
+  // enforced limit counted the mutations.
+
+  it("stops the agent once its own daily ceiling is crossed", async () => {
+    const { t, alice, listId, agentId, apiKey } = await setup();
+    await alice.mutation(api.agents.update, {
+      agentId,
+      dailySpendUsdLimit: 5,
+    });
+
+    // Under the ceiling: work continues.
+    const runId = await t.mutation(api.agentApi.startRun, {
+      apiKey,
+      title: "Cheap work",
+    });
+    await t.mutation(api.agentApi.finishRun, {
+      apiKey,
+      runId: runId,
+      status: "succeeded",
+      costUsd: 2,
+    });
+    await t.mutation(api.agentApi.createTask, {
+      apiKey,
+      listId,
+      title: "Still allowed",
+    });
+
+    // Crossing it stops the NEXT action, not the one that crossed — cost is
+    // known when a run ends, never before an action starts, so a circuit
+    // breaker is the only honest shape.
+    const run2Id = await t.mutation(api.agentApi.startRun, {
+      apiKey,
+      title: "Expensive work",
+    });
+    await t.mutation(api.agentApi.finishRun, {
+      apiKey,
+      runId: run2Id,
+      status: "succeeded",
+      costUsd: 4,
+    });
+    await expect(
+      t.mutation(api.agentApi.createTask, {
+        apiKey,
+        listId,
+        title: "Refused",
+      }),
+    ).rejects.toThrow(/spend ceiling/i);
+  });
+
+  it("records spend that crosses the line instead of refusing it", async () => {
+    const { t, alice, agentId, apiKey } = await setup();
+    await alice.mutation(api.agents.update, {
+      agentId,
+      dailySpendUsdLimit: 1,
+    });
+    const runId = await t.mutation(api.agentApi.startRun, {
+      apiKey,
+      title: "Overrun",
+    });
+    // The money is already gone. Refusing to write it down would only hide
+    // the overrun from whoever set the limit — so finish_run authenticates
+    // as presence and always commits.
+    await t.mutation(api.agentApi.finishRun, {
+      apiKey,
+      runId: runId,
+      status: "succeeded",
+      costUsd: 40,
+    });
+    const detail = await alice.query(api.agents.detail, { agentId });
+    expect(detail?.spendTodayUsd).toBe(40);
+    expect(detail?.spendLimitUsd).toBe(1);
+  });
+
+  it("stops every agent in the space when the FLEET ceiling is crossed", async () => {
+    const { t, alice, listId, apiKey } = await setup();
+    // The number an agency owner actually sets: ten agents at twenty dollars
+    // each is a two-hundred dollar day nobody agreed to.
+    await alice.mutation(api.x402.setFleetSpendLimit, {
+      scopeType: "user",
+      scopeId: ALICE.subject,
+      dailySpendUsdLimit: 10,
+    });
+    // A SECOND agent in the same space, with no ceiling of its own.
+    const other = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("agents", {
+        name: "Runner",
+        parentType: "user",
+        parentId: ALICE.subject,
+        status: "active",
+        createdByClerkId: ALICE.subject,
+        createdAt: Date.now(),
+      });
+      const key = "cua_test_key_runner";
+      await ctx.db.insert("agentKeys", {
+        agentId: id,
+        keyHash: sha256Hex(key),
+        keyPrefix: key.slice(0, 12),
+        createdAt: Date.now(),
+      });
+      return { id, key };
+    });
+
+    const runId = await t.mutation(api.agentApi.startRun, {
+      apiKey,
+      title: "Burn the fleet budget",
+    });
+    await t.mutation(api.agentApi.finishRun, {
+      apiKey,
+      runId: runId,
+      status: "succeeded",
+      costUsd: 12,
+    });
+
+    // The agent that spent it is stopped…
+    await expect(
+      t.mutation(api.agentApi.createTask, { apiKey, listId, title: "No" }),
+    ).rejects.toThrow(/fleet daily spend/i);
+    // …and so is the teammate that spent nothing. That is the point.
+    await expect(
+      t.mutation(api.agentApi.createTask, {
+        apiKey: other.key,
+        listId,
+        title: "Also no",
+      }),
+    ).rejects.toThrow(/fleet daily spend/i);
+  });
+
+  it("announces the crossing once, where it can commit", async () => {
+    const { t, alice, agentId, apiKey } = await setup();
+    await alice.mutation(api.agents.update, {
+      agentId,
+      dailySpendUsdLimit: 3,
+    });
+    for (const cost of [1, 5, 5]) {
+      const rId = await t.mutation(api.agentApi.startRun, {
+        apiKey,
+        title: `spend ${cost}`,
+      });
+      await t.mutation(api.agentApi.finishRun, {
+        apiKey,
+        runId: rId,
+        status: "succeeded",
+        costUsd: cost,
+      });
+    }
+    const events = await t.run(async (ctx) =>
+      ctx.db
+        .query("events")
+        .filter((q) => q.eq(q.field("type"), "agent.budget_exhausted"))
+        .collect(),
+    );
+    // Once — on the crossing. Not once per run after it, and not never
+    // (which is what emitting from the throwing refusal path would give,
+    // since a Convex mutation that throws rolls back everything it wrote).
+    expect(events.length).toBe(1);
+  });
+
+  it("leaves an agent with no ceiling uncapped", async () => {
+    const { t, listId, apiKey } = await setup();
+    const runId = await t.mutation(api.agentApi.startRun, {
+      apiKey,
+      title: "Costly but uncapped",
+    });
+    await t.mutation(api.agentApi.finishRun, {
+      apiKey,
+      runId: runId,
+      status: "succeeded",
+      costUsd: 9999,
+    });
+    // A ceiling nobody set must never halt a working fleet.
+    await t.mutation(api.agentApi.createTask, {
+      apiKey,
+      listId,
+      title: "Allowed",
+    });
+  });
+});

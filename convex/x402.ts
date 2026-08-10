@@ -180,6 +180,10 @@ export const walletByKey = query({
     balance: v.number(),
     lifetimeCredits: v.number(),
     lifetimeSpent: v.number(),
+    /** The fleet's daily spend ceiling in USD; null = uncapped. */
+    dailySpendUsdLimit: v.union(v.number(), v.null()),
+    /** What every agent in this scope has reported spending today. */
+    spendTodayUsd: v.number(),
     metering: METERING,
     pricing: PRICING,
     recentPayments: v.array(
@@ -205,12 +209,19 @@ export const walletByKey = query({
       )
       .order("desc")
       .take(10);
+    // An agent is told its fleet ceiling and how much of it is gone. Not a
+    // courtesy: an agent that can read the number can pace itself and say so
+    // in a run, instead of discovering the wall mid-task as a refusal.
+    const today = new Date().toISOString().slice(0, 10);
     return {
       scopeType: agent.parentType,
       scopeId: agent.parentId,
       balance: wallet?.balance ?? 0,
       lifetimeCredits: wallet?.lifetimeCredits ?? 0,
       lifetimeSpent: wallet?.lifetimeSpent ?? 0,
+      dailySpendUsdLimit: wallet?.dailySpendUsdLimit ?? null,
+      spendTodayUsd:
+        wallet?.spendDay === today ? (wallet.spendUsdToday ?? 0) : 0,
       metering,
       pricing: pricingSummary(),
       recentPayments: payments.map((p) => ({
@@ -415,10 +426,17 @@ export const walletForScope = query({
       )
       .order("desc")
       .take(25);
+    // Today's counter, read rather than swept: a spendDay from an earlier
+    // day is zero, so the number on screen matches the number the ceiling
+    // enforces without a cron keeping them in step.
+    const today = new Date().toISOString().slice(0, 10);
     return {
       balance: wallet?.balance ?? 0,
       lifetimeCredits: wallet?.lifetimeCredits ?? 0,
       lifetimeSpent: wallet?.lifetimeSpent ?? 0,
+      dailySpendUsdLimit: wallet?.dailySpendUsdLimit ?? null,
+      spendTodayUsd:
+        wallet?.spendDay === today ? (wallet.spendUsdToday ?? 0) : 0,
       metering,
       pricing: pricingSummary(),
       payments: payments.map((p) => ({
@@ -434,6 +452,62 @@ export const walletForScope = query({
         createdAt: p.createdAt,
       })),
     };
+  },
+});
+
+/**
+ * Set (or clear) the fleet's daily spend ceiling for a scope.
+ *
+ * The number an agency owner actually thinks in: ten agents at twenty
+ * dollars each is a two-hundred dollar day nobody agreed to, and per-agent
+ * ceilings cannot express "my whole fleet stops at fifty".
+ *
+ * Same access bar as reading the wallet — whoever can see this scope's money
+ * decides what it may spend. Setting a ceiling mints the wallet row if the
+ * scope has never touched the money system, because otherwise the first
+ * thing an owner tries to do about spend silently does nothing.
+ */
+export const setFleetSpendLimit = mutation({
+  args: {
+    scopeType: SCOPE,
+    scopeId: v.string(),
+    dailySpendUsdLimit: v.union(v.number(), v.null()),
+  },
+  handler: async (ctx, { scopeType, scopeId, dailySpendUsdLimit }) => {
+    const { subject } = await requireIdentity(ctx);
+    if (!(await canAccessScope(ctx, scopeType, scopeId, subject))) {
+      throw new ConvexError("Forbidden");
+    }
+    if (
+      dailySpendUsdLimit !== null &&
+      (!Number.isFinite(dailySpendUsdLimit) || dailySpendUsdLimit <= 0)
+    ) {
+      throw new ConvexError("Daily spend limit must be more than $0");
+    }
+    const wallet = await ctx.db
+      .query("agentWallets")
+      .withIndex("by_scope", (q) =>
+        q.eq("scopeType", scopeType).eq("scopeId", scopeId),
+      )
+      .unique();
+    const now = Date.now();
+    if (wallet) {
+      await ctx.db.patch(wallet._id, {
+        dailySpendUsdLimit: dailySpendUsdLimit ?? undefined,
+        updatedAt: now,
+      });
+      return;
+    }
+    await ctx.db.insert("agentWallets", {
+      scopeType,
+      scopeId,
+      balance: 0,
+      lifetimeCredits: 0,
+      lifetimeSpent: 0,
+      createdAt: now,
+      updatedAt: now,
+      dailySpendUsdLimit: dailySpendUsdLimit ?? undefined,
+    });
   },
 });
 

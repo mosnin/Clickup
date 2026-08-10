@@ -1,5 +1,5 @@
 import { ConvexError } from "convex/values";
-import type { QueryCtx, MutationCtx } from "./_generated/server";
+import type { QueryCtx, MutationCtx, DatabaseWriter } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { getSpaceForList } from "./_authz";
 import { buildPaymentRequired, paymentRequiredError, x402Config } from "./_x402";
@@ -186,6 +186,72 @@ export async function requireAgentByKey(
     if (mode === "write") {
       if ((agent.role ?? "member") === "readonly") {
         throw new ConvexError("This agent is read-only");
+      }
+
+      // ── Spend ceilings ──────────────────────────────────────────────────
+      //
+      // Money was the one budget that was charted and never enforced: writes
+      // were counted, bursts were capped, and an agent could burn hundreds of
+      // dollars of tokens inside three mutations. Two ceilings, because they
+      // answer two different questions — "has this agent run away" and "has
+      // my FLEET run away", and an agency owner only ever asks the second.
+      //
+      // It is a CIRCUIT BREAKER, not a pre-authorization. Cost is known when
+      // a run finishes, never before an action starts, so the honest contract
+      // is "you have already spent past your ceiling today, so you get no
+      // further actions" — the next action is refused, not the one that
+      // crossed the line. That is also why recording spend (finish_run) must
+      // never itself be blocked by these: the money is already gone, and
+      // refusing to write it down would only hide it.
+      //
+      // Self-reported input is a real limit on what this can promise. It
+      // binds an honest agent completely and makes a dishonest one visible
+      // (runs finishing with no cost attached is a fact somebody can read).
+      // It is a safety rail, not a security boundary, and calling it anything
+      // else would be a lie told to whoever sets the number.
+      //
+      // Checked BEFORE the daily/burst counters for the same reason the
+      // credits check is: a refusal must not burn budget.
+      const spendDay = utcDay();
+      const agentSpendLimit = agent.dailySpendUsdLimit;
+      if (agentSpendLimit !== undefined) {
+        const usageRow = await db
+          .query("agentUsage")
+          .withIndex("by_agent_day", (q) =>
+            q.eq("agentId", agent._id).eq("day", spendDay),
+          )
+          .unique();
+        const spent = usageRow?.spendUsd ?? 0;
+        if (spent >= agentSpendLimit) {
+          throw new ConvexError(
+            `Daily spend ceiling reached ($${spent.toFixed(2)} of ` +
+              `$${agentSpendLimit.toFixed(2)}). This agent stops here until ` +
+              `tomorrow, or until a human raises its limit.`,
+          );
+        }
+      }
+
+      const scopeWallet = await db
+        .query("agentWallets")
+        .withIndex("by_scope", (q) =>
+          q.eq("scopeType", agent.parentType).eq("scopeId", agent.parentId),
+        )
+        .unique();
+      if (scopeWallet?.dailySpendUsdLimit !== undefined) {
+        // A counter from an older day is zero, not stale: the roll is read
+        // rather than swept, so no cron is load-bearing for a money ceiling.
+        const fleetSpent =
+          scopeWallet.spendDay === spendDay
+            ? (scopeWallet.spendUsdToday ?? 0)
+            : 0;
+        if (fleetSpent >= scopeWallet.dailySpendUsdLimit) {
+          throw new ConvexError(
+            `Fleet daily spend ceiling reached ($${fleetSpent.toFixed(2)} of ` +
+              `$${scopeWallet.dailySpendUsdLimit.toFixed(2)}). Every agent in ` +
+              `this space stops here until tomorrow, or until a human raises ` +
+              `the limit.`,
+          );
+        }
       }
 
       // x402 metered credits. When platform metering is enabled, each write
@@ -395,4 +461,75 @@ export function requireWorkspaceAccessForAgent(
       "You can't act on this workspace — this agent is scoped to a different workspace or to a personal space. Call whoami to see your scope.",
     );
   }
+}
+
+/**
+ * Record self-reported spend against today's ceilings.
+ *
+ * One writer, called wherever a run reports cost, so the per-agent counter
+ * and the fleet counter can never disagree about the same dollar. It is
+ * deliberately unconditional: the ceilings in `requireAgentByKey` refuse the
+ * NEXT action, and refusing to write down money that has already been spent
+ * would only hide the overrun from the person who set the limit.
+ *
+ * The fleet counter rolls by comparison rather than by sweep — a `spendDay`
+ * from yesterday reads as zero — so no cron is load-bearing for a ceiling.
+ */
+export async function recordAgentSpend(
+  ctx: { db: DatabaseWriter },
+  agent: Doc<"agents">,
+  costUsd: number,
+): Promise<{ agentCrossed: boolean; fleetCrossed: boolean }> {
+  const none = { agentCrossed: false, fleetCrossed: false };
+  if (!Number.isFinite(costUsd) || costUsd <= 0) return none;
+  const day = utcDay();
+
+  const usage = await ctx.db
+    .query("agentUsage")
+    .withIndex("by_agent_day", (q) => q.eq("agentId", agent._id).eq("day", day))
+    .unique();
+  const before = usage?.spendUsd ?? 0;
+  const after = before + costUsd;
+  if (usage) {
+    await ctx.db.patch(usage._id, { spendUsd: after });
+  } else {
+    await ctx.db.insert("agentUsage", {
+      agentId: agent._id,
+      day,
+      count: 0,
+      spendUsd: costUsd,
+    });
+  }
+  // The CROSSING is the newsworthy moment, and this is the only place it can
+  // be observed. A refusal cannot announce itself: `requireAgentByKey` throws,
+  // and a Convex mutation that throws rolls back everything it wrote — an
+  // event emitted on the refusal path would never commit. Reporting the
+  // crossing here also means one signal per ceiling per day rather than one
+  // per rejected attempt by an agent that keeps knocking.
+  const agentLimit = agent.dailySpendUsdLimit;
+  const agentCrossed =
+    agentLimit !== undefined && before < agentLimit && after >= agentLimit;
+
+  const wallet = await ctx.db
+    .query("agentWallets")
+    .withIndex("by_scope", (q) =>
+      q.eq("scopeType", agent.parentType).eq("scopeId", agent.parentId),
+    )
+    .unique();
+  let fleetCrossed = false;
+  if (wallet) {
+    const base = wallet.spendDay === day ? (wallet.spendUsdToday ?? 0) : 0;
+    const fleetAfter = base + costUsd;
+    await ctx.db.patch(wallet._id, {
+      spendDay: day,
+      spendUsdToday: fleetAfter,
+    });
+    const fleetLimit = wallet.dailySpendUsdLimit;
+    fleetCrossed =
+      fleetLimit !== undefined && base < fleetLimit && fleetAfter >= fleetLimit;
+  }
+  // No wallet row = this scope has never touched the money system, so there
+  // is no fleet ceiling to count against. Minting one here would create a
+  // wallet as a side effect of an agent finishing a run.
+  return { agentCrossed, fleetCrossed };
 }

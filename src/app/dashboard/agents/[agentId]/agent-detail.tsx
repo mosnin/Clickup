@@ -99,6 +99,8 @@ export function AgentDetail({ agentId }: { agentId: string }) {
     runs,
     usageToday,
     usageLimit,
+    spendTodayUsd,
+    spendLimitUsd,
     events,
     deliveries,
     claimed,
@@ -180,6 +182,8 @@ export function AgentDetail({ agentId }: { agentId: string }) {
           agent={agent}
           usageToday={usageToday}
           usageLimit={usageLimit}
+          spendTodayUsd={spendTodayUsd}
+          spendLimitUsd={spendLimitUsd}
           hasNotifySecret={hasNotifySecret}
         />
       ) : (
@@ -529,16 +533,24 @@ function GovernancePanel({
   agent,
   usageToday,
   usageLimit,
+  spendTodayUsd,
+  spendLimitUsd,
   hasNotifySecret,
 }: {
   agent: Doc<"agents">;
   usageToday: number;
   usageLimit: number;
+  spendTodayUsd: number;
+  /** null = uncapped, which is a real state and not the same as zero. */
+  spendLimitUsd: number | null;
   hasNotifySecret: boolean;
 }) {
   const update = useMutation(api.agents.update);
   const { toast } = useToast();
   const [limitDraft, setLimitDraft] = useState(String(usageLimit));
+  const [spendDraft, setSpendDraft] = useState(
+    spendLimitUsd === null ? "" : String(spendLimitUsd),
+  );
   const [notifyDraft, setNotifyDraft] = useState(agent.notifyUrl ?? "");
   const [capabilitiesDraft, setCapabilitiesDraft] = useState(
     (agent.capabilities ?? []).join(", "),
@@ -640,6 +652,67 @@ function GovernancePanel({
               usagePct > 90 ? "bg-danger" : "bg-brand-600",
             )}
           />
+        </label>
+
+        {/* Money, beside the actions it was always shown without. The ceiling
+            is a circuit breaker: cost is known when a run ends, so crossing
+            it stops the NEXT action rather than the one that crossed. */}
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Daily spend ceiling
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">$</span>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              inputMode="decimal"
+              placeholder="No limit"
+              aria-label="Daily spend ceiling in dollars"
+              value={spendDraft}
+              onChange={(e) => setSpendDraft(e.currentTarget.value)}
+              onBlur={() => {
+                const trimmed = spendDraft.trim();
+                if (trimmed === "") {
+                  // Emptying the field means uncapped, and a ceiling nobody
+                  // set must never halt a working fleet.
+                  if (spendLimitUsd !== null) {
+                    save(
+                      { agentId: agent._id, dailySpendUsdLimit: null },
+                      "Spend ceiling",
+                    );
+                  }
+                  return;
+                }
+                const n = Number(trimmed);
+                if (Number.isFinite(n) && n > 0 && n !== spendLimitUsd) {
+                  save(
+                    { agentId: agent._id, dailySpendUsdLimit: n },
+                    "Spend ceiling",
+                  );
+                }
+              }}
+              className="w-28 rounded-full bg-background px-3 py-1.5 text-sm"
+            />
+            <span className="text-xs text-muted-foreground">
+              ${spendTodayUsd.toFixed(2)} spent today
+              {spendLimitUsd === null ? " · no limit" : ""}
+            </span>
+          </div>
+          {spendLimitUsd !== null && (
+            <AnimatedBar
+              pct={Math.min(
+                100,
+                Math.round((spendTodayUsd / spendLimitUsd) * 100),
+              )}
+              className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"
+              barClassName={cn(
+                "h-full rounded-full",
+                spendTodayUsd >= spendLimitUsd ? "bg-danger" : "bg-brand-600",
+              )}
+            />
+          )}
         </label>
 
         <div className="space-y-2">

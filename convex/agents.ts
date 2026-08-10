@@ -338,6 +338,10 @@ export const detail = query({
       runs,
       usageToday: usage?.count ?? 0,
       usageLimit: agent.dailyActionLimit ?? DEFAULT_DAILY_ACTION_LIMIT,
+      // Money, beside the actions it was always shown without. `null` limit
+      // means uncapped — a real state, and different from a limit of zero.
+      spendTodayUsd: usage?.spendUsd ?? 0,
+      spendLimitUsd: agent.dailySpendUsdLimit ?? null,
       events,
       deliveries,
       claimed,
@@ -628,6 +632,7 @@ export const update = mutation({
     maxConcurrentTasks: v.optional(v.union(v.number(), v.null())),
     allowedListIds: v.optional(v.union(v.array(v.id("lists")), v.null())),
     dailyActionLimit: v.optional(v.union(v.number(), v.null())),
+    dailySpendUsdLimit: v.optional(v.union(v.number(), v.null())),
     notifyUrl: v.optional(v.union(v.string(), v.null())),
     notifySecret: v.optional(v.union(v.string(), v.null())),
   },
@@ -675,6 +680,19 @@ export const update = mutation({
         throw new ConvexError("dailyActionLimit must be positive");
       }
       patch.dailyActionLimit = args.dailyActionLimit ?? undefined;
+    }
+    if (args.dailySpendUsdLimit !== undefined) {
+      // Zero is refused rather than stored: a ceiling of exactly nothing
+      // halts the agent on its first action, which reads as the agent being
+      // broken. Somebody who means that pauses the agent.
+      if (
+        args.dailySpendUsdLimit !== null &&
+        (!Number.isFinite(args.dailySpendUsdLimit) ||
+          args.dailySpendUsdLimit <= 0)
+      ) {
+        throw new ConvexError("Daily spend limit must be more than $0");
+      }
+      patch.dailySpendUsdLimit = args.dailySpendUsdLimit ?? undefined;
     }
     if (args.notifyUrl !== undefined) {
       if (args.notifyUrl) validateWebhookUrl(args.notifyUrl);
