@@ -321,7 +321,7 @@ export function ChatShell({ children }: { children: ReactNode }) {
                   type="button"
                   aria-label="Close navigation"
                   onClick={closeNav}
-                  className="fixed inset-0 z-30 bg-foreground/20 md:hidden"
+                  className="fixed inset-0 z-30 bg-black/50 md:hidden"
                 />
               ) : null}
 

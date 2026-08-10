@@ -48,10 +48,9 @@ import {
   type ChatSectionId,
 } from "./sections";
 import { channelHref } from "./layout";
-import { TOP_CHROME_BAND_HEIGHT_PX } from "./top-chrome";
 
 export function ChannelSidebar() {
-  const { sidebarOpen, closeNav, channelId, isNarrow, scope } = useChatShell();
+  const { sidebarOpen, closeNav, channelId, scope } = useChatShell();
   const { channels, error } = useChannels();
   const pathname = usePathname();
   const router = useRouter();
@@ -94,7 +93,6 @@ export function ChannelSidebar() {
         // grows into the space instead of jumping into it.
         "md:w-[var(--chat-sidebar-w)] md:overflow-hidden md:transition-[width] md:duration-200 md:ease-out",
       )}
-      style={{ paddingTop: isNarrow ? TOP_CHROME_BAND_HEIGHT_PX : 0 }}
     >
       <div className="flex min-h-0 w-full flex-1 flex-col">
         {/* Pinned header */}

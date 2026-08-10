@@ -1705,7 +1705,9 @@ body {
    not the whole class. Same twin-dark-mode-rule trap `.chat-surface`
    documents. */
 .notch-panel {
-  border: var(--ui-surface-border);
+  /* No border: a ring here traces the card's ORIGINAL corner around the
+     scoop cutout — a floating outline arc at the notch on every non-lime
+     card. The value step + shadow are the card's whole separation. */
   box-shadow: var(--ui-surface-shadow);
 }
 :root[data-theme="dark"] .notch-panel {
@@ -3507,6 +3509,11 @@ a:hover > .message-ref {
 .ui-chip {
   border: 1px solid var(--color-border);
   background: transparent;
+  /* Pill by default — the radius used to live only behind the
+     [data-chip-shape] attribute the appearance provider stamps, so any
+     chip painted before hydration (or outside the provider) rendered as a
+     bare rectangle in production. The attribute below now only overrides. */
+  border-radius: 9999px;
 }
 .ui-chip-solid {
   border-color: transparent;

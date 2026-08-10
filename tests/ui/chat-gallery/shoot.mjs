@@ -378,7 +378,12 @@ await shoot(phone, "chat-nav-mobile", base, async (tab) => {
   await tab.waitForTimeout(400);
 });
 await shoot(phone, "chat-details-mobile", base, async (tab) => {
-  await tab.getByRole("button", { name: "Room details" }).click();
+  // On phones the secondary pane toggles collapsed into the overflow menu
+  // (six 28px icons in a 350px header were overlapping hit areas), so the
+  // path to Details is the path a thumb takes: More, then the labeled item.
+  await tab.getByRole("button", { name: "More room panels" }).click();
+  await tab.waitForTimeout(300);
+  await tab.getByRole("menuitem", { name: "Room details" }).click();
   await tab.waitForTimeout(400);
 });
 // The thread as a SHEET, not a squeezed column — the one thing that has to be
