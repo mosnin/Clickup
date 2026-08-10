@@ -15,6 +15,12 @@ import { CodeTrailCard } from "@/components/marketing/code-trail/CodeTrailCard";
 // underneath it, cut mid-expression, layered, and running off the edge of the
 // frame — a window onto something larger, which is the accurate picture of what
 // a fleet is doing while you are not looking at it.
+//
+// And it is OUR source. The piece arrived carrying GLSL and numpy, which is a
+// coherent domain and the wrong one under a heading about runs and approvals:
+// shader maths here quietly says the picture came from another product. The
+// fragments are now claims, runs, budgets and handoffs, in the two languages an
+// agent actually touches — the MCP client and the Python it runs.
 
 export function WorkTrail() {
   return (
