@@ -24,19 +24,19 @@ export function SurfacesBar() {
         <h2 id="surfaces-bar" className="sr-only">
           What operate.to gives every team
         </h2>
-        {/* A light plate under the bar, matching the two other specimen cards.
-            Not decoration: one of the swatches is near-black, and on the black
-            canvas that tile vanished — the word inside it floated with no block
-            behind it while its four neighbours had one, which reads as a
-            missing tile rather than as a dark one. */}
-        {/* `data-canvas-card` on the PLATE, not just on the bar inside it. The
-            plate token vocabulary is scoped to that attribute, so a wrapper
-            without it resolves `--bg-page` to nothing — which is not a
-            fallback, it is an invalid declaration: the plate rendered fully
-            transparent and the black tile stayed lost on the black page. */}
+        {/* The shared charcoal plate, so the bar sits on a surface rather than
+            in a hole cut in the canvas — the tiles are saturated blocks butted
+            edge to edge, and against pure black their outer edges have nothing
+            to end against.
+
+            `data-canvas-card` goes on the PLATE, not only on the bar inside it:
+            the plate token vocabulary is scoped to that attribute, and a
+            wrapper without it resolves `--border-line` to nothing — which is
+            not a fallback but an invalid declaration, so the rule silently does
+            not apply. */}
         <div
           data-canvas-card
-          className="mx-auto max-w-3xl rounded-[12px] border border-[var(--border-line)] bg-[var(--bg-page)] px-6 py-10 sm:px-10"
+          className="canvas-plate mx-auto max-w-3xl rounded-[12px] border border-[var(--border-line)] px-6 py-10 sm:px-10"
         >
           <DesignTilesCard />
         </div>

@@ -7,7 +7,14 @@ export const WORDS = ["tasks", "docs", "goals", "chat", "agents"];
 export type Swatch = { bg: string; fg: string };
 
 export const SWATCHES: Swatch[] = [
-  { bg: "#0a0a0a", fg: "#ffffff" },
+  // The neutral anchor, and the one swatch that had to flip with the site.
+  //
+  // It was near-black (#0a0a0a), which is right on a white page and invisible
+  // on a dark one — the tile disappeared and its word floated with no block
+  // behind it while its four neighbours had one, which reads as a missing tile
+  // rather than a dark one. Near-white does the same job here: the un-saturated
+  // one, holding its own against eight loud colours.
+  { bg: "#f2f4f8", fg: "#0a0a0a" },
   { bg: "#ff2e20", fg: "#0a0a0a" },
   { bg: "#f0c2f7", fg: "#0a0a0a" },
   { bg: "#22e58b", fg: "#0a0a0a" },

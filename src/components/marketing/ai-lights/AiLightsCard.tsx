@@ -132,8 +132,13 @@ export function AiLightsCard({ bare = false }: { bare?: boolean } = {}) {
 
           className="relative h-full w-full overflow-hidden rounded-[calc(var(--r)-1px)] transition-colors duration-[var(--m)] ease-[cubic-bezier(0.22,1,0.36,1)]"
           style={{
+            // Both faces come from the ramp now. It was a hardcoded `#1e1e1e`
+            // for the terminal against a white `--s-surface-2`; with the ramp
+            // inverted for a dark site that literal would have been the only
+            // value in the card the theme could not reach — and it would have
+            // landed LIGHTER than the surface it is supposed to be deeper than.
             backgroundColor: DARK_KEYS.has(variant.key)
-              ? "#1e1e1e"
+              ? "var(--s-surface-0)"
               : "var(--s-surface-2)",
           }}
         >

@@ -228,7 +228,7 @@ export function CodeTrailCard({ bare = false }: { bare?: boolean } = {}) {
       data-canvas-card
       role="img"
       aria-label="A trail of code fragments on brightly coloured bars, stacked into a staircase that follows the pointer across the card"
-      className="relative aspect-[1344/620] w-full select-none overflow-hidden rounded-[12px] border border-[var(--border-line)] bg-[var(--bg-hover)]"
+      className="canvas-plate relative aspect-[1344/620] w-full select-none overflow-hidden rounded-[12px] border border-[var(--border-line)]"
     >
       {rows.map((r) => {
         const shown = badgeCount(r.slot, ROWS);

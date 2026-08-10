@@ -3558,13 +3558,18 @@ a:hover > .message-ref {
 [data-canvas-card] {
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
-  /* Plate. These read as one light page regardless of the app's theme: the
-     marketing canvas is white, and a card that flipped to charcoal in dark mode
-     would be the only thing on the page that did. */
-  --bg-page: #f7f9fc;
-  --bg-hover: #eef2f7;
-  --border-line: #e3e8ef;
-  --text-primary: #0b1220;
+  /* Plate. DARK, because the site is dark.
+     
+     These started life as a light palette — the pieces were authored against a
+     white page — and the result was five bright slabs on a black site, which
+     reads as five things that arrived from somewhere else. The values below are
+     the same ramp inverted: a charcoal plate, a hairline that is a percentage of
+     white rather than a grey, and near-white ink. Charcoal, never pure black:
+     the page canvas IS black, so a black card cannot separate from it. */
+  --bg-page: #131318;
+  --bg-hover: #17171c;
+  --border-line: rgba(255, 255, 255, 0.1);
+  --text-primary: #f4f6fa;
 
   /* The engines name their own faces; point them at ours rather than editing
      the provided code. An undefined var() in a font-family list makes the whole
@@ -3573,18 +3578,43 @@ a:hover > .message-ref {
   --font-neue-montreal: var(--font-sans);
   --font-neue-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
 
-  /* ai-lights' surface ramp. Heavier borders and a deeper stack of greys than
-     the app uses, each with a job — which is what makes a flat UI read as
-     layered. Deliberately no accent hue: a saturated colour fights the rim. */
-  --s-surface-1: #ffffff;
-  --s-surface-2: #ffffff;
-  --s-surface-3: #f4f6f9;
-  --s-border-1: #dedede;
-  --s-text-primary: #111214;
-  --s-text-body: #35383d;
-  --s-text-muted: #6b7078;
-  --s-text-subtle: #93989f;
-  --s-text-inverse: #ffffff;
+  /* ai-lights' surface ramp, also inverted. A deep stack of darks each with a
+     job — which is what makes a flat UI read as layered — and no accent hue,
+     because a saturated colour fights the rim.
+
+     `--s-surface-0` is the terminal's face: BLACKER than the others rather than
+     lighter. The original design had exactly one variant invert, and on a light
+     page that meant one dark panel among three white ones. Inverting to white
+     here would be a literal translation and the wrong one — a terminal is dark
+     in every UI that has ever had one, so the polarity step it keeps is
+     downward: three charcoal faces and one that is nearly black. */
+  --s-surface-0: #0d0d10;
+  --s-surface-1: #1f2027;
+  --s-surface-2: #1c1d23;
+  --s-surface-3: #26272f;
+  --s-border-1: rgba(255, 255, 255, 0.14);
+  --s-text-primary: #f5f6f8;
+  --s-text-body: #d5d7dd;
+  --s-text-muted: #9ea2ad;
+  --s-text-subtle: #7c8089;
+  /* Ink for anything drawn ON --s-text-primary (the send button's arrow). */
+  --s-text-inverse: #14151a;
+}
+
+/* The plate the specimen pieces sit on.
+
+   A gradient rather than a flat fill, and a shallow one: a card that is very
+   slightly lighter at its top edge reads as a surface catching light from the
+   same direction as everything else on the page, where a flat rectangle reads
+   as a hole cut in the canvas. Two stops would be enough; the third keeps the
+   bottom from going to the same value as the page behind it. */
+.canvas-plate {
+  background-image: linear-gradient(
+    180deg,
+    #1c1d23 0%,
+    #16161b 55%,
+    #121216 100%
+  );
 }
 
 /* --- The rim light ------------------------------------------------------- */

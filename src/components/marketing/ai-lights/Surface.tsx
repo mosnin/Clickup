@@ -14,8 +14,16 @@
 // target). So the face carries it, once, for all four.
 //
 // Two strokes only: a light falling from the top, and a hairline where the face
-// meets the ring. Both invert with polarity — on the dark panel the same light
-// has to be a tenth the strength or it reads as fog rather than as a sheen.
+// meets the ring.
+//
+// `dark` now means "the deepest face" (the terminal) rather than "the inverted
+// one" — every face is dark since the ramp was inverted for a dark site. The
+// sheen still differs between them, and in the direction that looks wrong until
+// you think about it: the DEEPER face gets the STRONGER highlight. A fixed
+// white at a fixed opacity lands as a bigger step against a near-black surface
+// than against a charcoal one only if you hold the opacity still, and holding
+// it still is what makes the near-black panel look flat and dead beside its
+// neighbours. Matching the perceived lift is what keeps them one family.
 //
 // A sibling of the contents and strictly beneath them: it is inside the face's
 // `overflow-hidden` and inherits its radius by being inset to it.
@@ -27,13 +35,13 @@ export function Surface({ dark }: { dark: boolean }) {
       className="pointer-events-none absolute inset-0"
       style={{
         background: dark
-          ? "linear-gradient(180deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0) 58%)"
-          : "linear-gradient(180deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 62%)",
+          ? "linear-gradient(180deg, rgba(255,255,255,0.075) 0%, rgba(255,255,255,0) 58%)"
+          : "linear-gradient(180deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0) 62%)",
         // The hairline is an inset shadow rather than a border so it cannot
         // change the box the morph is animating toward.
         boxShadow: dark
-          ? "inset 0 1px 0 rgba(255,255,255,0.07)"
-          : "inset 0 1px 0 rgba(255,255,255,0.9)",
+          ? "inset 0 1px 0 rgba(255,255,255,0.09)"
+          : "inset 0 1px 0 rgba(255,255,255,0.07)",
       }}
     />
   );
