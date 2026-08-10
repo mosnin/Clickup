@@ -12,6 +12,7 @@
     "test": "vitest run",
     "vercel-build": "node scripts/check-backend.mjs && convex deploy --cmd 'next build'",
     "gallery": "node scripts/build-gallery.mjs && node scripts/design-shots.mjs",
+    "shots:marketing": "node scripts/marketing-shots.mjs",
     "verify:customize": "node scripts/verify-customize.mjs",
     "gallery:fresh": "(next build || true) && npm run gallery"
   },
