@@ -109,6 +109,31 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
 - [ ] **P11 — thrash detection.** Every watchdog pass detects absence; none
       detects repetition. An agent redoing the same work is invisible.
 
+- [ ] **P13 — the task graph.** Proposed by the founder, and the codebase is
+      already most of the way there: `tasks.blockedByTaskIds` is a DAG, and
+      cycle enforcement (P2) is what makes traversing it safe rather than
+      infinite. What is missing is that nothing asks graph-shaped questions
+      of it. Four answers counting cannot give: **critical path** ("which
+      open task, if finished, releases the largest downstream subtree" —
+      this turns `next_task` from fair into effective, and it is the single
+      highest-value thing an agent could know); **progress as flow** (17/23
+      is a count that lies — two projects at 70% are not equally close, and
+      the graph knows which remaining work is on the path); **structural
+      stalls** (a chain whose only unblocked head sits in a list its agent
+      is fenced out of — every watchdog detects absence, none detects
+      unreachability); and **context locality** (the neighbourhood of a
+      task is a bounded traversal, and a far better answer for an arriving
+      agent than "here is everything").
+      Shape: NOT a graph database — Convex tables plus indexes already are
+      the graph, and porting would be a rewrite no customer sees. One pure
+      module (`src/lib/task-graph.ts`: topological order, critical path,
+      reachability, blast radius) testable without a browser like `pack.ts`
+      and `situation.ts`; one scope-assembling query; one MCP tool.
+      **Agent-readable first, human-visible second** — a node diagram
+      nobody acts on is decoration. Degrades to today's behaviour when the
+      graph is sparse, because the traversal is only as good as the
+      dependencies people actually record.
+
 ### Polish
 - [ ] **P7 — one-call task context with a budget.**
 - [ ] **P12 — assignment recovery sweep.** Abandoned assignments are never
