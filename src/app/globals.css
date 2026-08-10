@@ -3540,3 +3540,232 @@ a:hover > .message-ref {
   font-weight: 650;
   letter-spacing: -0.02em;
 }
+
+/* ===========================================================================
+   Marketing canvas cards
+   ===========================================================================
+   The five animated pieces on the logged-out site (ai-lights, datamosh,
+   design-tiles, cursors, code-trail) are framework-agnostic engines that were
+   written against a small token vocabulary and a handful of keyframes. Those
+   are declared here because they are the one part the engines cannot carry
+   themselves — a canvas class cannot register an @property.
+
+   SCOPED TO THE CARD, never :root. The ai-lights variants need a design
+   language of their own (heavier borders than our app, a deeper surface ramp),
+   and letting those names leak would restyle the product by accident. Every
+   card mounts with `data-canvas-card`, and everything below hangs off it. */
+
+[data-canvas-card] {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Plate. These read as one light page regardless of the app's theme: the
+     marketing canvas is white, and a card that flipped to charcoal in dark mode
+     would be the only thing on the page that did. */
+  --bg-page: #f7f9fc;
+  --bg-hover: #eef2f7;
+  --border-line: #e3e8ef;
+  --text-primary: #0b1220;
+
+  /* The engines name their own faces; point them at ours rather than editing
+     the provided code. An undefined var() in a font-family list makes the whole
+     declaration invalid, so these are not optional. */
+  --font-kyoto: var(--font-title);
+  --font-neue-montreal: var(--font-sans);
+  --font-neue-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+
+  /* ai-lights' surface ramp. Heavier borders and a deeper stack of greys than
+     the app uses, each with a job — which is what makes a flat UI read as
+     layered. Deliberately no accent hue: a saturated colour fights the rim. */
+  --s-surface-1: #ffffff;
+  --s-surface-2: #ffffff;
+  --s-surface-3: #f4f6f9;
+  --s-border-1: #dedede;
+  --s-text-primary: #111214;
+  --s-text-body: #35383d;
+  --s-text-muted: #6b7078;
+  --s-text-subtle: #93989f;
+  --s-text-inverse: #ffffff;
+}
+
+/* --- The rim light ------------------------------------------------------- */
+
+/* Registered so they can interpolate. An unregistered custom property is a
+   string, and a string does not animate — the gradient would jump from its
+   start values to its end values on one frame instead of swinging. This is the
+   single most common way this effect fails to work at all. */
+@property --ai-a {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 180deg;
+}
+@property --ai-s2 {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 16deg;
+}
+@property --ai-s3 {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 30deg;
+}
+@property --ai-s4 {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 43deg;
+}
+@property --ai-s5 {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 59deg;
+}
+@property --ai-s6 {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 72deg;
+}
+@property --ai-s7 {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 84deg;
+}
+
+/* One glow layer. The PNG mask (built in mask.ts from the body's measured box)
+   is set inline; everything constant lives here.
+
+   The visible colour is a conic with a small bright arc and a long transparent
+   tail — the mask decides WHERE light lands, this decides what colour it is.
+   The stop colours are re-rolled per pulse by rollPalette() on the card, so the
+   literals below are only the first paint's. */
+.ai-lights-layer {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  background: conic-gradient(
+    from var(--ai-a),
+    var(--ai-c1, #005bf6) 0deg,
+    var(--ai-c2, #b0c6e9) var(--ai-s2),
+    var(--ai-c3, #feca00) var(--ai-s3),
+    var(--ai-c4, #ff1c11) var(--ai-s4),
+    var(--ai-c5, #ff00ea) var(--ai-s5),
+    var(--ai-c6, #ffa2fbcc) var(--ai-s6),
+    transparent var(--ai-s7),
+    transparent 324deg,
+    var(--ai-tail, #95c1ffa1) 349deg,
+    var(--ai-c1, #005bf6) 360deg
+  );
+  /* Stretch the old mask rather than rebuilding it while the box is moving.
+     Nobody sees it: the layers are display:none for the whole morph. */
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+/* The pulse is a ONE-SHOT, not a loop: it lights, holds, and dies, and as it
+   dies the wedge tightens at its head and blooms at its tail. Rotating it
+   instead reads as a wheel. */
+.ai-lights[data-playing="true"] .ai-lights-layer {
+  animation: ai-pulse 1600ms cubic-bezier(0.26, 0.94, 0.6, 1) both;
+}
+
+@keyframes ai-pulse {
+  0% {
+    opacity: 0;
+    --ai-a: 180deg;
+    --ai-s2: 16deg;
+    --ai-s3: 30deg;
+    --ai-s4: 43deg;
+    --ai-s5: 59deg;
+    --ai-s6: 72deg;
+    --ai-s7: 84deg;
+  }
+  10% {
+    opacity: 1;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    --ai-a: 30deg;
+    --ai-s2: 6deg;
+    --ai-s3: 11deg;
+    --ai-s4: 17deg;
+    --ai-s5: 40deg;
+    --ai-s6: 90deg;
+    --ai-s7: 120deg;
+  }
+}
+
+/* HIDE THE GLOW WHILE THE BODY MOVES. Ten layers each rescaling a PNG mask to a
+   box that changes every frame is ten image rescales per frame, on top of the
+   layout that animating width/height already forces — and it all happens in the
+   dark, so none of it is ever seen. display:none, not opacity:0; a transparent
+   element is still laid out and still rescales its mask. */
+.ai-lights[data-morphing="true"] .ai-lights-layer {
+  display: none;
+}
+
+/* --- Contents arriving --------------------------------------------------- */
+
+/* Per character, on a stagger. Remounted on every handover (keyed off a
+   counter) or the text simply appears instead of arriving. */
+@keyframes ai-char {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+/* The reduced-motion twin, and the one used for anything that is not text: no
+   travel, no blur, no stagger. The card KEEPS CYCLING under reduced motion —
+   frozen on one shape forever is a worse outcome than a calm one. */
+@keyframes ai-char-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The ring around the live step on the workflow node. */
+@keyframes ai-ring {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.86);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes ai-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The light never lights. Everything else about the card carries on. */
+  .ai-lights[data-playing="true"] .ai-lights-layer {
+    animation: none;
+  }
+  [data-canvas-card] [class*="animate-[ai-ring"],
+  [data-canvas-card] [class*="animate-[ai-spin"] {
+    animation: none;
+  }
+}
