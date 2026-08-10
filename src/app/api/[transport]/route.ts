@@ -2221,7 +2221,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "next_task",
     description:
-      "What should I work on next? Returns the best open, unclaimed, unblocked task(s), my assignments first (by priority, then due date), then unassigned work. Claim what it returns before starting.",
+      "What should I work on next? Returns { tasks, dispatch }: the best open, unclaimed, unblocked task(s) — my assignments first (by priority, then due date), then unassigned work — plus WHY the list is the length it is. Claim what it returns before starting. If tasks is empty, read dispatch: availableSlots 0 means I am at my own concurrency ceiling (finish or release something, do not retry in a loop); skipped tells me whether work exists but is claimed, blocked, assigned elsewhere, or needs capabilities I lack.",
     shape: {
       includeUnassigned: z.boolean().optional().describe("default true"),
       limit: z.number().optional().describe("default 1, max 10"),
@@ -2283,6 +2283,29 @@ const TOOLS: ToolDef[] = [
     },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.reportError), { apiKey: k, ...a }),
+  },
+  {
+    name: "list_runs",
+    description:
+      "What has already been TRIED — runs, by task, by teammate, or my own. Call this with a taskId before you start work on anything that isn't brand new: it is how you learn 'we attempted that and it failed for this reason' instead of rediscovering it. A teammate's runs in my scope are readable on purpose.",
+    shape: {
+      taskId: z.string().optional(),
+      agentId: z.string().optional(),
+      status: z
+        .enum(["running", "succeeded", "failed", "abandoned"])
+        .optional(),
+      limit: z.number().optional(),
+    },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.listRuns), { apiKey: k, ...a }),
+  },
+  {
+    name: "get_run",
+    description:
+      "One run in full: every step it took, its last narration, the artifacts it produced and how it ended. Use after list_runs when a prior attempt looks relevant to what you are about to do.",
+    shape: { runId: z.string() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getRun), { apiKey: k, ...a }),
   },
 
   // ── Channels ─────────────────────────────────────────────────────

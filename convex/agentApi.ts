@@ -1832,6 +1832,9 @@ export const getTask = query({
       contextReadiness,
       decisions,
       sop,
+      // What has already been tried here, and how it ended. Inline because
+      // the moment it matters is the moment the task is picked up.
+      recentOutcomes: await recentOutcomesFor(ctx, taskId),
       customFields,
       // Raw rows kept for backwards compatibility with existing agents.
       fieldValues: fieldValues.map((fv) => ({
@@ -3481,6 +3484,45 @@ export const nextTask = query({
     const now = Date.now();
     const prioRank = { urgent: 0, high: 1, normal: 2, low: 3 };
 
+    // ── The concurrency ceiling, honoured on the PULL path too ──────────
+    //
+    // `executionDispatch` has always respected `maxConcurrentTasks`; this
+    // query — the path every self-directed agent actually uses — did not, so
+    // an agent configured to hold one task at a time would happily be handed
+    // a fifth. Two selectors with different rules is the drift this codebase
+    // has already paid for once (the plan compiler's cycle check).
+    //
+    // Load is what this agent is holding RIGHT NOW: fresh claims, counted
+    // over the same claim TTL the rest of the system uses. Deliberately not
+    // "assignments ever made" — a stale claim is released by the watchdog and
+    // must not keep a slot occupied forever.
+    const maxConcurrent = agent.maxConcurrentTasks ?? 1;
+    const heldNow = await ctx.db
+      .query("tasks")
+      .withIndex("by_claimed", (q) => q.eq("claimedByActorId", agent._id))
+      .collect();
+    let activeLoad = 0;
+    for (const t of heldNow) {
+      if (t.claimedAt === undefined || now - t.claimedAt >= CLAIM_TTL_MS) {
+        continue;
+      }
+      const st = await ctx.db.get(t.statusId);
+      if (st?.category === "complete" || st?.category === "closed") continue;
+      activeLoad += 1;
+    }
+    const availableSlots = Math.max(0, maxConcurrent - activeLoad);
+
+    // Why nothing came back, counted while scanning. An empty answer with no
+    // reason is indistinguishable from "the backlog is empty", and an agent
+    // that cannot tell those apart either spins or gives up — both wrong.
+    const skipped = {
+      atConcurrencyLimit: 0,
+      claimedByOthers: 0,
+      blocked: 0,
+      missingCapabilities: 0,
+      assignedToOthers: 0,
+    };
+
     // Tasks in an active sprint outrank backlog work of the same priority.
     const activeSprintIds = new Set<string>();
     if (agent.parentType === "workspace") {
@@ -3543,12 +3585,16 @@ export const nextTask = query({
               t.claimedAt !== undefined &&
               now - t.claimedAt < CLAIM_TTL_MS
             ) {
+              skipped.claimedByOthers += 1;
               continue;
             }
             const mine = t.assigneeClerkIds.includes(agent._id);
             if (!mine) {
               if (args.includeUnassigned === false) continue;
-              if (t.assigneeClerkIds.length > 0) continue; // someone else's
+              if (t.assigneeClerkIds.length > 0) {
+                skipped.assignedToOthers += 1;
+                continue; // someone else's
+              }
             }
             // Blocked?
             let blocked = false;
@@ -3561,8 +3607,12 @@ export const nextTask = query({
                 break;
               }
             }
-            if (blocked) continue;
+            if (blocked) {
+              skipped.blocked += 1;
+              continue;
+            }
             if (!hasCapabilities(agent.capabilities, t.requiredCapabilities)) {
+              skipped.missingCapabilities += 1;
               continue;
             }
             candidates.push({
@@ -3590,12 +3640,31 @@ export const nextTask = query({
       return a.task.createdAt - b.task.createdAt;
     });
 
-    const limit = Math.min(args.limit ?? 1, 10);
-    const out = [];
-    for (const c of candidates.slice(0, limit)) {
-      out.push(await taskView(ctx, c.task));
+    // The ceiling caps what is handed out, never what is ranked: a full agent
+    // still gets a truthful "nothing for you, you are at your limit" instead
+    // of an empty list that reads as an empty backlog.
+    const limit = Math.min(args.limit ?? 1, 10, availableSlots);
+    if (availableSlots === 0) skipped.atConcurrencyLimit = candidates.length;
+    const tasks: Awaited<ReturnType<typeof taskView>>[] = [];
+    for (const c of candidates.slice(0, Math.max(0, limit))) {
+      tasks.push(await taskView(ctx, c.task));
     }
-    return out;
+    // `{ tasks, dispatch }` rather than a bare array, and the diagnosis is
+    // not optional garnish: an empty array with no reason is
+    // indistinguishable from an empty backlog, so an agent that receives one
+    // either spins or gives up — both wrong, and both invisible in a log.
+    // (Convex serializes arrays as arrays, so properties hung on the array
+    // do not survive the wire; the object is the only honest shape.)
+    return {
+      tasks,
+      dispatch: {
+        activeLoad,
+        maxConcurrentTasks: maxConcurrent,
+        availableSlots,
+        candidatesConsidered: candidates.length,
+        skipped,
+      },
+    };
   },
 });
 
@@ -4125,6 +4194,190 @@ export const reportError = mutation({
     });
   },
 });
+
+// ── Reading runs back: the memory layer ────────────────────────────────
+//
+// Agents could write runs (`start_run`, `finish_run`, `report_error`,
+// `emit_run_event`) and never read one — not their own, not a teammate's, not
+// "what was tried on this task last Tuesday". `agents.stats` and
+// `liveRunForTask` exist but are Clerk-authenticated human queries. So the
+// largest capability gap in the product was also the cheapest to close: the
+// rows and the indexes were already right; only permission to read them back
+// was missing.
+//
+// A teammate's run is readable within scope, deliberately. A run nobody else
+// can see is a lesson nobody learns, and the entire value of this table is
+// that the second agent to touch a task knows what happened to the first.
+// Scope is the fence, exactly as it is for tasks.
+
+/** Trimmed for a list: enough to decide which run to open, never the payload. */
+function runSummary(run: Doc<"agentRuns">) {
+  return {
+    runId: run._id,
+    agentId: run.agentId,
+    taskId: run.taskId ?? null,
+    title: run.title,
+    status: run.status,
+    summary: run.summary ?? null,
+    error: run.error ?? null,
+    links: run.links ?? [],
+    tokensUsed: run.tokensUsed ?? null,
+    costUsd: run.costUsd ?? null,
+    startedAt: run.startedAt,
+    finishedAt: run.finishedAt ?? null,
+    durationMs:
+      run.finishedAt === undefined ? null : run.finishedAt - run.startedAt,
+    stepCount: run.steps?.length ?? 0,
+  };
+}
+
+/**
+ * Runs, filtered the three ways somebody actually asks.
+ *
+ * `taskId` — "what has been tried on this thing" (the highest-value question,
+ * and the one an arriving agent should ask before starting).
+ * `agentId` — "what has this teammate been doing".
+ * neither — this agent's own recent history.
+ *
+ * Access is checked per row against the agent's own fences, so a
+ * list-restricted agent cannot read runs about work it is fenced out of —
+ * a run leaks its task's title and the reasoning around it.
+ */
+export const listRuns = query({
+  args: {
+    apiKey: v.string(),
+    taskId: v.optional(v.id("tasks")),
+    agentId: v.optional(v.id("agents")),
+    status: v.optional(
+      v.union(
+        v.literal("running"),
+        v.literal("succeeded"),
+        v.literal("failed"),
+        v.literal("abandoned"),
+      ),
+    ),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { agent } = await requireAgentByKey(ctx, args.apiKey);
+    const limit = Math.min(Math.max(args.limit ?? 20, 1), 100);
+
+    let rows: Doc<"agentRuns">[];
+    if (args.taskId !== undefined) {
+      // Throws if this agent may not see the task, which is the correct
+      // answer: the run list is exactly as visible as its subject.
+      await requireTaskAccessForAgent(ctx, args.taskId, agent);
+      rows = await ctx.db
+        .query("agentRuns")
+        .withIndex("by_task", (q) => q.eq("taskId", args.taskId))
+        .collect();
+    } else {
+      const who = args.agentId ?? agent._id;
+      if (who !== agent._id) {
+        // A teammate's history is readable, but only a teammate's: same
+        // scope, or nothing. Existence is information.
+        const other = await ctx.db.get(who);
+        if (
+          !other ||
+          other.parentType !== agent.parentType ||
+          other.parentId !== agent.parentId
+        ) {
+          throw new ConvexError("Agent not found");
+        }
+      }
+      rows = await ctx.db
+        .query("agentRuns")
+        .withIndex("by_agent", (q) => q.eq("agentId", who))
+        .collect();
+    }
+
+    const filtered = args.status
+      ? rows.filter((r) => r.status === args.status)
+      : rows;
+    filtered.sort((a, b) => b.startedAt - a.startedAt);
+
+    // Re-check on the way out for the by-agent paths: a teammate's run may be
+    // about a task this agent is fenced away from.
+    const out: ReturnType<typeof runSummary>[] = [];
+    for (const run of filtered) {
+      if (out.length >= limit) break;
+      if (args.taskId === undefined && run.taskId !== undefined) {
+        try {
+          await requireTaskAccessForAgent(ctx, run.taskId, agent);
+        } catch {
+          continue;
+        }
+      }
+      out.push(runSummary(run));
+    }
+    return out;
+  },
+});
+
+/** One run in full: its steps, its narration, its artifacts, its ending. */
+export const getRun = query({
+  args: { apiKey: v.string(), runId: v.id("agentRuns") },
+  handler: async (ctx, { apiKey, runId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const run = await ctx.db.get(runId);
+    // Same-scope agents only, and "not found" rather than "forbidden":
+    // existence is information.
+    if (!run) throw new ConvexError("Run not found");
+    const owner = await ctx.db.get(run.agentId);
+    if (
+      !owner ||
+      owner.parentType !== agent.parentType ||
+      owner.parentId !== agent.parentId
+    ) {
+      throw new ConvexError("Run not found");
+    }
+    if (run.taskId !== undefined) {
+      await requireTaskAccessForAgent(ctx, run.taskId, agent);
+    }
+    return {
+      ...runSummary(run),
+      agentName: owner.name,
+      steps: run.steps ?? [],
+      liveState: run.liveState ?? null,
+      lastNarration: run.lastNarration ?? null,
+      narratedAt: run.narratedAt ?? null,
+    };
+  },
+});
+
+/**
+ * The last few runs against a task, for `get_task` to carry inline.
+ *
+ * Shipped on the deep read rather than left to a second call because the
+ * moment it matters is the moment an agent picks the task up — and a lesson
+ * that needs a round trip to find is a lesson that gets skipped.
+ */
+async function recentOutcomesFor(
+  ctx: QueryCtx,
+  taskId: Id<"tasks">,
+  limit = 5,
+) {
+  const rows = await ctx.db
+    .query("agentRuns")
+    .withIndex("by_task", (q) => q.eq("taskId", taskId))
+    .collect();
+  rows.sort((a, b) => b.startedAt - a.startedAt);
+  const out = [];
+  for (const run of rows.slice(0, limit)) {
+    const owner = await ctx.db.get(run.agentId);
+    out.push({
+      runId: run._id,
+      agentName: owner?.name ?? "an agent",
+      status: run.status,
+      summary: run.summary ?? null,
+      error: run.error ?? null,
+      links: run.links ?? [],
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt ?? null,
+    });
+  }
+  return out;
+}
 
 // ── Channels (agent↔agent topic threads) ───────────────────────────────
 

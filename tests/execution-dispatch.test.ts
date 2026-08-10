@@ -774,7 +774,9 @@ describe("capability-aware execution dispatch", () => {
       includeUnassigned: true,
       limit: 10,
     });
-    expect(backendQueue.map((task) => task.taskId)).toContain(
+    // next_task answers `{ tasks, dispatch }` now: an empty array with no
+    // reason is indistinguishable from an empty backlog.
+    expect(backendQueue.tasks.map((task) => task.taskId)).toContain(
       schemaTask.taskId,
     );
     const qaQueue = await t.query(api.agentApi.nextTask, {
@@ -782,9 +784,11 @@ describe("capability-aware execution dispatch", () => {
       includeUnassigned: true,
       limit: 10,
     });
-    expect(qaQueue.map((task) => task.taskId)).not.toContain(
+    expect(qaQueue.tasks.map((task) => task.taskId)).not.toContain(
       schemaTask.taskId,
     );
+    // …and it says WHY the QA agent was not offered it.
+    expect(qaQueue.dispatch.skipped.missingCapabilities).toBeGreaterThan(0);
   });
 
   it("recovers expired dispatch leases and excludes paused workers", async () => {

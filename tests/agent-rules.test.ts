@@ -399,3 +399,147 @@ describe("agent governance", () => {
     ).rejects.toThrow(/Invalid API key/);
   });
 });
+
+describe("run history — the memory layer", () => {
+  // The largest capability gap in the product was that agents could WRITE
+  // runs and never read one back. These cover the three things that make the
+  // feature worth having, and the one thing that would make it a leak.
+
+  it("lets a teammate's lesson be read, and reads a run in full", async () => {
+    const { t, alice, listId, agentId, apiKey } = await setup();
+    const taskId = await alice.mutation(api.tasks.create, {
+      listId,
+      title: "Migrate the ledger",
+    });
+
+    // A second agent in the SAME scope has already tried and failed.
+    const other = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("agents", {
+        name: "Pathfinder",
+        parentType: "user",
+        parentId: ALICE.subject,
+        status: "active",
+        createdByClerkId: ALICE.subject,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("agentRuns", {
+        agentId: id,
+        taskId,
+        title: "First attempt",
+        status: "failed",
+        error: "The staging credentials are rotated",
+        links: ["https://example.test/run/1"],
+        startedAt: Date.now() - 60_000,
+        finishedAt: Date.now() - 30_000,
+        steps: [
+          {
+            key: "connect",
+            title: "Connect to staging",
+            status: "failed",
+            startedAt: Date.now() - 55_000,
+            finishedAt: Date.now() - 50_000,
+          },
+        ],
+      });
+      return id;
+    });
+
+    // A run someone else can't see is a lesson nobody learns: same scope,
+    // so it reads.
+    const runs = await t.query(api.agentApi.listRuns, { apiKey, taskId });
+    expect(runs).toHaveLength(1);
+    expect(runs[0].status).toBe("failed");
+    expect(runs[0].error).toMatch(/credentials/);
+
+    const full = await t.query(api.agentApi.getRun, {
+      apiKey,
+      runId: runs[0].runId,
+    });
+    expect(full.agentName).toBe("Pathfinder");
+    expect(full.steps).toHaveLength(1);
+    expect(full.steps[0].status).toBe("failed");
+    expect(other).toBeDefined();
+  });
+
+  it("carries recent outcomes on get_task, where they are acted on", async () => {
+    const { t, alice, listId, agentId, apiKey } = await setup();
+    const taskId = await alice.mutation(api.tasks.create, {
+      listId,
+      title: "Ship the invite emails",
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agentRuns", {
+        agentId,
+        taskId,
+        title: "Attempt",
+        status: "succeeded",
+        summary: "Sent 40 invites",
+        startedAt: Date.now() - 10_000,
+        finishedAt: Date.now(),
+      });
+    });
+    const task = await t.query(api.agentApi.getTask, { apiKey, taskId });
+    expect(task.recentOutcomes).toHaveLength(1);
+    expect(task.recentOutcomes[0].summary).toBe("Sent 40 invites");
+  });
+
+  it("refuses a run belonging to another scope — existence is information", async () => {
+    const { t, apiKey } = await setup();
+    const foreignRun = await t.run(async (ctx) => {
+      const strangerAgent = await ctx.db.insert("agents", {
+        name: "Stranger",
+        parentType: "user",
+        parentId: "user_someone_else",
+        status: "active",
+        createdByClerkId: "user_someone_else",
+        createdAt: Date.now(),
+      });
+      return await ctx.db.insert("agentRuns", {
+        agentId: strangerAgent,
+        title: "Not yours",
+        status: "succeeded",
+        startedAt: Date.now(),
+      });
+    });
+    await expect(
+      t.query(api.agentApi.getRun, { apiKey, runId: foreignRun }),
+    ).rejects.toThrow(/not found/i);
+  });
+});
+
+describe("dispatch — one selector, not two", () => {
+  it("honours the concurrency ceiling on the pull path and says why", async () => {
+    const { t, alice, listId, agentId, apiKey } = await setup();
+    // Default maxConcurrentTasks is 1. Hand the agent a task and let it claim.
+    const first = await alice.mutation(api.tasks.create, {
+      listId,
+      title: "Held work",
+    });
+    await alice.mutation(api.tasks.create, { listId, title: "Queued work" });
+    await t.mutation(api.agentApi.claimTask, { apiKey, taskId: first });
+
+    const offered = await t.query(api.agentApi.nextTask, {
+      apiKey,
+      includeUnassigned: true,
+      limit: 3,
+    });
+    // At its ceiling: nothing handed out, and the reason is legible rather
+    // than an empty list that reads as an empty backlog.
+    expect(offered.tasks).toHaveLength(0);
+    expect(offered.dispatch.activeLoad).toBe(1);
+    expect(offered.dispatch.availableSlots).toBe(0);
+    expect(offered.dispatch.skipped.atConcurrencyLimit).toBeGreaterThan(0);
+
+    // Raise the ceiling and the same backlog flows.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(agentId, { maxConcurrentTasks: 3 });
+    });
+    const after = await t.query(api.agentApi.nextTask, {
+      apiKey,
+      includeUnassigned: true,
+      limit: 3,
+    });
+    expect(after.tasks.length).toBeGreaterThan(0);
+    expect(after.dispatch.availableSlots).toBe(2);
+  });
+});

@@ -145,6 +145,8 @@ export const CORE_MCP_TOOL_NAMES: string[] = [
   "start_run",
   "finish_run",
   "report_error",
+  "list_runs",
+  "get_run",
   "list_channels",
   "create_channel",
   "read_channel",
