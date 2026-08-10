@@ -45,7 +45,16 @@ Porting the runtime would be a rewrite that buys us nothing a customer sees.
 Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
 
 ### Blockers
-_(none)_
+
+- [x] **Shipped fixes never reached the reader.** The service worker
+      registered once and was never asked again, so a warm PWA served a
+      precached build indefinitely — three UI defects were fixed, deployed
+      and confirmed live in production's own stylesheet while the reporting
+      device kept rendering the old shell. It now checks on mount and on
+      every return to the tab, and reloads exactly once when a new worker
+      takes over (never on first install). Guarded by
+      `tests/ui/service-worker-update.test.tsx`, because an absent update
+      check is invisible in review. — iteration 2
 
 ### Majors
 
@@ -80,6 +89,12 @@ _(none)_
 - [ ] **CF-2 — capability-scoped external access + action log.**
 
 ## Iteration log
+
+**2.** Verified the three production UI reports against the live site rather
+than assuming: production's CSS carried every fix already (`.notch-panel` with
+no border, `.ui-chip` as a pill). The defect was distribution, not design — see
+the blocker above. This is the highest-leverage bug found so far: it made every
+other fix conditional on a cache expiring.
 
 **1.** Wrote this file. Shipped P1 (dispatcher parity + legible refusal) and
 P6 (the memory layer: agents can finally read runs back). 2940 tests green,
