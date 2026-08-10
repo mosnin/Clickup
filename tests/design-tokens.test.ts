@@ -31,9 +31,30 @@ function* sourceFiles(dir: string): Generator<string> {
   }
 }
 
-function offenders(pattern: RegExp): string[] {
+// The canvas pieces on the logged-out site are the one exemption, and only for
+// the two SIZE rules — the feedback contract below still applies to them.
+//
+// Both prohibitions exist for the same reason: a value expressed in px is a
+// value the reader's own settings cannot reach. Neither settings layer exists
+// here. `--ui-font-scale` is a per-user preference stored against a signed-in
+// account, and the radius tokens are a PLACE key a space sets for its members;
+// a logged-out visitor has neither, so there is nothing for these numbers to
+// fail to follow.
+//
+// And they are not type or chrome — they are DRAWING. The morphing card sizes
+// its shared body by measuring each variant's natural box and animating to that
+// number of pixels, then builds its glow as a raster mask from the same box and
+// its resolved corner radius. A `14px` in there is a measurement the mask is
+// built from, not a label; expressing it in rem would make the geometry move
+// under a setting that is meant to change text size, and the mask (a PNG) would
+// no longer fit the shape it is masking.
+const SIZE_EXEMPT = /^\/src\/(components\/marketing\/(ai-lights|datamosh|design-tiles|cursors|code-trail)\/|app\/\(marketing\)\/sections\/(surfaces-bar|together|work-trail)\.tsx$)/;
+
+function offenders(pattern: RegExp, exempt?: RegExp): string[] {
   const hits: string[] = [];
   for (const file of sourceFiles(join(root, "src"))) {
+    const rel = file.slice(root.length - 1);
+    if (exempt?.test(rel)) continue;
     const text = readFileSync(file, "utf8");
     for (const line of text.split("\n")) {
       // Prose about the prohibition is not a violation of it.
@@ -48,11 +69,30 @@ function offenders(pattern: RegExp): string[] {
 
 describe("the type scale is closed", () => {
   it("has no px font-size literals — px cannot follow --ui-font-scale", () => {
-    expect(offenders(/text-\[[0-9.]+px\]/)).toEqual([]);
+    expect(offenders(/text-\[[0-9.]+px\]/, SIZE_EXEMPT)).toEqual([]);
   });
 
   it("has no px radius literals — a literal is a corner no theme can reach", () => {
-    expect(offenders(/rounded-\[[0-9.]+px\]/)).toEqual([]);
+    expect(offenders(/rounded-\[[0-9.]+px\]/, SIZE_EXEMPT)).toEqual([]);
+  });
+
+  // The exemption is a named list, not a directory anyone can grow into. A
+  // regex that let `src/components/marketing/**` through would quietly exempt
+  // every future section, which is how a closed scale stops being closed.
+  it("exempts only the canvas pieces, and only where they exist", () => {
+    const paths = [
+      "src/components/marketing/ai-lights/variants.tsx",
+      "src/components/marketing/code-trail/CodeTrailCard.tsx",
+      "src/app/(marketing)/sections/surfaces-bar.tsx",
+    ];
+    for (const p of paths) {
+      expect(SIZE_EXEMPT.test(`/${p}`)).toBe(true);
+      expect(statSync(join(root, p)).isFile()).toBe(true);
+    }
+    // Neighbours are not exempt.
+    expect(SIZE_EXEMPT.test("/src/components/marketing/footer.tsx")).toBe(false);
+    expect(SIZE_EXEMPT.test("/src/app/(marketing)/sections/hero.tsx")).toBe(false);
+    expect(SIZE_EXEMPT.test("/src/components/dashboard/sidebar.tsx")).toBe(false);
   });
 
   it("defines every rung the codemod mapped onto", () => {

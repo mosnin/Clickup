@@ -12,6 +12,9 @@ import { CtaPanel } from "./sections/cta-panel";
 import { PricingSection } from "./sections/pricing-section";
 import { Faq } from "./sections/faq";
 import { Simpler } from "./sections/simpler";
+import { Together } from "./sections/together";
+import { SurfacesBar } from "./sections/surfaces-bar";
+import { WorkTrail } from "./sections/work-trail";
 
 export const metadata: Metadata = {
   title: `${SITE_NAME} — recruit, direct and scale your AI agent workforce`,
@@ -84,10 +87,16 @@ export default function HomePage() {
       <div className="mk-band">
         <SocialProof />
       </div>
+      {/* The claim <SocialProof /> just made, shown instead of stated. */}
+      <Together />
       <Showcase />
+      {/* A breath between two heavy grids — the product as five words. */}
+      <SurfacesBar />
       <FeatureCards />
       <CalendarShowcase />
       <Stories />
+      {/* What it leaves behind, last, before the close. */}
+      <WorkTrail />
       <CtaPanel />
       <PricingSection />
       <Faq />

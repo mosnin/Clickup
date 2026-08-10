@@ -87,7 +87,18 @@ export function DatamoshBackdrop({ className = "" }: { className?: string }) {
       aria-hidden="true"
       className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`}
     >
-      <div ref={hostRef} className="absolute inset-0 opacity-[0.38]" />
+      {/* Faded at the top edge. Without it the decode starts on a hard
+          horizontal line where the black page ends, and a band of saturated
+          tiles butting straight against the canvas reads as a rendering seam
+          rather than as the footer having a texture. */}
+      <div
+        ref={hostRef}
+        className="absolute inset-0 opacity-[0.45]"
+        style={{
+          maskImage: "linear-gradient(180deg, transparent 0%, black 22%)",
+          WebkitMaskImage: "linear-gradient(180deg, transparent 0%, black 22%)",
+        }}
+      />
       {/* The legibility scrim. Two stops rather than a flat wash so the colour
           still reads at the top edge, where nothing is written over it. */}
       <div

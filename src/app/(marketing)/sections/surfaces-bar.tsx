@@ -1,0 +1,39 @@
+import { Container } from "@/components/marketing/ui";
+import { DesignTilesCard } from "@/components/marketing/design-tiles/DesignTilesCard";
+
+// The product, as five words in five colours.
+//
+// A deliberately small band between two heavy sections. Every other block on
+// this page is an argument — a villain, a proof, a grid of claims — and reading
+// five of those back to back flattens all of them. This one says the whole
+// product in one line and then gets out of the way, which is the only reason it
+// earns a place: it is a breath, not a section.
+//
+// The words are the surfaces (tasks, docs, goals, chat, agents), so the tiles
+// are a table of contents for everything the page has just claimed. They keep
+// re-rolling their colours on their own timers, which is what stops a static
+// list of nouns from reading as a footer that wandered up the page.
+
+export function SurfacesBar() {
+  return (
+    <section className="bg-background py-16 sm:py-20" aria-labelledby="surfaces-bar">
+      <Container>
+        <h2 id="surfaces-bar" className="sr-only">
+          What operate.to gives every team
+        </h2>
+        {/* A light plate under the bar, matching the two other specimen cards.
+            Not decoration: one of the swatches is near-black, and on the black
+            canvas that tile vanished — the word inside it floated with no block
+            behind it while its four neighbours had one, which reads as a
+            missing tile rather than as a dark one. */}
+        <div className="mx-auto max-w-3xl rounded-[12px] border border-[var(--border-line)] bg-[var(--bg-page)] px-6 py-10 sm:px-10">
+          <DesignTilesCard />
+        </div>
+        <p className="mx-auto mt-8 max-w-xl text-center text-sm text-muted-foreground">
+          One workspace, five surfaces — and an agent can reach every one of
+          them through the same API your team uses.
+        </p>
+      </Container>
+    </section>
+  );
+}

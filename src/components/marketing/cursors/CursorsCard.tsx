@@ -98,7 +98,13 @@ export function CursorsCard({
       data-canvas-card
       // The engine appends absolutely-positioned nodes straight into this box,
       // so it has to be the positioning context and it has to clip.
-      className={`relative isolate overflow-hidden ${className}`}
+      //
+      // A LIGHT plate, on a page that is otherwise black. Not a rhythm break
+      // for its own sake: the frosted word is glass — white speculars, a bright
+      // top edge, a chip lit from above — and glass over black is a smudge. It
+      // matches the other two specimen plates on the page (ai-lights in the
+      // hero, code-trail further down) so the three read as one family.
+      className={`relative isolate overflow-hidden rounded-[12px] border border-[var(--border-line)] bg-[var(--bg-page)] ${className}`}
     >
       {/* The word, centred, with room around it for the pointers to orbit. */}
       <div className="pointer-events-none relative z-10 flex min-h-[clamp(13rem,26vw,20rem)] items-center justify-center px-6">

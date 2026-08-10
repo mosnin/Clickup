@@ -1,4 +1,8 @@
-export const WORDS = ["design", "is", "how", "it", "works"];
+// The bar says what operate.to IS, one surface per tile — the brief asked for
+// this piece to be "based around operate's products", and this list is the only
+// thing in the file that is content rather than mechanism. Five words to match
+// INITIAL's five swatches, and all short enough that no tile dominates the bar.
+export const WORDS = ["tasks", "docs", "goals", "chat", "agents"];
 
 export type Swatch = { bg: string; fg: string };
 

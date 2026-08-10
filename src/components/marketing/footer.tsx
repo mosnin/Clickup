@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CtaButton, Container } from "@/components/marketing/ui";
+import { DatamoshBackdrop } from "@/components/marketing/datamosh/DatamoshBackdrop";
 import {
   FEATURE_LINKS,
   USE_CASE_LINKS,
@@ -55,47 +56,21 @@ export function MarketingFooter() {
 
   return (
     <footer className="relative isolate overflow-hidden bg-navy-950 text-white">
-      {/* Spline scene behind the footer.
+      {/* The footer's backdrop: the datamosh decode, stretched over the whole
+          band rather than boxed into a card.
 
-          pointer-events-none on the wrapper: the iframe would otherwise
-          swallow every click meant for the link columns above it. lazy so it
-          never competes with the page's own load, and aria-hidden + a title
-          because it carries no information a screen reader needs.
+          It replaces a Spline scene that was doing the same job from a
+          third-party iframe — an external request, an opaque payload, and a
+          <div> that swallowed clicks meant for the link columns. This paints
+          the same idea with fillRect on our own canvas: no network, no vendor,
+          and it pauses when it is off screen instead of running forever in a
+          hidden band at the bottom of every page.
 
-          Legibility is the scrims' job, not the scene's: a flat wash plus a
-          top-down gradient that starts at the footer's own fill, so the band
-          reads as one surface and white text keeps its contrast wherever the
-          scene happens to be bright. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
-      >
-        {/* Over-sized and edge-masked. The scene letterboxes to its own
-            aspect, so at inset-0 its boundary landed inside the footer as two
-            hard vertical seams; blowing it out past the container and fading
-            the outer 30% to transparent means the viewer only ever sees the
-            middle of it. */}
-        <div
-          className="absolute -inset-x-[15%] -inset-y-[25%]"
-          style={{
-            maskImage:
-              "radial-gradient(70% 65% at 50% 50%, black 40%, transparent 100%)",
-            WebkitMaskImage:
-              "radial-gradient(70% 65% at 50% 50%, black 40%, transparent 100%)",
-          }}
-        >
-          <iframe
-            src="https://my.spline.design/aidatamodelinteraction-mdTL3FktFVHgDvFr5TKtnYDV"
-            title=""
-            aria-hidden
-            tabIndex={-1}
-            loading="lazy"
-            className="absolute left-0 top-0 h-full w-full border-0"
-          />
-        </div>
-        <div className="absolute inset-0 bg-navy-950/72" />
-        <div className="absolute inset-0 bg-gradient-to-b from-navy-950 via-navy-950/55 to-navy-950/90" />
-      </div>
+          The scrim lives inside the backdrop rather than out here, because
+          legibility is its problem: the palette runs to saturated yellow and
+          white, and it changes several times a second under text that has to
+          stay readable the whole time. */}
+      <DatamoshBackdrop className="-z-10" />
 
       <Container className="py-16">
         <div className="grid grid-cols-1 gap-x-10 gap-y-12 lg:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
