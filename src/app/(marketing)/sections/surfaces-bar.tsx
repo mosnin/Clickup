@@ -26,7 +26,15 @@ export function SurfacesBar() {
             canvas that tile vanished — the word inside it floated with no block
             behind it while its four neighbours had one, which reads as a
             missing tile rather than as a dark one. */}
-        <div className="mx-auto max-w-3xl rounded-[12px] border border-[var(--border-line)] bg-[var(--bg-page)] px-6 py-10 sm:px-10">
+        {/* `data-canvas-card` on the PLATE, not just on the bar inside it. The
+            plate token vocabulary is scoped to that attribute, so a wrapper
+            without it resolves `--bg-page` to nothing — which is not a
+            fallback, it is an invalid declaration: the plate rendered fully
+            transparent and the black tile stayed lost on the black page. */}
+        <div
+          data-canvas-card
+          className="mx-auto max-w-3xl rounded-[12px] border border-[var(--border-line)] bg-[var(--bg-page)] px-6 py-10 sm:px-10"
+        >
           <DesignTilesCard />
         </div>
         <p className="mx-auto mt-8 max-w-xl text-center text-sm text-muted-foreground">
