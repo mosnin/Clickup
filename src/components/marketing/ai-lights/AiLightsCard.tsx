@@ -19,9 +19,18 @@ const SETTLED_MS = 260;
 const GAP_MS =
   HANDOVER_AT - PULSE_MS + FADE_OUT_MS + MORPH_MS + 80 + SETTLED_MS;
 
+/**
+ * `bare` drops the plate: no tinted panel, no border, no fixed box — just the
+ * morphing body and its light, sitting directly on whatever the page is.
+ *
+ * That is how it ships on our site. The plate is a demo frame: it says "here
+ * is a component being shown to you" rather than "this is what the product
+ * looks like", and a pale panel is a third surface competing with a page that
+ * already has a canvas and a card. Removing it also un-clips the halo — the
+ * outermost glow layer reaches ~80px past the body, and `overflow-hidden` was
+ * cutting the softest, furthest part of the light square.
+ */
 export function AiLightsCard({ bare = false }: { bare?: boolean } = {}) {
-  void bare;
-
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const cardRef = useRef<HTMLDivElement>(null);
@@ -89,7 +98,13 @@ export function AiLightsCard({ bare = false }: { bare?: boolean } = {}) {
       aria-hidden="true"
       ref={cardRef}
 
-      className="relative flex aspect-[1344/620] w-full select-none items-center justify-center overflow-hidden rounded-[12px] border border-[var(--border-line)] transition-[--ai-bg1,--ai-bg2,--ai-bg3] duration-[1200ms] ease-[var(--ease-out)] bg-[linear-gradient(180deg,var(--ai-bg1,#f7f9fc)_0%,var(--ai-bg2,#eef4fb)_55%,var(--ai-bg3,#e6f0fa)_100%)]"
+      className={
+        bare
+          ? // Tall enough for the halo, and nothing else. No fill, no rim, no
+            // clipping — the light is allowed to spill onto the page.
+            "relative flex min-h-[220px] w-full select-none items-center justify-center"
+          : "relative flex aspect-[1344/620] w-full select-none items-center justify-center overflow-hidden rounded-[12px] border border-[var(--border-line)] transition-[--ai-bg1,--ai-bg2,--ai-bg3] duration-[1200ms] ease-[var(--ease-out)] bg-[linear-gradient(180deg,var(--ai-bg1,#f7f9fc)_0%,var(--ai-bg2,#eef4fb)_55%,var(--ai-bg3,#e6f0fa)_100%)]"
+      }
     >
       {}
       {probe}

@@ -3,11 +3,14 @@ import { DesignTilesCard } from "@/components/marketing/design-tiles/DesignTiles
 
 // The product, as five words in five colours.
 //
-// A deliberately small band between two heavy sections. Every other block on
-// this page is an argument — a villain, a proof, a grid of claims — and reading
-// five of those back to back flattens all of them. This one says the whole
-// product in one line and then gets out of the way, which is the only reason it
-// earns a place: it is a breath, not a section.
+// PLACEMENT. Between <Showcase /> and <FeatureCards /> — a caption to the
+// screenshots and a lead-in to the grid. It names what you have just been
+// looking at and what the next section is about to itemise, which is the one
+// job a section this small can do.
+//
+// Every other block on this page is an argument — a villain, a proof, a grid of
+// claims — and five of those back to back flattens all of them. This says the
+// whole product in one line and then gets out of the way. It is a breath.
 //
 // The words are the surfaces (tasks, docs, goals, chat, agents), so the tiles
 // are a table of contents for everything the page has just claimed. They keep

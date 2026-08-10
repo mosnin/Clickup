@@ -3,11 +3,12 @@ import { CodeTrailCard } from "@/components/marketing/code-trail/CodeTrailCard";
 
 // The trail of work an agent leaves behind it.
 //
-// Placed just before the closing CTA, where the page stops describing features
-// and starts describing what a day looks like. The section either side of it is
-// prose; this is the only block on the page that does nothing until you touch
-// it, which is most of why it belongs here — after a long scroll, an element
-// that answers the pointer is a reason to still be reading.
+// PLACEMENT. Last content block before the closing CTA. The page's order is
+// claim → evidence → who it is for; this is the coda — not another claim, but
+// what all of it leaves behind once the work is done. It is also the only block
+// on the page that does nothing until you touch it, which matters here
+// specifically: after a long scroll, an element that answers the pointer is a
+// reason to still be reading.
 //
 // It is fragments of source rather than task titles on purpose. Every other
 // surface on this page shows the human view of the work; this one shows what is

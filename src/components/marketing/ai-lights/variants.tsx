@@ -157,9 +157,9 @@ function Step({
 
 function BlockContent() {
   const steps: { label: string; state: "done" | "live" | "next" }[] = [
-    { label: "Fetch", state: "done" },
-    { label: "Parse", state: "live" },
-    { label: "Write", state: "next" },
+    { label: "Claim", state: "done" },
+    { label: "Build", state: "live" },
+    { label: "Approve", state: "next" },
   ];
   return (
     <span className="block w-[268px]">
@@ -209,7 +209,7 @@ function ProgressContent() {
         }
       >
         <RisingText
-          text="Indexing"
+          text="Clearing the sprint"
           className="text-[16px] leading-none text-[var(--s-text-body)]"
         />
       </Row>
@@ -228,10 +228,10 @@ function TerminalContent() {
   return (
     <span className="block w-[242px] space-y-2 font-mono">
       <span className="block text-[14px] leading-none text-[#8c8c8c]">
-        <span className="text-[#5f5f5f]">$</span> deploy
+        <span className="text-[#5f5f5f]">$</span> operate next
       </span>
       <RisingText
-        text="published"
+        text="claimed #248"
         className="block text-[14px] leading-none text-[#d6d6d6]"
         delay={60}
       />
@@ -264,7 +264,7 @@ function WandContent() {
         }
       >
         <RisingText
-          text="build me a scraper"
+          text="draft the launch brief"
           className="text-[16px] leading-none text-[var(--s-text-muted)]"
         />
       </Row>

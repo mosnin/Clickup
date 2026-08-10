@@ -7,7 +7,6 @@ import { HERO } from "@/lib/marketing-content";
 import { Container, CtaButton, ScreenshotFrame } from "@/components/marketing/ui";
 import { HeroUnicorn } from "@/components/marketing/hero-unicorn";
 import { StartCommand } from "@/components/marketing/start-command";
-import { AiLightsCard } from "@/components/marketing/ai-lights/AiLightsCard";
 import { useGsap, GsapParallax, EASE_OUT } from "@/components/marketing/gsap";
 import GradientText from "@/components/gradient-text";
 
@@ -59,12 +58,6 @@ export function Hero() {
         { autoAlpha: 0, y: 16 },
         { autoAlpha: 1, y: 0, duration: 0.5, stagger: 0.08 },
         "-=0.35",
-      )
-      .fromTo(
-        root.querySelector("[data-hero-ai]"),
-        { autoAlpha: 0, y: 24, scale: 0.97 },
-        { autoAlpha: 1, y: 0, scale: 1, duration: 0.7 },
-        "-=0.3",
       )
       .fromTo(
         root.querySelector("[data-hero-shot]"),
@@ -237,22 +230,6 @@ export function Hero() {
           <StartCommand />
         </div>
 
-        {/* One agent surface, becoming the next.
-
-            It sits between the command and the product shot because that is
-            the gap in the argument: the command says how to start, the
-            screenshot says what you get, and nothing in between showed the
-            thing actually running. The card is one body that morphs from a
-            workflow node to a progress row to a terminal to a prompt bar,
-            lit once per handover by a pulse travelling its rim — "something
-            is working" said as light rather than as a word.
-
-            Deliberately narrower than the screenshot below it. At the shot's
-            width it competes with the product; at this size it reads as a
-            specimen, and the eye still lands on the dashboard. */}
-        <div data-hero-ai className="mx-auto mt-14 max-w-xl">
-          <AiLightsCard />
-        </div>
 
         <GsapParallax
           speed={40}

@@ -13,6 +13,7 @@ import { PricingSection } from "./sections/pricing-section";
 import { Faq } from "./sections/faq";
 import { Simpler } from "./sections/simpler";
 import { Together } from "./sections/together";
+import { AgentAtWork } from "./sections/agent-at-work";
 import { SurfacesBar } from "./sections/surfaces-bar";
 import { WorkTrail } from "./sections/work-trail";
 
@@ -87,15 +88,22 @@ export default function HomePage() {
       <div className="mk-band">
         <SocialProof />
       </div>
-      {/* The claim <SocialProof /> just made, shown instead of stated. */}
-      <Together />
+      {/* The claim <SocialProof /> just made, happening. A claim about a
+          machine doing your work is answered by showing it working, before any
+          screenshot — and one small object on black is the quietest the page
+          gets, which is what keeps its middle from reading as one long grid. */}
+      <AgentAtWork />
       <Showcase />
-      {/* A breath between two heavy grids — the product as five words. */}
+      {/* A caption to the screenshots and a lead-in to the grid: the five
+          surfaces, named, in one line. Deliberately the smallest section here. */}
       <SurfacesBar />
       <FeatureCards />
+      {/* The grid CLAIMS features. Presence is the one that has to be felt
+          rather than listed, so it lands directly after as the payoff. */}
+      <Together />
       <CalendarShowcase />
       <Stories />
-      {/* What it leaves behind, last, before the close. */}
+      {/* Last before the close: what all of it leaves behind. */}
       <WorkTrail />
       <CtaPanel />
       <PricingSection />
