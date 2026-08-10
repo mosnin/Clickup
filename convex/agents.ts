@@ -10,6 +10,8 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity, requireListAccess, requireTaskAccess } from "./_authz";
 import { DEFAULT_DAILY_ACTION_LIMIT } from "./_agentAuth";
 import { validateWebhookUrl } from "./webhooks";
+import { releaseAgentClaims, stopNotice } from "./_agentStop";
+import { emitEvent } from "./events";
 import { normalizeCapabilities } from "./capabilities";
 
 // Human-facing management of AI agent principals: create/pause/delete
@@ -829,6 +831,71 @@ export const _storeKey = internalMutation({
       keyHash: args.keyHash,
       keyPrefix: args.keyPrefix,
       createdAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Stop an agent now, and say why.
+ *
+ * The button somebody reaches for when a fleet is going wrong, and the reason
+ * it is not just `status: "paused"`: a pause is a state ("off until further
+ * notice"), a stop is about the work in flight. It refuses further writes,
+ * releases the claims the agent is holding so that work is not stranded
+ * behind something that has been told to do nothing, and reaches the agent
+ * over the wake channel instead of waiting to surface as a refusal on its
+ * next write.
+ *
+ * The reason is required, and travels to the agent. "Stopped" with no cause
+ * is the message that makes people distrust their own controls.
+ */
+export const requestStop = mutation({
+  args: { agentId: v.id("agents"), reason: v.string() },
+  handler: async (ctx, { agentId, reason }) => {
+    const { agent, subject } = await requireAgentManageAccess(ctx, agentId);
+    const trimmed = reason.trim().slice(0, 300);
+    if (!trimmed) throw new ConvexError("Say why you're stopping this agent");
+
+    const now = Date.now();
+    await ctx.db.patch(agentId, {
+      stopRequestedAt: now,
+      stopReason: trimmed,
+      stopRequestedBy: subject,
+    });
+    const released = await releaseAgentClaims(ctx, agent);
+    await stopNotice(ctx, agent, { reason: trimmed, source: "human" });
+    await emitEvent(ctx, {
+      scopeType: agent.parentType,
+      scopeId: agent.parentId,
+      type: "agent.stopped",
+      actor: { type: "user", id: subject, name: "A teammate" },
+      entityType: "agent",
+      entityId: agent._id,
+      entityTitle: agent.name,
+    });
+    return { released };
+  },
+});
+
+/** Lift a stop. A stop nobody can clear is a pause with a worse name. */
+export const clearStop = mutation({
+  args: { agentId: v.id("agents") },
+  handler: async (ctx, { agentId }) => {
+    const { agent, subject } = await requireAgentManageAccess(ctx, agentId);
+    if (agent.stopRequestedAt === undefined) return;
+    await ctx.db.patch(agentId, {
+      stopRequestedAt: undefined,
+      stopReason: undefined,
+      stopRequestedBy: undefined,
+    });
+    await emitEvent(ctx, {
+      scopeType: agent.parentType,
+      scopeId: agent.parentId,
+      type: "agent.resumed",
+      actor: { type: "user", id: subject, name: "A teammate" },
+      entityType: "agent",
+      entityId: agent._id,
+      entityTitle: agent.name,
     });
   },
 });

@@ -18,7 +18,10 @@ import { timeAgo } from "@/lib/time";
 import { eventLabel } from "@/lib/event-labels";
 import { agentPresence } from "@/lib/agent-presence";
 import { useToast } from "@/components/toast";
+import { errorMessage } from "@/lib/errors";
+import { InlineCreate } from "@/components/dashboard/inline-create";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Picker } from "@/components/ui/picker";
@@ -320,6 +323,7 @@ function WakeDeliveryDiagnostics({
     task_assignment: "Task assignment",
     mention: "Mention",
     revision: "Revision request",
+  stop: "Stop",
   } as const;
 
   return (
@@ -546,6 +550,9 @@ function GovernancePanel({
   hasNotifySecret: boolean;
 }) {
   const update = useMutation(api.agents.update);
+  const requestStop = useMutation(api.agents.requestStop);
+  const clearStop = useMutation(api.agents.clearStop);
+  const [stopping, setStopping] = useState(false);
   const { toast } = useToast();
   const [limitDraft, setLimitDraft] = useState(String(usageLimit));
   const [spendDraft, setSpendDraft] = useState(
@@ -581,11 +588,85 @@ function GovernancePanel({
     }
   }
 
+  const stopped = agent.stopRequestedAt !== undefined;
+
   return (
     <section className="rounded-2xl panel p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Governance
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Governance
+        </h2>
+        {/* The control somebody reaches for when a fleet is going wrong. It
+            sits at the top of governance rather than buried among the
+            budgets, because the whole point of a stop is that you can find
+            it while something is going wrong. */}
+        {stopped ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full"
+            onClick={() => {
+              void clearStop({ agentId: agent._id })
+                .then(() => toast("Back to work"))
+                .catch((e) =>
+                  toast(errorMessage(e, "Couldn't clear the stop"), {
+                    kind: "error",
+                  }),
+                );
+            }}
+          >
+            Let it work again
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full text-danger"
+            onClick={() => setStopping(true)}
+          >
+            Stop now
+          </Button>
+        )}
+      </div>
+      {stopped && (
+        <p className="mt-2 rounded-xl bg-muted/50 px-3 py-2 text-sm">
+          <span className="font-medium">Stopped.</span>{" "}
+          {agent.stopReason ?? "No reason given."}{" "}
+          <span className="text-muted-foreground">
+            It can still report where it got to; it cannot change anything.
+          </span>
+        </p>
+      )}
+      {stopping && (
+        <div className="mt-2">
+          {/* A reason is required, and it travels to the agent — "stopped"
+              with no cause is the message that makes people distrust their
+              own controls. */}
+          <InlineCreate
+            placeholder="Why are you stopping it?"
+            onCancel={() => setStopping(false)}
+            onSubmit={async (reason) => {
+              try {
+                const { released } = await requestStop({
+                  agentId: agent._id,
+                  reason,
+                });
+                setStopping(false);
+                toast(
+                  released > 0
+                    ? `Stopped · ${released} task${released === 1 ? "" : "s"} released`
+                    : "Stopped",
+                );
+              } catch (e) {
+                setStopping(false);
+                toast(errorMessage(e, "Couldn't stop this agent"), {
+                  kind: "error",
+                });
+              }
+            }}
+          />
+        </div>
+      )}
       <div className="mt-3 grid gap-4 sm:grid-cols-3">
         <label className="block">
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">

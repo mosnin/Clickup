@@ -724,3 +724,94 @@ describe("spend ceilings", () => {
     });
   });
 });
+
+describe("the stop signal", () => {
+  // A pause says "this agent is off until further notice". A stop is about
+  // the work in flight: drop what you are doing now. The product only had
+  // the first, and it was invisible to a run already going.
+
+  it("refuses writes, releases claims, and tells the agent why", async () => {
+    const { t, alice, listId, agentId, apiKey } = await setup();
+    const taskId = await alice.mutation(api.tasks.create, {
+      listId,
+      title: "Work in flight",
+    });
+    await t.mutation(api.agentApi.claimTask, { apiKey, taskId });
+
+    const { released } = await alice.mutation(api.agents.requestStop, {
+      agentId,
+      reason: "Spending too long on the wrong thing",
+    });
+    // A stopped agent holding claims is work nobody else may touch, held by
+    // something told to do nothing.
+    expect(released).toBe(1);
+
+    await expect(
+      t.mutation(api.agentApi.createTask, { apiKey, listId, title: "No" }),
+    ).rejects.toThrow(/stopped by a human/i);
+
+    // Reads and presence survive: a stopped agent must still be able to say
+    // where it got to.
+    await t.mutation(api.agentApi.heartbeat, { apiKey, statusText: "halted" });
+
+    // And it learns through the channel it already polls, rather than
+    // discovering the stop as a refusal on its next write.
+    const inbox = await t.query(api.agentApi.listWakeInbox, { apiKey });
+    const notice = inbox.find((d) => d.type === "stop");
+    expect(notice).toBeDefined();
+    expect(notice?.payload.reason).toMatch(/wrong thing/);
+    expect(notice?.payload.resumesWhen).toMatch(/human clears/);
+  });
+
+  it("lifts cleanly — a stop nobody can clear is just a pause", async () => {
+    const { t, alice, listId, agentId, apiKey } = await setup();
+    await alice.mutation(api.agents.requestStop, {
+      agentId,
+      reason: "Pausing the experiment",
+    });
+    await expect(
+      t.mutation(api.agentApi.createTask, { apiKey, listId, title: "No" }),
+    ).rejects.toThrow(/stopped/i);
+
+    await alice.mutation(api.agents.clearStop, { agentId });
+    await t.mutation(api.agentApi.createTask, {
+      apiKey,
+      listId,
+      title: "Back to work",
+    });
+  });
+
+  it("requires a reason — 'stopped' with no cause is what breaks trust", async () => {
+    const { alice, agentId } = await setup();
+    await expect(
+      alice.mutation(api.agents.requestStop, { agentId, reason: "   " }),
+    ).rejects.toThrow(/why/i);
+  });
+
+  it("sends a budget stop down the same channel, and says it self-clears", async () => {
+    const { t, alice, agentId, apiKey } = await setup();
+    await alice.mutation(api.agents.update, {
+      agentId,
+      dailySpendUsdLimit: 2,
+    });
+    const runId = await t.mutation(api.agentApi.startRun, {
+      apiKey,
+      title: "Expensive",
+    });
+    await t.mutation(api.agentApi.finishRun, {
+      apiKey,
+      runId,
+      status: "succeeded",
+      costUsd: 5,
+    });
+
+    const inbox = await t.query(api.agentApi.listWakeInbox, { apiKey });
+    const notice = inbox.find((d) => d.type === "stop");
+    expect(notice).toBeDefined();
+    // The notice is shared; the LIFETIME is not, and the payload says so.
+    // A daily ceiling that needed manual clearing every morning would be a
+    // worse product arrived at by making the code look symmetrical.
+    expect(notice?.payload.source).toBe("budget");
+    expect(notice?.payload.resumesWhen).toMatch(/next UTC day/);
+  });
+});

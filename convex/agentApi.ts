@@ -24,6 +24,7 @@ import {
   BURST_LIMIT_PER_MINUTE,
   DEFAULT_DAILY_ACTION_LIMIT,
 } from "./_agentAuth";
+import { stopNotice } from "./_agentStop";
 import { getSpaceForList } from "./_authz";
 import { addNodeCore, decideCore } from "./plans";
 import { resolveEnvelope } from "./dataStream";
@@ -4105,6 +4106,13 @@ export const finishRun = mutation({
           entityType: "agent",
           entityId: agent._id,
         });
+        // The same notice channel a human stop uses. One thing for a runtime
+        // to implement, whoever pulled the stop — see convex/_agentStop.ts
+        // for why the ENFORCEMENT lifetimes stay different.
+        await stopNotice(ctx, agent, {
+          reason: "Daily spend ceiling reached",
+          source: "budget",
+        });
       }
       if (crossed.fleetCrossed) {
         await emitEvent(ctx, {
@@ -4115,6 +4123,23 @@ export const finishRun = mutation({
           entityType: "agent",
           entityId: agent._id,
         });
+        // Every agent in the scope is stopped, so every agent in the scope
+        // is told — a teammate that spent nothing still needs to know why
+        // its next write is about to be refused.
+        const fleet = await ctx.db
+          .query("agents")
+          .withIndex("by_parent", (q) =>
+            q
+              .eq("parentType", agent.parentType)
+              .eq("parentId", agent.parentId),
+          )
+          .take(100);
+        for (const member of fleet) {
+          await stopNotice(ctx, member, {
+            reason: "This space's daily budget is spent",
+            source: "budget",
+          });
+        }
       }
     }
     if (run.executionAssignmentId) {

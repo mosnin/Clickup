@@ -78,9 +78,18 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
       itself once from `recordAgentSpend` — a refusal cannot, because a
       Convex mutation that throws rolls back everything it wrote. Both
       numbers are settable and visible. — iteration 3
-- [ ] **P3 — a stop signal.** Pausing the whole agent is the only halt, and it
-      is invisible to a run in flight. `agentPingDeliveries` is already a
-      working wake channel; cancellation is one more `sourceKind`.
+- [x] **P3 — a stop signal.** A pause says "off until further notice"; a stop
+      is about the work in flight. `agents.requestStop` refuses further
+      writes, releases the claims the agent is holding (work stranded behind
+      something told to do nothing is the deadlock a stop exists to prevent),
+      and reaches the agent over the wake channel as `sourceKind: "stop"`
+      rather than waiting to surface as a refusal. Reads and presence
+      survive — a stopped agent must still be able to say where it got to.
+      A reason is required and travels to the agent. **The notice is one
+      channel, the enforcement deliberately is not**: a human stop persists
+      until a human lifts it, a budget stop self-clears at the UTC day, and
+      unifying those would mean every morning starts with somebody manually
+      un-sticking a fleet that was never in trouble. — iteration 4
 - [ ] **CF-1 — deferred approval (the Gatekeeper import).** A gated action is
       recorded as *pending* with a simulated result, the agent continues, and
       the human approves or rejects in bulk from one queue. The flagship.
@@ -127,6 +136,12 @@ panel refused to call CF-1 first: "ship it first and you have built the
 accelerator before the brakes".
 
 ## Iteration log
+
+**4.** Shipped P3, the stop signal, routing P10's budget stop down the same
+notice channel per the panel's instruction — one thing for a runtime to
+implement — while keeping the two enforcement lifetimes separate on purpose.
+The judgement worth recording: making the budget stop durable like a human
+stop would have made the code symmetrical and the product worse.
 
 **3.** Convened the Jobs panel to set the order (above), then shipped P10 to
 its spec. The panel's sharpest catch was in the working tree rather than the

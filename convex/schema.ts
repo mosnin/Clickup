@@ -860,6 +860,11 @@ export default defineSchema({
         v.literal("task_assignment"),
         v.literal("mention"),
         v.literal("revision"),
+        // One notice channel for "you are stopped", whoever pulled it — a
+        // human, or a budget ceiling. See stopNotice in convex/_agentStop.ts
+        // for why the ENFORCEMENT lifetimes differ even though the notice
+        // does not.
+        v.literal("stop"),
       ),
     ),
     sourceId: v.optional(v.string()),
@@ -1797,6 +1802,21 @@ export default defineSchema({
      * `_agentAuth.requireAgentByKey`.
      */
     dailySpendUsdLimit: v.optional(v.number()),
+    /**
+     * A stop pulled by a human, and why.
+     *
+     * Distinct from `status: "paused"`, which means "this agent is off until
+     * further notice". A stop is about the work in flight: drop what you are
+     * doing now. It refuses further writes, releases the agent's claims so
+     * the work is not held hostage, and reaches the agent over the wake
+     * channel rather than waiting to surface as a refusal on its next write.
+     *
+     * Cleared by a human (`agents.clearStop`). A stop nobody can lift is
+     * just a pause with a worse name.
+     */
+    stopRequestedAt: v.optional(v.number()),
+    stopReason: v.optional(v.string()),
+    stopRequestedBy: v.optional(v.string()),
     // Direct push endpoint: assignments and mentions POST a small ping
     // here even when the agent has no webhook subscription, so "assign an
     // agent" works out of the box. When notifySecret is set, pings carry

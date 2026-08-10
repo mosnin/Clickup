@@ -188,6 +188,18 @@ export async function requireAgentByKey(
         throw new ConvexError("This agent is read-only");
       }
 
+      // A human pulled the stop. Refused here rather than left to the wake
+      // notice alone, because a stop that depends on the agent choosing to
+      // read its inbox is a request, not a stop. Reads and presence still
+      // work: a stopped agent must still be able to say where it got to.
+      if (agent.stopRequestedAt !== undefined) {
+        throw new ConvexError(
+          agent.stopReason
+            ? `Stopped by a human: ${agent.stopReason}. Work resumes when they clear the stop.`
+            : "Stopped by a human. Work resumes when they clear the stop.",
+        );
+      }
+
       // ── Spend ceilings ──────────────────────────────────────────────────
       //
       // Money was the one budget that was charted and never enforced: writes
