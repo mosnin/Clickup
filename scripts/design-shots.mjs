@@ -408,10 +408,21 @@ async function shootOnlyWhenList(width, label) {
   await p.goto("http://127.0.0.1:4599/home.html?situations=1");
   await p.waitForTimeout(2000);
   // Through the page's own switch — the tray only exists while arranging.
-  // .last(): the spelling unification made the sidebar footer's Customise and
-  // the capsule's identical; the capsule's (inside the inset, later in DOM) is
-  // the one this flow means.
-  await p.getByRole("button", { name: "Customise", exact: true }).last().click();
+  // On phones the capsule's Customise is hidden (it folded the bar into a
+  // two-row blob), so the mobile path is the designed gesture: hold a tile
+  // until the grid wobbles, exactly like a phone's home screen. Desktop
+  // clicks the capsule's Customise (.last() because the sidebar footer
+  // carries an identically-named row for the style inspector).
+  if (width < 640) {
+    const tile = p.locator("[data-tile]").first();
+    const box = await tile.boundingBox();
+    await p.mouse.move(box.x + box.width / 2, box.y + 40);
+    await p.mouse.down();
+    await p.waitForTimeout(850);
+    await p.mouse.up();
+  } else {
+    await p.getByRole("button", { name: "Customise", exact: true }).last().click();
+  }
   await p.waitForTimeout(900);
   const list = p.getByText("Only here sometimes");
   await list.scrollIntoViewIfNeeded().catch(() => {});

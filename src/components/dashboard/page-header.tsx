@@ -128,9 +128,9 @@ export function PageHeader({
         initial={{ y: -14, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={SPRING}
-        className="flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-full bg-card py-1.5 pl-4 pr-2 shadow-[var(--ui-shadow-md)]"
+        className="flex min-h-12 items-center justify-between gap-x-3 rounded-full bg-card py-1.5 pl-4 pr-2 shadow-[var(--ui-shadow-md)]"
       >
-        <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <button
             type="button"
             aria-label="Open navigation"
@@ -157,7 +157,7 @@ export function PageHeader({
             </div>
           )}
         </div>
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex flex-shrink-0 items-center gap-2 min-w-0">
           {actions}
           <CapsuleCluster />
         </div>
@@ -213,7 +213,11 @@ export function CapsuleCluster() {
           />
         )}
       </Link>
-      {me?.name ? <Monogram name={me.name} seed={me.clerkId} size="md" /> : null}
+      {/* A name can lag the row (webhook sync), and a cluster missing its
+          avatar reads as broken chrome — fall back rather than vanish. */}
+      {me ? (
+        <Monogram name={me.name || "You"} seed={me.clerkId} size="md" />
+      ) : null}
     </div>
   );
 }

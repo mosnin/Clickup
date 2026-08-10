@@ -9,7 +9,6 @@ import { useMutation, useQuery } from "convex/react";
 import {
   ArrowRight,
   ArrowUpRight,
-  Clock,
   Plus,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -42,7 +41,6 @@ import {
 import { ActorGlyph } from "@/components/appearance/actor-glyph";
 import { Panel } from "@/components/dashboard/panel";
 import { StyledSurface } from "@/components/dashboard/styled-surface";
-import { SparkMark } from "@/components/dashboard/op-art";
 import { GaugeArc } from "@/components/charts/gauge-arc";
 import { StackedColumns } from "@/components/charts/stacked-columns";
 import { NotchCard } from "@/components/dashboard/notch-card";
@@ -547,16 +545,19 @@ export default function DashboardHome() {
         }
         actions={
           <>
+            {/* Hidden on phones: the sidebar footer carries the same
+                control, and a 390px capsule cannot afford a text link — it
+                was what folded the bar into a two-row blob. */}
             <button
               type="button"
               onClick={() => setCustomizing((v) => !v)}
-              className="tap-target text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              className="tap-target hidden text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline sm:block"
             >
               {customizing ? "Done" : "Customise"}
             </button>
             <Button size="sm" className="h-9 gap-1.5" onClick={openCommandPalette}>
               <Plus className="size-4" />
-              New task
+              <span className="hidden sm:inline">New task</span>
             </Button>
           </>
         }
@@ -870,14 +871,11 @@ function StatsCards({
           href="/dashboard/my-work"
           className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-teal p-4 text-signal-ink"
         >
-          {/* Chip-then-figure on one line, label under the rule — the
-              reference teal block's own anatomy (its white squircle glyph
-              beside "95.5+"). The chip is a semantic indicator for the
-              metric, on its own surface, per the icon rules. */}
+          {/* The figure IS the card — no glyph chip. A clock beside a
+              number was decoration wearing an indicator's clothes (founder
+              call), and the label under the rule already says what the
+              number is. */}
           <span className="flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/85 shadow-[var(--ui-shadow-sm)]">
-              <Clock aria-hidden className="size-4" />
-            </span>
             <span className="font-title block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
               <Counter
                 value={me.dueToday}
@@ -907,9 +905,6 @@ function StatsCards({
           className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-pink p-4 text-signal-ink"
         >
           <span className="flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/85 shadow-[var(--ui-shadow-sm)]">
-              <SparkMark aria-hidden className="size-4" />
-            </span>
             <span className="font-title block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
               <Counter
                 value={doneThisWeek}

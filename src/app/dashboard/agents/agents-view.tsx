@@ -446,9 +446,6 @@ function AgentsStatBento({
         <StaggerItem lift className="min-h-0 @3xl:col-start-3 @3xl:row-start-1">
           <div className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-teal p-4 text-signal-ink">
             <span className="flex items-center gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/85 shadow-sm">
-                <Wallet aria-hidden className="size-4" />
-              </span>
               <span className="font-title block truncate text-[2.25rem] font-bold leading-[0.85] tracking-tight">
                 ${(spend?.cost7 ?? 0).toFixed(2)}
               </span>
@@ -467,9 +464,6 @@ function AgentsStatBento({
         <StaggerItem lift className="min-h-0 @3xl:col-start-3 @3xl:row-start-2">
           <div className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-pink p-4 text-signal-ink">
             <span className="flex items-center gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/85 shadow-sm">
-                <Activity aria-hidden className="size-4" />
-              </span>
               <span className="font-title block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
                 <AnimatedNumber value={spend?.runs7 ?? 0} />
               </span>
