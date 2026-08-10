@@ -13,6 +13,12 @@ import { ActorGlyph } from "@/components/appearance/actor-glyph";
 import { parseMentionBody } from "@/lib/mentions";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
+import {
+  isStale,
+  OBLIGATION_KIND,
+  summarize,
+  waitedFor,
+} from "@/lib/obligations";
 import { useToast } from "@/components/toast";
 import {
   AnimatePresence,
@@ -52,7 +58,7 @@ function pad(n: number): string {
 
 export function Inbox() {
   const mentions = useQuery(api.mentions.feedForCurrent, {});
-  const approvals = useQuery(api.tasks.pendingApprovals, {});
+  const obligations = useQuery(api.obligations.forCurrentUser, {});
   const updates = useQuery(api.notificationCenter.listForCurrent, {});
   const markMentionsRead = useMutation(api.mentions.markAllRead);
   const markUpdatesRead = useMutation(api.notificationCenter.markAllRead);
@@ -78,7 +84,7 @@ export function Inbox() {
   const isEmpty =
     mentions.length === 0 &&
     updates.length === 0 &&
-    (approvals?.length ?? 0) === 0;
+    (obligations?.length ?? 0) === 0;
 
   return (
     <div className="space-y-8">
@@ -115,8 +121,8 @@ export function Inbox() {
         />
       ) : (
         <>
-          {approvals !== undefined && approvals.length > 0 && (
-            <ApprovalsQueue approvals={approvals} />
+          {obligations !== undefined && obligations.length > 0 && (
+            <YourTurnQueue rows={obligations} />
           )}
 
           {mentions.length > 0 && (
@@ -200,44 +206,64 @@ function UnreadDot({ visible }: { visible: boolean }) {
 // sign off. Approve inline or click through to review first. The one focal
 // moment on this page — a quiet frame rather than an alarm colour, because a
 // gate waiting on a human is not a status, it is the page's whole subject.
-function ApprovalsQueue({
-  approvals,
+/**
+ * Everything waiting on this person, as one queue.
+ *
+ * Four sources used to live on four screens with four sets of words: a task
+ * behind an approval gate, a revision somebody answered, a plan question a
+ * person reserved, an outcome criterion needing sign-off. A fleet running
+ * unattended for a week only has to be forgotten on ONE of those to stall.
+ *
+ * Oldest first, and the age is shown — the ordering every source it replaces
+ * got backwards. A feed is for things you might read; this is for things that
+ * do not move until you touch them, and the one at risk of never being
+ * touched is the one that has waited longest.
+ */
+function YourTurnQueue({
+  rows,
 }: {
-  approvals: {
-    taskId: Id<"tasks">;
-    listId: Id<"lists">;
+  rows: {
+    kind: "approval" | "revision" | "question" | "outcome";
+    id: string;
     title: string;
-    checklistDone: number;
-    checklistTotal: number;
+    href: string;
+    raisedBy?: string;
     createdAt: number;
   }[];
 }) {
   const approve = useMutation(api.tasks.approve);
   const { toast } = useToast();
+  const now = Date.now();
+  const { stale } = summarize(rows, now);
 
-  async function onApprove(taskId: Id<"tasks">) {
+  async function onApprove(taskId: string) {
     try {
-      await approve({ taskId });
+      await approve({ taskId: taskId as Id<"tasks"> });
     } catch (e) {
-      toast(errorMessage(e, "Couldn't approve this task"), {
-        kind: "error",
-      });
+      toast(errorMessage(e, "Couldn't approve this task"), { kind: "error" });
     }
   }
 
   return (
     <section>
-      <SectionHeading label="Waiting on your approval" unread={approvals.length} />
+      <SectionHeading label="Your turn" unread={rows.length} />
       <div className="mt-3 rounded-[1.625rem] bg-muted/30 p-1.5">
         <div className="overflow-hidden rounded-2xl panel">
-          <div className="border-b border-border px-5 py-3.5">
-            <h3 className="text-base font-medium">Ready for review</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3.5">
+            <h3 className="text-base font-medium">
+              Nothing moves until you touch these
+            </h3>
+            {stale > 0 && (
+              <span className="ui-chip px-2 py-0.5 text-tiny font-medium text-danger">
+                {stale} waiting over a day
+              </span>
+            )}
           </div>
           <ul className="divide-y divide-border">
             <AnimatePresence initial={false}>
-              {approvals.map((a, index) => (
+              {rows.map((row, index) => (
                 <motion.li
-                  key={a.taskId}
+                  key={`${row.kind}:${row.id}`}
                   layout
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -253,30 +279,38 @@ function ApprovalsQueue({
                       <ShieldCheck className="size-4" />
                     </span>
                     <Link
-                      href={`/dashboard/l/${a.listId}/t/${a.taskId}`}
+                      href={row.href}
                       className="min-w-0 flex-1 basis-48 truncate text-sm font-semibold hover:underline"
                     >
-                      {a.title}
+                      {row.title}
                     </Link>
                     <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1.5">
-                      {a.checklistTotal > 0 && (
-                        <span
-                          className={cn(
-                            "ui-chip px-2 py-0.5 text-tiny font-medium",
-                            a.checklistDone === a.checklistTotal
-                              ? "text-positive"
-                              : "text-muted-foreground",
-                          )}
-                        >
-                          {a.checklistDone}/{a.checklistTotal} checklist
-                        </span>
-                      )}
-                      <span className="ui-chip ui-figure px-2 py-0.5 text-tiny text-muted-foreground">
-                        {timeAgo(a.createdAt)}
+                      <span className="ui-chip px-2 py-0.5 text-tiny font-medium text-muted-foreground">
+                        {OBLIGATION_KIND[row.kind].label}
                       </span>
-                      <Button size="sm" onClick={() => onApprove(a.taskId)}>
-                        Approve
-                      </Button>
+                      {/* How long it has waited, not when it arrived. The
+                          question a person acts on is "has this been
+                          ignored", and a timestamp makes them do that
+                          arithmetic themselves. */}
+                      <span
+                        className={cn(
+                          "ui-chip ui-figure px-2 py-0.5 text-tiny",
+                          isStale(row.createdAt, now)
+                            ? "text-danger"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {waitedFor(row.createdAt, now)}
+                      </span>
+                      {row.kind === "approval" ? (
+                        <Button size="sm" onClick={() => onApprove(row.id)}>
+                          Approve
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={row.href}>Open</Link>
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </motion.li>

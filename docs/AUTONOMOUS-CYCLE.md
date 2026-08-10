@@ -93,9 +93,19 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
 - [ ] **CF-1 — deferred approval (the Gatekeeper import).** A gated action is
       recorded as *pending* with a simulated result, the agent continues, and
       the human approves or rejects in bulk from one queue. The flagship.
-- [ ] **P5 — one "your turn" queue.** Human obligations are scattered across
-      approvals, revisions, plan questions and outcome checks, with no count
-      and no aging. CF-1's approvals land here.
+- [x] **P5 — one "your turn" queue.** Four sources (task approvals, answered
+      revisions, plan questions a person reserved, outcome criteria awaiting
+      sign-off) gathered into one queue at the top of the Inbox, and folded
+      into the badge — a count that showed only mentions taught people a
+      quiet Inbox meant nothing was waiting. **Oldest first**, which is the
+      ordering every source it replaces got backwards: a feed is for things
+      you might read, this is for things that do not move until you touch
+      them, and the one at risk of never being touched is the one that has
+      waited longest. Age is shown in the buckets a person reacts to, and
+      staleness marks a row without ever hiding it. Every source is
+      access-checked on its own terms — a queue that gathered four kinds of
+      pointer without re-checking each one would be a tidy way to enumerate
+      a workspace you cannot open. — iteration 5
 - [ ] **P11 — thrash detection.** Every watchdog pass detects absence; none
       detects repetition. An agent redoing the same work is invisible.
 
@@ -136,6 +146,13 @@ panel refused to call CF-1 first: "ship it first and you have built the
 accelerator before the brakes".
 
 ## Iteration log
+
+**5.** Shipped P5, the receiving dock the panel insisted come before the
+flagship. The judgement that shaped it: sorting. Every surface it replaces
+ordered newest-first out of habit, which systematically buries the obligation
+most likely to have been forgotten — so the queue inverts it and shows the
+wait rather than the timestamp, because "has this been ignored" is the
+question somebody acts on.
 
 **4.** Shipped P3, the stop signal, routing P10's budget stop down the same
 notice channel per the panel's instruction — one thing for a runtime to

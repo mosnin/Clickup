@@ -815,3 +815,81 @@ describe("the stop signal", () => {
     expect(notice?.payload.resumesWhen).toMatch(/next UTC day/);
   });
 });
+
+describe("the one \"your turn\" queue", () => {
+  // Four ways the product asks for a person, gathered into one queue. The
+  // boundary is the part worth testing hardest: an obligation is a pointer
+  // into somebody's work, and a queue that gathered four kinds of pointer
+  // without re-checking each one would be a tidy way to enumerate a
+  // workspace you cannot open.
+
+  it("gathers approvals and orders them oldest first", async () => {
+    const { alice, listId } = await setup();
+    const older = await alice.mutation(api.tasks.create, {
+      listId,
+      title: "Waiting since forever",
+      requiresApproval: true,
+    });
+    const newer = await alice.mutation(api.tasks.create, {
+      listId,
+      title: "Just raised",
+      requiresApproval: true,
+    });
+
+    const queue = await alice.query(api.obligations.forCurrentUser, {});
+    expect(queue.map((r) => r.id)).toEqual([older, newer]);
+    expect(queue[0].kind).toBe("approval");
+    // The href has to land somewhere a person can actually answer.
+    expect(queue[0].href).toContain(`/t/${older}`);
+
+    // Answering removes it — a queue that keeps answered rows is a list.
+    await alice.mutation(api.tasks.approve, { taskId: older });
+    const after = await alice.query(api.obligations.forCurrentUser, {});
+    expect(after.map((r) => r.id)).toEqual([newer]);
+  });
+
+  it("never shows one person another person's obligations", async () => {
+    const { t, alice, listId } = await setup();
+    await alice.mutation(api.tasks.create, {
+      listId,
+      title: "Alice's gated work",
+      requiresApproval: true,
+    });
+    const bob = t.withIdentity(BOB);
+    expect(await bob.query(api.obligations.forCurrentUser, {})).toEqual([]);
+    expect(await bob.query(api.obligations.countForCurrentUser, {})).toBe(0);
+  });
+
+  it("counts what the list would show", async () => {
+    const { alice, listId } = await setup();
+    expect(await alice.query(api.obligations.countForCurrentUser, {})).toBe(0);
+    await alice.mutation(api.tasks.create, {
+      listId,
+      title: "One",
+      requiresApproval: true,
+    });
+    await alice.mutation(api.tasks.create, {
+      listId,
+      title: "Two",
+      requiresApproval: true,
+    });
+    // The badge and the queue must agree, or the number teaches people to
+    // distrust it.
+    const queue = await alice.query(api.obligations.forCurrentUser, {});
+    const count = await alice.query(api.obligations.countForCurrentUser, {});
+    expect(count).toBe(queue.length);
+    expect(count).toBe(2);
+  });
+
+  it("drops a gated task once it is complete", async () => {
+    const { alice, listId, doneStatus } = await setup();
+    const taskId = await alice.mutation(api.tasks.create, {
+      listId,
+      title: "Gated but finished",
+      requiresApproval: true,
+    });
+    await alice.mutation(api.tasks.approve, { taskId });
+    await alice.mutation(api.tasks.update, { taskId, statusId: doneStatus });
+    expect(await alice.query(api.obligations.forCurrentUser, {})).toEqual([]);
+  });
+});

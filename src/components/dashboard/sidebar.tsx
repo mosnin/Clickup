@@ -407,7 +407,12 @@ function InboxMenuItem() {
   // The badge counts everything the Inbox page shows: mentions + updates.
   const unreadMentions = useQuery(api.mentions.unreadCountForCurrent, {});
   const unreadUpdates = useQuery(api.notificationCenter.unreadCount, {});
-  const unread = (unreadMentions ?? 0) + (unreadUpdates ?? 0);
+  // Obligations count too. A badge that showed only mentions taught people
+  // that a quiet Inbox meant nothing was waiting — while four kinds of
+  // "your turn" sat behind it unread.
+  const waitingOnYou = useQuery(api.obligations.countForCurrentUser, {});
+  const unread =
+    (unreadMentions ?? 0) + (unreadUpdates ?? 0) + (waitingOnYou ?? 0);
   const active = pathname === "/dashboard/inbox";
 
   return (

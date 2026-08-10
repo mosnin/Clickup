@@ -101,6 +101,7 @@ import type * as milestones from "../milestones.js";
 import type * as myWork from "../myWork.js";
 import type * as network from "../network.js";
 import type * as notificationCenter from "../notificationCenter.js";
+import type * as obligations from "../obligations.js";
 import type * as notificationPrefs from "../notificationPrefs.js";
 import type * as nav from "../nav.js";
 import type * as notifications from "../notifications.js";
@@ -251,6 +252,7 @@ declare const fullApi: ApiFromModules<{
   myWork: typeof myWork;
   network: typeof network;
   notificationCenter: typeof notificationCenter;
+  obligations: typeof obligations;
   notificationPrefs: typeof notificationPrefs;
   nav: typeof nav;
   notifications: typeof notifications;
