@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Collaboration states</title>
+    <!--APP_CSS-->
+    <style>
+      body {
+        margin: 0;
+        padding: 32px;
+        background: var(--color-background, #f6f6f7);
+        color: var(--color-foreground, #111);
+      }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      h2 {
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        opacity: 0.45;
+        margin: 36px 0 14px;
+      }
+      .cap {
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        opacity: 0.5;
+        margin: 0 0 4px;
+      }
+      .note { font-size: 12px; opacity: 0.6; margin: 0 0 12px; max-width: 62ch; }
+      .case { margin-bottom: 28px; max-width: 760px; }
+      .rows { display: flex; flex-direction: column; gap: 2px; }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: var(--color-card, #fff);
+      }
+      .row-title { font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./collab-app.tsx"></script>
+  </body>
+</html>

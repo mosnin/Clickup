@@ -124,6 +124,7 @@ await build({
         // alongside everything else on purpose: a calibration page that has to
         // be built separately is a calibration step somebody will skip.
         broken: join(SRC, "broken.html"),
+        collab: join(SRC, "collab.html"),
       },
     },
   },
@@ -140,6 +141,7 @@ for (const page of [
   "project.html",
   "panels.html",
   "broken.html",
+  "collab.html",
 ]) {
   const html = join(OUT, page);
   writeFileSync(

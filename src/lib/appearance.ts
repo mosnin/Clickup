@@ -466,25 +466,29 @@ export function hslToHex(h: number, s: number, l: number): string {
   return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
 }
 
-/** The lightness stops for the accent ramp, matched to the ink defaults. */
-const RAMP: { key: string; l: number; s: number }[] = [
-  { key: "50", l: 97, s: 0.35 },
-  { key: "100", l: 93, s: 0.45 },
-  { key: "200", l: 86, s: 0.55 },
-  { key: "500", l: 46, s: 1 },
-  { key: "600", l: 34, s: 1 },
-  { key: "700", l: 22, s: 1 },
+/**
+ * The accent ramp's stops, per theme.
+ *
+ * There are two sets because a ramp is not theme-independent and pretending
+ * otherwise silently breaks dark mode. In light, 50–200 are near-white
+ * surfaces and 700 is ink; in dark they swap ends — 50–200 go near-black and
+ * 700 becomes near-white — while 500/600 stay mid greys so `bg-brand-600
+ * text-white` and `text-brand-600` both stay legible in either theme. The dark
+ * stops are read off the shipped dark ink ramp in globals.css, which is what
+ * they have to match.
+ *
+ * Saturation falls off at both ends on purpose: a saturated near-black surface
+ * reads as muddy rather than tinted, and saturated near-white ink reads as a
+ * colour rather than as text.
+ */
+const RAMP: { key: string; l: number; s: number; dl: number; ds: number }[] = [
+  { key: "50", l: 97, s: 0.35, dl: 8, ds: 0.3 },
+  { key: "100", l: 93, s: 0.45, dl: 10, ds: 0.35 },
+  { key: "200", l: 86, s: 0.55, dl: 15, ds: 0.45 },
+  { key: "500", l: 46, s: 1, dl: 65, ds: 0.55 },
+  { key: "600", l: 34, s: 1, dl: 46, ds: 0.45 },
+  { key: "700", l: 22, s: 1, dl: 93, ds: 0.15 },
 ];
-
-/** The shipped monochrome ramp — what "ink" mode means. */
-const INK_RAMP: Record<string, string> = {
-  "50": "#f5f5f6",
-  "100": "#e9e9ec",
-  "200": "#d9d9de",
-  "500": "#3f3f46",
-  "600": "#131316",
-  "700": "#000000",
-};
 
 /**
  * The font stacks.
@@ -600,17 +604,33 @@ export function resolveTokens(input: Appearance): Record<string, string> {
   const a = normalizeAppearance(input);
   const tokens: Record<string, string> = {};
 
-  // Accent ramp.
-  if (a.accentMode === "ink") {
-    for (const [key, hex] of Object.entries(INK_RAMP)) {
-      tokens[`--color-brand-${key}`] = hex;
-    }
-  } else {
+  // Accent ramp — and note what is NOT written: `--color-brand-*` itself.
+  //
+  // Writing those inline is how the accent silently broke dark mode for the
+  // entire app. An inline custom property on `:root` outranks every selector,
+  // so a ramp emitted here beat `:root[data-theme="dark"]`'s dark ramp in
+  // globals.css — and since ink mode emitted a hardcoded COPY of the light
+  // values, every `bg-brand-50` was a white slab and every `text-brand-600` a
+  // near-black glyph on a near-black card, in the shipped default, forever.
+  // The stylesheet's dark ramp had never once applied.
+  //
+  // So the stylesheet stays the authority on which theme is on — it is the
+  // only layer that knows — and this function feeds it both sides. Ink mode
+  // writes nothing at all, because ink IS the stylesheet's own ramp; copying
+  // it down looks identical today and stops tracking the moment it changes,
+  // which is the same mistake as copying a parent value down instead of
+  // inheriting it. Same reasoning as the shadows below.
+  if (a.accentMode === "hue") {
     for (const stop of RAMP) {
-      tokens[`--color-brand-${stop.key}`] = hslToHex(
+      tokens[`--ui-accent-${stop.key}-light`] = hslToHex(
         a.accentHue,
         a.accentSaturation * stop.s,
         stop.l,
+      );
+      tokens[`--ui-accent-${stop.key}-dark`] = hslToHex(
+        a.accentHue,
+        a.accentSaturation * stop.ds,
+        stop.dl,
       );
     }
   }

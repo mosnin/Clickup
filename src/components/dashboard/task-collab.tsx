@@ -71,6 +71,24 @@ export function TaskBanners({
     ? byId.get(task.claimedByActorId)
     : undefined;
 
+  // What actually needs the person, ranked — and at most one of them gets a
+  // card. A finished handback outranks a hold because approving it resolves
+  // the task outright, which makes the hold moot; a hold outranks nothing,
+  // because nothing else here is a demand at all.
+  //
+  // This ranking is a fix, not a tidy-up. Each banner was designed on its own
+  // and every one of them was right on its own; a task that had been handed
+  // back, held, gated AND claimed drew four full-width coloured cards in a
+  // column, three of them some flavour of alarm, and the page read as broken.
+  // Everything that is a FACT about the task rather than a demand on the
+  // reader — the gate, the claim, a hold that lost the card — moved to one
+  // quiet line underneath, each fact keeping its own control.
+  const demand: "handback" | "hold" | null = handback
+    ? "handback"
+    : task.thrashHeldAt !== undefined
+      ? "hold"
+      : null;
+
   return (
     <div className="space-y-3">
       {/* ── An agent finished this and is waiting ──
@@ -135,127 +153,118 @@ export function TaskBanners({
       {/* ── Held until somebody looks ──
           A held task is withheld from the dispatcher, so on its own page it
           looks like ordinary open work that no agent happens to be picking up.
-          Saying nothing here is how a person concludes the fleet is broken. */}
-      {task.thrashHeldAt !== undefined && (
-        <Card className="flex-row items-center gap-2 border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">
-          <TriangleAlert className="h-4 w-4 flex-shrink-0" />
-          <span className="min-w-0 flex-1">
-            {task.holdReason === "attempts_exhausted"
-              ? "Held after running out of dispatch attempts"
-              : `Held after ${task.thrashFailures ?? "repeated"} failed attempts`}
-            . Agents will not pick this up until you release it.
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              void run(
-                () => clearHold({ taskId: task._id }),
-                "Couldn't release this task",
-              )
-            }
-          >
-            Let it retry
-          </Button>
-        </Card>
-      )}
-      {task.requiresApproval && (
+          Saying nothing here is how a person concludes the fleet is broken.
+          Drawn as a card only when nothing outranks it; otherwise it keeps its
+          words and its control down on the facts line. */}
+      {demand === "hold" && (
         <motion.div
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: EASE }}
         >
-          <Card
-            className={cn(
-              "flex-row items-center gap-2 px-4 py-2.5 text-sm",
-              task.approvedAt
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-400"
-                : "border-brand-200 bg-brand-50 text-brand-800",
-            )}
-          >
-            <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+          <Card className="flex-row items-center gap-2 border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">
+            <TriangleAlert className="h-4 w-4 flex-shrink-0" />
             <span className="min-w-0 flex-1">
-              {task.approvedAt
-                ? "Approved, agents may complete this task."
-                : handback
-                  ? "Approval gate: approve the completion above to finish this task."
-                  : "Approval gate: an agent can finish the work, but its completion is recorded for you to approve rather than applied."}
+              {holdSentence(task)}. Agents will not pick this up until you
+              release it.
             </span>
-            {/* No Approve button while a handback is outstanding. This one
-                calls tasks.approve, which lifts the gate WITHOUT applying the
-                agent's completion — so a person clicking it would believe they
-                had approved the work while the finished completion sat
-                unapplied above. The handback banner's own Approve is the one
-                that completes the task. */}
-            {!task.approvedAt && !handback && (
-              <Button
-                size="sm"
-                onClick={() =>
-                  void run(
-                    () => approve({ taskId: task._id }),
-                    "Couldn't approve this task",
-                  )
-                }
-              >
-                Approve
-              </Button>
-            )}
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
               onClick={() =>
                 void run(
-                  () => update({ taskId: task._id, requiresApproval: false }),
-                  "Couldn't remove the approval gate",
+                  () => clearHold({ taskId: task._id }),
+                  "Couldn't release this task",
                 )
               }
             >
-              Remove gate
+              Let it retry
             </Button>
           </Card>
         </motion.div>
       )}
-      {task.claimedByActorId ? (
-        <Card className="flex-row items-center gap-2 border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-800/40 dark:bg-amber-950/40 dark:text-amber-400">
-          <Lock className="h-4 w-4 flex-shrink-0" />
-          <span className="min-w-0 flex-1">
-            Claimed by{" "}
-            <span className="font-medium">
-              {claimant ? claimant.name : "someone"}
-            </span>{" "}
-            {task.claimedAt ? timeAgo(task.claimedAt) : "recently"}, they&apos;re
-            actively working on this. Auto-releases after 60 min of
-            inactivity.
-          </span>
-          {!task.requiresApproval && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() =>
+      {/* ── The facts, and their controls ──
+          Everything true about this task that is not a demand on the reader.
+          One line of small type: a person scanning the page reads the card,
+          and reads this only when they want to know why. */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* A hold that lost the card still has to be sayable, and still has to
+            be releasable — its whole point is that nothing moves until
+            somebody acts. */}
+        {task.thrashHeldAt !== undefined && demand !== "hold" && (
+          <Fact
+            icon={TriangleAlert}
+            tone="border-danger/30 text-danger"
+            action={{
+              label: "Let it retry",
+              onClick: () =>
                 void run(
-                  () => update({ taskId: task._id, requiresApproval: true }),
-                  "Couldn't add the approval gate",
-                )
-              }
-            >
-              <ShieldCheck className="h-3.5 w-3.5" /> Require approval
-            </Button>
-          )}
+                  () => clearHold({ taskId: task._id }),
+                  "Couldn't release this task",
+                ),
+            }}
+          >
+            {holdSentence(task)}
+          </Fact>
+        )}
+        {task.requiresApproval && (
+          <Fact
+            icon={ShieldCheck}
+            tone={
+              task.approvedAt
+                ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
+                : undefined
+            }
+            action={{
+              label: "Remove gate",
+              onClick: () =>
+                void run(
+                  () => update({ taskId: task._id, requiresApproval: false }),
+                  "Couldn't remove the approval gate",
+                ),
+            }}
+          >
+            {task.approvedAt
+              ? "Approved, agents may complete this"
+              : handback
+                ? "Gated — approving above finishes it"
+                : "Gated: an agent's completion is recorded for you, not applied"}
+          </Fact>
+        )}
+        {/* No Approve here while a handback is outstanding. tasks.approve
+            lifts the gate WITHOUT applying the agent's completion, so a person
+            clicking it would believe they had approved the work while the
+            finished completion sat unapplied above. The handback card's own
+            Approve is the one that completes the task. */}
+        {task.requiresApproval && !task.approvedAt && !handback && (
           <Button
             size="sm"
-            variant="outline"
             onClick={() =>
               void run(
-                () => releaseClaim({ taskId: task._id }),
-                "Couldn't release the claim",
+                () => approve({ taskId: task._id }),
+                "Couldn't approve this task",
               )
             }
           >
-            Release
+            Approve
           </Button>
-        </Card>
-      ) : (
-        <div className="flex flex-wrap items-center gap-2">
+        )}
+        {task.claimedByActorId ? (
+          <Fact
+            icon={Lock}
+            action={{
+              label: "Release",
+              onClick: () =>
+                void run(
+                  () => releaseClaim({ taskId: task._id }),
+                  "Couldn't release the claim",
+                ),
+            }}
+          >
+            {claimant ? claimant.name : "Someone"} is on it,{" "}
+            {task.claimedAt ? timeAgo(task.claimedAt) : "recently"}
+          </Fact>
+        ) : (
           <Button
             size="sm"
             variant="outline"
@@ -268,23 +277,76 @@ export function TaskBanners({
           >
             <Hand className="h-3.5 w-3.5" /> I&apos;m on it
           </Button>
-          {!task.requiresApproval && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() =>
-                void run(
-                  () => update({ taskId: task._id, requiresApproval: true }),
-                  "Couldn't add the approval gate",
-                )
-              }
-            >
-              <ShieldCheck className="h-3.5 w-3.5" /> Require approval
-            </Button>
-          )}
-        </div>
-      )}
+        )}
+        {!task.requiresApproval && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              void run(
+                () => update({ taskId: task._id, requiresApproval: true }),
+                "Couldn't add the approval gate",
+              )
+            }
+          >
+            <ShieldCheck className="h-3.5 w-3.5" /> Require approval
+          </Button>
+        )}
+      </div>
     </div>
+  );
+}
+
+/** Why this task is held, in words, wherever it happens to be said. */
+function holdSentence(task: Doc<"tasks">): string {
+  return task.holdReason === "attempts_exhausted"
+    ? "Held after running out of dispatch attempts"
+    : `Held after ${task.thrashFailures ?? "repeated"} failed attempts`;
+}
+
+/**
+ * One true thing about the task, with the control that changes it.
+ *
+ * The control lives INSIDE the chip on purpose: a row of facts followed by a
+ * row of buttons makes the reader match them up, and gets it wrong the moment
+ * a fact is absent. `.tap-target` is a pseudo-element halo, so a 44px touch
+ * area costs the chip no layout.
+ */
+function Fact({
+  icon: Icon,
+  tone,
+  action,
+  children,
+}: {
+  icon: typeof Lock;
+  tone?: string;
+  action?: { label: string; onClick: () => void };
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground",
+        tone,
+      )}
+    >
+      <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+      <span>{children}</span>
+      {action && (
+        <>
+          <span aria-hidden className="opacity-40">
+            ·
+          </span>
+          <button
+            type="button"
+            onClick={action.onClick}
+            className="tap-target font-medium text-foreground underline-offset-2 hover:underline"
+          >
+            {action.label}
+          </button>
+        </>
+      )}
+    </span>
   );
 }
 

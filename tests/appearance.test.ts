@@ -29,9 +29,19 @@ import { spaceTargetForPath } from "../src/lib/space-route";
 describe("defaults", () => {
   it("resolves to the shipped token values", () => {
     const tokens = resolveTokens(DEFAULT_APPEARANCE);
-    // The monochrome ink ramp, unchanged.
-    expect(tokens["--color-brand-600"]).toBe("#131316");
-    expect(tokens["--color-brand-700"]).toBe("#000000");
+    // The monochrome ink ramp is NOT emitted, and that is the shipped design
+    // rather than a gap in it. `--color-brand-*` has a per-theme definition in
+    // globals.css; an inline custom property on :root outranks every selector,
+    // so emitting the ramp here — as this function did, from a hardcoded copy
+    // of the LIGHT values — beat the dark ramp and pinned it out of existence.
+    // Every `bg-brand-50` was a white slab in dark mode and every
+    // `text-brand-600` a near-black glyph on a near-black card, in the default
+    // appearance, because a value was copied down instead of inherited.
+    for (const k of ["50", "100", "200", "500", "600", "700"]) {
+      expect(tokens[`--color-brand-${k}`]).toBeUndefined();
+      expect(tokens[`--ui-accent-${k}-light`]).toBeUndefined();
+      expect(tokens[`--ui-accent-${k}-dark`]).toBeUndefined();
+    }
     // The shipped radii, density and type scale.
     expect(tokens["--ui-radius-card"]).toBe("1.000rem");
     expect(tokens["--ui-font-scale"]).toBe("1.000");
@@ -133,15 +143,38 @@ describe("tokens", () => {
         Number.parseInt(v.slice(4, 6), 16)
       );
     };
-    const ramp = ["50", "100", "200", "500", "600", "700"].map(
-      (k) => tokens[`--color-brand-${k}`],
-    );
+    const STOPS = ["50", "100", "200", "500", "600", "700"];
+    const ramp = STOPS.map((k) => tokens[`--ui-accent-${k}-light`]);
     for (const hex of ramp) expect(hex).toMatch(/^#[0-9a-f]{6}$/);
     // Monotonically darker — a ramp that isn't ordered can't be used for
     // hover states or text-on-fill.
     for (let i = 1; i < ramp.length; i += 1) {
       expect(brightness(ramp[i])).toBeLessThan(brightness(ramp[i - 1]));
     }
+
+    // And a second ramp for the other theme, because a ramp is not
+    // theme-independent. Its ENDS are swapped: 50 is the near-black surface
+    // and 700 the near-white ink, matching the shipped dark ink ramp the
+    // stylesheet falls back to. Emitting only one side is the defect this
+    // whole pair exists to prevent — one set of six values cannot be right in
+    // both themes, and the one that was emitted was right in light.
+    const dark = STOPS.map((k) => tokens[`--ui-accent-${k}-dark`]);
+    for (const hex of dark) expect(hex).toMatch(/^#[0-9a-f]{6}$/);
+    expect(brightness(dark[0])).toBeLessThan(brightness(ramp[0]));
+    expect(brightness(dark[5])).toBeGreaterThan(brightness(ramp[5]));
+    expect(brightness(dark[5])).toBeGreaterThan(brightness(dark[0]));
+  });
+
+  it("leaves the ramp to the stylesheet in ink mode", () => {
+    // The default, and therefore the case that matters most: nothing about the
+    // accent is written, so `:root` and `:root[data-theme="dark"]` in
+    // globals.css each supply their own ink ramp and dark mode works.
+    const tokens = resolveTokens({ ...DEFAULT_APPEARANCE, accentMode: "ink" });
+    expect(
+      Object.keys(tokens).filter(
+        (k) => k.includes("brand") || k.includes("accent"),
+      ),
+    ).toEqual([]);
   });
 
   it("only emits hex colours, so they can be interpolated", () => {
@@ -379,7 +412,8 @@ describe("resolution", () => {
     });
     const tokens = resolveTokens(appearance);
     expect(tokens["--ui-font-scale"]).toBe("1.100");
-    expect(tokens["--color-brand-600"]).toMatch(/^#[0-9a-f]{6}$/);
+    expect(tokens["--ui-accent-600-light"]).toMatch(/^#[0-9a-f]{6}$/);
+    expect(tokens["--ui-accent-600-dark"]).toMatch(/^#[0-9a-f]{6}$/);
   });
 });
 

@@ -68,6 +68,10 @@ for (const [url, name] of [
   ["http://127.0.0.1:4599/", "charts"],
   ["http://127.0.0.1:4599/sidebar.html", "sidebar"],
   ["http://127.0.0.1:4599/labels.html", "labels"],
+  // The four states a fleet puts a task into. Added after four iterations of
+  // banners and badges that were verified only by tests reading source — which
+  // prove the wiring and are silent on whether any of it fits or reads.
+  ["http://127.0.0.1:4599/collab.html", "collab"],
 ]) {
   await page.goto(url);
   // Long enough for the entrance animations to land — anything caught
@@ -517,6 +521,7 @@ for (const page of [
   // The studio open over Home: a full-width sheet of cards inside a 390px
   // phone is exactly the shape that overflows, and it had never been measured.
   "home.html?studio=1",
+  "collab.html",
 ]) {
   await mobile.goto(`http://127.0.0.1:4599/${page}`);
   await mobile.waitForTimeout(900);

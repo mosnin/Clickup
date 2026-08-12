@@ -138,7 +138,6 @@ const KNOWN_DEAD = [
   "src/components/dashboard/roadmap-panel.tsx: dark:text-brand-400",
   "src/components/dashboard/roadmap-panel.tsx: dark:text-brand-400",
   "src/components/dashboard/roadmap-panel.tsx: dark:text-brand-400",
-  "src/components/dashboard/task-collab.tsx: text-brand-800",
   "src/components/dashboard/workspace-settings.tsx: dark:text-brand-400",
 ].sort();
 

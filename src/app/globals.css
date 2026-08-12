@@ -77,12 +77,12 @@
 
   /* "Brand" is ink now: black CTAs, gray chips. Kept as a scale so the
      existing bg-brand-* / text-brand-* call sites shift in place. */
-  --color-brand-50: #f5f5f6;
-  --color-brand-100: #e9e9ec;
-  --color-brand-200: #d9d9de;
-  --color-brand-500: #3f3f46;
-  --color-brand-600: #131316;
-  --color-brand-700: #000000;
+  --color-brand-50: var(--ui-accent-50-light, #f5f5f6);
+  --color-brand-100: var(--ui-accent-100-light, #e9e9ec);
+  --color-brand-200: var(--ui-accent-200-light, #d9d9de);
+  --color-brand-500: var(--ui-accent-500-light, #3f3f46);
+  --color-brand-600: var(--ui-accent-600-light, #131316);
+  --color-brand-700: var(--ui-accent-700-light, #000000);
 
   /* Pastel accent fills (chart-series / chip backgrounds).
 
@@ -636,12 +636,12 @@
   --color-muted: #1a1a1a;
   --color-card: #121212;
   --color-card-foreground: #f4f4f4;
-  --color-brand-50: #141414;
-  --color-brand-100: #1a1a1a;
-  --color-brand-200: #272727;
-  --color-brand-500: #a1a1aa;
-  --color-brand-600: #71717a;
-  --color-brand-700: #ededf0;
+  --color-brand-50: var(--ui-accent-50-dark, #141414);
+  --color-brand-100: var(--ui-accent-100-dark, #1a1a1a);
+  --color-brand-200: var(--ui-accent-200-dark, #272727);
+  --color-brand-500: var(--ui-accent-500-dark, #a1a1aa);
+  --color-brand-600: var(--ui-accent-600-dark, #71717a);
+  --color-brand-700: var(--ui-accent-700-dark, #ededf0);
 
   --ui-shade: rgb(0 0 0 / 0.62);
   --ui-shade-weak: rgb(0 0 0 / 0.35);
@@ -674,12 +674,12 @@
   --color-muted: #f5f5f6;
   --color-card: #ffffff;
   --color-card-foreground: #101010;
-  --color-brand-50: #f5f5f6;
-  --color-brand-100: #e9e9ec;
-  --color-brand-200: #d9d9de;
-  --color-brand-500: #3f3f46;
-  --color-brand-600: #131316;
-  --color-brand-700: #000000;
+  --color-brand-50: var(--ui-accent-50-light, #f5f5f6);
+  --color-brand-100: var(--ui-accent-100-light, #e9e9ec);
+  --color-brand-200: var(--ui-accent-200-light, #d9d9de);
+  --color-brand-500: var(--ui-accent-500-light, #3f3f46);
+  --color-brand-600: var(--ui-accent-600-light, #131316);
+  --color-brand-700: var(--ui-accent-700-light, #000000);
 
   --ui-shade: rgb(16 16 18 / 0.16);
   --ui-shade-weak: rgb(16 16 18 / 0.06);
@@ -1878,12 +1878,12 @@ body {
   /* Ink scale inverts: light chips become dark tiles, "ink" text becomes
      near-white. brand-600 stays a mid gray so both `bg-brand-600 text-white`
      (avatars/badges/bars) and `text-brand-600` links remain legible. */
-  --color-brand-50: #141414;
-  --color-brand-100: #1a1a1a;
-  --color-brand-200: #272727;
-  --color-brand-500: #a1a1aa;
-  --color-brand-600: #71717a;
-  --color-brand-700: #ededf0;
+  --color-brand-50: var(--ui-accent-50-dark, #141414);
+  --color-brand-100: var(--ui-accent-100-dark, #1a1a1a);
+  --color-brand-200: var(--ui-accent-200-dark, #272727);
+  --color-brand-500: var(--ui-accent-500-dark, #a1a1aa);
+  --color-brand-600: var(--ui-accent-600-dark, #71717a);
+  --color-brand-700: var(--ui-accent-700-dark, #ededf0);
 
   --color-danger: #e0685c;
   --color-unread: #d9f24e;
