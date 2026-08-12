@@ -46,19 +46,31 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
 
 ### Blockers
 
-- [ ] **Dark mode has been rendering with the light ink ramp, so nobody has
-      seen the real one.** Iteration 17 fixed the cause; the consequence is
-      that every `bg-brand-*` / `text-brand-*` call site in the app was
-      written and reviewed against a dark mode that was silently light-inked,
-      and now renders differently. Some of those will be better and some will
-      be newly wrong — a surface that leaned on `bg-brand-50` being white in
-      dark now gets a near-black slab. This is a regression sweep of a change
-      already shipped, not new work, and it is the top of the queue because
-      it is a self-inflicted unknown across every logged-in surface.
-      Method: `npm run gallery` already shoots a dark PNG of every fixture;
-      look at all of them, and measure rather than read wherever something
-      looks off (`getComputedStyle` in real Chromium is what found the cause
-      in one line after four wrong guesses from the stylesheet).
+- [ ] **The audit's live-behind measurement has been unmeasurable, and caps
+      the score at 6/10 on every run.** Diagnosed in iteration 18, not fixed.
+      `scripts/audit.mjs` drives it by clicking `[data-tile="activity"]` and
+      then waiting for `#style-island button` — but the island is present
+      with its "Style this screen" button BEFORE that click and gone after
+      it, so the locator times out at 30s, twice, and files two
+      `unreachable` findings. Two consequences, the second worse than the
+      first: the studio's headline on-screen claim ("it applies everywhere,
+      live behind") is one of the few things this instrument measures rather
+      than photographs, and it has been measuring nothing; and a cap that
+      fires on every run for a reason unrelated to the surface under test is
+      a cap people learn to read past, which is how a verdict stops meaning
+      anything. Fix the driving sequence to whatever actually opens the
+      studio now (Home has a Customise control in both the rail and the
+      capsule), and prove it by watching the canvas colour change behind the
+      sheet rather than by the absence of a timeout.
+
+- [x] **The dark mode nobody had seen, swept.** Every brand pair in the tree
+      turned out to be `bg-brand-{50,100}` + `text-brand-700`, which inverts
+      correctly now that the ramp does. Three real findings: the sprint
+      velocity bar (a surface shade used as a graphic, 1.29:1 in light since
+      it shipped), nine dead `dark:text-brand-*` classes that were rendering
+      at 1.12:1 rather than the 3.8:1 their own note assumed, and the audit's
+      contrast gate never pointing at any surface that carries a brand pair.
+      — iteration 18
 
 - [x] **The accent ramp beat dark mode, app-wide, since dark mode shipped.**
       `resolveTokens` wrote `--color-brand-*` inline on `:root` — a hardcoded
@@ -284,6 +296,42 @@ panel refused to call CF-1 first: "ship it first and you have built the
 accelerator before the brakes".
 
 ## Iteration log
+
+**18.** Swept the consequences of 17's own fix, which is the part of a
+root-cause repair that usually gets skipped: a change that alters how every
+`bg-brand-*` and `text-brand-*` in the app renders in dark is not finished when
+the cause is fixed. The reassuring finding first — every brand pair in the tree
+is `bg-brand-{50,100}` with `text-brand-700`, so all of them invert correctly
+now that the ramp does. The call sites were right about the ramp's intent all
+along; the ramp was the part that never inverted. One was silently repaired by
+the fix (a panel with `fill: "accent"` had near-white text on a near-white
+`bg-brand-100` in dark).
+
+The finding that matters most is about the instrument rather than the product.
+I started writing a contrast sweep — walk every element, compute its colour
+against the background it actually sits on, fail under 3:1 — and found
+`scripts/audit-gates.mjs` already does it, better: SVG `fill`, painted boxes,
+composited alpha, and eleven gates calibrated against deliberate specimens in
+`broken.html` on every run. So the question was never "why is there no gate".
+It was **why did a good gate never see this**, and the answer is `SURFACES`:
+twenty entries covering the dynamic canvas, with every surface carrying a
+brand-toned pair — task banners, comments, the agents page, sprints, the
+roadmap — outside them. *A gate that does not point at a surface is not a gate
+that passed it.* That is iteration 14's finding wearing different clothes, and
+it is worth stating as a rule because the failure is invisible from inside
+either half: the gate list looks complete, and the surface list looks like a
+sample.
+
+Registering `collab` was verified the way a guard test is: restore the defect,
+watch the gate cap the score, fix it, watch the cap clear. Two product bugs
+came out of the same pass — a velocity chart that has been a row of empty
+capsules since it shipped (a surface shade used as a graphic: 1.29:1 against
+its own track), and the known-dead class list, which turned out to understate
+its own damage by a factor of three. Its note put those labels at "about
+3.8:1, under AA" — computed from a dark ramp that never applied. The real
+number was 1.12:1. That list is now empty, which is the first time it has
+been, and the shade that replaced them was chosen by measuring, which is what
+the note had always asked for and nobody could do while the token lied.
 
 **17.** Paid the debt from 13–16: four rounds of banners and badges verified
 only by tests that read source. Those tests prove the wiring exists and are
