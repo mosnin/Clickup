@@ -17,7 +17,13 @@ import { requireTaskAccess } from "./_authz";
 // is not entitled to know the thing exists.
 
 type Row = {
-  kind: "approval" | "revision" | "question" | "outcome" | "handback";
+  kind:
+    | "approval"
+    | "revision"
+    | "question"
+    | "outcome"
+    | "handback"
+    | "stuck";
   id: string;
   title: string;
   href: string;
@@ -234,6 +240,33 @@ export const forCurrentUser = query({
       }
     }
 
+    // ── Tasks held after failing over and over ──
+    //
+    // The sixth source, and the only one nobody asked for: the others are
+    // raised by a person or an agent deciding they need you, this one is
+    // raised by a watchdog noticing that nothing is going to fix itself. It
+    // belongs here because the hold BLOCKS work — the task is withheld from
+    // the dispatcher until somebody looks — so it is waiting on a human in
+    // the most literal sense of any row in the queue.
+    const held = await ctx.db
+      .query("tasks")
+      .withIndex("by_thrash_held", (q) => q.gt("thrashHeldAt", 0))
+      .take(PER_SOURCE);
+    for (const task of held) {
+      try {
+        await requireTaskAccess(ctx, task._id);
+      } catch {
+        continue;
+      }
+      rows.push({
+        kind: "stuck",
+        id: task._id,
+        title: task.title,
+        href: `/dashboard/l/${task.listId}/t/${task._id}`,
+        createdAt: task.thrashHeldAt ?? task.createdAt,
+      });
+    }
+
     // Oldest first — the whole point. See sortObligations; every source this
     // replaces sorted newest-first, which buries the one most likely to have
     // been forgotten.
@@ -287,6 +320,18 @@ export const countForCurrentUser = query({
         } catch {
           // Not yours to know about.
         }
+      }
+    }
+    const heldTasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_thrash_held", (q) => q.gt("thrashHeldAt", 0))
+      .take(PER_SOURCE);
+    for (const task of heldTasks) {
+      try {
+        await requireTaskAccess(ctx, task._id);
+        count += 1;
+      } catch {
+        continue;
       }
     }
     for (const scope of await visibleScopes(ctx, identity.subject)) {

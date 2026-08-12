@@ -124,8 +124,26 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
       access-checked on its own terms — a queue that gathered four kinds of
       pointer without re-checking each one would be a tidy way to enumerate
       a workspace you cannot open. — iteration 5
-- [ ] **P11 — thrash detection.** Every watchdog pass detects absence; none
-      detects repetition. An agent redoing the same work is invisible.
+- [x] **P11 — thrash detection.** A fourth watchdog pass, and the only check
+      in the product that looks for REPETITION — passes 1-3 all detect absence
+      (an expired claim, a missing heartbeat, an overdue date), and a loop
+      reads as health to every one of them: fresh claim, regular heartbeat,
+      run history full of activity, budget draining all night. Three failed or
+      **abandoned** runs against one task inside six hours holds the task,
+      names it, and files it. Four decisions carry it. **A window, not a
+      total** — two failures in March and one today is a hard task with a
+      history, so the signal decays on its own and nobody needs an
+      administrator to get a clean slate. **News, not a state**: the watchdog
+      runs every 15 minutes over a 6-hour window, so each failure is seen by
+      ~24 passes; it fires only on evidence newer than its last notice, which
+      is also what stops the release button being a no-op the next pass
+      undoes. **Abandoned counts as failed** — claim, hang, get reaped, claim
+      again is the most common loop there is, and excluding it would make it
+      invisible to the one check built to see loops. And **detection needs a
+      brake**: the held task is withheld from `next_task` (skipped AND
+      counted), because a watchdog that only notices hands the task straight
+      back, which is how the loop got going. Cleared by a human, or by the
+      work finally landing. — iteration 7
 
 - [ ] **P13 — the task graph.** Proposed by the founder, and the codebase is
       already most of the way there: `tasks.blockedByTaskIds` is a DAG, and
@@ -189,6 +207,19 @@ panel refused to call CF-1 first: "ship it first and you have built the
 accelerator before the brakes".
 
 ## Iteration log
+
+**7.** Shipped P11 to its cut line (repeated failure only; status flip-flops
+and alternating writers are cheaper to add now that the pass exists). The
+judgement worth recording is that the roadmap entry asked for detection and
+detection alone would have been worthless here: releasing the claim and
+emitting an event leaves the task dispatchable, so `next_task` hands it back to
+the same fleet within the quarter-hour and the loop the watchdog just
+identified carries on. The hold is the feature; the event is the receipt.
+
+Second, smaller: the pure module went in `src/lib/` first out of habit and was
+moved to `convex/_thrash.ts` before shipping. Nothing else in `convex/` imports
+across that boundary, and the bundler roots at that directory — tidiness is not
+worth finding out at deploy time.
 
 **6.** Shipped CF-1, the flagship, in the order the panel set. The judgement
 worth recording is the one where we did not follow the source: Cloudflare's

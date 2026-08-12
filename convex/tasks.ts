@@ -634,6 +634,11 @@ export async function updateTaskCore(
       // Completing a task releases any claim on it.
       patch.claimedByActorId = undefined;
       patch.claimedAt = undefined;
+      // ...and lifts a thrash hold. A loop that ended with the work done needs
+      // no ceremony, and leaving the flag set would make the task look stuck
+      // forever in the one queue built to show what is stuck.
+      patch.thrashHeldAt = undefined;
+      patch.thrashFailures = undefined;
     }
     // Reopening a gated task revokes the previous approval — otherwise an
     // agent could re-complete it later on the stale sign-off.
@@ -1343,6 +1348,35 @@ export const update = mutation({
 
 // Human approval of a gated task. Emits task.approved so the agent
 // waiting on it gets a webhook/event and can finish the job.
+/**
+ * Let a held task be worked again.
+ *
+ * The counterpart to the watchdog's thrash brake, and deliberately a human-only
+ * mutation: the point of the hold is that a person looks before the fleet tries
+ * again. An agent that could clear its own hold would be a loop with an extra
+ * step in it.
+ *
+ * Clearing the hold does NOT clear `thrashNotifiedAt`. That is the dedupe
+ * marker, and resetting it would mean the very next watchdog pass — which
+ * still sees the same six hours of failures — immediately re-holds the task
+ * somebody just released. The hold lifts; the memory of what has already been
+ * reported stays, so only a NEW failure can raise it again.
+ */
+export const clearThrashHold = mutation({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const { task, identity } = await requireTaskAccess(ctx, taskId);
+    if (task.thrashHeldAt === undefined) return;
+    const actor = await userActor(ctx, identity.subject);
+    await ctx.db.patch(taskId, {
+      thrashHeldAt: undefined,
+      thrashFailures: undefined,
+    });
+    const updated = (await ctx.db.get(taskId))!;
+    await emitTaskEvent(ctx, updated, "task.thrash_cleared", actor);
+  },
+});
+
 export const approve = mutation({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, { taskId }) => {

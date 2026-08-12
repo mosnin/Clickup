@@ -3615,6 +3615,7 @@ export const nextTask = query({
       missingCapabilities: 0,
       assignedToOthers: 0,
       awaitingApproval: 0,
+      heldForReview: 0,
     };
 
     // Tasks in an active sprint outrank backlog work of the same priority.
@@ -3700,6 +3701,16 @@ export const nextTask = query({
               .first();
             if (awaiting) {
               skipped.awaitingApproval += 1;
+              continue;
+            }
+            // Held after repeated failures. This is the brake half of thrash
+            // detection: without it the watchdog only NOTICES the loop and the
+            // dispatcher hands the same task straight back, which is how the
+            // loop got going. Counted rather than silently dropped for the
+            // same reason as above — an agent has to be able to tell "nothing
+            // to do" from "the work is stopped pending a person".
+            if (t.thrashHeldAt !== undefined) {
+              skipped.heldForReview += 1;
               continue;
             }
             const mine = t.assigneeClerkIds.includes(agent._id);

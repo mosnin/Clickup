@@ -6,6 +6,11 @@ import { emitEvent, scopeForList } from "./events";
 import { notify } from "./notificationCenter";
 import { CLAIM_TTL_MS } from "./tasks";
 import {
+  detectThrash,
+  describeThrash,
+  type ThrashRun,
+} from "./_thrash";
+import {
   abandonExecutionAssignmentForTask,
   finishExecutionAssignment,
 } from "./executionLifecycle";
@@ -28,6 +33,11 @@ const AGENT_STALL_MS = 30 * 60 * 1000;
 //   3. Agents holding a current task but silent for 30+ min →
 //      agent.stalled (their status line is cleared so the flag fires
 //      once and Mission Control stops showing a stale "Now: …").
+//   4. Tasks being failed at over and over → task.thrashing, the claim
+//      released, and the task WITHHELD from the dispatcher until a human
+//      clears it. Passes 1-3 all detect absence; this is the only one that
+//      detects repetition, which is what an unattended agent actually does
+//      when it is wrong. See src/lib/thrash.ts.
 //
 // Both task passes are index ranges, not table scans: claimed tasks have
 // claimedByActorId > "" (absent optional fields sort before every
@@ -249,6 +259,116 @@ export const watchdog = internalMutation({
             }
           }
         }
+      }
+    }
+
+    // 4. Thrash: the same task failed at over and over.
+    //
+    // Driven off each agent's own recent runs rather than a global scan.
+    // `agentRuns` has no time-ordered index across the deployment, so the
+    // bounded way to ask "what failed lately" is to ask each agent, which is
+    // the same shape (and the same cost order) as pass 3 above. The window is
+    // six hours and the watchdog runs every fifteen minutes, so a run is seen
+    // by ~24 passes — which is exactly why the detector dedupes by run id and
+    // reports only what is newer than its last notice.
+    const runsForDetection: ThrashRun[] = [];
+    const agentNames = new Map<string, string>();
+    for (const agent of agents) {
+      agentNames.set(agent._id, agent.name);
+      const recent = await ctx.db
+        .query("agentRuns")
+        .withIndex("by_agent", (q) => q.eq("agentId", agent._id))
+        .order("desc")
+        .take(40);
+      for (const run of recent) {
+        if (!run.taskId) continue;
+        runsForDetection.push({
+          id: run._id,
+          taskId: run.taskId,
+          agentId: run.agentId,
+          status: run.status,
+          finishedAt: run.finishedAt,
+        });
+      }
+    }
+
+    // What has already been said, per task. Absent means never reported.
+    const alreadyReported: Record<string, number | undefined> = {};
+    for (const run of runsForDetection) {
+      if (alreadyReported[run.taskId] !== undefined) continue;
+      const t = await ctx.db.get(run.taskId as Doc<"tasks">["_id"]);
+      alreadyReported[run.taskId] = t?.thrashNotifiedAt;
+    }
+
+    for (const finding of detectThrash(runsForDetection, now, alreadyReported)) {
+      const task = await ctx.db.get(finding.taskId as Doc<"tasks">["_id"]);
+      if (!task) continue;
+      const status = await ctx.db.get(task.statusId);
+      // A task that got there in the end is not thrashing, whatever the runs
+      // say — the failures are history, not a live loop.
+      if (status?.category === "complete" || status?.category === "closed") {
+        continue;
+      }
+      const list = await getList(task.listId);
+      if (!list) continue;
+      const scope = await scopeForList(ctx, list);
+      if (!scope) continue;
+
+      const names = finding.agentIds
+        .map((id) => agentNames.get(id))
+        .filter((n): n is string => n !== undefined);
+
+      await ctx.db.patch(task._id, {
+        // The brake. Detection without one is a notification, and the loop it
+        // detected carries on regardless — which is the whole complaint.
+        thrashHeldAt: now,
+        thrashNotifiedAt: finding.latestAt,
+        thrashFailures: finding.failures,
+        // Nobody is working on it productively; holding the claim only stops
+        // a person from picking it up to look.
+        claimedByActorId: undefined,
+        claimedAt: undefined,
+      });
+
+      await emitEvent(ctx, {
+        scopeType: scope.scopeType,
+        scopeId: scope.scopeId,
+        type: "task.thrashing",
+        actor: WATCHDOG_ACTOR,
+        entityType: "task",
+        entityId: task._id,
+        entityTitle: task.title,
+        listId: task.listId,
+        payload: {
+          failures: finding.failures,
+          agentIds: finding.agentIds,
+          summary: describeThrash(finding, names),
+        },
+      });
+
+      // Who to nudge. Human assignees if there are any; otherwise whoever
+      // created the task. A thrashing task very often has only AGENT
+      // assignees — that is close to the definition of the problem — so
+      // notifying assignees alone would send the alarm to the machines
+      // causing it. The obligations queue carries it either way; this is the
+      // nudge on top.
+      const humans = task.assigneeClerkIds.filter(
+        (cid) => !ctx.db.normalizeId("agents", cid),
+      );
+      const recipients =
+        humans.length > 0
+          ? humans
+          : ctx.db.normalizeId("agents", task.createdByClerkId)
+            ? []
+            : [task.createdByClerkId];
+      for (const cid of recipients) {
+        await notify(ctx, {
+          userClerkId: cid,
+          type: "thrashing",
+          title: `${task.title} is stuck in a loop`,
+          body: describeThrash(finding, names),
+          href: `/dashboard/l/${task.listId}/t/${task._id}`,
+        });
       }
     }
   },

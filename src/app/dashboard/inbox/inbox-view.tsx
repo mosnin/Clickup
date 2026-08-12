@@ -235,6 +235,7 @@ function YourTurnQueue({
 }) {
   const approve = useMutation(api.tasks.approve);
   const decide = useMutation(api.pendingEffects.decide);
+  const clearHold = useMutation(api.tasks.clearThrashHold);
   const { toast } = useToast();
   const now = Date.now();
   const { stale } = summarize(rows, now);
@@ -351,7 +352,37 @@ function YourTurnQueue({
                       >
                         {waitedFor(row.createdAt, now)}
                       </span>
-                      {row.kind === "handback" ? (
+                      {row.kind === "stuck" ? (
+                        <>
+                          {/* Open first, and it is the primary. A held task is
+                              the one row in this queue where clearing it
+                              without looking is the wrong move — the hold
+                              exists precisely because trying again is what
+                              got it here. */}
+                          <Button size="sm" asChild>
+                            <Link href={row.href}>Look at it</Link>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              try {
+                                await clearHold({
+                                  taskId: row.id as Id<"tasks">,
+                                });
+                                toast("Released — agents can pick it up again");
+                              } catch (e) {
+                                toast(
+                                  errorMessage(e, "Couldn't release this task"),
+                                  { kind: "error" },
+                                );
+                              }
+                            }}
+                          >
+                            Let it retry
+                          </Button>
+                        </>
+                      ) : row.kind === "handback" ? (
                         <>
                           <Button
                             size="sm"

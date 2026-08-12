@@ -544,11 +544,30 @@ export default defineSchema({
     overdueNotifiedAt: v.optional(v.number()),
     // Dedupe for the due-soon reminder (one nudge per due date).
     dueSoonNotifiedAt: v.optional(v.number()),
+    // ── Thrash (P11) ──
+    //
+    // Set together by the watchdog when a task has been failed at repeatedly.
+    // `thrashHeldAt` is the BRAKE, not the notice: while it is set the task is
+    // withheld from next_task, because detection with no brake is a
+    // notification and the loop it detected carries on burning budget
+    // regardless. A human clears it (tasks.clearThrashHold), and completing
+    // the task clears it too — a loop that resolved itself needs no ceremony.
+    // `thrashNotifiedAt` is the dedupe: the watchdog runs every fifteen
+    // minutes and a detector that re-announced a standing condition would file
+    // the same row ninety times a day.
+    thrashHeldAt: v.optional(v.number()),
+    thrashNotifiedAt: v.optional(v.number()),
+    thrashFailures: v.optional(v.number()),
     createdByClerkId: v.string(),
     position: v.number(),
     createdAt: v.number(),
     completedAt: v.optional(v.number()),
   })
+    // The held-task range. An absent optional field sorts before every number,
+    // so `> 0` is exactly the set that has been held — the same trick the
+    // claimed-tasks and due-tasks passes use, and the reason neither of them
+    // is a table scan.
+    .index("by_thrash_held", ["thrashHeldAt"])
     .index("by_list", ["listId"])
     .index("by_list_and_status", ["listId", "statusId"])
     .index("by_parent_task", ["parentTaskId"])

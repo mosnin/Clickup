@@ -34,7 +34,8 @@ export type ObligationKind =
   | "revision"
   | "question"
   | "outcome"
-  | "handback";
+  | "handback"
+  | "stuck";
 
 export type Obligation = {
   kind: ObligationKind;
@@ -62,6 +63,7 @@ export const OBLIGATION_KIND: Record<
   question: { label: "Decision", verb: "waiting for you to decide" },
   outcome: { label: "Sign-off", verb: "waiting for you to check the evidence" },
   handback: { label: "Finished", verb: "an agent finished this and needs your go-ahead" },
+  stuck: { label: "Stuck", verb: "failed repeatedly and is held until you look" },
 };
 
 const HOUR = 60 * 60 * 1000;
