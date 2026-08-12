@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { Hand, Lock, Plus, ShieldCheck, X } from "lucide-react";
+import {
+  Hand,
+  Lock,
+  PackageCheck,
+  Plus,
+  ShieldCheck,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +44,12 @@ export function TaskBanners({
   const releaseClaim = useMutation(api.tasks.releaseClaim);
   const claim = useMutation(api.tasks.claim);
   const approve = useMutation(api.tasks.approve);
+  const decideEffect = useMutation(api.pendingEffects.decide);
+  const clearHold = useMutation(api.tasks.clearThrashHold);
+  // Work an agent finished that nobody has consented to yet. Fetched here
+  // rather than derived from the task, because the task looks completely
+  // ordinary while one of these is outstanding — which is the whole problem.
+  const handback = useQuery(api.pendingEffects.forTask, { taskId: task._id });
   const assignable = useQuery(api.agents.listAssignableForList, { listId });
   const { toast } = useToast();
 
@@ -59,6 +73,92 @@ export function TaskBanners({
 
   return (
     <div className="space-y-3">
+      {/* ── An agent finished this and is waiting ──
+          First, because it is the only banner here that represents work
+          somebody has already done. Everything else on this page describes a
+          state; this describes a thing waiting to be applied. */}
+      {handback && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: EASE }}
+        >
+          <Card className="gap-2 border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">
+            <div className="flex items-center gap-2">
+              <PackageCheck className="h-4 w-4 flex-shrink-0" />
+              <span className="min-w-0 flex-1 font-medium">
+                {handback.agentName} finished this{" "}
+                {timeAgo(handback.createdAt)} and needs your go-ahead
+              </span>
+            </div>
+            {/* The agent's own account of what it did. The point of recording
+                the attempt rather than refusing it was to keep exactly this —
+                without it a reviewer has to re-do the work to find out what
+                happened. */}
+            <p className="pl-6 text-brand-600">{handback.reason}</p>
+            {handback.stale && (
+              <p className="pl-6 text-tiny text-danger">
+                The task has changed since this was written, so approving will
+                not apply it.
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-2 pl-6">
+              <Button
+                size="sm"
+                onClick={() =>
+                  void run(
+                    () =>
+                      decideEffect({ ids: [handback.id], decision: "approve" }),
+                    "Couldn't approve this",
+                  )
+                }
+              >
+                Approve and complete
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  void run(
+                    () =>
+                      decideEffect({ ids: [handback.id], decision: "reject" }),
+                    "Couldn't send this back",
+                  )
+                }
+              >
+                Send back
+              </Button>
+            </div>
+          </Card>
+        </motion.div>
+      )}
+      {/* ── Held until somebody looks ──
+          A held task is withheld from the dispatcher, so on its own page it
+          looks like ordinary open work that no agent happens to be picking up.
+          Saying nothing here is how a person concludes the fleet is broken. */}
+      {task.thrashHeldAt !== undefined && (
+        <Card className="flex-row items-center gap-2 border-danger/30 bg-danger/5 px-4 py-2.5 text-sm text-danger">
+          <TriangleAlert className="h-4 w-4 flex-shrink-0" />
+          <span className="min-w-0 flex-1">
+            {task.holdReason === "attempts_exhausted"
+              ? "Held after running out of dispatch attempts"
+              : `Held after ${task.thrashFailures ?? "repeated"} failed attempts`}
+            . Agents will not pick this up until you release it.
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              void run(
+                () => clearHold({ taskId: task._id }),
+                "Couldn't release this task",
+              )
+            }
+          >
+            Let it retry
+          </Button>
+        </Card>
+      )}
       {task.requiresApproval && (
         <motion.div
           initial={{ opacity: 0, y: -6 }}
@@ -77,9 +177,17 @@ export function TaskBanners({
             <span className="min-w-0 flex-1">
               {task.approvedAt
                 ? "Approved, agents may complete this task."
-                : "Approval gate: agents can't complete this task until a human approves."}
+                : handback
+                  ? "Approval gate: approve the completion above to finish this task."
+                  : "Approval gate: an agent can finish the work, but its completion is recorded for you to approve rather than applied."}
             </span>
-            {!task.approvedAt && (
+            {/* No Approve button while a handback is outstanding. This one
+                calls tasks.approve, which lifts the gate WITHOUT applying the
+                agent's completion — so a person clicking it would believe they
+                had approved the work while the finished completion sat
+                unapplied above. The handback banner's own Approve is the one
+                that completes the task. */}
+            {!task.approvedAt && !handback && (
               <Button
                 size="sm"
                 onClick={() =>

@@ -121,3 +121,41 @@ describe("one thing waiting is one row", () => {
     expect(backend.match(/tasksWithPendingHandback\(/g)?.length).toBe(3);
   });
 });
+
+// ── The task's own page ──
+//
+// The queue is not the only place a person meets these states, and for the two
+// that BLOCK it is not even the likely one: somebody opening a task an agent
+// finished yesterday, or a task no agent will touch, arrives at the task page.
+// Both looked completely ordinary there — which is the same unreachability the
+// boot paths had, wearing the other costume.
+
+const collab = readFileSync(
+  path.join(process.cwd(), "src/components/dashboard/task-collab.tsx"),
+  "utf8",
+);
+
+describe("the task page shows what the backend knows", () => {
+  it("surfaces a completion waiting on a human", () => {
+    expect(collab).toContain("pendingEffects.forTask");
+    // The agent's own account, not just the fact of it. Approving without it
+    // means re-doing the work to find out what you are approving.
+    expect(collab).toContain("handback.reason");
+  });
+
+  it("surfaces a hold, and offers the release", () => {
+    expect(collab).toContain("thrashHeldAt");
+    expect(collab).toContain("clearThrashHold");
+    // A held task is withheld from the dispatcher, so on its own page it looks
+    // like ordinary open work nobody is picking up. Saying nothing is how a
+    // person concludes the fleet is broken.
+    expect(collab).toContain("attempts_exhausted");
+  });
+
+  it("does not offer the gate Approve while a handback is outstanding", () => {
+    // The queue bug, living on in a second place: tasks.approve lifts the gate
+    // WITHOUT applying the agent's completion, so a person clicking it would
+    // believe they had approved work that then sat unapplied.
+    expect(collab).toMatch(/!task\.approvedAt && !handback/);
+  });
+});

@@ -474,6 +474,69 @@ describe("the fleet does not re-do it", () => {
   });
 });
 
+describe("the task's own page", () => {
+  it("reports the waiting completion, with the agent's account", async () => {
+    const { t, alice, listId, apiKey } = await setup();
+    const taskId = await gatedTask(alice, listId);
+    await t.mutation(api.agentApi.completeTask, {
+      apiKey,
+      taskId,
+      note: "Migrated the table and ran the smoke test.",
+    });
+    const row = await alice.query(api.pendingEffects.forTask, { taskId });
+    expect(row?.agentName).toBe("Scout");
+    // The point of recording the attempt rather than refusing it was to keep
+    // this. Without it a reviewer has to re-do the work to find out what
+    // happened before they can consent to it.
+    expect(row?.reason).toBe("Migrated the table and ran the smoke test.");
+    expect(row?.stale).toBe(false);
+  });
+
+  it("says nothing when there is nothing waiting", async () => {
+    const { alice, listId } = await setup();
+    const taskId = await gatedTask(alice, listId);
+    expect(await alice.query(api.pendingEffects.forTask, { taskId })).toBeNull();
+  });
+
+  it("flags a proposal the task has moved out from under", async () => {
+    const { t, alice, listId, apiKey } = await setup();
+    const taskId = await gatedTask(alice, listId);
+    await t.mutation(api.agentApi.completeTask, {
+      apiKey,
+      taskId,
+      note: "Done.",
+    });
+    const other = await t.run(async (ctx) =>
+      ctx.db.insert("listStatuses", {
+        listId,
+        name: "In review",
+        color: "#00f",
+        category: "in_progress",
+        position: 2,
+        createdAt: Date.now(),
+      }),
+    );
+    await alice.mutation(api.tasks.update, { taskId, statusId: other });
+    // Shown before the button is pressed, not discovered after: approving a
+    // stale proposal supersedes it, and a person deserves to know that is what
+    // the click will do.
+    expect((await alice.query(api.pendingEffects.forTask, { taskId }))?.stale)
+      .toBe(true);
+  });
+
+  it("tells an outsider nothing", async () => {
+    const { t, alice, listId, apiKey } = await setup();
+    const taskId = await gatedTask(alice, listId);
+    await t.mutation(api.agentApi.completeTask, {
+      apiKey,
+      taskId,
+      note: "Done.",
+    });
+    const bob = t.withIdentity(BOB);
+    expect(await bob.query(api.pendingEffects.forTask, { taskId })).toBeNull();
+  });
+});
+
 describe("the pure helpers", () => {
   it("sorts oldest first", () => {
     const rows = [{ createdAt: 30 }, { createdAt: 10 }, { createdAt: 20 }];

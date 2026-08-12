@@ -248,6 +248,52 @@ export const listForCurrentUser = query({
   },
 });
 
+/**
+ * The completion waiting on a human for one task, if there is one.
+ *
+ * The task page needs this for the same reason the queue did, and the failure
+ * it prevents is the same one: without it the page shows an approval gate
+ * whose Approve button calls `tasks.approve`, which lifts the gate WITHOUT
+ * applying the agent's completion — so a person looking straight at the task
+ * approves it and the finished work stays unapplied behind them.
+ */
+export const forTask = query({
+  args: { taskId: v.id("tasks") },
+  handler: async (
+    ctx,
+    { taskId },
+  ): Promise<{
+    id: Id<"pendingEffects">;
+    agentName: string;
+    reason: string;
+    createdAt: number;
+    stale: boolean;
+  } | null> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    try {
+      await requireTaskAccess(ctx, taskId);
+    } catch {
+      return null;
+    }
+    const effect = await ctx.db
+      .query("pendingEffects")
+      .withIndex("by_task_and_state", (q) =>
+        q.eq("taskId", taskId).eq("state", "pending"),
+      )
+      .first();
+    if (!effect) return null;
+    const task = await ctx.db.get(taskId);
+    return {
+      id: effect._id,
+      agentName: effect.agentName,
+      reason: effect.reason,
+      createdAt: effect.createdAt,
+      stale: task ? task.statusId !== effect.basedOnStatusId : true,
+    };
+  },
+});
+
 export const countForCurrentUser = query({
   args: {},
   handler: async (ctx): Promise<number> => {

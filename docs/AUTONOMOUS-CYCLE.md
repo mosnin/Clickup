@@ -46,6 +46,14 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
 
 ### Blockers
 
+- [x] **The task page hid what the backend knew.** A completion an agent had
+      handed back, and a task held after repeated failure, both rendered as
+      ordinary open work — and the gate banner's Approve lifted the gate
+      WITHOUT applying the pending completion, the same defect iteration 13
+      fixed in the queue and left in place here. Both states now have banners
+      with the right action, pinned by wiring tests verified to fail on the
+      old component. — iteration 15
+
 - [x] **Five iterations of tools were unreachable.** Every boot path still
       taught the superseded protocol, so `get_task_context`, `claimPolicy` and
       deferred completion existed and nothing routed to them — and the gated
@@ -246,6 +254,29 @@ panel refused to call CF-1 first: "ship it first and you have built the
 accelerator before the brakes".
 
 ## Iteration log
+
+**15.** Third stand-back pass, third surface, and the SAME bug found a third
+home. The task page's approval banner offered an Approve that calls
+`tasks.approve` — which lifts the gate without applying a pending completion.
+Iteration 13 fixed exactly this in the queue by suppressing the duplicate row;
+the button on the task page was untouched, because fixing a bug where you found
+it is not the same as fixing it everywhere it lives.
+
+The other half was plain absence. A held task is WITHHELD from the dispatcher,
+so on its own page it looked like ordinary open work that no agent happened to
+be picking up — which is how a person concludes the fleet is broken. And a task
+an agent finished yesterday looked untouched. Both states existed in the
+backend, were tested, reached the Inbox, and were invisible at the place
+somebody actually opens.
+
+A guard test earned its keep on the way: the new banner used `text-brand-900`,
+a shade the stylesheet never defines. The existing gate banner is already on
+that test's known-offender list, and the tempting fix was to add two more
+entries to it — but that list is a record of things to repair, not a permit.
+
+Three passes, three surfaces, one shape of bug: correct in isolation, wrong in
+composition. Worth noting that the audits have now found more real defects than
+the last four feature rounds did.
 
 **14.** The same "stand back" pass, pointed at the agent side, and it found a
 worse version of the same failure.
