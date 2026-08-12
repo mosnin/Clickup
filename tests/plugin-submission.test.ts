@@ -49,6 +49,7 @@ describe("public Operate plugin package", () => {
         shortDescription: string;
         defaultPrompt: string[];
         websiteURL: string;
+        supportURL: string;
         privacyPolicyURL: string;
         termsOfServiceURL: string;
         composerIcon: string;
@@ -63,12 +64,13 @@ describe("public Operate plugin package", () => {
     }
     for (const field of [
       "websiteURL",
+      "supportURL",
       "privacyPolicyURL",
       "termsOfServiceURL",
     ] as const) {
       expect(new URL(manifest.interface[field]).protocol).toBe("https:");
     }
-    expect(manifest.interface).not.toHaveProperty("supportURL");
+    expect(manifest.interface.supportURL).toBe("https://operate.to/plugins");
     expect(
       readFileSync(join(ROOT, "docs/plugin-submission/openai.md"), "utf8"),
     ).toContain("| Support | `https://operate.to/plugins` |");

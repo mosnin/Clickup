@@ -43,9 +43,9 @@ Those are organization controls and cannot be created safely from this repo.
 | Composer icon | `plugins/operate/assets/icon.svg` |
 | Primary language | `English (United States)` |
 
-The support destination is supplied in the public-directory listing fields.
-It is intentionally not duplicated as `interface.supportURL` in the packaged
-manifest because the current Codex plugin validator rejects that property.
+The support destination is supplied both in the public-directory listing and
+as `interface.supportURL` in the package manifest, matching the current public
+submission contract.
 
 ### Long description
 

@@ -22,6 +22,7 @@
     "websiteURL": "https://operate.to",
     "privacyPolicyURL": "https://operate.to/legal/privacy",
     "termsOfServiceURL": "https://operate.to/legal/terms",
+    "supportURL": "https://operate.to/plugins",
     "defaultPrompt": [
       "Turn this confirmed brief into an auditable multi-workstream execution plan inside one Space.",
       "Show me the next safe execution wave and explain any capability or capacity gaps.",
