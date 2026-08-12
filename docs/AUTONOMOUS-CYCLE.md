@@ -46,6 +46,30 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
 
 ### Blockers
 
+- [ ] **Dark mode has been rendering with the light ink ramp, so nobody has
+      seen the real one.** Iteration 17 fixed the cause; the consequence is
+      that every `bg-brand-*` / `text-brand-*` call site in the app was
+      written and reviewed against a dark mode that was silently light-inked,
+      and now renders differently. Some of those will be better and some will
+      be newly wrong — a surface that leaned on `bg-brand-50` being white in
+      dark now gets a near-black slab. This is a regression sweep of a change
+      already shipped, not new work, and it is the top of the queue because
+      it is a self-inflicted unknown across every logged-in surface.
+      Method: `npm run gallery` already shoots a dark PNG of every fixture;
+      look at all of them, and measure rather than read wherever something
+      looks off (`getComputedStyle` in real Chromium is what found the cause
+      in one line after four wrong guesses from the stylesheet).
+
+- [x] **The accent ramp beat dark mode, app-wide, since dark mode shipped.**
+      `resolveTokens` wrote `--color-brand-*` inline on `:root` — a hardcoded
+      copy of the LIGHT ink ramp in the default appearance — and an inline
+      custom property outranks every selector, so the dark ramp in
+      `:root[data-theme="dark"]` had never once applied. Ink mode now writes
+      nothing (the stylesheet owns its own ramp); hue mode feeds both sides as
+      `--ui-accent-<stop>-{light,dark}`. Guarded generally: if globals.css
+      gives a property a different value per theme, `resolveTokens` may not
+      write it. — iteration 17
+
 - [x] **The board could not show where the fleet got to.** Held tasks and
       tasks whose completion was one click from landing rendered identically
       to untouched work in List, Board and the peek panel. Both now badge,
@@ -194,7 +218,7 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
       and `get_task_context` so the rule is learned before it is enforced, and
       settable only by a human — an agent that could lower it would lower it
       the first time it was inconvenient. — iteration 9
-- [ ] **P13 — the task graph.** Proposed by the founder, and the codebase is
+- [x] **P13 — the task graph.** Proposed by the founder, and the codebase is
       already most of the way there: `tasks.blockedByTaskIds` is a DAG, and
       cycle enforcement (P2) is what makes traversing it safe rather than
       infinite. What is missing is that nothing asks graph-shaped questions
@@ -224,9 +248,9 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
       dependencies people actually record.
 
 ### Polish
-- [ ] **P7 — one-call task context with a budget.**
-- [ ] **P12 — assignment recovery sweep.** Abandoned assignments are never
-      re-dispatched; `attempt` exists, no cron reads it.
+- [x] **P7 — one-call task context with a budget.** — iteration 8
+- [x] **P12 — assignment recovery sweep.** Abandoned assignments are never
+      re-dispatched; `attempt` exists, no cron reads it. — iteration 11
 - ~~CF-2 — capability-scoped external access + action log.~~ **CUT** by the
       Jobs panel: the only proposal in either document with no verified gap
       behind it. Every other item names the file or table it extends; CF-2
@@ -260,6 +284,57 @@ panel refused to call CF-1 first: "ship it first and you have built the
 accelerator before the brakes".
 
 ## Iteration log
+
+**17.** Paid the debt from 13–16: four rounds of banners and badges verified
+only by tests that read source. Those tests prove the wiring exists and are
+silent on every question a person actually has about a banner — does it fit, is
+it readable on the plate it sits on, does the stack of them still look like one
+page. So this round added the gallery fixture (`tests/ui/design/collab.html`)
+that renders the real components with only the wire stubbed, and looked at the
+PNG. Three findings, and the largest was not about banners at all.
+
+**The accent ramp had been beating dark mode everywhere, since the day dark
+mode shipped.** `resolveTokens` emitted the ramp as `--color-brand-*`, and in
+the default appearance those six values were a hardcoded copy of the
+stylesheet's LIGHT ink ramp. An inline custom property on `:root` outranks
+every selector, so the dark ramp sitting in `:root[data-theme="dark"]` — six
+correct values, right there in globals.css — had never once applied. In dark,
+app-wide, for everybody: `bg-brand-50` painted a white slab, `text-brand-700`
+painted black text on it, `text-brand-600` painted a near-black glyph on a
+near-black card. Every call site read as correct, which is why no review, no
+typecheck and no unit test could see it.
+
+Three things worth recording about it. First, it was found by MEASURING rather
+than by reading: the screenshot showed a white card in dark mode, and the
+instinct to explain it from the stylesheet would have been wrong four times
+over — the answer came from `getComputedStyle` in real Chromium, which named
+the inline overrides in one line. Second, CLAUDE.md already carries the rule
+this broke ("a colour the provider computes can outrank the stylesheet"),
+written after the same shape of bug in `contrast`. The lesson had been learned
+once and re-paid anyway, because prose is not a guard — so the guard is now
+general (if globals.css gives a property a different value per theme,
+`resolveTokens` may not write it) and would have caught the `contrast` bug too.
+Third, the fix is inheritance rather than a second copy: ink mode writes
+nothing, because ink IS the stylesheet's ramp, and hue mode feeds both sides as
+`--ui-accent-<stop>-{light,dark}` with the shipped hex as fallback. A ramp is
+not theme-independent; the dark stops are a second set with the ends swapped,
+not the light ones reused.
+
+The two findings that WERE about banners. Handback, hold, gate and claim had
+each been designed alone and each was right alone; together they drew four
+full-width coloured cards in a column, three of them some flavour of alarm, and
+the page read as broken. At most one card is drawn now — the ranked demand,
+handback over hold, because approving a handback resolves the task and makes
+the hold moot — and everything that is a fact rather than a demand moved to one
+quiet line, each fact keeping its own control. And two of five badge glyphs sat
+on the 3:1 floor: `text-brand-600` measured 18.5:1 in light against 3.24:1 in
+dark, the widest swing of the four, while `amber-600`/`red-500` are Tailwind
+literals with no dark value at all.
+
+The fixture had a bug of its own worth naming, because it is the failure mode
+of fixtures generally: all four badge rows shared one `_id`, so all four
+matched `pendingEffects.forList` and all four wore the "finished" mark. The row
+that existed to prove the marks are tellable apart was agreeing with itself.
 
 **16.** Fourth surface, and the finding is the plainest yet: the board — the
 place people actually spend their time and the one thing scanning is FOR — could
