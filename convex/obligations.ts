@@ -57,12 +57,48 @@ async function visibleScopes(
   ];
 }
 
+/**
+ * Tasks whose completion is already sitting on somebody's queue.
+ *
+ * A gated task with a pending handback used to produce TWO rows about one
+ * thing — and not merely untidily. The two rows carried different buttons: the
+ * approval row calls `tasks.approve`, which lifts the gate without applying
+ * the agent's completion, so a person clicking it believes they have approved
+ * the work while the finished completion sits unapplied behind it.
+ *
+ * The handback wins because it is strictly the better row. It carries the
+ * agent's account of what it did, and its Approve actually completes the task.
+ * Suppression is about the PENDING row only: reject the handback and the task
+ * is an ordinary gated task again, so the gate has to reappear.
+ */
+async function tasksWithPendingHandback(
+  ctx: QueryCtx,
+  scopes: { scopeType: "user" | "workspace"; scopeId: string }[],
+): Promise<Set<string>> {
+  const ids = new Set<string>();
+  for (const scope of scopes) {
+    const effects = await ctx.db
+      .query("pendingEffects")
+      .withIndex("by_scope_and_state", (q) =>
+        q
+          .eq("scopeType", scope.scopeType)
+          .eq("scopeId", scope.scopeId)
+          .eq("state", "pending"),
+      )
+      .take(PER_SOURCE);
+    for (const effect of effects) ids.add(effect.taskId);
+  }
+  return ids;
+}
+
 export const forCurrentUser = query({
   args: {},
   handler: async (ctx): Promise<Row[]> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
     const rows: Row[] = [];
+    const mineScopes = await visibleScopes(ctx, identity.subject);
+    const handedBack = await tasksWithPendingHandback(ctx, mineScopes);
 
     // ── Tasks behind an approval gate ──
     const gated = await ctx.db
@@ -71,6 +107,8 @@ export const forCurrentUser = query({
       .take(200);
     for (const task of gated) {
       if (task.approvedAt !== undefined) continue;
+      // Already represented by its handback, which says more and does more.
+      if (handedBack.has(task._id)) continue;
       const status = await ctx.db.get(task.statusId);
       if (status?.category === "complete" || status?.category === "closed") {
         continue;
@@ -234,7 +272,7 @@ export const forCurrentUser = query({
           id: effect._id,
           title: task.title,
           href: `/dashboard/inbox`,
-          raisedBy: effect.agentName,
+          raisedBy: `${effect.agentName} finished this`,
           createdAt: effect.createdAt,
         });
       }
@@ -268,8 +306,8 @@ export const forCurrentUser = query({
         // is usually its context or its fences.
         raisedBy:
           task.holdReason === "attempts_exhausted"
-            ? "out of attempts"
-            : "failing repeatedly",
+            ? "Held after running out of attempts"
+            : "Held after failing repeatedly",
         createdAt: task.thrashHeldAt ?? task.createdAt,
       });
     }
@@ -293,12 +331,18 @@ export const countForCurrentUser = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return 0;
     let count = 0;
+    // The count walks its own sources, so the suppression has to be applied
+    // here too — a badge that says 2 when one thing is waiting is the same
+    // bug wearing a number.
+    const countScopes = await visibleScopes(ctx, identity.subject);
+    const countHandedBack = await tasksWithPendingHandback(ctx, countScopes);
     const gated = await ctx.db
       .query("tasks")
       .withIndex("by_approval", (q) => q.eq("requiresApproval", true))
       .take(200);
     for (const task of gated) {
       if (task.approvedAt !== undefined) continue;
+      if (countHandedBack.has(task._id)) continue;
       const status = await ctx.db.get(task.statusId);
       if (status?.category === "complete" || status?.category === "closed") {
         continue;

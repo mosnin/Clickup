@@ -46,6 +46,13 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
 
 ### Blockers
 
+- [x] **The one queue listed one thing twice.** A gated task with an agent's
+      deferred completion produced both an `approval` row and a `handback` row
+      — different buttons, and the approval one lifted the gate WITHOUT
+      applying the completion. Suppressed in both the list and the count, with
+      a coherence test that reads the files so a seventh kind cannot be added
+      half-wired. — iteration 13
+
 - [x] **Shipped fixes never reached the reader.** The service worker
       registered once and was never asked again, so a warm PWA served a
       precached build indefinitely — three UI defects were fixed, deployed
@@ -231,6 +238,38 @@ panel refused to call CF-1 first: "ship it first and you have built the
 accelerator before the brakes".
 
 ## Iteration log
+
+**13.** No roadmap item left, so this round audited instead of building — and
+found the thing twelve rounds of individually-correct changes had produced.
+
+A gated task whose completion an agent had handed back appeared TWICE in the
+one queue: once as an approval and once as a handback. That is not untidiness.
+The two rows carried different buttons, and the approval one calls
+`tasks.approve`, which lifts the gate without applying the agent's completion —
+so a person clicking it would believe they had approved the work while the
+finished completion sat unapplied behind it. The badge said 2 when one thing
+was waiting. Neither CF-1 nor the approval gate was wrong on its own; the pair
+was, and nobody had stood back since.
+
+The handback wins because it is strictly the better row — it carries the
+agent's account of what it did and its Approve actually completes the task —
+and the suppression is about the PENDING row only, so rejecting a handback
+restores the gate rather than silencing it forever.
+
+Two smaller drifts from the same cause. Every row wore the same shield, which
+is what six sources gathered one at a time look like when nobody stands back:
+an undifferentiated pile with six labels in it. And every source computed
+`raisedBy` while the row threw it away, so "an agent finished this" and "this
+failed four times" arrived looking identical — precisely the information
+somebody needs BEFORE deciding whether to click Approve.
+
+`tests/obligation-coherence.test.ts` is what stayed behind: it is about wiring
+rather than behaviour, because a seventh kind added without copy, a glyph, or a
+branch is invisible in review and obvious to a test that reads the files.
+
+And once more, the lesson from iteration 9 recurring in my own new test: vitest
+transpiles rather than typechecks, so a green suite is not a green typecheck.
+Caught before shipping this time.
 
 **12.** Shipped P8 past its cut line, and this time the cut line was about cost
 rather than scope. It said channels only, on the grounds that channel volume is

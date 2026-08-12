@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
-import { Bell, Inbox as InboxIcon, ShieldCheck } from "lucide-react";
+import {
+  Bell,
+  CircleHelp,
+  ClipboardCheck,
+  Inbox as InboxIcon,
+  PackageCheck,
+  Pencil,
+  ShieldCheck,
+  TriangleAlert,
+} from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -221,6 +230,23 @@ function UnreadDot({ visible }: { visible: boolean }) {
  * do not move until you touch them, and the one at risk of never being
  * touched is the one that has waited longest.
  */
+// One glyph per kind.
+//
+// Every row wore a shield, which is what six sources gathered one at a time
+// look like when nobody stands back afterwards: an undifferentiated pile that
+// happens to have six labels in it. The queue's whole claim is that it is one
+// place to answer SEVERAL different questions, and a reader scanning it should
+// be able to tell "an agent finished something" from "this failed four times"
+// without reading either.
+const KIND_GLYPH: Record<ObligationKind, typeof ShieldCheck> = {
+  approval: ShieldCheck,
+  revision: Pencil,
+  question: CircleHelp,
+  outcome: ClipboardCheck,
+  handback: PackageCheck,
+  stuck: TriangleAlert,
+};
+
 function YourTurnQueue({
   rows,
 }: {
@@ -325,15 +351,38 @@ function YourTurnQueue({
                     <span className="w-6 shrink-0 font-title text-xs tabular-nums text-muted-foreground">
                       {pad(index + 1)}
                     </span>
-                    <span className="icon-tile flex-shrink-0" aria-hidden>
-                      <ShieldCheck className="size-4" />
-                    </span>
-                    <Link
-                      href={row.href}
-                      className="min-w-0 flex-1 basis-48 truncate text-sm font-semibold hover:underline"
+                    <span
+                      className={cn(
+                        "icon-tile flex-shrink-0",
+                        row.kind === "stuck" && "text-danger",
+                      )}
+                      aria-hidden
                     >
-                      {row.title}
-                    </Link>
+                      {(() => {
+                        const Glyph = KIND_GLYPH[row.kind];
+                        return <Glyph className="size-4" />;
+                      })()}
+                    </span>
+                    <span className="flex min-w-0 flex-1 basis-48 flex-col">
+                      <Link
+                        href={row.href}
+                        className="truncate text-sm font-semibold hover:underline"
+                      >
+                        {row.title}
+                      </Link>
+                      {/* One sentence saying what this actually is. Every
+                          source computed `raisedBy` and the row threw it away,
+                          so "an agent finished this" and "this failed four
+                          times" arrived looking identical — which is exactly
+                          the information somebody needs BEFORE deciding
+                          whether to click Approve. Sources that name a cause
+                          say it themselves; the rest fall back to the kind's
+                          own verb, because two overlapping phrases in one line
+                          reads as a template rather than a sentence. */}
+                      <span className="truncate text-tiny text-muted-foreground">
+                        {row.raisedBy ?? OBLIGATION_KIND[row.kind].verb}
+                      </span>
+                    </span>
                     <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1.5">
                       <span className="ui-chip px-2 py-0.5 text-tiny font-medium text-muted-foreground">
                         {OBLIGATION_KIND[row.kind].label}

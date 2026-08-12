@@ -349,7 +349,7 @@ describe("the recovery pass", () => {
     const queue = await alice.query(api.obligations.forCurrentUser, {});
     const row = queue.find((r) => r.kind === "stuck");
     expect(row?.id).toBe(taskId);
-    expect(row?.raisedBy).toBe("out of attempts");
+    expect(row?.raisedBy).toBe("Held after running out of attempts");
   });
 
   it("leaves a task somebody already finished alone", async () => {

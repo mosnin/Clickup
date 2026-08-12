@@ -371,6 +371,53 @@ describe("visibility", () => {
     ).rejects.toThrow();
   });
 
+  it("does not list the same task twice under two different verbs", async () => {
+    const { t, alice, listId, apiKey } = await setup();
+    const taskId = await gatedTask(alice, listId);
+    await t.mutation(api.agentApi.completeTask, {
+      apiKey,
+      taskId,
+      note: "Done.",
+    });
+
+    const queue = await alice.query(api.obligations.forCurrentUser, {});
+    // The task is gated AND has a completion waiting, which used to produce
+    // two rows about one thing. That is not merely untidy: the two rows had
+    // DIFFERENT buttons, and the approval one lifts the gate without applying
+    // the agent's completion — so a person clicking it believes they have
+    // approved the work while the finished completion sits unapplied.
+    //
+    // The handback wins because it is strictly the better row: it carries the
+    // agent's account of what it did, and its Approve actually completes.
+    expect(queue.filter((r) => r.kind === "approval")).toEqual([]);
+    expect(queue.filter((r) => r.kind === "handback")).toHaveLength(1);
+    expect(await alice.query(api.obligations.countForCurrentUser, {})).toBe(1);
+  });
+
+  it("shows the gate again if the handback is sent back", async () => {
+    const { t, alice, listId, apiKey } = await setup();
+    const taskId = await gatedTask(alice, listId);
+    await t.mutation(api.agentApi.completeTask, {
+      apiKey,
+      taskId,
+      note: "Done.",
+    });
+    const queue = await alice.query(api.pendingEffects.listForCurrentUser, {});
+    await alice.mutation(api.pendingEffects.decide, {
+      ids: [queue[0].id],
+      decision: "reject",
+      note: "Not yet.",
+    });
+
+    // Suppression is about the pending row, not a permanent silencing. Once
+    // the handback is resolved the task is an ordinary gated task again and
+    // has to reappear, or rejecting one would quietly hide the gate forever.
+    const after = await alice.query(api.obligations.forCurrentUser, {});
+    expect(after.filter((r) => r.kind === "approval").map((r) => r.id)).toEqual(
+      [taskId],
+    );
+  });
+
   it("joins the one queue rather than starting a fifth", async () => {
     const { t, alice, listId, apiKey } = await setup();
     const taskId = await gatedTask(alice, listId);
@@ -382,7 +429,7 @@ describe("visibility", () => {
     const queue = await alice.query(api.obligations.forCurrentUser, {});
     const handback = queue.find((r) => r.kind === "handback");
     expect(handback).toBeDefined();
-    expect(handback?.raisedBy).toBe("Scout");
+    expect(handback?.raisedBy).toBe("Scout finished this");
     expect(
       await alice.query(api.obligations.countForCurrentUser, {}),
     ).toBeGreaterThan(0);
