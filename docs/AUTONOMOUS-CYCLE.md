@@ -232,6 +232,33 @@ accelerator before the brakes".
 
 ## Iteration log
 
+**11.** Shipped P12, scoped down to what P11 had not already covered. Two
+judgements.
+
+The roadmap said to SKIP an abandoned attempt whose context fingerprint had
+moved, on the grounds that it needs re-reading rather than retrying. Skipping
+strands it: the work is now perfectly viable and nothing will ever offer it
+again. The right answer is a third action — reset. A changed fingerprint means
+the previous failure is not evidence about the next attempt, so the count
+starts over rather than being spent. That is also what rescues a task that had
+already hit the cap: at the cap with unchanged context it escalates, with
+changed context it is new work.
+
+And the escalation reuses the hold thrash detection already added rather than
+growing a parallel one, with `holdReason` saying which pass raised it. Two
+flags that both mean "withheld until somebody looks" is exactly how two
+mechanisms drift apart, and the queue needs the distinction anyway because the
+fix differs — failing repeatedly is usually the task, running out of attempts
+is usually its context or its fences.
+
+The bug worth recording: the first version re-offered work into the pull path
+and never advanced `attempt`, because re-offering mints no new assignment to
+carry it. The cap was unreachable and the escalation branch was dead code — a
+bound that existed in the source and not in the behaviour. `lastRecoveredAt` is
+separate from `finishedAt` for the same class of reason: overwriting when the
+attempt ENDED to record when it was re-offered would corrupt the honest answer
+to "how long did this run".
+
 **10.** Took P13 ahead of P12, and the reordering is the first judgement worth
 recording. P12 (automatic recovery waves) overlaps most of what P11 shipped a
 round earlier — a task failing repeatedly is now held and escalated, which is

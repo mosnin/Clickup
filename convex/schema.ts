@@ -573,6 +573,15 @@ export default defineSchema({
     thrashHeldAt: v.optional(v.number()),
     thrashNotifiedAt: v.optional(v.number()),
     thrashFailures: v.optional(v.number()),
+    // Why the hold is on. Two passes raise the same brake for two different
+    // reasons — a task being failed at over and over, and a dispatched attempt
+    // that ran out of retries — and a person clearing the queue needs to know
+    // which, because the fix is different. Kept on the ONE hold field rather
+    // than growing a second parallel mechanism: two flags that both mean
+    // "withheld until somebody looks" is how the two drift.
+    holdReason: v.optional(
+      v.union(v.literal("thrash"), v.literal("attempts_exhausted")),
+    ),
     createdByClerkId: v.string(),
     position: v.number(),
     createdAt: v.number(),
@@ -870,8 +879,21 @@ export default defineSchema({
     summary: v.optional(v.string()),
     error: v.optional(v.string()),
     links: v.optional(v.array(v.string())),
+    // When the recovery pass last handed this task back to the pull path.
+    //
+    // Separate from `finishedAt` on purpose: that says when the ATTEMPT ended
+    // and is the honest answer to "how long did this run", which re-offering
+    // must not overwrite. This is the clock the recovery delay counts from, so
+    // a re-offer waits its turn again instead of being eligible immediately.
+    lastRecoveredAt: v.optional(v.number()),
   })
     .index("by_plan", ["planId", "dispatchedAt"])
+    // The recovery range. Abandonment already happened — the watchdog and
+    // reconcile both produce these — but nothing was on the other side, so a
+    // stalled attempt sat there until a human or an orchestrator noticed,
+    // which is the opposite of unattended operation. This index is what lets
+    // the recovery pass find them without walking every plan.
+    .index("by_status_and_finished", ["status", "finishedAt"])
     .index("by_wave", ["waveId"])
     .index("by_task", ["taskId", "dispatchedAt"])
     .index("by_agent", ["agentId", "dispatchedAt"])

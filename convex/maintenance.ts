@@ -11,6 +11,12 @@ import {
   type ThrashRun,
 } from "./_thrash";
 import {
+  MAX_EXECUTION_ATTEMPTS,
+  decideRecovery,
+  describeExhaustion,
+} from "./_recovery";
+import { contextLoadFromPackets, listPacketsForTask } from "./contextPackets";
+import {
   abandonExecutionAssignmentForTask,
   finishExecutionAssignment,
 } from "./executionLifecycle";
@@ -37,7 +43,11 @@ const AGENT_STALL_MS = 30 * 60 * 1000;
 //      released, and the task WITHHELD from the dispatcher until a human
 //      clears it. Passes 1-3 all detect absence; this is the only one that
 //      detects repetition, which is what an unattended agent actually does
-//      when it is wrong. See src/lib/thrash.ts.
+//      when it is wrong. See convex/_thrash.ts.
+//   5. Abandoned execution attempts → retried, reset, or escalated. The
+//      lifecycle always modelled abandonment and nothing was ever on the
+//      other side of it, so a stalled attempt waited for a human to notice.
+//      See convex/_recovery.ts for the three-way decision.
 //
 // Both task passes are index ranges, not table scans: claimed tasks have
 // claimedByActorId > "" (absent optional fields sort before every
@@ -370,6 +380,149 @@ export const watchdog = internalMutation({
           href: `/dashboard/l/${task.listId}/t/${task._id}`,
         });
       }
+    }
+
+    // 5. Abandoned execution attempts.
+    //
+    // Bounded by the index range rather than by walking plans: an abandoned
+    // row is the only kind this pass acts on, and there are far fewer of them
+    // than there are assignments.
+    const abandoned = await ctx.db
+      .query("executionAssignments")
+      .withIndex("by_status_and_finished", (q) => q.eq("status", "abandoned"))
+      .order("desc")
+      .take(200);
+
+    for (const assignment of abandoned) {
+      const task = await ctx.db.get(assignment.taskId);
+      if (!task) continue;
+      const status = await ctx.db.get(task.statusId);
+      // Somebody finished it after the attempt died. Nothing to recover.
+      if (status?.category === "complete" || status?.category === "closed") {
+        continue;
+      }
+      // Already held — by this pass on an earlier run, or by thrash detection.
+      // Recovering a task a person has been asked to look at would be the
+      // brake and the accelerator fighting each other.
+      if (task.thrashHeldAt !== undefined) continue;
+
+      // A newer attempt exists, so this row is history rather than a stall.
+      const latest = await ctx.db
+        .query("executionAssignments")
+        .withIndex("by_task", (q) => q.eq("taskId", assignment.taskId))
+        .order("desc")
+        .first();
+      if (latest && latest._id !== assignment._id) continue;
+
+      const current = contextLoadFromPackets(
+        await listPacketsForTask(ctx, assignment.taskId),
+      );
+      const decision = decideRecovery(
+        {
+          assignmentId: assignment._id,
+          taskId: assignment.taskId,
+          attempt: assignment.attempt,
+          finishedAt: assignment.finishedAt,
+          contextVersionFingerprint: assignment.contextVersionFingerprint,
+          lastRecoveredAt: assignment.lastRecoveredAt,
+        },
+        current.contextVersionFingerprint,
+        now,
+      );
+      if (decision.action === "wait") continue;
+
+      const list = await getList(task.listId);
+      if (!list) continue;
+      const scope = await scopeForList(ctx, list);
+      if (!scope) continue;
+
+      if (decision.action === "escalate") {
+        await ctx.db.patch(task._id, {
+          // The same brake thrash detection uses, for the same reason and with
+          // a different label — two flags that both mean "withheld until
+          // somebody looks" is how the two drift apart.
+          thrashHeldAt: now,
+          holdReason: "attempts_exhausted",
+          thrashFailures: decision.attempts,
+          claimedByActorId: undefined,
+          claimedAt: undefined,
+        });
+        await emitEvent(ctx, {
+          ...scope,
+          type: "execution.attempts_exhausted",
+          actor: WATCHDOG_ACTOR,
+          entityType: "task",
+          entityId: task._id,
+          entityTitle: task.title,
+          listId: task.listId,
+          payload: {
+            assignmentId: assignment._id,
+            attempts: decision.attempts,
+            summary: describeExhaustion(decision.attempts),
+          },
+        });
+        const humans = task.assigneeClerkIds.filter(
+          (cid) => !ctx.db.normalizeId("agents", cid),
+        );
+        const recipients =
+          humans.length > 0
+            ? humans
+            : ctx.db.normalizeId("agents", task.createdByClerkId)
+              ? []
+              : [task.createdByClerkId];
+        for (const cid of recipients) {
+          await notify(ctx, {
+            userClerkId: cid,
+            type: "thrashing",
+            title: `${task.title} ran out of attempts`,
+            body: describeExhaustion(decision.attempts),
+            href: `/dashboard/l/${task.listId}/t/${task._id}`,
+          });
+        }
+        continue;
+      }
+
+      // Retry or reset: hand the work back to the pull path. The cut line's
+      // shape deliberately — no new wave is minted, the task simply becomes
+      // findable again, and `next_task` already ranks and fences correctly.
+      //
+      // The count lives on the assignment because that is what `attempt` is
+      // for, and because re-offering into the pull path mints nothing new to
+      // put it on. Without this the cap could never be reached and the
+      // escalation branch above would be unreachable code — a bound that
+      // exists in the source and not in the behaviour.
+      await ctx.db.patch(assignment._id, {
+        attempt: decision.attempt,
+        lastRecoveredAt: now,
+        // A reset starts the fingerprint over too, or the very next pass
+        // compares against the stale one and resets again forever.
+        contextVersionFingerprint: current.contextVersionFingerprint,
+      });
+      await ctx.db.patch(task._id, {
+        claimedByActorId: undefined,
+        claimedAt: undefined,
+      });
+      await emitEvent(ctx, {
+        ...scope,
+        type: "execution.reoffered",
+        actor: WATCHDOG_ACTOR,
+        entityType: "task",
+        entityId: task._id,
+        entityTitle: task.title,
+        listId: task.listId,
+        payload: {
+          assignmentId: assignment._id,
+          attempt: decision.attempt,
+          of: MAX_EXECUTION_ATTEMPTS,
+          // Stated, because the two look identical from outside and mean
+          // different things: one is another go at the same work, the other is
+          // a fresh start at work that changed.
+          reason:
+            decision.action === "reset"
+              ? "context_changed"
+              : "previous_attempt_abandoned",
+        },
+      });
     }
   },
 });

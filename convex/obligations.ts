@@ -263,6 +263,13 @@ export const forCurrentUser = query({
         id: task._id,
         title: task.title,
         href: `/dashboard/l/${task.listId}/t/${task._id}`,
+        // Which brake, because the fix differs: a task being failed at over
+        // and over is usually the task, one that ran out of dispatch attempts
+        // is usually its context or its fences.
+        raisedBy:
+          task.holdReason === "attempts_exhausted"
+            ? "out of attempts"
+            : "failing repeatedly",
         createdAt: task.thrashHeldAt ?? task.createdAt,
       });
     }
