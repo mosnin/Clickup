@@ -18,7 +18,7 @@ GPT, local MCP entry, personal marketplace, or one-user connector.
 | Authentication | `OAuth 2.1 authorization code with S256 PKCE, dynamic client registration, exact resource binding, rotating refresh tokens, revocation, OpenID discovery, and verified-email UserInfo.` |
 | Package directory | `plugins/operate` |
 | Upload artifact | `artifacts/operate-plugin-1.22.0.zip` |
-| SHA-256 | `3929c4908c6727dac507e71db93993a60e31c84ec282b2c32b0dea3f3e00d801` |
+| SHA-256 | `67e35e498a2ad0c48230295a147ff97e4896d861369d2468452d4f07511aec7b` |
 | Generated tool metadata | `chatgpt-app-submission.json` |
 
 The submitter needs Apps Management **Write** permission (`api.apps.write`), a
@@ -43,9 +43,9 @@ Those are organization controls and cannot be created safely from this repo.
 | Composer icon | `plugins/operate/assets/icon.svg` |
 | Primary language | `English (United States)` |
 
-The support destination is supplied both in the public-directory listing and
-as `interface.supportURL` in the package manifest, matching the current public
-submission contract.
+The support destination is supplied in the public-directory listing fields.
+It is intentionally not duplicated as `interface.supportURL` in the packaged
+manifest because the current Codex plugin validator rejects that property.
 
 ### Long description
 
