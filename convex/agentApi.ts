@@ -7,6 +7,13 @@ import {
 import { internal } from "./_generated/api";
 import { notify } from "./notificationCenter";
 import {
+  neighbourhood,
+  flowProgress,
+  structuralStalls,
+  unlockRanking,
+  type GraphNode,
+} from "./_taskGraph";
+import {
   SECTION_ORDER,
   describeOmissions,
   estimateTokens,
@@ -3803,6 +3810,8 @@ export const nextTask = query({
       mine: boolean;
       inActiveSprint: boolean;
     }[] = [];
+    // Filled during the scan below — see the note there.
+    const graphNodes: GraphNode[] = [];
     const spaces = await ctx.db
       .query("spaces")
       .withIndex("by_parent", (q) =>
@@ -3833,6 +3842,18 @@ export const nextTask = query({
             .collect();
           for (const t of tasks) {
             const status = await ctx.db.get(t.statusId);
+            // Every task in reach goes into the graph, including the ones this
+            // loop is about to skip. The blocked ones are the whole point: a
+            // task's downstream weight IS the work that is currently blocked
+            // behind it, so a graph built only from dispatchable tasks has no
+            // edges in it and scores everything zero.
+            graphNodes.push({
+              id: t._id,
+              done:
+                status?.category === "complete" ||
+                status?.category === "closed",
+              blockedBy: (t.blockedByTaskIds ?? []) as string[],
+            });
             if (
               status?.category === "complete" ||
               status?.category === "closed"
@@ -3917,6 +3938,24 @@ export const nextTask = query({
       }
     }
 
+    // How much each candidate would RELEASE if it were finished.
+    //
+    // The dispatcher was fair: among tasks a human had not ranked, it picked
+    // by date. Fair is slow — finishing the task twelve others are waiting on
+    // is the same fleet finishing sooner, and every input for knowing which
+    // one that is has been in `blockedByTaskIds` all along. The graph was
+    // assembled during the scan above, so this costs no extra query.
+    //
+    // It sits BELOW priority deliberately. A person marking something urgent
+    // is making a claim about the world the dependency graph cannot see, and
+    // letting a structural number overrule it would be the machine deciding it
+    // knows better. It sits ABOVE due date, because between two tasks nobody
+    // ranked, "what unblocks the most" is a better tiebreak than "what was
+    // typed first".
+    const unlocks = new Map(
+      unlockRanking(graphNodes).map((r) => [r.id, r.unlocks]),
+    );
+
     candidates.sort((a, b) => {
       if (a.mine !== b.mine) return a.mine ? -1 : 1;
       if (a.inActiveSprint !== b.inActiveSprint) {
@@ -3925,6 +3964,9 @@ export const nextTask = query({
       const pa = prioRank[a.task.priority ?? "normal"];
       const pb = prioRank[b.task.priority ?? "normal"];
       if (pa !== pb) return pa - pb;
+      const ua = unlocks.get(a.task._id) ?? 0;
+      const ub = unlocks.get(b.task._id) ?? 0;
+      if (ua !== ub) return ub - ua;
       const da = a.task.dueDate ?? Infinity;
       const db = b.task.dueDate ?? Infinity;
       if (da !== db) return da - db;
@@ -5863,6 +5905,79 @@ export const getPortfolio = query({
 // A list's tasks with their blocked-by edges and status categories, so an
 // agent can reason about dependency order (what's ready to start, what's
 // gating what) without fetching every task individually.
+/**
+ * The four questions counting cannot answer, for one list.
+ *
+ * `get_task_network` already handed over the adjacency list; this hands over
+ * the ANSWERS. That difference is the whole point — an edge list makes every
+ * runtime re-derive the same arithmetic, badly and differently, which is
+ * exactly the failure one-call context was built to fix on the other side of
+ * the product.
+ *
+ * Scoped to a list rather than a workspace on purpose: the graph has to be
+ * assembled in memory to be traversed, so the boundary needs to be one an
+ * access check already covers and one whose size a person chose.
+ */
+export const getTaskGraph = query({
+  args: {
+    apiKey: v.string(),
+    listId: v.id("lists"),
+    /** Answer the neighbourhood question about this task too. */
+    aroundTaskId: v.optional(v.id("tasks")),
+  },
+  handler: async (ctx, { apiKey, listId, aroundTaskId }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    await requireListAccessForAgent(ctx, listId, agent);
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_list", (q) => q.eq("listId", listId))
+      .collect();
+
+    const nodes: GraphNode[] = [];
+    const titles = new Map<string, string>();
+    for (const t of tasks) {
+      const status = await ctx.db.get(t.statusId);
+      titles.set(t._id, t.title);
+      nodes.push({
+        id: t._id,
+        done:
+          status?.category === "complete" || status?.category === "closed",
+        blockedBy: (t.blockedByTaskIds ?? []) as string[],
+      });
+    }
+
+    const named = (id: string) => ({ taskId: id, title: titles.get(id) ?? "" });
+
+    // Work that is ready and that THIS agent is fenced out of. Every watchdog
+    // in the product detects absence; a chain whose only ready head sits in a
+    // list you cannot touch is present, healthy, and never going to move.
+    const stalls = structuralStalls(nodes, (id) => {
+      const task = tasks.find((t) => t._id === id);
+      return task !== undefined && agentCanTouchList(agent, task.listId);
+    });
+
+    return {
+      listId,
+      progress: flowProgress(nodes),
+      // Best first: what releases the most downstream work.
+      nextBest: unlockRanking(nodes)
+        .slice(0, 10)
+        .map((r) => ({ ...named(r.id), unlocks: r.unlocks, depth: r.depth })),
+      unreachable: stalls.map((s) => ({ ...named(s.id), blocking: s.blocking })),
+      around: aroundTaskId
+        ? (() => {
+            const n = neighbourhood(nodes, aroundTaskId, 2);
+            return {
+              taskId: aroundTaskId,
+              upstream: n.upstream.map(named),
+              downstream: n.downstream.map(named),
+            };
+          })()
+        : null,
+    };
+  },
+});
+
 export const getTaskNetwork = query({
   args: { apiKey: v.string(), listId: v.id("lists") },
   handler: async (ctx, { apiKey, listId }) => {

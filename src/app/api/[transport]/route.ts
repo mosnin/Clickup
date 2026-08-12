@@ -224,6 +224,7 @@ const READ_TOOLS = new Set([
   "list_checklist_templates",
   "get_portfolio",
   "get_task_network",
+  "get_task_graph",
   "list_decisions_for_task",
   "list_milestones",
   "get_wallet",
@@ -2678,6 +2679,14 @@ const TOOLS: ToolDef[] = [
       "Every List in my scope, skipping archived Spaces: name, Space, health, targetDate, and task totals (total/done/inProgress). Use for a cross-list status rollup.",
     shape: {},
     run: (c, k) => c.query(asQuery(api.agentApi.getPortfolio), { apiKey: k }),
+  },
+  {
+    name: "get_task_graph",
+    description:
+      "The four questions a task count cannot answer, for one list. `nextBest`: ready tasks ordered by how much downstream work finishing each would RELEASE — prefer this over picking the oldest ready task, because finishing the one twelve others wait on is the same fleet finishing sooner. `progress.criticalRemaining`: the longest chain of open work left, i.e. the minimum number of sequential steps to done however many agents you throw at it — six tasks in a row and six side by side are the same count and nothing alike. `unreachable`: ready work THIS key is fenced out of, which no watchdog can see because the work never started rather than stopped. `around` (pass aroundTaskId): the bounded neighbourhood — what a task waits on and who waits on it. Use get_task_network instead only if you want the raw edges.",
+    shape: { listId: z.string(), aroundTaskId: z.string().optional() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getTaskGraph), { apiKey: k, ...a }),
   },
   {
     name: "get_task_network",

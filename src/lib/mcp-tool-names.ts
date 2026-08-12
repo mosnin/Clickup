@@ -176,6 +176,7 @@ export const CORE_MCP_TOOL_NAMES: string[] = [
   "create_checklist_template",
   "get_portfolio",
   "get_task_network",
+  "get_task_graph",
   "update_comment",
   "delete_comment",
   "resolve_comment",

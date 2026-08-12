@@ -185,6 +185,10 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
       module (`src/lib/task-graph.ts`: topological order, critical path,
       reachability, blast radius) testable without a browser like `pack.ts`
       and `situation.ts`; one scope-assembling query; one MCP tool.
+      **SHIPPED — iteration 10.** `convex/_taskGraph.ts` (ready set, blast
+      radius, unlock ranking, flow progress, structural stalls, bounded
+      neighbourhood), the `get_task_graph` tool, and `next_task` ranking by
+      downstream unlock below priority and above due date.
       **Agent-readable first, human-visible second** — a node diagram
       nobody acts on is decoration. Degrades to today's behaviour when the
       graph is sparse, because the traversal is only as good as the
@@ -227,6 +231,31 @@ panel refused to call CF-1 first: "ship it first and you have built the
 accelerator before the brakes".
 
 ## Iteration log
+
+**10.** Took P13 ahead of P12, and the reordering is the first judgement worth
+recording. P12 (automatic recovery waves) overlaps most of what P11 shipped a
+round earlier — a task failing repeatedly is now held and escalated, which is
+the escalation half of P12 arriving by another route — while P13 is the item
+the FOUNDER proposed and the one the roadmap itself calls "the single
+highest-value thing an agent could know". Between an item I set the priority of
+and one the person paying for this asked about, the tie does not go to me.
+
+The build: one pure module over the edge list that has been sitting in
+`blockedByTaskIds` all along. Not a graph database — Convex tables plus indexes
+already are the graph, and porting would be a rewrite no customer sees.
+
+The judgement inside it: unlock ranking sits BELOW priority in the dispatcher
+and ABOVE due date. A person marking something urgent is making a claim about
+the world the dependency graph cannot see, so a structural number overruling it
+would be the machine deciding it knows better; but between two tasks nobody
+ranked, "what unblocks the most" beats "what was typed first" every time.
+
+And a real bug the tests caught rather than the types: the first version built
+the graph from the dispatchable candidates plus their BLOCKERS, which is the
+wrong direction. A task's downstream weight is the work currently blocked
+behind it — exactly the tasks the dispatcher had just filtered out for being
+blocked — so the graph came back with no edges and scored everything zero. It
+typechecked, it ran, and it changed nothing.
 
 **9.** Shipped P4. The roadmap's "what" said enforce for humans and agents
 alike; its cut line said enforce for agents only, because "a person being told
