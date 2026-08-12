@@ -179,10 +179,18 @@ Then, in order:
    without stepping on anyone. Follow it.
 3. \`next_task\` — find work. \`brief\` deliberately does not return a task
    list; \`next_task\` owns dispatch and knows about claims and dependencies.
-4. \`get_task\` → read every attached context packet →
-   \`acknowledge_task_context\` with exact versions → \`claim_task\`.
+4. \`get_task_context\` — one call for everything you need before touching
+   the task: readiness, open revisions, decisions in force, context packets at
+   their current versions, and how previous runs ended, in relevance order. It
+   hands back an \`acknowledge\` argument already built; pass it to
+   \`acknowledge_task_context\`, then \`claim_task\`. If the task's
+   \`claimPolicy\` is \`required\`, claim before any write or it is refused.
 5. \`heartbeat\` every few minutes while working, \`emit_run_event\` as steps
-   complete, \`complete_task\` when done.
+   complete, \`complete_task\` when done — always with a \`note\`. If the task
+   sits behind a human approval gate, \`complete_task\` does not fail: it
+   records the completion and returns \`pending: true\`. The task is not
+   complete, do not call it again, pick up other work; you are notified only if
+   a human sends it back.
 
 \`whoami\` is still worth one call: it tells you which workspace your key is
 bound to. Check that before you write anything.

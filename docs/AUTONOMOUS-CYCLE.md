@@ -46,6 +46,14 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
 
 ### Blockers
 
+- [x] **Five iterations of tools were unreachable.** Every boot path still
+      taught the superseded protocol, so `get_task_context`, `claimPolicy` and
+      deferred completion existed and nothing routed to them — and the gated
+      -task instruction told agents to wait for an event that no longer
+      arrives. Fixed in all three, with a drift test asserted against the
+      instruction strings and verified to fail on the old content.
+      — iteration 14
+
 - [x] **The one queue listed one thing twice.** A gated task with an agent's
       deferred completion produced both an `approval` row and a `handback` row
       — different buttons, and the approval one lifted the gate WITHOUT
@@ -238,6 +246,30 @@ panel refused to call CF-1 first: "ship it first and you have built the
 accelerator before the brakes".
 
 ## Iteration log
+
+**14.** The same "stand back" pass, pointed at the agent side, and it found a
+worse version of the same failure.
+
+Five iterations added `get_task_context`, `claimPolicy`, deferred completion
+and the task graph. All three boot paths — the MCP system instruction, the
+`/start` document, and the collaboration-protocol skill — went on telling
+agents to do it the old way. Not merely stale: the instruction actively routed
+agents through the four-round-trip dance `get_task_context` replaced, and told
+them to finish a gated task by calling `request_approval` and waiting for a
+`task.approved` event that no longer arrives on that path. An agent following
+the documented protocol would hand work over and wait indefinitely.
+
+**A capability nothing routes to has not shipped.** The tool list was right,
+the tests were green, and the feature was unreachable — which is a harder thing
+to notice than a broken feature, because everything that reports on it says it
+works.
+
+`tests/boot-paths.test.ts` is the check. Two things make it worth having rather
+than decorative: it asserts against the instruction STRING rather than the file
+(the route file is four thousand lines of tool definitions in which every term
+appears somewhere, so a whole-file assertion would pass whatever the
+instruction said), and it was verified to fail on the pre-fix code before being
+committed — four failures, then four passes.
 
 **13.** No roadmap item left, so this round audited instead of building — and
 found the thing twelve rounds of individually-correct changes had produced.
