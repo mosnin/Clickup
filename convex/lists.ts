@@ -174,6 +174,8 @@ export async function renameListCore(
 export type ListMetaPatch = {
   description?: string | null;
   sopSlug?: string | null;
+  /** How much a claim means here — see the schema note on lists.claimPolicy. */
+  claimPolicy?: "advisory" | "required" | null;
   defaultView?:
     | "list"
     | "board"
@@ -191,7 +193,12 @@ export async function updateListMetaCore(
   actor: Actor,
 ): Promise<void> {
   const patch: Record<string, unknown> = {};
-  for (const key of ["description", "sopSlug", "defaultView"] as const) {
+  for (const key of [
+    "description",
+    "sopSlug",
+    "defaultView",
+    "claimPolicy",
+  ] as const) {
     if (args[key] !== undefined) {
       patch[key] = args[key] === null ? undefined : args[key];
     }
@@ -352,6 +359,9 @@ export const updateMeta = mutation({
     listId: v.id("lists"),
     description: v.optional(v.union(v.string(), v.null())),
     sopSlug: v.optional(v.union(v.string(), v.null())),
+    claimPolicy: v.optional(
+      v.union(v.literal("advisory"), v.literal("required"), v.null()),
+    ),
     defaultView: v.optional(
       v.union(
         v.literal("list"),

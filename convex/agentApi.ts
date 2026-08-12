@@ -381,6 +381,11 @@ async function pendingCompletionView(
 
 async function taskView(ctx: QueryCtx | MutationCtx, task: Doc<"tasks">) {
   const status = await ctx.db.get(task.statusId);
+  // Whether a claim is required to WRITE here. Reported rather than left to be
+  // discovered by being refused: an agent that knows the rule claims first,
+  // and an agent that learns it from an error has already lost a round trip
+  // and may have lost the task to whoever claimed it in the meantime.
+  const taskListForPolicy = await ctx.db.get(task.listId);
   const blockers = [];
   for (const id of task.blockedByTaskIds ?? []) {
     const b = await ctx.db.get(id);
@@ -411,6 +416,7 @@ async function taskView(ctx: QueryCtx | MutationCtx, task: Doc<"tasks">) {
     checklist: task.checklist ?? [],
     blockedBy: blockers,
     requiresApproval: task.requiresApproval ?? false,
+    claimPolicy: taskListForPolicy?.claimPolicy ?? "advisory",
     approvedAt: task.approvedAt,
     // A completion already handed back and waiting on a person.
     //
@@ -1898,20 +1904,31 @@ export const getTaskContext = query({
     const trimmed = trimToBudget(sections, tokenBudget);
     const section = (key: string) =>
       trimmed.sections.find((s) => s.key === key)?.items ?? [];
+    // Which packets survived the trim, as ids. The typed rows are read back
+    // from `packets` rather than out of the section's opaque `value`, so the
+    // response keeps its types instead of degrading to unknown at the one
+    // point a caller has to be exact.
+    const keptPacketIds = new Set(section("packets").map((i) => i.id));
+    const keptPackets = packets.filter((p) =>
+      keptPacketIds.has(p.packetId as string),
+    );
 
     return {
       taskId,
       title: task.title,
       listId: task.listId,
       listName: list.name,
+      claimPolicy: list.claimPolicy ?? "advisory",
       // In relevance order, and labelled with it, so a runtime that flattens
       // this into a prompt keeps the ordering decision rather than re-making
       // it badly.
       order: SECTION_ORDER,
-      readiness: section("readiness")[0]?.value ?? readiness,
+      // Never trimmed, so returned directly rather than dug out of the
+      // section — see NEVER_TRIMMED.
+      readiness,
       openRevisions: section("revisions").map((i) => i.value),
       decisions: section("decisions").map((i) => i.value),
-      contextPackets: section("packets").map((i) => i.value),
+      contextPackets: keptPackets,
       recentOutcomes: section("outcomes").map((i) => i.value),
       // What it costs, and whether it has moved since anybody last looked.
       load,
@@ -1927,10 +1944,10 @@ export const getTaskContext = query({
       // Hand this straight to acknowledge_task_context. Built from the packets
       // ACTUALLY returned, so a trimmed response cannot be used to claim you
       // read something that was omitted.
-      acknowledge: section("packets").map((i) => {
-        const p = i.value as { packetId: unknown; version: number };
-        return { packetId: p.packetId, version: p.version };
-      }),
+      acknowledge: keptPackets.map((p) => ({
+        packetId: p.packetId,
+        version: p.version,
+      })),
     };
   },
 });

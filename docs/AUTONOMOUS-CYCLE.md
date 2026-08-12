@@ -155,6 +155,16 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
       never trimmed, and `acknowledge` is built from the packets actually
       RETURNED so a trimmed response cannot be used to claim you read what was
       dropped. — iteration 8
+- [x] **P4 — claim-required lists.** One optional column (`lists.claimPolicy`)
+      and one check in `updateTaskCore`, so there is no locking subsystem —
+      just the existing claim with teeth on the lists that ask for them.
+      Advisory stays the default and stays exactly as it was. The rule under
+      "required" is deliberately ASYMMETRIC: an agent is refused, a person
+      writing to an unclaimed task TAKES the claim, and a person is still
+      refused when somebody else holds one. Reported to agents on `get_task`
+      and `get_task_context` so the rule is learned before it is enforced, and
+      settable only by a human — an agent that could lower it would lower it
+      the first time it was inconvenient. — iteration 9
 - [ ] **P13 — the task graph.** Proposed by the founder, and the codebase is
       already most of the way there: `tasks.blockedByTaskIds` is a DAG, and
       cycle enforcement (P2) is what makes traversing it safe rather than
@@ -217,6 +227,29 @@ panel refused to call CF-1 first: "ship it first and you have built the
 accelerator before the brakes".
 
 ## Iteration log
+
+**9.** Shipped P4. The roadmap's "what" said enforce for humans and agents
+alike; its cut line said enforce for agents only, because "a person being told
+they may not edit a task is a worse failure than a duplicate edit". Both are
+right about something and neither is the answer: enforcing on people loses what
+they typed to prevent a conflict that was not happening, and exempting them
+means the list's stated rule is false for half its writers.
+
+So the rule is asymmetric on purpose. An agent is refused — claiming is one
+call inside a loop it is already running, and a refusal is information it acts
+on immediately. A person writing to an UNCLAIMED task takes the claim instead
+of being refused, which delivers the same protection by a different route: from
+that moment the list's other workers are locked out. A person is still refused
+when somebody else holds a fresh claim, because that is not a hypothetical
+conflict and it is a refusal they deserve to see. System actors are exempt, or
+a required-claim list quietly stops running its own automations.
+
+Also fixed a real miss from iteration 8: `tests/task-context.test.ts` had type
+errors that `vitest` does not catch (it transpiles rather than typechecks), so
+P7 shipped with a red `npm run typecheck`. The fix was in the query rather than
+the test — reading the typed rows back by id instead of out of the trimmer's
+opaque `value`, so the response keeps its types at the one point a caller has
+to be exact.
 
 **8.** Shipped P7 past its cut line. The cut line said skip the token budget and
 let the runtime trim; I built the budget, because the sentence in the spec that

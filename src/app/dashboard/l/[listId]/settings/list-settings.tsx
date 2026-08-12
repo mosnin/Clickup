@@ -304,7 +304,10 @@ function OperationsSection({
   }
 
   async function commitMeta(
-    patch: { sopSlug: string | null } | { defaultView: DefaultView | null },
+    patch:
+      | { sopSlug: string | null }
+      | { defaultView: DefaultView | null }
+      | { claimPolicy: "advisory" | "required" },
     fallback: string,
   ) {
     try {
@@ -447,6 +450,52 @@ function OperationsSection({
           <p className="mt-1.5 text-xs text-muted-foreground">
             Agents receive this playbook with every task they read from this
             project.
+          </p>
+        </div>
+
+        <div>
+          <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Claims
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(
+              [
+                { key: "advisory", label: "A signal" },
+                { key: "required", label: "Required to edit" },
+              ] as const
+            ).map((opt) => {
+              const on = (list.claimPolicy ?? "advisory") === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() =>
+                    commitMeta(
+                      { claimPolicy: opt.key },
+                      "Couldn't change the claim policy",
+                    )
+                  }
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                    on
+                      ? "border-transparent bg-foreground text-background"
+                      : "border-border bg-background text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+          {/* Says what changes, and for whom. "Required" is a real refusal for
+              agents and a near-invisible one for people, and hiding that
+              asymmetry would make the setting feel broken to whichever half
+              read the label and got the other behaviour. */}
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {(list.claimPolicy ?? "advisory") === "required"
+              ? "Agents must claim a task before writing to it. You can still edit an unclaimed task — doing so claims it for you — but not one somebody else is holding."
+              : "A claim says who is working on something. Nothing is refused. Right where people and agents share a board; wrong for a queue several workers pull from at once."}
           </p>
         </div>
 

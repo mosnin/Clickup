@@ -256,6 +256,21 @@ export default defineSchema({
         lastIndex: v.optional(v.number()),
       }),
     ),
+    // How much a claim means on this list.
+    //
+    // "advisory" (the default, and the behaviour every list had) is correct
+    // where people and agents share work: a claim says "I am on this", and
+    // nothing is refused. It is wrong for a queue several workers pull from
+    // concurrently, where two writers is the normal case rather than the
+    // unlucky one — and the platform could not express the difference.
+    //
+    // "required" gives the existing claim teeth on the lists that ask for it.
+    // No locking subsystem; see updateTaskCore for the rule, including why a
+    // human writing to an unclaimed task takes the claim rather than being
+    // refused.
+    claimPolicy: v.optional(
+      v.union(v.literal("advisory"), v.literal("required")),
+    ),
     // Attached SOP: slug of a skill (built-in or custom, resolved per
     // scope). Travels with every task read over MCP so agents get the
     // procedure alongside the work.

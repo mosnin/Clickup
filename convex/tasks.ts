@@ -566,6 +566,84 @@ export type UpdateTaskArgs = {
   milestoneId?: Id<"milestones"> | null;
 };
 
+/**
+ * Claims with teeth, on the lists that ask for them.
+ *
+ * Advisory claims are right where people and agents share work and two writers
+ * is the unlucky case. They are wrong for a queue several workers pull from,
+ * where two writers is the normal case — and a signal nothing enforces is not
+ * a lock, it is a comment.
+ *
+ * The rule is deliberately asymmetric between principals, and the asymmetry is
+ * the whole design rather than a shortcut:
+ *
+ * **An agent must hold the claim.** Claiming is one call inside a loop it is
+ * already running, and being refused is information it can act on immediately.
+ * The roadmap's cut line stopped here.
+ *
+ * **A human writing to an UNCLAIMED task takes the claim instead of being
+ * refused.** Telling a person "you may not edit this" is a worse failure than
+ * the duplicate edit the policy exists to prevent — they lose whatever they
+ * typed, to protect against a conflict that was not happening. Taking the
+ * claim gives the same protection: from that moment the list's other workers
+ * are locked out, which is exactly what a required-claim list is asking for.
+ * A person editing a task IS working on it; the claim was always meant to say
+ * so, and there is nothing honest about making them say it twice.
+ *
+ * **A human is still refused when somebody else holds a fresh claim**, because
+ * that is not a hypothetical conflict — another worker is on it right now, and
+ * that refusal is one a person deserves to see.
+ *
+ * System actors are exempt. Automations, recurrence and the watchdog are not
+ * workers competing for the task; blocking them would mean a required-claim
+ * list quietly stopped running its own rules.
+ */
+async function enforceClaimPolicy(
+  ctx: MutationCtx,
+  task: Doc<"tasks">,
+  list: Doc<"lists">,
+  actor: Actor,
+): Promise<void> {
+  if (list.claimPolicy !== "required") return;
+  if (actor.type === "system") return;
+
+  const now = Date.now();
+  const heldByOther =
+    task.claimedByActorId !== undefined &&
+    task.claimedByActorId !== actor.id &&
+    task.claimedAt !== undefined &&
+    now - task.claimedAt < CLAIM_TTL_MS;
+
+  if (heldByOther) {
+    const holderName = await actorDisplayName(ctx, task.claimedByActorId!);
+    const minutesLeft = Math.max(
+      1,
+      Math.ceil((task.claimedAt! + CLAIM_TTL_MS - now) / 60_000),
+    );
+    throw new ConvexError(
+      `"${list.name}" requires a claim to write, and ${holderName} holds it (expires in ~${minutesLeft}m). Wait, pick another task, or ask them to hand it off.`,
+    );
+  }
+
+  const holdsIt =
+    task.claimedByActorId === actor.id &&
+    task.claimedAt !== undefined &&
+    now - task.claimedAt < CLAIM_TTL_MS;
+  if (holdsIt) return;
+
+  if (actor.type === "user") {
+    // Take it, do not refuse it. See the note above.
+    await claimTaskCore(ctx, task._id, actor);
+    return;
+  }
+
+  throw new ConvexError(
+    `"${list.name}" requires a fresh claim before writing to a task. Call claim_task first; claims last ${Math.round(
+      CLAIM_TTL_MS / 60_000,
+    )} minutes and expire on their own.`,
+  );
+}
+
 export async function updateTaskCore(
   ctx: MutationCtx,
   args: UpdateTaskArgs,
@@ -576,6 +654,8 @@ export async function updateTaskCore(
   if (!task) throw new ConvexError("Task not found");
   const list = await ctx.db.get(task.listId);
   if (!list) throw new ConvexError("Orphan task");
+
+  await enforceClaimPolicy(ctx, task, list, actor);
 
   // Detect "transition into complete" before applying the patch so we
   // can run automations + spawn the recurring instance afterwards.

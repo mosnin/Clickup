@@ -1027,7 +1027,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_task",
     description:
-      "Full detail of one task: status, checklist, dependencies, claim, subtasks, comments, attachments, SOP, full attached contextPackets, and versioned operating decisions. contextReadiness says which packet versions this agent acknowledged; decisions show pending/no-change/rework-required impact reviews. Clear both gates before claiming, starting a run, reporting currentTaskId, or completing.",
+      "Full detail of one task: status, checklist, dependencies, claim, claimPolicy, subtasks, comments, attachments, SOP, full attached contextPackets, and versioned operating decisions. claimPolicy \"required\" means writes to this task are REFUSED unless you hold a fresh claim — call claim_task before update_task or complete_task. contextReadiness says which packet versions this agent acknowledged; decisions show pending/no-change/rework-required impact reviews. Clear both gates before claiming, starting a run, reporting currentTaskId, or completing.",
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.getTask), { apiKey: k, ...a }),
