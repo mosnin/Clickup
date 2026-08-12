@@ -17,7 +17,7 @@ import { requireTaskAccess } from "./_authz";
 // is not entitled to know the thing exists.
 
 type Row = {
-  kind: "approval" | "revision" | "question" | "outcome";
+  kind: "approval" | "revision" | "question" | "outcome" | "handback";
   id: string;
   title: string;
   href: string;
@@ -197,6 +197,43 @@ export const forCurrentUser = query({
       if (rows.length >= PER_SOURCE * 4) break;
     }
 
+    // ── Work an agent finished, waiting for consent ──
+    //
+    // The fifth source, and the one that arrives fastest: a fleet clearing
+    // gated tasks all afternoon produces one of these per task. It goes here
+    // rather than on its own screen for the reason the other four did — a
+    // fifth place to look is a fifth place to forget — and it is the source
+    // most expensive to miss, because until somebody decides, the work is
+    // done and the task still says it is not.
+    for (const scope of await visibleScopes(ctx, identity.subject)) {
+      const effects = await ctx.db
+        .query("pendingEffects")
+        .withIndex("by_scope_and_state", (q) =>
+          q
+            .eq("scopeType", scope.scopeType)
+            .eq("scopeId", scope.scopeId)
+            .eq("state", "pending"),
+        )
+        .take(PER_SOURCE);
+      for (const effect of effects) {
+        const task = await ctx.db.get(effect.taskId);
+        if (!task) continue;
+        try {
+          await requireTaskAccess(ctx, effect.taskId);
+        } catch {
+          continue;
+        }
+        rows.push({
+          kind: "handback",
+          id: effect._id,
+          title: task.title,
+          href: `/dashboard/inbox`,
+          raisedBy: effect.agentName,
+          createdAt: effect.createdAt,
+        });
+      }
+    }
+
     // Oldest first — the whole point. See sortObligations; every source this
     // replaces sorted newest-first, which buries the one most likely to have
     // been forgotten.
@@ -231,6 +268,25 @@ export const countForCurrentUser = query({
         count += 1;
       } catch {
         continue;
+      }
+    }
+    for (const scope of await visibleScopes(ctx, identity.subject)) {
+      const effects = await ctx.db
+        .query("pendingEffects")
+        .withIndex("by_scope_and_state", (q) =>
+          q
+            .eq("scopeType", scope.scopeType)
+            .eq("scopeId", scope.scopeId)
+            .eq("state", "pending"),
+        )
+        .take(PER_SOURCE);
+      for (const effect of effects) {
+        try {
+          await requireTaskAccess(ctx, effect.taskId);
+          count += 1;
+        } catch {
+          // Not yours to know about.
+        }
       }
     }
     for (const scope of await visibleScopes(ctx, identity.subject)) {

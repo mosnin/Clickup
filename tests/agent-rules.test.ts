@@ -180,9 +180,20 @@ describe("approval gates", () => {
       requiresApproval: true,
     });
 
-    await expect(
-      t.mutation(api.agentApi.completeTask, { apiKey, taskId }),
-    ).rejects.toThrow(/approval/);
+    // complete_task no longer THROWS here — it defers (see CF-1 and
+    // tests/pending-effects.test.ts). What this test has always been about is
+    // unchanged and is asserted directly: the task does not complete.
+    const deferred = await t.mutation(api.agentApi.completeTask, {
+      apiKey,
+      taskId,
+      note: "Ready for review.",
+    });
+    expect(deferred.pending).toBe(true);
+    expect((await alice.query(api.tasks.get, { taskId }))?.completedAt)
+      .toBeUndefined();
+
+    // The path that does not defer still refuses outright, which is what keeps
+    // the guarantee from resting on one branch.
     await expect(
       t.mutation(api.agentApi.updateTask, {
         apiKey,

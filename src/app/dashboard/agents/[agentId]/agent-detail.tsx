@@ -324,6 +324,7 @@ function WakeDeliveryDiagnostics({
     mention: "Mention",
     revision: "Revision request",
   stop: "Stop",
+  effect_decided: "Approval decision",
   } as const;
 
   return (

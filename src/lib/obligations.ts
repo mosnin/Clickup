@@ -20,8 +20,21 @@
 // turns "I should check" into "there is nothing to check". Zero has to be
 // reachable or the queue is just another inbox.
 
-/** The four ways the product asks for a person. */
-export type ObligationKind = "approval" | "revision" | "question" | "outcome";
+/**
+ * The ways the product asks for a person.
+ *
+ * `handback` is the newest and behaves differently from the other four in one
+ * way worth knowing: the others are a person being asked to DECIDE something,
+ * while a handback is work already finished and sitting inert until somebody
+ * consents to it. That is why it is the most expensive one to miss — nothing
+ * is blocked waiting for thought, it is blocked waiting for a click.
+ */
+export type ObligationKind =
+  | "approval"
+  | "revision"
+  | "question"
+  | "outcome"
+  | "handback";
 
 export type Obligation = {
   kind: ObligationKind;
@@ -48,6 +61,7 @@ export const OBLIGATION_KIND: Record<
   revision: { label: "Revision", verb: "waiting on a change you asked for" },
   question: { label: "Decision", verb: "waiting for you to decide" },
   outcome: { label: "Sign-off", verb: "waiting for you to check the evidence" },
+  handback: { label: "Finished", verb: "an agent finished this and needs your go-ahead" },
 };
 
 const HOUR = 60 * 60 * 1000;

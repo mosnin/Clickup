@@ -90,9 +90,27 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
       until a human lifts it, a budget stop self-clears at the UTC day, and
       unifying those would mean every morning starts with somebody manually
       un-sticking a fleet that was never in trouble. — iteration 4
-- [ ] **CF-1 — deferred approval (the Gatekeeper import).** A gated action is
-      recorded as *pending* with a simulated result, the agent continues, and
-      the human approves or rejects in bulk from one queue. The flagship.
+- [x] **CF-1 — deferred approval (the Gatekeeper import).** An agent's
+      completion of a gated task is RECORDED rather than refused; the agent is
+      told `pending` and moves on; a human approves or rejects in bulk from the
+      one queue, and approving applies the completion **as the agent**. The
+      third leg of the old round trip is gone — the agent never has to come
+      back. Four decisions carry it. **The gate is not weakened**: the task
+      does not complete until a person says so, `updateTaskCore` still refuses
+      the same case outright, and the first test in the file asserts the
+      guarantee rather than the convenience. **No simulated success** — the
+      prior art hands the agent a fabricated result so its plan continues
+      undisturbed; we return `applied:false, pending:true`, because the
+      property that matters is that the agent is not BLOCKED, and honesty buys
+      that just as well without a lie the agent can later trip over. **A
+      proposal is about the world it was made in**: the status at proposal
+      time is recorded, and a task somebody moved since becomes `superseded`
+      — a discovery, not a verdict, because telling an agent it was rejected
+      when nobody considered it teaches the wrong lesson. **The fleet must not
+      re-do it**: a deferred completion leaves the task open, a claim only
+      protects it for an hour, so `next_task` skips work awaiting approval and
+      COUNTS it, letting an agent tell "the backlog is empty" from "it is all
+      sitting on a person". — iteration 6
 - [x] **P5 — one "your turn" queue.** Four sources (task approvals, answered
       revisions, plan questions a person reserved, outcome criteria awaiting
       sign-off) gathered into one queue at the top of the Inbox, and folded
@@ -171,6 +189,22 @@ panel refused to call CF-1 first: "ship it first and you have built the
 accelerator before the brakes".
 
 ## Iteration log
+
+**6.** Shipped CF-1, the flagship, in the order the panel set. The judgement
+worth recording is the one where we did not follow the source: Cloudflare's
+Gatekeeper hands the agent a simulated success and serves matching fake reads
+back, and we deliberately did not. The reason to simulate is so the agent does
+not notice; the reason the feature exists is so the agent does not STOP. Those
+are different, and only the second one is worth buying — an agent told the
+truth can say "finished, awaiting a person" in its run notes and pick up other
+work, where an agent told a lie eventually reads the task and finds it open.
+We reach for simulation the day a real integration needs a return value to keep
+going, and not before.
+
+The second judgement was smaller and would have been a live bug: deferral
+leaves the task OPEN by design, which is exactly what the dispatcher hands
+out. Without a filter, a handback nobody cleared before lunch becomes
+dispatchable work and the fleet re-does an afternoon it had already done.
 
 **5.** Shipped P5, the receiving dock the panel insisted come before the
 flagship. The judgement that shaped it: sorting. Every surface it replaces

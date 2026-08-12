@@ -1343,8 +1343,8 @@ const TOOLS: ToolDef[] = [
   {
     name: "complete_task",
     description:
-      "Mark a task complete (moves it to the list's Complete status, releases my claim, triggers recurrence/automations). Fails if blockers are open or attached context changed since I acknowledged it.",
-    shape: { taskId: z.string() },
+      "Mark a task complete (moves it to the list's Complete status, releases my claim, triggers recurrence/automations). Fails if blockers are open or attached context changed since I acknowledged it. If the task is behind a human approval gate this does NOT fail: the completion is recorded and returns {applied:false, pending:true} — the task is not complete, do not call this again for it, pick up other work, and you will only be notified (a wake with sourceKind effect_decided) if a human sends it back. Always pass note: it is what the approver reads instead of re-doing your work to find out what you did.",
+    shape: { taskId: z.string(), note: z.string().optional() },
     run: (c, k, a) =>
       c.mutation(asMutation(api.agentApi.completeTask), { apiKey: k, ...a }),
   },

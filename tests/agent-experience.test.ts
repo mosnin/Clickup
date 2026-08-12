@@ -306,16 +306,33 @@ describe("self-correcting refusals", () => {
     );
   });
 
-  it("approval refusals tell agents to call request_approval", async () => {
+  // This used to assert that hitting the gate produced a refusal naming
+  // `request_approval`. That refusal is gone on purpose: it was the whole
+  // problem, because a Convex mutation that throws rolls back everything it
+  // wrote, so the error discarded the agent's finished work and left it to
+  // file a separate request and come back later to finish the job.
+  //
+  // The self-correcting property this file exists to protect is unchanged, and
+  // it is what is asserted now: an agent that cannot do the obvious thing must
+  // be told what to do INSTEAD, in the response, without guessing. Here that
+  // sentence has to carry three facts — it is not done, do not retry, go find
+  // other work — because each one is a different wrong behaviour if missing.
+  it("tells an agent exactly what a deferred completion means", async () => {
     const { t, alice, listId, apiKey } = await setup();
     const taskId = await alice.mutation(api.tasks.create, {
       listId,
       title: "Risky deploy",
       requiresApproval: true,
     });
-    await expect(
-      t.mutation(api.agentApi.completeTask, { apiKey, taskId }),
-    ).rejects.toThrow(/request_approval/);
+    const r = await t.mutation(api.agentApi.completeTask, {
+      apiKey,
+      taskId,
+      note: "Deployed to staging, waiting on a human for prod.",
+    });
+    expect(r.pending).toBe(true);
+    expect(r.message).toMatch(/NOT complete/);
+    expect(r.message).toMatch(/do not re-complete/i);
+    expect(r.message).toMatch(/other work/i);
   });
 });
 

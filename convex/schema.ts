@@ -865,6 +865,12 @@ export default defineSchema({
         // for why the ENFORCEMENT lifetimes differ even though the notice
         // does not.
         v.literal("stop"),
+        // "Your finished work was rejected, or the world moved under it."
+        // Only the outcomes an agent has to ACT on travel here — an approved
+        // effect applied, so the task already says so and a wake-up carrying
+        // "the thing you asked for happened" is noise in a channel meant to
+        // interrupt. See convex/pendingEffects.ts.
+        v.literal("effect_decided"),
       ),
     ),
     sourceId: v.optional(v.string()),
@@ -1618,6 +1624,55 @@ export default defineSchema({
   // authors a PROPOSAL — a first-class object with a reason attached — and a
   // person previews it, accepts it, or dismisses it. The same consent shape as
   // task approval gates, pointed at the interface instead of the work.
+  // Work an agent finished that a human has not consented to yet.
+  //
+  // See src/lib/pending-effects.ts for why this exists at all. In short: a
+  // gated task used to REFUSE the agent's completion, and because a Convex
+  // mutation that throws rolls back everything it wrote, the refusal took the
+  // agent's finished work with it. This is that attempt, kept — proposed, not
+  // applied, and applied only when a person says so.
+  //
+  // The gate is unchanged. Nothing here can complete a task; approving does,
+  // and only a human can approve.
+  pendingEffects: defineTable({
+    // The visibility boundary, mirrored from the agent — the same pair
+    // agentWallets and embeddings key off, so "everything waiting on me" is an
+    // index range per scope rather than a walk over every task in existence.
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    kind: v.union(v.literal("task.complete")),
+    taskId: v.id("tasks"),
+    agentId: v.id("agents"),
+    /** Denormalized so a decided row still reads correctly if the agent is
+     *  deleted — the record of who did the work outlives the principal. */
+    agentName: v.string(),
+    /** The agent's account of what it did. Required: an effect with no reason
+     *  is a change somebody has to reverse-engineer before consenting to it. */
+    reason: v.string(),
+    /** What the task's status was when the effect was proposed. If it has
+     *  moved since, the proposal was made about a different world and applying
+     *  it blindly would clobber whatever happened in between. */
+    basedOnStatusId: v.id("listStatuses"),
+    /** The status to move to on approval — the one the agent asked for. */
+    targetStatusId: v.id("listStatuses"),
+    state: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected"),
+      v.literal("superseded"),
+    ),
+    createdAt: v.number(),
+    decidedAt: v.optional(v.number()),
+    decidedByClerkId: v.optional(v.string()),
+    decisionNote: v.optional(v.string()),
+  })
+    // The queue: everything still pending in a scope, oldest first.
+    .index("by_scope_and_state", ["scopeType", "scopeId", "state", "createdAt"])
+    // "Does this task already have a proposal in flight?" — the uniqueness a
+    // retrying agent must not be able to defeat by calling twice.
+    .index("by_task_and_state", ["taskId", "state"])
+    .index("by_agent_and_state", ["agentId", "state", "createdAt"]),
+
   screenProposals: defineTable({
     /** Same key screenLayouts uses: "project:<id>". */
     screenKey: v.string(),

@@ -6,6 +6,10 @@ import {
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { notify } from "./notificationCenter";
+import {
+  completionNeedsApproval,
+  proposeCompletion,
+} from "./pendingEffects";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -340,6 +344,33 @@ async function openBlockerCount(
   return count;
 }
 
+/** The completion waiting on a human for this task, if there is one. */
+async function pendingCompletionView(
+  ctx: QueryCtx | MutationCtx,
+  taskId: Id<"tasks">,
+): Promise<{
+  effectId: Id<"pendingEffects">;
+  proposedBy: string;
+  proposedByAgentId: Id<"agents">;
+  reason: string;
+  since: number;
+} | null> {
+  const effect = await ctx.db
+    .query("pendingEffects")
+    .withIndex("by_task_and_state", (q) =>
+      q.eq("taskId", taskId).eq("state", "pending"),
+    )
+    .first();
+  if (!effect) return null;
+  return {
+    effectId: effect._id,
+    proposedBy: effect.agentName,
+    proposedByAgentId: effect.agentId,
+    reason: effect.reason,
+    since: effect.createdAt,
+  };
+}
+
 async function taskView(ctx: QueryCtx | MutationCtx, task: Doc<"tasks">) {
   const status = await ctx.db.get(task.statusId);
   const blockers = [];
@@ -373,6 +404,15 @@ async function taskView(ctx: QueryCtx | MutationCtx, task: Doc<"tasks">) {
     blockedBy: blockers,
     requiresApproval: task.requiresApproval ?? false,
     approvedAt: task.approvedAt,
+    // A completion already handed back and waiting on a person.
+    //
+    // Without this an agent re-reading a task it finished sees an open task
+    // behind a gate and concludes it still has work to do — the exact loop
+    // deferral exists to break. We report the truth rather than a simulated
+    // completion: the task is not done, AND your account of it is on
+    // somebody's queue. Whose it is matters too, so a second agent does not
+    // take over work that is one click from landing.
+    pendingCompletion: await pendingCompletionView(ctx, task._id),
     claimedBy: task.claimedByActorId,
     claimedAt: task.claimedAt,
     // Round-trip everything create_task accepts: a second agent reading
@@ -2330,8 +2370,14 @@ export const setEstimate = mutation({
 
 // Move the task to its list's first complete-category status.
 export const completeTask = mutation({
-  args: { apiKey: v.string(), taskId: v.id("tasks") },
-  handler: async (ctx, { apiKey, taskId }) => {
+  args: {
+    apiKey: v.string(),
+    taskId: v.id("tasks"),
+    /** What you did. Only read when the completion has to wait for a human —
+     *  it is what they see instead of re-doing your work to find out. */
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, { apiKey, taskId, note }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
     const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
     await requireTaskExecutionReady(ctx, taskId, agent._id);
@@ -2347,6 +2393,48 @@ export const completeTask = mutation({
         "List has no complete status. Ask a human to add a Complete-category status in the list's settings.",
       );
     }
+    // The gate, deferred rather than refused.
+    //
+    // This used to throw, and because a Convex mutation that throws rolls back
+    // everything it wrote, the throw took the agent's finished work with it —
+    // leaving the agent to notice the error, file a separate approval request,
+    // and come BACK later to complete the task once a person had clicked. The
+    // third leg is the one that fails in practice: it needs the agent to still
+    // be alive and still be watching, days later.
+    //
+    // So the completion is recorded instead, and the agent is told `pending`
+    // rather than being refused. The task is not complete — approving it is
+    // what completes it, and only a person can approve. `updateTaskCore` still
+    // refuses this exact case, which is what makes the guarantee hold even if
+    // the branch below is ever wrong.
+    if (await completionNeedsApproval(ctx, task, complete._id)) {
+      const effectId = await proposeCompletion(ctx, {
+        task,
+        agent,
+        targetStatusId: complete._id,
+        reason: note?.trim() || agent.statusText?.trim() || "Work finished.",
+      });
+      if (agent.currentTaskId === taskId) {
+        await ctx.db.patch(agent._id, {
+          currentTaskId: undefined,
+          statusText: undefined,
+          lastSeenAt: Date.now(),
+        });
+      }
+      return {
+        applied: false,
+        pending: true,
+        effectId,
+        // Stated plainly because the agent's next decision depends on it: this
+        // is not a failure to retry and not a success to build on. We do not
+        // hand back a simulated success — an agent that knows its completion
+        // is awaiting a person can say so and pick up something else, and
+        // nothing later contradicts what it was told.
+        message:
+          "Recorded and waiting for human approval. The task is NOT complete yet — do not re-complete it. Pick up other work; you will be notified only if it is rejected.",
+      };
+    }
+
     await updateTaskCore(
       ctx,
       { taskId, statusId: complete._id },
@@ -2359,6 +2447,9 @@ export const completeTask = mutation({
         lastSeenAt: Date.now(),
       });
     }
+    // Same shape on both paths, so a caller reads one field to know what
+    // happened instead of inferring it from the absence of a return value.
+    return { applied: true, pending: false, message: "Task completed." };
   },
 });
 
@@ -3523,6 +3614,7 @@ export const nextTask = query({
       blocked: 0,
       missingCapabilities: 0,
       assignedToOthers: 0,
+      awaitingApproval: 0,
     };
 
     // Tasks in an active sprint outrank backlog work of the same priority.
@@ -3588,6 +3680,26 @@ export const nextTask = query({
               now - t.claimedAt < CLAIM_TTL_MS
             ) {
               skipped.claimedByOthers += 1;
+              continue;
+            }
+            // Finished, and one click from landing.
+            //
+            // A deferred completion leaves the task OPEN — that is the whole
+            // point, it is not done until a person says so. But an open task
+            // is exactly what this dispatcher hands out, and a claim only
+            // protects it for an hour. Without this, a handback nobody got to
+            // before lunch becomes dispatchable work, and the fleet cheerfully
+            // re-does an afternoon it has already done. Counted rather than
+            // silently dropped, so an agent seeing an empty backlog can tell
+            // "there is nothing" from "it is all waiting on a human".
+            const awaiting = await ctx.db
+              .query("pendingEffects")
+              .withIndex("by_task_and_state", (q) =>
+                q.eq("taskId", t._id).eq("state", "pending"),
+              )
+              .first();
+            if (awaiting) {
+              skipped.awaitingApproval += 1;
               continue;
             }
             const mine = t.assigneeClerkIds.includes(agent._id);

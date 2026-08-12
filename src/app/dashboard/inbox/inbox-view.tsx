@@ -16,9 +16,11 @@ import { timeAgo } from "@/lib/time";
 import {
   isStale,
   OBLIGATION_KIND,
+  type ObligationKind,
   summarize,
   waitedFor,
 } from "@/lib/obligations";
+import { describeBatch } from "@/lib/pending-effects";
 import { useToast } from "@/components/toast";
 import {
   AnimatePresence,
@@ -223,7 +225,7 @@ function YourTurnQueue({
   rows,
 }: {
   rows: {
-    kind: "approval" | "revision" | "question" | "outcome";
+    kind: ObligationKind;
     id: string;
     title: string;
     href: string;
@@ -232,15 +234,45 @@ function YourTurnQueue({
   }[];
 }) {
   const approve = useMutation(api.tasks.approve);
+  const decide = useMutation(api.pendingEffects.decide);
   const { toast } = useToast();
   const now = Date.now();
   const { stale } = summarize(rows, now);
+
+  // Work an agent has finished and handed back. Bulk matters here and nowhere
+  // else in this queue: a decision is one at a time by nature, but a fleet
+  // that cleared nine gated tasks this afternoon produced nine rows that say
+  // the same thing, and reviewing those one click at a time is how people end
+  // up turning the gate off.
+  const handbacks = rows.filter((r) => r.kind === "handback");
 
   async function onApprove(taskId: string) {
     try {
       await approve({ taskId: taskId as Id<"tasks"> });
     } catch (e) {
       toast(errorMessage(e, "Couldn't approve this task"), { kind: "error" });
+    }
+  }
+
+  async function onDecide(ids: string[], decision: "approve" | "reject") {
+    try {
+      const r = await decide({
+        ids: ids as Id<"pendingEffects">[],
+        decision,
+      });
+      // Reported per outcome rather than as one verdict. In a batch of nine,
+      // a task somebody else moved cannot be applied, and saying "9 approved"
+      // when eight were is the kind of small lie that costs trust in the
+      // whole queue.
+      const parts: string[] = [];
+      if (r.applied > 0) parts.push(`${r.applied} completed`);
+      if (r.rejected > 0) parts.push(`${r.rejected} sent back`);
+      if (r.superseded > 0) {
+        parts.push(`${r.superseded} skipped — changed since`);
+      }
+      toast(parts.join(", ") || "Nothing left to decide");
+    } catch (e) {
+      toast(errorMessage(e, "Couldn't record that decision"), { kind: "error" });
     }
   }
 
@@ -253,11 +285,28 @@ function YourTurnQueue({
             <h3 className="text-base font-medium">
               Nothing moves until you touch these
             </h3>
-            {stale > 0 && (
-              <span className="ui-chip px-2 py-0.5 text-tiny font-medium text-danger">
-                {stale} waiting over a day
-              </span>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {stale > 0 && (
+                <span className="ui-chip px-2 py-0.5 text-tiny font-medium text-danger">
+                  {stale} waiting over a day
+                </span>
+              )}
+              {handbacks.length > 1 && (
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    onDecide(
+                      handbacks.map((r) => r.id),
+                      "approve",
+                    )
+                  }
+                >
+                  {describeBatch(
+                    handbacks.map(() => ({ kind: "task.complete" as const })),
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
           <ul className="divide-y divide-border">
             <AnimatePresence initial={false}>
@@ -302,7 +351,23 @@ function YourTurnQueue({
                       >
                         {waitedFor(row.createdAt, now)}
                       </span>
-                      {row.kind === "approval" ? (
+                      {row.kind === "handback" ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onDecide([row.id], "reject")}
+                          >
+                            Send back
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => onDecide([row.id], "approve")}
+                          >
+                            Approve
+                          </Button>
+                        </>
+                      ) : row.kind === "approval" ? (
                         <Button size="sm" onClick={() => onApprove(row.id)}>
                           Approve
                         </Button>
