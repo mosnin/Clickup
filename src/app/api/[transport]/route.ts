@@ -181,6 +181,7 @@ const READ_TOOLS = new Set([
   "list_statuses",
   "list_tasks",
   "get_task",
+  "get_task_context",
   "list_context_packets",
   "get_context_packet",
   "search_tasks",
@@ -1014,6 +1015,14 @@ const TOOLS: ToolDef[] = [
     },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listTasks), { apiKey: k, ...a }),
+  },
+  {
+    name: "get_task_context",
+    description:
+      "Everything you need before touching a task, in ONE call: the readiness verdict, open revisions on it, operating decisions in force, attached context packets at their current versions, and how previous runs on it ended — returned in relevance order (worst-to-miss first, see `order`). Prefer this over assembling the same picture from get_task plus separate lookups; the ordering is the point, not the round trip. Pass tokenBudget to cap the size: readiness and open revisions are never trimmed, and anything dropped is NAMED in budget.omitted with its ids so you can ask for it back — a trimmed context is never silently presented as complete. `acknowledge` is the exact argument for acknowledge_task_context, built from the packets actually returned.",
+    shape: { taskId: z.string(), tokenBudget: z.number().optional() },
+    run: (c, k, a) =>
+      c.query(asQuery(api.agentApi.getTaskContext), { apiKey: k, ...a }),
   },
   {
     name: "get_task",

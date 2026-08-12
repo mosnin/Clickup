@@ -5,7 +5,7 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { agentCanTouchList, sha256Hex } from "./_agentAuth";
 import { canAccessSpace, requireIdentity } from "./_authz";
 import { hasCapabilities } from "./capabilities";
-import { listPacketsForTask } from "./contextPackets";
+import { contextLoadFromPackets, listPacketsForTask } from "./contextPackets";
 import { executionPlanSummary } from "./executionPlans";
 import {
   executionPolicyFor,
@@ -62,36 +62,10 @@ async function contextLoadForTask(
   ctx: ReadCtx,
   taskId: Id<"tasks">,
 ) {
-  const packets = await listPacketsForTask(ctx, taskId);
-  const contextCharacterCount = packets.reduce(
-    (total, packet) =>
-      total +
-      packet.title.length +
-      (packet.summary?.length ?? 0) +
-      packet.content.length,
-    0,
-  );
-  return {
-    contextPacketCount: packets.length,
-    contextCharacterCount,
-    estimatedContextTokens: Math.ceil(contextCharacterCount / 4),
-    contextVersionFingerprint: sha256Hex(
-      packets
-        .map((packet) => `${packet.packetId}:${packet.version}`)
-        .sort()
-        .join("|"),
-    ),
-    contextPackets: packets.map((packet) => ({
-      packetId: packet.packetId,
-      title: packet.title,
-      version: packet.version,
-      updatedAt: packet.updatedAt,
-      characterCount:
-        packet.title.length +
-        (packet.summary?.length ?? 0) +
-        packet.content.length,
-    })),
-  };
+  // The computation moved to contextPackets.ts so the pull path
+  // (get_task_context) answers with the same numbers and the same fingerprint.
+  // Two implementations of "has the context moved" is two answers.
+  return contextLoadFromPackets(await listPacketsForTask(ctx, taskId));
 }
 
 export async function executionReadinessCore(

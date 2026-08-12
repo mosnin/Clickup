@@ -145,6 +145,16 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
       back, which is how the loop got going. Cleared by a human, or by the
       work finally landing. — iteration 7
 
+- [x] **P7 — one-call task context, past the cut line.** `get_task_context`
+      returns readiness, open revisions, decisions in force, packets at current
+      versions and recent run outcomes in ONE call and in relevance order —
+      replacing four round trips whose ordering and budget were each runtime's
+      private guess, which is exactly the thing that varies between a good
+      runtime and a bad one. The budget was in the cut set and was built
+      anyway: omissions are NAMED with ids, readiness and open revisions are
+      never trimmed, and `acknowledge` is built from the packets actually
+      RETURNED so a trimmed response cannot be used to claim you read what was
+      dropped. — iteration 8
 - [ ] **P13 — the task graph.** Proposed by the founder, and the codebase is
       already most of the way there: `tasks.blockedByTaskIds` is a DAG, and
       cycle enforcement (P2) is what makes traversing it safe rather than
@@ -207,6 +217,30 @@ panel refused to call CF-1 first: "ship it first and you have built the
 accelerator before the brakes".
 
 ## Iteration log
+
+**8.** Shipped P7 past its cut line. The cut line said skip the token budget and
+let the runtime trim; I built the budget, because the sentence in the spec that
+carries the value is "with what was trimmed NAMED rather than silently
+dropped" — that is a correctness property, not a convenience. An agent handed a
+silently truncated context believes it has the whole picture and acts with
+unearned confidence; told "3 packets omitted, 14k tokens, here are their ids"
+it can ask for them, work narrowly, or refuse. Silent truncation is worse than
+no budget at all, so shipping the trim without the notice would have been the
+wrong half.
+
+Two decisions inside it. Order is a claim about CONSEQUENCES, not size: the
+sections are ranked by what it costs to have missed them (unready → wrong work
+entirely; missed revision → confidently redoing work somebody asked you to
+change; violated decision → whole run reverted; unknown previous attempt →
+some repetition), which is roughly the reverse of how interesting they look.
+And two sections are never trimmed at any budget — answering a question about
+safety by omitting the safety information would be the wrong way to honour a
+number, so a too-small budget comes back over budget and says so.
+
+`contextLoadForTask` moved out of the wave dispatcher into `contextPackets.ts`.
+It was always a property of the task; living on the push path meant an agent
+that pulled its own work had no way to tell whether its context had moved,
+which is the one question the fingerprint exists to answer.
 
 **7.** Shipped P11 to its cut line (repeated failure only; status flip-flops
 and alternating writers are cheaper to add now that the pass exists). The

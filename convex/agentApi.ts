@@ -7,6 +7,13 @@ import {
 import { internal } from "./_generated/api";
 import { notify } from "./notificationCenter";
 import {
+  SECTION_ORDER,
+  describeOmissions,
+  estimateTokens,
+  trimToBudget,
+  type ContextSection,
+} from "./_taskContext";
+import {
   completionNeedsApproval,
   proposeCompletion,
 } from "./pendingEffects";
@@ -157,6 +164,7 @@ import {
   createContextPacketCore,
   deleteContextPacketCore,
   detachContextPacketCore,
+  contextLoadFromPackets,
   listPacketsForTask,
   requireCurrentContext,
   updateContextPacketCore,
@@ -1783,6 +1791,147 @@ export const listTasks = query({
       }
     }
     return views;
+  },
+});
+
+
+/**
+ * Everything you need before touching this task, in one call.
+ *
+ * Replaces the four round trips a runtime used to make — packets, decisions,
+ * open revisions, previous outcomes — and, more importantly, replaces four
+ * private guesses about what order to read them in and what to drop when there
+ * is too much. See convex/_taskContext.ts for why the order is what it is; the
+ * short version is that it ranks sections by what it costs to have missed
+ * them, not by how interesting they look.
+ *
+ * The answer carries `acknowledge`: the exact packet ids and versions to hand
+ * to acknowledge_task_context. Assembling that argument by hand from four
+ * responses was the step most likely to be got subtly wrong, and getting it
+ * wrong means claiming to have read a version you have not.
+ */
+export const getTaskContext = query({
+  args: {
+    apiKey: v.string(),
+    taskId: v.id("tasks"),
+    /** Omit for everything. A budget never drops readiness or open
+     *  revisions — see NEVER_TRIMMED. */
+    tokenBudget: v.optional(v.number()),
+  },
+  handler: async (ctx, { apiKey, taskId, tokenBudget }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey);
+    const { task, list } = await requireTaskAccessForAgent(ctx, taskId, agent);
+
+    const readiness = await contextReadinessForAgent(ctx, taskId, agent._id);
+    const revisions = openOnly(
+      await revisionsForParent(ctx, "task", taskId),
+    );
+    const decisionRows = await decisionRowsForTask(ctx, taskId);
+    const packets = await listPacketsForTask(ctx, taskId);
+    const outcomes = await recentOutcomesFor(ctx, taskId);
+
+    // The load the wave dispatcher computes per assignment, computed here
+    // instead. Same numbers, same fingerprint — it was always a property of
+    // the task, and keeping it in the push path meant the pull path could not
+    // tell whether its context had moved.
+    const load = contextLoadFromPackets(packets);
+
+    const sections: ContextSection[] = [
+      {
+        key: "readiness",
+        items: [
+          {
+            id: "readiness",
+            label: "readiness verdict",
+            tokens: estimateTokens(JSON.stringify(readiness)),
+            value: readiness,
+          },
+        ],
+      },
+      {
+        key: "revisions",
+        items: revisions.map((r) => ({
+          id: r._id as string,
+          label: "open revision",
+          tokens: estimateTokens(r.body ?? ""),
+          value: {
+            revisionId: r._id,
+            body: r.body,
+            requestedByActorId: r.requestedByActorId,
+            createdAt: r.createdAt,
+          },
+        })),
+      },
+      {
+        key: "decisions",
+        items: decisionRows.map((d) => ({
+          id: d.decisionId as string,
+          label: "decision",
+          tokens: estimateTokens(
+            `${d.title}${d.statement}${d.rationale ?? ""}`,
+          ),
+          value: d,
+        })),
+      },
+      {
+        key: "packets",
+        items: packets.map((p) => ({
+          id: p.packetId as string,
+          label: "context packet",
+          tokens: estimateTokens(
+            `${p.title}${p.summary ?? ""}${p.content}`,
+          ),
+          value: p,
+        })),
+      },
+      {
+        key: "outcomes",
+        items: outcomes.map((o) => ({
+          id: o.runId as string,
+          label: "previous run",
+          tokens: estimateTokens(`${o.summary ?? ""}${o.error ?? ""}`),
+          value: o,
+        })),
+      },
+    ];
+
+    const trimmed = trimToBudget(sections, tokenBudget);
+    const section = (key: string) =>
+      trimmed.sections.find((s) => s.key === key)?.items ?? [];
+
+    return {
+      taskId,
+      title: task.title,
+      listId: task.listId,
+      listName: list.name,
+      // In relevance order, and labelled with it, so a runtime that flattens
+      // this into a prompt keeps the ordering decision rather than re-making
+      // it badly.
+      order: SECTION_ORDER,
+      readiness: section("readiness")[0]?.value ?? readiness,
+      openRevisions: section("revisions").map((i) => i.value),
+      decisions: section("decisions").map((i) => i.value),
+      contextPackets: section("packets").map((i) => i.value),
+      recentOutcomes: section("outcomes").map((i) => i.value),
+      // What it costs, and whether it has moved since anybody last looked.
+      load,
+      budget: {
+        requested: tokenBudget ?? null,
+        used: trimmed.tokens,
+        overBudget: trimmed.overBudget,
+        omitted: trimmed.omitted,
+        // Named, never silent. An agent handed a truncated context believing
+        // it is complete acts with unearned confidence.
+        notice: describeOmissions(trimmed.omitted, trimmed.overBudget),
+      },
+      // Hand this straight to acknowledge_task_context. Built from the packets
+      // ACTUALLY returned, so a trimmed response cannot be used to claim you
+      // read something that was omitted.
+      acknowledge: section("packets").map((i) => {
+        const p = i.value as { packetId: unknown; version: number };
+        return { packetId: p.packetId, version: p.version };
+      }),
+    };
   },
 });
 

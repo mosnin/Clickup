@@ -3,7 +3,7 @@ import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { requireListAccess } from "./_authz";
-import type { Actor } from "./_agentAuth";
+import { sha256Hex, type Actor } from "./_agentAuth";
 import { emitEvent, scopeForList, userActor } from "./events";
 
 const MAX_TITLE = 120;
@@ -99,6 +99,49 @@ export async function listPacketsForTask(
     .filter((packet): packet is Doc<"contextPackets"> => packet !== null)
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .map(view);
+}
+
+/**
+ * What this task's context costs, and a fingerprint of its versions.
+ *
+ * Lifted out of the wave dispatcher, which computed it per assignment. It was
+ * always a property of the TASK — keeping it on the push path meant an agent
+ * that pulled its own work had no way to tell whether the context it read had
+ * moved since, which is the one question the fingerprint exists to answer.
+ * Both callers now compute it from the same packets.
+ */
+export function contextLoadFromPackets(
+  packets: Awaited<ReturnType<typeof listPacketsForTask>>,
+) {
+  const contextCharacterCount = packets.reduce(
+    (total, packet) =>
+      total +
+      packet.title.length +
+      (packet.summary?.length ?? 0) +
+      packet.content.length,
+    0,
+  );
+  return {
+    contextPacketCount: packets.length,
+    contextCharacterCount,
+    estimatedContextTokens: Math.ceil(contextCharacterCount / 4),
+    contextVersionFingerprint: sha256Hex(
+      packets
+        .map((packet) => `${packet.packetId}:${packet.version}`)
+        .sort()
+        .join("|"),
+    ),
+    contextPackets: packets.map((packet) => ({
+      packetId: packet.packetId,
+      title: packet.title,
+      version: packet.version,
+      updatedAt: packet.updatedAt,
+      characterCount:
+        packet.title.length +
+        (packet.summary?.length ?? 0) +
+        packet.content.length,
+    })),
+  };
 }
 
 export async function contextReadinessForAgent(

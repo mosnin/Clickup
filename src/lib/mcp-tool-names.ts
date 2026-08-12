@@ -61,6 +61,7 @@ export const CORE_MCP_TOOL_NAMES: string[] = [
   "set_task_milestone",
   "list_tasks",
   "get_task",
+  "get_task_context",
   "list_context_packets",
   "get_context_packet",
   "create_context_packet",
