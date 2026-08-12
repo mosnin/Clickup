@@ -46,6 +46,12 @@ Ordered by leverage. `[ ]` open, `[x]` shipped this cycle, with the commit.
 
 ### Blockers
 
+- [x] **The board could not show where the fleet got to.** Held tasks and
+      tasks whose completion was one click from landing rendered identically
+      to untouched work in List, Board and the peek panel. Both now badge,
+      through one per-list subscription rather than one per row.
+      — iteration 16
+
 - [x] **The task page hid what the backend knew.** A completion an agent had
       handed back, and a task held after repeated failure, both rendered as
       ordinary open work — and the gate banner's Approve lifted the gate
@@ -254,6 +260,29 @@ panel refused to call CF-1 first: "ship it first and you have built the
 accelerator before the brakes".
 
 ## Iteration log
+
+**16.** Fourth surface, and the finding is the plainest yet: the board — the
+place people actually spend their time and the one thing scanning is FOR — could
+not tell you where the fleet had got to. A task an agent finished yesterday and
+a task no agent will ever pick up both rendered exactly like untouched work.
+
+`TaskBadges` already existed and already badged claimed, blocked and
+awaiting-approval, which is why this was easy to miss: the component looked
+complete, and each of the three states it knew about had been added when it was
+built. Nothing had asked it about the states added since.
+
+One decision inside it. The query is per LIST, not per task, because the caller
+is rendered once per row and a per-task subscription would be one per visible
+task — the same shape the component's existing two queries already use, and the
+reason `pendingEffects.forTask` (added last iteration for the task page) is
+deliberately NOT what the badge calls. There is now a test asserting that,
+because the per-task version is right there and reaching for it is the obvious
+mistake.
+
+And the same suppression as the last two rounds, three pixels wide: the
+approval mark is hidden on a task already finished, because two marks for one
+task — the weaker saying "will need you" beside the stronger saying "waiting on
+you" — is the duplicate-row bug in miniature.
 
 **15.** Third stand-back pass, third surface, and the SAME bug found a third
 home. The task page's approval banner offered an Approve that calls

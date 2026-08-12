@@ -537,6 +537,60 @@ describe("the task's own page", () => {
   });
 });
 
+describe("the board", () => {
+  it("names the tasks with a completion waiting, and only those", async () => {
+    const { t, alice, listId, apiKey } = await setup();
+    const waiting = await gatedTask(alice, listId, "Finished");
+    const untouched = await alice.mutation(api.tasks.create, {
+      listId,
+      title: "Untouched",
+    });
+    await t.mutation(api.agentApi.completeTask, {
+      apiKey,
+      taskId: waiting,
+      note: "Done.",
+    });
+
+    const ids = await alice.query(api.pendingEffects.forList, { listId });
+    expect(ids).toEqual([waiting]);
+    expect(ids).not.toContain(untouched);
+  });
+
+  it("empties once the decision is made", async () => {
+    const { t, alice, listId, apiKey } = await setup();
+    const taskId = await gatedTask(alice, listId);
+    await t.mutation(api.agentApi.completeTask, {
+      apiKey,
+      taskId,
+      note: "Done.",
+    });
+    const queue = await alice.query(api.pendingEffects.listForCurrentUser, {});
+    await alice.mutation(api.pendingEffects.decide, {
+      ids: [queue[0].id],
+      decision: "approve",
+    });
+    // A badge that outlives its reason is worse than no badge: it teaches
+    // people that the mark means nothing.
+    expect(await alice.query(api.pendingEffects.forList, { listId })).toEqual(
+      [],
+    );
+  });
+
+  it("returns nothing for a list the reader cannot open", async () => {
+    const { t, alice, listId, apiKey } = await setup();
+    const taskId = await gatedTask(alice, listId);
+    await t.mutation(api.agentApi.completeTask, {
+      apiKey,
+      taskId,
+      note: "Done.",
+    });
+    const bob = t.withIdentity(BOB);
+    // Empty rather than a throw: a badge query that rejects would break the
+    // whole board rather than omitting one mark.
+    expect(await bob.query(api.pendingEffects.forList, { listId })).toEqual([]);
+  });
+});
+
 describe("the pure helpers", () => {
   it("sorts oldest first", () => {
     const rows = [{ createdAt: 30 }, { createdAt: 10 }, { createdAt: 20 }];

@@ -159,3 +159,39 @@ describe("the task page shows what the backend knows", () => {
     expect(collab).toMatch(/!task\.approvedAt && !handback/);
   });
 });
+
+// ── List and board ──
+//
+// Where people actually spend their time, and the last surface to learn any of
+// this. A held task and a task whose completion is one click from landing both
+// rendered exactly like untouched work — so scanning a board, the one thing it
+// exists for, could not tell you where the fleet had got to.
+
+const badges = readFileSync(
+  path.join(process.cwd(), "src/components/dashboard/task-badges.tsx"),
+  "utf8",
+);
+
+describe("the board shows where the fleet got to", () => {
+  it("marks a task whose completion is waiting", () => {
+    expect(badges).toContain("pendingEffects.forList");
+  });
+
+  it("marks a task that is held", () => {
+    expect(badges).toContain("thrashHeldAt");
+  });
+
+  it("does not show the gate mark on work already finished", () => {
+    // Two marks for one task, the weaker one saying "will need you" beside the
+    // stronger one saying "waiting on you", is the queue's duplicate-row bug
+    // rendered three pixels wide.
+    expect(badges).toMatch(/!task\.approvedAt && !finished/);
+  });
+
+  it("asks once per list, not once per row", () => {
+    // A badge rendered per row must not open a subscription per row. The
+    // existing queries here are all per-list for exactly this reason.
+    expect(badges).toContain("listId: task.listId");
+    expect(badges).not.toContain("pendingEffects.forTask");
+  });
+});

@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireIdentity, requireTaskAccess } from "./_authz";
+import { requireIdentity, requireListAccess, requireTaskAccess } from "./_authz";
 import { emitEvent } from "./events";
 import { updateTaskCore } from "./tasks";
 
@@ -291,6 +291,45 @@ export const forTask = query({
       createdAt: effect.createdAt,
       stale: task ? task.statusId !== effect.basedOnStatusId : true,
     };
+  },
+});
+
+/**
+ * Which tasks in one list have a completion waiting on a human.
+ *
+ * Per LIST rather than per task, because the caller is a badge rendered once
+ * per row: a per-task query would be one subscription per visible task, where
+ * this one is shared across every row on the board by the Convex client's
+ * cache — the same shape `TaskBadges` already uses for statuses and siblings.
+ *
+ * Ids only. A badge needs to know THAT, and anything more would be a payload
+ * multiplied by every row to render a mark three pixels wide.
+ */
+export const forList = query({
+  args: { listId: v.id("lists") },
+  handler: async (ctx, { listId }): Promise<Id<"tasks">[]> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    try {
+      await requireListAccess(ctx, listId);
+    } catch {
+      return [];
+    }
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_list", (q) => q.eq("listId", listId))
+      .collect();
+    const out: Id<"tasks">[] = [];
+    for (const task of tasks) {
+      const effect = await ctx.db
+        .query("pendingEffects")
+        .withIndex("by_task_and_state", (q) =>
+          q.eq("taskId", task._id).eq("state", "pending"),
+        )
+        .first();
+      if (effect) out.push(task._id);
+    }
+    return out;
   },
 });
 

@@ -2,7 +2,13 @@
 
 import { useMemo } from "react";
 import { useQuery } from "convex/react";
-import { Link2, Lock, ShieldAlert } from "lucide-react";
+import {
+  Link2,
+  Lock,
+  PackageCheck,
+  ShieldAlert,
+  TriangleAlert,
+} from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc } from "@convex/_generated/dataModel";
 
@@ -43,9 +49,29 @@ export function TaskBadges({ task }: { task: Doc<"tasks"> }) {
     }).length;
   }, [hasBlockers, statuses, siblingTasks, blockedByIds]);
 
+  // Which tasks on this board have a completion waiting on a human. One
+  // subscription for the whole list, shared across every row by the Convex
+  // client's cache — the same shape the two queries above use.
+  const handedBack = useQuery(api.pendingEffects.forList, {
+    listId: task.listId,
+  });
+  const finished = (handedBack ?? []).includes(task._id);
+  const held = task.thrashHeldAt !== undefined;
+
   const blocked = openBlockerCount > 0;
-  const awaitingApproval = task.requiresApproval && !task.approvedAt;
-  if (!task.claimedByActorId && !blocked && !awaitingApproval) return null;
+  // An approval gate on a task an agent has already finished is not the same
+  // fact, and the stronger one wins: "waiting on you" beats "will need you".
+  const awaitingApproval =
+    task.requiresApproval && !task.approvedAt && !finished;
+  if (
+    !task.claimedByActorId &&
+    !blocked &&
+    !awaitingApproval &&
+    !finished &&
+    !held
+  ) {
+    return null;
+  }
   return (
     <span className="ml-1 inline-flex items-center gap-1 align-middle">
       {task.claimedByActorId && (
@@ -61,6 +87,22 @@ export function TaskBadges({ task }: { task: Doc<"tasks"> }) {
       {awaitingApproval && (
         <span title="Needs human approval before completion">
           <ShieldAlert className="h-3 w-3 text-brand-600" aria-hidden />
+        </span>
+      )}
+      {/* Finished, and one click from landing. Without this a task an agent
+          completed yesterday sorts and renders exactly like untouched work,
+          so scanning a board cannot tell you where the fleet actually got to. */}
+      {finished && (
+        <span title="An agent finished this — waiting for your go-ahead">
+          <PackageCheck className="h-3 w-3 text-brand-600" aria-hidden />
+        </span>
+      )}
+      {/* Held: withheld from the dispatcher until somebody looks. The one
+          state where a task looks completely normal and is guaranteed not to
+          move, which is how a person concludes the fleet has stopped. */}
+      {held && (
+        <span title="Held after repeated failure — agents will not pick this up">
+          <TriangleAlert className="h-3 w-3 text-danger" aria-hidden />
         </span>
       )}
     </span>
