@@ -1429,8 +1429,14 @@ const TOOLS: ToolDef[] = [
   {
     name: "semantic_search",
     description:
-      "Semantic (embedding) search over tasks and docs in my scope. Returns raw matching sources. Requires the deployment to have AI configured; otherwise configured=false.",
-    shape: { query: z.string() },
+      "Semantic (embedding) search over tasks, docs, pages and DELIBERATION (channel messages and task comments) in my scope. Pass kinds to narrow — kinds:[\"message\"] answers \"has anyone argued about this before\", which is a different question from \"where is the spec\" and was previously unanswerable because messages were not indexed. Long messages only: short ones carry nothing a search can recover. Returns raw matching sources; requires the deployment to have AI configured, otherwise configured=false.",
+    shape: {
+      query: z.string(),
+      kinds: z
+        .array(z.enum(["doc", "task", "page", "message"]))
+        .optional()
+        .describe("restrict results to these kinds"),
+    },
     run: (c, k, a) =>
       c.action(asAction(api.agentAi.search), { apiKey: k, ...a }),
   },

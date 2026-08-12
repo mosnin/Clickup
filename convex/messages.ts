@@ -7,6 +7,7 @@ import { internal } from "./_generated/api";
 import { requireIdentity, requireMessageParentAccess } from "./_authz";
 import type { Actor } from "./_agentAuth";
 import { emitEvent, scopeForList } from "./events";
+import { indexableText, shouldIndexMessage } from "./_indexable";
 import { notify } from "./notificationCenter";
 import { enqueueAgentPingDelivery } from "./agentPingDeliveries";
 import { bodyPreview, extractRefs } from "./_refs";
@@ -271,6 +272,29 @@ export async function createMessageCore(
     args.parentType,
     args.parentId,
   );
+  // Index deliberation, if there is any.
+  //
+  // Channels and task comments are where the arguing happens, and they were
+  // the one place `semantic_search` could not reach — so "has anyone discussed
+  // this?" was unanswerable by the tool built to answer it. The floor is
+  // checked HERE rather than inside the action: a message that does not
+  // qualify must not cost a scheduler hop, and most messages do not qualify.
+  //
+  // Only these two parent types. A space or workspace message is chat, and a
+  // page comment sits beside a page that is already indexed in full.
+  if (
+    scope &&
+    (args.parentType === "channel" || args.parentType === "task") &&
+    shouldIndexMessage(args.body)
+  ) {
+    await ctx.scheduler.runAfter(0, internal.ai.indexMessage, {
+      messageId,
+      text: indexableText(args.body),
+      scopeType: scope.scopeType,
+      scopeId: scope.scopeId,
+    });
+  }
+
   // In personal scope, the only mentionable human is the space owner.
   const personalOwner =
     workspaceId === null && scope?.scopeType === "user"
@@ -585,6 +609,20 @@ export const update = mutation({
   },
 });
 
+/** Forget a message's embedding. No-op when it was never indexed. */
+async function dropMessageEmbedding(
+  ctx: MutationCtx,
+  messageId: Id<"messages">,
+): Promise<void> {
+  const rows = await ctx.db
+    .query("embeddings")
+    .withIndex("by_parent", (q) =>
+      q.eq("parentType", "message").eq("parentId", messageId),
+    )
+    .collect();
+  for (const row of rows) await ctx.db.delete(row._id);
+}
+
 export const remove = mutation({
   args: { messageId: v.id("messages") },
   handler: async (ctx, { messageId }) => {
@@ -607,6 +645,7 @@ export const remove = mutation({
         .withIndex("by_message", (q) => q.eq("messageId", r._id))
         .collect();
       for (const m of ms) await ctx.db.delete(m._id);
+      await dropMessageEmbedding(ctx, r._id);
       await ctx.db.delete(r._id);
     }
     const ms = await ctx.db
@@ -614,6 +653,11 @@ export const remove = mutation({
       .withIndex("by_message", (q) => q.eq("messageId", messageId))
       .collect();
     for (const m of ms) await ctx.db.delete(m._id);
+    // A deleted message must not stay findable. Deleting the row and leaving
+    // its embedding behind is worse than never indexing it: search keeps
+    // returning a preview of text that no longer exists anywhere, pointing at
+    // an id that resolves to nothing.
+    await dropMessageEmbedding(ctx, messageId);
     await ctx.db.delete(messageId);
   },
 });

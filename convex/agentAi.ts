@@ -15,15 +15,40 @@ import type { Doc } from "./_generated/dataModel";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 
+/**
+ * Semantic search across everything this key can read.
+ *
+ * `kinds` narrows it. The one that motivated the argument is "message":
+ * channels and task comments are where reasoning is actually recorded, and
+ * being able to ask ONLY for that is the difference between "find me the spec"
+ * and "find me where we argued about this".
+ *
+ * Filtered after the vector search rather than inside it: the index filters on
+ * scope alone, and adding a second filter field would mean a schema migration
+ * for a narrowing that costs nothing at this result size.
+ */
 export const search = action({
-  args: { apiKey: v.string(), query: v.string() },
+  args: {
+    apiKey: v.string(),
+    query: v.string(),
+    kinds: v.optional(
+      v.array(
+        v.union(
+          v.literal("doc"),
+          v.literal("task"),
+          v.literal("page"),
+          v.literal("message"),
+        ),
+      ),
+    ),
+  },
   handler: async (
     ctx,
-    { apiKey, query },
+    { apiKey, query, kinds },
   ): Promise<{
     configured: boolean;
     results: {
-      parentType: "doc" | "task" | "page";
+      parentType: "doc" | "task" | "page" | "message";
       parentId: string;
       textPreview: string;
     }[];
@@ -50,17 +75,22 @@ export const search = action({
     // pass through — restricted agents can read every doc in scope, same
     // as agentApi.listDocs/getDoc). The vector filter above only scopes by
     // user/workspace, so this second pass enforces the finer boundary.
+    const wanted = kinds && kinds.length > 0 ? new Set<string>(kinds) : null;
     const results: {
-      parentType: "doc" | "task" | "page";
+      parentType: "doc" | "task" | "page" | "message";
       parentId: string;
       textPreview: string;
     }[] = await ctx.runQuery(internal.agentApi._filterSearchHits, {
       apiKey,
-      hits: rows.map((r: Doc<"embeddings">) => ({
-        parentType: r.parentType,
-        parentId: r.parentId,
-        textPreview: r.textPreview,
-      })),
+      hits: rows
+        .filter(
+          (r: Doc<"embeddings">) => wanted === null || wanted.has(r.parentType),
+        )
+        .map((r: Doc<"embeddings">) => ({
+          parentType: r.parentType,
+          parentId: r.parentId,
+          textPreview: r.textPreview,
+        })),
     });
     return { configured: true, results };
   },

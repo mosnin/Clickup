@@ -119,12 +119,46 @@ export const indexPage = internalAction({
   },
 });
 
+// Indexing deliberation.
+//
+// Takes the text rather than re-reading the row, like indexPage and for the
+// same reason. The floor is applied by the CALLER (createMessageCore) so a
+// message that does not qualify never schedules an action at all — checking
+// here would mean paying for the scheduler hop on every "ok".
+export const indexMessage = internalAction({
+  args: {
+    messageId: v.id("messages"),
+    text: v.string(),
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const client = makeClient();
+    if (!client) return;
+    const body = args.text.trim();
+    if (!body) return;
+    const embedding = await client.embeddings.create({
+      model: EMBEDDING_MODEL,
+      input: clip(body, 8000),
+    });
+    await ctx.runMutation(internal.aiDb._upsertEmbedding, {
+      parentType: "message",
+      parentId: args.messageId,
+      scopeType: args.scopeType,
+      scopeId: args.scopeId,
+      textPreview: clip(body, 400),
+      embedding: embedding.data[0].embedding,
+    });
+  },
+});
+
 export const dropEmbeddings = internalAction({
   args: {
     parentType: v.union(
       v.literal("doc"),
       v.literal("task"),
       v.literal("page"),
+      v.literal("message"),
     ),
     parentId: v.string(),
   },
@@ -139,7 +173,7 @@ export const dropEmbeddings = internalAction({
 // --- Public AI actions ---------------------------------------------------
 
 type BrainSource = {
-  parentType: "doc" | "task" | "page";
+  parentType: "doc" | "task" | "page" | "message";
   parentId: string;
   textPreview: string;
 };

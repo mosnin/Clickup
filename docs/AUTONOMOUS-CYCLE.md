@@ -232,6 +232,29 @@ accelerator before the brakes".
 
 ## Iteration log
 
+**12.** Shipped P8 past its cut line, and this time the cut line was about cost
+rather than scope. It said channels only, on the grounds that channel volume is
+favourable and task comments are not. But the cost control is not the parent
+type — it is the FLOOR, and once the floor exists it does the same work on both.
+Excluding task comments would have left "has anyone discussed this?" half
+unanswerable on the surface where most of the discussing happens.
+
+The design turns on one property: length is measured AFTER the inline tokens
+are stripped. `@[Priya](user_2ab…) ptal #[Deploy](task:kn7…)` runs past any
+floor in raw characters while carrying four words of meaning, so measuring raw
+would admit exactly the messages the floor exists to exclude. Quoted text,
+fenced code and bare URLs go the same way and for the same reason — a code dump
+is long, unsearchable, and would otherwise be the single biggest consumer of
+embedding budget in the product.
+
+Two things found on the way. Deleting a message left its embedding behind,
+which is worse than never indexing it: search keeps returning a preview of text
+that exists nowhere, pointing at an id that resolves to nothing. And a
+pre-existing bug in `_filterSearchHits` — `page` hits fell through to the task
+branch, where `normalizeId("tasks", pageId)` returned null and the hit was
+dropped, so a list-restricted agent could never find a page by search and
+nothing said so.
+
 **11.** Shipped P12, scoped down to what P11 had not already covered. Two
 judgements.
 

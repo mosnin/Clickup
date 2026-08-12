@@ -3705,10 +3705,11 @@ export const _filterSearchHits = internalQuery({
     hits: v.array(
       v.object({
         parentType: v.union(
-      v.literal("doc"),
-      v.literal("task"),
-      v.literal("page"),
-    ),
+          v.literal("doc"),
+          v.literal("task"),
+          v.literal("page"),
+          v.literal("message"),
+        ),
         parentId: v.string(),
         textPreview: v.string(),
       }),
@@ -3719,8 +3720,33 @@ export const _filterSearchHits = internalQuery({
     if (agent.allowedListIds === undefined) return hits;
     const out = [];
     for (const hit of hits) {
-      if (hit.parentType === "doc") {
+      // Docs and pages pass: a restricted agent can read every doc and page
+      // in its scope, same as listDocs/getDoc and list_pages. `page` used to
+      // fall through to the task branch below, where normalizeId returned
+      // null and the hit was silently dropped — a restricted agent could
+      // never find a page by search, and nothing said so.
+      if (hit.parentType === "doc" || hit.parentType === "page") {
         out.push(hit);
+        continue;
+      }
+      // A message inherits its parent's boundary. A channel message is scoped
+      // like a doc; a task comment is only as readable as its task, so an
+      // allow-list has to reach through the comment to the task behind it.
+      if (hit.parentType === "message") {
+        const messageId = ctx.db.normalizeId("messages", hit.parentId);
+        if (!messageId) continue;
+        const message = await ctx.db.get(messageId);
+        if (!message) continue;
+        if (message.parentType === "channel") {
+          out.push(hit);
+          continue;
+        }
+        if (message.parentType !== "task") continue;
+        const parentTask = await ctx.db.get(
+          message.parentId as Id<"tasks">,
+        );
+        if (!parentTask) continue;
+        if (agentCanTouchList(agent, parentTask.listId)) out.push(hit);
         continue;
       }
       const taskId = ctx.db.normalizeId("tasks", hit.parentId);

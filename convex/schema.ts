@@ -1224,6 +1224,10 @@ export default defineSchema({
       v.literal("doc"),
       v.literal("task"),
       v.literal("page"),
+      // Channel messages and task comments — where the arguing happens. Held
+      // behind a length floor (convex/_indexable.ts) because indexing every
+      // message means an embedding call per "ok".
+      v.literal("message"),
     ),
     parentId: v.string(),
     scopeType: v.union(v.literal("user"), v.literal("workspace")),
