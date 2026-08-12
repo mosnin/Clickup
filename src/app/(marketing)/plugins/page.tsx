@@ -34,7 +34,7 @@ export default function PluginsPage() {
   return (
     <main className="mx-auto w-full max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
       <div className="max-w-3xl">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600 dark:text-brand-400">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600 dark:text-brand-500">
           Native AI integrations
         </p>
         <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-6xl">

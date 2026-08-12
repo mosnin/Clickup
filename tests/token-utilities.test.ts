@@ -115,31 +115,27 @@ function findDeadUtilities(): string[] {
 }
 
 /**
- * Known dead classes, in files this change did not own.
+ * Known dead classes. The list is EMPTY, and getting it there is the story.
  *
- * This list may only ever get shorter. Every entry is a class that generates
- * no rule, so the element silently inherits whatever colour it was going to
- * have — which for the `dark:text-brand-400` rows means `text-brand-600`
- * (`#71717a`) survives into dark and lands at about 3.8:1 on a `#121212` card,
- * under AA. Fixing them means choosing a real shade and MEASURING it, not
- * renaming to the nearest token that exists.
+ * Every entry generated no rule, so the element silently inherited whatever
+ * colour it was going to have. The note that used to sit here said that meant
+ * `text-brand-600` survived into dark at "about 3.8:1, under AA" — and that
+ * was wrong in the direction nobody checks, because it assumed the
+ * stylesheet's dark ramp was what `text-brand-600` resolved to. It wasn't:
+ * `resolveTokens` was pinning the LIGHT ramp inline over every theme, so the
+ * real value in dark was `#131316` on a `#1e1e22` card. 1.12:1. Invisible, not
+ * merely under AA — nine labels that rendered as nothing at all.
  *
- * When you fix one, delete its line. The assertion is exact, so a stale entry
- * fails just as loudly as a new offender — which is the point: the list cannot
- * quietly become a permanent allow-list.
+ * With the ramp fixed (iteration 17) the base class resolves to `#71717a` and
+ * measures 3.44:1, so the shade actually worth naming is `brand-500`
+ * (`#a1a1aa`, 6.48:1) — chosen by measuring, which is what this note always
+ * asked for and what nobody could do while the token lied.
+ *
+ * The assertion stays exact. A stale entry fails as loudly as a new offender,
+ * which is the point: the list cannot quietly become a permanent allow-list,
+ * and now there is nothing in it to hide behind.
  */
-const KNOWN_DEAD = [
-  "src/app/(marketing)/plugins/page.tsx: dark:text-brand-400",
-  "src/app/oauth/authorize/oauth-authorize.tsx: dark:text-brand-400",
-  "src/components/dashboard/roadmap-panel.tsx: dark:text-brand-300",
-  "src/components/dashboard/roadmap-panel.tsx: dark:text-brand-400",
-  "src/components/dashboard/roadmap-panel.tsx: dark:text-brand-400",
-  "src/components/dashboard/roadmap-panel.tsx: dark:text-brand-400",
-  "src/components/dashboard/roadmap-panel.tsx: dark:text-brand-400",
-  "src/components/dashboard/roadmap-panel.tsx: dark:text-brand-400",
-  "src/components/dashboard/roadmap-panel.tsx: dark:text-brand-400",
-  "src/components/dashboard/workspace-settings.tsx: dark:text-brand-400",
-].sort();
+const KNOWN_DEAD: string[] = [];
 
 describe("colour utilities name tokens that exist", () => {
   it("finds no colour utility naming a shade the stylesheet never defines", () => {

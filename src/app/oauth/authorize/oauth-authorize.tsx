@@ -120,7 +120,7 @@ export function OAuthAuthorize() {
   }
   return (
     <OAuthShell>
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 dark:text-brand-400">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600 dark:text-brand-500">
         Secure connection
       </p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">

@@ -113,7 +113,12 @@ export function TaskBanners({
                 the attempt rather than refusing it was to keep exactly this —
                 without it a reviewer has to re-do the work to find out what
                 happened. */}
-            <p className="pl-6 text-brand-600">{handback.reason}</p>
+            {/* brand-700 at 80%, not brand-600. The ramp's 600 stop is a mid
+                grey in BOTH themes, so as a quieter register it reads 17:1 in
+                light and 3.81:1 in dark — under AA at body size on exactly the
+                paragraph a reviewer has to read before approving. Alpha on the
+                ink stop is quieter in the same proportion either way. */}
+            <p className="pl-6 text-brand-700/80">{handback.reason}</p>
             {handback.stale && (
               <p className="pl-6 text-tiny text-danger">
                 The task has changed since this was written, so approving will

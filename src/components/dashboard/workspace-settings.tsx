@@ -254,7 +254,7 @@ function ExecutionPolicyForm({
 
       <Card className="mt-3 p-5">
         <div className="flex items-start gap-3">
-          <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-400" />
+          <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-600 dark:text-brand-500" />
           <div>
             <p className="text-sm font-medium">Non-negotiable safety gates</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">

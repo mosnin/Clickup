@@ -330,6 +330,18 @@ export const SURFACES = [
     url: "labels.html",
     settle: 3000,
   },
+  // The four states a fleet puts a task into. Added because this list is the
+  // audit's COVERAGE BOUNDARY and nobody had noticed it was one: the contrast
+  // gate below is good enough to have caught the accent-ramp bug — 1.12:1 text
+  // in dark, app-wide — on its first run, and never saw it, because every
+  // surface carrying a brand-toned pair (task banners, comments, the agents
+  // page, sprints, the roadmap) is outside these twenty entries. A gate that
+  // does not point at a surface is not a gate that passed it.
+  {
+    id: "collab",
+    title: "Task banners and board badges, in every fleet state",
+    url: "collab.html",
+  },
 ];
 
 /**

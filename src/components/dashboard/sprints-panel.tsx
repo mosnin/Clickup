@@ -868,7 +868,14 @@ function VelocityStrip({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
             <AnimatedBar
               pct={(v.completedPoints / max) * 100}
               className="h-2 flex-1 overflow-hidden rounded-full bg-muted"
-              barClassName="h-full rounded-full bg-brand-200"
+              // brand-600, like the nine other bars in the app. This one was
+              // brand-200 — a surface shade used as a graphic — which measures
+              // 1.29:1 against its own `bg-muted` track in light, so the
+              // velocity chart has been a row of empty capsules since it
+              // shipped. It looked fine in dark only because the accent ramp
+              // was pinned to its light values (iteration 17), which painted a
+              // near-white bar on a near-black track by accident.
+              barClassName="h-full rounded-full bg-brand-600"
             />
             <span className="w-14 flex-shrink-0 text-right text-xs text-muted-foreground">
               {v.completedPoints} pt{v.completedPoints === 1 ? "" : "s"}

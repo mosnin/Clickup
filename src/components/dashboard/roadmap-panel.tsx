@@ -508,7 +508,7 @@ function ExecutionPlanProvenance({
   return (
     <details className="group rounded-2xl border border-brand-500/20 bg-brand-500/[0.04]">
       <summary className="flex cursor-pointer list-none items-start gap-3 px-4 py-3">
-        <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400">
+        <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-500">
           <BookOpen className="h-3.5 w-3.5" />
         </span>
         <span className="min-w-0 flex-1">
@@ -524,7 +524,7 @@ function ExecutionPlanProvenance({
               </span>
             )}
             {plan.contextRevision > 0 && (
-              <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-tiny font-medium text-brand-700 dark:text-brand-300">
+              <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-tiny font-medium text-brand-700 dark:text-brand-500">
                 context v{plan.contextRevision + 1}
               </span>
             )}
@@ -538,7 +538,7 @@ function ExecutionPlanProvenance({
       <div className="grid gap-4 border-t border-brand-500/15 px-4 py-4 text-sm md:grid-cols-2">
         <div className="md:col-span-2 rounded-xl bg-background/60 p-3">
           <div className="flex flex-wrap items-start gap-3">
-            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400">
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-500">
               <ShieldCheck className="h-4 w-4" />
             </span>
             <div className="min-w-0 flex-1">
@@ -645,7 +645,7 @@ function ExecutionPlanProvenance({
         {assurance && (
           <div className="md:col-span-2 rounded-xl bg-background/60 p-3">
             <div className="flex flex-wrap items-start gap-2">
-              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400">
+              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-500">
                 <ShieldCheck className="h-3.5 w-3.5" />
               </span>
               <div className="min-w-0 flex-1">
@@ -713,7 +713,7 @@ function ExecutionPlanProvenance({
                               href={link}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-tiny font-medium text-brand-600 hover:underline dark:text-brand-400"
+                              className="inline-flex items-center gap-1 text-tiny font-medium text-brand-600 hover:underline dark:text-brand-500"
                             >
                               Evidence {index + 1}
                               <ExternalLink className="h-2.5 w-2.5" />
@@ -741,7 +741,7 @@ function ExecutionPlanProvenance({
                               setReviewingIndex(check.criterionIndex);
                               setReviewNote("");
                             }}
-                            className="mt-2 text-tiny font-semibold text-brand-600 hover:underline dark:text-brand-400"
+                            className="mt-2 text-tiny font-semibold text-brand-600 hover:underline dark:text-brand-500"
                           >
                             Review evidence
                           </button>
@@ -1147,7 +1147,7 @@ function ExecutionPlanProvenance({
                           href={link}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-tiny font-medium text-brand-600 hover:underline dark:text-brand-400"
+                          className="text-tiny font-medium text-brand-600 hover:underline dark:text-brand-500"
                         >
                           Evidence {index + 1}
                         </a>
