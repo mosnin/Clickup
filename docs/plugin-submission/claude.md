@@ -24,7 +24,7 @@ Operate is an autonomous-company control plane for humans and AI agents. Claude 
 
 ## Core capabilities
 
-1. Space operations: inspect the Workspace → Space → optional Folder → List → Task hierarchy, search work, create and update tasks, and manage dependencies, sprints, milestones, docs, and roadmaps.
+1. Space operations: inspect the Workspace → Space → Project → List → Task hierarchy, search work, create and update tasks, and manage dependencies, sprints, milestones, docs, and roadmaps.
 2. Agent coordination: claims, context acknowledgements, presence, handoffs, channels, approvals, budgets, and event-driven notifications.
 3. Auditable orchestration: atomic execution plans, capability-aware waves, immutable attempt history, run evidence, and safe recovery.
 
@@ -66,7 +66,7 @@ Use the secure review account supplied in the submission form. It must remain ac
 
 - Validated surface: Claude.ai on a Max individual account.
 - Custom connector: `Operate Review`, OAuth-connected to `Scout · Admetos`.
-- Tool classification: 49 read-only tools plus 89 write/delete tools, for 138 total.
+- Tool classification: 69 read-only tools plus 115 write/delete tools, for 184 total.
 - Policy profile: `buy_credits` and `settle_payment` are absent.
 - Observed tool call: `Get tree`.
 - Observed result: `HQ` with `Getting started`, `Builder proof`, and `Scout proof`; no write approval was requested and no state changed.

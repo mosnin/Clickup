@@ -17,13 +17,14 @@ function randomCode() {
   ).join("")}`;
 }
 
-export function OAuthAuthorize() {
+export function OAuthAuthorize({ resource }: { resource: string }) {
   const searchParams = useSearchParams();
   const clientId = searchParams.get("client_id") ?? "";
   const redirectUri = searchParams.get("redirect_uri") ?? "";
   const responseType = searchParams.get("response_type") ?? "";
   const scope =
-    searchParams.get("scope") ?? "operate:read operate:write";
+    searchParams.get("scope") ??
+    "openid email operate:read operate:write";
   const state = searchParams.get("state") ?? "";
   const codeChallenge = searchParams.get("code_challenge") ?? "";
   const codeChallengeMethod =
@@ -31,7 +32,7 @@ export function OAuthAuthorize() {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const validShape =
     responseType === "code" &&
-    Boolean(clientId && redirectUri && codeChallenge);
+    Boolean(clientId && redirectUri && codeChallenge && resource);
   const requestArgs = useMemo(
     () =>
       validShape && isAuthenticated
@@ -39,6 +40,7 @@ export function OAuthAuthorize() {
             clientId,
             redirectUri,
             scope,
+            resource,
             codeChallenge,
             codeChallengeMethod,
           }
@@ -49,6 +51,7 @@ export function OAuthAuthorize() {
       codeChallengeMethod,
       redirectUri,
       scope,
+      resource,
       validShape,
       isAuthenticated,
     ],
@@ -88,6 +91,7 @@ export function OAuthAuthorize() {
         clientId,
         redirectUri,
         scope,
+        resource,
         codeChallenge,
         code,
         agentId,
@@ -161,6 +165,12 @@ export function OAuthAuthorize() {
               )}
               {request.scopes.includes("operate:write") && (
                 <li>Create and update work using the chosen agent&apos;s guardrails.</li>
+              )}
+              {request.scopes.includes("email") && (
+                <li>
+                  Share your verified primary email so ChatGPT can enforce
+                  Enterprise workspace-domain restrictions.
+                </li>
               )}
             </ul>
           </div>

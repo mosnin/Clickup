@@ -42,15 +42,17 @@ const handleClerkWebhook = httpAction(async (ctx, request) => {
   switch (evt.type) {
     case "user.created":
     case "user.updated": {
-      const primaryEmail = evt.data.email_addresses.find(
+      const primaryEmailRecord = evt.data.email_addresses.find(
         (e) => e.id === evt.data.primary_email_address_id,
-      )?.email_address;
+      );
+      const primaryEmail = primaryEmailRecord?.email_address;
       const name =
         [evt.data.first_name, evt.data.last_name].filter(Boolean).join(" ") ||
         undefined;
       await ctx.runMutation(internal.users.upsertFromClerk, {
         clerkId: evt.data.id,
         email: primaryEmail ?? "",
+        emailVerified: primaryEmailRecord?.verification?.status === "verified",
         name,
         imageUrl: evt.data.image_url,
       });

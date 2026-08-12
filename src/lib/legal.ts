@@ -9,7 +9,7 @@
 // reviewed by qualified counsel before you rely on them in production. The
 // LEGAL_DISCLAIMER banner says exactly this on every page.
 
-export const LEGAL_UPDATED = "July 15, 2026";
+export const LEGAL_UPDATED = "August 12, 2026";
 // The operating legal entity behind the operate.to platform.
 export const LEGAL_ENTITY = "Operate, Inc.";
 export const LEGAL_CONTACT = "legal@operate.to";
@@ -59,7 +59,7 @@ const TERMS: LegalDoc = {
     {
       heading: "2. AI agents acting on your behalf",
       body: [
-        "The Service lets you create first-class AI agent principals and issue them API keys. An agent authenticated with your key acts as your authorized representative. You are responsible for everything an agent does under a key you issued, exactly as if you had taken the action yourself.",
+        "The Service lets you create first-class AI agent principals and authorize them through API keys or revocable OAuth access. An agent authenticated with authority you granted acts as your authorized representative. You are responsible for the actions taken within that granted authority, exactly as if you had taken the action yourself.",
         "You control each agent's authority through the governance controls we provide, roles, list restrictions, per-day action budgets, spending limits, and human approval gates. You are responsible for configuring these controls appropriately for the autonomy you grant.",
         "You must not issue keys to agents you do not control, and you must revoke keys that are lost, leaked, or no longer needed. We may rate-limit, suspend, or revoke agent access that threatens the integrity, security, or availability of the Service.",
       ],
@@ -169,6 +169,7 @@ const PRIVACY: LegalDoc = {
         "Account data: your name, email address, profile image, and organization membership, mirrored from our identity provider.",
         "Content data: the tasks, documents, comments, messages, files, and whiteboards you and your agents create.",
         "Agent data: agent names, configuration, hashed API keys, presence and activity events, and structured run records.",
+        "Plugin connection data: dynamically registered OAuth client metadata, consented scopes, the selected agent identity, hashed access and refresh tokens, and the verified primary email claim shared through UserInfo when you authorize the openid and email scopes.",
         "Payment data: workspace credit balances, x402 payment records (amount, asset, network, settlement transaction reference), and pricing. We do not store private keys or seed phrases.",
         "Usage and device data: log data, IP address, approximate location, and diagnostic information needed to operate and secure the Service.",
       ],
@@ -178,6 +179,7 @@ const PRIVACY: LegalDoc = {
       body: ["We process personal data to:"],
       bullets: [
         "Provide, maintain, and secure the Service and authenticate members and agents.",
+        "Link the Service to ChatGPT, Codex, Claude, or another MCP client you choose; enforce token audience and scope boundaries; and support verified-domain protections in enterprise workspaces.",
         "Meter and bill usage, including reconciling x402 payments to workspace credits.",
         "Power AI-assisted features you enable, such as semantic search over your tasks and documents.",
         "Send transactional notifications (mentions, assignments, approvals) and, where permitted, service updates.",
@@ -200,7 +202,7 @@ const PRIVACY: LegalDoc = {
     {
       heading: "5. Sharing and subprocessors",
       body: [
-        "We share personal data with the subprocessors that help us run the Service, our infrastructure, authentication, email, AI, and payment-facilitation providers, under contracts that require appropriate safeguards. The current list is maintained on our Subprocessors page. We also share data when required by law or to protect rights, safety, and the integrity of the Service. We do not sell personal data.",
+        "We share personal data with the subprocessors that help us run the Service, our infrastructure, authentication, email, AI, and payment-facilitation providers, under contracts that require appropriate safeguards. The current list is maintained on our Subprocessors page. When you intentionally connect a third-party MCP client such as ChatGPT, Codex, or Claude, we return only the verified identity claims, tool inputs, and scoped Operate results needed for the connection you approved. That provider processes the data under its own terms and privacy policy. We also share data when required by law or to protect rights, safety, and the integrity of the Service. We do not sell personal data.",
       ],
     },
     {
@@ -212,7 +214,7 @@ const PRIVACY: LegalDoc = {
     {
       heading: "7. Retention",
       body: [
-        "We retain account data for as long as your account is active and for a limited period afterward. Operational records are retained on a rolling basis, for example, activity events for 90 days, webhook deliveries for 30 days, and usage counters for 14 days, after which they are pruned. Payment records are retained as long as required for accounting and legal compliance. You can export or delete workspace content as described below.",
+        "We retain account data for as long as your account is active and for a limited period afterward. Operational records are retained on a rolling basis, for example, activity events for 90 days, webhook deliveries for 30 days, and usage counters for 14 days, after which they are pruned. OAuth authorization codes expire after 10 minutes, access tokens after one hour, and refresh authorization after 30 days; expired credentials are pruned and tokens are stored only as hashes. Payment records are retained as long as required for accounting and legal compliance. You can export or delete workspace content as described below.",
       ],
     },
     {
@@ -230,7 +232,7 @@ const PRIVACY: LegalDoc = {
     {
       heading: "10. Security",
       body: [
-        "We use administrative, technical, and organizational measures to protect personal data, described further on our Security page. No system is perfectly secure, and we cannot guarantee absolute security.",
+        "We use administrative, technical, and organizational measures to protect personal data, described further on our Security page. Public plugin authorization uses OAuth authorization code with S256 PKCE, exact redirect validation, audience-bound tokens, rotating refresh tokens, revocation, scoped access, and verified-email UserInfo. No system is perfectly secure, and we cannot guarantee absolute security.",
       ],
     },
     {

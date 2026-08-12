@@ -31,6 +31,9 @@ export default defineSchema({
   users: defineTable({
     clerkId: v.string(),
     email: v.string(),
+    // Synced from Clerk's primary email record. OAuth UserInfo only reports
+    // `email_verified: true` when the identity provider actually verified it.
+    emailVerified: v.optional(v.boolean()),
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     onboardedAt: v.optional(v.number()),
@@ -2066,6 +2069,9 @@ export default defineSchema({
     redirectUri: v.string(),
     codeChallenge: v.string(),
     scopes: v.array(v.string()),
+    // RFC 8707 audience binding. The token endpoint must receive the same
+    // canonical protected-resource identifier that was authorized.
+    resource: v.optional(v.string()),
     agentId: v.id("agents"),
     userClerkId: v.string(),
     expiresAt: v.number(),
@@ -2078,6 +2084,7 @@ export default defineSchema({
     refreshTokenHash: v.string(),
     clientId: v.string(),
     scopes: v.array(v.string()),
+    resource: v.optional(v.string()),
     agentId: v.id("agents"),
     userClerkId: v.string(),
     expiresAt: v.number(),

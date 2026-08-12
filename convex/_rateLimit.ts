@@ -93,6 +93,16 @@ export const DEVICE_REQUEST_RULE: RateLimitRule = {
   windowMs: 10 * 60 * 1000,
 };
 
+// Dynamic client registration is intentionally unauthenticated, but it must
+// not be an unbounded database-write endpoint. OpenAI reuses a registered
+// client, so this ceiling is far above normal traffic while still containing
+// a single source that tries to manufacture clients in a loop.
+export const DCR_REGISTRATION_RULE: RateLimitRule = {
+  name: "oauth_dcr",
+  limit: 60,
+  windowMs: 10 * 60 * 1000,
+};
+
 // The one that matters.
 //
 // A person connecting an agent types one code, gets it wrong at most a
