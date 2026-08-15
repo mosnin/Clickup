@@ -54,8 +54,30 @@ export function MarketingPageEffects() {
       });
     });
 
+    // Late layout is a fact of this page: lazily-mounted components change
+    // their height after every trigger has measured, sliding sections
+    // hundreds of pixels while ScrollTrigger's numbers stand still — which
+    // is how a reader ends up past a reveal whose trigger believes they are
+    // still above it. ScrollTrigger watches the WINDOW resizing but not the
+    // page growing, so watch the content itself. NOT document.body: on this
+    // site the body's border-box is viewport-locked (844px box over an
+    // 18,000px page, measured) so an observer there never fires once —
+    // `scope` is the box that actually grows with the content. Debounced,
+    // because image loads arrive in bursts and refresh() walks every
+    // trigger on the page.
+    let refreshTimer = 0;
+    const contentResize = new ResizeObserver(() => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        if (!cancelled) ScrollTrigger.refresh();
+      }, 200);
+    });
+    contentResize.observe(scope);
+
     return () => {
       cancelled = true;
+      window.clearTimeout(refreshTimer);
+      contentResize.disconnect();
       ctx.revert();
     };
   }, []);

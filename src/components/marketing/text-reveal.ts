@@ -139,10 +139,40 @@ export function textReveal02(
           };
         } else if (useScroll) {
           const start = scrollMode || CONFIG.scrollStart;
+          // DELIBERATE deviation from the resource, which uses
+          // `clamp(${start})` as a string. Measured in real Chromium against
+          // the production build, these tween-attached triggers computed
+          // start = elementTop — the viewport-percentage term contributed
+          // ZERO — and ScrollTrigger.refresh() recomputed the same wrong
+          // number, so a reveal at the bottom of a long page could never
+          // fire and held its text at opacity 0.1 forever. A standalone
+          // trigger with the identical string measured correctly, so the
+          // sugar is unreliable in exactly our configuration. The function
+          // computes what clamp() promises — the threshold, clamped into
+          // the scrollable range so end-of-page text is always reachable —
+          // from first principles, and is re-run on every refresh.
+          const pct = /(\d+(?:\.\d+)?)%/.exec(start);
+          const viewportFraction = pct ? Number(pct[1]) / 100 : 1;
           tween.scrollTrigger = {
             trigger: el,
-            start: `clamp(${start})`,
+            start: () => {
+              const top =
+                el.getBoundingClientRect().top + window.scrollY;
+              return Math.min(
+                top - window.innerHeight * viewportFraction,
+                ScrollTrigger.maxScroll(window),
+              );
+            },
+            invalidateOnRefresh: true,
             markers: CONFIG.markers,
+            // Late layout shifts move starts UNDER a reader who has already
+            // scrolled past them, and a refresh alone does not fire toggle
+            // actions retroactively — so catch up: a once-reveal whose
+            // threshold is behind the current scroll plays now rather than
+            // leaving the text at its 0.1 from-state.
+            onRefresh: (self: ScrollTrigger) => {
+              if (self.progress > 0) self.animation?.play();
+            },
             ...(once
               ? { once: true }
               : { toggleActions: "play none none reverse" }),

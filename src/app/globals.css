@@ -3853,8 +3853,21 @@ html {
 
 .transition-clip {
   clip-path: inset(0%);
-  transition: clip-path 2s var(--pt08-clip-ease);
+  /* The long-tail ease is applied under @supports below, NOT here. It is a
+     linear() function (iOS 17.2+/Chrome 113+), and routing it through the
+     var() would remove the graceful fallback: an unsupported ease inside a
+     var() is invalid at COMPUTED-value time, which resets the whole
+     `transition` property — no wipe at all on older Safari, rather than a
+     plainer curve. This cubic-bezier is the closest single-curve stand-in
+     for the linear() profile. */
+  transition: clip-path 2s cubic-bezier(0.23, 1, 0.32, 1);
   will-change: clip-path;
+}
+
+@supports (transition-timing-function: linear(0, 1)) {
+  .transition-clip {
+    transition-timing-function: var(--pt08-clip-ease);
+  }
 }
 
 .transition-clip .overlay-page {
