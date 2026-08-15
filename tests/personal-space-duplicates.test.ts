@@ -6,15 +6,24 @@ import { api } from "../convex/_generated/api";
 
 // The production /dashboard white-screen.
 //
+// Confirmed in a signed-in production browser on www.operate.to/dashboard:
+//   Uncaught [CONVEX Q(homeOverview:get)] Request IDs 0ebdc58417b2d834,
+//   ae7c3b07ba60f2df — useQuery rethrows during render.
+//   Logged [CONVEX M(users:ensureCurrent)] Request IDs 434d16e04e92caf7,
+//   b01f649cdfb94ddd.
+// Clerk token exchange was 200; Convex said "Server Error", not "Could not
+// find public function".
+//
 // Clerk webhook `users.upsertFromClerk` and the dashboard's `users.ensureCurrent`
-// can both insert a personal space on first login. Convex indexes are not
-// unique constraints, so the race leaves two rows. Queries that then call
-// `.unique()` throw during render; `useQuery` rethrows that to React; and
+// can both insert a users row and a personal space on first login. Convex
+// indexes are not unique constraints, so the race leaves two rows. Queries
+// that then call `.unique()` throw; `useQuery` rethrows that to React; and
 // without an App Router error.tsx, Next.js replaces the signed-in shell with
 // "Application error: a client-side exception has occurred".
 //
-// The sidebar already used `.first()` for this. Home (`homeOverview.get`) and
-// My Work (`myWork.listForCurrent`) — both subscribed on /dashboard — did not.
+// The shared throw is that `.unique()`. Home only looks up the personal
+// space; ensureCurrent looks up the user first, then the space. The same
+// race produces both production errors.
 
 const modules = import.meta.glob("../convex/**/*.*s");
 
@@ -65,6 +74,37 @@ describe("duplicate personal spaces must not take the dashboard down", () => {
     await t.withIdentity(ME).mutation(api.users.ensureCurrent, {});
   });
 
+  it("lets Home and ensureCurrent load when the user row is also duplicated", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { clerkId: ME.subject, email: ME.email });
+      await ctx.db.insert("users", { clerkId: ME.subject, email: ME.email });
+      const now = Date.now();
+      await ctx.db.insert("spaces", {
+        name: "Personal",
+        parentType: "user",
+        parentId: ME.subject,
+        position: 0,
+        createdAt: now,
+      });
+      await ctx.db.insert("spaces", {
+        name: "Personal",
+        parentType: "user",
+        parentId: ME.subject,
+        position: 1,
+        createdAt: now + 1,
+      });
+    });
+    const asMe = t.withIdentity(ME);
+    await expect(asMe.query(api.homeOverview.get, {})).resolves.toMatchObject({
+      me: expect.any(Object),
+    });
+    await expect(asMe.query(api.users.current, {})).resolves.toMatchObject({
+      clerkId: ME.subject,
+    });
+    await asMe.mutation(api.users.ensureCurrent, {});
+  });
+
   it("still refuses grantFleet without a human identity", async () => {
     const t = convexTest(schema, modules);
     const holderAgentId = await t.run(async (ctx) => {
@@ -107,5 +147,16 @@ describe("the signed-in shell has a real error boundary", () => {
       expect(source).toMatch(/export default function/);
       expect(source).toMatch(/Try again/);
     }
+  });
+
+  it("wraps dashboard pages in a query error boundary inside the shell", () => {
+    const layout = readFileSync("src/app/dashboard/layout.tsx", "utf8");
+    expect(layout).toMatch(/QueryErrorBoundary/);
+    const boundary = readFileSync(
+      "src/components/dashboard/query-error-boundary.tsx",
+      "utf8",
+    );
+    expect(boundary).toMatch(/getDerivedStateFromError/);
+    expect(boundary).toMatch(/Try again/);
   });
 });

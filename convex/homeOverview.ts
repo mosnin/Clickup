@@ -237,7 +237,7 @@ export const get = query({
               if (t.dueDate < todayStart) overdue += 1;
               else if (t.dueDate < weekAhead) dueSoon += 1;
             }
-            if (!isDone && t.assigneeClerkIds.includes(subject)) {
+            if (!isDone && (t.assigneeClerkIds ?? []).includes(subject)) {
               myOpen += 1;
               if (t.dueDate) {
                 if (t.dueDate < todayStart) myOverdue += 1;

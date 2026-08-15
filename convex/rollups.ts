@@ -33,7 +33,9 @@ async function findRow(ctx: MutationCtx | QueryCtx, listId: Id<"lists">) {
   return await ctx.db
     .query("listRollups")
     .withIndex("by_list", (q) => q.eq("listId", listId))
-    .unique();
+    // .first(), not .unique(): a duplicate rollup row must not take Home
+    // down. Home's overview reads this on every list in scope.
+    .first();
 }
 
 // Apply an incremental delta to a list's rollup row, creating it on first

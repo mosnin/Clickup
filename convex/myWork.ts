@@ -103,7 +103,7 @@ export const listForCurrent = query({
           .withIndex("by_list", (q) => q.eq("listId", list._id))
           .collect();
         for (const t of tasks) {
-          if (!t.assigneeClerkIds.includes(subject)) continue;
+          if (!(t.assigneeClerkIds ?? []).includes(subject)) continue;
           if (doneIds.has(t.statusId)) continue;
           const status = statusById.get(t.statusId);
           out.push({

@@ -1,5 +1,18 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+
+// Convex indexes are not unique constraints. The Clerk webhook and
+// users.ensureCurrent can both insert a users row (and a Personal space)
+// on first login; .unique() then throws on every later visit. Home's
+// useQuery rethrows that during render. Prefer .first() for clerkId
+// lookups — one of the rows is enough to proceed.
+async function userByClerkId(ctx: QueryCtx | MutationCtx, clerkId: string) {
+  return await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+    .first();
+}
 
 // Called by the Clerk webhook (user.created / user.updated).
 export const upsertFromClerk = internalMutation({
@@ -14,10 +27,7 @@ export const upsertFromClerk = internalMutation({
     // (admin grants, mention resolution). Emails are case-insensitive in
     // practice, and the env-allowlist admin check already lowercases.
     const email = args.email.toLowerCase();
-    const existing = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
-      .unique();
+    const existing = await userByClerkId(ctx, args.clerkId);
 
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -62,11 +72,11 @@ export const upsertFromClerk = internalMutation({
 export const deleteFromClerk = internalMutation({
   args: { clerkId: v.string() },
   handler: async (ctx, { clerkId }) => {
-    const user = await ctx.db
+    const rows = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .unique();
-    if (user) await ctx.db.delete(user._id);
+      .collect();
+    for (const user of rows) await ctx.db.delete(user._id);
   },
 });
 
@@ -80,10 +90,7 @@ export const ensureCurrent = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new ConvexError("Not authenticated");
 
-    const existing = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .unique();
+    const existing = await userByClerkId(ctx, identity.subject);
 
     if (!existing) {
       await ctx.db.insert("users", {
@@ -121,10 +128,7 @@ export const current = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    return await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .unique();
+    return await userByClerkId(ctx, identity.subject);
   },
 });
 
@@ -134,12 +138,7 @@ export const listByClerkIds = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
     const results = await Promise.all(
-      clerkIds.map((id) =>
-        ctx.db
-          .query("users")
-          .withIndex("by_clerk_id", (q) => q.eq("clerkId", id))
-          .unique(),
-      ),
+      clerkIds.map((id) => userByClerkId(ctx, id)),
     );
     return results.filter((u): u is NonNullable<typeof u> => u !== null);
   },
