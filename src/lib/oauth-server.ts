@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { ConvexHttpClient } from "convex/browser";
+import { canonicalMcpResource } from "./oauth-resource";
 
 // RFC 8628 §3.4. Lives here rather than beside the handler that reads it,
 // because a Next route file may only export HTTP handlers and the documented
@@ -50,6 +51,43 @@ export function oauthIssuer() {
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ??
     "https://operate.to"
   );
+}
+
+export const OAUTH_SCOPES = [
+  "openid",
+  "email",
+  "operate:read",
+  "operate:write",
+] as const;
+
+export function oauthResource() {
+  return canonicalMcpResource(oauthIssuer());
+}
+
+export function oauthDiscoveryMetadata() {
+  const issuer = oauthIssuer();
+  return {
+    issuer,
+    authorization_endpoint: `${issuer}/oauth/authorize`,
+    token_endpoint: `${issuer}/oauth/token`,
+    registration_endpoint: `${issuer}/oauth/register`,
+    revocation_endpoint: `${issuer}/oauth/revoke`,
+    userinfo_endpoint: `${issuer}/oauth/userinfo`,
+    device_authorization_endpoint: `${issuer}/oauth/device`,
+    response_types_supported: ["code"],
+    response_modes_supported: ["query"],
+    grant_types_supported: [
+      "authorization_code",
+      "refresh_token",
+      DEVICE_GRANT,
+    ],
+    code_challenge_methods_supported: ["S256"],
+    token_endpoint_auth_methods_supported: ["none"],
+    scopes_supported: [...OAUTH_SCOPES],
+    subject_types_supported: ["public"],
+    claims_supported: ["sub", "email", "email_verified", "name"],
+    resource_parameter_supported: true,
+  };
 }
 
 export function oauthConvexClient() {

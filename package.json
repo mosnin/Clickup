@@ -14,6 +14,9 @@
     "gallery": "node scripts/build-gallery.mjs && node scripts/design-shots.mjs",
     "shots:marketing": "node scripts/marketing-shots.mjs",
     "verify:customize": "node scripts/verify-customize.mjs",
+    "generate:submission": "node scripts/generate-chatgpt-submission.mjs",
+    "check:submission": "node scripts/generate-chatgpt-submission.mjs --check",
+    "package:plugin": "node scripts/package-openai-plugin.mjs",
     "gallery:fresh": "(next build || true) && npm run gallery"
   },
   "dependencies": {

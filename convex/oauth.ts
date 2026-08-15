@@ -2,12 +2,21 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
-import { sha256Hex } from "./_agentAuth";
+import { requireAgentByKey, sha256Hex } from "./_agentAuth";
+import {
+  consumeRateLimit,
+  DCR_REGISTRATION_RULE,
+} from "./_rateLimit";
 
 const ACCESS_TOKEN_TTL_MS = 60 * 60 * 1000;
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const AUTHORIZATION_CODE_TTL_MS = 10 * 60 * 1000;
-const ALLOWED_SCOPES = new Set(["operate:read", "operate:write"]);
+const ALLOWED_SCOPES = new Set([
+  "openid",
+  "email",
+  "operate:read",
+  "operate:write",
+]);
 const BASE64 =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -30,7 +39,31 @@ function normalizeScopes(scope: string) {
   if (scopes.includes("operate:write") && !scopes.includes("operate:read")) {
     scopes.unshift("operate:read");
   }
+  if (scopes.includes("email") && !scopes.includes("openid")) {
+    scopes.unshift("openid");
+  }
   return scopes;
+}
+
+function requireMcpResource(value: string) {
+  const clean = requireText(value, "resource", 2048);
+  let url: URL;
+  try {
+    url = new URL(clean);
+  } catch {
+    throw new ConvexError("resource must be the canonical MCP HTTPS URL");
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.pathname !== "/api/mcp" ||
+    url.search !== "" ||
+    url.hash !== "" ||
+    url.username !== "" ||
+    url.password !== ""
+  ) {
+    throw new ConvexError("resource must be the canonical MCP HTTPS URL");
+  }
+  return url.toString();
 }
 
 function validRedirectUri(value: string) {
@@ -77,16 +110,20 @@ async function canUseAgent(
   subject: string,
 ) {
   if (agent.parentType === "user") return agent.parentId === subject;
-  return (
-    (await ctx.db
+  const workspaceId = agent.parentId as Id<"workspaces">;
+  const [workspace, membership] = await Promise.all([
+    ctx.db.get(workspaceId),
+    ctx.db
       .query("memberships")
       .withIndex("by_user_and_workspace", (q) =>
-        q
-          .eq("userClerkId", subject)
-          .eq("workspaceId", agent.parentId as Id<"workspaces">),
+        q.eq("userClerkId", subject).eq("workspaceId", workspaceId),
       )
-      .unique()) !== null
-  );
+      .unique(),
+  ]);
+  // Workspace agents can see the whole workspace by design, including
+  // private Spaces. Only the workspace owner already holds that authority;
+  // letting any member select the agent would be a privilege escalation.
+  return workspace?.ownerClerkId === subject && membership !== null;
 }
 
 export const registerClient = mutation({
@@ -94,8 +131,20 @@ export const registerClient = mutation({
     clientId: v.string(),
     clientName: v.string(),
     redirectUris: v.array(v.string()),
+    registrationSubject: v.string(),
   },
   handler: async (ctx, args) => {
+    const registrationSubject = requireText(
+      args.registrationSubject,
+      "registrationSubject",
+      160,
+    );
+    await consumeRateLimit(
+      ctx,
+      DCR_REGISTRATION_RULE,
+      registrationSubject,
+      "Too many OAuth client registrations; try again later",
+    );
     const clientId = requireText(args.clientId, "clientId", 160);
     const clientName = requireText(args.clientName, "clientName", 120);
     const redirectUris = [...new Set(args.redirectUris)];
@@ -130,6 +179,7 @@ export const authorizationRequest = query({
     clientId: v.string(),
     redirectUri: v.string(),
     scope: v.string(),
+    resource: v.string(),
     codeChallenge: v.string(),
     codeChallengeMethod: v.string(),
   },
@@ -147,13 +197,14 @@ export const authorizationRequest = query({
       throw new ConvexError("Invalid OAuth authorization request");
     }
     const scopes = normalizeScopes(args.scope);
+    const resource = requireMcpResource(args.resource);
     const identity = await requireIdentity(ctx);
-    const memberships = await ctx.db
-      .query("memberships")
-      .withIndex("by_user", (q) => q.eq("userClerkId", identity.subject))
+    const ownedWorkspaces = await ctx.db
+      .query("workspaces")
+      .withIndex("by_owner", (q) => q.eq("ownerClerkId", identity.subject))
       .collect();
     const workspaceIds = new Set(
-      memberships.map((membership) => membership.workspaceId as string),
+      ownedWorkspaces.map((workspace) => workspace._id as string),
     );
     const agents = (
       await Promise.all([
@@ -189,6 +240,7 @@ export const authorizationRequest = query({
     return {
       clientName: client.clientName,
       scopes,
+      resource,
       agents: agents.map((agent) => ({
         agentId: agent._id,
         name: agent.name,
@@ -207,6 +259,7 @@ export const approveAuthorization = mutation({
     clientId: v.string(),
     redirectUri: v.string(),
     scope: v.string(),
+    resource: v.string(),
     codeChallenge: v.string(),
     code: v.string(),
     agentId: v.id("agents"),
@@ -228,6 +281,7 @@ export const approveAuthorization = mutation({
       throw new ConvexError("OAuth authorization is not allowed");
     }
     const scopes = normalizeScopes(args.scope);
+    const resource = requireMcpResource(args.resource);
     if (
       (agent.role ?? "member") === "readonly" &&
       scopes.includes("operate:write")
@@ -243,6 +297,7 @@ export const approveAuthorization = mutation({
       redirectUri: args.redirectUri,
       codeChallenge: args.codeChallenge,
       scopes,
+      resource,
       agentId: agent._id,
       userClerkId: identity.subject,
       expiresAt: Date.now() + AUTHORIZATION_CODE_TTL_MS,
@@ -260,9 +315,11 @@ export const exchangeAuthorizationCode = mutation({
     codeVerifier: v.string(),
     accessToken: v.string(),
     refreshToken: v.string(),
+    resource: v.string(),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+    const resource = requireMcpResource(args.resource);
     const row = await ctx.db
       .query("oauthAuthorizationCodes")
       .withIndex("by_code_hash", (q) =>
@@ -275,6 +332,7 @@ export const exchangeAuthorizationCode = mutation({
       row.expiresAt <= now ||
       row.clientId !== args.clientId ||
       row.redirectUri !== args.redirectUri ||
+      row.resource !== resource ||
       pkceChallenge(args.codeVerifier) !== row.codeChallenge
     ) {
       throw new ConvexError("Invalid or expired authorization code");
@@ -285,6 +343,7 @@ export const exchangeAuthorizationCode = mutation({
       refreshTokenHash: sha256Hex(args.refreshToken),
       clientId: row.clientId,
       scopes: row.scopes,
+      resource,
       agentId: row.agentId,
       userClerkId: row.userClerkId,
       expiresAt: now + ACCESS_TOKEN_TTL_MS,
@@ -304,9 +363,11 @@ export const refreshAccessToken = mutation({
     clientId: v.string(),
     accessToken: v.string(),
     nextRefreshToken: v.string(),
+    resource: v.string(),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+    const resource = requireMcpResource(args.resource);
     const current = await ctx.db
       .query("oauthAccessTokens")
       .withIndex("by_refresh_hash", (q) =>
@@ -317,7 +378,8 @@ export const refreshAccessToken = mutation({
       !current ||
       current.revokedAt !== undefined ||
       current.refreshExpiresAt <= now ||
-      current.clientId !== args.clientId
+      current.clientId !== args.clientId ||
+      current.resource !== resource
     ) {
       throw new ConvexError("Invalid or expired refresh token");
     }
@@ -327,6 +389,7 @@ export const refreshAccessToken = mutation({
       refreshTokenHash: sha256Hex(args.nextRefreshToken),
       clientId: current.clientId,
       scopes: current.scopes,
+      resource,
       agentId: current.agentId,
       userClerkId: current.userClerkId,
       expiresAt: now + ACCESS_TOKEN_TTL_MS,
@@ -357,5 +420,40 @@ export const revokeToken = mutation({
       await ctx.db.patch(row._id, { revokedAt: Date.now() });
     }
     return { revoked: true };
+  },
+});
+
+// OIDC UserInfo for ChatGPT Enterprise workspace-domain restrictions. The
+// signed Clerk webhook is the source of truth for whether the primary email
+// is verified; an OAuth token alone is never enough to assert that claim.
+export const userInfo = query({
+  args: { accessToken: v.string(), resource: v.string() },
+  handler: async (ctx, args) => {
+    const resource = requireMcpResource(args.resource);
+    const { key } = await requireAgentByKey(
+      ctx,
+      args.accessToken,
+      "read",
+      resource,
+    );
+    if (!("clientId" in key)) {
+      throw new ConvexError("UserInfo requires an OAuth access token");
+    }
+    if (!key.scopes.includes("openid") || !key.scopes.includes("email")) {
+      throw new ConvexError("OAuth token is missing openid or email scope");
+    }
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", key.userClerkId))
+      .unique();
+    if (!user?.email || user.emailVerified !== true) {
+      throw new ConvexError("The account has no verified primary email");
+    }
+    return {
+      subject: key.userClerkId,
+      email: user.email,
+      emailVerified: true as const,
+      name: user.name,
+    };
   },
 });

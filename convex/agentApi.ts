@@ -669,9 +669,9 @@ export const whoami = query({
 // connection is presence even before the client starts a task or schedules
 // explicit heartbeats, so Mission Control should reflect it immediately.
 export const connect = mutation({
-  args: { apiKey: v.string() },
-  handler: async (ctx, { apiKey }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
+  args: { apiKey: v.string(), resource: v.optional(v.string()) },
+  handler: async (ctx, { apiKey, resource }) => {
+    const { agent } = await requireAgentByKey(ctx, apiKey, "read", resource);
     const firstConnection = agent.lastSeenAt === undefined;
     const now = Date.now();
     // Authentication runs for every MCP request. Keep presence responsive

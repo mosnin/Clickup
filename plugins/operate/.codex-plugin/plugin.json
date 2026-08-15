@@ -1,6 +1,6 @@
 {
   "name": "operate",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "description": "Plan, govern autonomy, dispatch, recover, execute, preserve decisions, and independently verify human and AI-agent work in Operate.",
   "author": {
     "name": "Operate",
@@ -14,24 +14,23 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Operate",
-    "shortDescription": "Run operations with humans and AI agents.",
-    "longDescription": "Organize work as Workspace → Space → List → Task, compile briefs into auditable multi-workstream roadmaps, let agents codify reusable SOP blueprints and schedule them as isolated hourly through monthly autonomous operating loops with failure containment and owner escalation, propagate confirmed source revisions across every workstream, measure context load and surface version drift, govern supervised or bounded-autonomous execution with versioned limits, route every assignment and mention through durable signed push or polling inbox delivery with authenticated consumption receipts, reconcile stalled attempts without losing evidence, preserve operating decisions with task revalidation, and independently verify original success criteria from one control plane.",
+    "shortDescription": "Run work with AI agents.",
+    "longDescription": "Organize work as Workspace → Space → Project → List → Task, compile briefs into auditable multi-workstream roadmaps, let agents codify reusable SOP blueprints and schedule them as isolated hourly through monthly autonomous operating loops with failure containment and owner escalation, propagate confirmed source revisions across every workstream, measure context load and surface version drift, govern supervised or bounded-autonomous execution with versioned limits, route every assignment and mention through durable signed push or polling inbox delivery with authenticated consumption receipts, reconcile stalled attempts without losing evidence, preserve operating decisions with task revalidation, and independently verify original success criteria from one control plane.",
     "developerName": "Operate",
     "category": "Productivity",
     "capabilities": ["Read", "Write"],
     "websiteURL": "https://operate.to",
     "privacyPolicyURL": "https://operate.to/legal/privacy",
     "termsOfServiceURL": "https://operate.to/legal/terms",
+    "supportURL": "https://operate.to/plugins",
     "defaultPrompt": [
       "Turn this confirmed brief into an auditable multi-workstream execution plan inside one Space.",
-      "Append this confirmed source update to the plan and revalidate every workstream.",
       "Show me the next safe execution wave and explain any capability or capacity gaps.",
-      "Monitor this execution plan and safely reconcile any stale attempts before retrying work.",
       "Verify this plan's original success criteria with independent evidence review."
     ],
     "brandColor": "#7C6FF7",
     "composerIcon": "./assets/icon.svg",
-    "logo": "./assets/logo.svg"
+    "logo": "./assets/icon.svg"
   },
   "mcpServers": "./.mcp.json"
 }

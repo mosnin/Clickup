@@ -537,7 +537,11 @@ export async function updatePageCore(
   }
   if (Object.keys(patch).length === 0) return { updatedAt: page.updatedAt };
 
-  const updatedAt = Date.now();
+  // `updatedAt` is also the optimistic-concurrency version. Two writes can
+  // land in the same millisecond (especially through an MCP agent loop), so a
+  // raw Date.now() can leave the version unchanged and let a stale editor
+  // overwrite the newer body. Advance monotonically within this page.
+  const updatedAt = Math.max(Date.now(), page.updatedAt + 1);
   patch.updatedAt = updatedAt;
   patch.updatedByActorId = actor.id;
   patch.updatedByName = actor.name;

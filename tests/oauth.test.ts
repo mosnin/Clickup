@@ -7,8 +7,10 @@ import { api } from "../convex/_generated/api";
 const modules = import.meta.glob("../convex/**/*.*s");
 const OWNER = { subject: "oauth_owner", email: "owner@example.com" };
 const OUTSIDER = { subject: "oauth_outsider", email: "other@example.com" };
+const MEMBER = { subject: "oauth_member", email: "member@example.com" };
 const CLIENT_ID = "opc_test_client";
 const REDIRECT_URI = "https://claude.ai/api/mcp/auth_callback";
+const RESOURCE = "https://operate.to/api/mcp";
 const VERIFIER = "v".repeat(64);
 const CHALLENGE = createHash("sha256")
   .update(VERIFIER)
@@ -29,6 +31,18 @@ async function setup() {
       role: "owner",
       joinedAt: Date.now(),
     });
+    await ctx.db.insert("memberships", {
+      workspaceId,
+      userClerkId: MEMBER.subject,
+      role: "member",
+      joinedAt: Date.now(),
+    });
+    await ctx.db.insert("users", {
+      clerkId: OWNER.subject,
+      email: OWNER.email,
+      emailVerified: true,
+      name: "OAuth Owner",
+    });
     const agentId = await ctx.db.insert("agents", {
       name: "Plugin Agent",
       parentType: "workspace",
@@ -44,10 +58,12 @@ async function setup() {
     clientId: CLIENT_ID,
     clientName: "Claude",
     redirectUris: [REDIRECT_URI],
+    registrationSubject: "test-client",
   });
   return {
     t,
     owner: t.withIdentity(OWNER),
+    member: t.withIdentity(MEMBER),
     outsider: t.withIdentity(OUTSIDER),
     ...ids,
   };
@@ -60,6 +76,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       clientId: CLIENT_ID,
       redirectUri: REDIRECT_URI,
       scope: "operate:write",
+      resource: RESOURCE,
       codeChallenge: CHALLENGE,
       codeChallengeMethod: "S256",
     });
@@ -73,6 +90,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         clientId: CLIENT_ID,
         redirectUri: "https://attacker.example/callback",
         scope: "operate:read",
+        resource: RESOURCE,
         codeChallenge: CHALLENGE,
         codeChallengeMethod: "S256",
       }),
@@ -85,7 +103,8 @@ describe("OAuth 2.1 remote MCP authorization", () => {
     await owner.mutation(api.oauth.approveAuthorization, {
       clientId: CLIENT_ID,
       redirectUri: REDIRECT_URI,
-      scope: "operate:read operate:write",
+      scope: "openid email operate:read operate:write",
+      resource: RESOURCE,
       codeChallenge: CHALLENGE,
       code,
       agentId,
@@ -95,9 +114,21 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         code,
         clientId: CLIENT_ID,
         redirectUri: REDIRECT_URI,
+        codeVerifier: VERIFIER,
+        accessToken: "opa_wrong_audience",
+        refreshToken: "opr_wrong_audience",
+        resource: "https://other.example/api/mcp",
+      }),
+    ).rejects.toThrow(/invalid or expired/i);
+    await expect(
+      t.mutation(api.oauth.exchangeAuthorizationCode, {
+        code,
+        clientId: CLIENT_ID,
+        redirectUri: REDIRECT_URI,
         codeVerifier: "wrong-verifier".repeat(4),
         accessToken: "opa_wrong",
         refreshToken: "opr_wrong",
+        resource: RESOURCE,
       }),
     ).rejects.toThrow(/invalid or expired/i);
 
@@ -110,6 +141,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       codeVerifier: VERIFIER,
       accessToken,
       refreshToken,
+      resource: RESOURCE,
     });
     await expect(
       t.mutation(api.oauth.exchangeAuthorizationCode, {
@@ -119,11 +151,28 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         codeVerifier: VERIFIER,
         accessToken: "opa_replay",
         refreshToken: "opr_replay",
+        resource: RESOURCE,
       }),
     ).rejects.toThrow(/invalid or expired/i);
     await expect(
       t.query(api.agentApi.whoami, { apiKey: accessToken }),
     ).resolves.toMatchObject({ agentId, name: "Plugin Agent" });
+    await expect(
+      t.query(api.oauth.userInfo, {
+        accessToken,
+        resource: RESOURCE,
+      }),
+    ).resolves.toMatchObject({
+      subject: OWNER.subject,
+      email: OWNER.email,
+      emailVerified: true,
+    });
+    await expect(
+      t.mutation(api.agentApi.connect, {
+        apiKey: accessToken,
+        resource: "https://other.example/api/mcp",
+      }),
+    ).rejects.toThrow(/audience/i);
 
     const nextAccessToken = "opa_second_access";
     const nextRefreshToken = "opr_second_refresh";
@@ -132,6 +181,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       clientId: CLIENT_ID,
       accessToken: nextAccessToken,
       nextRefreshToken,
+      resource: RESOURCE,
     });
     await expect(
       t.query(api.agentApi.whoami, { apiKey: accessToken }),
@@ -145,6 +195,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         clientId: CLIENT_ID,
         accessToken: "opa_reused",
         nextRefreshToken: "opr_reused",
+        resource: RESOURCE,
       }),
     ).rejects.toThrow(/invalid or expired/i);
 
@@ -154,6 +205,30 @@ describe("OAuth 2.1 remote MCP authorization", () => {
     ).rejects.toThrow(/invalid api key/i);
   });
 
+  it("never lets a regular workspace member inherit a workspace-wide agent", async () => {
+    const { member, agentId } = await setup();
+    const request = await member.query(api.oauth.authorizationRequest, {
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      scope: "operate:read",
+      resource: RESOURCE,
+      codeChallenge: CHALLENGE,
+      codeChallengeMethod: "S256",
+    });
+    expect(request.agents).toEqual([]);
+    await expect(
+      member.mutation(api.oauth.approveAuthorization, {
+        clientId: CLIENT_ID,
+        redirectUri: REDIRECT_URI,
+        scope: "operate:read",
+        resource: RESOURCE,
+        codeChallenge: CHALLENGE,
+        code: "opc_member_escalation",
+        agentId,
+      }),
+    ).rejects.toThrow(/not allowed/i);
+  });
+
   it("rejects unauthorized agent grants and invalidates access when membership is removed", async () => {
     const { t, owner, outsider, agentId, workspaceId } = await setup();
     await expect(
@@ -161,6 +236,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         clientId: CLIENT_ID,
         redirectUri: REDIRECT_URI,
         scope: "operate:read",
+        resource: RESOURCE,
         codeChallenge: CHALLENGE,
         code: "opc_outsider",
         agentId,
@@ -172,6 +248,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       clientId: CLIENT_ID,
       redirectUri: REDIRECT_URI,
       scope: "operate:read",
+      resource: RESOURCE,
       codeChallenge: CHALLENGE,
       code,
       agentId,
@@ -184,6 +261,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       codeVerifier: VERIFIER,
       accessToken,
       refreshToken: "opr_membership",
+      resource: RESOURCE,
     });
     await expect(
       t.mutation(api.agentApi.heartbeat, { apiKey: accessToken }),
@@ -212,7 +290,28 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         clientId: "opc_unsafe",
         clientName: "Unsafe",
         redirectUris: ["http://attacker.example/callback"],
+        registrationSubject: "unsafe-client",
       }),
     ).rejects.toThrow(/https urls/i);
+  });
+
+  it("bounds anonymous dynamic client registration", async () => {
+    const t = convexTest(schema, modules);
+    for (let index = 0; index < 60; index += 1) {
+      await t.mutation(api.oauth.registerClient, {
+        clientId: `opc_rate_${index}`,
+        clientName: "Rate Test",
+        redirectUris: [REDIRECT_URI],
+        registrationSubject: "one-public-source",
+      });
+    }
+    await expect(
+      t.mutation(api.oauth.registerClient, {
+        clientId: "opc_rate_blocked",
+        clientName: "Rate Test",
+        redirectUris: [REDIRECT_URI],
+        registrationSubject: "one-public-source",
+      }),
+    ).rejects.toThrow(/too many oauth client registrations/i);
   });
 });

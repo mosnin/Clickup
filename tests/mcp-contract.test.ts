@@ -26,6 +26,39 @@ const agentApiSource = readFileSync(
   join(process.cwd(), "convex/agentApi.ts"),
   "utf8",
 );
+const chatToolSource = readFileSync(
+  join(process.cwd(), "src/lib/buzz/agent-chat-tools.ts"),
+  "utf8",
+);
+
+function namesInLiteral(input: string, marker: string): Set<string> {
+  const start = input.indexOf(marker);
+  expect(start, `Missing classification marker: ${marker}`).toBeGreaterThanOrEqual(0);
+  const end = input.indexOf(marker.includes("new Set") ? "]);" : "];", start);
+  expect(end, `Unterminated classification marker: ${marker}`).toBeGreaterThan(start);
+  return new Set(
+    [...input.slice(start, end).matchAll(/"([a-z0-9_]+)"/g)].map(
+      (match) => match[1],
+    ),
+  );
+}
+
+function queryOnlyTools(input: string): string[] {
+  const matches = [...input.matchAll(/^\s{4}name: "([a-z0-9_]+)",$/gm)];
+  return matches
+    .map((match, index) => ({
+      name: match[1],
+      block: input.slice(
+        match.index,
+        matches[index + 1]?.index ?? input.length,
+      ),
+    }))
+    .filter(
+      ({ block }) =>
+        /\.query\(/.test(block) && !/\.mutation\(/.test(block),
+    )
+    .map(({ name }) => name);
+}
 
 /** Every function agentApi.ts actually exports as a Convex endpoint. */
 function exportedAgentApiFunctions(): Set<string> {
@@ -105,10 +138,9 @@ describe("MCP tool catalog", () => {
     }
     // Deprecated aliases are registered dynamically and are legitimately
     // absent from the literal catalog.
-    const aliasBlock = source.slice(
-      source.indexOf("const DEPRECATED_TOOL_ALIASES"),
-      source.indexOf("const ALIAS_TOOLS"),
-    );
+    const aliasBlock = source.match(
+      /const DEPRECATED_TOOL_ALIASES[^=]*= \{([\s\S]*?)\n\};/,
+    )?.[1] ?? "";
     for (const m of aliasBlock.matchAll(/^\s+([a-z0-9_]+):/gm)) {
       declared.add(m[1]);
     }
@@ -122,12 +154,33 @@ describe("MCP tool catalog", () => {
     ).toEqual([]);
   });
 
+  it("marks every query-only tool as read-only", () => {
+    const readTools = new Set([
+      ...namesInLiteral(source, "const READ_TOOLS = new Set(["),
+      ...namesInLiteral(
+        chatToolSource,
+        "export const CHAT_AGENT_READ_TOOLS: readonly string[] = [",
+      ),
+    ]);
+    const queryTools = [
+      ...queryOnlyTools(source),
+      ...queryOnlyTools(chatToolSource),
+    ];
+    const misclassified = queryTools.filter((name) => !readTools.has(name));
+    expect(
+      misclassified,
+      `Query-only tools must advertise readOnlyHint=true: ${misclassified.join(", ")}`,
+    ).toEqual([]);
+    for (const name of ["my_fleet", "list_runs", "get_run"]) {
+      expect(readTools.has(name), `${name} must stay read-only`).toBe(true);
+    }
+  });
+
   it("keeps every deprecated alias pointing at a live tool", () => {
     const declared = new Set(declaredToolNames());
-    const aliasBlock = source.slice(
-      source.indexOf("const DEPRECATED_TOOL_ALIASES"),
-      source.indexOf("const ALIAS_TOOLS"),
-    );
+    const aliasBlock = source.match(
+      /const DEPRECATED_TOOL_ALIASES[^=]*= \{([\s\S]*?)\n\};/,
+    )?.[1] ?? "";
     const pairs = [
       ...aliasBlock.matchAll(/^\s+([a-z0-9_]+):\s*"([a-z0-9_]+)"/gm),
     ].map((m) => [m[1], m[2]] as const);

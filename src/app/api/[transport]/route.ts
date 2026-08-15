@@ -16,6 +16,7 @@ import {
 import { QUERY_VOCABULARY } from "@/lib/data-stream";
 import { ALL_SHAPES } from "@/lib/panel";
 import { STYLE_ENUMS } from "@/lib/component-style";
+import { oauthResource } from "@/lib/oauth-server";
 // The Chat dashboard's agent surface (C6b). A separate application sharing one
 // endpoint (D11), so its catalog lives in its own module and lands here in one
 // line rather than growing this file by a twelfth of itself.
@@ -168,6 +169,7 @@ const checklistArg = z
 // safely-retryable mutations also get idempotentHint.
 const READ_TOOLS = new Set([
   "brief",
+  "my_fleet",
   "read_plan",
   "find_decisions",
   "list_pages",
@@ -200,6 +202,8 @@ const READ_TOOLS = new Set([
   "get_execution_policy",
   "get_execution_readiness",
   "get_execution_control",
+  "list_runs",
+  "get_run",
   "list_scheduled_tasks",
   "list_events",
   "list_webhooks",
@@ -367,6 +371,17 @@ function annotationsFor(
     },
     profile,
   );
+}
+
+function securitySchemesFor(name: string) {
+  return [
+    {
+      type: "oauth2",
+      scopes: READ_TOOLS.has(name)
+        ? ["operate:read"]
+        : ["operate:read", "operate:write"],
+    },
+  ];
 }
 
 type ToolDef = {
@@ -2930,22 +2945,6 @@ const DEPRECATED_TOOL_ALIASES: Record<string, string> = {
   reorder_folders: "reorder_projects",
 };
 
-const ALIAS_TOOLS = Object.entries(DEPRECATED_TOOL_ALIASES).flatMap(
-  ([legacy, canonical]) => {
-    const target = TOOLS.find((t) => t.name === canonical);
-    if (!target) return [];
-    return [{ ...target, name: legacy, deprecatedAliasOf: canonical }];
-  },
-);
-
-// Legacy names inherit the canonical tool's read-only / idempotent
-// classification, so the request guard treats an alias call exactly like the
-// call it forwards to.
-for (const [legacy, canonical] of Object.entries(DEPRECATED_TOOL_ALIASES)) {
-  if (READ_TOOLS.has(canonical)) READ_TOOLS.add(legacy);
-  if (IDEMPOTENT_TOOLS.has(canonical)) IDEMPOTENT_TOOLS.add(legacy);
-}
-
 // The Chat tools carry their own classification, for the same reason they carry
 // their own definitions: adding one must not mean editing this file.
 TOOLS.push(...CHAT_AGENT_TOOLS);
@@ -3001,7 +3000,7 @@ function createOperateMcpHandler(profile: AnnotationProfile) {
         },
       );
 
-      for (const tool of [...TOOLS, ...ALIAS_TOOLS].filter((candidate) =>
+      for (const tool of TOOLS.filter((candidate) =>
         toolAvailableForProfile(candidate.name, profile),
       )) {
         server.registerTool(
@@ -3020,6 +3019,12 @@ function createOperateMcpHandler(profile: AnnotationProfile) {
               result: z.unknown().describe("The tool's JSON-compatible result"),
             },
             annotations: annotationsFor(tool.name, profile),
+            // Current MCP SDKs expose OpenAI's auth extension through _meta.
+            // Endpoint-level 401 challenges remain authoritative; this copy
+            // lets ChatGPT render per-tool OAuth requirements before a call.
+            _meta: {
+              securitySchemes: securitySchemesFor(tool.name),
+            },
           },
           async (args, extra) => {
             const apiKey = extra.authInfo?.token;
@@ -3096,6 +3101,7 @@ const authHandler = withMcpAuth(
         asMutation(api.agentApi.connect),
         {
           apiKey: bearerToken,
+          resource: oauthResource(),
         },
       );
       return {
@@ -3118,6 +3124,7 @@ const anthropicAuthHandler = withMcpAuth(
         asMutation(api.agentApi.connect),
         {
           apiKey: bearerToken,
+          resource: oauthResource(),
         },
       );
       return {
@@ -3140,6 +3147,7 @@ const chatgptAuthHandler = withMcpAuth(
         asMutation(api.agentApi.connect),
         {
           apiKey: bearerToken,
+          resource: oauthResource(),
         },
       );
       return {
@@ -3194,22 +3202,49 @@ async function guarded(req: Request): Promise<Response> {
   // turn the agent green, and then confusingly fail with HTTP 406.
   let transportRequest = req;
   if (req.method === "POST") {
+    const rawBody = await req.arrayBuffer();
     const accept = req.headers.get("accept") ?? "";
+    const headers = new Headers(req.headers);
+    // Request will compute the correct length for the rebuilt body. Keeping
+    // the inbound value would be wrong when a legacy tool name changes size.
+    headers.delete("content-length");
     if (
       !accept.includes("application/json") ||
       !accept.includes("text/event-stream")
     ) {
-      const headers = new Headers(req.headers);
       headers.set("Accept", "application/json, text/event-stream");
-      // NextRequest carries framework-private state and cannot safely be used
-      // as the Request constructor's input in the production edge wrapper.
-      // Rebuild a plain standards Request from the public URL/body instead.
-      transportRequest = new Request(req.url, {
-        method: req.method,
-        headers,
-        body: await req.arrayBuffer(),
-      });
     }
+    let body: BodyInit = rawBody;
+    // Deprecated Folder names remain callable for an in-flight old client,
+    // but they are never advertised in tools/list or the public submission.
+    // Rewrite the narrow JSON-RPC call before the MCP SDK sees it.
+    if ((headers.get("content-type") ?? "").includes("application/json")) {
+      try {
+        const message = JSON.parse(new TextDecoder().decode(rawBody)) as {
+          method?: string;
+          params?: { name?: string };
+        };
+        const legacy = message.params?.name;
+        if (message.method === "tools/call" && legacy) {
+          const canonical = DEPRECATED_TOOL_ALIASES[legacy];
+          if (canonical) {
+            message.params!.name = canonical;
+            body = JSON.stringify(message);
+            headers.set("content-type", "application/json");
+          }
+        }
+      } catch {
+        // The MCP handler owns malformed-JSON errors; this boundary only
+        // rewrites a recognized, valid legacy call.
+      }
+    }
+    // NextRequest carries framework-private state and cannot safely be used
+    // as the Request constructor's input in the production edge wrapper.
+    transportRequest = new Request(req.url, {
+      method: req.method,
+      headers,
+      body,
+    });
   }
   const profile = searchParams.get("profile");
   const selectedHandler =
@@ -3226,7 +3261,7 @@ async function guarded(req: Request): Promise<Response> {
     new URL(req.url).origin;
   headers.set(
     "WWW-Authenticate",
-    `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource"`,
+    `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource", scope="operate:read"`,
   );
   return withCors(
     req,

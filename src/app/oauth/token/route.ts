@@ -9,6 +9,7 @@ import {
   oauthJson,
   randomCredential,
 } from "@/lib/oauth-server";
+import { validateMcpResource } from "@/lib/oauth-resource";
 
 // What to tell the agent alongside each RFC error code. The code is what a
 // runtime branches on; this is what a person reads in a log when their agent
@@ -106,6 +107,22 @@ export async function POST(request: Request) {
   }
   const accessToken = randomCredential("opa");
   const refreshToken = randomCredential("opr");
+  const rawResource = field("resource");
+  if (!rawResource) {
+    return oauthError(
+      "invalid_target",
+      "resource is required and must match the protected MCP resource",
+    );
+  }
+  let resource: string;
+  try {
+    resource = validateMcpResource(rawResource, oauthIssuer());
+  } catch (error) {
+    return oauthError(
+      "invalid_target",
+      error instanceof Error ? error.message : "Invalid resource",
+    );
+  }
   try {
     if (grantType === "authorization_code") {
       const code = field("code");
@@ -126,6 +143,7 @@ export async function POST(request: Request) {
           codeVerifier,
           accessToken,
           refreshToken,
+          resource,
         },
       );
       return oauthJson({
@@ -148,6 +166,7 @@ export async function POST(request: Request) {
           clientId,
           accessToken,
           nextRefreshToken: refreshToken,
+          resource,
         },
       );
       return oauthJson({

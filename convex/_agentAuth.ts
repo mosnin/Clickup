@@ -126,6 +126,7 @@ export async function requireAgentByKey(
   ctx: QueryCtx | MutationCtx,
   apiKey: string,
   mode: "read" | "write" | "presence" = "read",
+  expectedOAuthResource?: string,
 ): Promise<{
   agent: Doc<"agents">;
   key: Doc<"agentKeys"> | Doc<"oauthAccessTokens">;
@@ -153,21 +154,33 @@ export async function requireAgentByKey(
   if (!agent) throw new ConvexError("Invalid API key");
   if (agent.status !== "active") throw new ConvexError("Agent is paused");
   if (oauthToken) {
-    const stillAuthorized =
-      agent.parentType === "user"
-        ? agent.parentId === oauthToken.userClerkId
-        : (await ctx.db
-            .query("memberships")
-            .withIndex("by_user_and_workspace", (q) =>
-              q
-                .eq("userClerkId", oauthToken.userClerkId)
-                .eq(
-                  "workspaceId",
-                  agent.parentId as Id<"workspaces">,
-                ),
-            )
-            .unique()) !== null;
+    let stillAuthorized: boolean;
+    if (agent.parentType === "user") {
+      stillAuthorized = agent.parentId === oauthToken.userClerkId;
+    } else {
+      const workspaceId = agent.parentId as Id<"workspaces">;
+      const [workspace, membership] = await Promise.all([
+        ctx.db.get(workspaceId),
+        ctx.db
+          .query("memberships")
+          .withIndex("by_user_and_workspace", (q) =>
+            q
+              .eq("userClerkId", oauthToken.userClerkId)
+              .eq("workspaceId", workspaceId),
+          )
+          .unique(),
+      ]);
+      stillAuthorized =
+        workspace?.ownerClerkId === oauthToken.userClerkId &&
+        membership !== null;
+    }
     if (!stillAuthorized) throw new ConvexError("OAuth access was revoked");
+    if (
+      expectedOAuthResource !== undefined &&
+      oauthToken.resource !== expectedOAuthResource
+    ) {
+      throw new ConvexError("OAuth token audience does not match this resource");
+    }
     if (!oauthToken.scopes.includes("operate:read")) {
       throw new ConvexError("OAuth token is missing operate:read");
     }

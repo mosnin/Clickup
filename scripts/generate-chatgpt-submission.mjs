@@ -6,9 +6,17 @@ const source = readFileSync(
   resolve(root, "src/app/api/[transport]/route.ts"),
   "utf8",
 );
+const chatSource = readFileSync(
+  resolve(root, "src/lib/buzz/agent-chat-tools.ts"),
+  "utf8",
+);
+const profileSource = readFileSync(
+  resolve(root, "src/lib/mcp-annotation-profile.ts"),
+  "utf8",
+);
 
-function namesInSet(setName) {
-  const body = source.match(
+function namesInSet(input, setName) {
+  const body = input.match(
     new RegExp(`const ${setName} = new Set\\(\\[([\\s\\S]*?)\\]\\);`),
   )?.[1];
   if (!body) throw new Error(`Could not find ${setName}`);
@@ -17,21 +25,41 @@ function namesInSet(setName) {
   );
 }
 
-const toolsBlock = source.match(
-  /const TOOLS: ToolDef\[\] = \[([\s\S]*?)\n\];\n\nfunction createOperateMcpHandler/,
-)?.[1];
-if (!toolsBlock) throw new Error("Could not find the MCP tool registry");
+function namesInArray(input, arrayName) {
+  const body = input.match(
+    new RegExp(`const ${arrayName}[^=]*= \\[([\\s\\S]*?)\\];`),
+  )?.[1];
+  if (!body) throw new Error(`Could not find ${arrayName}`);
+  return new Set(
+    [...body.matchAll(/"([a-z0-9_]+)"/g)].map((match) => match[1]),
+  );
+}
 
-const toolNames = [...toolsBlock.matchAll(/^\s+name: "([a-z0-9_]+)",$/gm)].map(
-  (match) => match[1],
+function declaredToolNames(input) {
+  return [...input.matchAll(/^\s{4}name: "([a-z0-9_]+)",$/gm)].map(
+    (match) => match[1],
+  );
+}
+
+const toolNames = [
+  ...new Set([...declaredToolNames(source), ...declaredToolNames(chatSource)]),
+];
+if (toolNames.length < 100) {
+  throw new Error(`MCP registry scan collapsed to ${toolNames.length} tools`);
+}
+const directoryExcludedTools = namesInSet(
+  profileSource,
+  "DIRECTORY_EXCLUDED_TOOLS",
 );
-const directoryExcludedTools = new Set(["buy_credits", "settle_payment"]);
 const directoryToolNames = toolNames.filter(
   (name) => !directoryExcludedTools.has(name),
 );
-const readTools = namesInSet("READ_TOOLS");
-const destructiveTools = namesInSet("DESTRUCTIVE_TOOLS");
-const openWorldTools = namesInSet("OPEN_WORLD_TOOLS");
+const readTools = new Set([
+  ...namesInSet(source, "READ_TOOLS"),
+  ...namesInArray(chatSource, "CHAT_AGENT_READ_TOOLS"),
+]);
+const destructiveTools = namesInSet(source, "DESTRUCTIVE_TOOLS");
+const openWorldTools = namesInSet(source, "OPEN_WORLD_TOOLS");
 
 const tools = Object.fromEntries(
   directoryToolNames.map((name) => {
@@ -82,7 +110,7 @@ const submission = {
       file_attachment_urls: null,
       tools_triggered: "get_tree",
       expected_output:
-        "Returns the accessible Workspace → Space → Folder → List hierarchy without exposing restricted data.",
+        "Returns the accessible Workspace → Space → Project → List hierarchy without exposing restricted data.",
       expected_output_url: null,
     },
     {
@@ -157,10 +185,21 @@ const submission = {
   ],
 };
 
-writeFileSync(
-  resolve(root, "chatgpt-app-submission.json"),
-  `${JSON.stringify(submission, null, 2)}\n`,
-);
-console.log(
-  `Generated ChatGPT submission metadata for ${directoryToolNames.length} tools.`,
-);
+const outputPath = resolve(root, "chatgpt-app-submission.json");
+const serialized = `${JSON.stringify(submission, null, 2)}\n`;
+if (process.argv.includes("--check")) {
+  const current = readFileSync(outputPath, "utf8");
+  if (current !== serialized) {
+    throw new Error(
+      "chatgpt-app-submission.json is stale; run node scripts/generate-chatgpt-submission.mjs",
+    );
+  }
+  console.log(
+    `Verified ChatGPT submission metadata for ${directoryToolNames.length} tools.`,
+  );
+} else {
+  writeFileSync(outputPath, serialized);
+  console.log(
+    `Generated ChatGPT submission metadata for ${directoryToolNames.length} tools.`,
+  );
+}

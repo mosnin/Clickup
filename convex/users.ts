@@ -20,6 +20,7 @@ export const upsertFromClerk = internalMutation({
   args: {
     clerkId: v.string(),
     email: v.string(),
+    emailVerified: v.boolean(),
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
   },
@@ -33,6 +34,7 @@ export const upsertFromClerk = internalMutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         email,
+        emailVerified: args.emailVerified,
         name: args.name,
         imageUrl: args.imageUrl,
       });
@@ -42,6 +44,7 @@ export const upsertFromClerk = internalMutation({
     const userId = await ctx.db.insert("users", {
       clerkId: args.clerkId,
       email,
+      emailVerified: args.emailVerified,
       name: args.name,
       imageUrl: args.imageUrl,
     });
@@ -91,6 +94,10 @@ export const ensureCurrent = mutation({
       await ctx.db.insert("users", {
         clerkId: identity.subject,
         email: (identity.email ?? "").toLowerCase(),
+        // The self-healing path cannot independently prove the email. The
+        // signed Clerk webhook upgrades this once the primary address is
+        // verified, so UserInfo never asserts a fact we did not receive.
+        emailVerified: false,
         name: identity.name,
         imageUrl: identity.pictureUrl,
       });

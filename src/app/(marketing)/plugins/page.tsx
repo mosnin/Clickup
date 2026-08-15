@@ -87,9 +87,11 @@ export default function PluginsPage() {
             Secure account connection
           </h2>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Add the endpoint below in ChatGPT or Claude. The standards-based
-            OAuth flow asks you to choose an Operate agent and inherits that
-            agent&apos;s workspace, permissions, budgets, and approval gates.
+            After directory approval, users install Operate from the Plugins
+            tab and connect once. Developers and standards-compatible clients can use
+            the same endpoint below. OAuth asks you to choose an authorized
+            Operate agent and inherits its permissions, budgets, and approval
+            gates; only a workspace owner can link a workspace-wide agent.
           </p>
           <pre className="mt-5 max-w-full overflow-x-auto rounded-2xl bg-neutral-950 p-4 text-sm text-white">
             <code>https://operate.to/api/mcp</code>
