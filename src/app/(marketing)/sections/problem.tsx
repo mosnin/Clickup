@@ -43,14 +43,23 @@ export function Problem() {
   });
 
   return (
-    <section ref={ref} className="bg-background py-24 sm:py-32">
+    // data-st-03: pixel-grid handoff (section-transition.ts). As the villain
+    // section scrolls out, a chunky 14-column pixel wave dissolves it into
+    // the lifted band that answers it — the fill color is SAMPLED from that
+    // next sibling, which is why the SocialProof band carries a real
+    // background rather than transparent-over-canvas.
+    <section ref={ref} data-st-03="14" className="bg-background py-24 sm:py-32">
       <Container>
         <div className="max-w-3xl">
           <Eyebrow>{PROBLEM.eyebrow}</Eyebrow>
           <h2 className="mt-3 text-balance text-4xl font-semibold tracking-[-0.03em] text-foreground sm:text-5xl">
             Chat forgets. <GradientText>Work doesn&apos;t.</GradientText>
           </h2>
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
+          <p
+            data-reveal-02="lines"
+            data-scroll
+            className="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground"
+          >
             {PROBLEM.sub}
           </p>
         </div>

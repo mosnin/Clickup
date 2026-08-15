@@ -98,7 +98,10 @@ const NOTCH =
 
 export function Stories() {
   return (
-    <section className="relative overflow-hidden bg-background py-24 sm:py-28">
+    // Lifted off the black canvas so <CalendarShowcase />'s pixel handoff
+    // (data-st-03) has a real color to sample and dissolve into — the strip
+    // it fills merges seamlessly into this band because they ARE this band.
+    <section className="relative overflow-hidden bg-[#0d0d0d] py-24 sm:py-28">
       {/* Ruled backdrop, barely there. */}
       <div
         aria-hidden
@@ -111,7 +114,13 @@ export function Stories() {
 
       <Container>
         <GsapReveal className="mx-auto flex max-w-3xl flex-col items-center gap-5 text-center">
-          <h2 className="text-4xl font-medium leading-[1.1] tracking-[-0.02em] text-foreground sm:text-5xl">
+          {/* Plain text, so it can take the word-level reveal the gradient
+              headings can't (SplitText would sever background-clip). */}
+          <h2
+            data-reveal-02="words"
+            data-scroll
+            className="text-4xl font-medium leading-[1.1] tracking-[-0.02em] text-foreground sm:text-5xl"
+          >
             Built for the teams already working this way
           </h2>
           <p className="max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">

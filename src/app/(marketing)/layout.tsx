@@ -30,7 +30,7 @@ export default function MarketingLayout({
           [data-gs-hidden] (see globals.css). Without JavaScript that
           attribute is never removed — so force everything visible. */}
       <noscript>
-        <style>{`.gs-reveal[data-gs-hidden],[data-gs-hidden] .gs-reveal{visibility:visible !important}`}</style>
+        <style>{`.gs-reveal[data-gs-hidden],[data-gs-hidden] .gs-reveal{visibility:visible !important}[data-reveal-02]{visibility:visible !important}.transition-clip[data-pt-cover]{clip-path:inset(0%) !important}.transition-clip[data-pt-cover] .overlay-page{transform:translateY(-101%) !important}`}</style>
       </noscript>
       <MarketingNav />
       <main className="flex-1">{children}</main>

@@ -102,7 +102,15 @@ export function SectionHeading({
         <GradientText>{title}</GradientText>
       </h2>
       {sub && (
+        // Text Reveal 02 (text-reveal.ts): the subline fades in line by line
+        // as it scrolls into view — one attribute here reaches every section
+        // heading on the logged-out site. The attribute sits on the text
+        // element itself (the resource's contract), and NOT on the title:
+        // the h2 wraps <GradientText>, and SplitText re-wrapping those spans
+        // would sever the background-clip that makes the gradient a gradient.
         <p
+          data-reveal-02="lines"
+          data-scroll
           className={cn(
             "mt-3 text-base sm:text-lg",
             tone === "dark" ? "text-white/70" : "text-muted-foreground",

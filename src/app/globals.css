@@ -3799,3 +3799,95 @@ a:hover > .message-ref {
     animation: none;
   }
 }
+
+/* ── Page Transition 08 (marketing) ──────────────────────────────────────
+   The incoming page renders as a clipped horizontal band that expands to
+   the full viewport while a dark overlay wipes upward. Values are the
+   resource's own: the wipe cubic-bezier, the long-tail linear() clip ease,
+   rgb(13,5,17), 2s clip / 1.8s wipe delayed 0.5s. Driven by
+   `(marketing)/template.tsx`, which ships the covered state in the server
+   HTML as `data-pt-cover` and removes it after first paint — Swup's
+   `.is-next-container` state, without Swup.
+
+   One deliberate translation: the band is stated in viewport units (83svh)
+   instead of the resource's 83%, because the resource clips a
+   viewport-sized scroll container and this clips the whole document — 83%
+   of a long page would open the slit thousands of pixels below the fold. */
+html {
+  --pt08-wipe-ease: cubic-bezier(0.85, 0.1, 0.15, 1);
+  --pt08-clip-ease: linear(
+    0,
+    0.0014 5.33%,
+    0.0056 10.82%,
+    0.013 16.56%,
+    0.0241 22.24%,
+    0.0389 27.78%,
+    0.0577 33.17%,
+    0.0805 38.37%,
+    0.1077 43.35%,
+    0.1393 47.99%,
+    0.1759 52.28%,
+    0.2172 56.21%,
+    0.2636 59.75%,
+    0.3152 62.9%,
+    0.3717 65.7%,
+    0.4333 68.16%,
+    0.5024 70.42%,
+    0.578 72.49%,
+    0.6434 74.26%,
+    0.6989 75.88%,
+    0.7477 77.52%,
+    0.7902 79.2%,
+    0.8265 80.96%,
+    0.857 82.84%,
+    0.882 84.85%,
+    0.9007 86.68%,
+    0.9166 88.63%,
+    0.9299 90.73%,
+    0.9409 92.97%,
+    0.9497 95.4%,
+    0.9564 98.02%,
+    0.9616 100%
+  );
+}
+
+.transition-clip {
+  clip-path: inset(0%);
+  transition: clip-path 2s var(--pt08-clip-ease);
+  will-change: clip-path;
+}
+
+.transition-clip .overlay-page {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  background-color: rgb(13, 5, 17);
+  transform: translateY(-101%);
+  transition: transform 1.8s var(--pt08-wipe-ease) 0.5s;
+  will-change: transform;
+}
+
+.transition-clip[data-pt-cover] {
+  clip-path: inset(83svh 12% calc(100% - 83svh) 12%);
+}
+
+.transition-clip[data-pt-cover] .overlay-page {
+  transform: translateY(-5%);
+}
+
+/* Reduced motion: the attribute removal becomes a hard cut. */
+@media (prefers-reduced-motion: reduce) {
+  .transition-clip,
+  .transition-clip .overlay-page {
+    transition: none;
+  }
+}
+
+/* Text Reveal 02 — the required hidden state, so split text never flashes
+   in its final form before the reveal runs. The marketing layout's
+   <noscript> forces these visible when JS never runs, and the reduced-
+   motion path in page-effects.tsx un-hides them without animating. */
+[data-reveal-02] {
+  visibility: hidden;
+}

@@ -108,8 +108,12 @@ export function CalendarShowcase() {
   });
 
   return (
+    // data-st-03: pixel-grid handoff into <Stories /> — the finer default
+    // 20-column grid here, dissolving the calendar into the lifted band the
+    // stories sit on. See section-transition.ts for the sampling rule.
     <section
       ref={ref}
+      data-st-03=""
       className="relative overflow-hidden bg-background py-24 sm:py-28"
     >
       <Container>

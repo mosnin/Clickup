@@ -85,7 +85,13 @@ export default function HomePage() {
       {/* Villain, then the shift. <Problem /> has to land before
           <SocialProof /> or the answer arrives before the question. */}
       <Problem />
-      <div className="mk-band">
+      {/* Lifted a step off the black canvas — and that is load-bearing, not
+          taste: <Problem /> wears data-st-03, whose pixel wave SAMPLES this
+          sibling's computed background for its fill. Transparent here would
+          sample through to white and the dissolve would flash. Inline style
+          because .mk-band pins `background: transparent` at equal
+          specificity, so a bg-* utility would lose the cascade coin-toss. */}
+      <div className="mk-band" style={{ backgroundColor: "#0d0d0d" }}>
         <SocialProof />
       </div>
       {/* The claim <SocialProof /> just made, happening. A claim about a
