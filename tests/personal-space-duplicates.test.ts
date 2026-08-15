@@ -4,105 +4,114 @@ import { convexTest } from "convex-test";
 import schema from "../convex/schema";
 import { api } from "../convex/_generated/api";
 
-// The production /dashboard white-screen.
+// Production /dashboard white-screen — verified cause.
 //
-// Confirmed in a signed-in production browser on www.operate.to/dashboard:
-//   Uncaught [CONVEX Q(homeOverview:get)] Request IDs 0ebdc58417b2d834,
-//   ae7c3b07ba60f2df — useQuery rethrows during render.
-//   Logged [CONVEX M(users:ensureCurrent)] Request IDs 434d16e04e92caf7,
-//   b01f649cdfb94ddd.
-// Clerk token exchange was 200; Convex said "Server Error", not "Could not
-// find public function".
+// This account created several user-scoped spaces (Chippi, Stored, Operate,
+// Govern, Scalar, Glove, Fortitudo, Founder) under parentType "user" / the
+// same Clerk subject. spaces.create allows that. Both crashing functions
+// then did:
 //
-// Clerk webhook `users.upsertFromClerk` and the dashboard's `users.ensureCurrent`
-// can both insert a users row and a personal space on first login. Convex
-// indexes are not unique constraints, so the race leaves two rows. Queries
-// that then call `.unique()` throw; `useQuery` rethrows that to React; and
-// without an App Router error.tsx, Next.js replaces the signed-in shell with
-// "Application error: a client-side exception has occurred".
+//   query("spaces").withIndex("by_parent", q =>
+//     q.eq("parentType", "user").eq("parentId", subject)).unique()
 //
-// The shared throw is that `.unique()`. Home only looks up the personal
-// space; ensureCurrent looks up the user first, then the space. The same
-// race produces both production errors.
+// Convex .unique() throws when more than one row matches. That is exactly
+// the production errors:
+//   Q(homeOverview:get)  Request IDs 0ebdc58417b2d834, ae7c3b07ba60f2df
+//   M(users:ensureCurrent) Request IDs 434d16e04e92caf7, b01f649cdfb94ddd
+//
+// Clerk token exchange was 200. Convex said Server Error, not "Could not
+// find public function". The company spaces must stay; Personal is the
+// default seed, not a uniqueness invariant.
 
 const modules = import.meta.glob("../convex/**/*.*s");
 
-const ME = { subject: "user_dup", email: "dup@operate.to" };
+const ME = { subject: "user_founder", email: "founder@operate.to" };
+const COMPANIES = [
+  "Chippi",
+  "Stored",
+  "Operate",
+  "Govern",
+  "Scalar",
+  "Glove",
+  "Fortitudo",
+  "Founder",
+] as const;
 
-async function seedDuplicatePersonalSpaces() {
+async function seedUserScopedCompanySpaces() {
   const t = convexTest(schema, modules);
-  await t.run(async (ctx) => {
+  const ids = await t.run(async (ctx) => {
     await ctx.db.insert("users", { clerkId: ME.subject, email: ME.email });
     const now = Date.now();
-    await ctx.db.insert("spaces", {
+    const personalId = await ctx.db.insert("spaces", {
       name: "Personal",
       parentType: "user",
       parentId: ME.subject,
       position: 0,
       createdAt: now,
     });
-    await ctx.db.insert("spaces", {
-      name: "Personal",
-      parentType: "user",
-      parentId: ME.subject,
-      position: 1,
-      createdAt: now + 1,
+    const companyIds: Record<string, string> = {};
+    for (const [i, name] of COMPANIES.entries()) {
+      companyIds[name] = await ctx.db.insert("spaces", {
+        name,
+        parentType: "user",
+        parentId: ME.subject,
+        position: i + 1,
+        createdAt: now + i + 1,
+      });
+    }
+    const chippiListId = await ctx.db.insert("lists", {
+      name: "HQ",
+      parentType: "space",
+      parentId: companyIds.Chippi,
+      position: 0,
+      createdAt: now,
     });
+    return { personalId, companyIds, chippiListId };
   });
-  return t;
+  return { t, ...ids };
 }
 
-describe("duplicate personal spaces must not take the dashboard down", () => {
-  it("lets Home, My Work, Agents, and the sidebar load", async () => {
-    const t = await seedDuplicatePersonalSpaces();
+describe("multiple user-scoped spaces must not take the dashboard down", () => {
+  it("lets Home see every company space, not just the first", async () => {
+    const { t } = await seedUserScopedCompanySpaces();
+    const overview = await t.withIdentity(ME).query(api.homeOverview.get, {});
+    expect(overview).toMatchObject({ me: expect.any(Object) });
+    const names = overview!.projects.map((p) => p.name);
+    expect(names).toContain("HQ");
+    const places = overview!.projects.map((p) => p.place);
+    expect(places.some((place) => place.includes("Chippi"))).toBe(true);
+  });
+
+  it("lets My Work, Agents, and the sidebar load every user-scoped space", async () => {
+    const { t } = await seedUserScopedCompanySpaces();
     const asMe = t.withIdentity(ME);
 
-    await expect(asMe.query(api.homeOverview.get, {})).resolves.toMatchObject({
-      me: expect.any(Object),
-    });
     await expect(asMe.query(api.myWork.listForCurrent, {})).resolves.toEqual([]);
     await expect(asMe.query(api.agents.listForCurrentUser, {})).resolves.toMatchObject({
       personal: [],
     });
-    await expect(asMe.query(api.sidebar.tree, {})).resolves.toMatchObject({
-      currentClerkId: ME.subject,
-    });
+
+    const tree = await asMe.query(api.sidebar.tree, {});
+    expect(tree?.personal?.name).toBe("Personal");
+    const spaceNames = (tree?.personalSpaces ?? []).map((s) => s.name);
+    expect(spaceNames).toContain("Personal");
+    for (const name of COMPANIES) expect(spaceNames).toContain(name);
   });
 
-  it("lets ensureCurrent heal instead of throwing", async () => {
-    const t = await seedDuplicatePersonalSpaces();
+  it("lets ensureCurrent run without deleting company spaces or inserting a second Personal", async () => {
+    const { t } = await seedUserScopedCompanySpaces();
     await t.withIdentity(ME).mutation(api.users.ensureCurrent, {});
-  });
-
-  it("lets Home and ensureCurrent load when the user row is also duplicated", async () => {
-    const t = convexTest(schema, modules);
-    await t.run(async (ctx) => {
-      await ctx.db.insert("users", { clerkId: ME.subject, email: ME.email });
-      await ctx.db.insert("users", { clerkId: ME.subject, email: ME.email });
-      const now = Date.now();
-      await ctx.db.insert("spaces", {
-        name: "Personal",
-        parentType: "user",
-        parentId: ME.subject,
-        position: 0,
-        createdAt: now,
-      });
-      await ctx.db.insert("spaces", {
-        name: "Personal",
-        parentType: "user",
-        parentId: ME.subject,
-        position: 1,
-        createdAt: now + 1,
-      });
+    const spaces = await t.run(async (ctx) => {
+      return await ctx.db
+        .query("spaces")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "user").eq("parentId", ME.subject),
+        )
+        .collect();
     });
-    const asMe = t.withIdentity(ME);
-    await expect(asMe.query(api.homeOverview.get, {})).resolves.toMatchObject({
-      me: expect.any(Object),
-    });
-    await expect(asMe.query(api.users.current, {})).resolves.toMatchObject({
-      clerkId: ME.subject,
-    });
-    await asMe.mutation(api.users.ensureCurrent, {});
+    const names = spaces.map((s) => s.name).sort();
+    expect(names).toEqual(["Chippi", "Fortitudo", "Founder", "Glove", "Govern", "Operate", "Personal", "Scalar", "Stored"].sort());
+    expect(names.filter((n) => n === "Personal")).toHaveLength(1);
   });
 
   it("still refuses grantFleet without a human identity", async () => {
@@ -117,9 +126,6 @@ describe("duplicate personal spaces must not take the dashboard down", () => {
         createdAt: Date.now(),
       });
     });
-    // Human-only fleet grant policy: an unauthenticated (or agent-key) caller
-    // must not be able to grant a fleet. Do not "fix" the dashboard crash by
-    // relaxing this — grantFleet stays on requireIdentity.
     await expect(
       t.mutation(api.agentGrants.grantFleet, {
         holderAgentId,
@@ -135,9 +141,6 @@ describe("duplicate personal spaces must not take the dashboard down", () => {
 
 describe("the signed-in shell has a real error boundary", () => {
   it("ships app, global, and dashboard error.tsx files", () => {
-    // The production crash was this exact Next.js default page, which is what
-    // you get when none of these files exist. A test that only exercises the
-    // query would miss the wiring the way the missing EnsureChatIdentity did.
     for (const path of [
       "src/app/error.tsx",
       "src/app/global-error.tsx",

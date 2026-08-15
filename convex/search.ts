@@ -11,6 +11,7 @@ import { query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { canAccessSpace } from "./_authz";
+import { listUserSpaces } from "./_userSpaces";
 
 const CAP = 15;
 
@@ -57,14 +58,7 @@ export const everything = query({
     // of existence) + accessible, non-archived workspace spaces. Private
     // spaces are gated the same way canAccessSpace gates every other read.
     const spaces: Doc<"spaces">[] = [];
-    const personal = await ctx.db
-      .query("spaces")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "user").eq("parentId", subject),
-      )
-      // .first(), not .unique(): tolerate a duplicated personal-space row.
-      .first();
-    if (personal && !personal.archivedAt) spaces.push(personal);
+    spaces.push(...(await listUserSpaces(ctx, subject)));
 
     const memberships = await ctx.db
       .query("memberships")

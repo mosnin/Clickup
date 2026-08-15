@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
+import { hasNamedPersonalSpace } from "./_userSpaces";
 
 // Convex indexes are not unique constraints. The Clerk webhook and
 // users.ensureCurrent can both insert a users row (and a Personal space)
@@ -45,16 +46,10 @@ export const upsertFromClerk = internalMutation({
       imageUrl: args.imageUrl,
     });
 
-    // Every user gets a personal space on first sync. Check first: this
-    // mutation races with users.ensureCurrent on the first dashboard load,
-    // and a second insert is what makes later unique() queries throw.
-    const existingSpace = await ctx.db
-      .query("spaces")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "user").eq("parentId", args.clerkId),
-      )
-      .first();
-    if (!existingSpace) {
+    // Seed the default Personal space only. Extra user-scoped spaces
+    // (company spaces created via spaces.create) must stay; .unique()
+    // on this index is what crashed Home.
+    if (!(await hasNamedPersonalSpace(ctx, args.clerkId))) {
       await ctx.db.insert("spaces", {
         name: "Personal",
         color: "#6366f1",
@@ -101,16 +96,7 @@ export const ensureCurrent = mutation({
       });
     }
 
-    const personal = await ctx.db
-      .query("spaces")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "user").eq("parentId", identity.subject),
-      )
-      // .first(), not .unique(): webhook + this mutation can race and leave
-      // two personal-space rows. unique() then throws on every later visit,
-      // and Home's useQuery turns that into a client white-screen.
-      .first();
-    if (!personal) {
+    if (!(await hasNamedPersonalSpace(ctx, identity.subject))) {
       await ctx.db.insert("spaces", {
         name: "Personal",
         color: "#6366f1",

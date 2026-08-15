@@ -19,6 +19,7 @@ import { eventLabel } from "@/lib/event-labels";
 import { agentPresence } from "@/lib/agent-presence";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
+import { userSpacesFromTree } from "@/lib/user-spaces";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui/button";
@@ -526,7 +527,7 @@ function useScopeLists(agent: Doc<"agents">) {
       return [...space.lists, ...space.projects.flatMap((f) => f.lists)];
     }
     if (agent.parentType === "user") {
-      return flatten(tree.personal);
+      return userSpacesFromTree(tree).flatMap((space) => flatten(space));
     }
     const ws = tree.workspaces.find((w) => w._id === agent.parentId);
     if (!ws) return [];

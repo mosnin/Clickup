@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { userSpacesFromTree } from "@/lib/user-spaces";
 
 export type ListScope = { scopeType: "user" | "workspace"; scopeId: string };
 
@@ -22,7 +23,7 @@ export function useListScope(listId: Id<"lists">): ListScope | undefined {
     }) =>
       space.lists.some((l) => l._id === listId) ||
       space.projects.some((f) => f.lists.some((l) => l._id === listId));
-    if (tree.personal && containsList(tree.personal)) {
+    if (userSpacesFromTree(tree).some(containsList)) {
       return { scopeType: "user", scopeId: tree.currentClerkId };
     }
     for (const ws of tree.workspaces) {

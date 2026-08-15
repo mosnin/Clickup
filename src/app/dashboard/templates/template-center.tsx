@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
+import { userSpacesFromTree } from "@/lib/user-spaces";
 import {
   AnimatePresence,
   EASE,
@@ -682,6 +683,7 @@ type SpaceNode = {
 
 type Tree = {
   personal: SpaceNode | null;
+  personalSpaces?: SpaceNode[];
   workspaces: { _id: Id<"workspaces">; name: string; spaces: SpaceNode[] }[];
 } | null;
 
@@ -729,7 +731,7 @@ function destinationOptions(
     }
   };
 
-  if (tree.personal) walk(tree.personal, "Personal");
+  for (const space of userSpacesFromTree(tree)) walk(space, "Personal");
   for (const ws of tree.workspaces) {
     for (const space of ws.spaces) walk(space, ws.name);
   }

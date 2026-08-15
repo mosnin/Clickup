@@ -24,6 +24,7 @@ import {
   usePresence,
 } from "@/components/dashboard/presence-rail";
 import { cn } from "@/lib/utils";
+import { userSpacesFromTree } from "@/lib/user-spaces";
 
 // The page editor.
 //
@@ -570,7 +571,9 @@ function AttachPageButton({
     const workspace = tree?.workspaces.find((w) => w._id === scopeId);
     const spaces = workspace
       ? workspace.spaces
-      : (tree?.personal ? [tree.personal] : []);
+      : tree
+        ? userSpacesFromTree(tree)
+        : [];
     for (const sp of spaces) {
       for (const p of sp.projects) {
         out.push({ type: "project", id: p._id, label: `${sp.name} · ${p.name}` });

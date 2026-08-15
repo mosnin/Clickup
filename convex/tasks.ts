@@ -16,6 +16,7 @@ import {
 } from "./capabilities";
 import { requireDecisionImpactsResolved } from "./decisions";
 import { enqueueAgentPingDelivery } from "./agentPingDeliveries";
+import { listUserSpaces } from "./_userSpaces";
 
 // Task CRUD. Since Phase 12 the write paths are factored into *Core
 // functions that take an explicit Actor, so the Clerk-authenticated
@@ -1261,14 +1262,7 @@ export const quickSearch = query({
     if (!identity || needle.length < 2) return [];
 
     const spaces: Doc<"spaces">[] = [];
-    const personal = await ctx.db
-      .query("spaces")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "user").eq("parentId", identity.subject),
-      )
-      // .first(), not .unique(): tolerate a duplicated personal-space row.
-      .first();
-    if (personal) spaces.push(personal);
+    spaces.push(...(await listUserSpaces(ctx, identity.subject)));
     const memberships = await ctx.db
       .query("memberships")
       .withIndex("by_user", (q) => q.eq("userClerkId", identity.subject))
