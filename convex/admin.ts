@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import {
   isEmailRootAdmin,
@@ -7,6 +8,11 @@ import {
   requirePlatformAdmin,
   resolvePlatformAdmin,
 } from "./_adminAuth";
+import {
+  isComplimentaryScope,
+  isPlatformAdminClerkId,
+} from "./_adminEntitlements";
+import { applyCreditDelta } from "./x402";
 
 // Platform-admin API. Every function here first resolves the caller to a
 // platform admin (or returns an empty/null shape for the gating query).
@@ -113,6 +119,22 @@ export const listUsers = query({
         (membershipsByUser.get(m.userClerkId) ?? 0) + 1,
       );
     }
+    const adminRows = (await ctx.db.query("platformAdmins").collect()).filter(
+      (r) => !r.revokedAt,
+    );
+    const grantedAdmin = new Set(adminRows.map((r) => r.clerkId));
+    const agents = await ctx.db.query("agents").take(LIST_LIMIT * 10);
+    const agentsByUser = new Map<string, number>();
+    for (const a of agents) {
+      if (a.parentType === "user") {
+        agentsByUser.set(a.parentId, (agentsByUser.get(a.parentId) ?? 0) + 1);
+      }
+    }
+    const wallets = await ctx.db.query("agentWallets").take(LIST_LIMIT * 10);
+    const balanceByUser = new Map<string, number>();
+    for (const w of wallets) {
+      if (w.scopeType === "user") balanceByUser.set(w.scopeId, w.balance);
+    }
     const rows = all
       .filter(
         (u) =>
@@ -131,6 +153,11 @@ export const listUsers = query({
         suspendedAt: u.suspendedAt,
         suspendedReason: u.suspendedReason,
         workspaceCount: membershipsByUser.get(u.clerkId) ?? 0,
+        agentCount: agentsByUser.get(u.clerkId) ?? 0,
+        creditBalance: balanceByUser.get(u.clerkId) ?? 0,
+        complimentary:
+          !u.suspendedAt &&
+          (isEmailRootAdmin(u.email) || grantedAdmin.has(u.clerkId)),
         createdAt: u._creationTime,
       }));
     return rows.sort((a, b) => b.createdAt - a.createdAt);
@@ -606,5 +633,334 @@ export const inspectWorkspace = mutation({
       spaceCount: spaces.length,
       memberCount: members.length,
     };
+  },
+});
+
+// ── User account help (credits, refunds, operational detail) ─────────────
+
+const SCOPE = v.union(v.literal("user"), v.literal("workspace"));
+
+function requireReason(reason: string): string {
+  const trimmed = reason.trim();
+  if (!trimmed) throw new ConvexError("A reason is required");
+  return trimmed;
+}
+
+function requirePositiveCredits(credits: number): number {
+  if (!Number.isInteger(credits) || credits <= 0) {
+    throw new ConvexError("credits must be a positive integer");
+  }
+  return credits;
+}
+
+async function resolveScopeLabel(
+  ctx: QueryCtx | MutationCtx,
+  scopeType: "user" | "workspace",
+  scopeId: string,
+): Promise<string> {
+  if (scopeType === "user") {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", scopeId))
+      .unique();
+    return user?.email ?? scopeId;
+  }
+  const ws = await ctx.db.get(scopeId as Id<"workspaces">);
+  return ws?.name ?? scopeId;
+}
+
+export const getUserAccount = query({
+  args: { clerkId: v.string() },
+  handler: async (ctx, { clerkId }) => {
+    await requirePlatformAdmin(ctx);
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .unique();
+    if (!user) throw new ConvexError("User not found");
+
+    const complimentary = await isPlatformAdminClerkId(ctx, clerkId);
+    const adminRow = await ctx.db
+      .query("platformAdmins")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .unique();
+    const adminRole = isEmailRootAdmin(user.email)
+      ? ("superadmin" as const)
+      : adminRow && !adminRow.revokedAt
+        ? adminRow.role
+        : null;
+
+    const memberships = await ctx.db
+      .query("memberships")
+      .withIndex("by_user", (q) => q.eq("userClerkId", clerkId))
+      .collect();
+    const workspaces = [];
+    for (const m of memberships) {
+      const ws = await ctx.db.get(m.workspaceId);
+      if (!ws) continue;
+      const agents = await ctx.db
+        .query("agents")
+        .withIndex("by_parent", (q) =>
+          q.eq("parentType", "workspace").eq("parentId", m.workspaceId),
+        )
+        .collect();
+      const wallet = await ctx.db
+        .query("agentWallets")
+        .withIndex("by_scope", (q) =>
+          q.eq("scopeType", "workspace").eq("scopeId", m.workspaceId),
+        )
+        .unique();
+      workspaces.push({
+        _id: ws._id,
+        name: ws.name,
+        role: m.role,
+        owner: ws.ownerClerkId === clerkId,
+        complimentary: await isComplimentaryScope(ctx, "workspace", ws._id),
+        agentCount: agents.length,
+        creditBalance: wallet?.balance ?? 0,
+        suspendedAt: ws.suspendedAt,
+      });
+    }
+
+    const personalAgents = await ctx.db
+      .query("agents")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", "user").eq("parentId", clerkId),
+      )
+      .collect();
+    const personalWallet = await ctx.db
+      .query("agentWallets")
+      .withIndex("by_scope", (q) =>
+        q.eq("scopeType", "user").eq("scopeId", clerkId),
+      )
+      .unique();
+
+    const scopeKeys = [
+      { scopeType: "user" as const, scopeId: clerkId },
+      ...workspaces.map((w) => ({
+        scopeType: "workspace" as const,
+        scopeId: w._id as string,
+      })),
+    ];
+    const payments = [];
+    const adjustments = [];
+    for (const s of scopeKeys) {
+      const rows = await ctx.db
+        .query("payments")
+        .withIndex("by_scope", (q) =>
+          q.eq("scopeType", s.scopeType).eq("scopeId", s.scopeId),
+        )
+        .order("desc")
+        .take(20);
+      for (const p of rows) {
+        payments.push({
+          _id: p._id,
+          scopeType: p.scopeType,
+          scopeId: p.scopeId,
+          creditsGranted: p.creditsGranted,
+          amountAtomic: p.amountAtomic,
+          asset: p.asset,
+          status: p.status,
+          createdAt: p.createdAt,
+        });
+      }
+      const adj = await ctx.db
+        .query("creditAdjustments")
+        .withIndex("by_scope", (q) =>
+          q.eq("scopeType", s.scopeType).eq("scopeId", s.scopeId),
+        )
+        .order("desc")
+        .take(20);
+      for (const a of adj) {
+        adjustments.push({
+          _id: a._id,
+          scopeType: a.scopeType,
+          scopeId: a.scopeId,
+          kind: a.kind,
+          credits: a.credits,
+          reason: a.reason,
+          paymentId: a.paymentId,
+          createdAt: a.createdAt,
+        });
+      }
+    }
+    payments.sort((a, b) => b.createdAt - a.createdAt);
+    adjustments.sort((a, b) => b.createdAt - a.createdAt);
+
+    return {
+      clerkId: user.clerkId,
+      email: user.email,
+      name: user.name,
+      imageUrl: user.imageUrl,
+      onboardedAt: user.onboardedAt,
+      suspendedAt: user.suspendedAt,
+      suspendedReason: user.suspendedReason,
+      complimentary,
+      adminRole,
+      personal: {
+        agentCount: personalAgents.length,
+        creditBalance: personalWallet?.balance ?? 0,
+        lifetimeCredits: personalWallet?.lifetimeCredits ?? 0,
+        lifetimeSpent: personalWallet?.lifetimeSpent ?? 0,
+        agents: personalAgents.map((a) => ({
+          _id: a._id,
+          name: a.name,
+          status: a.status,
+          lastSeenAt: a.lastSeenAt,
+        })),
+      },
+      workspaces,
+      payments: payments.slice(0, 25),
+      adjustments: adjustments.slice(0, 25),
+    };
+  },
+});
+
+export const grantCredits = mutation({
+  args: {
+    scopeType: SCOPE,
+    scopeId: v.string(),
+    credits: v.number(),
+    reason: v.string(),
+  },
+  handler: async (ctx, { scopeType, scopeId, credits, reason }) => {
+    const admin = await requirePlatformAdmin(ctx);
+    const amount = requirePositiveCredits(credits);
+    const why = requireReason(reason);
+    const { balance, applied } = await applyCreditDelta(
+      ctx,
+      scopeType,
+      scopeId,
+      amount,
+    );
+    await ctx.db.insert("creditAdjustments", {
+      scopeType,
+      scopeId,
+      kind: "grant",
+      credits: applied,
+      reason: why,
+      createdByClerkId: admin.clerkId,
+      createdAt: Date.now(),
+    });
+    const label = await resolveScopeLabel(ctx, scopeType, scopeId);
+    await logAdminAction(ctx, admin, "credits.granted", {
+      targetType: scopeType,
+      targetId: scopeId,
+      summary: `${label} +${applied}`,
+      reason: why,
+    });
+    return { balance, applied };
+  },
+});
+
+export const refundCredits = mutation({
+  args: {
+    paymentId: v.optional(v.id("payments")),
+    scopeType: v.optional(SCOPE),
+    scopeId: v.optional(v.string()),
+    credits: v.optional(v.number()),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const admin = await requirePlatformAdmin(ctx);
+    const why = requireReason(args.reason);
+
+    let scopeType: "user" | "workspace";
+    let scopeId: string;
+    let amount: number;
+    let paymentId: Id<"payments"> | undefined;
+
+    if (args.paymentId) {
+      const payment = await ctx.db.get(args.paymentId);
+      if (!payment) throw new ConvexError("Payment not found");
+      if (payment.status !== "settled") {
+        throw new ConvexError("Only a settled payment can be refunded");
+      }
+      const existing = await ctx.db
+        .query("creditAdjustments")
+        .withIndex("by_payment", (q) => q.eq("paymentId", args.paymentId))
+        .collect();
+      if (existing.some((a) => a.kind === "refund")) {
+        throw new ConvexError("This payment has already been refunded");
+      }
+      scopeType = payment.scopeType;
+      scopeId = payment.scopeId;
+      amount = payment.creditsGranted;
+      paymentId = payment._id;
+    } else {
+      if (!args.scopeType || !args.scopeId || args.credits === undefined) {
+        throw new ConvexError(
+          "A payment, or a scope and credit amount, is required",
+        );
+      }
+      scopeType = args.scopeType;
+      scopeId = args.scopeId;
+      amount = requirePositiveCredits(args.credits);
+    }
+
+    const { balance, applied } = await applyCreditDelta(
+      ctx,
+      scopeType,
+      scopeId,
+      amount,
+    );
+    await ctx.db.insert("creditAdjustments", {
+      scopeType,
+      scopeId,
+      kind: "refund",
+      credits: applied,
+      paymentId,
+      reason: why,
+      createdByClerkId: admin.clerkId,
+      createdAt: Date.now(),
+    });
+    const label = await resolveScopeLabel(ctx, scopeType, scopeId);
+    await logAdminAction(ctx, admin, "credits.refunded", {
+      targetType: scopeType,
+      targetId: scopeId,
+      summary: `${label} +${applied}${paymentId ? " (payment)" : ""}`,
+      reason: why,
+    });
+    return { balance, applied };
+  },
+});
+
+export const debitCredits = mutation({
+  args: {
+    scopeType: SCOPE,
+    scopeId: v.string(),
+    credits: v.number(),
+    reason: v.string(),
+  },
+  handler: async (ctx, { scopeType, scopeId, credits, reason }) => {
+    const admin = await requirePlatformAdmin(ctx, { minRole: "superadmin" });
+    const amount = requirePositiveCredits(credits);
+    const why = requireReason(reason);
+    const { balance, applied } = await applyCreditDelta(
+      ctx,
+      scopeType,
+      scopeId,
+      -amount,
+    );
+    if (applied === 0) {
+      throw new ConvexError("Wallet has no credits to debit");
+    }
+    await ctx.db.insert("creditAdjustments", {
+      scopeType,
+      scopeId,
+      kind: "debit",
+      credits: -applied,
+      reason: why,
+      createdByClerkId: admin.clerkId,
+      createdAt: Date.now(),
+    });
+    const label = await resolveScopeLabel(ctx, scopeType, scopeId);
+    await logAdminAction(ctx, admin, "credits.debited", {
+      targetType: scopeType,
+      targetId: scopeId,
+      summary: `${label} ${applied}`,
+      reason: why,
+    });
+    return { balance, applied: -applied };
   },
 });

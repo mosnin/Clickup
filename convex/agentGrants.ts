@@ -4,6 +4,7 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
 import { requireAgentByKey } from "./_agentAuth";
+import { assertCanCreateAgent } from "./_adminEntitlements";
 import { attenuate, clampFleetSize, type Envelope } from "./_envelope";
 import { emitEvent } from "./events";
 
@@ -244,6 +245,9 @@ export const provisionAgent = mutation({
         `Fleet is at its limit (${grant.maxAgents} agents). Pause one or ask a human to raise it.`,
       );
     }
+    // Platform-wide free-tier cap (when configured). Complimentary
+    // admin-owned scopes skip it; the grant's own maxAgents still binds.
+    await assertCanCreateAgent(ctx, grant.parentType, grant.parentId);
 
     const name = args.name.trim().slice(0, 80);
     if (!name) throw new ConvexError("Agent name is required");

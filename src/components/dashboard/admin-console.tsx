@@ -223,6 +223,7 @@ function OverviewTab() {
 
 function UsersTab() {
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<string | null>(null);
   const users = useQuery(api.admin.listUsers, { search: search || undefined });
   const suspend = useMutation(api.admin.suspendUser);
   const reactivate = useMutation(api.admin.reactivateUser);
@@ -246,6 +247,7 @@ function UsersTab() {
               <TableRow>
                 <TableHead>User</TableHead>
                 <TableHead>Workspaces</TableHead>
+                <TableHead>Credits</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -253,7 +255,18 @@ function UsersTab() {
             </TableHeader>
             <TableBody>
               {users.map((u) => (
-                <TableRow key={u._id}>
+                <TableRow
+                  key={u._id}
+                  className={cn(
+                    "cursor-pointer",
+                    selected === u.clerkId && "bg-accent/40",
+                  )}
+                  onClick={() =>
+                    setSelected((cur) =>
+                      cur === u.clerkId ? null : u.clerkId,
+                    )
+                  }
+                >
                   <TableCell className="whitespace-normal">
                     <div className="flex items-center gap-3">
                       <Avatar name={u.name ?? u.email} img={u.imageUrl} />
@@ -271,29 +284,40 @@ function UsersTab() {
                     {u.workspaceCount} workspace
                     {u.workspaceCount === 1 ? "" : "s"}
                   </TableCell>
+                  <TableCell className="tabular-nums text-muted-foreground">
+                    {u.creditBalance.toLocaleString()}
+                  </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {timeAgo(u.createdAt)}
                   </TableCell>
                   <TableCell className="whitespace-normal">
-                    {u.suspendedAt ? (
-                      <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {u.suspendedAt ? (
                         <Badge variant="destructive">Suspended</Badge>
-                        {u.suspendedReason && (
-                          <p className="text-xs text-muted-foreground">
-                            {u.suspendedReason}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="text-muted-foreground"
-                      >
-                        Active
-                      </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-muted-foreground"
+                        >
+                          Active
+                        </Badge>
+                      )}
+                      {u.complimentary && (
+                        <Badge className="border-transparent bg-pastel-yellow text-foreground dark:text-black">
+                          Complimentary
+                        </Badge>
+                      )}
+                    </div>
+                    {u.suspendedReason && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {u.suspendedReason}
+                      </p>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell
+                    className="text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {u.suspendedAt ? (
                       <Button
                         size="sm"
@@ -327,7 +351,314 @@ function UsersTab() {
           </Table>
         </TableCard>
       )}
+      {selected && <UserAccountPanel clerkId={selected} />}
     </div>
+  );
+}
+
+function UserAccountPanel({ clerkId }: { clerkId: string }) {
+  const account = useQuery(api.admin.getUserAccount, { clerkId });
+  const grant = useMutation(api.admin.grantCredits);
+  const refund = useMutation(api.admin.refundCredits);
+  const debit = useMutation(api.admin.debitCredits);
+  const me = useQuery(api.admin.me, {});
+  const { toast } = useToast();
+  const isSuper = me?.role === "superadmin";
+  const [credits, setCredits] = useState("1000");
+  const [reason, setReason] = useState("");
+  const [target, setTarget] = useState("personal");
+  const [pending, setPending] = useState<"grant" | "refund" | "debit" | null>(
+    null,
+  );
+
+  if (account === undefined) return <SkeletonRows />;
+
+  const scope =
+    target === "personal"
+      ? { scopeType: "user" as const, scopeId: account.clerkId }
+      : { scopeType: "workspace" as const, scopeId: target };
+
+  async function run(
+    kind: "grant" | "refund" | "debit",
+    fn: () => Promise<{ applied: number }>,
+  ) {
+    if (!reason.trim()) {
+      toast("A reason is required", { kind: "error" });
+      return;
+    }
+    setPending(kind);
+    try {
+      const result = await fn();
+      toast(
+        `${kind === "debit" ? "Debited" : kind === "refund" ? "Refunded" : "Granted"} ${result.applied.toLocaleString()} credits`,
+      );
+      setReason("");
+    } catch (e) {
+      toast(errMsg(e), { kind: "error" });
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <CardTitle className="text-base">
+            {account.name ?? account.email}
+          </CardTitle>
+          <CardDescription className="mt-0.5">{account.email}</CardDescription>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {account.complimentary && (
+            <Badge className="border-transparent bg-pastel-yellow text-foreground dark:text-black">
+              Complimentary · unlimited
+            </Badge>
+          )}
+          {account.adminRole && (
+            <Badge variant="outline" className="capitalize">
+              {account.adminRole}
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {account.complimentary && (
+        <p className="mt-3 text-sm text-muted-foreground">
+          This is a staff account: unpaid, no agent cap, no credit metering.
+          Agents still hit a safety ceiling of 100,000 actions/day and 600
+          actions/minute so a runaway loop can be stopped.
+        </p>
+      )}
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-xl bg-muted/40 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Personal credits
+          </p>
+          <p className="mt-1 text-2xl font-bold tabular-nums">
+            {account.personal.creditBalance.toLocaleString()}
+          </p>
+        </div>
+        <div className="rounded-xl bg-muted/40 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Personal agents
+          </p>
+          <p className="mt-1 text-2xl font-bold tabular-nums">
+            {account.personal.agentCount}
+          </p>
+        </div>
+        <div className="rounded-xl bg-muted/40 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Workspaces
+          </p>
+          <p className="mt-1 text-2xl font-bold tabular-nums">
+            {account.workspaces.length}
+          </p>
+        </div>
+      </div>
+
+      {account.workspaces.length > 0 && (
+        <div className="mt-4">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Workspaces
+          </h3>
+          <ul className="divide-y divide-border rounded-xl bg-muted/30">
+            {account.workspaces.map((w) => (
+              <li
+                key={w._id}
+                className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
+              >
+                <span className="font-medium">
+                  {w.name}
+                  {w.owner ? " · owner" : ` · ${w.role}`}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {w.agentCount} agent{w.agentCount === 1 ? "" : "s"} ·{" "}
+                  {w.creditBalance.toLocaleString()} credits
+                  {w.complimentary ? " · complimentary" : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <Separator className="my-5" />
+
+      <h3 className="text-sm font-semibold">Credits</h3>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Grants and refunds are complimentary top-ups. Every adjustment is
+        audited. Debits (clawbacks) are superadmin only.
+      </p>
+      <form
+        className="mt-3 flex flex-wrap items-end gap-2"
+        onSubmit={(e) => e.preventDefault()}
+      >
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Wallet
+          </span>
+          <select
+            value={target}
+            onChange={(e) => setTarget(e.currentTarget.value)}
+            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          >
+            <option value="personal">Personal space</option>
+            {account.workspaces.map((w) => (
+              <option key={w._id} value={w._id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Credits
+          </span>
+          <Input
+            type="number"
+            min={1}
+            value={credits}
+            onChange={(e) => setCredits(e.currentTarget.value)}
+            className="w-28"
+          />
+        </label>
+        <label className="block min-w-52 flex-1">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Reason (audited)
+          </span>
+          <Input
+            value={reason}
+            onChange={(e) => setReason(e.currentTarget.value)}
+            placeholder="Goodwill, failed top-up, support ticket…"
+          />
+        </label>
+        <Button
+          type="button"
+          size="sm"
+          disabled={!reason.trim() || pending !== null}
+          onClick={() =>
+            run("grant", () =>
+              grant({
+                ...scope,
+                credits: Number(credits) || 0,
+                reason: reason.trim(),
+              }),
+            )
+          }
+        >
+          {pending === "grant" ? "…" : "Give credits"}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!reason.trim() || pending !== null}
+          onClick={() =>
+            run("refund", () =>
+              refund({
+                ...scope,
+                credits: Number(credits) || 0,
+                reason: reason.trim(),
+              }),
+            )
+          }
+        >
+          {pending === "refund" ? "…" : "Issue refund"}
+        </Button>
+        {isSuper && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="hover:border-destructive/40 hover:text-destructive"
+            disabled={!reason.trim() || pending !== null}
+            onClick={() =>
+              run("debit", () =>
+                debit({
+                  ...scope,
+                  credits: Number(credits) || 0,
+                  reason: reason.trim(),
+                }),
+              )
+            }
+          >
+            {pending === "debit" ? "…" : "Debit"}
+          </Button>
+        )}
+      </form>
+
+      {account.payments.length > 0 && (
+        <div className="mt-5">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Recent payments
+          </h3>
+          <ul className="divide-y divide-border text-sm">
+            {account.payments.slice(0, 8).map((p) => (
+              <li
+                key={p._id}
+                className="flex flex-wrap items-center justify-between gap-2 py-2"
+              >
+                <span>
+                  {p.scopeType} · {p.creditsGranted.toLocaleString()} credits
+                  <span className="text-muted-foreground"> · {p.status}</span>
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {timeAgo(p.createdAt)}
+                  </span>
+                  {p.status === "settled" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending !== null}
+                      onClick={() => {
+                        const why = reason.trim() || "Refund of settled payment";
+                        run("refund", () =>
+                          refund({ paymentId: p._id, reason: why }),
+                        );
+                      }}
+                    >
+                      Refund
+                    </Button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {account.adjustments.length > 0 && (
+        <div className="mt-5">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Staff adjustments
+          </h3>
+          <ul className="divide-y divide-border text-sm">
+            {account.adjustments.slice(0, 8).map((a) => (
+              <li
+                key={a._id}
+                className="flex flex-wrap items-center justify-between gap-2 py-2"
+              >
+                <span>
+                  <span className="capitalize">{a.kind}</span>{" "}
+                  {a.kind === "debit" ? "−" : "+"}
+                  {a.credits.toLocaleString()}
+                  <span className="text-muted-foreground">
+                    {" "}
+                    · {a.reason}
+                  </span>
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {timeAgo(a.createdAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -696,6 +1027,14 @@ function BillingAdminTab({ isSuper }: { isSuper: boolean }) {
         </StaggerItem>
       </Stagger>
 
+      <Card className="p-5">
+        <CardTitle className="text-sm font-semibold">Help a wallet</CardTitle>
+        <CardDescription className="mt-1 text-sm">
+          Open a user on the Users tab to give credits, issue a refund, or
+          claw back a mistaken grant. Every adjustment is audited.
+        </CardDescription>
+      </Card>
+
       {/* Metering config, superadmin only, since it changes what every
           agent is charged platform-wide. */}
       <Card className="p-5">
@@ -900,7 +1239,7 @@ function SettingsPanel({ settings }: { settings: Record<string, unknown> }) {
           <Separator />
           <NumberSetting
             label="Max agents per workspace"
-            hint="Stored for future use — not yet enforced anywhere in the app."
+            hint="Applies to personal spaces and workspaces. 0 = unlimited for ordinary accounts. Staff-owned (complimentary) scopes are never capped."
             value={maxAgents}
             onSave={async (v) => {
               await setSetting({ key: "max_agents_per_workspace", value: v });
@@ -964,12 +1303,13 @@ function AdminsTab({ isSuper }: { isSuper: boolean }) {
 
   return (
     <div className="space-y-5">
-      {!isSuper && (
-        <p className="rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground">
-          Only superadmins can grant or revoke admin access. You have read
-          access to the roster.
-        </p>
-      )}
+      <p className="rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground">
+        Admin accounts are complimentary — unpaid, unlimited agents, and no
+        credit metering. A safety ceiling (100,000 actions/day, 600/minute)
+        still stops a rogue agent.{" "}
+        {!isSuper &&
+          "Only superadmins can grant or revoke admin access. You have read access to the roster."}
+      </p>
 
       {isSuper && (
         <Card className="p-4">

@@ -3,6 +3,11 @@ import type { QueryCtx, MutationCtx, DatabaseWriter } from "./_generated/server"
 import type { Doc, Id } from "./_generated/dataModel";
 import { getSpaceForList } from "./_authz";
 import { buildPaymentRequired, paymentRequiredError, x402Config } from "./_x402";
+import {
+  ADMIN_BURST_LIMIT_PER_MINUTE,
+  ADMIN_DAILY_ACTION_LIMIT,
+  isComplimentaryScope,
+} from "./_adminEntitlements";
 
 // Agent-side counterpart of _authz.ts. Human calls authenticate via Clerk
 // (ctx.auth); agent calls authenticate via an API key passed as an argument
@@ -271,12 +276,22 @@ export async function requireAgentByKey(
       // BEFORE the daily/burst counters so a payment-required refusal doesn't
       // burn budget. Insufficient balance raises a payment-required signal
       // carrying an x402 402 challenge the agent can settle to top up.
+      //
+      // Platform-admin scopes are complimentary: staff accounts are unpaid
+      // and must keep working when metering is on. The extreme daily/burst
+      // caps below are the rogue-agent safety net, not a bill.
+      const complimentary = await isComplimentaryScope(
+        ctx,
+        agent.parentType,
+        agent.parentId,
+      );
       const meteringRow = await db
         .query("platformSettings")
         .withIndex("by_key", (q) => q.eq("key", "x402.metering"))
         .unique();
       const meteringOn =
-        meteringRow?.value === "on" || meteringRow?.value === true;
+        !complimentary &&
+        (meteringRow?.value === "on" || meteringRow?.value === true);
       if (meteringOn) {
         const cfg = x402Config();
         const priceRow = await db
@@ -328,7 +343,18 @@ export async function requireAgentByKey(
           q.eq("agentId", agent._id).eq("day", day),
         )
         .unique();
-      const limit = agent.dailyActionLimit ?? DEFAULT_DAILY_ACTION_LIMIT;
+      // Complimentary scopes default to the staff ceiling. An explicit
+      // per-agent budget still wins when it is *lower* (a human throttling
+      // one agent); it cannot raise the circuit breaker.
+      const requested = agent.dailyActionLimit ?? (
+        complimentary ? ADMIN_DAILY_ACTION_LIMIT : DEFAULT_DAILY_ACTION_LIMIT
+      );
+      const limit = complimentary
+        ? Math.min(requested, ADMIN_DAILY_ACTION_LIMIT)
+        : requested;
+      const burstLimit = complimentary
+        ? ADMIN_BURST_LIMIT_PER_MINUTE
+        : BURST_LIMIT_PER_MINUTE;
       const count = usage?.count ?? 0;
       if (count >= limit) {
         throw new ConvexError(
@@ -337,9 +363,9 @@ export async function requireAgentByKey(
       }
       const minuteCount =
         usage?.minute === minute ? (usage.minuteCount ?? 0) : 0;
-      if (minuteCount >= BURST_LIMIT_PER_MINUTE) {
+      if (minuteCount >= burstLimit) {
         throw new ConvexError(
-          `Rate limited (${BURST_LIMIT_PER_MINUTE} actions/minute). Slow down and retry shortly.`,
+          `Rate limited (${burstLimit} actions/minute). Slow down and retry shortly.`,
         );
       }
       if (usage) {

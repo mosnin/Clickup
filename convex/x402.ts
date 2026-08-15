@@ -10,6 +10,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
 import { requireAgentByKey } from "./_agentAuth";
 import { requirePlatformAdmin, logAdminAction } from "./_adminAuth";
+import { isComplimentaryScope } from "./_adminEntitlements";
 import {
   billingConfigurationIssue,
   billingConfigured,
@@ -109,7 +110,7 @@ async function getWallet(
     .unique();
 }
 
-async function ensureWallet(
+export async function ensureWallet(
   ctx: MutationCtx,
   scopeType: "user" | "workspace",
   scopeId: string,
@@ -127,6 +128,34 @@ async function ensureWallet(
     updatedAt: now,
   });
   return (await ctx.db.get(id))!;
+}
+
+// Staff credit adjustment. `delta` is signed (positive grant/refund,
+// negative debit). A debit never drives the balance below zero — the
+// returned `applied` is how many credits actually moved.
+export async function applyCreditDelta(
+  ctx: MutationCtx,
+  scopeType: "user" | "workspace",
+  scopeId: string,
+  delta: number,
+): Promise<{ balance: number; applied: number }> {
+  if (!Number.isInteger(delta) || delta === 0) {
+    throw new ConvexError("Credit adjustment must be a non-zero integer");
+  }
+  const wallet = await ensureWallet(ctx, scopeType, scopeId);
+  const applied =
+    delta < 0 ? -Math.min(wallet.balance, -delta) : delta;
+  const balance = wallet.balance + applied;
+  await ctx.db.patch(wallet._id, {
+    balance,
+    // Lifetime credits count money/comp that arrived, never clawbacks.
+    // lifetimeSpent stays the metered-action counter — a staff debit is
+    // not usage.
+    lifetimeCredits:
+      applied > 0 ? wallet.lifetimeCredits + applied : wallet.lifetimeCredits,
+    updatedAt: Date.now(),
+  });
+  return { balance, applied };
 }
 
 async function canAccessScope(
@@ -180,6 +209,8 @@ export const walletByKey = query({
     balance: v.number(),
     lifetimeCredits: v.number(),
     lifetimeSpent: v.number(),
+    /** Staff-owned scopes skip metering and the paid agent cap. */
+    complimentary: v.boolean(),
     /** The fleet's daily spend ceiling in USD; null = uncapped. */
     dailySpendUsdLimit: v.union(v.number(), v.null()),
     /** What every agent in this scope has reported spending today. */
@@ -201,6 +232,11 @@ export const walletByKey = query({
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "read");
     const wallet = await getWallet(ctx, agent.parentType, agent.parentId);
+    const complimentary = await isComplimentaryScope(
+      ctx,
+      agent.parentType,
+      agent.parentId,
+    );
     const metering = await readMetering(ctx);
     const payments = await ctx.db
       .query("payments")
@@ -219,6 +255,7 @@ export const walletByKey = query({
       balance: wallet?.balance ?? 0,
       lifetimeCredits: wallet?.lifetimeCredits ?? 0,
       lifetimeSpent: wallet?.lifetimeSpent ?? 0,
+      complimentary,
       dailySpendUsdLimit: wallet?.dailySpendUsdLimit ?? null,
       spendTodayUsd:
         wallet?.spendDay === today ? (wallet.spendUsdToday ?? 0) : 0,
@@ -395,6 +432,9 @@ export const walletForScope = query({
     balance: v.number(),
     lifetimeCredits: v.number(),
     lifetimeSpent: v.number(),
+    complimentary: v.boolean(),
+    dailySpendUsdLimit: v.union(v.number(), v.null()),
+    spendTodayUsd: v.number(),
     metering: METERING,
     pricing: PRICING,
     payments: v.array(
@@ -418,6 +458,7 @@ export const walletForScope = query({
       throw new ConvexError("Forbidden");
     }
     const wallet = await getWallet(ctx, scopeType, scopeId);
+    const complimentary = await isComplimentaryScope(ctx, scopeType, scopeId);
     const metering = await readMetering(ctx);
     const payments = await ctx.db
       .query("payments")
@@ -434,6 +475,7 @@ export const walletForScope = query({
       balance: wallet?.balance ?? 0,
       lifetimeCredits: wallet?.lifetimeCredits ?? 0,
       lifetimeSpent: wallet?.lifetimeSpent ?? 0,
+      complimentary,
       dailySpendUsdLimit: wallet?.dailySpendUsdLimit ?? null,
       spendTodayUsd:
         wallet?.spendDay === today ? (wallet.spendUsdToday ?? 0) : 0,

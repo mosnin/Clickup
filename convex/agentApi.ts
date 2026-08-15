@@ -42,6 +42,11 @@ import {
   BURST_LIMIT_PER_MINUTE,
   DEFAULT_DAILY_ACTION_LIMIT,
 } from "./_agentAuth";
+import {
+  ADMIN_BURST_LIMIT_PER_MINUTE,
+  ADMIN_DAILY_ACTION_LIMIT,
+  isComplimentaryScope,
+} from "./_adminEntitlements";
 import { stopNotice } from "./_agentStop";
 import { getSpaceForList } from "./_authz";
 import { addNodeCore, decideCore } from "./plans";
@@ -539,8 +544,20 @@ export const whoami = query({
         if (list) allowedLists.push({ listId: list._id, name: list.name });
       }
     }
-    const dailyActionLimit =
-      agent.dailyActionLimit ?? DEFAULT_DAILY_ACTION_LIMIT;
+    const complimentary = await isComplimentaryScope(
+      ctx,
+      agent.parentType,
+      agent.parentId,
+    );
+    const requested =
+      agent.dailyActionLimit ??
+      (complimentary ? ADMIN_DAILY_ACTION_LIMIT : DEFAULT_DAILY_ACTION_LIMIT);
+    const dailyActionLimit = complimentary
+      ? Math.min(requested, ADMIN_DAILY_ACTION_LIMIT)
+      : requested;
+    const burstLimitPerMinute = complimentary
+      ? ADMIN_BURST_LIMIT_PER_MINUTE
+      : BURST_LIMIT_PER_MINUTE;
     const day = new Date().toISOString().slice(0, 10);
     const usage = await ctx.db
       .query("agentUsage")
@@ -618,11 +635,12 @@ export const whoami = query({
       dailyActionLimit,
       actionsUsedToday,
       actionsRemainingToday: Math.max(0, dailyActionLimit - actionsUsedToday),
-      burstLimitPerMinute: BURST_LIMIT_PER_MINUTE,
+      burstLimitPerMinute,
       billing: {
-        meteringEnabled,
+        complimentary,
+        meteringEnabled: meteringEnabled && !complimentary,
         creditsBalance: wallet ? wallet.balance : null,
-        creditsPerAction,
+        creditsPerAction: complimentary ? 0 : creditsPerAction,
       },
       // Provenance: which credential is talking and what it will change.
       // A key is bound to exactly one scope and cannot be pointed at
