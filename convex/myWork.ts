@@ -1,6 +1,7 @@
 import { query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { listUserSpaces } from "./_userSpaces";
 
 // "My Work": every open task assigned to the current user across their
 // personal space and every workspace they belong to. Assignees live in an
@@ -44,13 +45,7 @@ export const listForCurrent = query({
 
     // Every space the user can see: personal + member workspaces'.
     const spaces: Doc<"spaces">[] = [];
-    const personal = await ctx.db
-      .query("spaces")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "user").eq("parentId", subject),
-      )
-      .unique();
-    if (personal && !personal.archivedAt) spaces.push(personal);
+    spaces.push(...(await listUserSpaces(ctx, subject)));
     const memberships = await ctx.db
       .query("memberships")
       .withIndex("by_user", (q) => q.eq("userClerkId", subject))
@@ -101,7 +96,7 @@ export const listForCurrent = query({
           .withIndex("by_list", (q) => q.eq("listId", list._id))
           .collect();
         for (const t of tasks) {
-          if (!t.assigneeClerkIds.includes(subject)) continue;
+          if (!(t.assigneeClerkIds ?? []).includes(subject)) continue;
           if (doneIds.has(t.statusId)) continue;
           const status = statusById.get(t.statusId);
           out.push({

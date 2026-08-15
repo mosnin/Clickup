@@ -30,6 +30,7 @@ import { useToast } from "@/components/toast";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
 import { errorMessage } from "@/lib/errors";
 import { capCommandPaletteItems } from "@/lib/command-palette-items";
+import { userSpacesFromTree } from "@/lib/user-spaces";
 // C12 — one search. Chat's messages, plus the tasks and pages its unified
 // search reaches, folded into the same list. A hook rather than a query here so
 // this file stays a Work-side file with a three-line diff.
@@ -128,7 +129,10 @@ export function CommandPalette() {
     if (!tree) return [];
     const out: { id: Id<"lists">; name: string; place: string }[] = [];
     const spaces = [
-      ...(tree.personal ? [{ space: tree.personal, place: "Personal" }] : []),
+      ...userSpacesFromTree(tree).map((space) => ({
+        space,
+        place: "Personal",
+      })),
       ...tree.workspaces.flatMap((w) =>
         w.spaces.map((s) => ({ space: s, place: w.name })),
       ),
@@ -162,14 +166,17 @@ export function CommandPalette() {
       scopeType: "user" | "workspace";
       scopeId: string;
     }[] = [];
-    if (tree.personal && currentUserId)
-      out.push({
-        id: tree.personal._id,
-        name: tree.personal.name,
-        place: "Personal",
-        scopeType: "user",
-        scopeId: currentUserId,
-      });
+    if (currentUserId) {
+      for (const space of userSpacesFromTree(tree)) {
+        out.push({
+          id: space._id,
+          name: space.name,
+          place: "Personal",
+          scopeType: "user",
+          scopeId: currentUserId,
+        });
+      }
+    }
     for (const w of tree.workspaces)
       for (const sp of w.spaces)
         out.push({
@@ -325,7 +332,7 @@ export function CommandPalette() {
     }
 
     const spaces = [
-      ...(tree?.personal ? [tree.personal] : []),
+      ...(tree ? userSpacesFromTree(tree) : []),
       ...(tree?.workspaces.flatMap((w) => w.spaces) ?? []),
     ];
     for (const s of spaces) {

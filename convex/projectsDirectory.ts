@@ -18,6 +18,7 @@ import { query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
 import { canAccessSpace } from "./_authz";
+import { listUserSpaces } from "./_userSpaces";
 import { getRollup } from "./rollups";
 
 const MAX_ROWS = 500;
@@ -116,13 +117,7 @@ export const list = query({
       spaceName: string;
     }[] = [];
 
-    const personal = await ctx.db
-      .query("spaces")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "user").eq("parentId", subject),
-      )
-      .unique();
-    if (personal && !personal.archivedAt) {
+    for (const personal of await listUserSpaces(ctx, subject)) {
       scopes.push({
         spaceId: personal._id,
         place: `Personal · ${personal.name}`,

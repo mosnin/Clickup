@@ -10,6 +10,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/toast";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
+import { userSpacesFromTree } from "@/lib/user-spaces";
 
 // Bring tasks in from a CSV (ClickUp exports or any generic CSV) into a
 // chosen list. Three steps: pick the destination list, upload + map CSV
@@ -184,7 +185,10 @@ export function ImportDialog({
     if (!tree) return [];
     const out: ListOption[] = [];
     const spaces = [
-      ...(tree.personal ? [{ space: tree.personal, place: "Personal" }] : []),
+      ...userSpacesFromTree(tree).map((space) => ({
+        space,
+        place: "Personal",
+      })),
       ...tree.workspaces.flatMap((w) =>
         w.spaces.map((s) => ({ space: s, place: w.name })),
       ),

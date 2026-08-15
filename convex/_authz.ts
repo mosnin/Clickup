@@ -20,10 +20,13 @@ export async function requireIdentity(
   // Platform-admin suspension is enforced here so it covers every
   // authenticated read and write in one place. One indexed lookup; a
   // user row that doesn't exist yet (pre-bootstrap) is allowed through.
+  // .first(), not .unique(): webhook + ensureCurrent can leave two users
+  // rows for the same clerkId. unique() would take every requireIdentity
+  // caller down; the suspension check only needs one of the rows.
   const user = await ctx.db
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-    .unique();
+    .first();
   if (user?.suspendedAt) {
     throw new ConvexError("Account suspended");
   }
@@ -41,7 +44,7 @@ export async function assertNotSuspended(
   const user = await ctx.db
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", subject))
-    .unique();
+    .first();
   if (user?.suspendedAt) throw new ConvexError("Account suspended");
 }
 

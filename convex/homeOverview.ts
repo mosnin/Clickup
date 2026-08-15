@@ -3,6 +3,7 @@ import { query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
 import { getRollup } from "./rollups";
+import { listUserSpaces } from "./_userSpaces";
 
 // The Home page's single live subscription: where every project stands
 // right now, plus the numbers that matter today. Convex queries are
@@ -81,15 +82,12 @@ export const get = query({
       scopeType: "user" | "workspace";
       scopeId: string;
     }[] = [];
-    const personal = await ctx.db
-      .query("spaces")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "user").eq("parentId", subject),
-      )
-      .unique();
-    if (personal && !personal.archivedAt) {
+    // Collect every user-scoped space. .unique() throws once someone
+    // creates a second one (company spaces under the same Clerk subject);
+    // .first() would hide the rest from Home.
+    for (const space of await listUserSpaces(ctx, subject)) {
       scopes.push({
-        space: personal,
+        space,
         place: "Personal",
         scopeType: "user",
         scopeId: subject,
@@ -233,7 +231,7 @@ export const get = query({
               if (t.dueDate < todayStart) overdue += 1;
               else if (t.dueDate < weekAhead) dueSoon += 1;
             }
-            if (!isDone && t.assigneeClerkIds.includes(subject)) {
+            if (!isDone && (t.assigneeClerkIds ?? []).includes(subject)) {
               myOpen += 1;
               if (t.dueDate) {
                 if (t.dueDate < todayStart) myOverdue += 1;

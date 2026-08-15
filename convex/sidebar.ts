@@ -1,5 +1,6 @@
 import { query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { defaultPersonalSpace, listUserSpaces } from "./_userSpaces";
 
 function byPosition(
   a: { position: number; createdAt: number },
@@ -19,14 +20,8 @@ export const tree = query({
 
     const subject = identity.subject;
 
-    const personalSpace = await ctx.db
-      .query("spaces")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "user").eq("parentId", subject),
-      )
-      // .first(), not .unique(): a duplicate personal-space row (webhook +
-      // ensureCurrent race) must not take the whole sidebar down.
-      .first();
+    const userSpaces = await listUserSpaces(ctx, subject);
+    const personalSpace = defaultPersonalSpace(userSpaces);
 
     const memberships = await ctx.db
       .query("memberships")
@@ -171,6 +166,9 @@ export const tree = query({
 
     return {
       personal: personalSpace ? await buildSpaceNode(personalSpace) : null,
+      // Every user-scoped space (Personal + company spaces). `personal` stays
+      // the default for /dashboard/personal and older clients.
+      personalSpaces: await Promise.all(userSpaces.map(buildSpaceNode)),
       workspaces: workspaceNodes,
       // The current user's Clerk subject ID — handy for client code that
       // needs to address the personal scope (e.g. AI Brain search).

@@ -80,6 +80,7 @@ import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
 import { useProjectExpanded } from "@/lib/project-collapse";
 import { useNav } from "@/lib/use-nav";
+import { userSpacesFromTree } from "@/lib/user-spaces";
 
 type SidebarTree = NonNullable<ReturnType<typeof useTreeQuery>>;
 type SpaceNode = SidebarTree["workspaces"][number]["spaces"][number];
@@ -347,7 +348,10 @@ function SidebarContentBody() {
         ) : ctx.kind === "workspace" ? (
           <WorkspaceTreeGroup workspace={ctx.workspace} />
         ) : (
-          <PersonalTreeGroup personal={tree.personal} />
+          <PersonalTreeGroup
+            personal={tree.personal}
+            personalSpaces={tree.personalSpaces}
+          />
         )}
       </SpacesDisclosure>
       </TreeHighlight>
@@ -587,18 +591,34 @@ function TreeLoadingGroup() {
 
 // ── Personal tree ────────────────────────────────────────────────────────
 
-function PersonalTreeGroup({ personal }: { personal: SpaceNode | null | undefined }) {
+function PersonalTreeGroup({
+  personal,
+  personalSpaces,
+}: {
+  personal: SpaceNode | null | undefined;
+  personalSpaces?: SpaceNode[] | null;
+}) {
+  const spaces = userSpacesFromTree({ personal, personalSpaces });
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Spaces</SidebarGroupLabel>
       <SidebarGroupContent>
-        {personal ? (
+        {spaces.length > 0 ? (
           <SidebarMenu>
-            <SpaceTree
-              space={personal}
-              linkHref="/dashboard/personal"
-              displayName="Personal space"
-            />
+            {spaces.map((space) => (
+              <SpaceTree
+                key={space._id}
+                space={space}
+                linkHref={
+                  space._id === personal?._id
+                    ? "/dashboard/personal"
+                    : `/dashboard/s/${space._id}`
+                }
+                displayName={
+                  space.name === "Personal" ? "Personal space" : space.name
+                }
+              />
+            ))}
           </SidebarMenu>
         ) : (
           <p className="px-2 py-1 text-xs text-muted-foreground">Setting up…</p>

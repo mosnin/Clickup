@@ -16,6 +16,7 @@ import { DockSlot } from "@/components/appearance/dock-slot";
 import { CustomizeProvider } from "@/components/appearance/customize-provider";
 import { MintablePanelsProvider } from "@/components/appearance/mintable-panels";
 import { StyleStudio } from "@/components/appearance/style-studio";
+import { QueryErrorBoundary } from "@/components/dashboard/query-error-boundary";
 import { SHELL_INSET, SHELL_PAGE, SHELL_PROVIDER } from "@/lib/shell";
 
 export default async function DashboardLayout({
@@ -75,7 +76,9 @@ export default async function DashboardLayout({
               navigation into the other's instead of cross-fading the whole
               viewport. See the transition block in globals.css. */}
           <SidebarInset data-mode-surface="content" className={SHELL_INSET}>
-            <div className={SHELL_PAGE}>{children}</div>
+            <div className={SHELL_PAGE}>
+              <QueryErrorBoundary>{children}</QueryErrorBoundary>
+            </div>
           </SidebarInset>
           {/* The way back to the nav when it is floating and hidden. A
               floating sidebar that can be dismissed with no visible way to

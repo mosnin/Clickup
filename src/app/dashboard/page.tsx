@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useMeasure from "react-use-measure";
 import { useUser } from "@clerk/nextjs";
@@ -526,7 +526,9 @@ export default function DashboardHome() {
 
   return (
     <div className="space-y-6">
-      <WelcomeReveal />
+      <Suspense fallback={null}>
+        <WelcomeReveal />
+      </Suspense>
 
       {/* The greeting IS the capsule — the reference's welcome bar says
           "Welcome!" in the chrome, not in a section below it. The two page

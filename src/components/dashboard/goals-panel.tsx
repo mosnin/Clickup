@@ -13,6 +13,7 @@ import { Picker } from "@/components/ui/picker";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { errorMessage } from "@/lib/errors";
+import { userSpacesFromTree } from "@/lib/user-spaces";
 
 type ParentType = "user" | "workspace";
 type TargetType = Doc<"goals">["targetType"];
@@ -62,9 +63,7 @@ export function GoalsPanel({
     if (!tree) return [];
     const spaces =
       parentType === "user"
-        ? tree.personal
-          ? [tree.personal]
-          : []
+        ? userSpacesFromTree(tree)
         : (tree.workspaces.find((w) => w._id === parentId)?.spaces ?? []);
     const rows: ProjectOption[] = [];
     for (const sp of spaces) {

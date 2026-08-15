@@ -8,19 +8,14 @@ import {
   requireSpaceAccess,
 } from "./_authz";
 import { getRollup } from "./rollups";
+import { defaultPersonalSpace, listUserSpaces } from "./_userSpaces";
 
 export const personal = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
-    return await ctx.db
-      .query("spaces")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", "user").eq("parentId", identity.subject),
-      )
-      // .first(), not .unique(): tolerate a duplicated personal-space row.
-      .first();
+    return defaultPersonalSpace(await listUserSpaces(ctx, identity.subject));
   },
 });
 

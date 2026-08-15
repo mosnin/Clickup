@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { userSpacesFromTree } from "@/lib/user-spaces";
 
 // Space › Project › List breadcrumb for a list, resolved client-side from the
 // sidebar tree the app is already subscribed to (the same trick as
@@ -32,7 +33,7 @@ export function useListPath(listId: Id<"lists">): string[] | undefined {
     };
 
     const spaces: SpaceNode[] = [
-      ...(tree.personal ? [tree.personal as SpaceNode] : []),
+      ...userSpacesFromTree(tree),
       ...(tree.workspaces as { spaces: SpaceNode[] }[]).flatMap(
         (w) => w.spaces,
       ),
