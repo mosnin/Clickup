@@ -49,7 +49,9 @@ export const listForCurrent = query({
       .withIndex("by_parent", (q) =>
         q.eq("parentType", "user").eq("parentId", subject),
       )
-      .unique();
+      // .first(), not .unique(): duplicate personal-space rows must not
+      // take My Work (or Home, which also subscribes here) down.
+      .first();
     if (personal && !personal.archivedAt) spaces.push(personal);
     const memberships = await ctx.db
       .query("memberships")

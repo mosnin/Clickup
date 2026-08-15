@@ -1266,7 +1266,8 @@ export const quickSearch = query({
       .withIndex("by_parent", (q) =>
         q.eq("parentType", "user").eq("parentId", identity.subject),
       )
-      .unique();
+      // .first(), not .unique(): tolerate a duplicated personal-space row.
+      .first();
     if (personal) spaces.push(personal);
     const memberships = await ctx.db
       .query("memberships")

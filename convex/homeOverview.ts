@@ -86,7 +86,11 @@ export const get = query({
       .withIndex("by_parent", (q) =>
         q.eq("parentType", "user").eq("parentId", subject),
       )
-      .unique();
+      // .first(), not .unique(): a duplicate personal-space row (webhook +
+      // ensureCurrent race) must not take Home down. The sidebar already
+      // tolerates this; a unique() throw here becomes a client white-screen
+      // because useQuery rethrows during render and there was no error.tsx.
+      .first();
     if (personal && !personal.archivedAt) {
       scopes.push({
         space: personal,

@@ -35,15 +35,25 @@ export const upsertFromClerk = internalMutation({
       imageUrl: args.imageUrl,
     });
 
-    // Every user gets a personal space on first sync.
-    await ctx.db.insert("spaces", {
-      name: "Personal",
-      color: "#6366f1",
-      parentType: "user",
-      parentId: args.clerkId,
-      position: 0,
-      createdAt: Date.now(),
-    });
+    // Every user gets a personal space on first sync. Check first: this
+    // mutation races with users.ensureCurrent on the first dashboard load,
+    // and a second insert is what makes later unique() queries throw.
+    const existingSpace = await ctx.db
+      .query("spaces")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", "user").eq("parentId", args.clerkId),
+      )
+      .first();
+    if (!existingSpace) {
+      await ctx.db.insert("spaces", {
+        name: "Personal",
+        color: "#6366f1",
+        parentType: "user",
+        parentId: args.clerkId,
+        position: 0,
+        createdAt: Date.now(),
+      });
+    }
 
     return userId;
   },
@@ -89,7 +99,10 @@ export const ensureCurrent = mutation({
       .withIndex("by_parent", (q) =>
         q.eq("parentType", "user").eq("parentId", identity.subject),
       )
-      .unique();
+      // .first(), not .unique(): webhook + this mutation can race and leave
+      // two personal-space rows. unique() then throws on every later visit,
+      // and Home's useQuery turns that into a client white-screen.
+      .first();
     if (!personal) {
       await ctx.db.insert("spaces", {
         name: "Personal",

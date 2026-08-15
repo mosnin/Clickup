@@ -62,7 +62,8 @@ export const everything = query({
       .withIndex("by_parent", (q) =>
         q.eq("parentType", "user").eq("parentId", subject),
       )
-      .unique();
+      // .first(), not .unique(): tolerate a duplicated personal-space row.
+      .first();
     if (personal && !personal.archivedAt) spaces.push(personal);
 
     const memberships = await ctx.db
