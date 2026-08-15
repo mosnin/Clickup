@@ -67,12 +67,22 @@ describe("duplicate personal spaces must not take the dashboard down", () => {
 
   it("still refuses grantFleet without a human identity", async () => {
     const t = convexTest(schema, modules);
+    const holderAgentId = await t.run(async (ctx) => {
+      return await ctx.db.insert("agents", {
+        name: "Orchestrator",
+        parentType: "user",
+        parentId: ME.subject,
+        status: "active",
+        createdByClerkId: ME.subject,
+        createdAt: Date.now(),
+      });
+    });
     // Human-only fleet grant policy: an unauthenticated (or agent-key) caller
     // must not be able to grant a fleet. Do not "fix" the dashboard crash by
     // relaxing this — grantFleet stays on requireIdentity.
     await expect(
       t.mutation(api.agentGrants.grantFleet, {
-        holderAgentId: "jd7aaaaaaaaaaaaaaaaaaaaaaa" as never,
+        holderAgentId,
         role: "member",
         dailyActionLimit: 1000,
       }),
