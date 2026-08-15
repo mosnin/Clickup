@@ -9,6 +9,7 @@ import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity, requireListAccess, requireTaskAccess } from "./_authz";
 import { DEFAULT_DAILY_ACTION_LIMIT } from "./_agentAuth";
+import { assertCanCreateAgent } from "./_adminEntitlements";
 import { validateWebhookUrl } from "./webhooks";
 import { releaseAgentClaims, stopNotice } from "./_agentStop";
 import { emitEvent } from "./events";
@@ -604,6 +605,7 @@ export const create = mutation({
       "manage",
     );
     if (!args.name.trim()) throw new ConvexError("Agent name is required");
+    await assertCanCreateAgent(ctx, args.parentType, args.parentId);
     const capabilities = normalizeCapabilities(
       args.capabilities,
       "capabilities",

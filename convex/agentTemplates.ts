@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
 import { emitEvent, userActor } from "./events";
+import { assertCanCreateAgent } from "./_adminEntitlements";
 
 // Agent templates — one-click, pre-governed agent configs for the agentic
 // company. Like list templates (convex/templates.ts), these live in code:
@@ -152,6 +153,7 @@ export const createFromTemplate = mutation({
       );
     }
 
+    await assertCanCreateAgent(ctx, parentType, parentId);
     const agentId = await ctx.db.insert("agents", {
       name: (nameOverride ?? tpl.name).trim() || tpl.name,
       description: tpl.description,

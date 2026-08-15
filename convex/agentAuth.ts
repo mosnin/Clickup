@@ -4,6 +4,7 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
 import { sha256Hex } from "./_agentAuth";
+import { assertCanCreateAgent } from "./_adminEntitlements";
 import { normalizeCapabilities } from "./capabilities";
 import {
   CODE_LOOKUP_RULE,
@@ -442,6 +443,7 @@ export const approveDeviceRequest = mutation({
         throw new ConvexError("A scope and a name are required for a new agent");
       }
       await requireManage(ctx, args.parentType, args.parentId, identity.subject);
+      await assertCanCreateAgent(ctx, args.parentType, args.parentId);
       const capabilities = normalizeCapabilities(
         args.capabilities,
         "capabilities",

@@ -2777,6 +2777,28 @@ export default defineSchema({
     .index("by_scope", ["scopeType", "scopeId", "createdAt"])
     .index("by_nonce", ["nonce"]),
 
+  // Append-only staff credit ledger. Grants, refunds, and clawbacks are
+  // never written onto `payments` (that table is the x402 settlement log
+  // and its nonce uniqueness is load-bearing). Each row is one audited
+  // adjustment; the wallet balance is the running total.
+  creditAdjustments: defineTable({
+    scopeType: v.union(v.literal("user"), v.literal("workspace")),
+    scopeId: v.string(),
+    kind: v.union(
+      v.literal("grant"),
+      v.literal("refund"),
+      v.literal("debit"),
+    ),
+    // Always positive. Direction comes from `kind`.
+    credits: v.number(),
+    paymentId: v.optional(v.id("payments")),
+    reason: v.string(),
+    createdByClerkId: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_scope", ["scopeType", "scopeId", "createdAt"])
+    .index("by_payment", ["paymentId"]),
+
   // The Chat dashboard's substrate: an append-only log of signed, kind-tagged
   // events, its tag index, and the keys that sign into it. Defined in
   // convex/buzz/_tables.ts — a different kind of thing from the mutable domain
