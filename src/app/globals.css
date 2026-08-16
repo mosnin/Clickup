@@ -4302,3 +4302,65 @@ html {
     animation: none;
   }
 }
+
+/* ── Instrument cards (logged-in) ────────────────────────────────────────
+   The nullframe card language brought inside the app, on the app's own
+   tokens so both themes and every appearance setting keep working: the
+   card surface and hairline come from --color-card/--color-border, the
+   sweep and seg cells mix from the theme's foreground instead of assuming
+   a black room. Spacing is deliberately looser than the marketing bento —
+   these cards are read every day, not glanced at once. */
+.inst-shine {
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  left: -140px;
+  width: 110px;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    color-mix(in srgb, var(--color-foreground) 3%, transparent) 35%,
+    color-mix(in srgb, var(--color-foreground) 8%, transparent) 50%,
+    color-mix(in srgb, var(--color-foreground) 3%, transparent) 65%,
+    transparent
+  );
+  transform: skewX(-14deg);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.inst-shine.play {
+  animation: nf-shimmer 1.05s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.inst-led {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  animation: nf-pulse 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  flex: none;
+}
+.inst-segbar {
+  display: flex;
+  gap: 3px;
+  height: 10px;
+}
+.inst-segbar i {
+  flex: 1;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--color-foreground) 9%, transparent);
+}
+.inst-segbar i.on {
+  background: var(--color-foreground);
+  animation: nf-seg-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+.inst-segbar.green i.on {
+  background: #4a9e5c;
+}
+@media (prefers-reduced-motion: reduce) {
+  .inst-shine.play,
+  .inst-led,
+  .inst-segbar i.on {
+    animation: none;
+  }
+}

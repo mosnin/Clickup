@@ -25,6 +25,11 @@ import {
   StaggerItem,
 } from "@/components/motion";
 import Counter, { placesFor } from "@/components/counter";
+import {
+  InstrumentCard,
+  InstrumentFigure,
+  InstrumentSegbar,
+} from "@/components/dashboard/instrument-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { InviteCards } from "@/components/dashboard/invite-cards";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -806,128 +811,124 @@ function StatsCards({
   completions7d?: number[];
   nextTask?: { title: string; href: string } | null;
 }) {
-  const doneThisWeek = (completions7d ?? []).reduce((a, b) => a + b, 0);
+  const week = completions7d ?? [];
+  const doneThisWeek = week.reduce((a, b) => a + b, 0);
+  const activeDays = week.filter((v) => v > 0).length;
 
   return (
-    // THREE columns above @3xl, matching the outer grid's own thirds, with
-    // the SAME 24px gap the grid uses between tiles (gap-6 = ROW_GAP). This
-    // is what makes the hero's internal seams land exactly on the seams of
-    // the panels below it — "the cards don't line up" was this block running
-    // its own four-column, 12px world inside a three-column, 24px page.
+    // The instrument bento (founder direction: the nullframe card language,
+    // inside the app, with room to breathe). Same three-column geometry and
+    // 24px seams as before so the grid still lines up with the panels below;
+    // what changed is the material — hairline cards on the app's own tokens
+    // instead of saturated blocks, mono meta-rows, dot-matrix figures, and
+    // ONE human sentence per card in normal case. The signal palette
+    // retreats to the marks that mean something: an LED that only lights
+    // when work is overdue, a green bar of days.
     <Stagger className="grid h-full grid-cols-2 grid-rows-2 gap-6 @3xl:grid-cols-3">
-      {/* ── The headline block ─────────────────────────────────────────── */}
+      {/* ── The headline instrument ────────────────────────────────────── */}
       <StaggerItem lift className="col-span-2 row-span-2 min-h-0">
-        <Link
+        <InstrumentCard
+          label="My work"
+          tag={me.open > 0 ? "OPEN" : "CLEAR"}
+          tagAlways
           href="/dashboard/my-work"
-          className="relative flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-yellow p-5 text-signal-ink"
-        >
-          {/* No art mark — the founder cut the rings ("weird symbol"). The
-              block carries its figure and nothing else; the type IS the
-              poster. */}
-          <span className="relative text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
-            My work
-          </span>
-          {/* A headline, the way the reference's tall block is a headline —
-              the figure IS the sentence, at display size, and the line under
-              it says what to do next rather than restating the number. */}
-          <span className="relative mt-3 min-w-0">
-            <span className="font-title block text-[3.5rem] font-bold leading-[0.85] tracking-tight">
-              <Counter
-                value={me.open}
-                places={placesFor(me.open)}
-                fontSize={56}
-                padding={2}
-                fontWeight={700}
-              />
-            </span>
-            <span className="mt-1.5 block text-sm font-medium opacity-70">
-              open {me.open === 1 ? "task" : "tasks"} assigned to you
-            </span>
-          </span>
-          <span className="relative mt-4 min-w-0 border-t border-current/20 pt-2.5">
-            {nextTask ? (
-              <>
-                <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-55">
-                  Next up
-                </span>
-                <span className="mt-0.5 flex items-center gap-2">
-                  <span className="line-clamp-1 min-w-0 flex-1 text-sm font-semibold">
+          footer={
+            nextTask ? (
+              <span className="flex items-center gap-2">
+                <span className="min-w-0 flex-1">
+                  <span className="block font-mono text-[0.6875rem] uppercase leading-none tracking-[0.1em] text-muted-foreground">
+                    Next up
+                  </span>
+                  <span className="mt-1.5 line-clamp-1 block text-sm font-medium text-foreground">
                     {nextTask.title}
                   </span>
-                  <ArrowRight aria-hidden className="size-3.5 shrink-0" />
                 </span>
-              </>
+                <ArrowRight
+                  aria-hidden
+                  className="size-3.5 shrink-0 text-muted-foreground"
+                />
+              </span>
             ) : (
-              <span className="flex items-center justify-between gap-2 text-xs font-medium">
-                <span className="opacity-70">Nothing is waiting on you</span>
+              <span className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                <span>Nothing is waiting on you</span>
                 <ArrowRight aria-hidden className="size-3.5" />
               </span>
-            )}
+            )
+          }
+        >
+          <InstrumentFigure className="text-[4.5rem]">
+            <Counter
+              value={me.open}
+              places={placesFor(me.open)}
+              fontSize={72}
+              padding={4}
+              fontWeight={600}
+            />
+          </InstrumentFigure>
+          <span className="mt-3 block text-sm leading-relaxed text-muted-foreground">
+            open {me.open === 1 ? "task" : "tasks"} assigned to you
           </span>
-        </Link>
+        </InstrumentCard>
       </StaggerItem>
 
-      {/* ── The two that move, stacked in one column ───────────────────── */}
+      {/* ── Due today ──────────────────────────────────────────────────── */}
       <StaggerItem lift className="min-h-0 @3xl:col-start-3 @3xl:row-start-1">
-        <Link
+        <InstrumentCard
+          label="Due today"
+          // The LED earns its light: it pulses only while something is
+          // actually past its date.
+          led={me.overdue > 0 ? "orange" : undefined}
+          tag={me.overdue > 0 ? "LATE" : "ON TIME"}
+          tagAlways
           href="/dashboard/my-work"
-          className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-teal p-4 text-signal-ink"
+          className="p-5"
         >
-          {/* The figure IS the card — no glyph chip. A clock beside a
-              number was decoration wearing an indicator's clothes (founder
-              call), and the label under the rule already says what the
-              number is. */}
-          <span className="flex items-center gap-3">
-            <span className="font-title block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
-              <Counter
-                value={me.dueToday}
-                places={placesFor(me.dueToday)}
-                fontSize={36}
-                padding={2}
-                fontWeight={700}
-              />
-            </span>
+          <InstrumentFigure className="text-[2.75rem]">
+            <Counter
+              value={me.dueToday}
+              places={placesFor(me.dueToday)}
+              fontSize={44}
+              padding={3}
+              fontWeight={600}
+            />
+          </InstrumentFigure>
+          <span className="mt-2.5 block text-[0.8125rem] leading-relaxed text-muted-foreground">
+            {me.overdue > 0
+              ? `${me.overdue} also past ${me.overdue === 1 ? "its" : "their"} date`
+              : "nothing is late"}
           </span>
-          <span className="mt-auto border-t border-current/20 pt-2">
-            <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
-              Due today
-            </span>
-            <span className="mt-0.5 block text-tiny font-medium opacity-70">
-              {me.overdue > 0
-                ? `${me.overdue} also past their date`
-                : "nothing is late"}
-            </span>
-          </span>
-        </Link>
+        </InstrumentCard>
       </StaggerItem>
 
+      {/* ── Done this week ─────────────────────────────────────────────── */}
       <StaggerItem lift className="min-h-0 @3xl:col-start-3 @3xl:row-start-2">
-        <Link
+        <InstrumentCard
+          label="Done — 7 days"
+          tag="LOG"
           href="/dashboard/my-work"
-          className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-pink p-4 text-signal-ink"
+          className="p-5"
         >
-          <span className="flex items-center gap-3">
-            <span className="font-title block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
-              <Counter
-                value={doneThisWeek}
-                places={placesFor(doneThisWeek)}
-                fontSize={36}
-                padding={2}
-                fontWeight={700}
-              />
-            </span>
+          <InstrumentFigure className="text-[2.75rem]">
+            <Counter
+              value={doneThisWeek}
+              places={placesFor(doneThisWeek)}
+              fontSize={44}
+              padding={3}
+              fontWeight={600}
+            />
+          </InstrumentFigure>
+          <span className="mt-2.5 block text-[0.8125rem] leading-relaxed text-muted-foreground">
+            completed across {activeDays} {activeDays === 1 ? "day" : "days"}
           </span>
-          <span className="mt-auto border-t border-current/20 pt-2">
-            <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
-              Done this week
-            </span>
-            <span className="mt-0.5 block text-tiny font-medium opacity-70">
-              completed · last 7 days
-            </span>
-          </span>
-        </Link>
+          {/* One cell per day, lit where anything shipped — the week you can
+              read at a glance. */}
+          <InstrumentSegbar
+            lit={Array.from({ length: 7 }, (_, i) => (week[i] ?? 0) > 0)}
+            tone="green"
+            className="mt-3"
+          />
+        </InstrumentCard>
       </StaggerItem>
-
     </Stagger>
   );
 }
