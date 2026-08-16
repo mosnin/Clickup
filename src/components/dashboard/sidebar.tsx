@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { AnimatedBadge } from "@/components/beui/animated-badge";
 import { useEffect, useMemo, useState } from "react";
 import { UserButton } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
@@ -430,8 +431,19 @@ function InboxMenuItem() {
         </Link>
       </SidebarMenuButton>
       {unread > 0 && (
-        <SidebarMenuBadge className="ink-coin">
-          {unread > 99 ? "99+" : unread}
+        // SidebarMenuBadge keeps the rail positioning; inside it, the beui
+        // badge makes a CHANGING count roll to its new value with a blur
+        // instead of teleporting — arriving work is visible arriving.
+        <SidebarMenuBadge className="p-0">
+          <AnimatedBadge
+            status="neutral"
+            size="sm"
+            showIcon={false}
+            contentKey={unread}
+            className="ink-coin h-5 border-0 px-1.5"
+          >
+            {unread > 99 ? "99+" : unread}
+          </AnimatedBadge>
         </SidebarMenuBadge>
       )}
     </SidebarMenuItem>

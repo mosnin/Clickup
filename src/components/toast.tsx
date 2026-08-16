@@ -10,6 +10,7 @@ import {
 } from "react";
 import { CheckCircle2, Info, X, XCircle } from "lucide-react";
 import { AnimatePresence, motion, SPRING } from "@/components/motion";
+import { uiSound } from "@/lib/sound";
 
 // App-wide toast system. One stack, bottom-center, popover-surface pills —
 // the same voice everywhere. Two jobs:
@@ -82,6 +83,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         action: options?.action,
         onExpire: options?.onExpire,
       };
+      // The toast is the app's one feedback channel, so it carries the voice:
+      // a refusal gets the descending error buzz, everything else the
+      // near-subliminal whisper (gain 0.025 — felt more than heard). Actions
+      // that deserve their own fuller sound play it at the call site and this
+      // whisper disappears under it.
+      uiSound(item.kind === "error" ? "error" : "whisper");
       setToasts((cur) => {
         // Stack caps at 3: anything evicted must still run its deferred
         // commit — silently dropping an undo-delete toast would leave the
@@ -121,9 +128,20 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               key={t.id}
               layout
               initial={{ opacity: 0, y: 16, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
+              // The Amicro error shake: a refusal arrives and SHAKES ITS
+              // HEAD, which reads across the room where a red icon needs a
+              // second look. Successes keep the plain rise.
+              animate={
+                t.kind === "error"
+                  ? { opacity: 1, y: 0, scale: 1, x: [0, -10, 10, -8, 8, -4, 4, 0] }
+                  : { opacity: 1, y: 0, scale: 1 }
+              }
               exit={{ opacity: 0, y: 8, scale: 0.97 }}
-              transition={SPRING}
+              transition={
+                t.kind === "error"
+                  ? { ...SPRING, x: { duration: 0.5 } }
+                  : SPRING
+              }
               className="pointer-events-auto flex max-w-md items-center gap-2.5 rounded-lg border border-border bg-popover py-2 pl-4 pr-2 text-sm text-popover-foreground shadow-lg"
             >
               {t.kind === "success" ? (

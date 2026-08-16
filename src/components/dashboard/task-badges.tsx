@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc } from "@convex/_generated/dataModel";
+import { Tooltip } from "@/components/beui/tooltip";
 
 // Compact inline badges shown next to task titles in List/Board views so
 // humans can see agent-collaboration state (claimed / blocked / awaiting
@@ -88,41 +89,51 @@ export function TaskBadges({ task }: { task: Doc<"tasks"> }) {
   return (
     <span className="ml-1 inline-flex items-center gap-1 align-middle">
       {task.claimedByActorId && (
-        <span title="Claimed, someone is actively working on this">
+        <Tooltip content="Claimed — someone is actively working on this">
+        <span>
           <Lock
             className="h-3 w-3 text-amber-700 dark:text-amber-500"
             aria-hidden
           />
         </span>
+        </Tooltip>
       )}
       {blocked && (
-        <span title="Blocked by other open task(s)">
+        <Tooltip content="Blocked by other open tasks">
+        <span>
           <Link2
             className="h-3 w-3 text-red-600 dark:text-red-500"
             aria-hidden
           />
         </span>
+        </Tooltip>
       )}
       {awaitingApproval && (
-        <span title="Needs human approval before completion">
+        <Tooltip content="Needs your approval before completion">
+        <span>
           <ShieldAlert className="h-3 w-3 text-brand-500" aria-hidden />
         </span>
+        </Tooltip>
       )}
       {/* Finished, and one click from landing. Without this a task an agent
           completed yesterday sorts and renders exactly like untouched work,
           so scanning a board cannot tell you where the fleet actually got to. */}
       {finished && (
-        <span title="An agent finished this — waiting for your go-ahead">
+        <Tooltip content="An agent finished this — waiting for your go-ahead">
+        <span>
           <PackageCheck className="h-3 w-3 text-brand-500" aria-hidden />
         </span>
+        </Tooltip>
       )}
       {/* Held: withheld from the dispatcher until somebody looks. The one
           state where a task looks completely normal and is guaranteed not to
           move, which is how a person concludes the fleet has stopped. */}
       {held && (
-        <span title="Held after repeated failure — agents will not pick this up">
+        <Tooltip content="Held after repeated failure — agents will not pick this up">
+        <span>
           <TriangleAlert className="h-3 w-3 text-danger" aria-hidden />
         </span>
+        </Tooltip>
       )}
     </span>
   );

@@ -13,6 +13,7 @@ import { Monogram } from "@/components/dashboard/monogram";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { useToast } from "@/components/toast";
+import { uiSound } from "@/lib/sound";
 import { EASE, motion } from "@/components/motion";
 import {
   extractMentionedClerkIds,
@@ -539,6 +540,7 @@ function Composer({
           mentionClerkIds,
         });
       } else {
+        uiSound("send");
         await create({
           parentType,
           parentId,

@@ -7,6 +7,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { EASE, SPRING } from "@/components/motion";
 import { LiveNumber } from "@/components/dashboard/live-number";
 import { timeAgo } from "@/lib/time";
+import { TextShimmer } from "@/components/beui/text-shimmer";
 import { cn } from "@/lib/utils";
 
 // The run, unfolding.
@@ -60,9 +61,12 @@ export function RunTheater({ taskId }: { taskId: Id<"tasks"> }) {
                 exit={{ opacity: 0, y: -3 }}
                 transition={{ duration: 0.2, ease: EASE }}
                 aria-live="polite"
-                className="mt-1.5 text-xs italic text-muted-foreground"
+                className="mt-1.5 text-xs italic"
               >
-                {run.lastNarration}
+                {/* The beui thinking shimmer: light travels along the words
+                    while the agent works, so "live" is visible in the line
+                    itself rather than asserted by a dot next to it. */}
+                <TextShimmer duration={2.2}>{run.lastNarration}</TextShimmer>
               </motion.p>
             )}
           </AnimatePresence>

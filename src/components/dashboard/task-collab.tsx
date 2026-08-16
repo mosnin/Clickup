@@ -16,6 +16,7 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { Picker } from "@/components/ui/picker";
 import { Monogram } from "@/components/dashboard/monogram";
@@ -23,6 +24,7 @@ import { InlineCreate } from "@/components/dashboard/inline-create";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
+import { uiSound, type UiSoundName } from "@/lib/sound";
 import { AnimatedBar, AnimatePresence, EASE, motion } from "@/components/motion";
 import { errorMessage } from "@/lib/errors";
 
@@ -55,9 +57,16 @@ export function TaskBanners({
 
   // Every banner action can be refused server-side (e.g. a claim race:
   // "Task is already claimed") — surface the reason instead of swallowing.
-  async function run(fn: () => Promise<unknown>, fallback: string) {
+  // `confirmSound` plays only on SUCCESS: a sound is a receipt, and a receipt
+  // for a refused mutation is a lie (the error toast carries its own sound).
+  async function run(
+    fn: () => Promise<unknown>,
+    fallback: string,
+    confirmSound?: UiSoundName,
+  ) {
     try {
       await fn();
+      if (confirmSound) uiSound(confirmSound);
     } catch (e) {
       toast(errorMessage(e, fallback), { kind: "error" });
     }
@@ -133,6 +142,7 @@ export function TaskBanners({
                     () =>
                       decideEffect({ ids: [handback.id], decision: "approve" }),
                     "Couldn't approve this",
+                    "success",
                   )
                 }
               >
@@ -248,6 +258,7 @@ export function TaskBanners({
               void run(
                 () => approve({ taskId: task._id }),
                 "Couldn't approve this task",
+                "save",
               )
             }
           >
@@ -726,17 +737,19 @@ export function TaskChecklist({ task }: { task: Doc<"tasks"> }) {
               transition={{ duration: 0.3, ease: EASE }}
               className="flex items-center gap-2 overflow-hidden"
             >
-              <input
-                type="checkbox"
+              {/* The upgraded house checkbox: the tick draws itself in and
+                  the press has spring weight — this is the highest-frequency
+                  control on the page. It carries the check sound itself. */}
+              <Checkbox
                 checked={item.done}
-                onChange={() =>
+                aria-label={item.text}
+                onCheckedChange={() =>
                   commit(
                     items.map((i) =>
                       i.id === item.id ? { ...i, done: !i.done } : i,
                     ),
                   )
                 }
-                className="h-4 w-4 rounded border-border"
               />
               <span
                 className={cn(

@@ -26,8 +26,10 @@ import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { parseQuickAdd } from "@/lib/quick-add";
 import { setTheme } from "@/components/theme-toggle";
+import { soundsEnabled, setSoundsEnabled, uiSound } from "@/lib/sound";
 import { useToast } from "@/components/toast";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
+import { SPRING_LAYOUT } from "@/lib/motion-tokens";
 import { errorMessage } from "@/lib/errors";
 import { capCommandPaletteItems } from "@/lib/command-palette-items";
 import { userSpacesFromTree } from "@/lib/user-spaces";
@@ -97,12 +99,16 @@ export function CommandPalette() {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setOpen((v) => !v);
+        setOpen((v) => {
+          if (!v) uiSound("whisper");
+          return !v;
+        });
         setQuery("");
         setCreateTitle(null);
       }
     }
     function onOpenEvent() {
+      uiSound("whisper");
       setOpen(true);
       setQuery("");
       setCreateTitle(null);
@@ -475,6 +481,21 @@ export function CommandPalette() {
         },
       })),
       {
+        key: "toggle-sounds",
+        group: "Actions",
+        // Same register as the theme switch: the palette is where per-machine
+        // preferences live. The label states the action, not the state — and
+        // turning sounds on answers in its own medium.
+        label: soundsEnabled()
+          ? "Sounds: turn interface sounds off"
+          : "Sounds: turn interface sounds on",
+        icon: Sparkles,
+        run: () => {
+          setSoundsEnabled(!soundsEnabled());
+          close();
+        },
+      },
+      {
         key: "theme-light",
         group: "Actions",
         label: "Theme: light",
@@ -714,10 +735,24 @@ export function CommandPalette() {
                         onClick={() => item.run()}
                         onMouseMove={() => setHighlight(i)}
                         className={cn(
-                          "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm",
-                          i === highlight && "bg-accent text-accent-foreground",
+                          "relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm",
+                          i === highlight && "text-accent-foreground",
                         )}
                       >
+                        {/* One highlight that GLIDES between rows (the fluid-
+                            functionalism magnetic-highlight idea) instead of a
+                            background that teleports. Keyboard and mouse both
+                            drive `highlight`, so they can never disagree —
+                            and the moving pill shows the path your arrow keys
+                            are taking. */}
+                        {i === highlight && (
+                          <motion.span
+                            layoutId="palette-highlight"
+                            transition={SPRING_LAYOUT}
+                            aria-hidden
+                            className="absolute inset-0 -z-10 rounded-lg bg-accent"
+                          />
+                        )}
                         {Icon ? (
                           <Icon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                         ) : null}

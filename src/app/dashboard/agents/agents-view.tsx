@@ -9,7 +9,6 @@ import {
   Activity,
   Bot,
   BookOpen,
-  Copy,
   KeyRound,
   Pause,
   Play,
@@ -20,6 +19,7 @@ import {
   Webhook,
 } from "lucide-react";
 import { api } from "@convex/_generated/api";
+import { CopyButton } from "@/components/dashboard/copy-button";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
@@ -693,14 +693,14 @@ function CreateAgentForm({
         </div>
         <div className="flex items-center gap-2 rounded-xl bg-muted p-3">
           <code className="min-w-0 flex-1 break-all text-xs">{connect.key}</code>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => navigator.clipboard.writeText(connect.key)}
-          >
-            <Copy className="h-3 w-3" /> Copy key
-          </Button>
+          {/* The copy morph confirms in place — glyph flips to a check,
+              label says Copied, double-tick sounds, reverts on its own. */}
+          <CopyButton
+            value={connect.key}
+            label="Copy key"
+            iconClassName="h-3 w-3"
+            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-medium hover:bg-accent"
+          />
         </div>
         <ConnectSnippet apiKey={connect.key} />
         <div className="flex justify-end">
@@ -1044,14 +1044,10 @@ function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
             <code className="flex-1 break-all rounded bg-muted px-2 py-1">
               {freshKey}
             </code>
-            <button
-              type="button"
-              onClick={() => navigator.clipboard.writeText(freshKey)}
+            <CopyButton
+              value={freshKey}
               className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-emerald-700 hover:bg-emerald-100 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
-              title="Copy"
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </button>
+            />
           </div>
         </motion.div>
       )}

@@ -34,6 +34,7 @@ import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { parseQuickAdd } from "@/lib/quick-add";
 import { QuickAddChips } from "@/components/dashboard/quick-add-chips";
 import { useToast } from "@/components/toast";
+import { uiSound } from "@/lib/sound";
 import { AnimatePresence, EASE, motion } from "@/components/motion";
 import {
   BUILTIN_FIELDS,
@@ -915,6 +916,7 @@ function TaskRow({
           onClick={async () => {
             try {
               await toggleComplete({ taskId: task._id });
+              uiSound(isDone ? "tap" : "check_on");
             } catch (err) {
               const raw = err instanceof Error ? err.message : String(err);
               const msg = raw
@@ -1158,6 +1160,7 @@ function ChildTaskRow({
           onClick={async () => {
             try {
               await toggleComplete({ taskId: task._id });
+              uiSound(isDone ? "tap" : "check_on");
             } catch (err) {
               const raw = err instanceof Error ? err.message : String(err);
               const msg = raw

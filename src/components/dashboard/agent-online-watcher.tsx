@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useToast } from "@/components/toast";
+import { uiSound } from "@/lib/sound";
 
 // Watches agent presence app-wide (mounted once in the dashboard layout)
 // and celebrates the moment an agent authenticates for the very first time —
@@ -22,6 +23,9 @@ export function AgentOnlineWatcher() {
     if (prev) {
       for (const a of all) {
         if (a.lastSeenAt !== undefined && prev.get(a._id) === false) {
+          // The one moment worth a chime: first contact from a machine you
+          // just hired. Reconnects stay silent along with their toasts.
+          uiSound("chime");
           toast(`${a.name} is online, first connection!`, {
             duration: 6000,
           });
