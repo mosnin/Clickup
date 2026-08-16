@@ -4116,9 +4116,9 @@ html {
 .nf-segbar i {
   flex: 1;
   background: #242424;
-  transform: scale(0.3);
-  opacity: 0;
-  animation: nf-seg-in 0.3s var(--nf-ease-back) forwards;
+}
+[data-nf-live] .nf-segbar i {
+  animation: nf-seg-in 0.3s var(--nf-ease-back) backwards;
 }
 .nf-segbar i.on {
   background: var(--nf-primary);
@@ -4186,8 +4186,16 @@ html {
   display: block;
   border-radius: 2px;
   background: #1c1c1c;
-  transform: scale(0);
-  animation: nf-cell-slam 0.38s var(--nf-ease-back) forwards;
+  transition: background 0.5s var(--nf-ease);
+}
+[data-nf-live] .nf-contrib-grid i {
+  animation: nf-cell-slam 0.38s var(--nf-ease-back) backwards;
+}
+/* The reference's glimmer: a random cell flashes white and fades back —
+   the grid reads as measuring something rather than as a picture. */
+.nf-contrib-grid i.glim {
+  background: #fff;
+  transition: background 0.12s var(--nf-ease);
 }
 .nf-contrib-grid i.l1 {
   background: #1e3526;
@@ -4289,13 +4297,8 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .nf-shine.play,
   .nf-led,
-  .nf-segbar i,
-  .nf-contrib-grid i {
+  [data-nf-live] .nf-segbar i,
+  [data-nf-live] .nf-contrib-grid i {
     animation: none;
-  }
-  .nf-segbar i,
-  .nf-contrib-grid i {
-    transform: scale(1);
-    opacity: 1;
   }
 }
