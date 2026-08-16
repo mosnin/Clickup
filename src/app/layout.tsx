@@ -37,6 +37,18 @@ const spaceGrotesk = localFont({
   display: "swap",
 });
 
+// Doto (OFL) — the dot-matrix numeral face for the marketing instrument
+// bento. Subset to ASCII (a dot-matrix glyph is a grid of composite dots, so
+// the whole variable file is 3.4KB) and bundled locally like every other
+// face: no runtime font-CDN request. Figures only — it is a display voice,
+// not a reading one.
+const doto = localFont({
+  src: [{ path: "./fonts/Doto-Latin.woff2" }],
+  weight: "100 900",
+  variable: "--font-doto",
+  display: "swap",
+});
+
 // Darker Grotesque (OFL) — kept for readers who chose it. Two subsets of the
 // variable file (latin + latin-ext), bundled locally for the same reason as
 // above: no runtime font-CDN request, no layout shift from a third-party
@@ -105,7 +117,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${instrumentSans.variable} ${spaceGrotesk.variable} ${darkerGrotesque.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${instrumentSans.variable} ${spaceGrotesk.variable} ${darkerGrotesque.variable} ${doto.variable}`}>
       <head>
         {/* Resolve the theme before first paint so there's no flash. The
             toggle writes localStorage "theme" = dark | light. DARK is the

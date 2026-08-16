@@ -3904,3 +3904,398 @@ html {
 [data-reveal-02] {
   visibility: hidden;
 }
+
+/* ── The instrument bento (marketing feature cards) ──────────────────────
+   Ported from the founder's reference (m1ckc3s/nullframe): the Nothing
+   design language — #111 cards on black with #222 hairlines, uppercase
+   mono meta-rows, hover-revealed tags, a one-shot shimmer sweep, pulsing
+   LEDs, dot-matrix numerals (Doto, vendored + subset), segmented bars, a
+   green contribution grid, and a dotted-grid hero. Values are the
+   reference's own; namespaced `nf-` because the app already has a `.card`.
+   The mono voice is a system stack rather than Space Mono — nothing loads
+   from a CDN, and at 9–12px uppercase the difference is a rumor. */
+.nf-bento {
+  --nf-surface: #111;
+  --nf-raised: #1a1a1a;
+  --nf-border: #222;
+  --nf-border-visible: #333;
+  --nf-disabled: #666;
+  --nf-secondary: #999;
+  --nf-primary: #e8e8e8;
+  --nf-display: #fff;
+  --nf-orange: #f26522;
+  --nf-red: #d71921;
+  --nf-green: #4a9e5c;
+  --nf-mono: ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
+  --nf-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --nf-ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: 200px 200px 185px;
+  gap: 10px;
+  color: var(--nf-primary);
+}
+.nf-card {
+  position: relative;
+  overflow: hidden;
+  background: var(--nf-surface);
+  border: 1px solid var(--nf-border);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.2s ease-out;
+}
+.nf-card:hover {
+  border-color: var(--nf-border-visible);
+}
+.nf-shine {
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  left: -140px;
+  width: 110px;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(255, 255, 255, 0.04) 35%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.04) 65%,
+    transparent
+  );
+  transform: skewX(-14deg);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.nf-shine.play {
+  animation: nf-shimmer 1.05s var(--nf-ease) forwards;
+}
+@keyframes nf-shimmer {
+  0% {
+    left: -140px;
+    opacity: 1;
+  }
+  100% {
+    left: 110%;
+    opacity: 0;
+  }
+}
+.nf-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font: 400 11px/1.5 var(--nf-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nf-secondary);
+}
+.nf-tag {
+  margin-left: auto;
+  font: 700 9px/1 var(--nf-mono);
+  letter-spacing: 0.12em;
+  color: var(--nf-disabled);
+  opacity: 0;
+  transition: opacity 0.25s var(--nf-ease);
+}
+.nf-card:hover .nf-tag,
+.nf-tag.always {
+  opacity: 1;
+}
+.nf-mono-sub {
+  font: 400 11px/1.6 var(--nf-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nf-secondary);
+}
+.nf-dim {
+  color: var(--nf-disabled);
+}
+.nf-led {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--nf-orange);
+  animation: nf-pulse 2.4s var(--nf-ease) infinite;
+  flex: none;
+}
+.nf-led.red {
+  background: var(--nf-red);
+  width: 7px;
+  height: 7px;
+  animation-duration: 1.6s;
+}
+@keyframes nf-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.18;
+  }
+}
+.nf-hero {
+  grid-column: 1 / 3;
+  grid-row: 1 / 3;
+  justify-content: space-between;
+  background-image: radial-gradient(circle, #1d1d1d 1.1px, transparent 1.1px);
+  background-size: 16px 16px;
+  background-position: 8px 8px;
+}
+.nf-doto {
+  font-family: var(--font-doto), monospace;
+  font-weight: 400;
+  font-size: 108px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--nf-display);
+  font-variant-numeric: tabular-nums;
+}
+.nf-doto-sub {
+  font-family: var(--font-doto), monospace;
+  font-weight: 400;
+  font-size: 34px;
+  color: var(--nf-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.nf-doto-val {
+  font-family: var(--font-doto), monospace;
+  font-weight: 400;
+  font-size: 58px;
+  line-height: 1;
+  color: var(--nf-display);
+  margin-top: 10px;
+}
+.nf-doto-val small {
+  font-size: 20px;
+  font-weight: 400;
+  vertical-align: super;
+  color: var(--nf-secondary);
+  margin-left: 3px;
+}
+.nf-metric {
+  font: 700 36px/1 var(--nf-mono);
+  letter-spacing: -0.02em;
+  color: var(--nf-display);
+  margin-top: 14px;
+}
+.nf-metric small {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--nf-secondary);
+  margin-left: 5px;
+}
+.nf-metric + .nf-mono-sub {
+  margin-top: 8px;
+}
+.nf-day {
+  font: 500 26px/1.2 var(--font-space-grotesk), sans-serif;
+  letter-spacing: -0.01em;
+  color: var(--nf-display);
+}
+.nf-status {
+  max-width: 240px;
+  min-height: 36px;
+}
+.nf-hero-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+}
+.nf-segbar {
+  display: flex;
+  gap: 3px;
+  height: 12px;
+  margin-top: auto;
+}
+.nf-segbar i {
+  flex: 1;
+  background: #242424;
+  transform: scale(0.3);
+  opacity: 0;
+  animation: nf-seg-in 0.3s var(--nf-ease-back) forwards;
+}
+.nf-segbar i.on {
+  background: var(--nf-primary);
+}
+.nf-segbar.green i.on {
+  background: var(--nf-green);
+}
+.nf-segbar.orange i.on {
+  background: var(--nf-orange);
+}
+@keyframes nf-seg-in {
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.nf-ring-wrap {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  margin: 2px auto;
+}
+.nf-ring-wrap svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.nf-ring-bg {
+  fill: none;
+  stroke: #272727;
+  stroke-width: 6.5;
+}
+.nf-ring-fg {
+  fill: none;
+  stroke: var(--nf-orange);
+  stroke-width: 6.5;
+  transition: stroke-dashoffset 0.5s var(--nf-ease);
+}
+.nf-ring-val {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 30px/1 var(--font-space-grotesk), sans-serif;
+  letter-spacing: -0.01em;
+  color: var(--nf-display);
+}
+.nf-ring-val small {
+  font: 400 11px/1 var(--nf-mono);
+  color: var(--nf-secondary);
+  margin-left: 5px;
+  transform: translateY(9px);
+}
+.nf-contrib-grid {
+  flex: 1;
+  display: grid;
+  gap: 3px;
+  margin: 12px 0 10px;
+  min-height: 0;
+  align-content: center;
+  justify-content: center;
+}
+.nf-contrib-grid i {
+  display: block;
+  border-radius: 2px;
+  background: #1c1c1c;
+  transform: scale(0);
+  animation: nf-cell-slam 0.38s var(--nf-ease-back) forwards;
+}
+.nf-contrib-grid i.l1 {
+  background: #1e3526;
+}
+.nf-contrib-grid i.l2 {
+  background: #2c5639;
+}
+.nf-contrib-grid i.l3 {
+  background: #3f8a50;
+}
+.nf-contrib-grid i.l4 {
+  background: #62c878;
+}
+@keyframes nf-cell-slam {
+  60% {
+    transform: scale(1.35);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+.nf-feed-rows {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  overflow: hidden;
+  font: 400 12px/1.5 var(--nf-mono);
+  letter-spacing: 0.04em;
+  color: var(--nf-primary);
+}
+.nf-feed-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+.nf-feed-row .nf-dim {
+  flex: none;
+}
+.nf-wide {
+  grid-column: span 2;
+}
+@media (max-width: 940px) {
+  .nf-bento {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: none;
+    grid-auto-rows: 190px;
+    grid-auto-flow: dense;
+  }
+  .nf-hero {
+    grid-column: 1 / 3;
+    grid-row: span 2;
+  }
+  .nf-wide {
+    grid-column: 1 / 3;
+  }
+  .nf-doto {
+    font-size: 96px;
+  }
+}
+@media (max-width: 520px) {
+  .nf-bento {
+    gap: 8px;
+    grid-auto-rows: 180px;
+  }
+  .nf-card {
+    padding: 18px;
+    border-radius: 14px;
+  }
+  .nf-doto {
+    font-size: 78px;
+  }
+  .nf-doto-sub {
+    font-size: 26px;
+  }
+  .nf-day {
+    font-size: 20px;
+  }
+  .nf-status {
+    max-width: 170px;
+  }
+  .nf-doto-val {
+    font-size: 48px;
+  }
+  .nf-metric {
+    font-size: 30px;
+  }
+  /* The 110px ring plus a two-line meta plus the caption measured 198px in
+     a 180px card — the caption clipped mid-word. */
+  .nf-ring-wrap {
+    width: 88px;
+    height: 88px;
+  }
+  .nf-ring-val {
+    font-size: 24px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nf-shine.play,
+  .nf-led,
+  .nf-segbar i,
+  .nf-contrib-grid i {
+    animation: none;
+  }
+  .nf-segbar i,
+  .nf-contrib-grid i {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

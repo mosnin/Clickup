@@ -12,20 +12,25 @@ import {
 import GradientText from "@/components/gradient-text";
 import { cn } from "@/lib/utils";
 
-// Feature card grid — five live product surfaces rather than a description of
-// them: the agent console, the automation engine, the custom-field editor,
-// the approval gate and the template library, each rendered as the real chrome
-// it wears in the app.
+// Feature card grid — the instrument bento, rebuilt in the founder's
+// reference language (m1ckc3s/nullframe: the Nothing design aesthetic).
+// Every card is an instrument reading off the fleet rather than a
+// description of a feature: uppercase mono meta-rows, hover-revealed tags,
+// dot-matrix numerals, a pulsing LED, segmented bars, a contribution grid
+// and an append-only feed row — the industrial panel a design engineer
+// would run a fleet from.
 //
-// Motion has two layers:
-//   • Entrance — every [data-card] rises in on scroll (GSAP, staggered), and
-//     the console types itself out the first time it lands in view.
-//   • Ambient — the CSS loops in globals.css (shimmer / breathe / glowPulse /
-//     floatSlow / caret / typing-dots) keep the cards alive afterwards.
-// Both respect prefers-reduced-motion; the CSS block disables its loops and
-// useGsap never runs the callback, leaving every card in its final state.
-
-const ACCENT = "linear-gradient(45deg,#06b6d4,#3b82f6,#2563eb)";
+// The five features it replaces are still all here, wearing gauges:
+// the agent console is the hero (mission control), the automation engine
+// is the runs counter, the approval gate is the red-LED queue, and the
+// custom-field editor / template library slots became the two claims this
+// page actually leads with — budget ceilings (x402) and the hosted MCP —
+// plus the shipped-grid and event feed, which are the observability story.
+//
+// Styles live in globals.css under `nf-` (values ported from the
+// reference, namespaced because the app already owns `.card`). Numerals
+// are Doto, vendored + subset to 3.4KB. Reduced motion: the CSS block
+// zeroes every loop and useGsap leaves the cards in final state.
 
 /** Types `text` out one character at a time, once, when it scrolls into view. */
 function Typewriter({
@@ -80,65 +85,258 @@ function Typewriter({
   );
 }
 
-/** A meter that animates from 0 to `value`% the first time it's seen. */
-function Meter({ value, className }: { value: number; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(() => value);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || prefersReducedMotion()) return;
-    setWidth(0);
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((e) => e.isIntersecting)) return;
-        observer.disconnect();
-        requestAnimationFrame(() => setWidth(value));
-      },
-      { threshold: 0.6 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [value]);
+/**
+ * One instrument. The reference's card shell: meta-row header (label left,
+ * optional right info, tag that appears on hover), a one-shot shimmer sweep
+ * on first hover, and whatever the instrument reads below.
+ */
+function Card({
+  label,
+  right,
+  tag,
+  tagAlways = false,
+  className,
+  children,
+}: {
+  label: React.ReactNode;
+  right?: React.ReactNode;
+  tag?: string;
+  tagAlways?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [shining, setShining] = useState(false);
 
   return (
     <div
-      ref={ref}
-      className={cn(
-        "h-1 w-14 overflow-hidden rounded-full bg-white/10",
-        className,
-      )}
+      data-card
+      className={cn("nf-card", className)}
+      onMouseEnter={() => {
+        if (!prefersReducedMotion() && !shining) setShining(true);
+      }}
     >
-      <div
-        className="meter-fill h-full rounded-full"
-        style={{ width: `${width}%`, backgroundImage: ACCENT }}
+      <span
+        aria-hidden
+        className={cn("nf-shine", shining && "play")}
+        onAnimationEnd={() => setShining(false)}
       />
+      <div className="nf-meta">
+        <span>{label}</span>
+        {right}
+        {tag && <span className={cn("nf-tag", tagAlways && "always")}>{tag}</span>}
+      </div>
+      {children}
     </div>
   );
 }
 
-/** Agent identity mark — the app's orb, not a stock photo. */
-function Orb({
-  hue,
-  className,
-  delay,
+/** A segmented bar with `on` of `total` lit, staggered in like the reference. */
+function Segbar({
+  on,
+  total = 14,
+  tone,
 }: {
-  hue: number;
-  className?: string;
-  delay?: string;
+  on: number;
+  total?: number;
+  tone?: "green" | "orange";
 }) {
   return (
-    <span
-      aria-hidden
-      className={cn(
-        "inline-block shrink-0 rounded-full ring-1 ring-white/15 animate-floatSlow",
-        className,
-      )}
-      style={{
-        animationDelay: delay,
-        backgroundImage: `radial-gradient(circle at 32% 28%, hsl(${hue} 92% 72%), hsl(${hue + 22} 78% 44%) 62%, hsl(${hue + 40} 70% 26%))`,
-      }}
-    />
+    <div className={cn("nf-segbar", tone)} aria-hidden>
+      {Array.from({ length: total }, (_, i) => (
+        <i
+          key={i}
+          className={i < on ? "on" : undefined}
+          style={{ animationDelay: `${i * 0.03}s` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ── Hero: mission control (the agent console) ────────────────────────────
+
+function MissionControlCard() {
+  return (
+    <Card
+      label={
+        <span className="inline-flex items-center gap-2">
+          <span className="nf-led" /> Fleet — mission control
+        </span>
+      }
+      tag="LIVE"
+      tagAlways
+      className="nf-hero"
+    >
+      {/* The pair is its own baseline-aligned row, CENTERED by the outer
+          flex — putting self-end on the sub inside the stretched outer row
+          sent "+3" to the bottom of a 400px card, detached from its figure. */}
+      <div className="flex flex-1 items-center justify-center">
+        <div className="flex items-end gap-4">
+          <span className="nf-doto">08</span>
+          <span className="nf-doto-sub pb-3">+3</span>
+        </div>
+      </div>
+      <div className="nf-hero-foot">
+        <div>
+          <p className="nf-day">Agents on shift</p>
+          <p className="nf-mono-sub">Sprint 14 · day 3 · plus three humans</p>
+        </div>
+        <p className="nf-mono-sub nf-status text-right">
+          <Typewriter text="scout → claiming OPS-114 · release the sprint" />
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+// ── Runs (the automation engine) ─────────────────────────────────────────
+
+function RunsCard() {
+  return (
+    <Card label="Runs — today" tag="24H">
+      <p className="nf-metric">
+        142<small>DONE</small>
+      </p>
+      <p className="nf-mono-sub">
+        Claim → build → hand back.
+        <br />
+        Every step on the record.
+      </p>
+      <Segbar on={9} tone="green" />
+    </Card>
+  );
+}
+
+// ── Spend ceiling (x402 budgets) ─────────────────────────────────────────
+
+function SpendCard() {
+  // r=46 → circumference 2πr ≈ 289. 41% spent.
+  const C = 289;
+  const pct = 41;
+  return (
+    <Card label="Spend — ceiling" tag="CAP">
+      <div className="nf-ring-wrap">
+        <svg viewBox="0 0 110 110" aria-hidden>
+          <circle className="nf-ring-bg" cx="55" cy="55" r="46" />
+          <circle
+            className="nf-ring-fg"
+            cx="55"
+            cy="55"
+            r="46"
+            strokeDasharray={C}
+            strokeDashoffset={C - (C * pct) / 100}
+          />
+        </svg>
+        <span className="nf-ring-val">
+          {pct}
+          <small>%</small>
+        </span>
+      </div>
+      <p className="nf-mono-sub text-center">Stops at 100</p>
+    </Card>
+  );
+}
+
+// ── Approvals (the human gate) ───────────────────────────────────────────
+
+function ApprovalsCard() {
+  return (
+    <Card
+      label={
+        <span className="inline-flex items-center gap-2">
+          <span className="nf-led red" /> Approvals
+        </span>
+      }
+      tag="GATED"
+      tagAlways
+    >
+      <p className="nf-doto-val">03</p>
+      <p className="nf-mono-sub">
+        Waiting on you.
+        <br />
+        One click to land it.
+      </p>
+    </Card>
+  );
+}
+
+// ── Hosted MCP ───────────────────────────────────────────────────────────
+
+function McpCard() {
+  return (
+    <Card label="MCP — hosted" tag="1 URL">
+      <p className="nf-metric">
+        184<small>TOOLS</small>
+      </p>
+      <p className="nf-mono-sub">
+        One endpoint · any runtime.
+        <br />
+        Claude, GPT, or your own.
+      </p>
+      <Segbar on={12} />
+    </Card>
+  );
+}
+
+// ── Shipped grid (12 weeks of completed work) ────────────────────────────
+
+// Seeded, not random: a render must equal its hydration or React warns.
+const CELLS = Array.from({ length: 7 * 12 }, (_, i) => {
+  const x = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+  const v = x - Math.floor(x);
+  return v < 0.28 ? 0 : v < 0.5 ? 1 : v < 0.72 ? 2 : v < 0.9 ? 3 : 4;
+});
+
+function ShippedCard() {
+  return (
+    <Card label="Shipped — last 12 weeks" tag="SIM" className="nf-wide">
+      <div
+        className="nf-contrib-grid"
+        // 10px cells: 7 rows at 14px measured 116px tall and overflowed the
+        // 185px card straight over its own label and caption.
+        style={{
+          gridTemplateColumns: "repeat(12, 10px)",
+          gridTemplateRows: "repeat(7, 10px)",
+          gridAutoFlow: "column",
+        }}
+        aria-hidden
+      >
+        {CELLS.map((level, i) => (
+          <i
+            key={i}
+            className={level > 0 ? `l${level}` : undefined}
+            style={{ animationDelay: `${(i % 12) * 0.04}s` }}
+          />
+        ))}
+      </div>
+      <p className="nf-mono-sub">
+        Tasks, not tokens <span className="nf-dim">· agents and humans on one graph</span>
+      </p>
+    </Card>
+  );
+}
+
+// ── Event feed (the append-only log) ─────────────────────────────────────
+
+const EVENTS = [
+  { text: "scout finished billing-migration — awaiting go-ahead", when: "4M" },
+  { text: "ada approved deploy-runbook", when: "12M" },
+  { text: "budget notice · fleet at 80% of daily ceiling", when: "1H" },
+  { text: "triage claimed OPS-114", when: "2H" },
+];
+
+function FeedCard() {
+  return (
+    <Card label="Events — append-only" tag="LOG" className="nf-wide">
+      <div className="nf-feed-rows">
+        {EVENTS.map((event) => (
+          <div key={event.text} className="nf-feed-row">
+            <span className="truncate">{event.text}</span>
+            <span className="nf-dim">{event.when}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
   );
 }
 
@@ -146,13 +344,14 @@ export function FeatureCards() {
   const ref = useGsap(({ root }) => {
     gsap.fromTo(
       root.querySelectorAll("[data-card]"),
-      { autoAlpha: 0, y: 26 },
+      { autoAlpha: 0, y: 22, scale: 0.93 },
       {
         autoAlpha: 1,
         y: 0,
+        scale: 1,
         duration: DUR.base,
         ease: EASE_OUT,
-        stagger: 0.09,
+        stagger: 0.07,
         scrollTrigger: { trigger: root, start: "top 78%" },
       },
     );
@@ -173,398 +372,16 @@ export function FeatureCards() {
           </p>
         </div>
 
-        <div
-          ref={ref}
-          className="mx-auto mt-12 grid w-full grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-        >
-          <AgentConsoleCard />
-          <AutomationCard />
-          <FieldsCard />
-          <ApprovalCard />
-          <TemplatesCard />
+        <div ref={ref} className="nf-bento mx-auto mt-12 max-w-[1120px]">
+          <MissionControlCard />
+          <RunsCard />
+          <SpendCard />
+          <ApprovalsCard />
+          <McpCard />
+          <ShippedCard />
+          <FeedCard />
         </div>
       </Container>
     </section>
-  );
-}
-
-/** Shared card shell: lifted charcoal, hairline ring, inner sheen + glow. */
-function Card({
-  className,
-  glow,
-  children,
-}: {
-  className?: string;
-  /** Outer bloom radius/opacity — the big card carries a stronger one. */
-  glow: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      data-card
-      className={cn(
-        "relative overflow-hidden rounded-2xl bg-neutral-900/60 ring-1 ring-white/10 backdrop-blur transition-transform duration-300 hover:-translate-y-1.5",
-        className,
-      )}
-    >
-      <div
-        aria-hidden
-        className="shimmer pointer-events-none absolute inset-0 rounded-2xl"
-        style={{ boxShadow: glow }}
-      />
-      {children}
-    </div>
-  );
-}
-
-function CardHead({
-  title,
-  body,
-  chip,
-}: {
-  title: string;
-  body: string;
-  chip?: React.ReactNode;
-}) {
-  return (
-    <>
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
-          {title}
-        </h3>
-        {chip}
-      </div>
-      <p className="mt-1 text-sm text-neutral-400">{body}</p>
-    </>
-  );
-}
-
-// ── 1. Agent console (spans two columns) ─────────────────────────────────
-
-function AgentConsoleCard() {
-  return (
-    <Card
-      className="lg:col-span-2"
-      glow="inset 0 0 0 1px rgba(255,255,255,0.06), 0 40px 120px rgba(37,99,235,0.18)"
-    >
-      <div className="p-5 sm:p-6">
-        <CardHead
-          title="Agent console"
-          body="Brief an agent the way you'd brief a teammate. It executes through MCP."
-        />
-
-        <div className="relative mt-4 overflow-hidden rounded-2xl bg-zinc-950/80 ring-1 ring-white/10">
-          {/* header */}
-          <div className="flex items-center justify-between border-b border-white/5 px-4 py-2.5">
-            <span className="inline-flex items-center gap-2 rounded-full bg-blue-900/30 px-3 py-0.5 text-tiny text-blue-200 ring-1 ring-blue-700">
-              <span className="h-1.5 w-1.5 animate-breathe rounded-full bg-blue-400" />
-              Working
-              <span className="typing-dots" aria-hidden>
-                <i />
-                <i />
-                <i />
-              </span>
-            </span>
-            <span className="text-tiny text-neutral-400">
-              atlas-01 · operate MCP
-            </span>
-          </div>
-
-          {/* messages */}
-          <div className="max-h-52 space-y-2 overflow-auto px-4 py-3">
-            <div className="flex items-start gap-2">
-              <Orb hue={205} className="h-6 w-6" />
-              <div className="max-w-[80%] rounded-xl bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 ring-1 ring-white/10">
-                Connected. 112 tools available on this workspace.
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <div
-                className="max-w-[80%] animate-glowPulse rounded-xl px-3 py-1.5 text-xs text-white ring-1 ring-blue-400"
-                style={{ backgroundImage: ACCENT }}
-              >
-                Take the checkout retry fix — approval before it ships.
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2">
-              <Orb hue={205} className="h-6 w-6" delay=".1s" />
-              <div className="max-w-[80%] overflow-hidden rounded-xl bg-neutral-900 ring-1 ring-white/10">
-                <div className="border-b border-white/5 px-3 py-1.5 text-tiny text-neutral-400">
-                  Tool call · claim_task
-                </div>
-                <pre className="whitespace-pre-wrap px-3 py-2 font-mono text-tiny leading-5 text-neutral-300">
-                  <Typewriter text={'claim_task({ task: "OPS-241", ttl: "60m" })'} />
-                </pre>
-                <div className="flex items-center gap-2 border-t border-white/5 px-3 py-1.5 text-tiny">
-                  <span className="h-1.5 w-1.5 animate-breathe rounded-full bg-cyan-300" />
-                  <span className="text-neutral-400">
-                    Claimed · approval gate raised
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* composer */}
-          <div className="flex items-center gap-2 border-t border-white/5 px-4 py-2.5">
-            <div className="flex flex-1 items-center gap-2 rounded-full bg-neutral-900 px-3 py-1.5 text-xs text-neutral-400 ring-1 ring-white/10">
-              <svg
-                aria-hidden
-                className="w-3.5 animate-tilt"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              <span className="flex-1 truncate text-neutral-500">
-                Message your agent…
-              </span>
-            </div>
-            <span
-              className="animate-glowPulse rounded-full px-3 py-1.5 text-xs text-white ring-1 ring-blue-400"
-              style={{ backgroundImage: ACCENT }}
-            >
-              Dispatch
-            </span>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-// ── 2. Automations ───────────────────────────────────────────────────────
-
-function AutomationCard() {
-  return (
-    <Card glow="inset 0 0 0 1px rgba(255,255,255,0.05), 0 24px 70px rgba(37,99,235,0.12)">
-      <div className="p-4 sm:p-5">
-        <CardHead
-          title="Automations"
-          body="Rules that fire inside the same transaction as the change."
-          chip={
-            <span className="inline-flex shrink-0 animate-breathe items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-tiny text-blue-200 ring-1 ring-blue-500/40">
-              3 actions
-            </span>
-          }
-        />
-
-        <div className="mt-4 overflow-hidden rounded-xl bg-zinc-950/80 ring-1 ring-white/10">
-          <div className="flex items-center gap-1.5 bg-neutral-900/70 px-3 py-2">
-            <span className="h-2 w-2 animate-breathe rounded-full bg-rose-500/80" />
-            <span
-              className="h-2 w-2 animate-breathe rounded-full bg-amber-400/80"
-              style={{ animationDelay: ".1s" }}
-            />
-            <span
-              className="h-2 w-2 animate-breathe rounded-full bg-emerald-500/80"
-              style={{ animationDelay: ".2s" }}
-            />
-            <span className="caret ml-3 text-tiny text-neutral-400">
-              on task created
-            </span>
-          </div>
-          <div className="p-3 font-mono text-tiny leading-5">
-            <pre className="whitespace-pre-wrap">
-              <span className="text-neutral-500">01</span>{" "}
-              <span className="text-neutral-400">{"// before"}</span>
-              {"\n"}
-              <span className="text-neutral-500">02</span>{" "}
-              <span className="rounded bg-rose-500/10 px-1 text-rose-300">
-                - unassigned, no due date
-              </span>
-              {"\n"}
-              <span className="text-neutral-500">03</span>{" "}
-              <span className="text-neutral-400">{"// after"}</span>
-              {"\n"}
-              <span className="text-neutral-500">04</span>{" "}
-              <span className="rounded bg-emerald-500/10 px-1 text-emerald-300">
-                + assign → atlas-01
-              </span>
-              {"\n"}
-              <span className="text-neutral-500">05</span>{" "}
-              <span className="rounded bg-emerald-500/10 px-1 text-emerald-300">
-                + due → in 3 days
-              </span>
-            </pre>
-          </div>
-          <div className="flex items-center justify-between border-t border-white/5 px-3 py-2 text-tiny">
-            <div className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-400" />
-              <span className="text-neutral-400">Live on this list</span>
-            </div>
-            <Meter value={72} />
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-// ── 3. Custom fields ─────────────────────────────────────────────────────
-
-const FIELD_TYPES = [
-  { label: "Money", active: true },
-  { label: "Rating", active: false },
-  { label: "Formula", active: false },
-];
-
-function FieldsCard() {
-  return (
-    <Card glow="inset 0 0 0 1px rgba(255,255,255,0.05), 0 30px 80px rgba(37,99,235,0.10)">
-      <div className="p-4 sm:p-5">
-        <CardHead
-          title="Custom fields"
-          body="Twenty field types, validated once and shared with the agent API."
-        />
-
-        <div className="mt-4 rounded-xl bg-zinc-950/80 p-3 ring-1 ring-white/10">
-          <p className="mb-2 text-tiny uppercase tracking-wide text-blue-200">
-            Field type
-          </p>
-          <div className="grid grid-cols-[1fr_auto] items-center gap-3">
-            <div className="space-y-2">
-              {FIELD_TYPES.map((type) => (
-                <div
-                  key={type.label}
-                  className={cn(
-                    "flex items-center gap-2",
-                    !type.active && "opacity-70",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "h-2 w-2 rounded-full",
-                      type.active
-                        ? "animate-breathe bg-blue-400"
-                        : "bg-white/20",
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      "text-sm",
-                      type.active ? "text-white" : "text-neutral-300",
-                    )}
-                  >
-                    {type.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="relative h-20 w-8 overflow-hidden rounded-lg bg-white/5 ring-1 ring-white/10">
-              <div className="absolute left-1/2 top-1.5 h-[90%] w-1 -translate-x-1/2 rounded-full bg-white/10" />
-              <div className="absolute bottom-3 left-1/2 h-4 w-4 -translate-x-1/2 animate-floatSlow rounded-full bg-blue-400 ring-1 ring-blue-300" />
-            </div>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-white/5 px-2 py-1 text-tiny text-neutral-300 ring-1 ring-white/10">
-              Rollup
-            </span>
-            <span className="rounded-full bg-white/5 px-2 py-1 text-tiny text-neutral-300 ring-1 ring-white/10">
-              Formula
-            </span>
-            <span className="animate-breathe rounded-full bg-blue-500/10 px-2 py-1 text-tiny text-blue-200 ring-1 ring-blue-400/50">
-              Currency: USD
-            </span>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-// ── 4. Approvals ─────────────────────────────────────────────────────────
-
-function ApprovalCard() {
-  return (
-    <Card glow="inset 0 0 0 1px rgba(255,255,255,0.05), 0 30px 80px rgba(37,99,235,0.10)">
-      <div className="p-4 sm:p-5">
-        <CardHead
-          title="Approval gates"
-          body="Agents can raise a gate. Only a human can lower it."
-        />
-
-        <div className="mt-4 rounded-xl bg-zinc-950/80 p-3 ring-1 ring-white/10">
-          <div className="flex items-center gap-2">
-            <Orb hue={205} className="h-6 w-6" />
-            <Orb hue={158} className="-ml-2 h-6 w-6" delay=".1s" />
-            <span className="ml-1 truncate text-xs text-neutral-400">
-              atlas-01 · scout-02
-            </span>
-            <span className="ml-auto shrink-0 animate-breathe rounded-full bg-emerald-500/10 px-2 py-0.5 text-tiny text-emerald-300 ring-1 ring-emerald-500/40">
-              2 waiting
-            </span>
-          </div>
-
-          <div className="mt-3 rounded-lg bg-neutral-900 p-3 text-sm text-neutral-200 ring-1 ring-white/10">
-            Checklist is 4/4 and blockers cleared — requesting sign-off on{" "}
-            <span className="text-blue-300">OPS-241</span>.
-          </div>
-
-          <div className="mt-3 flex items-center gap-2">
-            <span className="flex-1 rounded-full bg-white/5 px-3 py-1.5 text-center text-xs text-neutral-200 ring-1 ring-white/10">
-              Send back
-            </span>
-            <span
-              className="flex-1 animate-glowPulse rounded-full px-3 py-1.5 text-center text-xs text-white ring-1 ring-blue-400"
-              style={{ backgroundImage: ACCENT }}
-            >
-              Approve
-            </span>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-// ── 5. Template library ──────────────────────────────────────────────────
-
-const TEMPLATES = [
-  { name: "Two-week sprint", meta: "Statuses · fields · ceremonies", cta: "Add" },
-  { name: "Product launch", meta: "Docs · milestones · roadmap", cta: "Use" },
-];
-
-function TemplatesCard() {
-  return (
-    <Card glow="inset 0 0 0 1px rgba(255,255,255,0.05), 0 30px 80px rgba(37,99,235,0.10)">
-      <div className="p-4 sm:p-5">
-        <CardHead
-          title="Template library"
-          body="Spin up a whole space — lists, statuses, fields, sample work."
-        />
-
-        <div className="mt-4 space-y-2">
-          {TEMPLATES.map((template, i) => (
-            <div
-              key={template.name}
-              className="flex items-center gap-3 rounded-xl bg-zinc-950/80 p-3 ring-1 ring-white/10"
-            >
-              <div
-                aria-hidden
-                className="h-10 w-10 shrink-0 animate-floatSlow rounded-lg bg-gradient-to-br from-blue-500/25 to-cyan-400/10 ring-1 ring-white/10"
-                style={{ animationDelay: `${i * 0.08}s` }}
-              />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm text-neutral-200">
-                  {template.name}
-                </p>
-                <p className="truncate text-tiny text-neutral-500">
-                  {template.meta}
-                </p>
-              </div>
-              <span className="shrink-0 animate-breathe rounded-full bg-blue-900/30 px-2 py-0.5 text-tiny text-blue-200 ring-1 ring-blue-700">
-                {template.cta}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </Card>
   );
 }
