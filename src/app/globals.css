@@ -4344,6 +4344,11 @@ html {
   display: flex;
   gap: 3px;
   height: 10px;
+  /* Never the crumple zone: in a squeezed flex column the one fixed-height
+     decorative item is what shrink sacrifices first — the week bar measured
+     0px tall inside a card whose content ran 34px over. If a card is too
+     full, the overflow must be visible so somebody fixes the CARD. */
+  flex: none;
 }
 .inst-segbar i {
   flex: 1;

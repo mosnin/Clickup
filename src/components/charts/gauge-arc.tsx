@@ -67,11 +67,15 @@ export function GaugeArc({
             "0 of nothing" asserts a reading that doesn't exist. */}
         {max > 0 && (
           <>
+            {/* Foreground/card rather than literal white/ink: the white knob
+                was tuned on the dark slab and measured 1.00:1 — invisible —
+                on the light theme's white card. Foreground IS white in dark,
+                so the shipped look survives untouched. */}
             <circle
               cx={knobX}
               cy={knobY}
               r={9}
-              fill="#fff"
+              fill="var(--color-foreground)"
               opacity={armed ? 1 : 0}
               style={{ transition: "opacity 0.3s ease 0.7s" }}
             />
@@ -79,7 +83,7 @@ export function GaugeArc({
               cx={knobX}
               cy={knobY}
               r={3.5}
-              fill="var(--color-signal-ink)"
+              fill="var(--color-card)"
               opacity={armed ? 1 : 0}
               style={{ transition: "opacity 0.3s ease 0.7s" }}
             />

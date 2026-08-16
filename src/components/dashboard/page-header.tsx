@@ -138,7 +138,7 @@ export function PageHeader({
             // The only way to the sidebar below `md`, so it keeps a real
             // 44px-class target — drawn as one of the capsule's circular
             // controls rather than as an invisible halo.
-            className="-ml-2 flex size-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-foreground md:hidden"
+            className="tap-target -ml-2 flex size-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-foreground md:hidden"
           >
             <Menu className="size-4" aria-hidden />
           </button>
@@ -208,7 +208,7 @@ export function CapsuleCluster() {
       <Link
         href="/dashboard/inbox"
         aria-label={unread > 0 ? `Inbox, ${unread} unread` : "Inbox"}
-        className="relative flex size-9 items-center justify-center rounded-full bg-background text-foreground transition-colors hover:bg-muted"
+        className="tap-target relative flex size-9 items-center justify-center rounded-full bg-background text-foreground transition-colors hover:bg-muted"
       >
         <Bell aria-hidden className="size-4" />
         {unread > 0 && (

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useMeasure from "react-use-measure";
 import { useUser } from "@clerk/nextjs";
@@ -562,7 +562,7 @@ export default function DashboardHome() {
             >
               {customizing ? "Done" : "Customise"}
             </button>
-            <Button size="sm" className="h-9 gap-1.5" onClick={openCommandPalette}>
+            <Button size="sm" className="tap-target h-9 gap-1.5" onClick={openCommandPalette}>
               <Plus className="size-4" />
               <span className="hidden sm:inline">New task</span>
             </Button>
@@ -815,6 +815,30 @@ function StatsCards({
   const doneThisWeek = week.reduce((a, b) => a + b, 0);
   const activeDays = week.filter((v) => v > 0).length;
 
+  // Armed = the cards have scrolled into view. Figures mount at zero and
+  // ROLL UP to their real values on arrival (the odometer's spring carries
+  // it; reduced motion jumps straight there), and each card fires one
+  // staggered shine sweep — the entrance performs where somebody is
+  // looking, never three viewports above them.
+  const [armed, setArmed] = useState(false);
+  const armRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = armRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setArmed(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.3 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  const shown = (n: number) => (armed ? n : 0);
+
   return (
     // The instrument bento (founder direction: the nullframe card language,
     // inside the app, with room to breathe). Same three-column geometry and
@@ -824,13 +848,15 @@ function StatsCards({
     // ONE human sentence per card in normal case. The signal palette
     // retreats to the marks that mean something: an LED that only lights
     // when work is overdue, a green bar of days.
+    <div ref={armRef} className="h-full">
     <Stagger className="grid h-full grid-cols-2 grid-rows-2 gap-6 @3xl:grid-cols-3">
       {/* ── The headline instrument ────────────────────────────────────── */}
       <StaggerItem lift className="col-span-2 row-span-2 min-h-0">
         <InstrumentCard
           label="My work"
           tag={me.open > 0 ? "OPEN" : "CLEAR"}
-          tagAlways
+          armed={armed}
+          index={0}
           href="/dashboard/my-work"
           footer={
             nextTask ? (
@@ -856,9 +882,9 @@ function StatsCards({
             )
           }
         >
-          <InstrumentFigure className="text-[4.5rem]">
+          <InstrumentFigure value={me.open} className="text-[4.5rem]">
             <Counter
-              value={me.open}
+              value={shown(me.open)}
               places={placesFor(me.open)}
               fontSize={72}
               padding={4}
@@ -879,20 +905,22 @@ function StatsCards({
           // actually past its date.
           led={me.overdue > 0 ? "orange" : undefined}
           tag={me.overdue > 0 ? "LATE" : "ON TIME"}
-          tagAlways
+          armed={armed}
+          index={1}
           href="/dashboard/my-work"
-          className="p-5"
+          className="p-4"
+          contentClassName="justify-center py-2"
         >
-          <InstrumentFigure className="text-[2.75rem]">
+          <InstrumentFigure value={me.dueToday} className="text-[2.5rem]">
             <Counter
-              value={me.dueToday}
+              value={shown(me.dueToday)}
               places={placesFor(me.dueToday)}
-              fontSize={44}
+              fontSize={40}
               padding={3}
               fontWeight={600}
             />
           </InstrumentFigure>
-          <span className="mt-2.5 block text-[0.8125rem] leading-relaxed text-muted-foreground">
+          <span className="mt-2 block text-[0.8125rem] leading-snug text-muted-foreground">
             {me.overdue > 0
               ? `${me.overdue} also past ${me.overdue === 1 ? "its" : "their"} date`
               : "nothing is late"}
@@ -905,31 +933,36 @@ function StatsCards({
         <InstrumentCard
           label="Done — 7 days"
           tag="LOG"
+          armed={armed}
+          index={2}
           href="/dashboard/my-work"
-          className="p-5"
+          className="p-4"
+          contentClassName="justify-center py-2"
         >
-          <InstrumentFigure className="text-[2.75rem]">
+          <InstrumentFigure value={doneThisWeek} className="text-[2.5rem]">
             <Counter
-              value={doneThisWeek}
+              value={shown(doneThisWeek)}
               places={placesFor(doneThisWeek)}
-              fontSize={44}
+              fontSize={40}
               padding={3}
               fontWeight={600}
             />
           </InstrumentFigure>
-          <span className="mt-2.5 block text-[0.8125rem] leading-relaxed text-muted-foreground">
+          <span className="mt-2 block text-[0.8125rem] leading-snug text-muted-foreground">
             completed across {activeDays} {activeDays === 1 ? "day" : "days"}
           </span>
           {/* One cell per day, lit where anything shipped — the week you can
               read at a glance. */}
           <InstrumentSegbar
-            lit={Array.from({ length: 7 }, (_, i) => (week[i] ?? 0) > 0)}
+            lit={Array.from({ length: 7 }, (_, i) => armed && (week[i] ?? 0) > 0)}
             tone="green"
-            className="mt-3"
+            className="mt-2.5"
+            label={`work shipped on ${activeDays} of the last 7 days`}
           />
         </InstrumentCard>
       </StaggerItem>
     </Stagger>
+    </div>
   );
 }
 
@@ -1264,7 +1297,7 @@ function ProjectCards({
                   <Link
                     href={`/dashboard/l/${project.listId}`}
                     aria-label={`Open ${project.name}`}
-                    className="flex size-9 items-center justify-center rounded-full bg-card text-foreground transition-colors hover:bg-muted"
+                    className="tap-target flex size-9 items-center justify-center rounded-full bg-card text-foreground transition-colors hover:bg-muted"
                   >
                     <ArrowUpRight aria-hidden className="size-4" />
                   </Link>
