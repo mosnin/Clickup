@@ -156,7 +156,7 @@ export function StackedColumns({
               )}
             </div>
             <div
-              className="mt-2 max-w-full truncate text-micro text-muted-foreground"
+              className="mt-2 max-w-full truncate font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground"
               title={item.label}
             >
               {item.label}
@@ -170,7 +170,7 @@ export function StackedColumns({
           style={{ height }}
         >
           <div
-            className="mt-2 shrink-0 whitespace-nowrap text-micro text-muted-foreground"
+            className="mt-2 shrink-0 whitespace-nowrap font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground"
             title={`${hiddenCount} more`}
           >
             +{hiddenCount} more

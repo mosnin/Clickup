@@ -26,9 +26,12 @@ import {
 } from "@/components/motion";
 import Counter, { placesFor } from "@/components/counter";
 import {
+  INSTRUMENT_META,
   InstrumentCard,
   InstrumentFigure,
+  InstrumentHeader,
   InstrumentSegbar,
+  InstrumentShine,
 } from "@/components/dashboard/instrument-card";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { InviteCards } from "@/components/dashboard/invite-cards";
@@ -1008,14 +1011,14 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
 
   return (
     <div className="flex h-full min-w-0 flex-col">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
-        <h3 className="text-base font-medium">Today&apos;s tasks</h3>
-        {dueTasks.length > 0 && (
-          <span className="text-xs text-muted-foreground">
-            {dueTasks.length} of {rows?.length ?? 0} open
-          </span>
-        )}
-      </div>
+      <InstrumentHeader
+        label={<h3 className="contents">Today&apos;s tasks</h3>}
+        tag={
+          dueTasks.length > 0
+            ? `${dueTasks.length} of ${rows?.length ?? 0}`
+            : undefined
+        }
+      />
       {rows === undefined ? (
         <div className="divide-y divide-border">
           {[0, 1, 2].map((i) => (
@@ -1101,7 +1104,10 @@ function TodaysTasks({ rows }: { rows: MyWorkRows | undefined }) {
       )}
       <Link
         href="/dashboard/my-work"
-        className="mt-auto flex items-center justify-between gap-2 border-t border-border px-5 py-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        className={cn(
+          INSTRUMENT_META,
+          "mt-auto flex items-center justify-between gap-2 border-t border-border px-5 py-3.5 font-medium text-muted-foreground transition-colors hover:text-foreground",
+        )}
       >
         Open my work
         <ArrowRight aria-hidden className="size-3.5" />
@@ -1152,10 +1158,10 @@ function PulsePanel({
   });
   return (
     <div className="flex h-full min-w-0 flex-col">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
-        <h3 className="text-base font-medium">Pulse</h3>
-        <span className="text-xs text-muted-foreground">last 7 days</span>
-      </div>
+      <InstrumentHeader
+        label={<h3 className="contents">Pulse</h3>}
+        tag="Last 7 days"
+      />
       <div className="grid min-h-0 flex-1 items-center gap-6 p-4 @xl:grid-cols-[minmax(10rem,1fr)_2fr]">
         <GaugeArc
           value={done}
@@ -1167,7 +1173,7 @@ function PulsePanel({
           <StackedColumns items={columns} height={116} />
           {/* The key, in the same four colours. A multicolour chart with no
               key is a mood; with one it is a reading. */}
-          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-micro text-muted-foreground @md:flex @md:flex-wrap @md:items-center">
+          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 font-mono text-micro uppercase tracking-[0.08em] text-muted-foreground @md:flex @md:flex-wrap @md:items-center">
             {(
               [
                 ["done", "var(--color-signal-lime)"],
@@ -1195,7 +1201,7 @@ function HealthChip({ status }: { status: Project["projectStatus"] }) {
   const chip = status ? HEALTH_CHIP[status] : null;
   if (!chip) return <span className="text-sm text-muted-foreground">—</span>;
   return (
-    <span className="ui-chip inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-tiny font-medium">
+    <span className="ui-chip inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 font-mono text-micro font-medium uppercase tracking-[0.08em]">
       <span aria-hidden className={cn("size-1.5 rounded-full", chip.dot)} />
       {chip.label}
     </span>
@@ -1255,13 +1261,37 @@ function ProjectCards({
     urgent === undefined
       ? pool
       : [urgent, ...pool.filter((p) => p !== urgent)];
+
+  // Same arm-on-view contract as the stat instruments: each card fires one
+  // staggered shine sweep when the section scrolls into reading distance.
+  const [armed, setArmed] = useState(false);
+  const armRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = armRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setArmed(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.2 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   return (
-    <section className="flex h-full min-w-0 flex-col">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <section ref={armRef} className="flex h-full min-w-0 flex-col">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
         <h2 className="font-title text-xl font-bold tracking-tight">Projects</h2>
         <Link
           href="/dashboard/projects"
-          className="ui-chip rounded-full px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+          className={cn(
+            INSTRUMENT_META,
+            "tap-target font-medium text-muted-foreground transition-colors hover:text-foreground",
+          )}
         >
           View all {totalProjects}
         </Link>
@@ -1304,6 +1334,7 @@ function ProjectCards({
                 }
                 className="h-full"
               >
+                <InstrumentShine armed={armed} index={index} />
                 <div className="grid grid-cols-[1fr_auto]">
                   <div className="min-w-0 p-4 pr-2">
                     {/* Clears the notch: the title starts below the scoop's
@@ -1311,7 +1342,13 @@ function ProjectCards({
                     <p className="line-clamp-2 pr-10 font-title text-base font-bold leading-snug">
                       {project.name}
                     </p>
-                    <p className={cn("mt-1 truncate text-xs", lime ? "opacity-60" : "text-muted-foreground")}>
+                    <p
+                      className={cn(
+                        INSTRUMENT_META,
+                        "mt-1.5 truncate",
+                        lime ? "opacity-60" : "text-muted-foreground",
+                      )}
+                    >
                       {project.place}
                     </p>
                     <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -1319,12 +1356,17 @@ function ProjectCards({
                         <HealthChip status={project.projectStatus} />
                       )}
                       {project.overdue > 0 && (
-                        <span className="ui-chip px-2 py-0.5 text-tiny font-medium">
+                        <span className="ui-chip px-2 py-1 font-mono text-micro font-medium uppercase tracking-[0.08em]">
                           {project.overdue} overdue
                         </span>
                       )}
                       {project.targetDate !== undefined && (
-                        <span className={cn("ui-chip ui-figure px-2 py-0.5 text-tiny", !lime && "text-muted-foreground")}>
+                        <span
+                          className={cn(
+                            "ui-chip px-2 py-1 font-mono text-micro uppercase tracking-[0.08em]",
+                            !lime && "text-muted-foreground",
+                          )}
+                        >
                           {formatDate(project.targetDate)}
                         </span>
                       )}
@@ -1338,19 +1380,39 @@ function ProjectCards({
                       "flex min-w-[6.5rem] flex-col items-center justify-start border-l px-3 pb-4 pt-14",
                       lime ? "border-current/15" : "border-border",
                     )}>
-                    <span className="font-title whitespace-nowrap text-2xl font-bold leading-none tracking-tight">
+                    {/* The dot-matrix figure, same face as the stat
+                        instruments — plain glyphs, so unlike the odometer it
+                        needs no sr-only twin. */}
+                    <span
+                      className="whitespace-nowrap text-[1.75rem] leading-none"
+                      style={{
+                        fontFamily: "var(--font-doto), monospace",
+                        fontWeight: 600,
+                      }}
+                    >
                       {project.done}
-                      <span className="text-sm font-semibold opacity-50">
+                      <span className="text-sm opacity-50">
                         /{project.total}
                       </span>
                     </span>
-                    <span className={cn("mt-1 text-micro font-medium uppercase tracking-wider", lime ? "opacity-60" : "text-muted-foreground")}>
+                    <span
+                      className={cn(
+                        INSTRUMENT_META,
+                        "mt-1.5 font-medium",
+                        lime ? "opacity-60" : "text-muted-foreground",
+                      )}
+                    >
                       done
                     </span>
                   </div>
                 </div>
                 <div className={cn("flex items-center justify-between gap-3 border-t px-4 py-2.5", lime ? "border-current/15" : "border-border")}>
-                  <span className={cn("text-tiny", lime ? "opacity-60" : "text-muted-foreground")}>
+                  <span
+                    className={cn(
+                      INSTRUMENT_META,
+                      lime ? "opacity-60" : "text-muted-foreground",
+                    )}
+                  >
                     active {timeAgo(project.lastActivityAt)}
                   </span>
                   <Link
@@ -1377,9 +1439,12 @@ function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
   const visible = ticker.slice(0, 7);
   return (
     <div className="flex h-full min-w-0 flex-col">
-      <div className="border-b border-border px-5 py-3.5">
-        <h3 className="text-base font-medium">Live</h3>
-      </div>
+      {/* The LED earns its light here the way it does on Due today: it
+          pulses only while there is actually activity to read. */}
+      <InstrumentHeader
+        label={<h3 className="contents">Live</h3>}
+        led={visible.length > 0 ? "lime" : undefined}
+      />
       {/* Fills the tile and scrolls when shrunk — the same contract as every
           other block, so a resized tile never shows a dead band below rows. */}
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -1427,14 +1492,24 @@ function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
                         <span className="block group-hover:underline">
                           {body}
                         </span>
-                        <span className="block text-xs text-muted-foreground">
+                        <span
+                          className={cn(
+                            INSTRUMENT_META,
+                            "mt-1 block text-muted-foreground",
+                          )}
+                        >
                           {timeAgo(e.createdAt)}
                         </span>
                       </Link>
                     ) : (
                       <>
                         <span>{body}</span>
-                        <span className="block text-xs text-muted-foreground">
+                        <span
+                          className={cn(
+                            INSTRUMENT_META,
+                            "mt-1 block text-muted-foreground",
+                          )}
+                        >
                           {timeAgo(e.createdAt)}
                         </span>
                       </>
@@ -1451,11 +1526,14 @@ function LiveFeed({ ticker }: { ticker: TickerItem[] }) {
 }
 
 function AgentsCard({ agents }: { agents: Overview["agents"] }) {
+  const online = agents.filter((a) => a.online).length;
   const card = (
     <div className="flex h-full min-w-0 flex-col">
-      <div className="border-b border-border px-5 py-3.5">
-        <h3 className="text-base font-medium">Agents online</h3>
-      </div>
+      <InstrumentHeader
+        label={<h3 className="contents">Agents</h3>}
+        led={online > 0 ? "lime" : undefined}
+        tag={agents.length > 0 ? `${online} online` : undefined}
+      />
       {/* Own scroll region + bottom padding clearing the resize grip's
           corner, so the last row is read, not bisected. */}
       <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-8">

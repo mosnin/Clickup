@@ -26,9 +26,105 @@ import { cn } from "@/lib/utils";
 //   the odometer renders all ten digits per place, so without this a
 //   screen reader announced the card as digit soup.
 
-/** The mono voice for meta-rows and tags. */
-const MONO =
+/** The mono voice for meta-rows and tags. Exported so the blocks that share
+ * the grid with these cards (headers, footers, timestamps) speak it too —
+ * two cards side by side in two voices was the mismatch this fixes. */
+export const INSTRUMENT_META =
   "font-mono text-[0.6875rem] uppercase leading-none tracking-[0.1em]";
+const MONO = INSTRUMENT_META;
+
+type Led = "orange" | "red" | "lime";
+
+function LedDot({ led }: { led: Led }) {
+  return (
+    <span
+      className={cn(
+        "inst-led",
+        led === "orange" && "bg-[#f26522]",
+        led === "red" && "bg-[#d71921]",
+        led === "lime" && "bg-signal-lime",
+      )}
+    />
+  );
+}
+
+/** One arm-time shine, staggered by position, re-armable on demand. */
+function useShine(armed: boolean, index: number) {
+  const [shining, setShining] = useState(false);
+  useEffect(() => {
+    if (!armed || prefersReducedMotion()) return;
+    const t = setTimeout(() => setShining(true), 400 + index * 140);
+    return () => clearTimeout(t);
+  }, [armed, index]);
+  return [shining, setShining] as const;
+}
+
+/**
+ * The instrument meta-row as a header band, for blocks that live inside a
+ * styled surface rather than drawing their own card (Today's tasks, Pulse,
+ * Live…). Same anatomy as the card's first row: mono label, optional LED,
+ * optional always-visible tag.
+ */
+export function InstrumentHeader({
+  label,
+  led,
+  tag,
+  className,
+}: {
+  label: React.ReactNode;
+  led?: Led;
+  tag?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-baseline justify-between gap-3 border-b border-border px-5 py-4",
+        className,
+      )}
+    >
+      {/* div, not span: callers pass an <h3 className="contents"> for the
+          landmark, and a heading inside a span is invalid nesting. */}
+      <div className={cn(MONO, "flex items-center gap-2 text-muted-foreground")}>
+        {led && <LedDot led={led} />}
+        {label}
+      </div>
+      {tag != null && tag !== "" && (
+        <span className={cn(MONO, "font-bold tracking-[0.12em] text-muted-foreground")}>
+          {tag}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A self-clipping shine sweep for cards that own their surface some other
+ * way (the project notch cards). The wrapper clips to the parent's radius so
+ * the band never paints outside a rounded corner, and it carries no z-index
+ * of its own — the notch's scoop squares come later in the DOM, so the sweep
+ * passes under the scoop the way light would.
+ */
+export function InstrumentShine({
+  armed,
+  index = 0,
+}: {
+  armed: boolean;
+  index?: number;
+}) {
+  const [shining, setShining] = useShine(armed, index);
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
+    >
+      <span
+        className={cn("inst-shine", shining && "play")}
+        onAnimationEnd={() => setShining(false)}
+      />
+    </span>
+  );
+}
 
 export function InstrumentCard({
   label,
@@ -44,7 +140,7 @@ export function InstrumentCard({
 }: {
   label: React.ReactNode;
   /** A pulsing status dot beside the label — only when it MEANS something. */
-  led?: "orange" | "red" | "lime";
+  led?: Led;
   tag?: string;
   /** Renders the card as a link when set. */
   href?: string;
@@ -59,16 +155,10 @@ export function InstrumentCard({
   /** Position among sibling cards; staggers the arm-time sweep. */
   index?: number;
 }) {
-  const [shining, setShining] = useState(false);
-
   // One sweep as the cards arrive (staggered by position) — on touch there
   // is no hover, and the sweep is half the language's character. Hover
   // re-fires it on desktop.
-  useEffect(() => {
-    if (!armed || prefersReducedMotion()) return;
-    const t = setTimeout(() => setShining(true), 400 + index * 140);
-    return () => clearTimeout(t);
-  }, [armed, index]);
+  const [shining, setShining] = useShine(armed, index);
 
   const body = (
     <>
@@ -81,16 +171,7 @@ export function InstrumentCard({
         <span
           className={cn(MONO, "flex items-center gap-2 text-muted-foreground")}
         >
-          {led && (
-            <span
-              className={cn(
-                "inst-led",
-                led === "orange" && "bg-[#f26522]",
-                led === "red" && "bg-[#d71921]",
-                led === "lime" && "bg-signal-lime",
-              )}
-            />
-          )}
+          {led && <LedDot led={led} />}
           {label}
         </span>
         {tag && (

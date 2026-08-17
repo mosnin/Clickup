@@ -93,7 +93,12 @@ export function GaugeArc({
       {/* The figure sits in the arc's mouth — absolutely positioned over the
           svg so the number scales with the container, not the viewBox. */}
       <div className="absolute inset-x-0 bottom-0 flex flex-col items-center">
-        <span className="font-title text-4xl font-bold tabular-nums text-foreground">
+        {/* The dot-matrix face every instrument figure wears — plain glyphs,
+            fully readable, so no sr-only twin is needed here. */}
+        <span
+          className="text-4xl leading-none text-foreground"
+          style={{ fontFamily: "var(--font-doto), monospace", fontWeight: 600 }}
+        >
           {value}
         </span>
         {caption && (
