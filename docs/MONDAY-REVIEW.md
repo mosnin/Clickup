@@ -14,7 +14,7 @@ later iteration (deploy lag ~minutes).
 
 ## Queue (priority order, from the audit)
 
-1. [ ] **Showcase demo (critical)** — homepage frame shows live scratch-account
+1. [x] **Showcase demo (critical)** — homepage frame shows live scratch-account
    data ("Test — 0 of 1 task", "Chippi · HQ", "Personal · Personal") and an
    empty black frame on deep-link arrival. Fix: scripted, seeded showcase —
    real-looking project names, progress, an agent mid-run — rendered with real
@@ -74,3 +74,8 @@ later iteration (deploy lag ~minutes).
 ## Iteration log
 
 - 2026-08-18 (setup): doc created; loop armed; starting item 1.
+- 2026-08-18 (iter 1): item 1 shipped (006fc40). marketing-screens.mjs
+  regenerates hero-dashboard.png + home-showcase.png from seeded fixtures
+  (new projects-directory fixture; home ?hero=1 variant). Both PNGs now show
+  the current design over a company mid-flight. Verify on production next
+  iteration (Vercel deploy lag), then item 2.
