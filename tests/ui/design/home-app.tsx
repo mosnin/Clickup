@@ -360,15 +360,22 @@ galleryData["myWork.listForCurrent"] = [
   },
 ];
 
+// `?hero=1` is the marketing capture of this page (scripts/
+// marketing-screens.mjs): no invite banner, no waiting-to-connect card —
+// a working morning, not a first-run checklist. Every other shot keeps
+// both, because both are real states this page ships.
+const HERO = new URLSearchParams(window.location.search).has("hero");
+
 // One agent that has never checked in, so the "waiting to connect" card —
 // a real state of this page, and the only one with a border beam — renders.
+// (Checked in under ?hero=1, so the marketing capture shows a working day.)
 galleryData["agents.listForCurrentUser"] = {
   personal: [
     {
       _id: "a4",
       name: "Inbox zero",
       status: "active",
-      lastSeenAt: undefined,
+      lastSeenAt: HERO ? now - 3 * 60 * 1000 : undefined,
     },
   ],
   workspaces: [
@@ -384,14 +391,16 @@ galleryData["agents.listForCurrentUser"] = {
   ],
 };
 
-galleryData["invites.listForCurrentUser"] = [
-  {
-    _id: "i1",
-    workspaceName: "Northwind Platform",
-    invitedBy: "grace@northwind.example",
-    role: "admin",
-  },
-];
+galleryData["invites.listForCurrentUser"] = HERO
+  ? []
+  : [
+      {
+        _id: "i1",
+        workspaceName: "Northwind Platform",
+        invitedBy: "grace@northwind.example",
+        role: "admin",
+      },
+    ];
 
 // Two Homes, because they are two different screens and both ship.
 //

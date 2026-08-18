@@ -116,6 +116,9 @@ await build({
         // The other real canvas: the project screen, with its tray, its
         // builder and the two banners an agent can raise on it.
         project: join(SRC, "project.html"),
+        // The all-projects directory — also the source of the marketing
+        // showcase screenshot (scripts/marketing-screens.mjs).
+        projects: join(SRC, "projects.html"),
         // Every shape the one panel renderer can draw, in every state it can
         // be in — the surface that is reused most and had been photographed
         // least.
@@ -139,6 +142,7 @@ for (const page of [
   "home.html",
   "situation.html",
   "project.html",
+  "projects.html",
   "panels.html",
   "broken.html",
   "collab.html",
