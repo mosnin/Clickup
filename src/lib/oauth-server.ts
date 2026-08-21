@@ -519,10 +519,11 @@ export function oauthError(
 }
 
 /** GET probes of token/revoke/register used to 404 from the catch-all. */
-export function oauthPostOnly() {
+export function oauthPostOnly(request?: Request) {
   return oauthJson(
     { error: "invalid_request", error_description: "This endpoint accepts POST" },
     405,
     { Allow: "POST" },
+    request,
   );
 }

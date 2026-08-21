@@ -110,8 +110,8 @@ export async function POST(request: Request) {
 // Some agent runtimes probe an endpoint with GET before posting to it.
 // Answering with the method requirement is more useful than a 404 from the
 // catch-all, because the fix is one word in their request.
-export function GET() {
-  return oauthPostOnly();
+export function GET(request: Request) {
+  return oauthPostOnly(request);
 }
 
 export function OPTIONS(request: Request) {

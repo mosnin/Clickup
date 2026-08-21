@@ -837,6 +837,13 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(read("src/app/.well-known/webfinger/route.ts")).toContain(
       "oauthOptions",
     );
+    expect(read("src/app/oauth/route.ts")).toContain(
+      "export function GET(request: Request)",
+    );
+    expect(read("src/app/oauth/route.ts")).not.toContain("request?: Request");
+    expect(read("src/app/.well-known/webfinger/route.ts")).toContain(
+      "export function GET(request: Request)",
+    );
     expect(read("src/app/oauth/route.ts")).toContain("oauthDiscoveryMetadata");
     expect(read("src/app/oauth/route.ts")).toContain("oauthPostOnly");
     expect(read("src/app/oauth/token/route.ts")).toContain("inferGrantType");

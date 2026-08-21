@@ -7,7 +7,7 @@ import {
   oauthResource,
 } from "@/lib/oauth-server";
 
-export function GET(request?: Request) {
+export function GET(request: Request) {
   const issuer = oauthIssuer(request);
   const authorizationServers = officialAuthorizationServers(issuer);
   return oauthJson(

@@ -9,7 +9,7 @@ import {
  * before OpenID discovery. Point every resource at the www issuer —
  * the same document `/.well-known/openid-configuration` already serves.
  */
-export function GET(request?: Request) {
+export function GET(request: Request) {
   const issuer = oauthIssuer(request);
   const resource =
     (request && new URL(request.url).searchParams.get("resource")) || issuer;

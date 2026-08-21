@@ -216,8 +216,8 @@ export async function POST(request: Request) {
   }
 }
 
-export function GET() {
-  return oauthPostOnly();
+export function GET(request: Request) {
+  return oauthPostOnly(request);
 }
 
 export function OPTIONS(request: Request) {

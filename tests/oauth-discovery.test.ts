@@ -37,8 +37,11 @@ describe("public MCP OAuth discovery", () => {
   });
 
   it("publishes matching OAuth and OpenID metadata with UserInfo", async () => {
-    const oauth = await getOAuthMetadata().json();
-    const openid = await getOpenIdMetadata().json();
+    const discoveryRequest = new Request(
+      "https://www.operate.to/.well-known/oauth-authorization-server",
+    );
+    const oauth = await getOAuthMetadata(discoveryRequest).json();
+    const openid = await getOpenIdMetadata(discoveryRequest).json();
     expect(openid).toEqual(oauth);
     expect(oauth).toMatchObject({
       issuer: "https://www.operate.to",
@@ -70,7 +73,11 @@ describe("public MCP OAuth discovery", () => {
   });
 
   it("publishes one canonical protected resource and rejects lookalikes", async () => {
-    const metadata = await getProtectedResource().json();
+    const metadata = await getProtectedResource(
+      new Request(
+        "https://www.operate.to/.well-known/oauth-protected-resource",
+      ),
+    ).json();
     expect(metadata).toMatchObject({
       resource: "https://operate.to/api/mcp",
       bearer_methods_supported: ["header", "query"],

@@ -4,7 +4,7 @@ import {
   oauthOptions,
 } from "@/lib/oauth-server";
 
-export function GET(request?: Request) {
+export function GET(request: Request) {
   return oauthJson(oauthDiscoveryMetadata(request), 200, undefined, request);
 }
 
