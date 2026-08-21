@@ -387,3 +387,48 @@ export async function requirePageAccess(
   });
   return { page, subject };
 }
+
+/**
+ * A signed storage URL is the bytes. `clips.getUrl` already walks
+ * clip → task → space before minting one; `pages.urlForUpload` used to
+ * take a bare `storageId` and skip that walk, so any signed-in user who
+ * learned an id (markdown URL, export, leaked row) could refresh a file
+ * they could not open through the hierarchy.
+ *
+ * An id that is not on a clip or attachment is treated as a just-uploaded
+ * orphan (page image paste) and allowed through — Convex storage ids are
+ * unguessable, and `generateUploadUrl` is already identity-gated.
+ */
+export async function requireStorageUrlAccess(
+  ctx: QueryCtx | MutationCtx,
+  storageId: Id<"_storage">,
+): Promise<Identity> {
+  const identity = await requireIdentity(ctx);
+  const clips = await ctx.db
+    .query("clips")
+    .withIndex("by_storage", (q) => q.eq("storageId", storageId))
+    .collect();
+  const attachments = await ctx.db
+    .query("attachments")
+    .withIndex("by_storage", (q) => q.eq("storageId", storageId))
+    .collect();
+  if (clips.length === 0 && attachments.length === 0) return identity;
+
+  for (const clip of clips) {
+    try {
+      await requireTaskAccess(ctx, clip.parentId as Id<"tasks">);
+      return identity;
+    } catch {
+      // Another referencing row may still be readable.
+    }
+  }
+  for (const attachment of attachments) {
+    try {
+      await requireTaskAccess(ctx, attachment.taskId);
+      return identity;
+    } catch {
+      // Another referencing row may still be readable.
+    }
+  }
+  throw new ConvexError("Forbidden");
+}

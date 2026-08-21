@@ -226,12 +226,19 @@ export const brainSearch = action({
     const rows = await ctx.runQuery(internal.aiDb._embeddingsByIds, {
       ids: hits.map((h) => h._id),
     });
-    const sources: BrainSource[] = rows.map(
-      (r: Doc<"embeddings">): BrainSource => ({
-        parentType: r.parentType,
-        parentId: r.parentId,
-        textPreview: r.textPreview,
-      }),
+    // Membership in the workspace is not enough: embeddings are indexed at
+    // workspace scope, but private spaces (and docs/comments inside them)
+    // are not. Filter each hit through the same helpers every other read
+    // uses before the preview or the LLM ever sees it.
+    const sources: BrainSource[] = await ctx.runQuery(
+      internal.aiDb._filterHitsForViewer,
+      {
+        hits: rows.map((r: Doc<"embeddings">) => ({
+          parentType: r.parentType,
+          parentId: r.parentId,
+          textPreview: r.textPreview,
+        })),
+      },
     );
 
     if (sources.length === 0) {
