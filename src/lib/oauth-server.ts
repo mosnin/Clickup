@@ -158,9 +158,8 @@ export async function oauthFields(
   const looksJson = trimmed.startsWith("{") || trimmed.startsWith("[");
   if (labelledJson || looksJson) {
     try {
-      const body = JSON.parse(trimmed) as unknown;
-      if (body && typeof body === "object" && !Array.isArray(body)) {
-        const record = body as Record<string, unknown>;
+      const record = asJsonRecord(JSON.parse(trimmed) as unknown);
+      if (record) {
         return withQuery((name) => {
           const value = record[name];
           if (value === undefined || value === null) return "";
@@ -199,6 +198,23 @@ export function oauthBasicClientId(request: Request) {
   } catch {
     return "";
   }
+}
+
+/** Some clients wrap a single object in a JSON array. */
+function asJsonRecord(body: unknown): Record<string, unknown> | null {
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    return body as Record<string, unknown>;
+  }
+  if (
+    Array.isArray(body) &&
+    body.length === 1 &&
+    body[0] &&
+    typeof body[0] === "object" &&
+    !Array.isArray(body[0])
+  ) {
+    return body[0] as Record<string, unknown>;
+  }
+  return null;
 }
 
 function coerceRedirectUris(value: unknown): string[] | undefined {
@@ -292,10 +308,8 @@ export async function oauthJsonObject(
   }
   const text = (await request.text().catch(() => "")).replace(/^\uFEFF/, "").trim();
   try {
-    const body = JSON.parse(text) as unknown;
-    if (body && typeof body === "object" && !Array.isArray(body)) {
-      return withRedirectUris(body as Record<string, unknown>);
-    }
+    const record = asJsonRecord(JSON.parse(text) as unknown);
+    if (record) return withRedirectUris(record);
   } catch {
     // Fall through: some DCR clients POST form-urlencoded.
   }

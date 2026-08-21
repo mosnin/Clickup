@@ -7,7 +7,11 @@ import {
   oauthFields,
   oauthJsonObject,
 } from "../src/lib/oauth-server";
-import { stripOAuthTrailingSlash } from "../src/lib/oauth-slash";
+import {
+  isHumanOAuthPath,
+  isMachineOAuthPath,
+  stripOAuthTrailingSlash,
+} from "../src/lib/oauth-slash";
 
 const read = (file: string) =>
   readFileSync(path.join(process.cwd(), file), "utf8");
@@ -127,6 +131,17 @@ describe("oauthFields", () => {
     expect(field("token")).toBe("opr_body");
   });
 
+  it("unwraps a one-object JSON array so revoke is not empty", async () => {
+    const field = await oauthFields(
+      new Request("https://www.operate.to/oauth/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify([{ token: "opr_array" }]),
+      }),
+    );
+    expect(field("token")).toBe("opr_array");
+  });
+
   it("reads a multipart revoke body", async () => {
     const form = new FormData();
     form.set("token", "opr_multipart");
@@ -163,6 +178,22 @@ describe("oauthJsonObject", () => {
           client_name: "Claude",
           redirect_uris: ["https://claude.ai/api/mcp/auth_callback"],
         })}`,
+      }),
+    );
+    expect(body).toMatchObject({ client_name: "Claude" });
+  });
+
+  it("unwraps a one-object JSON array for DCR", async () => {
+    const body = await oauthJsonObject(
+      new Request("https://www.operate.to/oauth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify([
+          {
+            client_name: "Claude",
+            redirect_uris: ["https://claude.ai/api/mcp/auth_callback"],
+          },
+        ]),
       }),
     );
     expect(body).toMatchObject({ client_name: "Claude" });
@@ -278,6 +309,14 @@ describe("stripOAuthTrailingSlash", () => {
         "/.well-known/oauth-protected-resource/api/mcp//",
       ),
     ).toBe("/.well-known/oauth-protected-resource/api/mcp");
+    expect(stripOAuthTrailingSlash("/api/agent/manifest/")).toBe(
+      "/api/agent/manifest",
+    );
+    expect(isMachineOAuthPath("/oauth/token")).toBe(true);
+    expect(isMachineOAuthPath("/oauth/authorize")).toBe(false);
+    expect(isHumanOAuthPath("/oauth/authorize")).toBe(true);
+    expect(isHumanOAuthPath("/link")).toBe(true);
+    expect(isMachineOAuthPath("/link")).toBe(false);
   });
 });
 
@@ -311,6 +350,8 @@ describe("OAuth POST routes share oauthFields", () => {
     const middleware = read("src/middleware.ts");
     expect(middleware).toContain("stripOAuthTrailingSlash");
     expect(middleware).toContain("NextResponse.rewrite");
+    expect(middleware).toContain("isMachineOAuthPath");
+    expect(middleware).toContain("return clerk(req, event)");
     expect(read("next.config.mjs")).toContain("skipTrailingSlashRedirect: true");
   });
 });

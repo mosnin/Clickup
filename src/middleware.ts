@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { stripOAuthTrailingSlash } from "@/lib/oauth-slash";
+import {
+  isMachineOAuthPath,
+  stripOAuthTrailingSlash,
+} from "@/lib/oauth-slash";
 
 const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
@@ -32,16 +35,30 @@ const clerk = clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
     await auth.protect();
   }
-});
-
-export default function middleware(req: NextRequest, event: never) {
+  // Human OAuth (`/oauth/authorize/`, `/link/`): Clerk must run first so
+  // `auth()` sees the session, then rewrite so skipTrailingSlashRedirect
+  // does not 404 the slashed URL.
   const stripped = stripOAuthTrailingSlash(req.nextUrl.pathname);
-  if (stripped) {
+  if (stripped && !isMachineOAuthPath(stripped)) {
     const url = req.nextUrl.clone();
     url.pathname = stripped;
     return NextResponse.rewrite(url);
   }
-  if (isSelfAuthenticated(req) || isPublicDiscovery(req)) {
+});
+
+export default function middleware(req: NextRequest, event: never) {
+  const stripped = stripOAuthTrailingSlash(req.nextUrl.pathname);
+  const path = stripped ?? req.nextUrl.pathname;
+  if (
+    isMachineOAuthPath(path) ||
+    isSelfAuthenticated(req) ||
+    isPublicDiscovery(req)
+  ) {
+    if (stripped) {
+      const url = req.nextUrl.clone();
+      url.pathname = stripped;
+      return NextResponse.rewrite(url);
+    }
     return NextResponse.next();
   }
   return clerk(req, event);

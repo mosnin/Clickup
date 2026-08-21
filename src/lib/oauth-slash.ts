@@ -4,28 +4,54 @@
  * `skipTrailingSlashRedirect` stops that 308; without a rewrite the
  * slashed URL 404s (`/link/`, `/api/x402/`, doubled slashes).
  *
- * Only OAuth/MCP/device/payment/discovery paths — never `/dashboard/`,
- * because a rewrite that skipped Clerk would skip `auth.protect()`.
+ * Machine paths rewrite without Clerk (token/MCP must not go through
+ * JWT middleware). Human paths (`/oauth/authorize`, `/link`) rewrite
+ * *after* Clerk so `auth()` still sees the session.
+ *
+ * Never `/dashboard/` — a rewrite that skipped Clerk would skip
+ * `auth.protect()`.
  *
  * Lives in its own module so Edge middleware does not import
  * `oauth-server.ts` (`node:crypto` / Convex).
  */
-export function isOAuthSlashRewritePath(pathname: string) {
+export function isMachineOAuthPath(pathname: string) {
   return (
-    pathname === "/oauth" ||
-    pathname.startsWith("/oauth/") ||
+    pathname === "/oauth/token" ||
+    pathname === "/oauth/device" ||
+    pathname === "/oauth/revoke" ||
+    pathname === "/oauth/register" ||
+    pathname === "/oauth/userinfo" ||
     pathname === "/api/mcp" ||
     pathname.startsWith("/api/mcp/") ||
     pathname === "/api/x402" ||
     pathname.startsWith("/api/x402/") ||
+    pathname === "/api/agent" ||
+    pathname.startsWith("/api/agent/") ||
     pathname.startsWith("/.well-known/") ||
-    pathname === "/link" ||
     pathname === "/start" ||
     pathname === "/connect" ||
     pathname === "/install" ||
     pathname.startsWith("/install/") ||
     pathname === "/skills" ||
     pathname.startsWith("/skills/")
+  );
+}
+
+export function isHumanOAuthPath(pathname: string) {
+  return (
+    pathname === "/oauth/authorize" ||
+    pathname.startsWith("/oauth/authorize/") ||
+    pathname === "/link" ||
+    pathname.startsWith("/link/")
+  );
+}
+
+export function isOAuthSlashRewritePath(pathname: string) {
+  return (
+    isMachineOAuthPath(pathname) ||
+    isHumanOAuthPath(pathname) ||
+    pathname === "/oauth" ||
+    pathname.startsWith("/oauth/")
   );
 }
 
