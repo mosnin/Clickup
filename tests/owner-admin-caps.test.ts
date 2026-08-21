@@ -294,11 +294,11 @@ describe("fleet grant is human-only", () => {
     expect(source).toMatch(/canManage \?/);
     expect(source).toMatch(/cannot grant itself a fleet/);
     const backend = readFileSync("convex/agentGrants.ts", "utf8");
-    expect(backend).toMatch(
-      /export const grantFleet = mutation\([\s\S]*requireIdentity\(ctx\)/,
-    );
-    expect(backend).not.toMatch(
-      /export const grantFleet = mutation\([\s\S]*apiKey/,
-    );
+    const grantFleet = backend.match(
+      /export const grantFleet = mutation\(\{[\s\S]*?\n\}\);/,
+    )?.[0];
+    expect(grantFleet).toBeTruthy();
+    expect(grantFleet).toMatch(/requireIdentity\(ctx\)/);
+    expect(grantFleet).not.toMatch(/apiKey/);
   });
 });
