@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalGrantType,
   DEVICE_GRANT,
+  inferGrantType,
   oauthBasicClientId,
   oauthBearer,
   oauthCorsHeaders,
@@ -199,6 +200,15 @@ describe("oauthFields", () => {
     expect(scopeArray("redirect_uri")).toBe(
       "https://chatgpt.com/connector_platform_oauth_redirect",
     );
+    const commaScope = await oauthFields(
+      new Request("https://www.operate.to/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "scope=openid,email,operate:read&verifier=pkce_verifier",
+      }),
+    );
+    expect(commaScope("scope")).toBe("openid email operate:read");
+    expect(commaScope("code_verifier")).toBe("pkce_verifier");
     const doubled = await oauthFields(
       new Request("https://www.operate.to/oauth/revoke", {
         method: "POST",
@@ -270,6 +280,12 @@ describe("oauthBearer", () => {
     ).toBe("cua_key");
     expect(extractOperateCredential("cua_bare", undefined)).toBe("cua_bare");
     expect(extractOperateCredential("Basic abc", undefined)).toBe("");
+    expect(extractOperateCredential('Bearer "cua_quoted"', undefined)).toBe(
+      "cua_quoted",
+    );
+    expect(extractOperateCredential("Token token=cua_named", undefined)).toBe(
+      "cua_named",
+    );
     expect(
       extractOperateCredential(undefined, undefined, { apiKey: "cua_header" }),
     ).toBe("cua_header");
@@ -304,6 +320,15 @@ describe("oauthBearer", () => {
     expect(canonicalGrantType("code")).toBe("authorization_code");
     expect(canonicalGrantType("refresh")).toBe("refresh_token");
     expect(canonicalGrantType("REFRESH-TOKEN")).toBe("refresh_token");
+    expect(
+      inferGrantType((name) => (name === "device_code" ? "opd_omit" : "")),
+    ).toBe(DEVICE_GRANT);
+    expect(
+      inferGrantType((name) => (name === "code" ? "opc_omit" : "")),
+    ).toBe("authorization_code");
+    expect(
+      inferGrantType((name) => (name === "refresh_token" ? "opr_omit" : "")),
+    ).toBe("refresh_token");
   });
 });
 
@@ -690,6 +715,14 @@ describe("stripOAuthTrailingSlash", () => {
     expect(
       stripOAuthTrailingSlash("/mcp/.well-known/oauth-protected-resource"),
     ).toBe("/api/mcp/.well-known/oauth-protected-resource");
+    expect(stripOAuthTrailingSlash("/mcp.json")).toBe("/api/mcp");
+    expect(stripOAuthTrailingSlash("/oauth/token.json")).toBe("/oauth/token");
+    expect(stripOAuthTrailingSlash("/oauth/device.json")).toBe("/oauth/device");
+    expect(stripOAuthTrailingSlash("/oauth/userinfo.json")).toBe(
+      "/oauth/userinfo",
+    );
+    expect(stripOAuthTrailingSlash("/link.json")).toBe("/link");
+    expect(stripOAuthTrailingSlash("/dashboard.json")).toBeNull();
     expect(stripOAuthTrailingSlash("/api/mcp.json")).toBe("/api/mcp");
     expect(stripOAuthTrailingSlash("/.well-known/mcp.json")).toBe(
       "/.well-known/mcp",
@@ -759,6 +792,9 @@ describe("OAuth POST routes share oauthFields", () => {
       middleware.indexOf("return clerk(req, event)"),
     );
     expect(middleware).toContain('"/mcp/:path*"');
+    expect(middleware).toContain('"/mcp.json"');
+    expect(middleware).toContain('"/oauth/:path*"');
+    expect(middleware).toContain('"/link.json"');
     expect(read("src/app/oauth/device/route.ts")).toContain("oauthPostOnly");
     expect(read("src/app/oauth/device/route.ts")).toContain("verification_url");
     expect(read("src/app/oauth/register/route.ts")).not.toContain(
@@ -769,7 +805,7 @@ describe("OAuth POST routes share oauthFields", () => {
     );
     expect(read("src/app/api/x402/route.ts")).toContain("oauthBearer");
     expect(read("src/app/api/x402/route.ts")).toContain("oauthWwwAuthenticate");
-    expect(read("src/app/oauth/token/route.ts")).toContain("canonicalGrantType");
+    expect(read("src/app/oauth/token/route.ts")).toContain("inferGrantType");
     expect(read("src/app/oauth/token/route.ts")).toContain("access_token: key");
     expect(read("src/app/.well-known/mcp/route.ts")).toContain("oauthJson");
     expect(read("src/app/connect/route.ts")).toContain(

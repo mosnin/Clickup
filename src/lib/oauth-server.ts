@@ -215,10 +215,15 @@ export async function oauthFields(
   return withQuery((name) => phpFieldString((key) => params.get(key) ?? "", name));
 }
 
+function normalizeScope(value: string) {
+  if (!value.includes(",")) return value;
+  return value.replace(/,/g, " ").replace(/\s+/g, " ").trim();
+}
+
 function phpFieldString(get: (name: string) => string, name: string) {
   for (const key of oauthFieldAliases(name)) {
     const value = get(key);
-    if (value) return value;
+    if (value) return name === "scope" ? normalizeScope(value) : value;
   }
   return "";
 }
@@ -232,14 +237,15 @@ function phpRecordString(record: Record<string, unknown>, name: string) {
         const scopes = value.filter(
           (item): item is string => typeof item === "string" && item.length > 0,
         );
-        if (scopes.length) return scopes.join(" ");
+        if (scopes.length) return normalizeScope(scopes.join(" "));
         continue;
       }
       const first = value.find((item) => item !== undefined && item !== null);
       if (first === undefined) continue;
       return typeof first === "string" ? first : String(first);
     }
-    return typeof value === "string" ? value : String(value);
+    const scalar = typeof value === "string" ? value : String(value);
+    return name === "scope" ? normalizeScope(scalar) : scalar;
   }
   return "";
 }
@@ -252,7 +258,9 @@ export function oauthBearer(request: Request) {
     {
       apiKey:
         request.headers.get("x-api-key") || request.headers.get("api-key"),
-      accessToken: request.headers.get("x-access-token"),
+      accessToken:
+        request.headers.get("x-access-token") ||
+        request.headers.get("access-token"),
     },
   );
 }
@@ -285,6 +293,16 @@ export function canonicalGrantType(value: string) {
     return "refresh_token";
   }
   return grant;
+}
+
+/** A body that already carries the grant's secret often omits grant_type. */
+export function inferGrantType(field: (name: string) => string) {
+  const explicit = canonicalGrantType(field("grant_type"));
+  if (explicit) return explicit;
+  if (field("device_code")) return DEVICE_GRANT;
+  if (field("code")) return "authorization_code";
+  if (field("refresh_token")) return "refresh_token";
+  return "";
 }
 
 /**

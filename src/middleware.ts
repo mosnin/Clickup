@@ -101,5 +101,12 @@ export const config = {
     // it is not under `/api`. Without this the /mcp → /api/mcp rewrite
     // never runs and discovery 404s.
     "/mcp/:path*",
+    // The first pattern also skips `*.json`. `/api/mcp.json` is covered by
+    // `/(api|trpc)`; these are not.
+    "/mcp.json",
+    "/oauth/:path*",
+    "/link.json",
+    "/start.json",
+    "/connect.json",
   ],
 };

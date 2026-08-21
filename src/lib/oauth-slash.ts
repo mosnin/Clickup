@@ -60,7 +60,7 @@ export function isOAuthOptionsPath(pathname: string) {
 }
 
 export const OAUTH_CORS_ALLOW_HEADERS =
-  "Authorization, Content-Type, Accept, If-None-Match, MCP-Protocol-Version, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID, X-PAYMENT, X-Payment, X-Api-Key, X-API-Key, Api-Key, X-Access-Token";
+  "Authorization, Content-Type, Accept, If-None-Match, MCP-Protocol-Version, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID, X-PAYMENT, X-Payment, X-Api-Key, X-API-Key, Api-Key, X-Access-Token, Access-Token";
 
 export const OAUTH_CORS_EXPOSE_HEADERS =
   "WWW-Authenticate, ETag, Mcp-Session-Id, X-PAYMENT-RESPONSE";
@@ -269,6 +269,7 @@ const OAUTH_KEY_ALIASES: Record<string, string> = {
   refreshToken: "refresh_token",
   accessToken: "access_token",
   codeVerifier: "code_verifier",
+  verifier: "code_verifier",
   codeChallenge: "code_challenge",
   codeChallengeMethod: "code_challenge_method",
   tokenTypeHint: "token_type_hint",
@@ -351,14 +352,18 @@ export function stripOAuthTrailingSlash(pathname: string) {
   if (next === "/mcp") next = "/api/mcp";
   else if (next.startsWith("/mcp/")) next = `/api/mcp/${next.slice("/mcp/".length)}`;
   if (next === "/mcp.json" || next === "/api/mcp.json") next = "/api/mcp";
-  if (next.endsWith(".json") && next.includes("/.well-known/")) {
+  if (next.endsWith(".json")) {
     const withoutJson = next.slice(0, -".json".length);
-    if (
-      withoutJson.includes("oauth-protected-resource") ||
-      withoutJson.includes("oauth-authorization-server") ||
-      withoutJson.includes("openid-configuration") ||
-      withoutJson.endsWith("/.well-known/mcp")
+    if (withoutJson === "/mcp") next = "/api/mcp";
+    else if (
+      withoutJson.includes("/.well-known/") &&
+      (withoutJson.includes("oauth-protected-resource") ||
+        withoutJson.includes("oauth-authorization-server") ||
+        withoutJson.includes("openid-configuration") ||
+        withoutJson.endsWith("/.well-known/mcp"))
     ) {
+      next = withoutJson;
+    } else if (isOAuthSlashRewritePath(withoutJson)) {
       next = withoutJson;
     }
   }
@@ -372,12 +377,30 @@ const OPERATE_CREDENTIAL = /^(cua_|opa_|opr_|opc_|opd_)/i;
 const AUTH_SCHEME =
   /^(Bearer|Token|Api-?Key|ApiKey)\s+(\S+)/i;
 
+/** `Bearer "cua_…"`, `Token token=cua_…`. Never applied to Basic. */
+function unwrapCredential(raw: string) {
+  let token = raw.trim().replace(/,+$/, "");
+  const named =
+    token.match(/^token\s*=\s*"([^"]+)"$/i) ||
+    token.match(/^token\s*=\s*'([^']+)'$/i) ||
+    token.match(/^token\s*=\s*(\S+)$/i);
+  if (named) token = named[1];
+  if (
+    token.length >= 2 &&
+    ((token.startsWith('"') && token.endsWith('"')) ||
+      (token.startsWith("'") && token.endsWith("'")))
+  ) {
+    token = token.slice(1, -1);
+  }
+  return token;
+}
+
 function dedicatedHeaderToken(value: string | null | undefined) {
   const token = value?.trim() ?? "";
   if (!token || /^Basic\s+/i.test(token)) return "";
   const scheme = token.match(AUTH_SCHEME);
-  if (scheme) return scheme[2];
-  return token;
+  if (scheme) return unwrapCredential(scheme[2]);
+  return unwrapCredential(token);
 }
 
 /**
@@ -395,9 +418,12 @@ export function extractOperateCredential(
   const header = authorization?.trim() ?? "";
   if (header) {
     const scheme = header.match(AUTH_SCHEME);
-    if (scheme) return scheme[2];
-    if (OPERATE_CREDENTIAL.test(header) && !header.includes(" ")) {
-      return header;
+    if (scheme) return unwrapCredential(scheme[2]);
+    if (!/^Basic\s+/i.test(header)) {
+      const raw = unwrapCredential(header);
+      if (OPERATE_CREDENTIAL.test(raw) && !raw.includes(" ")) {
+        return raw;
+      }
     }
   }
   const dedicated =
@@ -407,6 +433,7 @@ export function extractOperateCredential(
   if (query) {
     return (
       query.get("access_token") ||
+      query.get("access-token") ||
       query.get("apiKey") ||
       query.get("api_key") ||
       ""
@@ -421,7 +448,8 @@ export function applyOperateAuthorization(headers: Headers, url: string) {
     new URL(url).searchParams,
     {
       apiKey: headers.get("x-api-key") || headers.get("api-key"),
-      accessToken: headers.get("x-access-token"),
+      accessToken:
+        headers.get("x-access-token") || headers.get("access-token"),
     },
   );
   if (!token) return headers;
