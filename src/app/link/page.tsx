@@ -21,10 +21,7 @@ export default async function LinkPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const param = (name: string) => {
-    const value = params[name];
-    return typeof value === "string" ? value : undefined;
-  };
+  const param = (name: string) => params[name];
   const code =
     oauthQueryValue(param, "user_code") ||
     (typeof params.code === "string" ? params.code : "");

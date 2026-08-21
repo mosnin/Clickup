@@ -24,6 +24,7 @@ import {
   isMachineOAuthPath,
   isMcpBrowserOrigin,
   isOAuthOptionsPath,
+  canonicalOAuthKey,
   oauthQueryValue,
   readAuthorizeParams,
   stripOAuthTrailingSlash,
@@ -188,6 +189,25 @@ describe("oauthFields", () => {
     expect(hyphenated("redirect_uri")).toBe(
       "https://chatgpt.com/connector_platform_oauth_redirect",
     );
+    const moreHyphens = await oauthFields(
+      new Request("https://www.operate.to/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          "code-verifier": "pkce_hyphen",
+          "device-code": "opd_hyphen",
+          "user-code": "ABCD-EFGH",
+          "client-name": "claude-code",
+        }),
+      }),
+    );
+    expect(moreHyphens("code_verifier")).toBe("pkce_hyphen");
+    expect(moreHyphens("device_code")).toBe("opd_hyphen");
+    expect(moreHyphens("user_code")).toBe("ABCD-EFGH");
+    expect(moreHyphens("client_name")).toBe("claude-code");
+    expect(canonicalOAuthKey("code-verifier")).toBe("code_verifier");
+    expect(canonicalOAuthKey("user-code")).toBe("user_code");
+    expect(canonicalOAuthKey("redirect-url")).toBe("redirect_uri");
     const audience = await oauthFields(
       new Request("https://www.operate.to/oauth/token", {
         method: "POST",
@@ -246,6 +266,15 @@ describe("oauthFields", () => {
     );
     expect(commaScope("scope")).toBe("openid email operate:read");
     expect(commaScope("code_verifier")).toBe("pkce_verifier");
+    const repeatedScope = await oauthFields(
+      new Request("https://www.operate.to/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "scope[]=openid&scope[]=email&scope[]=operate:read&code-verifier=pkce_form_hyphen",
+      }),
+    );
+    expect(repeatedScope("scope")).toBe("openid email operate:read");
+    expect(repeatedScope("code_verifier")).toBe("pkce_form_hyphen");
     const doubled = await oauthFields(
       new Request("https://www.operate.to/oauth/revoke", {
         method: "POST",
@@ -585,10 +614,29 @@ describe("oauthQueryValue", () => {
     expect(oauthQueryValue(get, "resource")).toBe("https://operate.to/api/mcp");
     expect(
       oauthQueryValue(
+        (name) => (name === "user-code" ? "WXYZ-1234" : null),
+        "user_code",
+      ),
+    ).toBe("WXYZ-1234");
+    expect(
+      oauthQueryValue(
         (name) => (name === "scope" ? "openid,email,operate:read" : null),
         "scope",
       ),
     ).toBe("openid email operate:read");
+    expect(
+      oauthQueryValue(
+        (name) =>
+          name === "scope[]" ? ["openid", "email", "operate:read"] : null,
+        "scope",
+      ),
+    ).toBe("openid email operate:read");
+    expect(
+      oauthQueryValue(
+        (name) => (name === "user_code" ? ["WXYZ-1234"] : null),
+        "user_code",
+      ),
+    ).toBe("WXYZ-1234");
   });
 });
 
@@ -793,6 +841,14 @@ describe("readAuthorizeParams", () => {
       }),
     );
     expect(commaScope.get("scope")).toBe("openid email");
+    const repeatedScope = await readAuthorizeParams(
+      new Request("https://www.operate.to/oauth/authorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "scope[]=openid&scope[]=email&scope[]=operate:read",
+      }),
+    );
+    expect(repeatedScope.get("scope")).toBe("openid email operate:read");
     const redirectUrl = await readAuthorizeParams(
       new Request("https://www.operate.to/oauth/authorize", {
         method: "POST",
@@ -806,6 +862,19 @@ describe("readAuthorizeParams", () => {
     expect(redirectUrl.get("redirect_uri")).toBe(
       "https://chatgpt.com/connector_platform_oauth_redirect",
     );
+    const hyphenated = await readAuthorizeParams(
+      new Request("https://www.operate.to/oauth/authorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          "client-id": "opc_hyphen",
+          "code-challenge": "abc",
+          "user-code": "ignored-on-authorize",
+        }),
+      }),
+    );
+    expect(hyphenated.get("client_id")).toBe("opc_hyphen");
+    expect(hyphenated.get("code_challenge")).toBe("abc");
   });
 });
 
@@ -1003,6 +1072,12 @@ describe("OAuth POST routes share oauthFields", () => {
     );
     expect(read("src/app/oauth/authorize/oauth-authorize.tsx")).toContain(
       "oauthQueryValue",
+    );
+    expect(read("src/app/oauth/authorize/oauth-authorize.tsx")).toContain(
+      "getAll",
+    );
+    expect(read("src/app/oauth/authorize/page.tsx")).toContain(
+      "Array.isArray(value)",
     );
     expect(read("src/app/oauth/authorize/oauth-authorize.tsx")).toContain(
       "canonicalCodeChallengeMethod",

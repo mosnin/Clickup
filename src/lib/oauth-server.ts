@@ -11,6 +11,7 @@ import {
   oauthCorsHeaders,
   oauthFieldAliases,
   oauthOptions,
+  oauthQueryValue,
   parseJsonBody,
   canonicalOAuthKey,
   canonicalCodeChallengeMethod,
@@ -184,16 +185,20 @@ export async function oauthFields(
   const query = new URL(request.url).searchParams;
   const withQuery = (fromBody: (name: string) => string) => {
     return (name: string) =>
-      fromBody(name) || phpFieldString((key) => query.get(key) || "", name);
+      fromBody(name) || phpFieldString((key) => searchAll(query, key), name);
   };
 
   if (contentType.includes("multipart/form-data")) {
     try {
       const form = await request.formData();
-      return withQuery((name) => phpFieldString((key) => {
-        const value = form.get(key);
-        return typeof value === "string" ? value : "";
-      }, name));
+      return withQuery((name) =>
+        phpFieldString((key) => {
+          const all = form
+            .getAll(key)
+            .filter((item): item is string => typeof item === "string");
+          return all.length <= 1 ? (all[0] ?? "") : all;
+        }, name),
+      );
     } catch {
       return withQuery(() => "");
     }
@@ -218,15 +223,21 @@ export async function oauthFields(
     }
   }
   const params = new URLSearchParams(trimmed);
-  return withQuery((name) => phpFieldString((key) => params.get(key) ?? "", name));
+  return withQuery((name) =>
+    phpFieldString((key) => searchAll(params, key), name),
+  );
 }
 
-function phpFieldString(get: (name: string) => string, name: string) {
-  for (const key of oauthFieldAliases(name)) {
-    const value = get(key);
-    if (value) return name === "scope" ? normalizeOAuthScope(value) : value;
-  }
-  return "";
+function searchAll(params: URLSearchParams, key: string): string | string[] {
+  const all = params.getAll(key);
+  return all.length <= 1 ? (all[0] ?? "") : all;
+}
+
+function phpFieldString(
+  get: (name: string) => string | string[] | null | undefined,
+  name: string,
+) {
+  return oauthQueryValue(get, name);
 }
 
 function phpRecordString(record: Record<string, unknown>, name: string) {

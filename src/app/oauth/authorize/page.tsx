@@ -20,6 +20,11 @@ export default async function OAuthAuthorizePage({
   const current = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (typeof value === "string") current.set(key, value);
+    else if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item) current.append(key, item);
+      }
+    }
   }
   const { userId } = await auth();
   if (!userId) {
@@ -27,10 +32,7 @@ export default async function OAuthAuthorizePage({
   }
   let resource = "";
   try {
-    const param = (name: string) => {
-      const value = params[name];
-      return typeof value === "string" ? value : undefined;
-    };
+    const param = (name: string) => params[name];
     const candidate = oauthQueryValue(param, "resource") || undefined;
     resource = validateMcpResource(candidate, oauthIssuer());
   } catch {

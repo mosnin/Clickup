@@ -207,9 +207,16 @@ function asJsonRecord(body: unknown): Record<string, unknown> | null {
 export async function readAuthorizeParams(request: Request) {
   const merged = new URLSearchParams(new URL(request.url).searchParams);
   const setIfEmpty = (key: string, value: string) => {
-    if (value && !merged.get(key)) {
-      merged.set(key, key === "scope" ? normalizeOAuthScope(value) : value);
+    if (!value) return;
+    if (key === "scope") {
+      const current = merged.get("scope");
+      merged.set(
+        "scope",
+        normalizeOAuthScope(current ? `${current} ${value}` : value),
+      );
+      return;
     }
+    if (!merged.get(key)) merged.set(key, value);
   };
   const contentType = request.headers.get("content-type") ?? "";
   if (contentType.includes("multipart/form-data")) {
@@ -304,12 +311,19 @@ export function canonicalCodeChallengeMethod(value: string) {
 
 export function canonicalOAuthKey(key: string) {
   const stripped = key.replace(/\[\d*\]$/, "");
-  return OAUTH_KEY_ALIASES[stripped] ?? stripped;
+  if (OAUTH_KEY_ALIASES[stripped]) return OAUTH_KEY_ALIASES[stripped];
+  if (stripped.includes("-")) {
+    const snake = stripped.replace(/-/g, "_");
+    return OAUTH_KEY_ALIASES[snake] ?? snake;
+  }
+  return stripped;
 }
 
 /** snake_case plus the camelCase / PHP `[]` names JS and PHP clients send. */
 export function oauthFieldAliases(name: string) {
+  const hyphen = name.replace(/_/g, "-");
   const aliases = [name, `${name}[]`, `${name}[0]`];
+  if (hyphen !== name) aliases.push(hyphen, `${hyphen}[]`, `${hyphen}[0]`);
   for (const [camel, snake] of Object.entries(OAUTH_KEY_ALIASES)) {
     if (snake === name) aliases.push(camel, `${camel}[]`, `${camel}[0]`);
   }
@@ -347,14 +361,28 @@ export function normalizeOAuthScope(value: string) {
   return value.replace(/,/g, " ").replace(/\s+/g, " ").trim();
 }
 
-/** Same aliases as `oauthFields`, for authorize GET query strings. */
+function oauthFieldStrings(
+  raw: string | string[] | null | undefined,
+): string[] {
+  if (raw == null) return [];
+  const items = Array.isArray(raw) ? raw : [raw];
+  return items.filter((item) => item.length > 0);
+}
+
+/**
+ * Same aliases as `oauthFields`, for authorize GET / `/link` query
+ * strings. Next.js `searchParams` is `string | string[]`; token JSON
+ * already joins scope arrays — GET must too.
+ */
 export function oauthQueryValue(
-  get: (name: string) => string | null | undefined,
+  get: (name: string) => string | string[] | null | undefined,
   name: string,
 ) {
   for (const key of oauthFieldAliases(name)) {
-    const value = get(key);
-    if (value) return name === "scope" ? normalizeOAuthScope(value) : value;
+    const values = oauthFieldStrings(get(key));
+    if (!values.length) continue;
+    if (name === "scope") return normalizeOAuthScope(values.join(" "));
+    return values[0];
   }
   return "";
 }
