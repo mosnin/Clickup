@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     clientName = "";
   }
 
-  const issuer = oauthIssuer();
+  const issuer = oauthIssuer(request);
   const deviceCode = randomCredential("opd");
 
   // Convex cannot see the caller's address, so the rate limit's subject has

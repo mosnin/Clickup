@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { GET as connect } from "../src/app/connect/route";
 import { GET as installer } from "../src/app/install/skills/route";
 import { GET as skillFile } from "../src/app/skills/operate/[skill]/route";
 
@@ -28,6 +29,18 @@ describe("curl-installable Operate skills", () => {
     const script = await (await installer()).text();
     expect(script).not.toContain("evil.example");
     expect(script).toContain("https://www.operate.to/skills/operate/");
+  });
+
+  it("rewrites an apex OPERATE_PUBLIC_URL so device and token POSTs hit www", async () => {
+    process.env.OPERATE_PUBLIC_URL = "https://operate.to";
+    const skills = await (await installer()).text();
+    expect(skills).toContain("https://www.operate.to/skills/operate/");
+    expect(skills).not.toContain("https://operate.to/skills/");
+
+    const script = await (await connect()).text();
+    expect(script).toContain('POST "https://www.operate.to/oauth/device"');
+    expect(script).toContain('POST "https://www.operate.to/oauth/token"');
+    expect(script).not.toContain('POST "https://operate.to/oauth/');
   });
 
   it("serves importable skill markdown and rejects unknown names", async () => {

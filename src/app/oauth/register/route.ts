@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
       scope: "openid email operate:read operate:write",
-      client_uri: `${oauthIssuer()}/plugins`,
+      client_uri: `${oauthIssuer(request)}/plugins`,
     },
     201,
   );

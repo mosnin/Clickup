@@ -6,6 +6,7 @@ import {
   snippetFor,
   type AgentRuntime,
 } from "@/lib/connect-snippet";
+import { servingMcpUrl } from "@/lib/oauth-resource";
 import { cn } from "@/lib/utils";
 
 // Paste-ready connection config for an agent, with the API key filled in.
@@ -39,7 +40,9 @@ export function ConnectSnippet({
   const [copied, setCopied] = useState(false);
   const [url, setUrl] = useState("https://www.operate.to/api/mcp");
   useEffect(() => {
-    setUrl(`${window.location.origin}/api/mcp`);
+    // Apex 308s POSTs. A snippet copied on the apex host must still
+    // point the runtime at www.
+    setUrl(servingMcpUrl(window.location.origin));
   }, []);
 
   const snippet = snippetFor(runtime, url, apiKey ?? "");

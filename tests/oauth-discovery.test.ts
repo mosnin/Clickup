@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { GET as getOAuthMetadata } from "../src/app/.well-known/oauth-authorization-server/route";
 import { GET as getOpenIdMetadata } from "../src/app/.well-known/openid-configuration/route";
 import { GET as getProtectedResource } from "../src/app/.well-known/oauth-protected-resource/route";
+import { GET as getStart } from "../src/app/start/route";
 import {
   CANONICAL_PRODUCTION_MCP_RESOURCE,
   canonicalMcpResource,
   sameMcpResource,
   servingMcpUrl,
+  servingOrigin,
   validateMcpResource,
 } from "../src/lib/oauth-resource";
 import {
@@ -14,6 +16,7 @@ import {
   normalizeOfficialMcpResource,
 } from "../convex/_oauthResource";
 import { mcpWwwAuthenticate, oauthIssuer } from "../src/lib/oauth-server";
+import { publicOrigin } from "../src/lib/public-origin";
 
 describe("public MCP OAuth discovery", () => {
   beforeEach(() => {
@@ -25,11 +28,12 @@ describe("public MCP OAuth discovery", () => {
     const openid = await getOpenIdMetadata().json();
     expect(openid).toEqual(oauth);
     expect(oauth).toMatchObject({
-      issuer: "https://operate.to",
-      authorization_endpoint: "https://operate.to/oauth/authorize",
-      token_endpoint: "https://operate.to/oauth/token",
-      registration_endpoint: "https://operate.to/oauth/register",
-      userinfo_endpoint: "https://operate.to/oauth/userinfo",
+      issuer: "https://www.operate.to",
+      authorization_endpoint: "https://www.operate.to/oauth/authorize",
+      token_endpoint: "https://www.operate.to/oauth/token",
+      registration_endpoint: "https://www.operate.to/oauth/register",
+      userinfo_endpoint: "https://www.operate.to/oauth/userinfo",
+      device_authorization_endpoint: "https://www.operate.to/oauth/device",
       code_challenge_methods_supported: ["S256"],
       token_endpoint_auth_methods_supported: ["none"],
       resource_parameter_supported: true,
@@ -50,8 +54,8 @@ describe("public MCP OAuth discovery", () => {
       resource: "https://operate.to/api/mcp",
       bearer_methods_supported: ["header"],
     });
-    expect(metadata.authorization_servers[0]).toBe("https://operate.to");
-    expect(metadata.authorization_servers).toContain("https://www.operate.to");
+    expect(metadata.authorization_servers[0]).toBe("https://www.operate.to");
+    expect(metadata.authorization_servers).toContain("https://operate.to");
     expect(canonicalMcpResource("https://operate.to")).toBe(
       "https://operate.to/api/mcp",
     );
@@ -121,5 +125,38 @@ describe("public MCP OAuth discovery", () => {
     expect(servingMcpUrl("http://localhost:3000")).toBe(
       "http://localhost:3000/api/mcp",
     );
+  });
+
+  it("rewrites the apex origin to www for every client POST, including scripts", () => {
+    expect(servingOrigin("https://operate.to")).toBe("https://www.operate.to");
+    expect(servingOrigin("https://www.operate.to")).toBe(
+      "https://www.operate.to",
+    );
+    expect(servingOrigin("http://localhost:3000")).toBe(
+      "http://localhost:3000",
+    );
+    expect(servingOrigin("https://operate.to/oauth/token")).toBe(
+      "https://www.operate.to",
+    );
+
+    const previous = process.env.OPERATE_PUBLIC_URL;
+    process.env.OPERATE_PUBLIC_URL = "https://operate.to";
+    expect(publicOrigin()).toBe("https://www.operate.to");
+    if (previous === undefined) delete process.env.OPERATE_PUBLIC_URL;
+    else process.env.OPERATE_PUBLIC_URL = previous;
+
+    const apex = new Request("https://operate.to/.well-known/oauth-authorization-server");
+    expect(oauthIssuer(apex)).toBe("https://www.operate.to");
+    expect(oauthIssuer()).toBe("https://www.operate.to");
+  });
+
+  it("tells /start readers to POST device and token grants to www", async () => {
+    const doc = await (
+      await getStart(new Request("https://operate.to/start"))
+    ).text();
+    expect(doc).toContain("POST https://www.operate.to/oauth/device");
+    expect(doc).toContain("POST https://www.operate.to/oauth/token");
+    expect(doc).toContain("https://www.operate.to/api/mcp");
+    expect(doc).not.toMatch(/POST https:\/\/operate\.to\//);
   });
 });

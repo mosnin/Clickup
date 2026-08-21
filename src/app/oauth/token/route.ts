@@ -119,7 +119,7 @@ export async function POST(request: Request) {
   }
   let resource: string;
   try {
-    resource = validateMcpResource(rawResource, oauthIssuer());
+    resource = validateMcpResource(rawResource, oauthIssuer(request));
   } catch (error) {
     return oauthError(
       "invalid_target",

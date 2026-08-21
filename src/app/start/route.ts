@@ -295,8 +295,8 @@ Full API version: ${manifest.apiVersion}. Endpoint: ${mcp}
 `;
 }
 
-export async function GET() {
-  const issuer = oauthIssuer();
+export async function GET(request: Request) {
+  const issuer = oauthIssuer(request);
   const manifest = await buildManifest(issuer);
   return new Response(doc(issuer, manifest), {
     headers: {

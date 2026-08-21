@@ -12,7 +12,7 @@ import { oauthIssuer } from "@/lib/oauth-server";
 // nothing, which is what makes checking on every boot realistic rather than
 // something a runtime does once and never again.
 export async function GET(request: Request) {
-  const manifest = await buildManifest(oauthIssuer());
+  const manifest = await buildManifest(oauthIssuer(request));
   const etag = manifestEtag(manifest);
 
   if (request.headers.get("if-none-match") === etag) {

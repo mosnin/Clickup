@@ -91,6 +91,24 @@ export function normalizeOfficialMcpResource(value: string) {
   return url.toString();
 }
 
+/**
+ * Origin a client should actually talk to. Audience stays
+ * `https://operate.to`; the apex host 308-redirects and drops POST bodies
+ * (`/oauth/token`, `/oauth/device`, `/api/mcp`). Localhost and preview
+ * hosts are left alone.
+ */
+export function servingOrigin(candidate: string) {
+  try {
+    const url = new URL(candidate);
+    if (url.hostname.toLowerCase() === "operate.to") {
+      return SERVING_PRODUCTION_ORIGIN;
+    }
+    return url.origin;
+  } catch {
+    return SERVING_PRODUCTION_ORIGIN;
+  }
+}
+
 export function discoveryIssuer(
   requestUrl?: string,
   configuredIssuer?: string,
@@ -98,14 +116,14 @@ export function discoveryIssuer(
   if (requestUrl) {
     try {
       const origin = new URL(requestUrl).origin;
-      if (isOfficialOrigin(origin)) return origin;
+      if (isOfficialOrigin(origin)) return servingOrigin(origin);
     } catch {
       // Fall through to the configured issuer.
     }
   }
   if (configuredIssuer) {
     const clean = configuredIssuer.replace(/\/$/, "");
-    if (isOfficialOrigin(clean)) return clean;
+    if (isOfficialOrigin(clean)) return servingOrigin(clean);
   }
   return SERVING_PRODUCTION_ORIGIN;
 }
@@ -116,15 +134,7 @@ export function discoveryIssuer(
  * 308-redirects and drops the body.
  */
 export function servingMcpUrl(issuer: string) {
-  try {
-    const url = new URL("/api/mcp", issuer);
-    if (url.hostname.toLowerCase() === "operate.to") {
-      return `${SERVING_PRODUCTION_ORIGIN}/api/mcp`;
-    }
-    return url.toString();
-  } catch {
-    return `${SERVING_PRODUCTION_ORIGIN}/api/mcp`;
-  }
+  return `${servingOrigin(issuer)}/api/mcp`;
 }
 
 export function officialAuthorizationServers(preferredIssuer: string) {

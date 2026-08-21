@@ -15,6 +15,7 @@ import {
   officialAuthorizationServers,
   sameMcpResource,
   servingMcpUrl,
+  servingOrigin,
 } from "@convex/_oauthResource";
 
 export {
@@ -24,6 +25,7 @@ export {
   officialAuthorizationServers,
   sameMcpResource,
   servingMcpUrl,
+  servingOrigin,
 };
 
 export function canonicalMcpResource(issuer: string) {

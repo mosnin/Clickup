@@ -4,10 +4,11 @@ import {
   CANONICAL_PRODUCTION_MCP_RESOURCE,
   discoveryIssuer,
   servingMcpUrl,
+  servingOrigin,
   validateMcpResource,
 } from "./oauth-resource";
 
-export { servingMcpUrl };
+export { servingMcpUrl, servingOrigin };
 
 // RFC 8628 §3.4. Lives here rather than beside the handler that reads it,
 // because a Next route file may only export HTTP handlers and the documented

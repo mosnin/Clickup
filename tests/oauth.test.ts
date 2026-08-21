@@ -212,6 +212,58 @@ describe("OAuth 2.1 remote MCP authorization", () => {
     ).rejects.toThrow(/invalid api key/i);
   });
 
+  it("RFC revoke of a rotated refresh token still kills the live successor", async () => {
+    const { t, owner, agentId } = await setup();
+    const code = "opc_revoke_predecessor";
+    await owner.mutation(api.oauth.approveAuthorization, {
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      scope: "operate:read operate:write",
+      resource: RESOURCE,
+      codeChallenge: CHALLENGE,
+      code,
+      agentId,
+    });
+    const accessToken = "opa_revoke_first";
+    const refreshToken = "opr_revoke_first";
+    await t.mutation(api.oauth.exchangeAuthorizationCode, {
+      code,
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      codeVerifier: VERIFIER,
+      accessToken,
+      refreshToken,
+      resource: RESOURCE,
+    });
+    const liveAccess = "opa_revoke_live";
+    const liveRefresh = "opr_revoke_live";
+    await t.mutation(api.oauth.refreshAccessToken, {
+      refreshToken,
+      clientId: CLIENT_ID,
+      accessToken: liveAccess,
+      nextRefreshToken: liveRefresh,
+      resource: RESOURCE,
+    });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: liveAccess }),
+    ).resolves.toMatchObject({ agentId });
+
+    // Logout presented the refresh the client last stored before rotation.
+    await t.mutation(api.oauth.revokeToken, { token: refreshToken });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: liveAccess }),
+    ).rejects.toThrow(/invalid api key/i);
+    await expect(
+      t.mutation(api.oauth.refreshAccessToken, {
+        refreshToken: liveRefresh,
+        clientId: CLIENT_ID,
+        accessToken: "opa_after_logout",
+        nextRefreshToken: "opr_after_logout",
+        resource: RESOURCE,
+      }),
+    ).resolves.toMatchObject({ ok: false });
+  });
+
   it("binds www and apex as one audience and refuses unofficial hosts", async () => {
     const { t, owner, agentId } = await setup();
     await expect(

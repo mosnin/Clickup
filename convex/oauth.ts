@@ -448,8 +448,15 @@ export const revokeToken = mutation({
         .query("oauthAccessTokens")
         .withIndex("by_refresh_hash", (q) => q.eq("refreshTokenHash", hash))
         .unique());
-    if (row && row.revokedAt === undefined) {
-      await ctx.db.patch(row._id, { revokedAt: Date.now() });
+    if (row) {
+      // Always walk the family, even when this row is already revoked.
+      // Logout often presents the refresh token the client last stored;
+      // after a rotation that is the spent predecessor, and skipping it
+      // would leave the live successor valid.
+      await revokeRefreshFamily(ctx, row, Date.now());
+      if (row.revokedAt === undefined) {
+        await ctx.db.patch(row._id, { revokedAt: Date.now() });
+      }
     }
     return { revoked: true };
   },

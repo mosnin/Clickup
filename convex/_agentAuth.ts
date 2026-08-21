@@ -152,8 +152,11 @@ export async function requireAgentByKey(
     key.revokedAt !== undefined ||
     (oauthToken !== null && oauthToken.expiresAt <= Date.now()) ||
     (agentKey !== null &&
-      agentKey.expiresAt !== undefined &&
-      agentKey.expiresAt <= Date.now())
+      (agentKey.source === "device"
+        ? agentKey.expiresAt === undefined ||
+          agentKey.expiresAt <= Date.now()
+        : agentKey.expiresAt !== undefined &&
+          agentKey.expiresAt <= Date.now()))
   ) {
     throw new ConvexError("Invalid API key");
   }

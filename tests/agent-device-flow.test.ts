@@ -367,6 +367,36 @@ describe("device authorization", () => {
     );
   });
 
+  it("refuses a device-grant key that has no expiry rather than treating it as immortal", async () => {
+    const { t, workspaceId } = await setup();
+    await startRequest(t);
+    const asOwner = t.withIdentity(OWNER);
+    await asOwner.mutation(api.agentAuth.approveDeviceRequest, {
+      userCode: USER_CODE,
+      parentType: "workspace",
+      parentId: workspaceId,
+      agentName: "Scout",
+      role: "member",
+    });
+    await t.mutation(api.agentAuth.claimDeviceRequest, {
+      deviceCode: DEVICE_CODE,
+      ...KEY_MATERIAL,
+    });
+    await t.run(async (ctx) => {
+      const key = await ctx.db.query("agentKeys").first();
+      await ctx.db.replace(key!._id, {
+        agentId: key!.agentId,
+        keyHash: key!.keyHash,
+        keyPrefix: key!.keyPrefix,
+        createdAt: key!.createdAt,
+        source: "device",
+      });
+    });
+    await expect(t.query(api.agentApi.whoami, { apiKey: KEY })).rejects.toThrow(
+      /invalid api key/i,
+    );
+  });
+
   it("revokes the oldest live device key when a sixth is minted", async () => {
     const { t, workspaceId } = await setup();
     await startRequest(t);
