@@ -12,7 +12,10 @@ import {
 export async function POST(request: Request) {
   const parsed = await oauthJsonObject(request);
   if (!parsed) {
-    return oauthError("invalid_client_metadata", "Body must be JSON");
+    return oauthError(
+      "invalid_client_metadata",
+      "Body must be a JSON or form-encoded object",
+    );
   }
   const input = parsed as {
     client_name?: string;

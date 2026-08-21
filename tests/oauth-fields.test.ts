@@ -187,6 +187,26 @@ describe("oauthJsonObject", () => {
     });
   });
 
+  it("coerces a JSON string redirect_uris into an array", async () => {
+    const body = await oauthJsonObject(
+      new Request("https://www.operate.to/oauth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_name: "ChatGPT",
+          redirect_uris:
+            "https://chatgpt.com/connector_platform_oauth_redirect",
+        }),
+      }),
+    );
+    expect(body).toMatchObject({
+      client_name: "ChatGPT",
+      redirect_uris: [
+        "https://chatgpt.com/connector_platform_oauth_redirect",
+      ],
+    });
+  });
+
   it("parses a JSON array stuffed into a form redirect_uris field", async () => {
     const body = await oauthJsonObject(
       new Request("https://www.operate.to/oauth/register", {
@@ -256,5 +276,6 @@ describe("OAuth POST routes share oauthFields", () => {
     const middleware = read("src/middleware.ts");
     expect(middleware).toContain("stripOAuthTrailingSlash");
     expect(middleware).toContain("NextResponse.rewrite");
+    expect(read("next.config.mjs")).toContain("skipTrailingSlashRedirect: true");
   });
 });

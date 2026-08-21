@@ -201,6 +201,32 @@ export function oauthBasicClientId(request: Request) {
   }
 }
 
+function coerceRedirectUris(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (item): item is string => typeof item === "string" && item.length > 0,
+    );
+  }
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const trimmed = value.trim();
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      if (Array.isArray(parsed)) return coerceRedirectUris(parsed);
+    } catch {
+      // A single URI, not a JSON array.
+    }
+  }
+  return [trimmed];
+}
+
+function withRedirectUris(record: Record<string, unknown>) {
+  if (!("redirect_uris" in record)) return record;
+  const uris = coerceRedirectUris(record.redirect_uris);
+  if (uris) record.redirect_uris = uris;
+  return record;
+}
+
 function formClientMetadata(text: string): Record<string, unknown> | null {
   const params = new URLSearchParams(text);
   if (![...params.keys()].length) return null;
@@ -231,7 +257,7 @@ function formClientMetadata(text: string): Record<string, unknown> | null {
     }
     record[key] = all.length > 1 ? all : (all[0] ?? "");
   }
-  return record;
+  return withRedirectUris(record);
 }
 
 /** DCR (RFC 7591) is JSON. Strip a BOM so request.json() is not the only path. */
@@ -242,7 +268,7 @@ export async function oauthJsonObject(
   try {
     const body = JSON.parse(text) as unknown;
     if (body && typeof body === "object" && !Array.isArray(body)) {
-      return body as Record<string, unknown>;
+      return withRedirectUris(body as Record<string, unknown>);
     }
   } catch {
     // Fall through: some DCR clients POST form-urlencoded.

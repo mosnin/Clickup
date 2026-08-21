@@ -1,21 +1,31 @@
-import { afterEach, vi } from "vitest";
+import { afterAll, afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
+
+async function flushReactScheduler() {
+  // React's concurrent scheduler flushes remaining work on later macrotasks
+  // (setImmediate under jsdom). Unmounting queues that flush; if the test
+  // file ends first, the scheduler wakes up after the environment is gone
+  // and dies on `window is not defined`. Two ticks still lost the race
+  // under CI's loaded worker pool (page-editor + Tiptap). Drain several
+  // immediates and one timeout so a continuation scheduled by a flush
+  // still sees `window`.
+  for (let i = 0; i < 8; i += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 // jsdom lacks the browser APIs the dashboard's motion and layout primitives
 // reach for. Stubbing them here rather than in each test keeps the tests
 // about the component instead of about the environment.
 afterEach(async () => {
   cleanup();
-  // React's concurrent scheduler flushes remaining work on a later macrotask
-  // (setImmediate under jsdom). Unmounting queues that flush; if the test file
-  // ends first, the scheduler wakes up after the environment is gone and dies
-  // on `window is not defined`. One tick here lets it land while the window
-  // still exists.
-  await new Promise((resolve) => setImmediate(resolve));
-  // Twice: the first flush can itself schedule a continuation (React yields
-  // long work across multiple macrotasks), and a single tick still lost the
-  // race under a loaded worker pool.
-  await new Promise((resolve) => setImmediate(resolve));
+  await flushReactScheduler();
+});
+
+afterAll(async () => {
+  cleanup();
+  await flushReactScheduler();
 });
 
 if (!window.matchMedia) {
