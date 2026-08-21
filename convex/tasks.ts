@@ -5,7 +5,7 @@ import type { MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { requireListAccess, requireTaskAccess } from "./_authz";
 import { applyAutomations } from "./listAutomations";
-import type { Actor } from "./_agentAuth";
+import { agentCanTouchList, type Actor } from "./_agentAuth";
 import { emitEvent, scopeForList, userActor } from "./events";
 import { createMessageCore } from "./messages";
 import { notify } from "./notificationCenter";
@@ -311,6 +311,16 @@ export async function validateTaskAssignees(
         agent.parentId !== scope.scopeId
       ) {
         throw new ConvexError("Agent assignee is outside this task's scope");
+      }
+      if ((agent.role ?? "member") === "readonly") {
+        throw new ConvexError(
+          `${agent.name} is read-only and cannot be assigned work`,
+        );
+      }
+      if (!agentCanTouchList(agent, list._id)) {
+        throw new ConvexError(
+          `${agent.name} is not allowed to work on this list`,
+        );
       }
       const missing = missingCapabilities(
         agent.capabilities,
@@ -874,7 +884,29 @@ export async function updateTaskCore(
   if (!wasComplete && willBeComplete) {
     await emitTaskEvent(ctx, updated, "task.completed", actor);
     await applyAutomations(ctx, updated, "status_changed_to_complete");
-    await spawnRecurringInstance(ctx, updated);
+    // Automations patch the row in place (assign_user, set_priority, …)
+    // and never re-enter this function. Re-read so assignment side
+    // effects and the next recurrence instance see the post-automation
+    // document — the create path already does this. Without the re-read,
+    // "on complete, assign the reviewer" updates the DB but never wakes
+    // the assignee, and the spawned instance copies the stale snapshot.
+    const afterAutomations = (await ctx.db.get(args.taskId)) ?? updated;
+    const automationAssignees = afterAutomations.assigneeClerkIds.filter(
+      (id) => !updated.assigneeClerkIds.includes(id),
+    );
+    if (automationAssignees.length > 0) {
+      await scheduleAssignmentNotifications(
+        ctx,
+        afterAutomations,
+        automationAssignees,
+        actor,
+        options?.suppressAgentPing,
+      );
+      await emitTaskEvent(ctx, afterAutomations, "task.assigned", actor, {
+        assigneeIds: automationAssignees,
+      });
+    }
+    await spawnRecurringInstance(ctx, afterAutomations);
   }
 
   // Rollup accounting: only status changes move a task between buckets

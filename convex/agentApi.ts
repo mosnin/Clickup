@@ -264,12 +264,19 @@ async function workspaceIdForMessageParent(
 }
 
 // Agents may touch a message parent when it resolves into their scope.
+// Task threads additionally honor the list allow-list — the same fence
+// get_task / claim_task already apply. Scope-only was how a restricted
+// agent could still read and write comments on work it cannot execute.
 async function requireMessageParentAccessForAgent(
   ctx: QueryCtx | MutationCtx,
   parentType: "task" | "space" | "workspace" | "channel" | "page",
   parentId: string,
   agent: Doc<"agents">,
 ): Promise<void> {
+  if (parentType === "task") {
+    await requireTaskAccessForAgent(ctx, parentId as Id<"tasks">, agent);
+    return;
+  }
   const scope = await scopeForMessageParent(ctx, parentType, parentId);
   if (
     !scope ||
@@ -280,6 +287,21 @@ async function requireMessageParentAccessForAgent(
       "You can't access this thread — its parent is outside your agent's scope. Call whoami to see your scope, get_tree for what's visible.",
     );
   }
+}
+
+// Mentions and wake pings can be *addressed* to an agent for a task on a
+// list it is fenced out of (a teammate @mentioned them, or an assignment
+// landed before the fence). Showing those rows would leak the snippet and
+// present work the agent cannot claim.
+async function agentCanSeeTaskId(
+  ctx: QueryCtx | MutationCtx,
+  agent: Doc<"agents">,
+  taskId: string,
+): Promise<boolean> {
+  const id = ctx.db.normalizeId("tasks", taskId);
+  if (!id) return false;
+  const task = await ctx.db.get(id);
+  return task !== null && agentCanTouchList(agent, task.listId);
 }
 
 async function requireDocAccessForAgent(
@@ -1491,17 +1513,27 @@ export const listWakeInbox = query({
       )
       .order("desc")
       .take(50);
-    return deliveries.map((delivery) => ({
-      deliveryId: delivery._id,
-      type: delivery.type,
-      payload: delivery.payload,
-      taskId: delivery.taskId,
-      messageId: delivery.messageId,
-      pushStatus: delivery.status,
-      pushAttempts: delivery.attempts,
-      pushError: delivery.lastError,
-      createdAt: delivery.createdAt,
-    }));
+    const inbox = [];
+    for (const delivery of deliveries) {
+      if (
+        delivery.taskId &&
+        !(await agentCanSeeTaskId(ctx, agent, delivery.taskId))
+      ) {
+        continue;
+      }
+      inbox.push({
+        deliveryId: delivery._id,
+        type: delivery.type,
+        payload: delivery.payload,
+        taskId: delivery.taskId,
+        messageId: delivery.messageId,
+        pushStatus: delivery.status,
+        pushAttempts: delivery.attempts,
+        pushError: delivery.lastError,
+        createdAt: delivery.createdAt,
+      });
+    }
+    return inbox;
   },
 });
 
@@ -2841,6 +2873,12 @@ export const listMyMentions = query({
     const out = [];
     for (const m of mentions.sort((a, b) => b.createdAt - a.createdAt)) {
       if (unreadOnly && m.readAt !== undefined) continue;
+      if (
+        m.parentType === "task" &&
+        !(await agentCanSeeTaskId(ctx, agent, m.parentId))
+      ) {
+        continue;
+      }
       // A page mention has no message behind it — the tag lives in the
       // page's markdown and the snippet was captured when it was written.
       const message = m.messageId ? await ctx.db.get(m.messageId) : null;
@@ -4057,8 +4095,11 @@ export const handoffTask = mutation({
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    await requireTaskAccessForAgent(ctx, args.taskId, agent);
-    // Recipient must be a member or agent in this scope.
+    const { task } = await requireTaskAccessForAgent(ctx, args.taskId, agent);
+    // Recipient must be a member or agent in this scope — and, for an
+    // agent, able to actually execute the task. Checking before
+    // abandonExecutionAssignmentForTask means a refused handoff cannot
+    // drop the sender's dispatch lease.
     const targetAgentId = ctx.db.normalizeId("agents", args.toId);
     if (targetAgentId) {
       const target = await ctx.db.get(targetAgentId);
@@ -4068,6 +4109,16 @@ export const handoffTask = mutation({
         target.parentId !== agent.parentId
       ) {
         throw new ConvexError("Recipient is not in this scope");
+      }
+      if ((target.role ?? "member") === "readonly") {
+        throw new ConvexError(
+          `${target.name} is read-only and cannot be assigned work`,
+        );
+      }
+      if (!agentCanTouchList(target, task.listId)) {
+        throw new ConvexError(
+          `${target.name} is not allowed to work on this list`,
+        );
       }
     } else if (agent.parentType === "workspace") {
       const member = await ctx.db
