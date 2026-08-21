@@ -98,6 +98,12 @@ describe("public Operate plugin package", () => {
     );
     expect(route).toContain("securitySchemes: securitySchemesFor(tool.name)");
     expect(route).toContain('type: "oauth2"');
-    expect(route).toContain('scope="operate:read"');
+    expect(route).toContain("mcpWwwAuthenticate(req)");
+    const challenge = readFileSync(
+      join(ROOT, "src/lib/oauth-server.ts"),
+      "utf8",
+    );
+    expect(challenge).toContain('scope="operate:read"');
+    expect(challenge).toContain("/.well-known/oauth-protected-resource");
   });
 });
