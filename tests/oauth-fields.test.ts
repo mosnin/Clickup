@@ -25,6 +25,7 @@ import {
   isMcpBrowserOrigin,
   isOAuthOptionsPath,
   canonicalOAuthKey,
+  oauthParamGet,
   oauthQueryValue,
   readAuthorizeParams,
   stripOAuthTrailingSlash,
@@ -208,6 +209,19 @@ describe("oauthFields", () => {
     expect(canonicalOAuthKey("code-verifier")).toBe("code_verifier");
     expect(canonicalOAuthKey("user-code")).toBe("user_code");
     expect(canonicalOAuthKey("redirect-url")).toBe("redirect_uri");
+    expect(canonicalOAuthKey("CLIENT_ID")).toBe("client_id");
+    expect(canonicalOAuthKey("Client-Id")).toBe("client_id");
+    const headerCase = await oauthFields(
+      new Request("https://www.operate.to/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          "Client-Id": "opc_header_case",
+          CLIENT_ID: "opc_screaming",
+        }),
+      }),
+    );
+    expect(headerCase("client_id")).toBe("opc_header_case");
     const audience = await oauthFields(
       new Request("https://www.operate.to/oauth/token", {
         method: "POST",
@@ -346,6 +360,15 @@ describe("oauthBearer", () => {
     ).toBe("cua_key");
     expect(extractOperateCredential("cua_bare", undefined)).toBe("cua_bare");
     expect(extractOperateCredential("Basic abc", undefined)).toBe("");
+    expect(extractOperateCredential("Token: cua_colon", undefined)).toBe(
+      "cua_colon",
+    );
+    expect(extractOperateCredential("Bearer: cua_colon_bearer", undefined)).toBe(
+      "cua_colon_bearer",
+    );
+    expect(extractOperateCredential("Api-Key: cua_colon_key", undefined)).toBe(
+      "cua_colon_key",
+    );
     expect(
       extractOperateCredential("Basic opc_public:, Bearer cua_after_basic"),
     ).toBe("cua_after_basic");
@@ -400,6 +423,16 @@ describe("oauthBearer", () => {
         new Request("https://www.operate.to/api/mcp?token=cua_token_query"),
       ),
     ).toBe("cua_token_query");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp?Token=cua_token_cased"),
+      ),
+    ).toBe("cua_token_cased");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp?Api-Key=cua_api_cased"),
+      ),
+    ).toBe("cua_api_cased");
     expect(
       oauthBearer(
         new Request(
@@ -644,6 +677,18 @@ describe("oauthQueryValue", () => {
         "user_code",
       ),
     ).toBe("WXYZ-1234");
+    expect(
+      oauthQueryValue(
+        oauthParamGet({ "Client-Id": "opc_folded", AUD: "https://operate.to/api/mcp" }),
+        "client_id",
+      ),
+    ).toBe("opc_folded");
+    expect(
+      oauthQueryValue(
+        oauthParamGet({ "Client-Id": "opc_folded", AUD: "https://operate.to/api/mcp" }),
+        "resource",
+      ),
+    ).toBe("https://operate.to/api/mcp");
     expect(
       oauthQueryValue(
         (name) => (name === "scope" ? "openid,email,operate:read" : null),
@@ -1100,20 +1145,22 @@ describe("OAuth POST routes share oauthFields", () => {
       "oauthQueryValue",
     );
     expect(read("src/app/oauth/authorize/oauth-authorize.tsx")).toContain(
-      "getAll",
+      "foldSearchAll",
     );
     expect(read("src/app/oauth/authorize/page.tsx")).toContain(
       "Array.isArray(value)",
     );
+    expect(read("src/app/oauth/authorize/page.tsx")).toContain("oauthParamGet");
     expect(read("src/app/oauth/authorize/oauth-authorize.tsx")).toContain(
       "canonicalCodeChallengeMethod",
     );
     expect(read("src/app/oauth/authorize/page.tsx")).toContain(
-      'oauthQueryValue(param, "resource")',
+      'oauthQueryValue(oauthParamGet(params), "resource")',
     );
     expect(read("src/app/link/page.tsx")).toContain(
       'oauthQueryValue(param, "user_code")',
     );
+    expect(read("src/app/link/page.tsx")).toContain("oauthParamGet");
     expect(read("src/app/api/x402/route.ts")).toContain("oauthBearer");
     expect(read("src/app/api/x402/route.ts")).toContain("oauthWwwAuthenticate");
     expect(read("src/app/api/x402/route.ts")).toMatch(

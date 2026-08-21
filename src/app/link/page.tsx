@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { RequireBackend } from "@/components/require-backend";
 import { EnsureUser } from "@/components/dashboard/ensure-user";
 import { Button } from "@/components/ui/button";
-import { oauthQueryValue } from "@/lib/oauth-slash";
+import { oauthParamGet, oauthQueryValue } from "@/lib/oauth-slash";
 import { LinkAgent } from "./link-agent";
 
 export const metadata: Metadata = { title: "Connect an agent" };
@@ -21,10 +21,8 @@ export default async function LinkPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const param = (name: string) => params[name];
-  const code =
-    oauthQueryValue(param, "user_code") ||
-    (typeof params.code === "string" ? params.code : "");
+  const param = oauthParamGet(params);
+  const code = oauthQueryValue(param, "user_code") || oauthQueryValue(param, "code");
   const { userId } = await auth();
   if (!userId) {
     // Offer BOTH doors rather than picking one on their behalf.

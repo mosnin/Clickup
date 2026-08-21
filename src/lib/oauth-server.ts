@@ -12,6 +12,7 @@ import {
   oauthFieldAliases,
   oauthOptions,
   oauthQueryValue,
+  foldSearchAll,
   parseJsonBody,
   canonicalOAuthKey,
   canonicalCodeChallengeMethod,
@@ -229,8 +230,7 @@ export async function oauthFields(
 }
 
 function searchAll(params: URLSearchParams, key: string): string | string[] {
-  const all = params.getAll(key);
-  return all.length <= 1 ? (all[0] ?? "") : all;
+  return foldSearchAll(params, key);
 }
 
 function phpFieldString(
@@ -240,26 +240,35 @@ function phpFieldString(
   return oauthQueryValue(get, name);
 }
 
-function phpRecordString(record: Record<string, unknown>, name: string) {
-  for (const key of oauthFieldAliases(name)) {
-    const value = record[key];
-    if (value === undefined || value === null) continue;
-    if (Array.isArray(value)) {
-      if (name === "scope") {
-        const scopes = value.filter(
-          (item): item is string => typeof item === "string" && item.length > 0,
-        );
-        if (scopes.length) return normalizeOAuthScope(scopes.join(" "));
-        continue;
-      }
-      const first = value.find((item) => item !== undefined && item !== null);
-      if (first === undefined) continue;
-      return typeof first === "string" ? first : String(first);
+function recordField(record: Record<string, unknown>, name: string): unknown {
+  if (Object.prototype.hasOwnProperty.call(record, name)) return record[name];
+  const aliases = new Set(
+    oauthFieldAliases(name).map((alias) => alias.toLowerCase()),
+  );
+  for (const [key, value] of Object.entries(record)) {
+    if (aliases.has(key.toLowerCase()) || canonicalOAuthKey(key) === name) {
+      return value;
     }
-    const scalar = typeof value === "string" ? value : String(value);
-    return name === "scope" ? normalizeOAuthScope(scalar) : scalar;
   }
-  return "";
+  return undefined;
+}
+
+function phpRecordString(record: Record<string, unknown>, name: string) {
+  const value = recordField(record, name);
+  if (value === undefined || value === null) return "";
+  if (Array.isArray(value)) {
+    if (name === "scope") {
+      const scopes = value.filter(
+        (item): item is string => typeof item === "string" && item.length > 0,
+      );
+      return scopes.length ? normalizeOAuthScope(scopes.join(" ")) : "";
+    }
+    const first = value.find((item) => item !== undefined && item !== null);
+    if (first === undefined) return "";
+    return typeof first === "string" ? first : String(first);
+  }
+  const scalar = typeof value === "string" ? value : String(value);
+  return name === "scope" ? normalizeOAuthScope(scalar) : scalar;
 }
 
 /** RFC 7009 puts `token` in the body; some logout clients send Bearer only. */

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/errors";
 import {
   canonicalCodeChallengeMethod,
+  foldSearchAll,
   oauthQueryValue,
 } from "@/lib/oauth-slash";
 
@@ -31,12 +32,7 @@ function randomCode() {
 
 export function OAuthAuthorize({ resource }: { resource: string }) {
   const searchParams = useSearchParams();
-  const q = (name: string) => {
-    const all = searchParams.getAll(name);
-    if (all.length === 0) return null;
-    if (all.length === 1) return all[0];
-    return all;
-  };
+  const q = (name: string) => foldSearchAll(searchParams, name) || null;
   const clientId = oauthQueryValue(q, "client_id");
   const redirectUri = oauthQueryValue(q, "redirect_uri");
   const responseTypeRaw = oauthQueryValue(q, "response_type");

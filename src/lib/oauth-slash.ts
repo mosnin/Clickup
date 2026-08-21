@@ -310,13 +310,39 @@ export function canonicalCodeChallengeMethod(value: string) {
   return value.trim();
 }
 
+const CANONICAL_OAUTH_KEYS = new Set<string>([
+  ...Object.values(OAUTH_KEY_ALIASES),
+  "client_id",
+  "client_name",
+  "redirect_uri",
+  "redirect_uris",
+  "grant_type",
+  "device_code",
+  "user_code",
+  "refresh_token",
+  "access_token",
+  "api_key",
+  "code_verifier",
+  "code_challenge",
+  "code_challenge_method",
+  "token_type_hint",
+  "scope",
+  "response_type",
+  "resource",
+  "token",
+  "code",
+  "state",
+]);
+
 export function canonicalOAuthKey(key: string) {
   const stripped = key.replace(/\[\d*\]$/, "");
   if (OAUTH_KEY_ALIASES[stripped]) return OAUTH_KEY_ALIASES[stripped];
-  if (stripped.includes("-")) {
-    const snake = stripped.replace(/-/g, "_");
-    return OAUTH_KEY_ALIASES[snake] ?? snake;
-  }
+  const lower = stripped.toLowerCase();
+  if (OAUTH_KEY_ALIASES[lower]) return OAUTH_KEY_ALIASES[lower];
+  const snake = lower.replace(/-/g, "_");
+  if (OAUTH_KEY_ALIASES[snake]) return OAUTH_KEY_ALIASES[snake];
+  if (CANONICAL_OAUTH_KEYS.has(snake)) return snake;
+  if (stripped.includes("-")) return snake;
   return stripped;
 }
 
@@ -368,6 +394,38 @@ function oauthFieldStrings(
   if (raw == null) return [];
   const items = Array.isArray(raw) ? raw : [raw];
   return items.filter((item) => item.length > 0);
+}
+
+/** Query/form keys are case-sensitive; Token / Api-Key headers are not. */
+export function foldSearchAll(
+  params: { forEach: (cb: (value: string, key: string) => void) => void },
+  key: string,
+): string | string[] {
+  const wanted = key.toLowerCase();
+  const all: string[] = [];
+  params.forEach((value, name) => {
+    if (name.toLowerCase() === wanted) all.push(value);
+  });
+  return all.length <= 1 ? (all[0] ?? "") : all;
+}
+
+export function oauthParamGet(
+  params: Record<string, string | string[] | undefined>,
+): (name: string) => string | string[] | undefined {
+  return (name) => {
+    if (params[name] !== undefined) return params[name];
+    const wanted = name.toLowerCase();
+    const collected: string[] = [];
+    for (const [key, value] of Object.entries(params)) {
+      if (key.toLowerCase() !== wanted) continue;
+      if (typeof value === "string" && value) collected.push(value);
+      else if (Array.isArray(value)) {
+        for (const item of value) if (item) collected.push(item);
+      }
+    }
+    if (!collected.length) return undefined;
+    return collected.length === 1 ? collected[0] : collected;
+  };
 }
 
 /**
@@ -465,7 +523,9 @@ export function stripOAuthTrailingSlash(pathname: string) {
 }
 
 const OPERATE_CREDENTIAL = /^(cua_|opa_|opr_|opc_|opd_)/i;
-const AUTH_SCHEME_PREFIX = /^(Bearer|Token|Api-?Key|ApiKey)\s+/i;
+const AUTH_SCHEME_PREFIX = /^(Bearer|Token|Api-?Key|ApiKey):?\s+/i;
+const AUTH_PART = /,(?=\s*(?:Bearer|Token|Api-?Key|ApiKey|Basic):?\s+)/i;
+const BASIC_PREFIX = /^Basic:?\s+/i;
 
 /** `Bearer "cua_…"`, `Token token=cua_…`. Never applied to Basic. */
 function unwrapCredential(raw: string) {
@@ -499,12 +559,10 @@ function peelAuthorization(header: string) {
  * Basic in a part is never a bearer; a later Bearer/Token still is.
  */
 function credentialFromAuthorization(header: string) {
-  const parts = header.split(
-    /,(?=\s*(?:Bearer|Token|Api-?Key|ApiKey|Basic)\s+)/i,
-  );
+  const parts = header.split(AUTH_PART);
   for (const part of parts) {
     const piece = part.trim();
-    if (!piece || /^Basic\s+/i.test(piece)) continue;
+    if (!piece || BASIC_PREFIX.test(piece)) continue;
     if (AUTH_SCHEME_PREFIX.test(piece)) return peelAuthorization(piece);
     const raw = unwrapCredential(piece);
     if (OPERATE_CREDENTIAL.test(raw) && !raw.includes(" ")) return raw;
@@ -514,13 +572,8 @@ function credentialFromAuthorization(header: string) {
 
 function dedicatedHeaderToken(value: string | null | undefined) {
   const token = value?.trim() ?? "";
-  if (!token || /^Basic\s+/i.test(token)) return "";
+  if (!token || BASIC_PREFIX.test(token)) return "";
   return peelAuthorization(token);
-}
-
-function queryParam(query: URLSearchParams, key: string) {
-  const all = query.getAll(key);
-  return all.length <= 1 ? (all[0] ?? "") : all;
 }
 
 /**
@@ -545,11 +598,11 @@ export function extractOperateCredential(
     dedicatedHeaderToken(extra?.accessToken);
   if (dedicated) return dedicated;
   if (query) {
-    const get = (key: string) => queryParam(query, key);
+    const get = (key: string) => foldSearchAll(query, key);
     return (
       oauthQueryValue(get, "access_token") ||
       oauthQueryValue(get, "api_key") ||
-      query.get("token") ||
+      foldSearchAll(query, "token") ||
       ""
     );
   }
