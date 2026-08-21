@@ -118,10 +118,19 @@ describe("private space cannot be read via search / home / export", () => {
       .withIdentity(OUTSIDER)
       .query(api.search.everything, { text: "Alpha" });
     expect(everything.tasks.map((hit) => hit.title)).toEqual(["Public task Alpha"]);
-    expect(everything.lists.map((hit) => hit.name)).toEqual(["Public work"]);
-    expect(everything.spaces.map((hit) => hit.name)).not.toContain("Secret vault");
     expect(everything.tasks.map((hit) => hit.listId)).not.toContain(secretListId);
-    expect(everything.lists.map((hit) => hit.listId)).toContain(openListId);
+
+    const listHits = await t
+      .withIdentity(OUTSIDER)
+      .query(api.search.everything, { text: "work" });
+    expect(listHits.lists.map((hit) => hit.name)).toEqual(["Public work"]);
+    expect(listHits.lists.map((hit) => hit.listId)).toContain(openListId);
+    expect(listHits.lists.map((hit) => hit.listId)).not.toContain(secretListId);
+
+    const spaceHits = await t
+      .withIdentity(OUTSIDER)
+      .query(api.search.everything, { text: "vault" });
+    expect(spaceHits.spaces.map((hit) => hit.name)).not.toContain("Secret vault");
 
     const quick = await t
       .withIdentity(OUTSIDER)
