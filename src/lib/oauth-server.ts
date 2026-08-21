@@ -109,27 +109,37 @@ export function oauthDiscoveryMetadata(request?: Request) {
 
 /**
  * Token, device, and revoke all accept JSON or form bodies. An agent
- * hand-rolling curl reaches for JSON; RFC 6749/7009/8628 send form.
- * Revoke used to call `formData()` unconditionally, so a JSON logout
- * threw (or read no token) and left the refresh family live.
+ * hand-rolling curl reaches for JSON, often with no Content-Type;
+ * RFC 6749/7009/8628 send form. Reading `formData()` on a JSON body
+ * throws (or yields no fields), so logout/token/device would miss the
+ * credential. One text parse: JSON if labelled or the body starts
+ * with `{`, otherwise application/x-www-form-urlencoded.
  */
 export async function oauthFields(
   request: Request,
 ): Promise<(name: string) => string> {
   const contentType = request.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    const body = (await request.json().catch(() => ({}))) as Record<
-      string,
-      unknown
-    >;
-    return (name) => String(body[name] ?? "");
+  const text = await request.text().catch(() => "");
+  const trimmed = text.trim();
+  const labelledJson = contentType.includes("application/json");
+  const looksJson = trimmed.startsWith("{") || trimmed.startsWith("[");
+  if (labelledJson || looksJson) {
+    try {
+      const body = JSON.parse(trimmed) as unknown;
+      if (body && typeof body === "object" && !Array.isArray(body)) {
+        const record = body as Record<string, unknown>;
+        return (name) => {
+          const value = record[name];
+          if (value === undefined || value === null) return "";
+          return typeof value === "string" ? value : String(value);
+        };
+      }
+    } catch {
+      if (labelledJson) return () => "";
+    }
   }
-  try {
-    const form = await request.formData();
-    return (name) => String(form.get(name) ?? "");
-  } catch {
-    return () => "";
-  }
+  const params = new URLSearchParams(text);
+  return (name) => params.get(name) ?? "";
 }
 
 export function oauthConvexClient() {

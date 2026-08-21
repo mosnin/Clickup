@@ -3,6 +3,7 @@ import { api } from "@convex/_generated/api";
 import {
   oauthConvexClient,
   oauthError,
+  oauthFields,
   oauthIssuer,
   oauthJson,
   randomCredential,
@@ -33,22 +34,10 @@ function userCode() {
 }
 
 export async function POST(request: Request) {
-  // RFC 8628 posts form-encoded, but an agent hand-rolling this with curl
-  // will reach for JSON. Accept both rather than making the first thing an
-  // agent tries fail on a content type.
-  let clientName = "";
-  const contentType = request.headers.get("content-type") ?? "";
-  try {
-    if (contentType.includes("application/json")) {
-      const body = (await request.json()) as { client_name?: string; client?: string };
-      clientName = String(body.client_name ?? body.client ?? "");
-    } else {
-      const form = await request.formData();
-      clientName = String(form.get("client_name") ?? form.get("client") ?? "");
-    }
-  } catch {
-    clientName = "";
-  }
+  // RFC 8628 posts form-encoded; an agent hand-rolling curl sends JSON,
+  // often with no Content-Type. Same reader as /oauth/token and /oauth/revoke.
+  const field = await oauthFields(request);
+  const clientName = field("client_name") || field("client");
 
   const issuer = oauthIssuer(request);
   const deviceCode = randomCredential("opd");
