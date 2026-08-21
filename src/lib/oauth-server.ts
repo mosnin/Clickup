@@ -285,6 +285,8 @@ export function canonicalGrantType(value: string) {
     return DEVICE_GRANT;
   }
   if (
+    lower === "urn:ietf:params:oauth:grant-type:authorization_code" ||
+    lower === "urn:ietf:params:oauth:grant-type:authorization-code" ||
     compact === "authorizationcode" ||
     compact === "authorization" ||
     compact === "authcode" ||
@@ -292,7 +294,12 @@ export function canonicalGrantType(value: string) {
   ) {
     return "authorization_code";
   }
-  if (compact === "refreshtoken" || compact === "refresh") {
+  if (
+    lower === "urn:ietf:params:oauth:grant-type:refresh_token" ||
+    lower === "urn:ietf:params:oauth:grant-type:refresh-token" ||
+    compact === "refreshtoken" ||
+    compact === "refresh"
+  ) {
     return "refresh_token";
   }
   return grant;

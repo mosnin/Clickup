@@ -13,6 +13,7 @@ import { GET as getOAuthIndex } from "../src/app/oauth/route";
 import { GET as getWebfinger } from "../src/app/.well-known/webfinger/route";
 import { GET as getHostMeta } from "../src/app/.well-known/host-meta/route";
 import { GET as getMcpUnderApi } from "../src/app/api/mcp/.well-known/mcp/route";
+import { GET as getHostMetaUnderApi } from "../src/app/api/mcp/.well-known/host-meta/route";
 import {
   CANONICAL_PRODUCTION_MCP_RESOURCE,
   canonicalMcpResource,
@@ -215,6 +216,7 @@ describe("public MCP OAuth discovery", () => {
         }),
       ]),
     );
+    expect(await (await getHostMetaUnderApi(request)).json()).toEqual(body);
   });
 
   it("answers webfinger so ChatGPT Enterprise domain checks are not 404", async () => {

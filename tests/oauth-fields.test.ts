@@ -181,6 +181,14 @@ describe("oauthFields", () => {
       }),
     );
     expect(audience("resource")).toBe("https://operate.to/api/mcp");
+    const aud = await oauthFields(
+      new Request("https://www.operate.to/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aud: "https://operate.to/api/mcp" }),
+      }),
+    );
+    expect(aud("resource")).toBe("https://operate.to/api/mcp");
     const grantAlias = await oauthFields(
       new Request("https://www.operate.to/oauth/token", {
         method: "POST",
@@ -352,6 +360,12 @@ describe("oauthBearer", () => {
     expect(canonicalGrantType("auth_code")).toBe("authorization_code");
     expect(canonicalGrantType("authorizationCode")).toBe("authorization_code");
     expect(canonicalGrantType("authorization code")).toBe("authorization_code");
+    expect(
+      canonicalGrantType("urn:ietf:params:oauth:grant-type:authorization_code"),
+    ).toBe("authorization_code");
+    expect(
+      canonicalGrantType("urn:ietf:params:oauth:grant-type:refresh_token"),
+    ).toBe("refresh_token");
     expect(canonicalGrantType("code")).toBe("authorization_code");
     expect(
       canonicalGrantType("urn:ietf:params:oauth:grant-type:device-code"),
@@ -791,6 +805,21 @@ describe("stripOAuthTrailingSlash", () => {
     expect(stripOAuthTrailingSlash("/.well-known/host-meta.json")).toBe(
       "/.well-known/host-meta",
     );
+    expect(stripOAuthTrailingSlash("/mcp/.well-known/host-meta")).toBe(
+      "/.well-known/host-meta",
+    );
+    expect(stripOAuthTrailingSlash("/mcp/.well-known/host-meta.json")).toBe(
+      "/.well-known/host-meta",
+    );
+    expect(stripOAuthTrailingSlash("/api/mcp/.well-known/host-meta")).toBe(
+      "/.well-known/host-meta",
+    );
+    expect(stripOAuthTrailingSlash("/mcp/.well-known/mcp.json")).toBe(
+      "/.well-known/mcp",
+    );
+    expect(stripOAuthTrailingSlash("/mcp/.well-known/webfinger.json")).toBe(
+      "/.well-known/webfinger",
+    );
     expect(stripOAuthTrailingSlash("/mcp.json")).toBe("/api/mcp");
     expect(stripOAuthTrailingSlash("/oauth/token.json")).toBe("/oauth/token");
     expect(stripOAuthTrailingSlash("/oauth/device.json")).toBe("/oauth/device");
@@ -927,6 +956,10 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(read("src/app/api/mcp/.well-known/mcp/route.ts")).toContain(
       ".well-known/mcp/route",
     );
+    expect(read("src/app/api/mcp/.well-known/host-meta/route.ts")).toContain(
+      ".well-known/host-meta/route",
+    );
+    expect(read("src/app/oauth/authorize/page.tsx")).toContain("params.aud");
     expect(read("src/app/oauth/token/route.ts")).toMatch(
       /oauthError\(\s*error,\s*DEVICE_ERROR_HELP\[error\]\(result\.interval\),\s*400,\s*request,/,
     );

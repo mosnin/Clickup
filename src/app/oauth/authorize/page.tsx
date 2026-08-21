@@ -29,6 +29,7 @@ export default async function OAuthAuthorizePage({
     const candidate =
       (typeof params.resource === "string" && params.resource) ||
       (typeof params.audience === "string" && params.audience) ||
+      (typeof params.aud === "string" && params.aud) ||
       undefined;
     resource = validateMcpResource(candidate, oauthIssuer());
   } catch {

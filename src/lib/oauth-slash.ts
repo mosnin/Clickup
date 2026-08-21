@@ -308,7 +308,7 @@ export function oauthFieldAliases(name: string) {
       "refreshToken",
     );
   }
-  if (name === "resource") aliases.push("audience");
+  if (name === "resource") aliases.push("audience", "aud");
   if (name === "scope") aliases.push("scopes");
   if (name === "response_type") aliases.push("responseType");
   if (name === "grant_type") aliases.push("grant", "grant-type");
@@ -361,14 +361,6 @@ export function stripOAuthTrailingSlash(pathname: string) {
   // Clients that guess the MCP default path (`/mcp`) used to 404.
   if (next === "/mcp") next = "/api/mcp";
   else if (next.startsWith("/mcp/")) next = `/api/mcp/${next.slice("/mcp/".length)}`;
-  // `/mcp/.well-known/mcp` and webfinger live at the host root, not under
-  // `/api/mcp`. The /mcp → /api/mcp rewrite above would 404 them.
-  if (
-    next === "/api/mcp/.well-known/mcp" ||
-    next === "/api/mcp/.well-known/webfinger"
-  ) {
-    next = next.slice("/api/mcp".length);
-  }
   // Clients that treat `/oauth` as the issuer construct
   // `/oauth/.well-known/oauth-authorization-server` and 404'd.
   if (next === "/oauth/.well-known") {
@@ -393,6 +385,15 @@ export function stripOAuthTrailingSlash(pathname: string) {
     } else if (isOAuthSlashRewritePath(withoutJson)) {
       next = withoutJson;
     }
+  }
+  // Root-only cards. After /mcp → /api/mcp (and .json strip) these
+  // would 404 under /api/mcp/.well-known/.
+  if (
+    next === "/api/mcp/.well-known/mcp" ||
+    next === "/api/mcp/.well-known/webfinger" ||
+    next === "/api/mcp/.well-known/host-meta"
+  ) {
+    next = next.slice("/api/mcp".length);
   }
   if (next !== pathname && isOAuthSlashRewritePath(next)) return next;
   if (stripped === pathname) return null;
