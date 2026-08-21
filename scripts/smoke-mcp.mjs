@@ -1,28 +1,57 @@
 #!/usr/bin/env node
-// End-to-end smoke test for the hosted MCP endpoint. Run against a real
-// deployment (needs a live Convex backend, so it can't run in CI without
-// one):
+// ChatGPT MCP catalog gate + optional live smoke.
 //
-//   MCP_URL=https://<your-app>/api/mcp MCP_KEY=cua_... node scripts/smoke-mcp.mjs
-//   MCP_URL='https://<your-app>/api/mcp?profile=claude' \
+// Offline (always, including CI without secrets):
+//   node scripts/smoke-mcp.mjs
+// Certifies the source catalog is exactly
+// 174 work + 12 chat − 2 excluded = 184 advertised. A PR that drifts fails.
+//
+// Live (only when MCP_KEY is set):
+//   MCP_KEY=cua_... node scripts/smoke-mcp.mjs
+// Hits https://www.operate.to/api/mcp?profile=chatgpt — never apex.
+// Apex 308s POSTs. An override MCP_URL on operate.to is refused.
+//
+// Custom profiles still work when both URL and key are supplied:
+//   MCP_URL='https://www.operate.to/api/mcp?profile=claude' \
 //     MCP_PROFILE=anthropic MCP_KEY=cua_... node scripts/smoke-mcp.mjs
-//   MCP_URL='https://<your-app>/api/mcp?profile=chatgpt' \
-//     MCP_PROFILE=chatgpt MCP_KEY=cua_... node scripts/smoke-mcp.mjs
-//
-// Exercises: initialize → tools/list → whoami → get_tree → resources/list.
-// Exits non-zero on the first failure.
 
-const url = process.env.MCP_URL;
-const key = process.env.MCP_KEY;
-const profile = process.env.MCP_PROFILE ?? "openai";
-if (!url || !key) {
-  console.error("Set MCP_URL and MCP_KEY.");
-  process.exit(1);
-}
+import {
+  CHATGPT_ADVERTISED_TOOL_COUNT,
+  PRODUCTION_CHATGPT_MCP_URL,
+  certifyChatgptCatalog,
+  refuseApexMcpUrl,
+} from "./mcp-catalog.mjs";
+
+const key = (process.env.MCP_KEY ?? "").trim();
+const profile = process.env.MCP_PROFILE ?? "chatgpt";
 if (!["openai", "chatgpt", "anthropic"].includes(profile)) {
   console.error("MCP_PROFILE must be openai, chatgpt, or anthropic.");
   process.exit(1);
 }
+
+const catalog = certifyChatgptCatalog();
+console.log(
+  `✓ chatgpt catalog ${catalog.work.length} work + ${catalog.chat.length} chat − ${catalog.excluded.length} excluded = ${catalog.advertised.length} advertised`,
+);
+if (catalog.advertised.length !== CHATGPT_ADVERTISED_TOOL_COUNT) {
+  throw new Error(
+    `chatgpt profile tool count ${catalog.advertised.length} ≠ ${CHATGPT_ADVERTISED_TOOL_COUNT}`,
+  );
+}
+
+if (!key) {
+  console.log(
+    "○ live MCP skipped (no MCP_KEY). Offline 184-tool assertion is mandatory and passed.",
+  );
+  console.log("\nAll smoke checks passed.");
+  process.exit(0);
+}
+
+const url = refuseApexMcpUrl(process.env.MCP_URL ?? PRODUCTION_CHATGPT_MCP_URL);
+if (url.includes("operate.to") && !url.includes("www.operate.to")) {
+  throw new Error(`Refusing apex MCP URL: ${url}`);
+}
+console.log(`→ live ${url}`);
 
 let nextId = 1;
 
@@ -42,7 +71,6 @@ async function rpc(method, params) {
   const type = res.headers.get("content-type") ?? "";
   let payload;
   if (type.includes("text/event-stream")) {
-    // Take the first data: line of the SSE stream.
     const text = await res.text();
     const line = text.split("\n").find((l) => l.startsWith("data:"));
     if (!line) throw new Error(`${method}: empty SSE response`);
@@ -65,23 +93,17 @@ console.log(`✓ initialize (server: ${init.serverInfo?.name})`);
 
 const tools = await rpc("tools/list", {});
 console.log(`✓ tools/list (${tools.tools.length} tools)`);
-// A floor plus a named list, rather than an exact count.
-//
-// This used to assert an exact number, and the number had been wrong for
-// twenty-five tools before anybody noticed — which is what an exact count
-// does: every legitimate addition breaks it, so the reflex becomes bumping
-// the number without reading it, and then it catches nothing. The floor
-// catches a catastrophic loss (a whole family failing to register); the named
-// list catches the loss of anything load-bearing. Losing one obscure tool
-// silently is the honest gap, and it is a smaller gap than a check nobody
-// believes.
-const MIN_TOOLS = 150;
-if (tools.tools.length < MIN_TOOLS) {
+if (profile === "chatgpt") {
+  if (tools.tools.length !== CHATGPT_ADVERTISED_TOOL_COUNT) {
+    throw new Error(
+      `live chatgpt tools/list ${tools.tools.length} ≠ ${CHATGPT_ADVERTISED_TOOL_COUNT}`,
+    );
+  }
+} else if (tools.tools.length < 150) {
   throw new Error(
-    `expected at least ${MIN_TOOLS} tools, received ${tools.tools.length}`,
+    `expected at least 150 tools, received ${tools.tools.length}`,
   );
 }
-// One per family, so a family failing to register is caught by name.
 const REQUIRED = [
   "whoami",
   "next_task",

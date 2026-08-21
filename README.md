@@ -130,8 +130,10 @@ reviewer credentials, OAuth tokens, Clerk secrets, or Convex deployment keys.
 ```bash
 npm run typecheck
 npm run check:submission
+npm run smoke:mcp
 npx vitest run tests/oauth.test.ts tests/oauth-discovery.test.ts \
-  tests/mcp-contract.test.ts tests/plugin-submission.test.ts
+  tests/mcp-contract.test.ts tests/plugin-submission.test.ts \
+  tests/mcp-chatgpt-catalog.test.ts
 ```
 
 Regenerate the submission catalog only after MCP registry changes:

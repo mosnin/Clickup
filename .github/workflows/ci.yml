@@ -47,3 +47,12 @@ jobs:
       # no gate, because it reads as coverage.
       - run: npx playwright-core install --with-deps chromium
       - run: npm test
+      # Offline ChatGPT catalog pin: 174 work + 12 chat − 2 excluded = 184.
+      # A PR that drifts the advertised profile cannot merge. Live tools/list
+      # against www runs only when MCP_KEY is present; empty secret skips it.
+      # Apex https://operate.to/api/mcp is refused — it 308s POSTs.
+      - name: Certify ChatGPT MCP catalog
+        run: node scripts/smoke-mcp.mjs
+        env:
+          MCP_PROFILE: chatgpt
+          MCP_KEY: ${{ secrets.MCP_KEY }}

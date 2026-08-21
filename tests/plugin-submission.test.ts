@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { CHATGPT_ADVERTISED_TOOL_COUNT } from "../src/lib/mcp-catalog";
 
 const ROOT = process.cwd();
 const MANIFEST_PATH = join(
@@ -25,7 +26,8 @@ describe("public Operate plugin package", () => {
       readFileSync(join(ROOT, "chatgpt-app-submission.json"), "utf8"),
     ) as { tools: Record<string, unknown> };
     const names = Object.keys(submission.tools);
-    expect(names).toHaveLength(184);
+    expect(names).toHaveLength(CHATGPT_ADVERTISED_TOOL_COUNT);
+    expect(CHATGPT_ADVERTISED_TOOL_COUNT).toBe(184);
     expect(names).toContain("chat_whoami");
     expect(names).toContain("chat_set_status");
     for (const hidden of [

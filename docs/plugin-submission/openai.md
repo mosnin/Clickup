@@ -276,8 +276,10 @@ submit the old recording as current proof until that live rerun passes.
 npm ci
 npm run typecheck
 npm run check:submission
+npm run smoke:mcp
 npx vitest run tests/oauth.test.ts tests/oauth-discovery.test.ts \
-  tests/mcp-contract.test.ts tests/plugin-submission.test.ts
+  tests/mcp-contract.test.ts tests/plugin-submission.test.ts \
+  tests/mcp-chatgpt-catalog.test.ts
 npm test
 npm run build
 ```

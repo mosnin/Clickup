@@ -270,7 +270,7 @@ export function FeaturesContent() {
                       {s.id === "mcp" && (
                         <div className="mt-6 overflow-x-auto overscroll-x-contain rounded-xl mk-panel-2 p-4 font-mono text-xs text-white/80">
                           <div className="whitespace-nowrap">
-                            https://operate.to/api/mcp
+                            https://www.operate.to/api/mcp
                           </div>
                           <div className="whitespace-nowrap">
                             Authorization: Bearer cua_...

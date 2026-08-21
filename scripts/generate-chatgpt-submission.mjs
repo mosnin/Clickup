@@ -1,65 +1,21 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import {
+  CHATGPT_ADVERTISED_TOOL_COUNT,
+  certifyChatgptCatalog,
+} from "./mcp-catalog.mjs";
 
 const root = resolve(import.meta.dirname, "..");
-const source = readFileSync(
-  resolve(root, "src/app/api/[transport]/route.ts"),
-  "utf8",
-);
-const chatSource = readFileSync(
-  resolve(root, "src/lib/buzz/agent-chat-tools.ts"),
-  "utf8",
-);
-const profileSource = readFileSync(
-  resolve(root, "src/lib/mcp-annotation-profile.ts"),
-  "utf8",
-);
-
-function namesInSet(input, setName) {
-  const body = input.match(
-    new RegExp(`const ${setName} = new Set\\(\\[([\\s\\S]*?)\\]\\);`),
-  )?.[1];
-  if (!body) throw new Error(`Could not find ${setName}`);
-  return new Set(
-    [...body.matchAll(/"([a-z0-9_]+)"/g)].map((match) => match[1]),
+const catalog = certifyChatgptCatalog(root);
+const directoryToolNames = catalog.advertised;
+if (directoryToolNames.length !== CHATGPT_ADVERTISED_TOOL_COUNT) {
+  throw new Error(
+    `ChatGPT catalog drifted to ${directoryToolNames.length}; pin is ${CHATGPT_ADVERTISED_TOOL_COUNT}`,
   );
 }
-
-function namesInArray(input, arrayName) {
-  const body = input.match(
-    new RegExp(`const ${arrayName}[^=]*= \\[([\\s\\S]*?)\\];`),
-  )?.[1];
-  if (!body) throw new Error(`Could not find ${arrayName}`);
-  return new Set(
-    [...body.matchAll(/"([a-z0-9_]+)"/g)].map((match) => match[1]),
-  );
-}
-
-function declaredToolNames(input) {
-  return [...input.matchAll(/^\s{4}name: "([a-z0-9_]+)",$/gm)].map(
-    (match) => match[1],
-  );
-}
-
-const toolNames = [
-  ...new Set([...declaredToolNames(source), ...declaredToolNames(chatSource)]),
-];
-if (toolNames.length < 100) {
-  throw new Error(`MCP registry scan collapsed to ${toolNames.length} tools`);
-}
-const directoryExcludedTools = namesInSet(
-  profileSource,
-  "DIRECTORY_EXCLUDED_TOOLS",
-);
-const directoryToolNames = toolNames.filter(
-  (name) => !directoryExcludedTools.has(name),
-);
-const readTools = new Set([
-  ...namesInSet(source, "READ_TOOLS"),
-  ...namesInArray(chatSource, "CHAT_AGENT_READ_TOOLS"),
-]);
-const destructiveTools = namesInSet(source, "DESTRUCTIVE_TOOLS");
-const openWorldTools = namesInSet(source, "OPEN_WORLD_TOOLS");
+const readTools = catalog.readTools;
+const destructiveTools = catalog.destructiveTools;
+const openWorldTools = catalog.openWorldTools;
 
 const tools = Object.fromEntries(
   directoryToolNames.map((name) => {
