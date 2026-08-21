@@ -207,6 +207,27 @@ describe("oauthJsonObject", () => {
     });
   });
 
+  it("reads a multipart DCR body", async () => {
+    const form = new FormData();
+    form.set("client_name", "ChatGPT");
+    form.set(
+      "redirect_uris",
+      "https://chatgpt.com/connector_platform_oauth_redirect",
+    );
+    const body = await oauthJsonObject(
+      new Request("https://www.operate.to/oauth/register", {
+        method: "POST",
+        body: form,
+      }),
+    );
+    expect(body).toMatchObject({
+      client_name: "ChatGPT",
+      redirect_uris: [
+        "https://chatgpt.com/connector_platform_oauth_redirect",
+      ],
+    });
+  });
+
   it("parses a JSON array stuffed into a form redirect_uris field", async () => {
     const body = await oauthJsonObject(
       new Request("https://www.operate.to/oauth/register", {
@@ -248,6 +269,15 @@ describe("stripOAuthTrailingSlash", () => {
     ).toBe("/.well-known/oauth-protected-resource/api/mcp");
     expect(stripOAuthTrailingSlash("/oauth/token")).toBeNull();
     expect(stripOAuthTrailingSlash("/dashboard/")).toBeNull();
+    expect(stripOAuthTrailingSlash("/link/")).toBe("/link");
+    expect(stripOAuthTrailingSlash("/start/")).toBe("/start");
+    expect(stripOAuthTrailingSlash("/api/x402/")).toBe("/api/x402");
+    expect(stripOAuthTrailingSlash("/oauth//token/")).toBe("/oauth/token");
+    expect(
+      stripOAuthTrailingSlash(
+        "/.well-known/oauth-protected-resource/api/mcp//",
+      ),
+    ).toBe("/.well-known/oauth-protected-resource/api/mcp");
   });
 });
 
@@ -273,6 +303,11 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(token).toContain(
       'field("client_id") || oauthBasicClientId(request)',
     );
+    expect(token).toContain("field(\"resource\") || undefined");
+    expect(token).not.toContain("resource is required");
+    expect(token).toContain("oauthPostOnly");
+    expect(read("src/app/oauth/register/route.ts")).toContain("oauthPostOnly");
+    expect(revoke).toContain("oauthPostOnly");
     const middleware = read("src/middleware.ts");
     expect(middleware).toContain("stripOAuthTrailingSlash");
     expect(middleware).toContain("NextResponse.rewrite");

@@ -260,10 +260,36 @@ function formClientMetadata(text: string): Record<string, unknown> | null {
   return withRedirectUris(record);
 }
 
+async function multipartClientMetadata(
+  request: Request,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const form = await request.formData();
+    const record: Record<string, unknown> = {};
+    for (const [key, value] of form.entries()) {
+      if (typeof value !== "string") continue;
+      if (key === "redirect_uris") {
+        const next = coerceRedirectUris(value) ?? [];
+        const existing = record[key];
+        record[key] = Array.isArray(existing) ? [...existing, ...next] : next;
+        continue;
+      }
+      record[key] = value;
+    }
+    return Object.keys(record).length ? withRedirectUris(record) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** DCR (RFC 7591) is JSON. Strip a BOM so request.json() is not the only path. */
 export async function oauthJsonObject(
   request: Request,
 ): Promise<Record<string, unknown> | null> {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.includes("multipart/form-data")) {
+    return multipartClientMetadata(request);
+  }
   const text = (await request.text().catch(() => "")).replace(/^\uFEFF/, "").trim();
   try {
     const body = JSON.parse(text) as unknown;
@@ -305,4 +331,9 @@ export function oauthError(
   status = 400,
 ) {
   return oauthJson({ error, error_description: description }, status);
+}
+
+/** GET probes of token/revoke/register used to 404 from the catch-all. */
+export function oauthPostOnly() {
+  return oauthError("invalid_request", "This endpoint accepts POST", 405);
 }

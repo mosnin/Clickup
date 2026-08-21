@@ -6,6 +6,7 @@ import {
   oauthIssuer,
   oauthJson,
   oauthJsonObject,
+  oauthPostOnly,
   randomCredential,
 } from "@/lib/oauth-server";
 
@@ -74,4 +75,8 @@ export async function POST(request: Request) {
     },
     201,
   );
+}
+
+export function GET() {
+  return oauthPostOnly();
 }

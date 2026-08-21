@@ -3,6 +3,7 @@ import {
   oauthBearer,
   oauthConvexClient,
   oauthFields,
+  oauthPostOnly,
 } from "@/lib/oauth-server";
 
 export async function POST(request: Request) {
@@ -15,4 +16,8 @@ export async function POST(request: Request) {
     status: 200,
     headers: { "Cache-Control": "no-store" },
   });
+}
+
+export function GET() {
+  return oauthPostOnly();
 }

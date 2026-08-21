@@ -7,6 +7,7 @@ import {
   oauthConvexClient,
   oauthError,
   oauthFields,
+  oauthPostOnly,
   oauthIssuer,
   oauthJson,
   randomCredential,
@@ -101,13 +102,10 @@ export async function POST(request: Request) {
   }
   const accessToken = randomCredential("opa");
   const refreshToken = randomCredential("opr");
-  const rawResource = field("resource");
-  if (!rawResource) {
-    return oauthError(
-      "invalid_target",
-      "resource is required and must match the protected MCP resource",
-    );
-  }
+  // Empty resource defaults to the official audience. Clients that omit
+  // RFC 8707 `resource` (they already fetched PRM) used to 400 here
+  // after a successful body parse.
+  const rawResource = field("resource") || undefined;
   let resource: string;
   try {
     resource = validateMcpResource(rawResource, oauthIssuer(request));
@@ -181,4 +179,8 @@ export async function POST(request: Request) {
       error instanceof Error ? error.message : "Token grant failed",
     );
   }
+}
+
+export function GET() {
+  return oauthPostOnly();
 }
