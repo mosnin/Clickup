@@ -107,6 +107,16 @@ describe("public Operate plugin package", () => {
       /https:\/\/operate\.to\/\.well-known\//,
     );
     expect(readme).not.toMatch(/https:\/\/operate\.to\/oauth\//);
+
+    const openai = readFileSync(
+      join(ROOT, "docs/plugin-submission/openai.md"),
+      "utf8",
+    );
+    expect(openai).toContain(
+      "https://www.operate.to/.well-known/openai-apps-challenge",
+    );
+    expect(openai).not.toMatch(/https:\/\/operate\.to\/\.well-known\//);
+    expect(openai).not.toMatch(/https:\/\/operate\.to\/oauth\//);
   });
 
   it("never tells a client to POST MCP to the apex host", () => {

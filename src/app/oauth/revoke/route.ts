@@ -1,9 +1,9 @@
 import { api } from "@convex/_generated/api";
-import { oauthConvexClient } from "@/lib/oauth-server";
+import { oauthConvexClient, oauthFields } from "@/lib/oauth-server";
 
 export async function POST(request: Request) {
-  const form = await request.formData();
-  const token = String(form.get("token") ?? "");
+  const field = await oauthFields(request);
+  const token = field("token");
   if (token) {
     await oauthConvexClient().mutation(api.oauth.revokeToken, { token });
   }

@@ -244,7 +244,7 @@ submit the old recording as current proof until that live rerun passes.
    token without quotes or whitespace.
 3. Redeploy.
 4. Verify the exact plaintext response at
-   `https://operate.to/.well-known/openai-apps-challenge`.
+   `https://www.operate.to/.well-known/openai-apps-challenge`.
 5. Complete verification in the portal.
 6. Keep the route deployed while the plugin remains listed.
 

@@ -107,6 +107,31 @@ export function oauthDiscoveryMetadata(request?: Request) {
   };
 }
 
+/**
+ * Token, device, and revoke all accept JSON or form bodies. An agent
+ * hand-rolling curl reaches for JSON; RFC 6749/7009/8628 send form.
+ * Revoke used to call `formData()` unconditionally, so a JSON logout
+ * threw (or read no token) and left the refresh family live.
+ */
+export async function oauthFields(
+  request: Request,
+): Promise<(name: string) => string> {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const body = (await request.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+    return (name) => String(body[name] ?? "");
+  }
+  try {
+    const form = await request.formData();
+    return (name) => String(form.get(name) ?? "");
+  } catch {
+    return () => "";
+  }
+}
+
 export function oauthConvexClient() {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not configured");

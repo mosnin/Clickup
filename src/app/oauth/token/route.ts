@@ -5,6 +5,7 @@ import {
   deviceErrorCode,
   oauthConvexClient,
   oauthError,
+  oauthFields,
   oauthIssuer,
   oauthJson,
   randomCredential,
@@ -77,18 +78,7 @@ async function deviceGrant(deviceCode: string, request: Request) {
 export async function POST(request: Request) {
   // RFC 8628 posts form-encoded; an agent hand-rolling this with curl will
   // reach for JSON. Accept both — see /oauth/device for the same reasoning.
-  const contentType = request.headers.get("content-type") ?? "";
-  let field: (name: string) => string;
-  if (contentType.includes("application/json")) {
-    const body = (await request.json().catch(() => ({}))) as Record<
-      string,
-      unknown
-    >;
-    field = (name) => String(body[name] ?? "");
-  } else {
-    const form = await request.formData();
-    field = (name) => String(form.get(name) ?? "");
-  }
+  const field = await oauthFields(request);
 
   const grantType = field("grant_type");
   // Checked before client_id, because the device grant has no registered
