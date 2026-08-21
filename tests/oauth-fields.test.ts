@@ -346,6 +346,15 @@ describe("oauthBearer", () => {
     ).toBe("cua_key");
     expect(extractOperateCredential("cua_bare", undefined)).toBe("cua_bare");
     expect(extractOperateCredential("Basic abc", undefined)).toBe("");
+    expect(
+      extractOperateCredential("Basic opc_public:, Bearer cua_after_basic"),
+    ).toBe("cua_after_basic");
+    expect(
+      extractOperateCredential("Bearer cua_first, Bearer cua_second"),
+    ).toBe("cua_first");
+    expect(
+      extractOperateCredential("Bearer cua_keep, Basic opc_public:"),
+    ).toBe("cua_keep");
     expect(extractOperateCredential('Bearer "cua_quoted"', undefined)).toBe(
       "cua_quoted",
     );
@@ -381,6 +390,23 @@ describe("oauthBearer", () => {
         new Request("https://www.operate.to/api/mcp?apiKey=cua_query"),
       ),
     ).toBe("cua_query");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp?api-key=cua_hyphen_query"),
+      ),
+    ).toBe("cua_hyphen_query");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp?token=cua_token_query"),
+      ),
+    ).toBe("cua_token_query");
+    expect(
+      oauthBearer(
+        new Request(
+          "https://www.operate.to/api/mcp?access_token[]=cua_array_query",
+        ),
+      ),
+    ).toBe("cua_array_query");
     expect(
       oauthBearer(
         new Request("https://www.operate.to/api/mcp", {

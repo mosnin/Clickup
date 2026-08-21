@@ -289,6 +289,7 @@ const OAUTH_KEY_ALIASES: Record<string, string> = {
   userCode: "user_code",
   refreshToken: "refresh_token",
   accessToken: "access_token",
+  apiKey: "api_key",
   codeVerifier: "code_verifier",
   verifier: "code_verifier",
   codeChallenge: "code_challenge",
@@ -493,10 +494,33 @@ function peelAuthorization(header: string) {
   return unwrapCredential(rest);
 }
 
+/**
+ * Fetch concatenates duplicate Authorization headers with `, `.
+ * Basic in a part is never a bearer; a later Bearer/Token still is.
+ */
+function credentialFromAuthorization(header: string) {
+  const parts = header.split(
+    /,(?=\s*(?:Bearer|Token|Api-?Key|ApiKey|Basic)\s+)/i,
+  );
+  for (const part of parts) {
+    const piece = part.trim();
+    if (!piece || /^Basic\s+/i.test(piece)) continue;
+    if (AUTH_SCHEME_PREFIX.test(piece)) return peelAuthorization(piece);
+    const raw = unwrapCredential(piece);
+    if (OPERATE_CREDENTIAL.test(raw) && !raw.includes(" ")) return raw;
+  }
+  return "";
+}
+
 function dedicatedHeaderToken(value: string | null | undefined) {
   const token = value?.trim() ?? "";
   if (!token || /^Basic\s+/i.test(token)) return "";
   return peelAuthorization(token);
+}
+
+function queryParam(query: URLSearchParams, key: string) {
+  const all = query.getAll(key);
+  return all.length <= 1 ? (all[0] ?? "") : all;
 }
 
 /**
@@ -513,27 +537,19 @@ export function extractOperateCredential(
 ) {
   const header = authorization?.trim() ?? "";
   if (header) {
-    if (/^Basic\s+/i.test(header)) {
-      // Basic is a client_id carrier, never a bearer token.
-    } else if (AUTH_SCHEME_PREFIX.test(header)) {
-      return peelAuthorization(header);
-    } else {
-      const raw = unwrapCredential(header);
-      if (OPERATE_CREDENTIAL.test(raw) && !raw.includes(" ")) {
-        return raw;
-      }
-    }
+    const fromHeader = credentialFromAuthorization(header);
+    if (fromHeader) return fromHeader;
   }
   const dedicated =
     dedicatedHeaderToken(extra?.apiKey) ||
     dedicatedHeaderToken(extra?.accessToken);
   if (dedicated) return dedicated;
   if (query) {
+    const get = (key: string) => queryParam(query, key);
     return (
-      query.get("access_token") ||
-      query.get("access-token") ||
-      query.get("apiKey") ||
-      query.get("api_key") ||
+      oauthQueryValue(get, "access_token") ||
+      oauthQueryValue(get, "api_key") ||
+      query.get("token") ||
       ""
     );
   }
