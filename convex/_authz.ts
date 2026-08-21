@@ -1,6 +1,7 @@
 import { ConvexError } from "convex/values";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { userByClerkId } from "./_users";
 
 // Helpers for resolving a list/folder/space up the hierarchy and confirming
 // the current Clerk identity is allowed to read or write it.
@@ -23,10 +24,7 @@ export async function requireIdentity(
   // .first(), not .unique(): webhook + ensureCurrent can leave two users
   // rows for the same clerkId. unique() would take every requireIdentity
   // caller down; the suspension check only needs one of the rows.
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-    .first();
+  const user = await userByClerkId(ctx, identity.subject);
   if (user?.suspendedAt) {
     throw new ConvexError("Account suspended");
   }
@@ -41,10 +39,7 @@ export async function assertNotSuspended(
   ctx: QueryCtx | MutationCtx,
   subject: string,
 ): Promise<void> {
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_clerk_id", (q) => q.eq("clerkId", subject))
-    .first();
+  const user = await userByClerkId(ctx, subject);
   if (user?.suspendedAt) throw new ConvexError("Account suspended");
 }
 

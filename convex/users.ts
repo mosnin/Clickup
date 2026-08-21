@@ -1,19 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
-import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { hasNamedPersonalSpace } from "./_userSpaces";
-
-// Convex indexes are not unique constraints. The Clerk webhook and
-// users.ensureCurrent can both insert a users row (and a Personal space)
-// on first login; .unique() then throws on every later visit. Home's
-// useQuery rethrows that during render. Prefer .first() for clerkId
-// lookups — one of the rows is enough to proceed.
-async function userByClerkId(ctx: QueryCtx | MutationCtx, clerkId: string) {
-  return await ctx.db
-    .query("users")
-    .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-    .first();
-}
+import { userByClerkId } from "./_users";
 
 // Called by the Clerk webhook (user.created / user.updated).
 export const upsertFromClerk = internalMutation({
