@@ -25,6 +25,7 @@ import {
   isMcpBrowserOrigin,
   isOAuthOptionsPath,
   canonicalOAuthKey,
+  firstFolded,
   oauthParamGet,
   oauthQueryValue,
   readAuthorizeParams,
@@ -372,6 +373,20 @@ describe("oauthBearer", () => {
     expect(extractOperateCredential("Token:cua_nospace", undefined)).toBe(
       "cua_nospace",
     );
+    expect(extractOperateCredential("Token : cua_spaced_colon", undefined)).toBe(
+      "cua_spaced_colon",
+    );
+    expect(extractOperateCredential("Bearer :cua_spaced_bearer", undefined)).toBe(
+      "cua_spaced_bearer",
+    );
+    expect(
+      extractOperateCredential("Api-Key : cua_spaced_key", undefined),
+    ).toBe("cua_spaced_key");
+    expect(
+      extractOperateCredential(
+        "Basic : opc_public:, Token : cua_after_spaced_basic",
+      ),
+    ).toBe("cua_after_spaced_basic");
     expect(extractOperateCredential("Bearer:cua_nospace_bearer", undefined)).toBe(
       "cua_nospace_bearer",
     );
@@ -453,6 +468,17 @@ describe("oauthBearer", () => {
         ),
       ),
     ).toBe("cua_array_query");
+    const folded = firstFolded(
+      new URLSearchParams("Token=cua_folded_a&token=cua_folded_b"),
+      "token",
+    );
+    expect(folded).toBe("cua_folded_a");
+    expect(typeof folded).toBe("string");
+    expect(
+      typeof oauthBearer(
+        new Request("https://www.operate.to/api/mcp?Token=cua_type"),
+      ),
+    ).toBe("string");
     expect(
       oauthBearer(
         new Request("https://www.operate.to/api/mcp", {
@@ -1186,7 +1212,10 @@ describe("OAuth POST routes share oauthFields", () => {
       "firstFolded",
     );
     expect(read("src/app/api/x402/route.ts")).toContain("firstFolded");
-    expect(read("src/lib/oauth-slash.ts")).toContain("(?::\\s*|\\s+)");
+    expect(read("src/lib/oauth-slash.ts")).toContain("(?:\\s*:\\s*|\\s+)");
+    expect(read("src/lib/oauth-server.ts")).toContain(
+      "export function oauthBearer(request: Request): string",
+    );
     expect(read("src/app/.well-known/host-meta/route.ts")).toContain(
       "export function GET(request: Request)",
     );

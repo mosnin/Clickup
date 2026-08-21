@@ -272,7 +272,7 @@ function phpRecordString(record: Record<string, unknown>, name: string) {
 }
 
 /** RFC 7009 puts `token` in the body; some logout clients send Bearer only. */
-export function oauthBearer(request: Request) {
+export function oauthBearer(request: Request): string {
   return extractOperateCredential(
     request.headers.get("authorization"),
     new URL(request.url).searchParams,
