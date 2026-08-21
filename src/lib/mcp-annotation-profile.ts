@@ -2,7 +2,7 @@ import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 
 export type AnnotationProfile = "openai" | "chatgpt" | "anthropic";
 
-const DIRECTORY_EXCLUDED_TOOLS = new Set([
+export const DIRECTORY_EXCLUDED_TOOLS = new Set([
   // Anthropic excludes financial-transaction software, while OpenAI's plugin
   // review currently supports commerce only for physical goods. Directory
   // profiles can still inspect wallet state with get_wallet; custom MCP

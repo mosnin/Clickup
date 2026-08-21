@@ -94,7 +94,7 @@ export default function PluginsPage() {
             gates; only a workspace owner can link a workspace-wide agent.
           </p>
           <pre className="mt-5 max-w-full overflow-x-auto rounded-2xl bg-neutral-950 p-4 text-sm text-white">
-            <code>https://operate.to/api/mcp</code>
+            <code>https://www.operate.to/api/mcp</code>
           </pre>
           <p className="mt-3 text-xs text-muted-foreground">
             Existing developer API keys continue to work for server-to-server

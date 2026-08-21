@@ -109,14 +109,18 @@ describe("the manifest", () => {
   it("carries everything /start tells an agent to check", async () => {
     const manifest = await buildManifest(ISSUER);
     expect(manifest.apiVersion).toBe(1);
-    expect(manifest.mcpUrl).toBe(`${ISSUER}/api/mcp`);
+    expect(manifest.mcpUrl).toBe("https://www.operate.to/api/mcp");
     expect(manifest.tools.count).toBe(MCP_TOOL_NAMES.length);
     expect(manifest.tools.hash).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(manifest.tools.names).toEqual([...MCP_TOOL_NAMES].sort());
     expect(manifest.skills.items).toHaveLength(INSTALLABLE_SKILLS.length);
-    expect(manifest.skills.install).toBe(`${ISSUER}/install/skills`);
+    expect(manifest.skills.install).toBe(
+      "https://www.operate.to/install/skills",
+    );
     for (const skill of manifest.skills.items) {
-      expect(skill.url).toBe(`${ISSUER}/skills/operate/${skill.slug}`);
+      expect(skill.url).toBe(
+        `https://www.operate.to/skills/operate/${skill.slug}`,
+      );
     }
   });
 

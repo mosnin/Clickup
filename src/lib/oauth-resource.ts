@@ -2,10 +2,32 @@
  * Canonical RFC 8707 audience for every Operate MCP profile.
  *
  * `?profile=chatgpt` and `?profile=claude` select presentation policy, not a
- * different protected resource. OpenAI sends the exact `resource` published
- * in protected-resource metadata, so tokens are bound to the stable endpoint
- * and cannot be replayed against another service.
+ * different protected resource. Production serves on www; the apex host
+ * 308-redirects there. Both hostnames are one audience. Unofficial hosts are
+ * refused so a token cannot be bound to an attacker-controlled resource and
+ * then replayed against Convex.
  */
+import {
+  CANONICAL_PRODUCTION_MCP_RESOURCE,
+  discoveryIssuer,
+  isOfficialMcpResource,
+  normalizeOfficialMcpResource,
+  officialAuthorizationServers,
+  sameMcpResource,
+  servingMcpUrl,
+  servingOrigin,
+} from "@convex/_oauthResource";
+
+export {
+  CANONICAL_PRODUCTION_MCP_RESOURCE,
+  discoveryIssuer,
+  isOfficialMcpResource,
+  officialAuthorizationServers,
+  sameMcpResource,
+  servingMcpUrl,
+  servingOrigin,
+};
+
 export function canonicalMcpResource(issuer: string) {
   return new URL("/api/mcp", issuer).toString();
 }
@@ -14,26 +36,12 @@ export function validateMcpResource(
   candidate: string | null | undefined,
   issuer: string,
 ) {
-  const canonical = canonicalMcpResource(issuer);
-  if (!candidate) return canonical;
-
-  let url: URL;
-  try {
-    url = new URL(candidate);
-  } catch {
-    throw new Error("resource must be the canonical Operate MCP URL");
+  if (!candidate) {
+    try {
+      return normalizeOfficialMcpResource(canonicalMcpResource(issuer));
+    } catch {
+      return CANONICAL_PRODUCTION_MCP_RESOURCE;
+    }
   }
-
-  const expected = new URL(canonical);
-  if (
-    url.origin !== expected.origin ||
-    url.pathname !== expected.pathname ||
-    url.search !== "" ||
-    url.hash !== "" ||
-    url.username !== "" ||
-    url.password !== ""
-  ) {
-    throw new Error("resource must be the canonical Operate MCP URL");
-  }
-  return canonical;
+  return normalizeOfficialMcpResource(candidate);
 }

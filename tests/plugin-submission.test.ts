@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { CHATGPT_ADVERTISED_TOOL_COUNT } from "../src/lib/mcp-catalog";
 
 const ROOT = process.cwd();
 const MANIFEST_PATH = join(
@@ -25,7 +26,8 @@ describe("public Operate plugin package", () => {
       readFileSync(join(ROOT, "chatgpt-app-submission.json"), "utf8"),
     ) as { tools: Record<string, unknown> };
     const names = Object.keys(submission.tools);
-    expect(names).toHaveLength(184);
+    expect(names).toHaveLength(CHATGPT_ADVERTISED_TOOL_COUNT);
+    expect(CHATGPT_ADVERTISED_TOOL_COUNT).toBe(184);
     expect(names).toContain("chat_whoami");
     expect(names).toContain("chat_set_status");
     for (const hidden of [
@@ -89,6 +91,51 @@ describe("public Operate plugin package", () => {
     }
   });
 
+  it("points OAuth discovery at www, not apex", () => {
+    const readme = readFileSync(
+      join(ROOT, "docs/plugin-submission/README.md"),
+      "utf8",
+    );
+    expect(readme).toContain(
+      "https://www.operate.to/.well-known/oauth-protected-resource/api/mcp",
+    );
+    expect(readme).toContain(
+      "https://www.operate.to/.well-known/oauth-authorization-server",
+    );
+    expect(readme).toContain(
+      "https://www.operate.to/.well-known/openid-configuration",
+    );
+    expect(readme).toContain("https://www.operate.to/oauth/userinfo");
+    expect(readme).not.toMatch(
+      /https:\/\/operate\.to\/\.well-known\//,
+    );
+    expect(readme).not.toMatch(/https:\/\/operate\.to\/oauth\//);
+
+    const openai = readFileSync(
+      join(ROOT, "docs/plugin-submission/openai.md"),
+      "utf8",
+    );
+    expect(openai).toContain(
+      "https://www.operate.to/.well-known/openai-apps-challenge",
+    );
+    expect(openai).not.toMatch(/https:\/\/operate\.to\/\.well-known\//);
+    expect(openai).not.toMatch(/https:\/\/operate\.to\/oauth\//);
+  });
+
+  it("never tells a client to POST MCP to the apex host", () => {
+    const yaml = readFileSync(
+      join(ROOT, "plugins/operate/agents/openai.yaml"),
+      "utf8",
+    );
+    const mcp = readFileSync(join(ROOT, "plugins/operate/.mcp.json"), "utf8");
+    expect(yaml).not.toMatch(/https:\/\/operate\.to\/api\/mcp/);
+    expect(yaml).toContain(
+      "https://www.operate.to/api/mcp?profile=chatgpt",
+    );
+    expect(mcp).not.toMatch(/https:\/\/operate\.to\/api\/mcp/);
+    expect(mcp).toContain("https://www.operate.to/api/mcp?profile=chatgpt");
+  });
+
   it("publishes OAuth linking metadata on every advertised tool", () => {
     const route = readFileSync(
       join(ROOT, "src/app/api/[transport]/route.ts"),
@@ -96,6 +143,12 @@ describe("public Operate plugin package", () => {
     );
     expect(route).toContain("securitySchemes: securitySchemesFor(tool.name)");
     expect(route).toContain('type: "oauth2"');
-    expect(route).toContain('scope="operate:read"');
+    expect(route).toContain("mcpWwwAuthenticate(req)");
+    const challenge = readFileSync(
+      join(ROOT, "src/lib/oauth-server.ts"),
+      "utf8",
+    );
+    expect(challenge).toContain('scope="operate:read"');
+    expect(challenge).toContain("/.well-known/oauth-protected-resource");
   });
 });

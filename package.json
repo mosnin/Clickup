@@ -16,6 +16,7 @@
     "verify:customize": "node scripts/verify-customize.mjs",
     "generate:submission": "node scripts/generate-chatgpt-submission.mjs",
     "check:submission": "node scripts/generate-chatgpt-submission.mjs --check",
+    "smoke:mcp": "node scripts/smoke-mcp.mjs",
     "package:plugin": "node scripts/package-openai-plugin.mjs",
     "gallery:fresh": "(next build || true) && npm run gallery"
   },

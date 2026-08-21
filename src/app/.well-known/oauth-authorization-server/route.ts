@@ -1,5 +1,13 @@
-import { oauthDiscoveryMetadata, oauthJson } from "@/lib/oauth-server";
+import {
+  oauthDiscoveryMetadata,
+  oauthJson,
+  oauthOptions,
+} from "@/lib/oauth-server";
 
-export function GET() {
-  return oauthJson(oauthDiscoveryMetadata());
+export function GET(request: Request) {
+  return oauthJson(oauthDiscoveryMetadata(request), 200, undefined, request);
+}
+
+export function OPTIONS(request: Request) {
+  return oauthOptions(request);
 }

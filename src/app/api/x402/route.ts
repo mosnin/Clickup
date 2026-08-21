@@ -1,6 +1,14 @@
 import { ConvexHttpClient } from "convex/browser";
 import type { FunctionReference } from "convex/server";
 import { api } from "@convex/_generated/api";
+import {
+  oauthCorsHeaders,
+  oauthFields,
+  oauthOptions,
+  oauthWwwAuthenticate,
+  operateRequestCredential,
+} from "@/lib/oauth-server";
+import { firstFolded } from "@/lib/oauth-slash";
 
 // Protocol-faithful x402 endpoint for topping up agent credits.
 //
@@ -27,16 +35,39 @@ function asAction(ref: unknown): FunctionReference<"action"> {
   return ref as FunctionReference<"action">;
 }
 
-function bearer(req: Request): string | null {
-  const auth = req.headers.get("authorization");
-  if (auth?.startsWith("Bearer ")) return auth.slice(7).trim();
-  const url = new URL(req.url);
-  return url.searchParams.get("apiKey");
+function bearer(
+  req: Request,
+  bodyToken?: string | null | Array<string | null | undefined>,
+): string | null {
+  return operateRequestCredential(req, bodyToken) || null;
+}
+
+function x402Json(
+  body: unknown,
+  status = 200,
+  extra?: Record<string, string>,
+  request?: Request,
+) {
+  const headers: Record<string, string> = {
+    ...oauthCorsHeaders(request),
+    ...extra,
+  };
+  if (
+    (status === 401 || status === 403) &&
+    !headers["WWW-Authenticate"] &&
+    request
+  ) {
+    headers["WWW-Authenticate"] = oauthWwwAuthenticate(
+      request,
+      "invalid_token",
+    );
+  }
+  return Response.json(body, { status, headers });
 }
 
 function creditsFrom(req: Request, bodyCredits?: unknown): number {
   const url = new URL(req.url);
-  const raw = url.searchParams.get("credits") ?? bodyCredits;
+  const raw = firstFolded(url.searchParams, "credits") || bodyCredits;
   const n = Number(raw ?? 1000);
   if (!Number.isInteger(n) || n <= 0) {
     throw new Error("credits must be a positive integer");
@@ -45,36 +76,46 @@ function creditsFrom(req: Request, bodyCredits?: unknown): number {
 }
 
 async function handle(req: Request): Promise<Response> {
-  const apiKey = bearer(req);
+  const field = await oauthFields(req);
+  const apiKey = bearer(req, [
+    field("api_key"),
+    field("access_token"),
+    field("token"),
+  ]);
   if (!apiKey) {
-    return Response.json(
+    return x402Json(
       { error: "Missing API key. Send Authorization: Bearer cua_..." },
-      { status: 401 },
+      401,
+      {
+        "WWW-Authenticate": oauthWwwAuthenticate(
+          req,
+          "invalid_token",
+          "A Bearer access token is required",
+        ),
+      },
+      req,
     );
-  }
-
-  let body: Record<string, unknown> = {};
-  if (req.method === "POST") {
-    try {
-      body = (await req.json()) as Record<string, unknown>;
-    } catch {
-      body = {};
-    }
   }
 
   let credits: number;
   try {
-    credits = creditsFrom(req, body.credits);
+    credits = creditsFrom(req, field("credits") || undefined);
   } catch (err) {
-    return Response.json(
+    return x402Json(
       { error: err instanceof Error ? err.message : "bad credits" },
-      { status: 400 },
+      400,
+      undefined,
+      req,
     );
   }
 
   const client = convexClient();
   const xPayment =
-    req.headers.get("x-payment") ?? (body.xPayment as string | undefined);
+    req.headers.get("x-payment") ||
+    field("xPayment") ||
+    field("x_payment") ||
+    field("X-PAYMENT") ||
+    undefined;
 
   // No payment yet → return the 402 challenge.
   if (!xPayment) {
@@ -91,20 +132,22 @@ async function handle(req: Request): Promise<Response> {
         };
       };
       if (wallet.pricing?.available === false) {
-        return Response.json(
+        return x402Json(
           {
             error: `Billing unavailable: ${
               wallet.pricing.configurationIssue ?? "payment setup is incomplete"
             }`,
           },
-          { status: 503 },
+          503,
+          undefined,
+          req,
         );
       }
       const challenge = await client.query(
         asQuery(api.x402.topupRequirements),
         { apiKey, credits },
       );
-      return Response.json(challenge, { status: 402 });
+      return x402Json(challenge, 402, undefined, req);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const status = /invalid api key/i.test(message)
@@ -112,7 +155,7 @@ async function handle(req: Request): Promise<Response> {
         : /billing unavailable|not configured/i.test(message)
           ? 503
           : 400;
-      return Response.json({ error: message }, { status });
+      return x402Json({ error: message }, status, undefined, req);
     }
   }
 
@@ -124,10 +167,7 @@ async function handle(req: Request): Promise<Response> {
       credits,
     })) as Record<string, unknown>;
     const encoded = Buffer.from(JSON.stringify(result)).toString("base64");
-    return Response.json(result, {
-      status: 200,
-      headers: { "X-PAYMENT-RESPONSE": encoded },
-    });
+    return x402Json(result, 200, { "X-PAYMENT-RESPONSE": encoded }, req);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const status = /invalid api key/i.test(message)
@@ -137,7 +177,7 @@ async function handle(req: Request): Promise<Response> {
         : /billing unavailable|not configured/i.test(message)
           ? 503
           : 402;
-    return Response.json({ error: message }, { status });
+    return x402Json({ error: message }, status, undefined, req);
   }
 }
 
@@ -147,4 +187,8 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   return handle(req);
+}
+
+export function OPTIONS(request: Request) {
+  return oauthOptions(request);
 }

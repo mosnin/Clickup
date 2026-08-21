@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../convex/schema";
 import { api } from "../convex/_generated/api";
+import { sha256Hex } from "../convex/_agentAuth";
 
 const modules = import.meta.glob("../convex/**/*.*s");
 const OWNER = { subject: "oauth_owner", email: "owner@example.com" };
@@ -119,7 +120,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         refreshToken: "opr_wrong_audience",
         resource: "https://other.example/api/mcp",
       }),
-    ).rejects.toThrow(/invalid or expired/i);
+    ).rejects.toThrow(/official/i);
     await expect(
       t.mutation(api.oauth.exchangeAuthorizationCode, {
         code,
@@ -197,12 +198,227 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         nextRefreshToken: "opr_reused",
         resource: RESOURCE,
       }),
-    ).rejects.toThrow(/invalid or expired/i);
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/invalid or expired/i),
+    });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: nextAccessToken }),
+    ).rejects.toThrow(/invalid api key/i);
 
     await t.mutation(api.oauth.revokeToken, { token: nextRefreshToken });
     await expect(
       t.query(api.agentApi.whoami, { apiKey: nextAccessToken }),
     ).rejects.toThrow(/invalid api key/i);
+  });
+
+  it("RFC revoke of a rotated refresh token still kills the live successor", async () => {
+    const { t, owner, agentId } = await setup();
+    const code = "opc_revoke_predecessor";
+    await owner.mutation(api.oauth.approveAuthorization, {
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      scope: "operate:read operate:write",
+      resource: RESOURCE,
+      codeChallenge: CHALLENGE,
+      code,
+      agentId,
+    });
+    const accessToken = "opa_revoke_first";
+    const refreshToken = "opr_revoke_first";
+    await t.mutation(api.oauth.exchangeAuthorizationCode, {
+      code,
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      codeVerifier: VERIFIER,
+      accessToken,
+      refreshToken,
+      resource: RESOURCE,
+    });
+    const liveAccess = "opa_revoke_live";
+    const liveRefresh = "opr_revoke_live";
+    await t.mutation(api.oauth.refreshAccessToken, {
+      refreshToken,
+      clientId: CLIENT_ID,
+      accessToken: liveAccess,
+      nextRefreshToken: liveRefresh,
+      resource: RESOURCE,
+    });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: liveAccess }),
+    ).resolves.toMatchObject({ agentId });
+
+    // Logout presented the refresh the client last stored before rotation.
+    await t.mutation(api.oauth.revokeToken, { token: refreshToken });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: liveAccess }),
+    ).rejects.toThrow(/invalid api key/i);
+    await expect(
+      t.mutation(api.oauth.refreshAccessToken, {
+        refreshToken: liveRefresh,
+        clientId: CLIENT_ID,
+        accessToken: "opa_after_logout",
+        nextRefreshToken: "opr_after_logout",
+        resource: RESOURCE,
+      }),
+    ).resolves.toMatchObject({ ok: false });
+  });
+
+  it("reuse of a spent refresh with the wrong client_id still kills the family", async () => {
+    const { t, owner, agentId } = await setup();
+    const code = "opc_wrong_client_reuse";
+    await owner.mutation(api.oauth.approveAuthorization, {
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      scope: "operate:read operate:write",
+      resource: RESOURCE,
+      codeChallenge: CHALLENGE,
+      code,
+      agentId,
+    });
+    const refreshToken = "opr_wrong_client_first";
+    await t.mutation(api.oauth.exchangeAuthorizationCode, {
+      code,
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      codeVerifier: VERIFIER,
+      accessToken: "opa_wrong_client_first",
+      refreshToken,
+      resource: RESOURCE,
+    });
+    const liveAccess = "opa_wrong_client_live";
+    await t.mutation(api.oauth.refreshAccessToken, {
+      refreshToken,
+      clientId: CLIENT_ID,
+      accessToken: liveAccess,
+      nextRefreshToken: "opr_wrong_client_live",
+      resource: RESOURCE,
+    });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: liveAccess }),
+    ).resolves.toMatchObject({ agentId });
+
+    await expect(
+      t.mutation(api.oauth.refreshAccessToken, {
+        refreshToken,
+        clientId: "opc_some_other_client",
+        accessToken: "opa_should_not_issue",
+        nextRefreshToken: "opr_should_not_issue",
+        resource: RESOURCE,
+      }),
+    ).resolves.toMatchObject({ ok: false });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: liveAccess }),
+    ).rejects.toThrow(/invalid api key/i);
+  });
+
+  it("reuse of a spent refresh with an unofficial audience still kills the family", async () => {
+    const { t, owner, agentId } = await setup();
+    const code = "opc_unofficial_reuse";
+    await owner.mutation(api.oauth.approveAuthorization, {
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      scope: "operate:read operate:write",
+      resource: RESOURCE,
+      codeChallenge: CHALLENGE,
+      code,
+      agentId,
+    });
+    const refreshToken = "opr_unofficial_first";
+    await t.mutation(api.oauth.exchangeAuthorizationCode, {
+      code,
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      codeVerifier: VERIFIER,
+      accessToken: "opa_unofficial_first",
+      refreshToken,
+      resource: RESOURCE,
+    });
+    const liveAccess = "opa_unofficial_live";
+    await t.mutation(api.oauth.refreshAccessToken, {
+      refreshToken,
+      clientId: CLIENT_ID,
+      accessToken: liveAccess,
+      nextRefreshToken: "opr_unofficial_live",
+      resource: RESOURCE,
+    });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: liveAccess }),
+    ).resolves.toMatchObject({ agentId });
+
+    // Validating resource first used to throw and skip the family walk.
+    await expect(
+      t.mutation(api.oauth.refreshAccessToken, {
+        refreshToken,
+        clientId: CLIENT_ID,
+        accessToken: "opa_should_not_issue",
+        nextRefreshToken: "opr_should_not_issue",
+        resource: "https://attacker.example/api/mcp",
+      }),
+    ).resolves.toMatchObject({ ok: false });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: liveAccess }),
+    ).rejects.toThrow(/invalid api key/i);
+  });
+
+  it("binds www and apex as one audience and refuses unofficial hosts", async () => {
+    const { t, owner, agentId } = await setup();
+    await expect(
+      owner.mutation(api.oauth.approveAuthorization, {
+        clientId: CLIENT_ID,
+        redirectUri: REDIRECT_URI,
+        scope: "operate:read",
+        resource: "https://attacker.example/api/mcp",
+        codeChallenge: CHALLENGE,
+        code: "opc_unofficial",
+        agentId,
+      }),
+    ).rejects.toThrow(/official/i);
+
+    const code = "opc_www_alias";
+    await owner.mutation(api.oauth.approveAuthorization, {
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      scope: "operate:read",
+      resource: "https://www.operate.to/api/mcp",
+      codeChallenge: CHALLENGE,
+      code,
+      agentId,
+    });
+    const accessToken = "opa_www_alias";
+    await t.mutation(api.oauth.exchangeAuthorizationCode, {
+      code,
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      codeVerifier: VERIFIER,
+      accessToken,
+      refreshToken: "opr_www_alias",
+      resource: "https://www.operate.to/api/mcp",
+    });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: accessToken }),
+    ).resolves.toMatchObject({ agentId });
+    await expect(
+      t.mutation(api.agentApi.connect, {
+        apiKey: accessToken,
+        resource: RESOURCE,
+      }),
+    ).resolves.toMatchObject({ agentId });
+
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query("oauthAccessTokens")
+        .withIndex("by_token_hash", (q) =>
+          q.eq("tokenHash", sha256Hex(accessToken)),
+        )
+        .unique();
+      await ctx.db.patch(row!._id, {
+        resource: "https://attacker.example/api/mcp",
+      });
+    });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: accessToken }),
+    ).rejects.toThrow(/audience/i);
   });
 
   it("never lets a regular workspace member inherit a workspace-wide agent", async () => {
@@ -283,16 +499,119 @@ describe("OAuth 2.1 remote MCP authorization", () => {
     ).rejects.toThrow(/oauth access was revoked/i);
   });
 
+  it("cannot see another workspace through an OAuth token", async () => {
+    const { t, owner, agentId, workspaceId } = await setup();
+    const other = await t.run(async (ctx) => {
+      const otherWorkspaceId = await ctx.db.insert("workspaces", {
+        name: "Secret Co",
+        slug: "secret-co",
+        ownerClerkId: "other_owner",
+        createdAt: Date.now(),
+      });
+      const spaceId = await ctx.db.insert("spaces", {
+        name: "Hidden HQ",
+        parentType: "workspace",
+        parentId: otherWorkspaceId,
+        position: 0,
+        createdAt: Date.now(),
+      });
+      return { otherWorkspaceId, spaceId };
+    });
+
+    const code = "opc_tenant";
+    await owner.mutation(api.oauth.approveAuthorization, {
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      scope: "operate:read operate:write",
+      resource: RESOURCE,
+      codeChallenge: CHALLENGE,
+      code,
+      agentId,
+    });
+    const accessToken = "opa_tenant";
+    await t.mutation(api.oauth.exchangeAuthorizationCode, {
+      code,
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      codeVerifier: VERIFIER,
+      accessToken,
+      refreshToken: "opr_tenant",
+      resource: RESOURCE,
+    });
+
+    const me = await t.query(api.agentApi.whoami, { apiKey: accessToken });
+    expect(me.scopeId).toBe(workspaceId);
+    expect(me.scopeId).not.toBe(other.otherWorkspaceId);
+
+    const tree = await t.query(api.agentApi.getTree, { apiKey: accessToken });
+    expect(JSON.stringify(tree)).not.toContain("Hidden HQ");
+    expect(JSON.stringify(tree)).not.toContain(other.spaceId);
+
+    await expect(
+      t.mutation(api.agentApi.createProject, {
+        apiKey: accessToken,
+        spaceId: other.spaceId,
+        name: "Exfil",
+      }),
+    ).rejects.toThrow(/outside your agent's scope/i);
+  });
+
   it("rejects unsafe dynamic redirect URIs", async () => {
     const t = convexTest(schema, modules);
+    const refused = [
+      "http://attacker.example/callback",
+      "https://attacker.example/callback",
+      "https://chatgpt.com.evil.example/callback",
+      "https://user:pass@claude.ai/api/mcp/auth_callback",
+      "https://claude.ai/api/mcp/auth_callback#frag",
+      "https://claude.ai:8443/api/mcp/auth_callback",
+    ];
+    for (const [index, redirectUri] of refused.entries()) {
+      await expect(
+        t.mutation(api.oauth.registerClient, {
+          clientId: `opc_unsafe_${index}`,
+          clientName: "Unsafe",
+          redirectUris: [redirectUri],
+          registrationSubject: `unsafe-client-${index}`,
+        }),
+      ).rejects.toThrow(/https urls|directory host/i);
+    }
+    await t.mutation(api.oauth.registerClient, {
+      clientId: "opc_chatgpt",
+      clientName: "ChatGPT",
+      redirectUris: ["https://chatgpt.com/connector_platform_oauth_redirect"],
+      registrationSubject: "chatgpt-client",
+    });
+    await t.mutation(api.oauth.registerClient, {
+      clientId: "opc_loopback",
+      clientName: "Local",
+      redirectUris: ["http://127.0.0.1:54321/callback"],
+      registrationSubject: "loopback-client",
+    });
+  });
+
+  it("refuses an unofficial redirect even if a client row already holds it", async () => {
+    const { t, owner } = await setup();
+    const unofficial = "https://attacker.example/callback";
+    await t.run(async (ctx) => {
+      const client = await ctx.db
+        .query("oauthClients")
+        .withIndex("by_client_id", (q) => q.eq("clientId", CLIENT_ID))
+        .unique();
+      await ctx.db.patch(client!._id, {
+        redirectUris: [...client!.redirectUris, unofficial],
+      });
+    });
     await expect(
-      t.mutation(api.oauth.registerClient, {
-        clientId: "opc_unsafe",
-        clientName: "Unsafe",
-        redirectUris: ["http://attacker.example/callback"],
-        registrationSubject: "unsafe-client",
+      owner.query(api.oauth.authorizationRequest, {
+        clientId: CLIENT_ID,
+        redirectUri: unofficial,
+        scope: "operate:read",
+        resource: RESOURCE,
+        codeChallenge: CHALLENGE,
+        codeChallengeMethod: "S256",
       }),
-    ).rejects.toThrow(/https urls/i);
+    ).rejects.toThrow(/invalid oauth authorization request/i);
   });
 
   it("bounds anonymous dynamic client registration", async () => {

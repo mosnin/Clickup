@@ -16,7 +16,8 @@ import {
 import { QUERY_VOCABULARY } from "@/lib/data-stream";
 import { ALL_SHAPES } from "@/lib/panel";
 import { STYLE_ENUMS } from "@/lib/component-style";
-import { oauthResource } from "@/lib/oauth-server";
+import { mcpWwwAuthenticate, oauthResource } from "@/lib/oauth-server";
+import { applyMcpCors, applyOperateAuthorization } from "@/lib/oauth-slash";
 // The Chat dashboard's agent surface (C6b). A separate application sharing one
 // endpoint (D11), so its catalog lives in its own module and lands here in one
 // line rather than growing this file by a twelfth of itself.
@@ -3166,28 +3167,8 @@ const chatgptAuthHandler = withMcpAuth(
 // under /api — explicitly 404 anything that isn't the MCP endpoint so
 // unknown /api/* paths never reach the MCP handler. (Static routes always
 // win over this dynamic segment, so real API routes are unaffected.)
-const MCP_BROWSER_ORIGINS = new Set([
-  "https://chatgpt.com",
-  "https://claude.ai",
-  "https://claude.com",
-]);
-
 function withCors(req: Request, response: Response) {
-  const origin = req.headers.get("origin");
-  if (!origin || !MCP_BROWSER_ORIGINS.has(origin)) return response;
-  const headers = new Headers(response.headers);
-  headers.set("Access-Control-Allow-Origin", origin);
-  headers.set(
-    "Access-Control-Allow-Headers",
-    "Authorization, Content-Type, Mcp-Protocol-Version, Mcp-Session-Id",
-  );
-  headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-  headers.append("Vary", "Origin");
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
+  return applyMcpCors(req, response);
 }
 
 async function guarded(req: Request): Promise<Response> {
@@ -3204,7 +3185,7 @@ async function guarded(req: Request): Promise<Response> {
   if (req.method === "POST") {
     const rawBody = await req.arrayBuffer();
     const accept = req.headers.get("accept") ?? "";
-    const headers = new Headers(req.headers);
+    const headers = applyOperateAuthorization(new Headers(req.headers), req.url);
     // Request will compute the correct length for the rebuilt body. Keeping
     // the inbound value would be wrong when a legacy tool name changes size.
     headers.delete("content-length");
@@ -3245,6 +3226,14 @@ async function guarded(req: Request): Promise<Response> {
       headers,
       body,
     });
+  } else {
+    const headers = applyOperateAuthorization(new Headers(req.headers), req.url);
+    if (headers.get("authorization") !== req.headers.get("authorization")) {
+      transportRequest = new Request(req.url, {
+        method: req.method,
+        headers,
+      });
+    }
   }
   const profile = searchParams.get("profile");
   const selectedHandler =
@@ -3254,15 +3243,13 @@ async function guarded(req: Request): Promise<Response> {
         ? chatgptAuthHandler
         : authHandler;
   const response = await selectedHandler(transportRequest);
-  if (response.status !== 401) return withCors(req, response);
+  const challenge =
+    response.status === 401 ||
+    response.status === 403 ||
+    response.headers.has("WWW-Authenticate");
+  if (!challenge) return withCors(req, response);
   const headers = new Headers(response.headers);
-  const origin =
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ??
-    new URL(req.url).origin;
-  headers.set(
-    "WWW-Authenticate",
-    `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource", scope="operate:read"`,
-  );
+  headers.set("WWW-Authenticate", mcpWwwAuthenticate(req));
   return withCors(
     req,
     new Response(response.body, {
@@ -3279,6 +3266,7 @@ function options(req: Request) {
 
 export {
   guarded as GET,
+  guarded as HEAD,
   guarded as POST,
   guarded as DELETE,
   options as OPTIONS,

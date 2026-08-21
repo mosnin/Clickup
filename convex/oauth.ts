@@ -1,8 +1,10 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
 import { requireAgentByKey, sha256Hex } from "./_agentAuth";
+import { normalizeOfficialMcpResource } from "./_oauthResource";
+import { validRedirectUri } from "./_oauthRedirect";
 import {
   consumeRateLimit,
   DCR_REGISTRATION_RULE,
@@ -46,38 +48,25 @@ function normalizeScopes(scope: string) {
 }
 
 function requireMcpResource(value: string) {
-  const clean = requireText(value, "resource", 2048);
-  let url: URL;
+  requireText(value, "resource", 2048);
   try {
-    url = new URL(clean);
-  } catch {
-    throw new ConvexError("resource must be the canonical MCP HTTPS URL");
+    return normalizeOfficialMcpResource(value);
+  } catch (error) {
+    throw new ConvexError(
+      error instanceof Error
+        ? error.message
+        : "resource must be an official Operate MCP URL",
+    );
   }
-  if (
-    url.protocol !== "https:" ||
-    url.pathname !== "/api/mcp" ||
-    url.search !== "" ||
-    url.hash !== "" ||
-    url.username !== "" ||
-    url.password !== ""
-  ) {
-    throw new ConvexError("resource must be the canonical MCP HTTPS URL");
-  }
-  return url.toString();
 }
 
-function validRedirectUri(value: string) {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return false;
+function requireRedirectUri(value: string) {
+  if (!validRedirectUri(value)) {
+    throw new ConvexError(
+      "redirect_uris must contain 1-10 HTTPS URLs on a directory host (chatgpt.com, claude.ai, …); localhost HTTP is allowed",
+    );
   }
-  if (url.protocol === "https:") return true;
-  return (
-    url.protocol === "http:" &&
-    (url.hostname === "localhost" || url.hostname === "127.0.0.1")
-  );
+  return value;
 }
 
 function hexToBase64Url(hex: string) {
@@ -148,15 +137,12 @@ export const registerClient = mutation({
     const clientId = requireText(args.clientId, "clientId", 160);
     const clientName = requireText(args.clientName, "clientName", 120);
     const redirectUris = [...new Set(args.redirectUris)];
-    if (
-      redirectUris.length === 0 ||
-      redirectUris.length > 10 ||
-      redirectUris.some((uri) => !validRedirectUri(uri))
-    ) {
+    if (redirectUris.length === 0 || redirectUris.length > 10) {
       throw new ConvexError(
-        "redirect_uris must contain 1-10 HTTPS URLs (localhost HTTP is allowed)",
+        "redirect_uris must contain 1-10 HTTPS URLs on a directory host (chatgpt.com, claude.ai, …); localhost HTTP is allowed",
       );
     }
+    for (const uri of redirectUris) requireRedirectUri(uri);
     const existing = await ctx.db
       .query("oauthClients")
       .withIndex("by_client_id", (q) => q.eq("clientId", clientId))
@@ -190,8 +176,10 @@ export const authorizationRequest = query({
       .unique();
     if (
       !client ||
+      !validRedirectUri(args.redirectUri) ||
       !client.redirectUris.includes(args.redirectUri) ||
-      args.codeChallengeMethod !== "S256" ||
+      (args.codeChallengeMethod.trim() !== "" &&
+        args.codeChallengeMethod.toUpperCase() !== "S256") ||
       !/^[A-Za-z0-9_-]{43,128}$/.test(args.codeChallenge)
     ) {
       throw new ConvexError("Invalid OAuth authorization request");
@@ -273,6 +261,7 @@ export const approveAuthorization = mutation({
     const agent = await ctx.db.get(args.agentId);
     if (
       !client ||
+      !validRedirectUri(args.redirectUri) ||
       !client.redirectUris.includes(args.redirectUri) ||
       !agent ||
       agent.status !== "active" ||
@@ -331,6 +320,7 @@ export const exchangeAuthorizationCode = mutation({
       row.usedAt !== undefined ||
       row.expiresAt <= now ||
       row.clientId !== args.clientId ||
+      !validRedirectUri(args.redirectUri) ||
       row.redirectUri !== args.redirectUri ||
       row.resource !== resource ||
       pkceChallenge(args.codeVerifier) !== row.codeChallenge
@@ -338,6 +328,7 @@ export const exchangeAuthorizationCode = mutation({
       throw new ConvexError("Invalid or expired authorization code");
     }
     await ctx.db.patch(row._id, { usedAt: now });
+    const familyId = sha256Hex(args.refreshToken);
     await ctx.db.insert("oauthAccessTokens", {
       tokenHash: sha256Hex(args.accessToken),
       refreshTokenHash: sha256Hex(args.refreshToken),
@@ -349,6 +340,7 @@ export const exchangeAuthorizationCode = mutation({
       expiresAt: now + ACCESS_TOKEN_TTL_MS,
       refreshExpiresAt: now + REFRESH_TOKEN_TTL_MS,
       createdAt: now,
+      familyId,
     });
     return {
       scope: row.scopes.join(" "),
@@ -356,6 +348,38 @@ export const exchangeAuthorizationCode = mutation({
     };
   },
 });
+
+async function revokeRefreshFamily(
+  ctx: MutationCtx,
+  current: Doc<"oauthAccessTokens">,
+  now: number,
+) {
+  if (current.familyId) {
+    const family = await ctx.db
+      .query("oauthAccessTokens")
+      .withIndex("by_family", (q) => q.eq("familyId", current.familyId!))
+      .collect();
+    for (const row of family) {
+      if (row.revokedAt === undefined) {
+        await ctx.db.patch(row._id, { revokedAt: now });
+      }
+    }
+    return;
+  }
+  const siblings = await ctx.db
+    .query("oauthAccessTokens")
+    .withIndex("by_agent", (q) => q.eq("agentId", current.agentId))
+    .collect();
+  for (const row of siblings) {
+    if (
+      row.clientId === current.clientId &&
+      row.userClerkId === current.userClerkId &&
+      row.revokedAt === undefined
+    ) {
+      await ctx.db.patch(row._id, { revokedAt: now });
+    }
+  }
+}
 
 export const refreshAccessToken = mutation({
   args: {
@@ -367,23 +391,37 @@ export const refreshAccessToken = mutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    const resource = requireMcpResource(args.resource);
     const current = await ctx.db
       .query("oauthAccessTokens")
       .withIndex("by_refresh_hash", (q) =>
         q.eq("refreshTokenHash", sha256Hex(args.refreshToken)),
       )
       .unique();
-    if (
-      !current ||
-      current.revokedAt !== undefined ||
-      current.refreshExpiresAt <= now ||
-      current.clientId !== args.clientId ||
-      current.resource !== resource
-    ) {
+    if (!current) {
       throw new ConvexError("Invalid or expired refresh token");
     }
-    await ctx.db.patch(current._id, { revokedAt: now });
+    if (current.revokedAt !== undefined) {
+      // Must succeed (not throw): a thrown mutation rolls back the family
+      // revoke, which would leave the stolen successor tokens live.
+      // Resource and client id are checked after this: a spent token
+      // presented with an unofficial audience or the wrong client is
+      // still reuse. Validating resource first used to throw and skip
+      // the family walk.
+      await revokeRefreshFamily(ctx, current, now);
+      return {
+        ok: false as const,
+        error: "Invalid or expired refresh token",
+      };
+    }
+    if (current.clientId !== args.clientId) {
+      throw new ConvexError("Invalid or expired refresh token");
+    }
+    const resource = requireMcpResource(args.resource);
+    if (current.refreshExpiresAt <= now || current.resource !== resource) {
+      throw new ConvexError("Invalid or expired refresh token");
+    }
+    const familyId = current.familyId ?? sha256Hex(args.refreshToken);
+    await ctx.db.patch(current._id, { revokedAt: now, familyId });
     await ctx.db.insert("oauthAccessTokens", {
       tokenHash: sha256Hex(args.accessToken),
       refreshTokenHash: sha256Hex(args.nextRefreshToken),
@@ -395,8 +433,10 @@ export const refreshAccessToken = mutation({
       expiresAt: now + ACCESS_TOKEN_TTL_MS,
       refreshExpiresAt: now + REFRESH_TOKEN_TTL_MS,
       createdAt: now,
+      familyId,
     });
     return {
+      ok: true as const,
       scope: current.scopes.join(" "),
       expiresIn: ACCESS_TOKEN_TTL_MS / 1000,
     };
@@ -416,8 +456,15 @@ export const revokeToken = mutation({
         .query("oauthAccessTokens")
         .withIndex("by_refresh_hash", (q) => q.eq("refreshTokenHash", hash))
         .unique());
-    if (row && row.revokedAt === undefined) {
-      await ctx.db.patch(row._id, { revokedAt: Date.now() });
+    if (row) {
+      // Always walk the family, even when this row is already revoked.
+      // Logout often presents the refresh token the client last stored;
+      // after a rotation that is the spent predecessor, and skipping it
+      // would leave the live successor valid.
+      await revokeRefreshFamily(ctx, row, Date.now());
+      if (row.revokedAt === undefined) {
+        await ctx.db.patch(row._id, { revokedAt: Date.now() });
+      }
     }
     return { revoked: true };
   },

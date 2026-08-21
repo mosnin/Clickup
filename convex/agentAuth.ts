@@ -34,6 +34,12 @@ import { emitEvent } from "./events";
 // authorization codes. Only hashes are stored.
 
 const DEVICE_CODE_TTL_MS = 10 * 60 * 1000;
+// The device grant used to mint a never-expiring `cua_…` key. That is a
+// credential a lost laptop holds forever. Ninety days is long enough for a
+// runtime that cannot refresh, short enough that a leaked key dies, and
+// human-minted keys on the Agents page are unchanged (no expiresAt).
+export const DEVICE_KEY_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+export const MAX_LIVE_DEVICE_KEYS = 5;
 const DEFAULT_POLL_INTERVAL_SEC = 5;
 // RFC 8628 §3.5: each slow_down bumps the interval the client must respect.
 const SLOW_DOWN_STEP_SEC = 5;
@@ -175,6 +181,7 @@ export const claimDeviceRequest = mutation({
     agentName?: string;
     agentCreated?: boolean;
     scopeName?: string;
+    expiresIn?: number;
   }> => {
     const row = await byDeviceCode(ctx, args.deviceCode);
     // An unknown device code and an expired one are the same answer to the
@@ -215,11 +222,14 @@ export const claimDeviceRequest = mutation({
     if (!args.keyHash || !args.keyPrefix) {
       throw new ConvexError("Key material is required to claim");
     }
+    await revokeOldestDeviceKeys(ctx, agent._id, now);
     await ctx.db.insert("agentKeys", {
       agentId: agent._id,
       keyHash: args.keyHash,
       keyPrefix: args.keyPrefix,
       createdAt: now,
+      expiresAt: now + DEVICE_KEY_TTL_MS,
+      source: "device",
     });
     await ctx.db.patch(row._id, { status: "claimed" });
 
@@ -247,9 +257,35 @@ export const claimDeviceRequest = mutation({
       agentName: agent.name,
       agentCreated: row.agentCreated ?? false,
       scopeName: await scopeNameFor(ctx, agent),
+      expiresIn: DEVICE_KEY_TTL_MS / 1000,
     };
   },
 });
+
+async function revokeOldestDeviceKeys(
+  ctx: MutationCtx,
+  agentId: Id<"agents">,
+  now: number,
+) {
+  const live = (
+    await ctx.db
+      .query("agentKeys")
+      .withIndex("by_agent", (q) => q.eq("agentId", agentId))
+      .collect()
+  )
+    .filter(
+      (key) =>
+        key.source === "device" &&
+        key.revokedAt === undefined &&
+        (key.expiresAt === undefined || key.expiresAt > now),
+    )
+    .sort((left, right) => left.createdAt - right.createdAt);
+  while (live.length >= MAX_LIVE_DEVICE_KEYS) {
+    const oldest = live.shift();
+    if (!oldest) break;
+    await ctx.db.patch(oldest._id, { revokedAt: now });
+  }
+}
 
 async function scopeNameFor(ctx: QueryCtx | MutationCtx, agent: Doc<"agents">) {
   if (agent.parentType === "user") return "your personal space";

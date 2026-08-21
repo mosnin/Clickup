@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, waitFor } from "@testing-library/react";
 import type { Editor } from "@tiptap/react";
 import { resetHarness } from "./harness";
@@ -14,6 +14,13 @@ const TITLES = [
   { pageId: "pg2", title: "Billing migration" },
   { pageId: "pg3", title: "Runbook" },
 ];
+
+let liveEditor: Editor | null = null;
+
+afterEach(() => {
+  if (liveEditor && !liveEditor.isDestroyed) liveEditor.destroy();
+  liveEditor = null;
+});
 
 async function mount(
   markdown: string,
@@ -32,6 +39,7 @@ async function mount(
       onChange={onChange}
       onReady={(e) => {
         editor = e;
+        liveEditor = e;
       }}
       {...props}
     />,
@@ -174,6 +182,7 @@ describe("escape", () => {
         onChange={vi.fn()}
         onReady={(e) => {
           editor = e;
+          liveEditor = e;
         }}
       />,
     );

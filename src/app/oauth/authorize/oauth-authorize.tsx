@@ -8,6 +8,19 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/errors";
+import {
+  canonicalCodeChallengeMethod,
+  foldSearchAll,
+  oauthQueryValue,
+} from "@/lib/oauth-slash";
+
+function returnHost(redirectUri: string) {
+  try {
+    return new URL(redirectUri).hostname;
+  } catch {
+    return null;
+  }
+}
 
 function randomCode() {
   const bytes = new Uint8Array(32);
@@ -19,16 +32,24 @@ function randomCode() {
 
 export function OAuthAuthorize({ resource }: { resource: string }) {
   const searchParams = useSearchParams();
-  const clientId = searchParams.get("client_id") ?? "";
-  const redirectUri = searchParams.get("redirect_uri") ?? "";
-  const responseType = searchParams.get("response_type") ?? "";
+  const q = (name: string) => foldSearchAll(searchParams, name) || null;
+  const clientId = oauthQueryValue(q, "client_id");
+  const redirectUri = oauthQueryValue(q, "redirect_uri");
+  const responseTypeRaw = oauthQueryValue(q, "response_type");
+  const responseType =
+    responseTypeRaw === "" ||
+    responseTypeRaw === "code" ||
+    responseTypeRaw === "authorization_code"
+      ? "code"
+      : responseTypeRaw;
   const scope =
-    searchParams.get("scope") ??
-    "openid email operate:read operate:write";
+    oauthQueryValue(q, "scope") || "openid email operate:read operate:write";
   const state = searchParams.get("state") ?? "";
-  const codeChallenge = searchParams.get("code_challenge") ?? "";
-  const codeChallengeMethod =
-    searchParams.get("code_challenge_method") ?? "";
+  const codeChallenge = oauthQueryValue(q, "code_challenge");
+  const codeChallengeMethodRaw = oauthQueryValue(q, "code_challenge_method");
+  const codeChallengeMethod = canonicalCodeChallengeMethod(
+    codeChallengeMethodRaw,
+  );
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const validShape =
     responseType === "code" &&
@@ -61,6 +82,7 @@ export function OAuthAuthorize({ resource }: { resource: string }) {
   const [agentId, setAgentId] = useState<Id<"agents"> | "">("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const destination = returnHost(redirectUri);
 
   const finish = (approved: boolean) => {
     const target = new URL(redirectUri);
@@ -134,6 +156,12 @@ export function OAuthAuthorize({ resource }: { resource: string }) {
         Choose an agent identity. The connection inherits that agent&apos;s
         workspace, list restrictions, role, budgets, and approval gates.
       </p>
+      {destination && (
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+          After you connect, you&apos;ll return to{" "}
+          <span className="font-medium text-foreground">{destination}</span>.
+        </p>
+      )}
       {request.agents.length > 0 ? (
         <>
           <label className="mt-6 block text-sm font-medium" htmlFor="oauth-agent">

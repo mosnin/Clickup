@@ -5,29 +5,32 @@ import {
   oauthError,
   oauthIssuer,
   oauthJson,
+  oauthJsonObject,
+  oauthOptions,
+  oauthPostOnly,
   randomCredential,
 } from "@/lib/oauth-server";
 
 export async function POST(request: Request) {
-  let input: {
+  const parsed = await oauthJsonObject(request);
+  if (!parsed) {
+    return oauthError(
+      "invalid_client_metadata",
+      "Body must be a JSON or form-encoded object",
+      400,
+      request,
+    );
+  }
+  const input = parsed as {
     client_name?: string;
     redirect_uris?: string[];
-    token_endpoint_auth_method?: string;
   };
-  try {
-    input = await request.json();
-  } catch {
-    return oauthError("invalid_client_metadata", "Body must be JSON");
-  }
-  if (
-    !input.client_name ||
-    !Array.isArray(input.redirect_uris) ||
-    input.token_endpoint_auth_method === "client_secret_basic" ||
-    input.token_endpoint_auth_method === "client_secret_post"
-  ) {
+  if (!input.client_name || !Array.isArray(input.redirect_uris)) {
     return oauthError(
       "invalid_client_metadata",
       "A public PKCE client_name and redirect_uris are required",
+      400,
+      request,
     );
   }
   const clientId = randomCredential("opc");
@@ -51,11 +54,13 @@ export async function POST(request: Request) {
     const description =
       error instanceof Error ? error.message : "Client registration failed";
     if (/too many oauth client registrations/i.test(description)) {
-      return oauthError("temporarily_unavailable", description, 429);
+      return oauthError("temporarily_unavailable", description, 429, request);
     }
     return oauthError(
       "invalid_redirect_uri",
       description,
+      400,
+      request,
     );
   }
   return oauthJson(
@@ -67,8 +72,18 @@ export async function POST(request: Request) {
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
       scope: "openid email operate:read operate:write",
-      client_uri: `${oauthIssuer()}/plugins`,
+      client_uri: `${oauthIssuer(request)}/plugins`,
     },
     201,
+    undefined,
+    request,
   );
+}
+
+export function GET(request: Request) {
+  return oauthPostOnly(request);
+}
+
+export function OPTIONS(request: Request) {
+  return oauthOptions(request);
 }

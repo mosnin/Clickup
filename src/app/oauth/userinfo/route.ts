@@ -1,11 +1,16 @@
 import { api } from "@convex/_generated/api";
 import {
   oauthConvexClient,
+  oauthCorsHeaders,
+  oauthFields,
   oauthJson,
+  oauthOptions,
   oauthResource,
+  oauthWwwAuthenticate,
+  operateRequestCredential,
 } from "@/lib/oauth-server";
 
-function unauthorized(description: string) {
+function unauthorized(description: string, request?: Request) {
   return Response.json(
     { error: "invalid_token", error_description: description },
     {
@@ -13,33 +18,62 @@ function unauthorized(description: string) {
       headers: {
         "Cache-Control": "no-store",
         Pragma: "no-cache",
-        "WWW-Authenticate": `Bearer error="invalid_token", error_description="${description.replaceAll('"', "'")}"`,
+        "WWW-Authenticate": oauthWwwAuthenticate(
+          request,
+          "invalid_token",
+          description,
+        ),
+        ...oauthCorsHeaders(request),
       },
     },
   );
 }
 
-export async function GET(request: Request) {
-  const authorization = request.headers.get("authorization") ?? "";
-  const match = authorization.match(/^Bearer\s+(.+)$/i);
-  if (!match) return unauthorized("A Bearer access token is required");
+async function userInfo(request: Request) {
+  const field = await oauthFields(request);
+  const accessToken = operateRequestCredential(request, [
+    field("access_token"),
+    field("api_key"),
+    field("token"),
+  ]);
+  if (!accessToken) {
+    return unauthorized("A Bearer access token is required", request);
+  }
 
   try {
     const result = await oauthConvexClient().query(api.oauth.userInfo, {
-      accessToken: match[1],
+      accessToken,
       resource: oauthResource(),
     });
-    return oauthJson({
-      sub: result.subject,
-      email: result.email,
-      email_verified: result.emailVerified,
-      ...(result.name ? { name: result.name } : {}),
-    });
+    return oauthJson(
+      {
+        sub: result.subject,
+        email: result.email,
+        email_verified: result.emailVerified,
+        ...(result.name ? { name: result.name } : {}),
+      },
+      200,
+      undefined,
+      request,
+    );
   } catch (error) {
     return unauthorized(
       error instanceof Error ? error.message : "The access token is invalid",
+      request,
     );
   }
+}
+
+export async function GET(request: Request) {
+  return userInfo(request);
+}
+
+export async function POST(request: Request) {
+  return userInfo(request);
+}
+
+export function OPTIONS(request: Request) {
+  return oauthOptions(request);
 }
 
 export const dynamic = "force-dynamic";

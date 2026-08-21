@@ -128,16 +128,20 @@ On approval you get, exactly once:
 
 \`\`\`json
 {
+  "access_token": "cua_…",
   "api_key": "cua_…",
+  "token_type": "Bearer",
   "agent_id": "…",
   "agent_name": "…",
   "scope_name": "…",
+  "expires_in": 7776000,
   "mcp_url": "${mcp}"
 }
 \`\`\`
 
 **Store \`api_key\` wherever you keep secrets. It is shown once and never
-again.** It does not expire; there is no refresh token and nothing to renew.
+again.** Device-grant keys expire in 90 days (\`expires_in\` on the token
+response). There is no refresh token; run this flow again before it lapses.
 If you lose it, run this flow again. If it leaks, the human revokes it from
 the Agents page and nothing else you hold is affected.
 
@@ -293,8 +297,8 @@ Full API version: ${manifest.apiVersion}. Endpoint: ${mcp}
 `;
 }
 
-export async function GET() {
-  const issuer = oauthIssuer();
+export async function GET(request: Request) {
+  const issuer = oauthIssuer(request);
   const manifest = await buildManifest(issuer);
   return new Response(doc(issuer, manifest), {
     headers: {

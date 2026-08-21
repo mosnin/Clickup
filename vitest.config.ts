@@ -45,6 +45,22 @@ export default defineConfig({
           environment: "jsdom",
           include: ["tests/ui/**/*.test.tsx"],
           setupFiles: ["tests/ui/setup.ts"],
+          // Last resort for the CI flake: React 19's scheduler can still
+          // fire `performWorkUntilDeadline` after jsdom is torn down
+          // (`window is not defined` attributed to page-editor-fixes
+          // after 3183 passing tests). Returning false keeps that
+          // post-teardown leak from failing a green run; real test
+          // failures still throw inside the test.
+          onUnhandledError(error) {
+            const stack = error instanceof Error ? error.stack ?? "" : "";
+            if (
+              error instanceof ReferenceError &&
+              error.message.includes("window is not defined") &&
+              stack.includes("performWorkUntilDeadline")
+            ) {
+              return false;
+            }
+          },
         },
       },
     ],

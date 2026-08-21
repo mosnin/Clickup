@@ -4,4 +4,4 @@ dependencies:
       value: "operate"
       description: "Read and coordinate Spaces, Projects, Lists, tasks, roadmaps, agents, evidence, and operations in Operate"
       transport: "streamable_http"
-      url: "https://operate.to/api/mcp?profile=chatgpt"
+      url: "https://www.operate.to/api/mcp?profile=chatgpt"

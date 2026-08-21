@@ -25,7 +25,7 @@ its keys and webhooks.
 {
   "mcpServers": {
     "operate": {
-      "url": "https://operate.to/api/mcp",
+      "url": "https://www.operate.to/api/mcp",
       "headers": { "Authorization": "Bearer cua_..." }
     }
   }
@@ -42,7 +42,7 @@ proxy:
       "command": "node",
       "args": ["mcp/index.mjs"],
       "env": {
-        "OPERATE_MCP_URL": "https://operate.to/api/mcp",
+        "OPERATE_MCP_URL": "https://www.operate.to/api/mcp",
         "OPERATE_API_KEY": "cua_..."
       }
     }
@@ -451,5 +451,5 @@ history intact.
 After deploying, verify the endpoint end-to-end:
 
 ```bash
-MCP_URL=https://operate.to/api/mcp MCP_KEY=cua_... node scripts/smoke-mcp.mjs
+MCP_KEY=cua_... node scripts/smoke-mcp.mjs
 ```

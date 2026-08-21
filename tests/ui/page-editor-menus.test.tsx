@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, waitFor } from "@testing-library/react";
 import type { Editor } from "@tiptap/react";
 import { resetHarness } from "./harness";
@@ -16,6 +16,13 @@ const MENTIONABLES = [
   { id: "ag1", name: "Scout", kind: "agent" as const },
 ];
 
+let liveEditor: Editor | null = null;
+
+afterEach(() => {
+  if (liveEditor && !liveEditor.isDestroyed) liveEditor.destroy();
+  liveEditor = null;
+});
+
 /** Renders the editor and hands back its Tiptap instance once it exists. */
 async function mount(markdown = "") {
   let editor: Editor | null = null;
@@ -31,6 +38,7 @@ async function mount(markdown = "") {
       onChange={onChange}
       onReady={(e) => {
         editor = e;
+        liveEditor = e;
       }}
     />,
   );

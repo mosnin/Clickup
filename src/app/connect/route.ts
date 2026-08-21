@@ -131,6 +131,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
     -d "{\\"grant_type\\":\\"urn:ietf:params:oauth:grant-type:device_code\\",\\"device_code\\":\\"$device_code\\"}" 2>/dev/null)"
 
   api_key="$(printf '%s' "$token_response" | json_str api_key)"
+  [ -z "$api_key" ] && api_key="$(printf '%s' "$token_response" | json_str access_token)"
   [ -n "$api_key" ] && break
 
   err="$(printf '%s' "$token_response" | json_str error)"
@@ -160,7 +161,13 @@ fi
 agent_name="$(printf '%s' "$token_response" | json_str agent_name)"
 scope_name="$(printf '%s' "$token_response" | json_str scope_name)"
 mcp_url="$(printf '%s' "$token_response" | json_str mcp_url)"
+key_expires_in="$(printf '%s' "$token_response" | json_num expires_in)"
 [ -n "$mcp_url" ] || mcp_url="${origin}/api/mcp"
+# Apex 308s POSTs. The token route should already emit www; do not store
+# a URL that cannot be POSTed even if an older server sent apex.
+case "$mcp_url" in
+  https://operate.to/api/mcp*) mcp_url="https://www.operate.to/api/mcp" ;;
+esac
 
 mkdir -p "$home_dir"
 # umask before the write, not chmod after: chmod leaves a window in which
@@ -172,7 +179,8 @@ cat > "$home_dir/credentials.json" <<CREDS
   "api_key": "$api_key",
   "mcp_url": "$mcp_url",
   "agent_name": "$agent_name",
-  "scope": "$scope_name"
+  "scope": "$scope_name",
+  "expires_in": \${key_expires_in:-7776000}
 }
 CREDS
 umask "$old_umask"
@@ -196,6 +204,9 @@ fi
 echo ""
 echo "  Connected as \\"$agent_name\\" in $scope_name."
 echo "  Key stored in $home_dir/credentials.json (not printed above)."
+if [ -n "$key_expires_in" ]; then
+  echo "  Device-grant keys expire after \${key_expires_in}s. Re-run this flow before then."
+fi
 echo ""
 echo "  Add this to your MCP config:"
 echo ""

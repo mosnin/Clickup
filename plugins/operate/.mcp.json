@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "operate": {
-      "url": "https://operate.to/api/mcp?profile=chatgpt"
+      "url": "https://www.operate.to/api/mcp?profile=chatgpt"
     }
   }
 }

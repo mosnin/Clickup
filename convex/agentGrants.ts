@@ -283,6 +283,7 @@ export const provisionAgent = mutation({
       keyHash: args.keyHash,
       keyPrefix: args.keyPrefix,
       createdAt: now,
+      source: "human",
     });
 
     await emitEvent(ctx, {

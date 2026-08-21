@@ -10,6 +10,10 @@ const withSerwist = withSerwistInit({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Next 308s `/oauth/token/` → `/oauth/token` and many OAuth clients
+  // drop the POST body. Middleware rewrites those paths instead; this
+  // stops Next from issuing the 308 after `next()`.
+  skipTrailingSlashRedirect: true,
   outputFileTracingIncludes: {
     "/skills/operate/*": ["./plugins/operate/skills/**"],
   },

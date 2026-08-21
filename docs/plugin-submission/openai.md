@@ -13,13 +13,13 @@ GPT, local MCP entry, personal marketplace, or one-user connector.
 | Portal | `https://platform.openai.com/plugins` |
 | Plugin type | `With MCP` |
 | MCP endpoint type | `Universal` |
-| Production MCP URL | `https://operate.to/api/mcp?profile=chatgpt` |
-| Canonical OAuth resource | `https://operate.to/api/mcp` |
-| Authentication | `OAuth 2.1 authorization code with S256 PKCE, dynamic client registration, exact resource binding, rotating refresh tokens, revocation, OpenID discovery, and verified-email UserInfo.` |
+| Production MCP URL | `https://www.operate.to/api/mcp?profile=chatgpt` |
+| Canonical OAuth resource | `https://operate.to/api/mcp` (equivalent: `https://www.operate.to/api/mcp`) |
+| Authentication | `OAuth 2.1 authorization code with S256 PKCE, dynamic client registration, directory-host redirect allowlist (ChatGPT / Claude / loopback, enforced on every use), official-host resource binding (apex and www are one audience), rotating refresh tokens with reuse-detected family revocation, revocation, OpenID discovery, and verified-email UserInfo.` |
 | Package directory | `plugins/operate` |
 | Upload artifact | `artifacts/operate-plugin-1.22.0.zip` |
-| SHA-256 | `1c645aba54d63e4f2f75d3db782884b6f75bd1eb71028da2b1b4eac1802468f7` |
-| Compressed size | `11,459 bytes` |
+| SHA-256 | `e5b9637349dda446cdd2092c797c0667b190aa61129ee498c7bf2510a7d4df7a` |
+| Compressed size | `11,467 bytes` |
 | Generated tool metadata | `chatgpt-app-submission.json` |
 
 The submitter needs Apps Management **Write** permission (`api.apps.write`), a
@@ -129,8 +129,12 @@ submission contract.
 - Authorization code with S256 PKCE; no implicit grant.
 - Exact registered redirect-URI match.
 - Canonical RFC 8707 `resource` carried through authorization, code exchange,
-  refresh, token storage, and MCP authentication.
-- One-hour access tokens, rotated 30-day refresh credentials, and revocation.
+  refresh, token storage, and MCP authentication. Apex `operate.to` and
+  `www.operate.to` are one official audience; any other host is refused.
+- One-hour access tokens, rotated 30-day refresh credentials, reuse-detected
+  refresh-family revocation, and explicit token revocation.
+- Discovery served from www advertises www token endpoints so authorization-code
+  and refresh POSTs do not have to follow the apex→www 308.
 - OpenID discovery plus verified-email UserInfo for domain restrictions.
 - Owner-only authorization for workspace-wide agents; personal-owner binding
   for personal agents.
@@ -240,7 +244,7 @@ submit the old recording as current proof until that live rerun passes.
    token without quotes or whitespace.
 3. Redeploy.
 4. Verify the exact plaintext response at
-   `https://operate.to/.well-known/openai-apps-challenge`.
+   `https://www.operate.to/.well-known/openai-apps-challenge`.
 5. Complete verification in the portal.
 6. Keep the route deployed while the plugin remains listed.
 
@@ -272,8 +276,10 @@ submit the old recording as current proof until that live rerun passes.
 npm ci
 npm run typecheck
 npm run check:submission
+npm run smoke:mcp
 npx vitest run tests/oauth.test.ts tests/oauth-discovery.test.ts \
-  tests/mcp-contract.test.ts tests/plugin-submission.test.ts
+  tests/mcp-contract.test.ts tests/plugin-submission.test.ts \
+  tests/mcp-chatgpt-catalog.test.ts
 npm test
 npm run build
 ```
@@ -291,6 +297,7 @@ shasum -a 256 artifacts/operate-plugin-1.22.0.zip
 The repository work cannot truthfully complete these owner-controlled items:
 
 - [ ] Merge and production deployment are approved.
+- [ ] Vercel apex `operate.to` either serves `/api/mcp` and `/oauth/*` without a 308, or every public MCP/OAuth URL stays on `www.operate.to` (current packet).
 - [ ] Publisher identity is verified.
 - [ ] Submitter has Apps Management Write permission.
 - [ ] Production project uses global residency.

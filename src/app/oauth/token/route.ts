@@ -2,12 +2,18 @@ import { createHash, randomBytes } from "node:crypto";
 import { api } from "@convex/_generated/api";
 import {
   DEVICE_GRANT,
+  inferGrantType,
   deviceErrorCode,
+  oauthBasicClientId,
   oauthConvexClient,
   oauthError,
+  oauthFields,
+  oauthOptions,
+  oauthPostOnly,
   oauthIssuer,
   oauthJson,
   randomCredential,
+  servingMcpUrl,
 } from "@/lib/oauth-server";
 import { validateMcpResource } from "@/lib/oauth-resource";
 
@@ -32,9 +38,9 @@ const DEVICE_ERROR_HELP: Record<string, (interval?: number) => string> = {
 // is minted HERE and only its hash crosses into Convex, so the plaintext
 // never exists in the database at any point — not even for the ten minutes
 // between a human approving and the poller collecting.
-async function deviceGrant(deviceCode: string) {
+async function deviceGrant(deviceCode: string, request: Request) {
   if (!deviceCode) {
-    return oauthError("invalid_request", "device_code is required");
+    return oauthError("invalid_request", "device_code is required", 400, request);
   }
   // Generated before the call because the mutation stores the hash and
   // returns nothing that could reconstruct it.
@@ -52,75 +58,77 @@ async function deviceGrant(deviceCode: string) {
   // a Convex deployment — see tests/agent-device-http.test.ts.
   const error = deviceErrorCode(result.state, result.slowDown);
   if (error) {
-    return oauthError(error, DEVICE_ERROR_HELP[error](result.interval), 400);
+    return oauthError(
+      error,
+      DEVICE_ERROR_HELP[error](result.interval),
+      400,
+      request,
+    );
   }
 
-  const issuer = oauthIssuer();
-  return oauthJson({
-    // Named api_key rather than access_token: it does not expire and there
-    // is no refresh token to pair with it, so calling it an access_token
-    // would invite a client to build a refresh loop around nothing.
-    api_key: key,
-    token_type: "Bearer",
-    agent_id: result.agentId,
-    agent_name: result.agentName,
-    agent_created: result.agentCreated,
-    scope_name: result.scopeName,
-    mcp_url: `${issuer}/api/mcp`,
-    manifest_url: `${issuer}/api/agent/manifest`,
-  });
+  const issuer = oauthIssuer(request);
+  return oauthJson(
+    {
+      // RFC 8628 §3.5 / RFC 6749 §5.1 require access_token. api_key is the
+      // same cua_ value for scripts that already read that field. There is
+      // still no refresh token; expires_in is the 90-day device-key TTL.
+      access_token: key,
+      api_key: key,
+      token_type: "Bearer",
+      expires_in: result.expiresIn,
+      agent_id: result.agentId,
+      agent_name: result.agentName,
+      agent_created: result.agentCreated,
+      scope_name: result.scopeName,
+      mcp_url: servingMcpUrl(issuer),
+      manifest_url: `${issuer}/api/agent/manifest`,
+    },
+    200,
+    undefined,
+    request,
+  );
 }
 
 export async function POST(request: Request) {
   // RFC 8628 posts form-encoded; an agent hand-rolling this with curl will
   // reach for JSON. Accept both — see /oauth/device for the same reasoning.
-  const contentType = request.headers.get("content-type") ?? "";
-  let field: (name: string) => string;
-  if (contentType.includes("application/json")) {
-    const body = (await request.json().catch(() => ({}))) as Record<
-      string,
-      unknown
-    >;
-    field = (name) => String(body[name] ?? "");
-  } else {
-    const form = await request.formData();
-    field = (name) => String(form.get(name) ?? "");
-  }
+  const field = await oauthFields(request);
 
-  const grantType = field("grant_type");
+  const grantType = inferGrantType(field);
   // Checked before client_id, because the device grant has no registered
   // client to identify: the device code IS the credential.
   if (grantType === DEVICE_GRANT) {
     try {
-      return await deviceGrant(field("device_code"));
+      return await deviceGrant(field("device_code"), request);
     } catch (error) {
       return oauthError(
         "invalid_grant",
         error instanceof Error ? error.message : "Device grant failed",
+        400,
+        request,
       );
     }
   }
 
-  const clientId = field("client_id");
+  const clientId = field("client_id") || oauthBasicClientId(request);
   if (!clientId) {
-    return oauthError("invalid_client", "client_id is required", 401);
+    return oauthError("invalid_client", "client_id is required", 401, request);
   }
   const accessToken = randomCredential("opa");
   const refreshToken = randomCredential("opr");
-  const rawResource = field("resource");
-  if (!rawResource) {
-    return oauthError(
-      "invalid_target",
-      "resource is required and must match the protected MCP resource",
-    );
-  }
+  // Empty resource defaults to the official audience. Clients that omit
+  // RFC 8707 `resource` (they already fetched PRM) used to 400 here
+  // after a successful body parse.
+  const rawResource = field("resource") || field("audience") || undefined;
   let resource: string;
   try {
-    resource = validateMcpResource(rawResource, oauthIssuer());
+    resource = validateMcpResource(rawResource, oauthIssuer(request));
   } catch (error) {
     return oauthError(
       "invalid_target",
       error instanceof Error ? error.message : "Invalid resource",
+      400,
+      request,
     );
   }
   try {
@@ -132,6 +140,8 @@ export async function POST(request: Request) {
         return oauthError(
           "invalid_request",
           "code, redirect_uri, and code_verifier are required",
+          400,
+          request,
         );
       }
       const result = await oauthConvexClient().mutation(
@@ -146,18 +156,28 @@ export async function POST(request: Request) {
           resource,
         },
       );
-      return oauthJson({
-        access_token: accessToken,
-        token_type: "Bearer",
-        expires_in: result.expiresIn,
-        refresh_token: refreshToken,
-        scope: result.scope,
-      });
+      return oauthJson(
+        {
+          access_token: accessToken,
+          token_type: "Bearer",
+          expires_in: result.expiresIn,
+          refresh_token: refreshToken,
+          scope: result.scope,
+        },
+        200,
+        undefined,
+        request,
+      );
     }
     if (grantType === "refresh_token") {
       const currentRefreshToken = field("refresh_token");
       if (!currentRefreshToken) {
-        return oauthError("invalid_request", "refresh_token is required");
+        return oauthError(
+          "invalid_request",
+          "refresh_token is required",
+          400,
+          request,
+        );
       }
       const result = await oauthConvexClient().mutation(
         api.oauth.refreshAccessToken,
@@ -169,19 +189,42 @@ export async function POST(request: Request) {
           resource,
         },
       );
-      return oauthJson({
-        access_token: accessToken,
-        token_type: "Bearer",
-        expires_in: result.expiresIn,
-        refresh_token: refreshToken,
-        scope: result.scope,
-      });
+      if (!result.ok) {
+        return oauthError("invalid_grant", result.error, 400, request);
+      }
+      return oauthJson(
+        {
+          access_token: accessToken,
+          token_type: "Bearer",
+          expires_in: result.expiresIn,
+          refresh_token: refreshToken,
+          scope: result.scope,
+        },
+        200,
+        undefined,
+        request,
+      );
     }
-    return oauthError("unsupported_grant_type", "Unsupported grant_type");
+    return oauthError(
+      "unsupported_grant_type",
+      "Unsupported grant_type",
+      400,
+      request,
+    );
   } catch (error) {
     return oauthError(
       "invalid_grant",
       error instanceof Error ? error.message : "Token grant failed",
+      400,
+      request,
     );
   }
+}
+
+export function GET(request: Request) {
+  return oauthPostOnly(request);
+}
+
+export function OPTIONS(request: Request) {
+  return oauthOptions(request);
 }

@@ -3,8 +3,10 @@ import { api } from "@convex/_generated/api";
 import {
   oauthConvexClient,
   oauthError,
+  oauthFields,
   oauthIssuer,
   oauthJson,
+  oauthOptions,
   randomCredential,
 } from "@/lib/oauth-server";
 
@@ -33,24 +35,12 @@ function userCode() {
 }
 
 export async function POST(request: Request) {
-  // RFC 8628 posts form-encoded, but an agent hand-rolling this with curl
-  // will reach for JSON. Accept both rather than making the first thing an
-  // agent tries fail on a content type.
-  let clientName = "";
-  const contentType = request.headers.get("content-type") ?? "";
-  try {
-    if (contentType.includes("application/json")) {
-      const body = (await request.json()) as { client_name?: string; client?: string };
-      clientName = String(body.client_name ?? body.client ?? "");
-    } else {
-      const form = await request.formData();
-      clientName = String(form.get("client_name") ?? form.get("client") ?? "");
-    }
-  } catch {
-    clientName = "";
-  }
+  // RFC 8628 posts form-encoded; an agent hand-rolling curl sends JSON,
+  // often with no Content-Type. Same reader as /oauth/token and /oauth/revoke.
+  const field = await oauthFields(request);
+  const clientName = field("client_name") || field("client");
 
-  const issuer = oauthIssuer();
+  const issuer = oauthIssuer(request);
   const deviceCode = randomCredential("opd");
 
   // Convex cannot see the caller's address, so the rate limit's subject has
@@ -75,15 +65,25 @@ export async function POST(request: Request) {
         api.agentAuth.createDeviceRequest,
         { deviceCode, userCode: code, clientName, clientIp, proxySecret },
       );
-      return oauthJson({
-        device_code: deviceCode,
-        user_code: code,
-        verification_uri: `${issuer}/link`,
-        // RFC 8628 §3.3.1. Agents that render a QR code use this one.
-        verification_uri_complete: `${issuer}/link?code=${encodeURIComponent(code)}`,
-        expires_in: result.expiresIn,
-        interval: result.interval,
-      });
+      const verificationUri = `${issuer}/link`;
+      const verificationUriComplete = `${issuer}/link?code=${encodeURIComponent(code)}`;
+      return oauthJson(
+        {
+          device_code: deviceCode,
+          user_code: code,
+          verification_uri: verificationUri,
+          // RFC 8628 §3.3.1. Agents that render a QR code use this one.
+          verification_uri_complete: verificationUriComplete,
+          // Libraries that read `_url` instead of `_uri`.
+          verification_url: verificationUri,
+          verification_url_complete: verificationUriComplete,
+          expires_in: result.expiresIn,
+          interval: result.interval,
+        },
+        200,
+        undefined,
+        request,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       // A collision means this user code is live for somebody else; retrying
@@ -93,25 +93,38 @@ export async function POST(request: Request) {
       // own status because a client that retries a 429 as if it were a 500
       // is precisely the client the limit exists to stop.
       if (message.includes("Too many")) {
-        return oauthError("slow_down", message, 429);
+        return oauthError("slow_down", message, 429, request);
       }
       return oauthError(
         "server_error",
         "Could not start device authorization",
         500,
+        request,
       );
     }
   }
-  return oauthError("server_error", "Could not allocate a user code", 503);
+  return oauthError("server_error", "Could not allocate a user code", 503, request);
 }
 
 // Some agent runtimes probe an endpoint with GET before posting to it.
-// Answering with the method requirement is more useful than a 404 from the
-// catch-all, because the fix is one word in their request.
-export function GET() {
-  return oauthError(
-    "invalid_request",
-    "The device authorization endpoint accepts POST",
+// 405 + Allow: POST is the method fix; verification_url is where a
+// human completes the grant, so a GET probe is not a dead end.
+export function GET(request: Request) {
+  const issuer = oauthIssuer(request);
+  const verificationUri = `${issuer}/link`;
+  return oauthJson(
+    {
+      error: "invalid_request",
+      error_description: "This endpoint accepts POST",
+      verification_uri: verificationUri,
+      verification_url: verificationUri,
+    },
     405,
+    { Allow: "POST" },
+    request,
   );
+}
+
+export function OPTIONS(request: Request) {
+  return oauthOptions(request);
 }
