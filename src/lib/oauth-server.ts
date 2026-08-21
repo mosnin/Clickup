@@ -109,17 +109,18 @@ export function oauthDiscoveryMetadata(request?: Request) {
 
 /**
  * Token, device, and revoke all accept JSON or form bodies. An agent
- * hand-rolling curl reaches for JSON, often with no Content-Type;
- * RFC 6749/7009/8628 send form. Reading `formData()` on a JSON body
- * throws (or yields no fields), so logout/token/device would miss the
- * credential. One text parse: JSON if labelled or the body starts
- * with `{`, otherwise application/x-www-form-urlencoded.
+ * hand-rolling curl reaches for JSON, often with no Content-Type, a
+ * UTF-8 BOM, or `Content-Type: application/json` around a form body.
+ * One text parse: strip a BOM, try JSON if labelled or the body starts
+ * with `{`, otherwise application/x-www-form-urlencoded. A failed JSON
+ * parse falls through to form — labelled-JSON + `token=…` used to
+ * return empty and skip revoke.
  */
 export async function oauthFields(
   request: Request,
 ): Promise<(name: string) => string> {
   const contentType = request.headers.get("content-type") ?? "";
-  const text = await request.text().catch(() => "");
+  const text = (await request.text().catch(() => "")).replace(/^\uFEFF/, "");
   const trimmed = text.trim();
   const labelledJson = contentType.includes("application/json");
   const looksJson = trimmed.startsWith("{") || trimmed.startsWith("[");
@@ -135,11 +136,28 @@ export async function oauthFields(
         };
       }
     } catch {
-      if (labelledJson) return () => "";
+      // Fall through: a JSON Content-Type is sometimes wrapped around
+      // an RFC form body.
     }
   }
-  const params = new URLSearchParams(text);
+  const params = new URLSearchParams(trimmed);
   return (name) => params.get(name) ?? "";
+}
+
+/** DCR (RFC 7591) is JSON. Strip a BOM so request.json() is not the only path. */
+export async function oauthJsonObject(
+  request: Request,
+): Promise<Record<string, unknown> | null> {
+  const text = (await request.text().catch(() => "")).replace(/^\uFEFF/, "").trim();
+  try {
+    const body = JSON.parse(text) as unknown;
+    if (body && typeof body === "object" && !Array.isArray(body)) {
+      return body as Record<string, unknown>;
+    }
+  } catch {
+    // Caller maps null to invalid_client_metadata.
+  }
+  return null;
 }
 
 export function oauthConvexClient() {

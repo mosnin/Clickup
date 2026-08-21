@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { oauthFields } from "../src/lib/oauth-server";
+import { oauthFields, oauthJsonObject } from "../src/lib/oauth-server";
 
 const read = (file: string) =>
   readFileSync(path.join(process.cwd(), file), "utf8");
@@ -78,6 +78,44 @@ describe("oauthFields", () => {
     expect(field("client_name")).toBe("");
     expect(field("client")).toBe("claude-code");
   });
+
+  it("reads a form body that was labelled application/json", async () => {
+    const field = await oauthFields(
+      new Request("https://www.operate.to/oauth/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "token=opr_form_under_json_type",
+      }),
+    );
+    expect(field("token")).toBe("opr_form_under_json_type");
+  });
+
+  it("reads JSON that starts with a UTF-8 BOM", async () => {
+    const field = await oauthFields(
+      new Request("https://www.operate.to/oauth/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: `\uFEFF${JSON.stringify({ token: "opr_bom" })}`,
+      }),
+    );
+    expect(field("token")).toBe("opr_bom");
+  });
+});
+
+describe("oauthJsonObject", () => {
+  it("accepts a BOM-prefixed DCR body that request.json would reject", async () => {
+    const body = await oauthJsonObject(
+      new Request("https://www.operate.to/oauth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: `\uFEFF${JSON.stringify({
+          client_name: "Claude",
+          redirect_uris: ["https://claude.ai/api/mcp/auth_callback"],
+        })}`,
+      }),
+    );
+    expect(body).toMatchObject({ client_name: "Claude" });
+  });
 });
 
 describe("OAuth POST routes share oauthFields", () => {
@@ -91,5 +129,8 @@ describe("OAuth POST routes share oauthFields", () => {
       expect(source, file).toContain("oauthFields");
       expect(source, file).not.toMatch(/formData\(/);
     }
+    const register = read("src/app/oauth/register/route.ts");
+    expect(register).toContain("oauthJsonObject");
+    expect(register).not.toMatch(/request\.json\(/);
   });
 });

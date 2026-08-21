@@ -5,20 +5,20 @@ import {
   oauthError,
   oauthIssuer,
   oauthJson,
+  oauthJsonObject,
   randomCredential,
 } from "@/lib/oauth-server";
 
 export async function POST(request: Request) {
-  let input: {
+  const parsed = await oauthJsonObject(request);
+  if (!parsed) {
+    return oauthError("invalid_client_metadata", "Body must be JSON");
+  }
+  const input = parsed as {
     client_name?: string;
     redirect_uris?: string[];
     token_endpoint_auth_method?: string;
   };
-  try {
-    input = await request.json();
-  } catch {
-    return oauthError("invalid_client_metadata", "Body must be JSON");
-  }
   if (
     !input.client_name ||
     !Array.isArray(input.redirect_uris) ||
