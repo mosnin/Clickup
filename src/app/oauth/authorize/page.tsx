@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { RequireBackend } from "@/components/require-backend";
 import { validateMcpResource } from "@/lib/oauth-resource";
 import { oauthIssuer } from "@/lib/oauth-server";
+import { oauthQueryValue } from "@/lib/oauth-slash";
 import { OAuthAuthorize } from "./oauth-authorize";
 
 export const metadata: Metadata = { title: "Connect Operate" };
@@ -26,11 +27,11 @@ export default async function OAuthAuthorizePage({
   }
   let resource = "";
   try {
-    const candidate =
-      (typeof params.resource === "string" && params.resource) ||
-      (typeof params.audience === "string" && params.audience) ||
-      (typeof params.aud === "string" && params.aud) ||
-      undefined;
+    const param = (name: string) => {
+      const value = params[name];
+      return typeof value === "string" ? value : undefined;
+    };
+    const candidate = oauthQueryValue(param, "resource") || undefined;
     resource = validateMcpResource(candidate, oauthIssuer());
   } catch {
     // The client component renders the same non-leaky invalid-request state

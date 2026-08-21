@@ -277,7 +277,9 @@ const OAUTH_KEY_ALIASES: Record<string, string> = {
   codeVerifier: "code_verifier",
   verifier: "code_verifier",
   codeChallenge: "code_challenge",
+  "code-challenge": "code_challenge",
   codeChallengeMethod: "code_challenge_method",
+  "code-challenge-method": "code_challenge_method",
   tokenTypeHint: "token_type_hint",
   scopes: "scope",
   responseType: "response_type",
@@ -329,6 +331,18 @@ export function oauthFieldAliases(name: string) {
   }
   if (name === "client_id") aliases.push("client-id");
   return aliases;
+}
+
+/** Same aliases as `oauthFields`, for authorize GET query strings. */
+export function oauthQueryValue(
+  get: (name: string) => string | null | undefined,
+  name: string,
+) {
+  for (const key of oauthFieldAliases(name)) {
+    const value = get(key);
+    if (value) return value;
+  }
+  return "";
 }
 
 /** A proxy sometimes JSON.stringifies an already-encoded object. */

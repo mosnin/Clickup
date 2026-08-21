@@ -24,6 +24,7 @@ import {
   isMachineOAuthPath,
   isMcpBrowserOrigin,
   isOAuthOptionsPath,
+  oauthQueryValue,
   readAuthorizeParams,
   stripOAuthTrailingSlash,
 } from "../src/lib/oauth-slash";
@@ -565,6 +566,26 @@ describe("device GET 405", () => {
   });
 });
 
+describe("oauthQueryValue", () => {
+  it("reads hyphenated authorize query keys through the same alias table as POST", () => {
+    const query = new URLSearchParams({
+      "client-id": "opc_hyphen",
+      "redirect-uri": "https://chatgpt.com/connector_platform_oauth_redirect",
+      "code-challenge": "abc",
+      "code-challenge-method": "sha256",
+      aud: "https://operate.to/api/mcp",
+    });
+    const get = (name: string) => query.get(name);
+    expect(oauthQueryValue(get, "client_id")).toBe("opc_hyphen");
+    expect(oauthQueryValue(get, "redirect_uri")).toBe(
+      "https://chatgpt.com/connector_platform_oauth_redirect",
+    );
+    expect(oauthQueryValue(get, "code_challenge")).toBe("abc");
+    expect(oauthQueryValue(get, "code_challenge_method")).toBe("sha256");
+    expect(oauthQueryValue(get, "resource")).toBe("https://operate.to/api/mcp");
+  });
+});
+
 describe("PKCE method aliases", () => {
   it("maps s256 / sha256 / hyphenated forms to S256 and leaves unknown methods", () => {
     expect(canonicalCodeChallengeMethod("")).toBe("S256");
@@ -957,12 +978,14 @@ describe("OAuth POST routes share oauthFields", () => {
       "client_secret_basic",
     );
     expect(read("src/app/oauth/authorize/oauth-authorize.tsx")).toContain(
-      "redirect_url",
+      "oauthQueryValue",
     );
     expect(read("src/app/oauth/authorize/oauth-authorize.tsx")).toContain(
       "canonicalCodeChallengeMethod",
     );
-    expect(read("src/app/oauth/authorize/page.tsx")).toContain("audience");
+    expect(read("src/app/oauth/authorize/page.tsx")).toContain(
+      'oauthQueryValue(param, "resource")',
+    );
     expect(read("src/app/api/x402/route.ts")).toContain("oauthBearer");
     expect(read("src/app/api/x402/route.ts")).toContain("oauthWwwAuthenticate");
     expect(read("src/app/api/x402/route.ts")).toMatch(
@@ -993,7 +1016,7 @@ describe("OAuth POST routes share oauthFields", () => {
         "src/app/api/mcp/.well-known/oauth-authorization-server/[...path]/route.ts",
       ),
     ).toContain('from "../route"');
-    expect(read("src/app/oauth/authorize/page.tsx")).toContain("params.aud");
+    expect(read("src/lib/oauth-slash.ts")).toContain("oauthQueryValue");
     expect(read("src/app/oauth/token/route.ts")).toMatch(
       /oauthError\(\s*error,\s*DEVICE_ERROR_HELP\[error\]\(result\.interval\),\s*400,\s*request,/,
     );

@@ -8,7 +8,10 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/errors";
-import { canonicalCodeChallengeMethod } from "@/lib/oauth-slash";
+import {
+  canonicalCodeChallengeMethod,
+  oauthQueryValue,
+} from "@/lib/oauth-slash";
 
 function returnHost(redirectUri: string) {
   try {
@@ -28,22 +31,10 @@ function randomCode() {
 
 export function OAuthAuthorize({ resource }: { resource: string }) {
   const searchParams = useSearchParams();
-  const clientId =
-    searchParams.get("client_id") || searchParams.get("clientId") || "";
-  const redirectUri =
-    searchParams.get("redirect_uri") ||
-    searchParams.get("redirect_url") ||
-    searchParams.get("callback_uri") ||
-    searchParams.get("callback_url") ||
-    searchParams.get("callbackUri") ||
-    searchParams.get("callbackUrl") ||
-    searchParams.get("redirectUri") ||
-    searchParams.get("redirectUrl") ||
-    "";
-  const responseTypeRaw =
-    searchParams.get("response_type") ??
-    searchParams.get("responseType") ??
-    "";
+  const q = (name: string) => searchParams.get(name);
+  const clientId = oauthQueryValue(q, "client_id");
+  const redirectUri = oauthQueryValue(q, "redirect_uri");
+  const responseTypeRaw = oauthQueryValue(q, "response_type");
   const responseType =
     responseTypeRaw === "" ||
     responseTypeRaw === "code" ||
@@ -51,18 +42,10 @@ export function OAuthAuthorize({ resource }: { resource: string }) {
       ? "code"
       : responseTypeRaw;
   const scope =
-    searchParams.get("scope") ||
-    searchParams.get("scopes") ||
-    "openid email operate:read operate:write";
+    oauthQueryValue(q, "scope") || "openid email operate:read operate:write";
   const state = searchParams.get("state") ?? "";
-  const codeChallenge =
-    searchParams.get("code_challenge") ||
-    searchParams.get("codeChallenge") ||
-    "";
-  const codeChallengeMethodRaw =
-    searchParams.get("code_challenge_method") ||
-    searchParams.get("codeChallengeMethod") ||
-    "";
+  const codeChallenge = oauthQueryValue(q, "code_challenge");
+  const codeChallengeMethodRaw = oauthQueryValue(q, "code_challenge_method");
   const codeChallengeMethod = canonicalCodeChallengeMethod(
     codeChallengeMethodRaw,
   );
