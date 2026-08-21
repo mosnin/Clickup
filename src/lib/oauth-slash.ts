@@ -207,7 +207,9 @@ function asJsonRecord(body: unknown): Record<string, unknown> | null {
 export async function readAuthorizeParams(request: Request) {
   const merged = new URLSearchParams(new URL(request.url).searchParams);
   const setIfEmpty = (key: string, value: string) => {
-    if (value && !merged.get(key)) merged.set(key, value);
+    if (value && !merged.get(key)) {
+      merged.set(key, key === "scope" ? normalizeOAuthScope(value) : value);
+    }
   };
   const contentType = request.headers.get("content-type") ?? "";
   if (contentType.includes("multipart/form-data")) {
@@ -232,14 +234,20 @@ export async function readAuthorizeParams(request: Request) {
     try {
       const record = asJsonRecord(parseJsonBody(text));
       if (record) {
-        for (const [key, value] of Object.entries(record)) {
+        for (const [rawKey, value] of Object.entries(record)) {
           if (value === undefined || value === null) continue;
+          const key = canonicalOAuthKey(rawKey);
+          if (Array.isArray(value) && key === "scope") {
+            const scopes = value.filter(
+              (item): item is string =>
+                typeof item === "string" && item.length > 0,
+            );
+            if (scopes.length) setIfEmpty(key, scopes.join(" "));
+            continue;
+          }
           const first = Array.isArray(value) ? value[0] : value;
           if (first === undefined || first === null) continue;
-          setIfEmpty(
-            canonicalOAuthKey(key),
-            typeof first === "string" ? first : String(first),
-          );
+          setIfEmpty(key, typeof first === "string" ? first : String(first));
         }
         return merged;
       }
@@ -333,6 +341,12 @@ export function oauthFieldAliases(name: string) {
   return aliases;
 }
 
+/** Comma-separated scopes become the space-delimited RFC 6749 form. */
+export function normalizeOAuthScope(value: string) {
+  if (!value.includes(",")) return value;
+  return value.replace(/,/g, " ").replace(/\s+/g, " ").trim();
+}
+
 /** Same aliases as `oauthFields`, for authorize GET query strings. */
 export function oauthQueryValue(
   get: (name: string) => string | null | undefined,
@@ -340,7 +354,7 @@ export function oauthQueryValue(
 ) {
   for (const key of oauthFieldAliases(name)) {
     const value = get(key);
-    if (value) return value;
+    if (value) return name === "scope" ? normalizeOAuthScope(value) : value;
   }
   return "";
 }

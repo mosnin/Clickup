@@ -583,6 +583,12 @@ describe("oauthQueryValue", () => {
     expect(oauthQueryValue(get, "code_challenge")).toBe("abc");
     expect(oauthQueryValue(get, "code_challenge_method")).toBe("sha256");
     expect(oauthQueryValue(get, "resource")).toBe("https://operate.to/api/mcp");
+    expect(
+      oauthQueryValue(
+        (name) => (name === "scope" ? "openid,email,operate:read" : null),
+        "scope",
+      ),
+    ).toBe("openid email operate:read");
   });
 });
 
@@ -769,6 +775,24 @@ describe("readAuthorizeParams", () => {
     );
     expect(scopes.get("scope")).toBe("openid email operate:read");
     expect(scopes.get("response_type")).toBe("authorization_code");
+    const scopeArray = await readAuthorizeParams(
+      new Request("https://www.operate.to/oauth/authorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scopes: ["openid", "email", "operate:read"],
+        }),
+      }),
+    );
+    expect(scopeArray.get("scope")).toBe("openid email operate:read");
+    const commaScope = await readAuthorizeParams(
+      new Request("https://www.operate.to/oauth/authorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: "openid,email" }),
+      }),
+    );
+    expect(commaScope.get("scope")).toBe("openid email");
     const redirectUrl = await readAuthorizeParams(
       new Request("https://www.operate.to/oauth/authorize", {
         method: "POST",
@@ -985,6 +1009,9 @@ describe("OAuth POST routes share oauthFields", () => {
     );
     expect(read("src/app/oauth/authorize/page.tsx")).toContain(
       'oauthQueryValue(param, "resource")',
+    );
+    expect(read("src/app/link/page.tsx")).toContain(
+      'oauthQueryValue(param, "user_code")',
     );
     expect(read("src/app/api/x402/route.ts")).toContain("oauthBearer");
     expect(read("src/app/api/x402/route.ts")).toContain("oauthWwwAuthenticate");

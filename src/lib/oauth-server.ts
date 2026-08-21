@@ -15,6 +15,7 @@ import {
   canonicalOAuthKey,
   canonicalCodeChallengeMethod,
   extractOperateCredential,
+  normalizeOAuthScope,
 } from "./oauth-slash";
 
 export { servingMcpUrl, servingOrigin };
@@ -220,15 +221,10 @@ export async function oauthFields(
   return withQuery((name) => phpFieldString((key) => params.get(key) ?? "", name));
 }
 
-function normalizeScope(value: string) {
-  if (!value.includes(",")) return value;
-  return value.replace(/,/g, " ").replace(/\s+/g, " ").trim();
-}
-
 function phpFieldString(get: (name: string) => string, name: string) {
   for (const key of oauthFieldAliases(name)) {
     const value = get(key);
-    if (value) return name === "scope" ? normalizeScope(value) : value;
+    if (value) return name === "scope" ? normalizeOAuthScope(value) : value;
   }
   return "";
 }
@@ -242,7 +238,7 @@ function phpRecordString(record: Record<string, unknown>, name: string) {
         const scopes = value.filter(
           (item): item is string => typeof item === "string" && item.length > 0,
         );
-        if (scopes.length) return normalizeScope(scopes.join(" "));
+        if (scopes.length) return normalizeOAuthScope(scopes.join(" "));
         continue;
       }
       const first = value.find((item) => item !== undefined && item !== null);
@@ -250,7 +246,7 @@ function phpRecordString(record: Record<string, unknown>, name: string) {
       return typeof first === "string" ? first : String(first);
     }
     const scalar = typeof value === "string" ? value : String(value);
-    return name === "scope" ? normalizeScope(scalar) : scalar;
+    return name === "scope" ? normalizeOAuthScope(scalar) : scalar;
   }
   return "";
 }
