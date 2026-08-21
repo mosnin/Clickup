@@ -8,6 +8,7 @@ import {
   oauthIssuer,
   oauthJson,
   randomCredential,
+  servingMcpUrl,
 } from "@/lib/oauth-server";
 import { validateMcpResource } from "@/lib/oauth-resource";
 
@@ -32,7 +33,7 @@ const DEVICE_ERROR_HELP: Record<string, (interval?: number) => string> = {
 // is minted HERE and only its hash crosses into Convex, so the plaintext
 // never exists in the database at any point — not even for the ten minutes
 // between a human approving and the poller collecting.
-async function deviceGrant(deviceCode: string) {
+async function deviceGrant(deviceCode: string, request: Request) {
   if (!deviceCode) {
     return oauthError("invalid_request", "device_code is required");
   }
@@ -55,7 +56,7 @@ async function deviceGrant(deviceCode: string) {
     return oauthError(error, DEVICE_ERROR_HELP[error](result.interval), 400);
   }
 
-  const issuer = oauthIssuer();
+  const issuer = oauthIssuer(request);
   return oauthJson({
     // Named api_key rather than access_token: there is no refresh token
     // to pair with it, so calling it an access_token would invite a
@@ -68,7 +69,7 @@ async function deviceGrant(deviceCode: string) {
     agent_name: result.agentName,
     agent_created: result.agentCreated,
     scope_name: result.scopeName,
-    mcp_url: `${issuer}/api/mcp`,
+    mcp_url: servingMcpUrl(issuer),
     manifest_url: `${issuer}/api/agent/manifest`,
   });
 }
@@ -94,7 +95,7 @@ export async function POST(request: Request) {
   // client to identify: the device code IS the credential.
   if (grantType === DEVICE_GRANT) {
     try {
-      return await deviceGrant(field("device_code"));
+      return await deviceGrant(field("device_code"), request);
     } catch (error) {
       return oauthError(
         "invalid_grant",

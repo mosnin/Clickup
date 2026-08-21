@@ -16,7 +16,7 @@ import {
 import { QUERY_VOCABULARY } from "@/lib/data-stream";
 import { ALL_SHAPES } from "@/lib/panel";
 import { STYLE_ENUMS } from "@/lib/component-style";
-import { oauthIssuer, oauthResource } from "@/lib/oauth-server";
+import { mcpWwwAuthenticate, oauthResource } from "@/lib/oauth-server";
 // The Chat dashboard's agent surface (C6b). A separate application sharing one
 // endpoint (D11), so its catalog lives in its own module and lands here in one
 // line rather than growing this file by a twelfth of itself.
@@ -3256,11 +3256,7 @@ async function guarded(req: Request): Promise<Response> {
   const response = await selectedHandler(transportRequest);
   if (response.status !== 401) return withCors(req, response);
   const headers = new Headers(response.headers);
-  const origin = oauthIssuer(req);
-  headers.set(
-    "WWW-Authenticate",
-    `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource", scope="operate:read"`,
-  );
+  headers.set("WWW-Authenticate", mcpWwwAuthenticate(req));
   return withCors(
     req,
     new Response(response.body, {

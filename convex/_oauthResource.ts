@@ -110,6 +110,23 @@ export function discoveryIssuer(
   return SERVING_PRODUCTION_ORIGIN;
 }
 
+/**
+ * Client POST URL for MCP. Audience stays `https://operate.to/api/mcp`;
+ * the URL a runtime actually POSTs to must not be the apex host, which
+ * 308-redirects and drops the body.
+ */
+export function servingMcpUrl(issuer: string) {
+  try {
+    const url = new URL("/api/mcp", issuer);
+    if (url.hostname.toLowerCase() === "operate.to") {
+      return `${SERVING_PRODUCTION_ORIGIN}/api/mcp`;
+    }
+    return url.toString();
+  } catch {
+    return `${SERVING_PRODUCTION_ORIGIN}/api/mcp`;
+  }
+}
+
 export function officialAuthorizationServers(preferredIssuer: string) {
   const preferred = preferredIssuer.replace(/\/$/, "");
   if (!isOfficialOrigin(preferred) || isLoopbackHost(new URL(preferred).hostname)) {

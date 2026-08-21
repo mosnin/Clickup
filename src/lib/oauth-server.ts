@@ -3,8 +3,11 @@ import { ConvexHttpClient } from "convex/browser";
 import {
   CANONICAL_PRODUCTION_MCP_RESOURCE,
   discoveryIssuer,
+  servingMcpUrl,
   validateMcpResource,
 } from "./oauth-resource";
+
+export { servingMcpUrl };
 
 // RFC 8628 §3.4. Lives here rather than beside the handler that reads it,
 // because a Next route file may only export HTTP handlers and the documented
@@ -55,6 +58,11 @@ export function oauthIssuer(request?: Request) {
     request?.url,
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, ""),
   );
+}
+
+export function mcpWwwAuthenticate(request: Request) {
+  const origin = oauthIssuer(request);
+  return `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource", scope="operate:read"`;
 }
 
 export const OAUTH_SCOPES = [

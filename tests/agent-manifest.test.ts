@@ -109,7 +109,7 @@ describe("the manifest", () => {
   it("carries everything /start tells an agent to check", async () => {
     const manifest = await buildManifest(ISSUER);
     expect(manifest.apiVersion).toBe(1);
-    expect(manifest.mcpUrl).toBe(`${ISSUER}/api/mcp`);
+    expect(manifest.mcpUrl).toBe("https://www.operate.to/api/mcp");
     expect(manifest.tools.count).toBe(MCP_TOOL_NAMES.length);
     expect(manifest.tools.hash).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(manifest.tools.names).toEqual([...MCP_TOOL_NAMES].sort());

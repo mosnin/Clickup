@@ -6,12 +6,14 @@ import {
   CANONICAL_PRODUCTION_MCP_RESOURCE,
   canonicalMcpResource,
   sameMcpResource,
+  servingMcpUrl,
   validateMcpResource,
 } from "../src/lib/oauth-resource";
 import {
   isOfficialMcpResource,
   normalizeOfficialMcpResource,
 } from "../convex/_oauthResource";
+import { mcpWwwAuthenticate, oauthIssuer } from "../src/lib/oauth-server";
 
 describe("public MCP OAuth discovery", () => {
   beforeEach(() => {
@@ -99,5 +101,25 @@ describe("public MCP OAuth discovery", () => {
     expect(oauth.token_endpoint).toBe("https://www.operate.to/oauth/token");
     expect(resource.authorization_servers[0]).toBe("https://www.operate.to");
     expect(resource.resource).toBe(CANONICAL_PRODUCTION_MCP_RESOURCE);
+  });
+
+  it("uses the official request origin for MCP 401 challenges too", () => {
+    const www = new Request("https://www.operate.to/api/mcp?profile=chatgpt");
+    expect(oauthIssuer(www)).toBe("https://www.operate.to");
+    expect(mcpWwwAuthenticate(www)).toBe(
+      'Bearer resource_metadata="https://www.operate.to/.well-known/oauth-protected-resource", scope="operate:read"',
+    );
+  });
+
+  it("never tells a client to POST MCP to the apex host", () => {
+    expect(servingMcpUrl("https://operate.to")).toBe(
+      "https://www.operate.to/api/mcp",
+    );
+    expect(servingMcpUrl("https://www.operate.to")).toBe(
+      "https://www.operate.to/api/mcp",
+    );
+    expect(servingMcpUrl("http://localhost:3000")).toBe(
+      "http://localhost:3000/api/mcp",
+    );
   });
 });

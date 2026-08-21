@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { MCP_TOOL_NAMES } from "@/lib/mcp-tool-names";
 import { skillDigests } from "@/lib/agent-skills";
+import { servingMcpUrl } from "@/lib/oauth-resource";
 
 // The one number an agent checks to know whether anything it learned has
 // changed. Everything here is derived; nothing is hand-maintained.
@@ -38,7 +39,7 @@ export async function buildManifest(issuer: string): Promise<AgentManifest> {
   const digests = await skillDigests();
   return {
     apiVersion: AGENT_API_VERSION,
-    mcpUrl: `${issuer}/api/mcp`,
+    mcpUrl: servingMcpUrl(issuer),
     tools: {
       count: MCP_TOOL_NAMES.length,
       hash: toolSurfaceHash(),

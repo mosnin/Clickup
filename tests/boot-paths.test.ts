@@ -82,6 +82,22 @@ describe("every boot path routes to the current surface", () => {
   });
 });
 
+describe("the /start document stays honest about device-grant keys", () => {
+  it("does not tell arriving agents that a device-grant key lasts forever", () => {
+    const start = read("src/app/start/route.ts");
+    expect(start).not.toMatch(/It does not expire/);
+    expect(start).toMatch(/expire in 90 days/);
+    expect(start).toMatch(/expires_in/);
+  });
+
+  it("rewrites an apex MCP URL out of the connect script", () => {
+    const connect = read("src/app/connect/route.ts");
+    expect(connect).toMatch(/https:\/\/operate\.to\/api\/mcp\*/);
+    expect(connect).toMatch(/www\.operate\.to\/api\/mcp/);
+    expect(connect).toMatch(/key_expires_in/);
+  });
+});
+
 describe("the superseded protocol is not still the instruction", () => {
   it("does not send agents to request_approval to hand finished work over", () => {
     // `request_approval` still exists and is still right for raising a gate.
