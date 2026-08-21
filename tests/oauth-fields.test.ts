@@ -727,6 +727,24 @@ describe("stripOAuthTrailingSlash", () => {
     );
     expect(stripOAuthTrailingSlash("/oauth.json")).toBe("/oauth");
     expect(stripOAuthTrailingSlash("/oauth/")).toBe("/oauth");
+    expect(
+      stripOAuthTrailingSlash(
+        "/oauth/.well-known/oauth-authorization-server",
+      ),
+    ).toBe("/.well-known/oauth-authorization-server");
+    expect(
+      stripOAuthTrailingSlash(
+        "/oauth/.well-known/oauth-protected-resource/api/mcp",
+      ),
+    ).toBe("/.well-known/oauth-protected-resource/api/mcp");
+    expect(
+      stripOAuthTrailingSlash(
+        "/oauth/.well-known/oauth-authorization-server.json",
+      ),
+    ).toBe("/.well-known/oauth-authorization-server");
+    expect(stripOAuthTrailingSlash("/oauth/.well-known")).toBe(
+      "/.well-known/oauth-authorization-server",
+    );
     expect(stripOAuthTrailingSlash("/link.json")).toBe("/link");
     expect(stripOAuthTrailingSlash("/dashboard.json")).toBeNull();
     expect(stripOAuthTrailingSlash("/api/mcp.json")).toBe("/api/mcp");
@@ -748,6 +766,9 @@ describe("stripOAuthTrailingSlash", () => {
     ).toBe("/api/mcp/.well-known/oauth-protected-resource");
     expect(isMachineOAuthPath("/mcp")).toBe(true);
     expect(isMachineOAuthPath("/oauth")).toBe(true);
+    expect(isMachineOAuthPath("/oauth/.well-known/oauth-authorization-server")).toBe(
+      true,
+    );
     expect(isMachineOAuthPath("/oauth/token")).toBe(true);
     expect(isMachineOAuthPath("/oauth/authorize")).toBe(false);
     expect(isHumanOAuthPath("/oauth/authorize")).toBe(true);
@@ -813,6 +834,9 @@ describe("OAuth POST routes share oauthFields", () => {
     );
     expect(read("src/app/api/x402/route.ts")).toContain("oauthBearer");
     expect(read("src/app/api/x402/route.ts")).toContain("oauthWwwAuthenticate");
+    expect(read("src/app/.well-known/webfinger/route.ts")).toContain(
+      "oauthOptions",
+    );
     expect(read("src/app/oauth/route.ts")).toContain("oauthDiscoveryMetadata");
     expect(read("src/app/oauth/route.ts")).toContain("oauthPostOnly");
     expect(read("src/app/oauth/token/route.ts")).toContain("inferGrantType");

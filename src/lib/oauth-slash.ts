@@ -17,6 +17,7 @@
 export function isMachineOAuthPath(pathname: string) {
   return (
     pathname === "/oauth" ||
+    pathname.startsWith("/oauth/.well-known") ||
     pathname === "/oauth/token" ||
     pathname === "/oauth/device" ||
     pathname === "/oauth/revoke" ||
@@ -352,6 +353,13 @@ export function stripOAuthTrailingSlash(pathname: string) {
   // Clients that guess the MCP default path (`/mcp`) used to 404.
   if (next === "/mcp") next = "/api/mcp";
   else if (next.startsWith("/mcp/")) next = `/api/mcp/${next.slice("/mcp/".length)}`;
+  // Clients that treat `/oauth` as the issuer construct
+  // `/oauth/.well-known/oauth-authorization-server` and 404'd.
+  if (next === "/oauth/.well-known") {
+    next = "/.well-known/oauth-authorization-server";
+  } else if (next.startsWith("/oauth/.well-known/")) {
+    next = next.slice("/oauth".length);
+  }
   if (next === "/mcp.json" || next === "/api/mcp.json") next = "/api/mcp";
   if (next.endsWith(".json")) {
     const withoutJson = next.slice(0, -".json".length);
@@ -361,6 +369,7 @@ export function stripOAuthTrailingSlash(pathname: string) {
       (withoutJson.includes("oauth-protected-resource") ||
         withoutJson.includes("oauth-authorization-server") ||
         withoutJson.includes("openid-configuration") ||
+        withoutJson.includes("webfinger") ||
         withoutJson.endsWith("/.well-known/mcp"))
     ) {
       next = withoutJson;

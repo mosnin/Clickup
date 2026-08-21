@@ -10,6 +10,7 @@ import { GET as getOAuthMetadataUnderMcp } from "../src/app/api/mcp/.well-known/
 import { GET as getStart } from "../src/app/start/route";
 import { GET as getMcpDiscovery } from "../src/app/.well-known/mcp/route";
 import { GET as getOAuthIndex } from "../src/app/oauth/route";
+import { GET as getWebfinger } from "../src/app/.well-known/webfinger/route";
 import {
   CANONICAL_PRODUCTION_MCP_RESOURCE,
   canonicalMcpResource,
@@ -185,6 +186,22 @@ describe("public MCP OAuth discovery", () => {
     expect(asPath.issuer).toBe("https://www.operate.to");
     const index = await getOAuthIndex(request).json();
     expect(index).toEqual(asRoot);
+  });
+
+  it("answers webfinger so ChatGPT Enterprise domain checks are not 404", async () => {
+    const request = new Request(
+      "https://www.operate.to/.well-known/webfinger?resource=acct:ops@operate.to",
+    );
+    const finger = await getWebfinger(request);
+    expect(finger.headers.get("Content-Type")).toMatch(/jrd\+json|json/);
+    const body = await finger.json();
+    expect(body.subject).toBe("acct:ops@operate.to");
+    expect(body.links).toEqual([
+      {
+        rel: "http://openid.net/specs/connect/1.0/issuer",
+        href: "https://www.operate.to",
+      },
+    ]);
   });
 
   it("publishes /.well-known/mcp with a www POST URL and PRM", async () => {
