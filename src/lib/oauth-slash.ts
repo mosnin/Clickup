@@ -256,9 +256,12 @@ export async function readAuthorizeParams(request: Request) {
 
 const OAUTH_KEY_ALIASES: Record<string, string> = {
   clientId: "client_id",
+  "client-id": "client_id",
   clientName: "client_name",
   redirectUri: "redirect_uri",
+  "redirect-uri": "redirect_uri",
   redirectUris: "redirect_uris",
+  "redirect-uris": "redirect_uris",
   redirect_url: "redirect_uri",
   redirectUrl: "redirect_uri",
   callback_uri: "redirect_uri",
@@ -320,8 +323,11 @@ export function oauthFieldAliases(name: string) {
       "callback_url",
       "callbackUri",
       "callbackUrl",
+      "redirect-uri",
+      "redirect-uris",
     );
   }
+  if (name === "client_id") aliases.push("client-id");
   return aliases;
 }
 

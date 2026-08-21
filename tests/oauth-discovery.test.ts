@@ -6,7 +6,10 @@ import { GET as getOpenIdMetadataByPath } from "../src/app/.well-known/openid-co
 import { GET as getProtectedResource } from "../src/app/.well-known/oauth-protected-resource/route";
 import { GET as getProtectedResourceByPath } from "../src/app/.well-known/oauth-protected-resource/[...path]/route";
 import { GET as getProtectedResourceUnderMcp } from "../src/app/api/mcp/.well-known/oauth-protected-resource/route";
+import { GET as getProtectedResourceUnderMcpByPath } from "../src/app/api/mcp/.well-known/oauth-protected-resource/[...path]/route";
 import { GET as getOAuthMetadataUnderMcp } from "../src/app/api/mcp/.well-known/oauth-authorization-server/route";
+import { GET as getOAuthMetadataUnderMcpByPath } from "../src/app/api/mcp/.well-known/oauth-authorization-server/[...path]/route";
+import { GET as getOpenIdUnderMcpByPath } from "../src/app/api/mcp/.well-known/openid-configuration/[...path]/route";
 import { GET as getStart } from "../src/app/start/route";
 import { GET as getMcpDiscovery } from "../src/app/.well-known/mcp/route";
 import { GET as getOAuthIndex } from "../src/app/oauth/route";
@@ -173,8 +176,10 @@ describe("public MCP OAuth discovery", () => {
     const root = await getProtectedResource(request).json();
     const byPath = await getProtectedResourceByPath(request).json();
     const underMcp = await getProtectedResourceUnderMcp(request).json();
+    const underMcpPath = await getProtectedResourceUnderMcpByPath(request).json();
     expect(byPath).toEqual(root);
     expect(underMcp).toEqual(root);
+    expect(underMcpPath).toEqual(root);
     expect(byPath.authorization_servers).toEqual(["https://www.operate.to"]);
     expect(byPath.authorization_server).toBe("https://www.operate.to");
     expect(byPath.resource).toBe(CANONICAL_PRODUCTION_MCP_RESOURCE);
@@ -187,11 +192,15 @@ describe("public MCP OAuth discovery", () => {
     const asRoot = await getOAuthMetadata(request).json();
     const asPath = await getOAuthMetadataByPath(request).json();
     const asUnderMcp = await getOAuthMetadataUnderMcp(request).json();
+    const asUnderMcpPath = await getOAuthMetadataUnderMcpByPath(request).json();
     const oidcRoot = await getOpenIdMetadata(request).json();
     const oidcPath = await getOpenIdMetadataByPath(request).json();
+    const oidcUnderMcpPath = await getOpenIdUnderMcpByPath(request).json();
     expect(asPath).toEqual(asRoot);
     expect(asUnderMcp).toEqual(asRoot);
+    expect(asUnderMcpPath).toEqual(asRoot);
     expect(oidcPath).toEqual(oidcRoot);
+    expect(oidcUnderMcpPath).toEqual(oidcRoot);
     expect(asPath.token_endpoint).toBe("https://www.operate.to/oauth/token");
     expect(asPath.issuer).toBe("https://www.operate.to");
     const index = await getOAuthIndex(request).json();

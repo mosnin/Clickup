@@ -173,6 +173,20 @@ describe("oauthFields", () => {
     expect(camel("grant_type")).toBe("refresh_token");
     expect(camel("refresh_token")).toBe("opr_camel");
     expect(camel("client_id")).toBe("opc_js");
+    const hyphenated = await oauthFields(
+      new Request("https://www.operate.to/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          "client-id": "opc_hyphen",
+          "redirect-uri": "https://chatgpt.com/connector_platform_oauth_redirect",
+        }),
+      }),
+    );
+    expect(hyphenated("client_id")).toBe("opc_hyphen");
+    expect(hyphenated("redirect_uri")).toBe(
+      "https://chatgpt.com/connector_platform_oauth_redirect",
+    );
     const audience = await oauthFields(
       new Request("https://www.operate.to/oauth/token", {
         method: "POST",
@@ -793,6 +807,16 @@ describe("stripOAuthTrailingSlash", () => {
     expect(
       stripOAuthTrailingSlash("/mcp/.well-known/oauth-protected-resource"),
     ).toBe("/api/mcp/.well-known/oauth-protected-resource");
+    expect(
+      stripOAuthTrailingSlash(
+        "/mcp/.well-known/oauth-protected-resource/api/mcp",
+      ),
+    ).toBe("/api/mcp/.well-known/oauth-protected-resource/api/mcp");
+    expect(
+      stripOAuthTrailingSlash(
+        "/mcp/.well-known/oauth-authorization-server/api/mcp",
+      ),
+    ).toBe("/api/mcp/.well-known/oauth-authorization-server/api/mcp");
     expect(stripOAuthTrailingSlash("/mcp/.well-known/mcp")).toBe(
       "/.well-known/mcp",
     );
@@ -959,6 +983,16 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(read("src/app/api/mcp/.well-known/host-meta/route.ts")).toContain(
       ".well-known/host-meta/route",
     );
+    expect(
+      read(
+        "src/app/api/mcp/.well-known/oauth-protected-resource/[...path]/route.ts",
+      ),
+    ).toContain('from "../route"');
+    expect(
+      read(
+        "src/app/api/mcp/.well-known/oauth-authorization-server/[...path]/route.ts",
+      ),
+    ).toContain('from "../route"');
     expect(read("src/app/oauth/authorize/page.tsx")).toContain("params.aud");
     expect(read("src/app/oauth/token/route.ts")).toMatch(
       /oauthError\(\s*error,\s*DEVICE_ERROR_HELP\[error\]\(result\.interval\),\s*400,\s*request,/,
