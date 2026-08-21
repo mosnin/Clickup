@@ -62,6 +62,12 @@ export const grantFleet = mutation({
       throw new ConvexError("That agent is not available");
     }
     await requireFleetManage(ctx, holder, identity.subject);
+    if (
+      !Number.isInteger(args.dailyActionLimit) ||
+      args.dailyActionLimit < 1
+    ) {
+      throw new ConvexError("dailyActionLimit must be a positive integer");
+    }
 
     // One live grant per holder. A second would make "the envelope" ambiguous
     // and give an orchestrator a way to accumulate authority by asking twice.

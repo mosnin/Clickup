@@ -170,31 +170,47 @@ export const settleTopup = action({
       (payment.payload?.transaction as string | undefined) ??
       "";
 
-    const facilitatorLabel = cfg.facilitatorUrl ?? "mock";
-    const result = cfg.facilitatorUrl
-      ? await facilitatorSettle(cfg.facilitatorUrl, payment, requirements)
-      : mockSettle(payment, requirements);
-
-    if (!result.ok) {
+    // Fail closed locally even when a real facilitator is configured. The
+    // facilitator is an external HTTP hop; a 200 + `{isValid:true}` must
+    // not mint credits for a payload that is short, on the wrong network,
+    // or paying someone else. The mock already uses this check; the real
+    // path used to skip it.
+    const shape = validatePaymentShape(payment, requirements, cfg);
+    if (!shape.ok) {
       if (nonce) {
         await ctx.runMutation(internal.x402.recordFailedPayment, {
           scopeType: scope.scopeType,
           scopeId: scope.scopeId,
           agentId: scope.agentId,
           nonce,
-          reason: result.reason ?? "settlement failed",
-          facilitator: facilitatorLabel,
+          reason: shape.reason,
+          facilitator: cfg.facilitatorUrl ?? "mock",
         });
       }
+      throw new ConvexError(`Payment failed: ${shape.reason}`);
+    }
+
+    const facilitatorLabel = cfg.facilitatorUrl ?? "mock";
+    const result = cfg.facilitatorUrl
+      ? await facilitatorSettle(cfg.facilitatorUrl, payment, requirements)
+      : mockSettle(payment, requirements);
+
+    if (!result.ok) {
+      await ctx.runMutation(internal.x402.recordFailedPayment, {
+        scopeType: scope.scopeType,
+        scopeId: scope.scopeId,
+        agentId: scope.agentId,
+        nonce: shape.nonce,
+        reason: result.reason ?? "settlement failed",
+        facilitator: facilitatorLabel,
+      });
       throw new ConvexError(`Payment failed: ${result.reason ?? "unknown"}`);
     }
 
-    // A settlement must carry a stable, non-empty reference (the payment
-    // nonce, or the on-chain tx ref) — it's the replay key. Refuse if neither.
-    const settlementNonce = nonce || result.txReference;
-    if (!settlementNonce) {
-      throw new ConvexError("Settlement produced no payment reference");
-    }
+    // Shape validation already required a nonce. Prefer it over a
+    // facilitator-chosen tx ref so two accepted payloads cannot mint twice
+    // under different replay keys.
+    const settlementNonce = shape.nonce;
     const applied: { balance: number; creditsGranted: number } =
       await ctx.runMutation(internal.x402.applySettlement, {
         scopeType: scope.scopeType,
