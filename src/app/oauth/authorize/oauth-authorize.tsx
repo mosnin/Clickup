@@ -9,6 +9,14 @@ import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/errors";
 
+function returnHost(redirectUri: string) {
+  try {
+    return new URL(redirectUri).hostname;
+  } catch {
+    return null;
+  }
+}
+
 function randomCode() {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
@@ -61,6 +69,7 @@ export function OAuthAuthorize({ resource }: { resource: string }) {
   const [agentId, setAgentId] = useState<Id<"agents"> | "">("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const destination = returnHost(redirectUri);
 
   const finish = (approved: boolean) => {
     const target = new URL(redirectUri);
@@ -134,6 +143,12 @@ export function OAuthAuthorize({ resource }: { resource: string }) {
         Choose an agent identity. The connection inherits that agent&apos;s
         workspace, list restrictions, role, budgets, and approval gates.
       </p>
+      {destination && (
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+          After you connect, you&apos;ll return to{" "}
+          <span className="font-medium text-foreground">{destination}</span>.
+        </p>
+      )}
       {request.agents.length > 0 ? (
         <>
           <label className="mt-6 block text-sm font-medium" htmlFor="oauth-agent">

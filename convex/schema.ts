@@ -2046,6 +2046,11 @@ export default defineSchema({
     createdAt: v.number(),
     revokedAt: v.optional(v.number()),
     lastUsedAt: v.optional(v.number()),
+    // Device-grant keys expire. Human-minted keys leave this unset and
+    // stay valid until revoked — a person who copied a key into a runtime
+    // opted into that lifetime on the Agents page.
+    expiresAt: v.optional(v.number()),
+    source: v.optional(v.union(v.literal("human"), v.literal("device"))),
   })
     .index("by_agent", ["agentId"])
     .index("by_hash", ["keyHash"]),

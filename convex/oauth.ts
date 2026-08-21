@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
 import { requireAgentByKey, sha256Hex } from "./_agentAuth";
 import { normalizeOfficialMcpResource } from "./_oauthResource";
+import { validRedirectUri } from "./_oauthRedirect";
 import {
   consumeRateLimit,
   DCR_REGISTRATION_RULE,
@@ -59,18 +60,13 @@ function requireMcpResource(value: string) {
   }
 }
 
-function validRedirectUri(value: string) {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return false;
+function requireRedirectUri(value: string) {
+  if (!validRedirectUri(value)) {
+    throw new ConvexError(
+      "redirect_uris must contain 1-10 HTTPS URLs on a directory host (chatgpt.com, claude.ai, …); localhost HTTP is allowed",
+    );
   }
-  if (url.protocol === "https:") return true;
-  return (
-    url.protocol === "http:" &&
-    (url.hostname === "localhost" || url.hostname === "127.0.0.1")
-  );
+  return value;
 }
 
 function hexToBase64Url(hex: string) {
@@ -141,15 +137,12 @@ export const registerClient = mutation({
     const clientId = requireText(args.clientId, "clientId", 160);
     const clientName = requireText(args.clientName, "clientName", 120);
     const redirectUris = [...new Set(args.redirectUris)];
-    if (
-      redirectUris.length === 0 ||
-      redirectUris.length > 10 ||
-      redirectUris.some((uri) => !validRedirectUri(uri))
-    ) {
+    if (redirectUris.length === 0 || redirectUris.length > 10) {
       throw new ConvexError(
-        "redirect_uris must contain 1-10 HTTPS URLs (localhost HTTP is allowed)",
+        "redirect_uris must contain 1-10 HTTPS URLs on a directory host (chatgpt.com, claude.ai, …); localhost HTTP is allowed",
       );
     }
+    for (const uri of redirectUris) requireRedirectUri(uri);
     const existing = await ctx.db
       .query("oauthClients")
       .withIndex("by_client_id", (q) => q.eq("clientId", clientId))
@@ -183,6 +176,7 @@ export const authorizationRequest = query({
       .unique();
     if (
       !client ||
+      !validRedirectUri(args.redirectUri) ||
       !client.redirectUris.includes(args.redirectUri) ||
       args.codeChallengeMethod !== "S256" ||
       !/^[A-Za-z0-9_-]{43,128}$/.test(args.codeChallenge)
@@ -266,6 +260,7 @@ export const approveAuthorization = mutation({
     const agent = await ctx.db.get(args.agentId);
     if (
       !client ||
+      !validRedirectUri(args.redirectUri) ||
       !client.redirectUris.includes(args.redirectUri) ||
       !agent ||
       agent.status !== "active" ||
@@ -324,6 +319,7 @@ export const exchangeAuthorizationCode = mutation({
       row.usedAt !== undefined ||
       row.expiresAt <= now ||
       row.clientId !== args.clientId ||
+      !validRedirectUri(args.redirectUri) ||
       row.redirectUri !== args.redirectUri ||
       row.resource !== resource ||
       pkceChallenge(args.codeVerifier) !== row.codeChallenge

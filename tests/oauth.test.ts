@@ -409,14 +409,60 @@ describe("OAuth 2.1 remote MCP authorization", () => {
 
   it("rejects unsafe dynamic redirect URIs", async () => {
     const t = convexTest(schema, modules);
+    const refused = [
+      "http://attacker.example/callback",
+      "https://attacker.example/callback",
+      "https://chatgpt.com.evil.example/callback",
+      "https://user:pass@claude.ai/api/mcp/auth_callback",
+      "https://claude.ai/api/mcp/auth_callback#frag",
+      "https://claude.ai:8443/api/mcp/auth_callback",
+    ];
+    for (const [index, redirectUri] of refused.entries()) {
+      await expect(
+        t.mutation(api.oauth.registerClient, {
+          clientId: `opc_unsafe_${index}`,
+          clientName: "Unsafe",
+          redirectUris: [redirectUri],
+          registrationSubject: `unsafe-client-${index}`,
+        }),
+      ).rejects.toThrow(/https urls|directory host/i);
+    }
+    await t.mutation(api.oauth.registerClient, {
+      clientId: "opc_chatgpt",
+      clientName: "ChatGPT",
+      redirectUris: ["https://chatgpt.com/connector_platform_oauth_redirect"],
+      registrationSubject: "chatgpt-client",
+    });
+    await t.mutation(api.oauth.registerClient, {
+      clientId: "opc_loopback",
+      clientName: "Local",
+      redirectUris: ["http://127.0.0.1:54321/callback"],
+      registrationSubject: "loopback-client",
+    });
+  });
+
+  it("refuses an unofficial redirect even if a client row already holds it", async () => {
+    const { t, owner } = await setup();
+    const unofficial = "https://attacker.example/callback";
+    await t.run(async (ctx) => {
+      const client = await ctx.db
+        .query("oauthClients")
+        .withIndex("by_client_id", (q) => q.eq("clientId", CLIENT_ID))
+        .unique();
+      await ctx.db.patch(client!._id, {
+        redirectUris: [...client!.redirectUris, unofficial],
+      });
+    });
     await expect(
-      t.mutation(api.oauth.registerClient, {
-        clientId: "opc_unsafe",
-        clientName: "Unsafe",
-        redirectUris: ["http://attacker.example/callback"],
-        registrationSubject: "unsafe-client",
+      owner.query(api.oauth.authorizationRequest, {
+        clientId: CLIENT_ID,
+        redirectUri: unofficial,
+        scope: "operate:read",
+        resource: RESOURCE,
+        codeChallenge: CHALLENGE,
+        codeChallengeMethod: "S256",
       }),
-    ).rejects.toThrow(/https urls/i);
+    ).rejects.toThrow(/invalid oauth authorization request/i);
   });
 
   it("bounds anonymous dynamic client registration", async () => {

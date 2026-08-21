@@ -4,6 +4,8 @@ import schema from "../convex/schema";
 import { api } from "../convex/_generated/api";
 import { sha256Hex } from "../convex/_agentAuth";
 import {
+  DEVICE_KEY_TTL_MS,
+  MAX_LIVE_DEVICE_KEYS,
   isWellFormedUserCode,
   normalizeUserCode,
 } from "../convex/agentAuth";
@@ -107,11 +109,14 @@ describe("device authorization", () => {
     expect(claimed.state).toBe("approved");
     expect(claimed.agentName).toBe("Scout");
     expect(claimed.scopeName).toBe("Device Flow");
+    expect(claimed.expiresIn).toBe(DEVICE_KEY_TTL_MS / 1000);
 
     // The key exists and only its hash was ever stored.
     const keys = await t.run(async (ctx) => ctx.db.query("agentKeys").collect());
     expect(keys).toHaveLength(1);
     expect(keys[0].keyHash).toBe(sha256Hex(KEY));
+    expect(keys[0].source).toBe("device");
+    expect(keys[0].expiresAt).toBeGreaterThan(Date.now());
     expect(JSON.stringify(keys[0])).not.toContain(KEY);
 
     // Replaying the device code is invalid_grant, not a second key.
@@ -333,6 +338,87 @@ describe("device authorization", () => {
     expect(
       await t.run(async (ctx) => ctx.db.query("agentKeys").collect()),
     ).toHaveLength(0);
+  });
+
+  it("refuses a device-grant key after its 90-day lifetime", async () => {
+    const { t, workspaceId } = await setup();
+    await startRequest(t);
+    const asOwner = t.withIdentity(OWNER);
+    await asOwner.mutation(api.agentAuth.approveDeviceRequest, {
+      userCode: USER_CODE,
+      parentType: "workspace",
+      parentId: workspaceId,
+      agentName: "Scout",
+      role: "member",
+    });
+    await t.mutation(api.agentAuth.claimDeviceRequest, {
+      deviceCode: DEVICE_CODE,
+      ...KEY_MATERIAL,
+    });
+    await expect(t.query(api.agentApi.whoami, { apiKey: KEY })).resolves.toMatchObject({
+      name: "Scout",
+    });
+    await t.run(async (ctx) => {
+      const key = await ctx.db.query("agentKeys").first();
+      await ctx.db.patch(key!._id, { expiresAt: Date.now() - 1 });
+    });
+    await expect(t.query(api.agentApi.whoami, { apiKey: KEY })).rejects.toThrow(
+      /invalid api key/i,
+    );
+  });
+
+  it("revokes the oldest live device key when a sixth is minted", async () => {
+    const { t, workspaceId } = await setup();
+    await startRequest(t);
+    const asOwner = t.withIdentity(OWNER);
+    const approved = await asOwner.mutation(api.agentAuth.approveDeviceRequest, {
+      userCode: USER_CODE,
+      parentType: "workspace",
+      parentId: workspaceId,
+      agentName: "Scout",
+      role: "member",
+    });
+    if (!approved.approved) throw new Error("approval was refused");
+    const humanKey = "cua_human_minted_stays";
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert("agentKeys", {
+        agentId: approved.agentId,
+        keyHash: sha256Hex(humanKey),
+        keyPrefix: humanKey.slice(0, 12),
+        createdAt: now - 10_000,
+        source: "human",
+      });
+      for (let index = 0; index < MAX_LIVE_DEVICE_KEYS; index += 1) {
+        await ctx.db.insert("agentKeys", {
+          agentId: approved.agentId,
+          keyHash: sha256Hex(`cua_old_device_${index}`),
+          keyPrefix: `cua_old_${index}`,
+          createdAt: now - 1_000 + index,
+          expiresAt: now + DEVICE_KEY_TTL_MS,
+          source: "device",
+        });
+      }
+    });
+    await t.mutation(api.agentAuth.claimDeviceRequest, {
+      deviceCode: DEVICE_CODE,
+      ...KEY_MATERIAL,
+    });
+    const keys = await t.run(async (ctx) => ctx.db.query("agentKeys").collect());
+    const liveDevice = keys.filter(
+      (key) => key.source === "device" && key.revokedAt === undefined,
+    );
+    expect(liveDevice).toHaveLength(MAX_LIVE_DEVICE_KEYS);
+    expect(liveDevice.some((key) => key.keyHash === sha256Hex(KEY))).toBe(true);
+    expect(
+      keys.find((key) => key.keyHash === sha256Hex("cua_old_device_0"))?.revokedAt,
+    ).toEqual(expect.any(Number));
+    expect(
+      keys.find((key) => key.keyHash === sha256Hex(humanKey))?.revokedAt,
+    ).toBeUndefined();
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: humanKey }),
+    ).resolves.toMatchObject({ name: "Scout" });
   });
 });
 

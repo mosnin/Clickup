@@ -57,11 +57,13 @@ async function deviceGrant(deviceCode: string) {
 
   const issuer = oauthIssuer();
   return oauthJson({
-    // Named api_key rather than access_token: it does not expire and there
-    // is no refresh token to pair with it, so calling it an access_token
-    // would invite a client to build a refresh loop around nothing.
+    // Named api_key rather than access_token: there is no refresh token
+    // to pair with it, so calling it an access_token would invite a
+    // client to build a refresh loop around nothing. It does expire
+    // (90 days); expires_in is the RFC 8628 field a runtime already reads.
     api_key: key,
     token_type: "Bearer",
+    expires_in: result.expiresIn,
     agent_id: result.agentId,
     agent_name: result.agentName,
     agent_created: result.agentCreated,

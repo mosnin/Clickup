@@ -15,7 +15,7 @@ GPT, local MCP entry, personal marketplace, or one-user connector.
 | MCP endpoint type | `Universal` |
 | Production MCP URL | `https://www.operate.to/api/mcp?profile=chatgpt` |
 | Canonical OAuth resource | `https://operate.to/api/mcp` (equivalent: `https://www.operate.to/api/mcp`) |
-| Authentication | `OAuth 2.1 authorization code with S256 PKCE, dynamic client registration, official-host resource binding (apex and www are one audience), rotating refresh tokens with reuse-detected family revocation, revocation, OpenID discovery, and verified-email UserInfo.` |
+| Authentication | `OAuth 2.1 authorization code with S256 PKCE, dynamic client registration, directory-host redirect allowlist (ChatGPT / Claude / loopback, enforced on every use), official-host resource binding (apex and www are one audience), rotating refresh tokens with reuse-detected family revocation, revocation, OpenID discovery, and verified-email UserInfo.` |
 | Package directory | `plugins/operate` |
 | Upload artifact | `artifacts/operate-plugin-1.22.0.zip` |
 | SHA-256 | `5fe4b5046f57dd09a0d70a106b6e19380bac470587918e70907916a9ae77eec8` |
