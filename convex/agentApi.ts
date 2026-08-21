@@ -39,14 +39,9 @@ import {
   requireWorkspaceAccessForAgent,
   sha256Hex,
   canAgentAccessSpace,
-  BURST_LIMIT_PER_MINUTE,
-  DEFAULT_DAILY_ACTION_LIMIT,
+  resolveActionBudget,
 } from "./_agentAuth";
-import {
-  ADMIN_BURST_LIMIT_PER_MINUTE,
-  ADMIN_DAILY_ACTION_LIMIT,
-  isComplimentaryScope,
-} from "./_adminEntitlements";
+import { isComplimentaryScope } from "./_adminEntitlements";
 import { stopNotice } from "./_agentStop";
 import { getSpaceForList } from "./_authz";
 import { addNodeCore, decideCore } from "./plans";
@@ -549,15 +544,9 @@ export const whoami = query({
       agent.parentType,
       agent.parentId,
     );
-    const requested =
-      agent.dailyActionLimit ??
-      (complimentary ? ADMIN_DAILY_ACTION_LIMIT : DEFAULT_DAILY_ACTION_LIMIT);
-    const dailyActionLimit = complimentary
-      ? Math.min(requested, ADMIN_DAILY_ACTION_LIMIT)
-      : requested;
-    const burstLimitPerMinute = complimentary
-      ? ADMIN_BURST_LIMIT_PER_MINUTE
-      : BURST_LIMIT_PER_MINUTE;
+    const budget = resolveActionBudget(agent.dailyActionLimit, complimentary);
+    const dailyActionLimit = budget.dailyActionLimit;
+    const burstLimitPerMinute = budget.burstLimitPerMinute;
     const day = new Date().toISOString().slice(0, 10);
     const usage = await ctx.db
       .query("agentUsage")
@@ -634,7 +623,10 @@ export const whoami = query({
       },
       dailyActionLimit,
       actionsUsedToday,
-      actionsRemainingToday: Math.max(0, dailyActionLimit - actionsUsedToday),
+      actionsRemainingToday:
+        dailyActionLimit === null
+          ? null
+          : Math.max(0, dailyActionLimit - actionsUsedToday),
       burstLimitPerMinute,
       billing: {
         complimentary,

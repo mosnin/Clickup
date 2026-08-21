@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { assertNotSuspended, requireIdentity } from "./_authz";
+import { assertCanCreateWorkspace } from "./_adminEntitlements";
 
 function slugify(input: string): string {
   return input
@@ -19,6 +20,7 @@ export const create = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new ConvexError("Not authenticated");
     await assertNotSuspended(ctx, identity.subject);
+    await assertCanCreateWorkspace(ctx, identity.subject);
 
     const baseSlug = slugify(name) || "workspace";
     let slug = baseSlug;
