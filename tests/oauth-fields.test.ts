@@ -1183,9 +1183,9 @@ describe("OAuth POST routes share oauthFields", () => {
       "oauthOptions",
     );
     expect(read("src/app/.well-known/webfinger/route.ts")).toContain(
-      "foldSearchAll",
+      "firstFolded",
     );
-    expect(read("src/app/api/x402/route.ts")).toContain("foldSearchAll");
+    expect(read("src/app/api/x402/route.ts")).toContain("firstFolded");
     expect(read("src/lib/oauth-slash.ts")).toContain("(?::\\s*|\\s+)");
     expect(read("src/app/.well-known/host-meta/route.ts")).toContain(
       "export function GET(request: Request)",

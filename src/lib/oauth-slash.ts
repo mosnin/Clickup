@@ -409,6 +409,15 @@ export function foldSearchAll(
   return all.length <= 1 ? (all[0] ?? "") : all;
 }
 
+/** Credentials and scalar query fields are one value, never an array. */
+export function firstFolded(
+  params: { forEach: (cb: (value: string, key: string) => void) => void },
+  key: string,
+): string {
+  const raw = foldSearchAll(params, key);
+  return Array.isArray(raw) ? (raw[0] ?? "") : raw;
+}
+
 export function oauthParamGet(
   params: Record<string, string | string[] | undefined>,
 ): (name: string) => string | string[] | undefined {
@@ -589,7 +598,7 @@ export function extractOperateCredential(
   authorization: string | null | undefined,
   query?: URLSearchParams,
   extra?: { apiKey?: string | null; accessToken?: string | null },
-) {
+): string {
   const header = authorization?.trim() ?? "";
   if (header) {
     const fromHeader = credentialFromAuthorization(header);
@@ -604,7 +613,7 @@ export function extractOperateCredential(
     return (
       oauthQueryValue(get, "access_token") ||
       oauthQueryValue(get, "api_key") ||
-      foldSearchAll(query, "token") ||
+      firstFolded(query, "token") ||
       ""
     );
   }

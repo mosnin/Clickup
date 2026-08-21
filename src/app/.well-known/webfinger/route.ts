@@ -3,7 +3,7 @@ import {
   oauthJson,
   oauthOptions,
 } from "@/lib/oauth-server";
-import { foldSearchAll } from "@/lib/oauth-slash";
+import { firstFolded } from "@/lib/oauth-slash";
 
 /**
  * RFC 7033. ChatGPT Enterprise workspace-domain checks hit webfinger
@@ -13,9 +13,7 @@ import { foldSearchAll } from "@/lib/oauth-slash";
 export function GET(request: Request) {
   const issuer = oauthIssuer(request);
   const resource =
-    String(
-      foldSearchAll(new URL(request.url).searchParams, "resource") || issuer,
-    );
+    firstFolded(new URL(request.url).searchParams, "resource") || issuer;
   return oauthJson(
     {
       subject: resource,
