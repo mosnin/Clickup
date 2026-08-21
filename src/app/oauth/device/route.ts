@@ -6,6 +6,7 @@ import {
   oauthFields,
   oauthIssuer,
   oauthJson,
+  oauthOptions,
   randomCredential,
 } from "@/lib/oauth-server";
 
@@ -103,4 +104,8 @@ export function GET() {
     "The device authorization endpoint accepts POST",
     405,
   );
+}
+
+export function OPTIONS() {
+  return oauthOptions();
 }

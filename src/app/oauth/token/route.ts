@@ -7,6 +7,7 @@ import {
   oauthConvexClient,
   oauthError,
   oauthFields,
+  oauthOptions,
   oauthPostOnly,
   oauthIssuer,
   oauthJson,
@@ -183,4 +184,8 @@ export async function POST(request: Request) {
 
 export function GET() {
   return oauthPostOnly();
+}
+
+export function OPTIONS() {
+  return oauthOptions();
 }

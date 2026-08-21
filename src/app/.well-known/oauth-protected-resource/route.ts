@@ -3,6 +3,7 @@ import {
   OAUTH_SCOPES,
   oauthIssuer,
   oauthJson,
+  oauthOptions,
   oauthResource,
 } from "@/lib/oauth-server";
 
@@ -16,4 +17,8 @@ export function GET(request?: Request) {
     bearer_methods_supported: ["header"],
     token_endpoint_auth_methods_supported: ["none"],
   });
+}
+
+export function OPTIONS() {
+  return oauthOptions();
 }

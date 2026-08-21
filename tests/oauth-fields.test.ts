@@ -5,11 +5,14 @@ import {
   oauthBasicClientId,
   oauthBearer,
   oauthFields,
+  oauthJson,
   oauthJsonObject,
 } from "../src/lib/oauth-server";
 import {
+  isAuthorizePath,
   isHumanOAuthPath,
   isMachineOAuthPath,
+  readAuthorizeParams,
   stripOAuthTrailingSlash,
 } from "../src/lib/oauth-slash";
 
@@ -183,6 +186,35 @@ describe("oauthJsonObject", () => {
     expect(body).toMatchObject({ client_name: "Claude" });
   });
 
+  it("treats redirect_uris[] and redirect_uri as redirect_uris", async () => {
+    const body = await oauthJsonObject(
+      new Request("https://www.operate.to/oauth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "client_name=ChatGPT&redirect_uris[]=https://chatgpt.com/connector_platform_oauth_redirect",
+      }),
+    );
+    expect(body).toMatchObject({
+      client_name: "ChatGPT",
+      redirect_uris: [
+        "https://chatgpt.com/connector_platform_oauth_redirect",
+      ],
+    });
+    const singular = await oauthJsonObject(
+      new Request("https://www.operate.to/oauth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_name: "Claude",
+          redirect_uri: "https://claude.ai/api/mcp/auth_callback",
+        }),
+      }),
+    );
+    expect(singular).toMatchObject({
+      redirect_uris: ["https://claude.ai/api/mcp/auth_callback"],
+    });
+  });
+
   it("unwraps a one-object JSON array for DCR", async () => {
     const body = await oauthJsonObject(
       new Request("https://www.operate.to/oauth/register", {
@@ -274,6 +306,36 @@ describe("oauthJsonObject", () => {
   });
 });
 
+describe("oauth CORS", () => {
+  it("advertises CORS on OAuth JSON so a browser client can read discovery", () => {
+    const response = oauthJson({ issuer: "https://www.operate.to" });
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    expect(response.headers.get("Access-Control-Allow-Methods")).toContain(
+      "POST",
+    );
+  });
+});
+
+describe("readAuthorizeParams", () => {
+  it("lifts a POST authorize body onto query params for a 303", async () => {
+    const params = await readAuthorizeParams(
+      new Request("https://www.operate.to/oauth/authorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: "opc_test",
+          redirect_uri: "https://chatgpt.com/connector_platform_oauth_redirect",
+          code_challenge: "abc",
+          code_challenge_method: "S256",
+        }),
+      }),
+    );
+    expect(params.get("client_id")).toBe("opc_test");
+    expect(params.get("code_challenge_method")).toBe("S256");
+    expect(isAuthorizePath("/oauth/authorize/")).toBe(true);
+  });
+});
+
 describe("oauthBasicClientId", () => {
   it("reads client_id from Basic with an empty secret", () => {
     const request = new Request("https://www.operate.to/oauth/token", {
@@ -352,6 +414,12 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(middleware).toContain("NextResponse.rewrite");
     expect(middleware).toContain("isMachineOAuthPath");
     expect(middleware).toContain("return clerk(req, event)");
+    expect(middleware).toContain("readAuthorizeParams");
+    expect(middleware).toContain("303");
     expect(read("next.config.mjs")).toContain("skipTrailingSlashRedirect: true");
+    expect(read("src/app/oauth/token/route.ts")).toContain("oauthOptions");
+    expect(
+      read("src/app/.well-known/oauth-protected-resource/route.ts"),
+    ).toContain("oauthOptions");
   });
 });

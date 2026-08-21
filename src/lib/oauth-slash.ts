@@ -46,6 +46,74 @@ export function isHumanOAuthPath(pathname: string) {
   );
 }
 
+export function isAuthorizePath(pathname: string) {
+  return (
+    pathname === "/oauth/authorize" || pathname.startsWith("/oauth/authorize/")
+  );
+}
+
+function asJsonRecord(body: unknown): Record<string, unknown> | null {
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    return body as Record<string, unknown>;
+  }
+  if (
+    Array.isArray(body) &&
+    body.length === 1 &&
+    body[0] &&
+    typeof body[0] === "object" &&
+    !Array.isArray(body[0])
+  ) {
+    return body[0] as Record<string, unknown>;
+  }
+  return null;
+}
+
+/**
+ * RFC 6749 allows POST to authorize. We only have a GET page, so
+ * middleware 303s here (not 308 — that would drop the body) onto
+ * `/oauth/authorize?...`.
+ */
+export async function readAuthorizeParams(request: Request) {
+  const merged = new URLSearchParams(new URL(request.url).searchParams);
+  const setIfEmpty = (key: string, value: string) => {
+    if (value && !merged.get(key)) merged.set(key, value);
+  };
+  const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.includes("multipart/form-data")) {
+    try {
+      const form = await request.formData();
+      for (const [key, value] of form.entries()) {
+        if (typeof value === "string") setIfEmpty(key, value);
+      }
+    } catch {
+      // Fall through with query only.
+    }
+    return merged;
+  }
+  const text = (await request.text().catch(() => "")).replace(/^\uFEFF/, "").trim();
+  if (
+    contentType.includes("application/json") ||
+    text.startsWith("{") ||
+    text.startsWith("[")
+  ) {
+    try {
+      const record = asJsonRecord(JSON.parse(text) as unknown);
+      if (record) {
+        for (const [key, value] of Object.entries(record)) {
+          if (value === undefined || value === null) continue;
+          setIfEmpty(key, typeof value === "string" ? value : String(value));
+        }
+        return merged;
+      }
+    } catch {
+      // Fall through to form.
+    }
+  }
+  const params = new URLSearchParams(text);
+  for (const [key, value] of params.entries()) setIfEmpty(key, value);
+  return merged;
+}
+
 export function isOAuthSlashRewritePath(pathname: string) {
   return (
     isMachineOAuthPath(pathname) ||

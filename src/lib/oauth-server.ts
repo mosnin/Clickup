@@ -236,8 +236,21 @@ function coerceRedirectUris(value: unknown): string[] | undefined {
   return [trimmed];
 }
 
+function formRedirectKey(key: string) {
+  if (
+    key === "redirect_uri" ||
+    key === "redirect_uris[]" ||
+    /^redirect_uris\[\d+\]$/.test(key)
+  ) {
+    return "redirect_uris";
+  }
+  return key;
+}
+
 function withRedirectUris(record: Record<string, unknown>) {
-  if (!("redirect_uris" in record)) return record;
+  if (!("redirect_uris" in record) && "redirect_uri" in record) {
+    record.redirect_uris = record.redirect_uri;
+  }
   const uris = coerceRedirectUris(record.redirect_uris);
   if (uris) record.redirect_uris = uris;
   return record;
@@ -247,8 +260,9 @@ function formClientMetadata(text: string): Record<string, unknown> | null {
   const params = new URLSearchParams(text);
   if (![...params.keys()].length) return null;
   const record: Record<string, unknown> = {};
-  for (const key of new Set(params.keys())) {
-    const all = params.getAll(key);
+  for (const rawKey of new Set(params.keys())) {
+    const key = formRedirectKey(rawKey);
+    const all = params.getAll(rawKey);
     if (key === "redirect_uris") {
       const uris: string[] = [];
       for (const raw of all) {
@@ -282,8 +296,9 @@ async function multipartClientMetadata(
   try {
     const form = await request.formData();
     const record: Record<string, unknown> = {};
-    for (const [key, value] of form.entries()) {
+    for (const [rawKey, value] of form.entries()) {
       if (typeof value !== "string") continue;
+      const key = formRedirectKey(rawKey);
       if (key === "redirect_uris") {
         const next = coerceRedirectUris(value) ?? [];
         const existing = record[key];
@@ -326,6 +341,22 @@ export function randomCredential(prefix: string) {
   return `${prefix}_${randomBytes(32).toString("base64url")}`;
 }
 
+export function oauthCorsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Max-Age": "86400",
+  };
+}
+
+export function oauthOptions() {
+  return new Response(null, {
+    status: 204,
+    headers: oauthCorsHeaders(),
+  });
+}
+
 export function oauthJson(
   body: Record<string, unknown>,
   status = 200,
@@ -335,6 +366,7 @@ export function oauthJson(
     headers: {
       "Cache-Control": "no-store",
       Pragma: "no-cache",
+      ...oauthCorsHeaders(),
     },
   });
 }

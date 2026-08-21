@@ -2,7 +2,9 @@ import { api } from "@convex/_generated/api";
 import {
   oauthBearer,
   oauthConvexClient,
+  oauthCorsHeaders,
   oauthFields,
+  oauthOptions,
   oauthPostOnly,
 } from "@/lib/oauth-server";
 
@@ -14,10 +16,14 @@ export async function POST(request: Request) {
   }
   return new Response(null, {
     status: 200,
-    headers: { "Cache-Control": "no-store" },
+    headers: { "Cache-Control": "no-store", ...oauthCorsHeaders() },
   });
 }
 
 export function GET() {
   return oauthPostOnly();
+}
+
+export function OPTIONS() {
+  return oauthOptions();
 }

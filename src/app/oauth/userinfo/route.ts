@@ -1,7 +1,9 @@
 import { api } from "@convex/_generated/api";
 import {
   oauthConvexClient,
+  oauthCorsHeaders,
   oauthJson,
+  oauthOptions,
   oauthResource,
 } from "@/lib/oauth-server";
 
@@ -14,6 +16,7 @@ function unauthorized(description: string) {
         "Cache-Control": "no-store",
         Pragma: "no-cache",
         "WWW-Authenticate": `Bearer error="invalid_token", error_description="${description.replaceAll('"', "'")}"`,
+        ...oauthCorsHeaders(),
       },
     },
   );
@@ -40,6 +43,10 @@ export async function GET(request: Request) {
       error instanceof Error ? error.message : "The access token is invalid",
     );
   }
+}
+
+export function OPTIONS() {
+  return oauthOptions();
 }
 
 export const dynamic = "force-dynamic";

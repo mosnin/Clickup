@@ -1,1 +1,1 @@
-export { GET } from "../../../../.well-known/oauth-authorization-server/route";
+export { GET, OPTIONS } from "../../../../.well-known/oauth-authorization-server/route";

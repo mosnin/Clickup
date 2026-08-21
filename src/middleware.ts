@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import {
+  isAuthorizePath,
   isMachineOAuthPath,
+  readAuthorizeParams,
   stripOAuthTrailingSlash,
 } from "@/lib/oauth-slash";
 
@@ -46,9 +48,18 @@ const clerk = clerkMiddleware(async (auth, req) => {
   }
 });
 
-export default function middleware(req: NextRequest, event: never) {
+export default async function middleware(req: NextRequest, event: never) {
   const stripped = stripOAuthTrailingSlash(req.nextUrl.pathname);
   const path = stripped ?? req.nextUrl.pathname;
+  // POST authorize is a 404 today (page is GET-only). 303 to GET with the
+  // body as query — not 308, which would drop the body.
+  if (req.method === "POST" && isAuthorizePath(path)) {
+    const params = await readAuthorizeParams(req);
+    const url = req.nextUrl.clone();
+    url.pathname = "/oauth/authorize";
+    url.search = params.toString();
+    return NextResponse.redirect(url, 303);
+  }
   if (
     isMachineOAuthPath(path) ||
     isSelfAuthenticated(req) ||
