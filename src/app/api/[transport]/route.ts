@@ -17,7 +17,7 @@ import { QUERY_VOCABULARY } from "@/lib/data-stream";
 import { ALL_SHAPES } from "@/lib/panel";
 import { STYLE_ENUMS } from "@/lib/component-style";
 import { mcpWwwAuthenticate, oauthResource } from "@/lib/oauth-server";
-import { applyMcpCors } from "@/lib/oauth-slash";
+import { applyMcpCors, applyOperateAuthorization } from "@/lib/oauth-slash";
 // The Chat dashboard's agent surface (C6b). A separate application sharing one
 // endpoint (D11), so its catalog lives in its own module and lands here in one
 // line rather than growing this file by a twelfth of itself.
@@ -3185,7 +3185,7 @@ async function guarded(req: Request): Promise<Response> {
   if (req.method === "POST") {
     const rawBody = await req.arrayBuffer();
     const accept = req.headers.get("accept") ?? "";
-    const headers = new Headers(req.headers);
+    const headers = applyOperateAuthorization(new Headers(req.headers), req.url);
     // Request will compute the correct length for the rebuilt body. Keeping
     // the inbound value would be wrong when a legacy tool name changes size.
     headers.delete("content-length");
@@ -3226,6 +3226,14 @@ async function guarded(req: Request): Promise<Response> {
       headers,
       body,
     });
+  } else {
+    const headers = applyOperateAuthorization(new Headers(req.headers), req.url);
+    if (headers.get("authorization") !== req.headers.get("authorization")) {
+      transportRequest = new Request(req.url, {
+        method: req.method,
+        headers,
+      });
+    }
   }
   const profile = searchParams.get("profile");
   const selectedHandler =

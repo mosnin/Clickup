@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  canonicalGrantType,
+  DEVICE_GRANT,
   oauthBasicClientId,
   oauthBearer,
   oauthCorsHeaders,
@@ -11,6 +13,7 @@ import {
 } from "../src/lib/oauth-server";
 import {
   applyMcpCors,
+  extractOperateCredential,
   isAuthorizePath,
   isHumanOAuthPath,
   isMachineOAuthPath,
@@ -224,6 +227,24 @@ describe("oauthBearer", () => {
     expect(oauthBearer(new Request("https://www.operate.to/oauth/revoke"))).toBe(
       "",
     );
+  });
+
+  it("reads Token / Api-Key / raw cua_ and query apiKey", () => {
+    expect(
+      extractOperateCredential("Token cua_raw", undefined),
+    ).toBe("cua_raw");
+    expect(
+      extractOperateCredential("Api-Key cua_key", undefined),
+    ).toBe("cua_key");
+    expect(extractOperateCredential("cua_bare", undefined)).toBe("cua_bare");
+    expect(extractOperateCredential("Basic abc", undefined)).toBe("");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp?apiKey=cua_query"),
+      ),
+    ).toBe("cua_query");
+    expect(canonicalGrantType("device_code")).toBe(DEVICE_GRANT);
+    expect(canonicalGrantType("authorization-code")).toBe("authorization_code");
   });
 });
 
@@ -561,6 +582,19 @@ describe("stripOAuthTrailingSlash", () => {
     expect(
       stripOAuthTrailingSlash("/mcp/.well-known/oauth-protected-resource"),
     ).toBe("/api/mcp/.well-known/oauth-protected-resource");
+    expect(
+      stripOAuthTrailingSlash("/.well-known/oauth-protected-resource.json"),
+    ).toBe("/.well-known/oauth-protected-resource");
+    expect(
+      stripOAuthTrailingSlash(
+        "/.well-known/oauth-protected-resource/api/mcp.json",
+      ),
+    ).toBe("/.well-known/oauth-protected-resource/api/mcp");
+    expect(
+      stripOAuthTrailingSlash(
+        "/mcp/.well-known/oauth-protected-resource.json",
+      ),
+    ).toBe("/api/mcp/.well-known/oauth-protected-resource");
     expect(isMachineOAuthPath("/mcp")).toBe(true);
     expect(isMachineOAuthPath("/oauth/token")).toBe(true);
     expect(isMachineOAuthPath("/oauth/authorize")).toBe(false);
@@ -609,6 +643,11 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(middleware).toContain("oauthCorsHeaders(req)");
     expect(middleware.indexOf("isOAuthOptionsPath")).toBeLessThan(
       middleware.indexOf("return clerk(req, event)"),
+    );
+    expect(middleware).toContain('"/mcp/:path*"');
+    expect(read("src/app/oauth/token/route.ts")).toContain("canonicalGrantType");
+    expect(read("src/app/api/[transport]/route.ts")).toContain(
+      "applyOperateAuthorization",
     );
     expect(read("next.config.mjs")).toContain("skipTrailingSlashRedirect: true");
     expect(read("src/app/oauth/token/route.ts")).toContain("oauthOptions");

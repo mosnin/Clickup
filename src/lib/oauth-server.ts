@@ -13,6 +13,7 @@ import {
   oauthOptions,
   parseJsonBody,
   canonicalOAuthKey,
+  extractOperateCredential,
 } from "./oauth-slash";
 
 export { servingMcpUrl, servingOrigin };
@@ -207,9 +208,17 @@ function phpRecordString(record: Record<string, unknown>, name: string) {
 
 /** RFC 7009 puts `token` in the body; some logout clients send Bearer only. */
 export function oauthBearer(request: Request) {
-  const authorization = request.headers.get("authorization") ?? "";
-  const match = authorization.match(/^Bearer\s+(\S+)/i);
-  return match?.[1] ?? "";
+  return extractOperateCredential(
+    request.headers.get("authorization"),
+    new URL(request.url).searchParams,
+  );
+}
+
+/** `device_code` is the short name clients send instead of the RFC 8628 URN. */
+export function canonicalGrantType(value: string) {
+  if (value === DEVICE_GRANT || value === "device_code") return DEVICE_GRANT;
+  if (value === "authorization-code") return "authorization_code";
+  return value;
 }
 
 /**

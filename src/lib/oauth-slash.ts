@@ -319,8 +319,62 @@ export function stripOAuthTrailingSlash(pathname: string) {
   // Clients that guess the MCP default path (`/mcp`) used to 404.
   if (next === "/mcp") next = "/api/mcp";
   else if (next.startsWith("/mcp/")) next = `/api/mcp/${next.slice("/mcp/".length)}`;
+  if (next.endsWith(".json") && next.includes("/.well-known/")) {
+    const withoutJson = next.slice(0, -".json".length);
+    if (
+      withoutJson.includes("oauth-protected-resource") ||
+      withoutJson.includes("oauth-authorization-server") ||
+      withoutJson.includes("openid-configuration")
+    ) {
+      next = withoutJson;
+    }
+  }
   if (next !== pathname && isOAuthSlashRewritePath(next)) return next;
   if (stripped === pathname) return null;
   if (isOAuthSlashRewritePath(stripped)) return stripped;
   return null;
+}
+
+const OPERATE_CREDENTIAL = /^(cua_|opa_|opr_|opc_|opd_)/i;
+const AUTH_SCHEME =
+  /^(Bearer|Token|Api-?Key|ApiKey)\s+(\S+)/i;
+
+/**
+ * MCP and OAuth clients send `Authorization: cua_…` (no scheme),
+ * `Token`, or `Api-Key`. `withMcpAuth` only reads `Bearer`. Query
+ * `apiKey` / `access_token` is the same hole x402 already closed.
+ * Never treats `Basic` as a bearer token.
+ */
+export function extractOperateCredential(
+  authorization: string | null | undefined,
+  query?: URLSearchParams,
+) {
+  const header = authorization?.trim() ?? "";
+  if (header) {
+    const scheme = header.match(AUTH_SCHEME);
+    if (scheme) return scheme[2];
+    if (OPERATE_CREDENTIAL.test(header) && !header.includes(" ")) {
+      return header;
+    }
+  }
+  if (query) {
+    return (
+      query.get("access_token") ||
+      query.get("apiKey") ||
+      query.get("api_key") ||
+      ""
+    );
+  }
+  return "";
+}
+
+export function applyOperateAuthorization(headers: Headers, url: string) {
+  const token = extractOperateCredential(
+    headers.get("authorization"),
+    new URL(url).searchParams,
+  );
+  if (!token) return headers;
+  if (/^Bearer\s+\S+/i.test(headers.get("authorization") ?? "")) return headers;
+  headers.set("Authorization", `Bearer ${token}`);
+  return headers;
 }

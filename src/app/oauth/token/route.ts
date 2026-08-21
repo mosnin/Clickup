@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { api } from "@convex/_generated/api";
 import {
   DEVICE_GRANT,
+  canonicalGrantType,
   deviceErrorCode,
   oauthBasicClientId,
   oauthConvexClient,
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
   // reach for JSON. Accept both — see /oauth/device for the same reasoning.
   const field = await oauthFields(request);
 
-  const grantType = field("grant_type");
+  const grantType = canonicalGrantType(field("grant_type"));
   // Checked before client_id, because the device grant has no registered
   // client to identify: the device code IS the credential.
   if (grantType === DEVICE_GRANT) {

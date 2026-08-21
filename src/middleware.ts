@@ -31,6 +31,8 @@ const isProtectedRoute = createRouteMatcher([
 const isSelfAuthenticated = createRouteMatcher([
   "/api/mcp",
   "/api/mcp/(.*)",
+  "/mcp",
+  "/mcp/(.*)",
   "/api/x402",
 ]);
 const isPublicDiscovery = createRouteMatcher(["/.well-known/(.*)"]);
@@ -95,5 +97,9 @@ export const config = {
     // need to rewrite `/…/api/mcp/` here so a 308 does not drop a GET that
     // an OAuth client constructed from the resource path.
     "/.well-known/:path*",
+    // `/mcp/.well-known/…` has a dot, so the first pattern skips it, and
+    // it is not under `/api`. Without this the /mcp → /api/mcp rewrite
+    // never runs and discovery 404s.
+    "/mcp/:path*",
   ],
 };
