@@ -152,6 +152,32 @@ async function countOwners(
   return all.filter((m) => m.role === "owner").length;
 }
 
+/**
+ * Keep workspaces.ownerClerkId pointed at a live owner membership.
+ *
+ * Access/governance now reads memberships.role (see isWorkspaceOwner), but
+ * complimentary entitlements, the by_owner index, and approval-email
+ * fallbacks still follow ownerClerkId. If the recorded owner is demoted
+ * or leaves, the pointer must move — otherwise a departed creator keeps
+ * complimentary billing and the new owner does not.
+ */
+async function syncOwnerClerkId(
+  ctx: MutationCtx,
+  workspaceId: Id<"workspaces">,
+): Promise<void> {
+  const workspace = await ctx.db.get(workspaceId);
+  if (!workspace) return;
+  const all = await ctx.db
+    .query("memberships")
+    .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+    .collect();
+  const owners = all.filter((m) => m.role === "owner");
+  if (owners.some((m) => m.userClerkId === workspace.ownerClerkId)) return;
+  const next = owners[0];
+  if (!next) return;
+  await ctx.db.patch(workspaceId, { ownerClerkId: next.userClerkId });
+}
+
 // Owners/admins change another member's role. Only an existing owner may
 // grant ownership or touch another owner's role (admins manage admins and
 // members, never owners), and the last remaining owner can never be
@@ -193,6 +219,7 @@ export const updateMemberRole = mutation({
     }
 
     await ctx.db.patch(target._id, { role });
+    await syncOwnerClerkId(ctx, workspaceId);
   },
 });
 
@@ -230,6 +257,7 @@ export const removeMember = mutation({
     }
 
     await ctx.db.delete(target._id);
+    await syncOwnerClerkId(ctx, workspaceId);
   },
 });
 
@@ -251,5 +279,6 @@ export const leaveWorkspace = mutation({
     }
 
     await ctx.db.delete(membership._id);
+    await syncOwnerClerkId(ctx, workspaceId);
   },
 });

@@ -765,13 +765,20 @@ export const get = query({
     const backlinks = [];
     for (const row of backlinkRows) {
       const from = await ctx.db.get(row.fromPageId);
-      if (from) {
-        backlinks.push({
-          pageId: from._id,
-          title: from.title,
-          excerpt: markdownExcerpt(from.markdown, 100),
+      if (!from) continue;
+      try {
+        await requireScopeAccess(ctx, {
+          scopeType: from.scopeType,
+          scopeId: from.scopeId,
         });
+      } catch {
+        continue;
       }
+      backlinks.push({
+        pageId: from._id,
+        title: from.title,
+        excerpt: markdownExcerpt(from.markdown, 100),
+      });
     }
 
     const outgoingRows = await ctx.db
@@ -781,7 +788,16 @@ export const get = query({
     const outgoing = [];
     for (const row of outgoingRows) {
       const to = await ctx.db.get(row.toPageId);
-      if (to) outgoing.push({ pageId: to._id, title: to.title });
+      if (!to) continue;
+      try {
+        await requireScopeAccess(ctx, {
+          scopeType: to.scopeType,
+          scopeId: to.scopeId,
+        });
+      } catch {
+        continue;
+      }
+      outgoing.push({ pageId: to._id, title: to.title });
     }
 
     const attachmentRows = await ctx.db
@@ -790,6 +806,11 @@ export const get = query({
       .collect();
     const attachments = [];
     for (const att of attachmentRows) {
+      try {
+        await requireTargetAccess(ctx, att.targetType, att.targetId);
+      } catch {
+        continue;
+      }
       const label = await labelForTarget(ctx, att.targetType, att.targetId);
       if (label) {
         attachments.push({

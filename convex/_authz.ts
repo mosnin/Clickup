@@ -66,18 +66,47 @@ export async function canAccessSpace(
     .unique();
   if (membership === null) return false;
 
-  // Private spaces: only the creator, listed members, and the workspace
-  // owner see inside — everyone else in the workspace is locked out even
-  // though they can access the workspace itself. (Agents authenticate via
-  // workspace scope in _agentAuth and are governed by their own list
-  // restrictions, not this human-side gate.)
+  // Private spaces: only the creator, listed members, and a live workspace
+  // owner (memberships.role === "owner") see inside — everyone else in the
+  // workspace is locked out even though they can access the workspace
+  // itself. (Agents authenticate via workspace scope in _agentAuth and are
+  // governed by their own list restrictions, not this human-side gate.)
+  //
+  // Membership role, not workspaces.ownerClerkId: the latter is a billing
+  // pointer that used to go stale on transfer, which locked the new owner
+  // out of every private space and left the demoted creator inside them.
   if (space.private) {
     if (space.createdByClerkId === identity.subject) return true;
     if (space.memberClerkIds?.includes(identity.subject)) return true;
-    const ws = await ctx.db.get(space.parentId as Id<"workspaces">);
-    return ws?.ownerClerkId === identity.subject;
+    return await isWorkspaceOwner(
+      ctx,
+      space.parentId as Id<"workspaces">,
+      identity.subject,
+    );
   }
   return true;
+}
+
+/**
+ * Live workspace owner: a current `memberships` row with role "owner".
+ *
+ * `workspaces.ownerClerkId` is the billing/complimentary pointer and is
+ * kept in sync by workspaces.ts when the recorded owner loses that role.
+ * Access and governance must not wait on that pointer — a promoted owner
+ * has to be an owner the moment the membership row says so.
+ */
+export async function isWorkspaceOwner(
+  ctx: QueryCtx | MutationCtx,
+  workspaceId: Id<"workspaces">,
+  subject: string,
+): Promise<boolean> {
+  const membership = await ctx.db
+    .query("memberships")
+    .withIndex("by_user_and_workspace", (q) =>
+      q.eq("userClerkId", subject).eq("workspaceId", workspaceId),
+    )
+    .unique();
+  return membership?.role === "owner";
 }
 
 /**
@@ -117,6 +146,33 @@ export async function getProjectForList(
 ): Promise<Doc<"projects"> | null> {
   if (list.parentType !== "project") return null;
   return await ctx.db.get(list.parentId as Id<"projects">);
+}
+
+/**
+ * Can this person see into this list? Same walk as requireListAccess, but
+ * returns false instead of throwing so aggregate reads (Home, search,
+ * events) can drop a row rather than fail the whole page.
+ */
+export async function canAccessList(
+  ctx: QueryCtx | MutationCtx,
+  listId: Id<"lists">,
+  subject: string,
+): Promise<boolean> {
+  const list = await ctx.db.get(listId);
+  if (!list) return false;
+  const space = await getSpaceForList(ctx, list);
+  if (!space) return false;
+  return await canAccessSpace(ctx, space, { subject });
+}
+
+export async function canAccessTask(
+  ctx: QueryCtx | MutationCtx,
+  taskId: Id<"tasks">,
+  subject: string,
+): Promise<boolean> {
+  const task = await ctx.db.get(taskId);
+  if (!task) return false;
+  return await canAccessList(ctx, task.listId, subject);
 }
 
 export async function requireListAccess(
@@ -322,8 +378,11 @@ export async function mayGovernSpace(
   // Legacy spaces predate creator attribution; any member may govern them,
   // which is what shipped and what those spaces' members already rely on.
   if (space.createdByClerkId === undefined) return true;
-  const workspace = await ctx.db.get(space.parentId as Id<"workspaces">);
-  return workspace?.ownerClerkId === subject;
+  return await isWorkspaceOwner(
+    ctx,
+    space.parentId as Id<"workspaces">,
+    subject,
+  );
 }
 
 // ── Pages ───────────────────────────────────────────────────────────────

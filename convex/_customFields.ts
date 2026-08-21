@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { getSpaceForList } from "./_authz";
+import { canAccessTask, getSpaceForList } from "./_authz";
 
 // Shared custom-field logic — the single source of truth for what a field
 // type means, what a valid configuration looks like, what a valid value
@@ -690,6 +690,10 @@ export async function assertValueReferences(
   }
   if (field.type === "relationship" && patch.taskIds) {
     const targetListId = field.config?.relationListId;
+    const sourceList = await ctx.db.get(field.listId);
+    const sourceSpace = sourceList
+      ? await getSpaceForList(ctx, sourceList)
+      : null;
     for (const taskId of patch.taskIds) {
       const target = await ctx.db.get(taskId);
       if (!target) throw new ConvexError(`Linked task ${taskId} not found`);
@@ -705,7 +709,48 @@ export async function assertValueReferences(
           `"${field.name}" links tasks in this list. Configure relationListId to link across projects.`,
         );
       }
+      const targetList = await ctx.db.get(target.listId);
+      const targetSpace = targetList
+        ? await getSpaceForList(ctx, targetList)
+        : null;
+      if (
+        !sourceSpace ||
+        !targetSpace ||
+        sourceSpace.parentType !== targetSpace.parentType ||
+        sourceSpace.parentId !== targetSpace.parentId
+      ) {
+        throw new ConvexError(
+          `"${field.name}" can only link tasks in the same workspace`,
+        );
+      }
     }
+  }
+}
+
+/**
+ * A relationship field's target list must live in the same tenant as the
+ * field. Without this, relationListId could point at another workspace
+ * (or another person's personal space) and the value/rollup paths would
+ * read across that boundary.
+ */
+export async function assertRelationListInScope(
+  ctx: QueryCtx | MutationCtx,
+  sourceListId: Id<"lists">,
+  relationListId: Id<"lists">,
+): Promise<void> {
+  const source = await ctx.db.get(sourceListId);
+  const target = await ctx.db.get(relationListId);
+  if (!source || !target) throw new ConvexError("Related list not found");
+  const sourceSpace = await getSpaceForList(ctx, source);
+  const targetSpace = await getSpaceForList(ctx, target);
+  if (!sourceSpace || !targetSpace) throw new ConvexError("Orphan list");
+  if (
+    sourceSpace.parentType !== targetSpace.parentType ||
+    sourceSpace.parentId !== targetSpace.parentId
+  ) {
+    throw new ConvexError(
+      "A relationship field can only link lists in the same workspace",
+    );
   }
 }
 
@@ -1013,13 +1058,24 @@ async function resolveRollup(
     targetIds = relRow?.taskIds ?? [];
   }
 
-  if (rollup.op === "count") return targetIds.length;
+  const identity = await ctx.auth.getUserIdentity();
+  const visibleIds: Id<"tasks">[] = [];
+  for (const id of targetIds) {
+    if (
+      identity &&
+      !(await canAccessTask(ctx, id, identity.subject))
+    ) {
+      continue;
+    }
+    visibleIds.push(id);
+  }
+  if (rollup.op === "count") return visibleIds.length;
   const sourceFieldId = rollup.sourceFieldId;
   if (!sourceFieldId) return null;
   const sourceField = byId.get(sourceFieldId);
 
   const numbers: number[] = [];
-  for (const id of targetIds) {
+  for (const id of visibleIds) {
     const row = await ctx.db
       .query("taskFieldValues")
       .withIndex("by_task_and_field", (q) =>

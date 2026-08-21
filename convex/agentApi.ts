@@ -58,6 +58,7 @@ import {
   type SurfaceType,
 } from "./presence";
 import {
+  assertRelationListInScope,
   assertValueReferences,
   computeDerivedValues,
   fieldConfigValidator,
@@ -8200,6 +8201,10 @@ export const createCustomField = mutation({
       siblings,
       selfName: name,
     });
+    if (config?.relationListId) {
+      await requireListAccessForAgent(ctx, config.relationListId, agent);
+      await assertRelationListInScope(ctx, args.listId, config.relationListId);
+    }
     const fieldId = await ctx.db.insert("customFields", {
       listId: args.listId,
       name,

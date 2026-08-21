@@ -159,20 +159,15 @@ export async function requireAgentByKey(
       stillAuthorized = agent.parentId === oauthToken.userClerkId;
     } else {
       const workspaceId = agent.parentId as Id<"workspaces">;
-      const [workspace, membership] = await Promise.all([
-        ctx.db.get(workspaceId),
-        ctx.db
-          .query("memberships")
-          .withIndex("by_user_and_workspace", (q) =>
-            q
-              .eq("userClerkId", oauthToken.userClerkId)
-              .eq("workspaceId", workspaceId),
-          )
-          .unique(),
-      ]);
-      stillAuthorized =
-        workspace?.ownerClerkId === oauthToken.userClerkId &&
-        membership !== null;
+      const membership = await ctx.db
+        .query("memberships")
+        .withIndex("by_user_and_workspace", (q) =>
+          q
+            .eq("userClerkId", oauthToken.userClerkId)
+            .eq("workspaceId", workspaceId),
+        )
+        .unique();
+      stillAuthorized = membership?.role === "owner";
     }
     if (!stillAuthorized) throw new ConvexError("OAuth access was revoked");
     if (
