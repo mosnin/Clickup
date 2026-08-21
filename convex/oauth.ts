@@ -1,8 +1,9 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
 import { requireAgentByKey, sha256Hex } from "./_agentAuth";
+import { normalizeOfficialMcpResource } from "./_oauthResource";
 import {
   consumeRateLimit,
   DCR_REGISTRATION_RULE,
@@ -46,24 +47,16 @@ function normalizeScopes(scope: string) {
 }
 
 function requireMcpResource(value: string) {
-  const clean = requireText(value, "resource", 2048);
-  let url: URL;
+  requireText(value, "resource", 2048);
   try {
-    url = new URL(clean);
-  } catch {
-    throw new ConvexError("resource must be the canonical MCP HTTPS URL");
+    return normalizeOfficialMcpResource(value);
+  } catch (error) {
+    throw new ConvexError(
+      error instanceof Error
+        ? error.message
+        : "resource must be an official Operate MCP URL",
+    );
   }
-  if (
-    url.protocol !== "https:" ||
-    url.pathname !== "/api/mcp" ||
-    url.search !== "" ||
-    url.hash !== "" ||
-    url.username !== "" ||
-    url.password !== ""
-  ) {
-    throw new ConvexError("resource must be the canonical MCP HTTPS URL");
-  }
-  return url.toString();
 }
 
 function validRedirectUri(value: string) {
@@ -338,6 +331,7 @@ export const exchangeAuthorizationCode = mutation({
       throw new ConvexError("Invalid or expired authorization code");
     }
     await ctx.db.patch(row._id, { usedAt: now });
+    const familyId = sha256Hex(args.refreshToken);
     await ctx.db.insert("oauthAccessTokens", {
       tokenHash: sha256Hex(args.accessToken),
       refreshTokenHash: sha256Hex(args.refreshToken),
@@ -349,6 +343,7 @@ export const exchangeAuthorizationCode = mutation({
       expiresAt: now + ACCESS_TOKEN_TTL_MS,
       refreshExpiresAt: now + REFRESH_TOKEN_TTL_MS,
       createdAt: now,
+      familyId,
     });
     return {
       scope: row.scopes.join(" "),
@@ -356,6 +351,38 @@ export const exchangeAuthorizationCode = mutation({
     };
   },
 });
+
+async function revokeRefreshFamily(
+  ctx: MutationCtx,
+  current: Doc<"oauthAccessTokens">,
+  now: number,
+) {
+  if (current.familyId) {
+    const family = await ctx.db
+      .query("oauthAccessTokens")
+      .withIndex("by_family", (q) => q.eq("familyId", current.familyId!))
+      .collect();
+    for (const row of family) {
+      if (row.revokedAt === undefined) {
+        await ctx.db.patch(row._id, { revokedAt: now });
+      }
+    }
+    return;
+  }
+  const siblings = await ctx.db
+    .query("oauthAccessTokens")
+    .withIndex("by_agent", (q) => q.eq("agentId", current.agentId))
+    .collect();
+  for (const row of siblings) {
+    if (
+      row.clientId === current.clientId &&
+      row.userClerkId === current.userClerkId &&
+      row.revokedAt === undefined
+    ) {
+      await ctx.db.patch(row._id, { revokedAt: now });
+    }
+  }
+}
 
 export const refreshAccessToken = mutation({
   args: {
@@ -374,16 +401,23 @@ export const refreshAccessToken = mutation({
         q.eq("refreshTokenHash", sha256Hex(args.refreshToken)),
       )
       .unique();
-    if (
-      !current ||
-      current.revokedAt !== undefined ||
-      current.refreshExpiresAt <= now ||
-      current.clientId !== args.clientId ||
-      current.resource !== resource
-    ) {
+    if (!current || current.clientId !== args.clientId) {
       throw new ConvexError("Invalid or expired refresh token");
     }
-    await ctx.db.patch(current._id, { revokedAt: now });
+    if (current.revokedAt !== undefined) {
+      // Must succeed (not throw): a thrown mutation rolls back the family
+      // revoke, which would leave the stolen successor tokens live.
+      await revokeRefreshFamily(ctx, current, now);
+      return {
+        ok: false as const,
+        error: "Invalid or expired refresh token",
+      };
+    }
+    if (current.refreshExpiresAt <= now || current.resource !== resource) {
+      throw new ConvexError("Invalid or expired refresh token");
+    }
+    const familyId = current.familyId ?? sha256Hex(args.refreshToken);
+    await ctx.db.patch(current._id, { revokedAt: now, familyId });
     await ctx.db.insert("oauthAccessTokens", {
       tokenHash: sha256Hex(args.accessToken),
       refreshTokenHash: sha256Hex(args.nextRefreshToken),
@@ -395,8 +429,10 @@ export const refreshAccessToken = mutation({
       expiresAt: now + ACCESS_TOKEN_TTL_MS,
       refreshExpiresAt: now + REFRESH_TOKEN_TTL_MS,
       createdAt: now,
+      familyId,
     });
     return {
+      ok: true as const,
       scope: current.scopes.join(" "),
       expiresIn: ACCESS_TOKEN_TTL_MS / 1000,
     };

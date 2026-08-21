@@ -5,7 +5,7 @@
 - Name: Operate
 - Type: Remote MCP server
 - Status: General availability
-- Endpoint: `https://operate.to/api/mcp?profile=claude`
+- Endpoint: `https://www.operate.to/api/mcp?profile=claude`
 - Transport: Streamable HTTP
 - Authentication: OAuth 2.1 authorization code with S256 PKCE, compatible with OAuth 2.0 clients.
 - Documentation: `https://operate.to/plugins`
@@ -56,7 +56,7 @@ Every advertised tool declares a human-readable title plus explicit `readOnlyHin
 
 Use the secure review account supplied in the submission form. It must remain active throughout review, require no MFA/email/SMS challenge, and have representative sample data plus access to every submitted workflow. Credentials must never be committed to this repository.
 
-1. Add `https://operate.to/api/mcp?profile=claude` as a Streamable HTTP connector.
+1. Add `https://www.operate.to/api/mcp?profile=claude` as a Streamable HTTP connector.
 2. Start OAuth and select the review-only `Scout` Operate agent.
 3. Leave read-only tools enabled. Write/delete tools should continue to require approval.
 4. Ask: “Using Operate, show my Spaces and the Lists inside each one. Do not create or change anything.”

@@ -8,6 +8,10 @@ import {
   ADMIN_DAILY_ACTION_LIMIT,
   isComplimentaryScope,
 } from "./_adminEntitlements";
+import {
+  isOfficialMcpResource,
+  sameMcpResource,
+} from "./_oauthResource";
 
 // Agent-side counterpart of _authz.ts. Human calls authenticate via Clerk
 // (ctx.auth); agent calls authenticate via an API key passed as an argument
@@ -175,9 +179,14 @@ export async function requireAgentByKey(
         membership !== null;
     }
     if (!stillAuthorized) throw new ConvexError("OAuth access was revoked");
+    const tokenResource = oauthToken.resource;
+    if (!tokenResource || !isOfficialMcpResource(tokenResource)) {
+      throw new ConvexError("OAuth token audience does not match this resource");
+    }
     if (
       expectedOAuthResource !== undefined &&
-      oauthToken.resource !== expectedOAuthResource
+      (!isOfficialMcpResource(expectedOAuthResource) ||
+        !sameMcpResource(tokenResource, expectedOAuthResource))
     ) {
       throw new ConvexError("OAuth token audience does not match this resource");
     }

@@ -2092,10 +2092,14 @@ export default defineSchema({
     createdAt: v.number(),
     lastUsedAt: v.optional(v.number()),
     revokedAt: v.optional(v.number()),
+    // Shared across rotated access/refresh pairs. Reuse of a spent refresh
+    // token revokes every row in the family (OAuth security BCP).
+    familyId: v.optional(v.string()),
   })
     .index("by_token_hash", ["tokenHash"])
     .index("by_refresh_hash", ["refreshTokenHash"])
-    .index("by_agent", ["agentId"]),
+    .index("by_agent", ["agentId"])
+    .index("by_family", ["familyId"]),
 
   // Fleet provisioning grants — one human approval, many agents.
   //

@@ -169,6 +169,9 @@ export async function POST(request: Request) {
           resource,
         },
       );
+      if (!result.ok) {
+        return oauthError("invalid_grant", result.error);
+      }
       return oauthJson({
         access_token: accessToken,
         token_type: "Bearer",

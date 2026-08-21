@@ -3,9 +3,15 @@ import { GET as getOAuthMetadata } from "../src/app/.well-known/oauth-authorizat
 import { GET as getOpenIdMetadata } from "../src/app/.well-known/openid-configuration/route";
 import { GET as getProtectedResource } from "../src/app/.well-known/oauth-protected-resource/route";
 import {
+  CANONICAL_PRODUCTION_MCP_RESOURCE,
   canonicalMcpResource,
+  sameMcpResource,
   validateMcpResource,
 } from "../src/lib/oauth-resource";
+import {
+  isOfficialMcpResource,
+  normalizeOfficialMcpResource,
+} from "../convex/_oauthResource";
 
 describe("public MCP OAuth discovery", () => {
   beforeEach(() => {
@@ -40,9 +46,10 @@ describe("public MCP OAuth discovery", () => {
     const metadata = await getProtectedResource().json();
     expect(metadata).toMatchObject({
       resource: "https://operate.to/api/mcp",
-      authorization_servers: ["https://operate.to"],
       bearer_methods_supported: ["header"],
     });
+    expect(metadata.authorization_servers[0]).toBe("https://operate.to");
+    expect(metadata.authorization_servers).toContain("https://www.operate.to");
     expect(canonicalMcpResource("https://operate.to")).toBe(
       "https://operate.to/api/mcp",
     );
@@ -51,12 +58,46 @@ describe("public MCP OAuth discovery", () => {
         "https://attacker.example/api/mcp",
         "https://operate.to",
       ),
-    ).toThrow(/canonical/i);
+    ).toThrow(/official/i);
     expect(() =>
       validateMcpResource(
         "https://operate.to/api/mcp?profile=chatgpt",
         "https://operate.to",
       ),
-    ).toThrow(/canonical/i);
+    ).toThrow(/official/i);
+  });
+
+  it("treats the apex and www hosts as one official audience", async () => {
+    expect(
+      validateMcpResource(
+        "https://www.operate.to/api/mcp",
+        "https://operate.to",
+      ),
+    ).toBe(CANONICAL_PRODUCTION_MCP_RESOURCE);
+    expect(
+      normalizeOfficialMcpResource("https://www.operate.to/api/mcp"),
+    ).toBe(CANONICAL_PRODUCTION_MCP_RESOURCE);
+    expect(
+      sameMcpResource(
+        "https://operate.to/api/mcp",
+        "https://www.operate.to/api/mcp",
+      ),
+    ).toBe(true);
+    expect(isOfficialMcpResource("https://clickup-phi.vercel.app/api/mcp")).toBe(
+      false,
+    );
+    expect(isOfficialMcpResource("http://localhost:3000/api/mcp")).toBe(true);
+  });
+
+  it("publishes the request origin as issuer so token POSTs do not follow a 308", async () => {
+    const request = new Request(
+      "https://www.operate.to/.well-known/oauth-authorization-server",
+    );
+    const oauth = await getOAuthMetadata(request).json();
+    const resource = await getProtectedResource(request).json();
+    expect(oauth.issuer).toBe("https://www.operate.to");
+    expect(oauth.token_endpoint).toBe("https://www.operate.to/oauth/token");
+    expect(resource.authorization_servers[0]).toBe("https://www.operate.to");
+    expect(resource.resource).toBe(CANONICAL_PRODUCTION_MCP_RESOURCE);
   });
 });

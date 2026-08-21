@@ -37,7 +37,7 @@ export function ConnectSnippet({
 }) {
   const [runtime, setRuntime] = useState<AgentRuntime>("claude");
   const [copied, setCopied] = useState(false);
-  const [url, setUrl] = useState("https://operate.to/api/mcp");
+  const [url, setUrl] = useState("https://www.operate.to/api/mcp");
   useEffect(() => {
     setUrl(`${window.location.origin}/api/mcp`);
   }, []);

@@ -1,6 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { ConvexHttpClient } from "convex/browser";
-import { canonicalMcpResource } from "./oauth-resource";
+import {
+  CANONICAL_PRODUCTION_MCP_RESOURCE,
+  discoveryIssuer,
+  validateMcpResource,
+} from "./oauth-resource";
 
 // RFC 8628 §3.4. Lives here rather than beside the handler that reads it,
 // because a Next route file may only export HTTP handlers and the documented
@@ -46,10 +50,10 @@ export function deviceErrorCode(
   }
 }
 
-export function oauthIssuer() {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ??
-    "https://operate.to"
+export function oauthIssuer(request?: Request) {
+  return discoveryIssuer(
+    request?.url,
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, ""),
   );
 }
 
@@ -60,12 +64,16 @@ export const OAUTH_SCOPES = [
   "operate:write",
 ] as const;
 
-export function oauthResource() {
-  return canonicalMcpResource(oauthIssuer());
+export function oauthResource(request?: Request) {
+  try {
+    return validateMcpResource(undefined, oauthIssuer(request));
+  } catch {
+    return CANONICAL_PRODUCTION_MCP_RESOURCE;
+  }
 }
 
-export function oauthDiscoveryMetadata() {
-  const issuer = oauthIssuer();
+export function oauthDiscoveryMetadata(request?: Request) {
+  const issuer = oauthIssuer(request);
   return {
     issuer,
     authorization_endpoint: `${issuer}/oauth/authorize`,
