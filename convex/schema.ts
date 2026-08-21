@@ -1411,7 +1411,9 @@ export default defineSchema({
     mimeType: v.optional(v.string()),
     sizeBytes: v.optional(v.number()),
     createdAt: v.number(),
-  }).index("by_parent", ["parentType", "parentId"]),
+  })
+    .index("by_parent", ["parentType", "parentId"])
+    .index("by_storage", ["storageId"]),
 
   // Goals support three target shapes — numerical, money, and
   // true/false. The wire shape is the same for all three: a target
@@ -2638,7 +2640,9 @@ export default defineSchema({
     sizeBytes: v.number(),
     uploadedByActorId: v.string(),
     createdAt: v.number(),
-  }).index("by_task", ["taskId"]),
+  })
+    .index("by_task", ["taskId"])
+    .index("by_storage", ["storageId"]),
 
   // Public intake forms: a tokenized form per list that outsiders can
   // submit without an account; each submission becomes a task. Token is a

@@ -55,7 +55,7 @@ import { action, mutation, query } from "../_generated/server";
 import type { ActionCtx, MutationCtx, QueryCtx } from "../_generated/server";
 import { anyApi } from "convex/server";
 import type { FunctionReference } from "convex/server";
-import { api } from "../_generated/api";
+import { internal } from "../_generated/api";
 import type { Doc } from "../_generated/dataModel";
 import { requireAgentByKey, type Actor } from "../_agentAuth";
 import { publishCore, readEventsCore, type Scope } from "./log";
@@ -864,7 +864,7 @@ export const react = mutation({
       { allowEphemeral: true },
     );
 
-    await ctx.scheduler.runAfter(0, api.realtime.publishFromClient, {
+    await ctx.scheduler.runAfter(0, internal.realtime.publishFromClient, {
       channel: buzzRoomChannel(channel.channelId),
       name: "huddle.reaction",
       data: { huddleId: snapshot.huddleId, emoji, pubkey, senderName, at: Date.now() },
@@ -926,7 +926,7 @@ export const caption = action({
     const text = args.text.trim();
     if (!text) return null;
 
-    await ctx.runAction(api.realtime.publishFromClient, {
+    await ctx.runAction(internal.realtime.publishFromClient, {
       channel: buzzRoomChannel(args.channelId),
       name: "huddle.caption",
       data: {

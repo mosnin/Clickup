@@ -2,7 +2,7 @@
 
 import { ConvexError, v } from "convex/values";
 import { action, internalAction } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 // Real-time fan-out over Ably.
 //
@@ -185,7 +185,7 @@ export const chatSignal = action({
   handler: async (ctx, { channelId, kind, name }): Promise<null> => {
     const thread = await ctx.runQuery(api.chat.thread, { channelId, limit: 1 });
     if (!thread) throw new ConvexError("Channel not found");
-    await ctx.runAction(api.realtime.publishFromClient, {
+    await ctx.runAction(internal.realtime.publishFromClient, {
       channel: chatChannel(channelId),
       name: kind,
       data: { name, at: Date.now() },
@@ -195,18 +195,19 @@ export const chatSignal = action({
 });
 
 /**
- * The publish half of the client path.
+ * The publish half of the authorized client-signal path.
  *
- * Separate from the internal `publish` because this one is reachable from a
- * signed-in client — the caller has already been authorized by whoever calls
- * it, and it deliberately accepts no channel the caller names directly.
+ * Internal on purpose: the previous public `action` accepted any channel
+ * string and did no identity check, so anyone who knew `NEXT_PUBLIC_CONVEX_URL`
+ * could inject typing / look-preview / huddle events onto `operate:chat:*`
+ * and `operate:look:*`. Callers (`chatSignal`, `spaceLookSignal`, Buzz
+ * presence/huddle) do the access check, then hop here. The prefix guard
+ * stays so a buggy caller still cannot aim the server key at inbox or
+ * activity channels. `publish` remains the unrestricted server path.
  */
-export const publishFromClient = action({
+export const publishFromClient = internalAction({
   args: { channel: v.string(), name: v.string(), data: v.any() },
   handler: async (ctx, args): Promise<null> => {
-    // Only ever called by another action in this file, which has done the
-    // access check. Guard anyway: an "operate:chat:" prefix is the only
-    // namespace a client-reachable publish may touch.
     if (
       !args.channel.startsWith("operate:chat:") &&
       !args.channel.startsWith("operate:look:")
@@ -318,7 +319,7 @@ export const spaceLookSignal = action({
     if (!context.mayTheme) {
       throw new ConvexError("Only the space creator or workspace owner can change how this space looks");
     }
-    await ctx.runAction(api.realtime.publishFromClient, {
+    await ctx.runAction(internal.realtime.publishFromClient, {
       channel: spaceLookChannel(spaceId),
       name: "look.preview",
       data: { patch, origin, byName, at: Date.now() },
