@@ -16,6 +16,7 @@
  */
 export function isMachineOAuthPath(pathname: string) {
   return (
+    pathname === "/oauth" ||
     pathname === "/oauth/token" ||
     pathname === "/oauth/device" ||
     pathname === "/oauth/revoke" ||

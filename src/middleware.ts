@@ -104,6 +104,7 @@ export const config = {
     // The first pattern also skips `*.json`. `/api/mcp.json` is covered by
     // `/(api|trpc)`; these are not.
     "/mcp.json",
+    "/oauth.json",
     "/oauth/:path*",
     "/link.json",
     "/start.json",

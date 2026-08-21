@@ -317,7 +317,11 @@ describe("oauthBearer", () => {
     expect(canonicalGrantType("authorization-code")).toBe("authorization_code");
     expect(canonicalGrantType("Authorization_Code")).toBe("authorization_code");
     expect(canonicalGrantType("authorization")).toBe("authorization_code");
+    expect(canonicalGrantType("auth_code")).toBe("authorization_code");
     expect(canonicalGrantType("code")).toBe("authorization_code");
+    expect(
+      canonicalGrantType("urn:ietf:params:oauth:grant-type:device-code"),
+    ).toBe(DEVICE_GRANT);
     expect(canonicalGrantType("refresh")).toBe("refresh_token");
     expect(canonicalGrantType("REFRESH-TOKEN")).toBe("refresh_token");
     expect(
@@ -721,6 +725,8 @@ describe("stripOAuthTrailingSlash", () => {
     expect(stripOAuthTrailingSlash("/oauth/userinfo.json")).toBe(
       "/oauth/userinfo",
     );
+    expect(stripOAuthTrailingSlash("/oauth.json")).toBe("/oauth");
+    expect(stripOAuthTrailingSlash("/oauth/")).toBe("/oauth");
     expect(stripOAuthTrailingSlash("/link.json")).toBe("/link");
     expect(stripOAuthTrailingSlash("/dashboard.json")).toBeNull();
     expect(stripOAuthTrailingSlash("/api/mcp.json")).toBe("/api/mcp");
@@ -741,6 +747,7 @@ describe("stripOAuthTrailingSlash", () => {
       ),
     ).toBe("/api/mcp/.well-known/oauth-protected-resource");
     expect(isMachineOAuthPath("/mcp")).toBe(true);
+    expect(isMachineOAuthPath("/oauth")).toBe(true);
     expect(isMachineOAuthPath("/oauth/token")).toBe(true);
     expect(isMachineOAuthPath("/oauth/authorize")).toBe(false);
     expect(isHumanOAuthPath("/oauth/authorize")).toBe(true);
@@ -793,6 +800,7 @@ describe("OAuth POST routes share oauthFields", () => {
     );
     expect(middleware).toContain('"/mcp/:path*"');
     expect(middleware).toContain('"/mcp.json"');
+    expect(middleware).toContain('"/oauth.json"');
     expect(middleware).toContain('"/oauth/:path*"');
     expect(middleware).toContain('"/link.json"');
     expect(read("src/app/oauth/device/route.ts")).toContain("oauthPostOnly");
@@ -805,6 +813,8 @@ describe("OAuth POST routes share oauthFields", () => {
     );
     expect(read("src/app/api/x402/route.ts")).toContain("oauthBearer");
     expect(read("src/app/api/x402/route.ts")).toContain("oauthWwwAuthenticate");
+    expect(read("src/app/oauth/route.ts")).toContain("oauthDiscoveryMetadata");
+    expect(read("src/app/oauth/route.ts")).toContain("oauthPostOnly");
     expect(read("src/app/oauth/token/route.ts")).toContain("inferGrantType");
     expect(read("src/app/oauth/token/route.ts")).toContain("access_token: key");
     expect(read("src/app/.well-known/mcp/route.ts")).toContain("oauthJson");

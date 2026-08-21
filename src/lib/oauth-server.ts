@@ -97,10 +97,14 @@ export function oauthWwwAuthenticate(
   description?: string,
 ) {
   const origin = oauthIssuer(request);
+  const asUri = authorizationServerMetadataUrl(origin);
+  const resourceMetadata = protectedResourceMetadataUrl(origin);
   const parts = [
     `realm="${origin}"`,
-    `resource_metadata="${protectedResourceMetadataUrl(origin)}"`,
-    `as_uri="${authorizationServerMetadataUrl(origin)}"`,
+    `resource_metadata="${resourceMetadata}"`,
+    `resource_metadata_uri="${resourceMetadata}"`,
+    `as_uri="${asUri}"`,
+    `authorization_server="${asUri}"`,
     `scope="operate:read"`,
   ];
   if (error) parts.unshift(`error="${error}"`);
@@ -271,6 +275,7 @@ export function canonicalGrantType(value: string) {
   const lower = grant.toLowerCase();
   if (
     lower === DEVICE_GRANT ||
+    lower === "urn:ietf:params:oauth:grant-type:device-code" ||
     lower === "device_code" ||
     lower === "device-code" ||
     lower === "device"
@@ -281,6 +286,9 @@ export function canonicalGrantType(value: string) {
     lower === "authorization_code" ||
     lower === "authorization-code" ||
     lower === "authorization" ||
+    lower === "auth_code" ||
+    lower === "auth-code" ||
+    lower === "authcode" ||
     lower === "code"
   ) {
     return "authorization_code";

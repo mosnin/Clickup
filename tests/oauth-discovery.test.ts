@@ -9,6 +9,7 @@ import { GET as getProtectedResourceUnderMcp } from "../src/app/api/mcp/.well-kn
 import { GET as getOAuthMetadataUnderMcp } from "../src/app/api/mcp/.well-known/oauth-authorization-server/route";
 import { GET as getStart } from "../src/app/start/route";
 import { GET as getMcpDiscovery } from "../src/app/.well-known/mcp/route";
+import { GET as getOAuthIndex } from "../src/app/oauth/route";
 import {
   CANONICAL_PRODUCTION_MCP_RESOURCE,
   canonicalMcpResource,
@@ -139,6 +140,12 @@ describe("public MCP OAuth discovery", () => {
       'as_uri="https://www.operate.to/.well-known/oauth-authorization-server"',
     );
     expect(mcpWwwAuthenticate(www)).toContain('error="invalid_token"');
+    expect(mcpWwwAuthenticate(www)).toContain(
+      'authorization_server="https://www.operate.to/.well-known/oauth-authorization-server"',
+    );
+    expect(mcpWwwAuthenticate(www)).toContain(
+      'resource_metadata_uri="https://www.operate.to/.well-known/oauth-protected-resource/api/mcp"',
+    );
     const apexChallenge = new Request("https://operate.to/api/mcp");
     expect(mcpWwwAuthenticate(apexChallenge)).toContain(
       'resource_metadata="https://www.operate.to/.well-known/oauth-protected-resource/api/mcp"',
@@ -158,6 +165,7 @@ describe("public MCP OAuth discovery", () => {
     expect(byPath).toEqual(root);
     expect(underMcp).toEqual(root);
     expect(byPath.authorization_servers).toEqual(["https://www.operate.to"]);
+    expect(byPath.authorization_server).toBe("https://www.operate.to");
     expect(byPath.resource).toBe(CANONICAL_PRODUCTION_MCP_RESOURCE);
   });
 
@@ -175,6 +183,8 @@ describe("public MCP OAuth discovery", () => {
     expect(oidcPath).toEqual(oidcRoot);
     expect(asPath.token_endpoint).toBe("https://www.operate.to/oauth/token");
     expect(asPath.issuer).toBe("https://www.operate.to");
+    const index = await getOAuthIndex(request).json();
+    expect(index).toEqual(asRoot);
   });
 
   it("publishes /.well-known/mcp with a www POST URL and PRM", async () => {

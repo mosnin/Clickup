@@ -9,10 +9,12 @@ import {
 
 export function GET(request?: Request) {
   const issuer = oauthIssuer(request);
+  const authorizationServers = officialAuthorizationServers(issuer);
   return oauthJson(
     {
       resource: oauthResource(request),
-      authorization_servers: officialAuthorizationServers(issuer),
+      authorization_servers: authorizationServers,
+      authorization_server: authorizationServers[0],
       scopes_supported: [...OAUTH_SCOPES],
       resource_documentation: `${issuer}/plugins`,
       bearer_methods_supported: ["header", "query"],
