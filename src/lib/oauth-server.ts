@@ -18,10 +18,17 @@ import {
   canonicalCodeChallengeMethod,
   extractOperateCredential,
   normalizeOAuthScope,
+  operateCredentialExtra,
+  peelOperateCredential,
 } from "./oauth-slash";
 
 export { servingMcpUrl, servingOrigin };
-export { oauthCorsHeaders, oauthOptions, canonicalCodeChallengeMethod };
+export {
+  oauthCorsHeaders,
+  oauthOptions,
+  canonicalCodeChallengeMethod,
+  peelOperateCredential,
+};
 
 // RFC 8628 §3.4. Lives here rather than beside the handler that reads it,
 // because a Next route file may only export HTTP handlers and the documented
@@ -276,15 +283,7 @@ export function oauthBearer(request: Request): string {
   return extractOperateCredential(
     request.headers.get("authorization"),
     new URL(request.url).searchParams,
-    {
-      apiKey:
-        request.headers.get("x-api-key") || request.headers.get("api-key"),
-      accessToken:
-        request.headers.get("x-access-token") ||
-        request.headers.get("access-token") ||
-        request.headers.get("x-token") ||
-        request.headers.get("token"),
-    },
+    operateCredentialExtra(request.headers),
   );
 }
 

@@ -6,11 +6,15 @@ import {
   oauthFields,
   oauthOptions,
   oauthPostOnly,
+  peelOperateCredential,
 } from "@/lib/oauth-server";
 
 export async function POST(request: Request) {
   const field = await oauthFields(request);
-  const token = field("token") || oauthBearer(request);
+  const token =
+    peelOperateCredential(
+      field("token") || field("access_token") || field("api_key"),
+    ) || oauthBearer(request);
   if (token) {
     await oauthConvexClient().mutation(api.oauth.revokeToken, { token });
   }

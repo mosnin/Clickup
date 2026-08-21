@@ -7,6 +7,7 @@ import {
   oauthFields,
   oauthOptions,
   oauthWwwAuthenticate,
+  peelOperateCredential,
 } from "@/lib/oauth-server";
 import { firstFolded } from "@/lib/oauth-slash";
 
@@ -73,7 +74,12 @@ function creditsFrom(req: Request, bodyCredits?: unknown): number {
 }
 
 async function handle(req: Request): Promise<Response> {
-  const apiKey = bearer(req);
+  const field = await oauthFields(req);
+  const apiKey =
+    bearer(req) ||
+    peelOperateCredential(
+      field("api_key") || field("access_token") || field("token"),
+    );
   if (!apiKey) {
     return x402Json(
       { error: "Missing API key. Send Authorization: Bearer cua_..." },
@@ -88,8 +94,6 @@ async function handle(req: Request): Promise<Response> {
       req,
     );
   }
-
-  const field = await oauthFields(req);
 
   let credits: number;
   try {

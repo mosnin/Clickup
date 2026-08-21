@@ -521,6 +521,69 @@ describe("oauthBearer", () => {
         }),
       ),
     ).toBe("cua_x_token");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp?x-api-key=cua_x_api_query"),
+      ),
+    ).toBe("cua_x_api_query");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp?x-token=cua_x_token_query"),
+      ),
+    ).toBe("cua_x_token_query");
+    expect(
+      oauthBearer(
+        new Request(
+          "https://www.operate.to/api/mcp?x-authorization=Bearer%20cua_x_auth_query",
+        ),
+      ),
+    ).toBe("cua_x_auth_query");
+    expect(
+      oauthBearer(
+        new Request(
+          "https://www.operate.to/api/mcp?access_token=Bearer%20cua_query_peel",
+        ),
+      ),
+    ).toBe("cua_query_peel");
+    expect(
+      extractOperateCredential(undefined, undefined, {
+        bodyToken: "Bearer cua_body_peel",
+      }),
+    ).toBe("cua_body_peel");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp", {
+          headers: { "X-Authorization": "Bearer cua_x_authorization" },
+        }),
+      ),
+    ).toBe("cua_x_authorization");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp", {
+          headers: { "Proxy-Authorization": "Bearer cua_proxy" },
+        }),
+      ),
+    ).toBe("cua_proxy");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp", {
+          headers: {
+            Authorization: "Bearer eyJhbG.not-cua",
+            "X-Token": "cua_real",
+          },
+        }),
+      ),
+    ).toBe("cua_real");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp", {
+          headers: {
+            Authorization: "Bearer cua_first",
+            "X-Token": "cua_other",
+          },
+        }),
+      ),
+    ).toBe("cua_first");
     expect(canonicalGrantType("device_code")).toBe(DEVICE_GRANT);
     expect(canonicalGrantType("DEVICE_CODE")).toBe(DEVICE_GRANT);
     expect(canonicalGrantType("device")).toBe(DEVICE_GRANT);
@@ -824,7 +887,7 @@ describe("oauth CORS", () => {
       "DELETE",
     );
     expect(response.headers.get("Access-Control-Allow-Headers")).toMatch(
-      /Accept|If-None-Match|X-PAYMENT|Mcp-Protocol-Version|X-Api-Key|X-Token/,
+      /Accept|If-None-Match|X-PAYMENT|Mcp-Protocol-Version|X-Api-Key|X-Token|X-Authorization|Proxy-Authorization/,
     );
     expect(response.headers.get("Access-Control-Expose-Headers")).toMatch(
       /WWW-Authenticate/,
@@ -1170,7 +1233,8 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(register).not.toMatch(/request\.json\(/);
     const revoke = read("src/app/oauth/revoke/route.ts");
     expect(revoke).toContain("oauthBearer");
-    expect(revoke).toContain('field("token") || oauthBearer(request)');
+    expect(revoke).toContain("peelOperateCredential");
+    expect(revoke).toContain('field("token")');
     const token = read("src/app/oauth/token/route.ts");
     expect(token).toContain("oauthBasicClientId");
     expect(token).toContain(
@@ -1247,7 +1311,27 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(read("src/lib/oauth-slash.ts")).toContain(
       'firstFolded(query, "authorization")',
     );
+    expect(read("src/lib/oauth-slash.ts")).toContain(
+      'firstFolded(query, "x-api-key")',
+    );
+    expect(read("src/lib/oauth-slash.ts")).toContain(
+      'firstFolded(query, "x-token")',
+    );
+    expect(read("src/lib/oauth-slash.ts")).toContain(
+      'firstFolded(query, "x-authorization")',
+    );
     expect(read("src/lib/oauth-slash.ts")).toContain('headers.get("x-token")');
+    expect(read("src/lib/oauth-slash.ts")).toContain(
+      'headers.get("x-authorization")',
+    );
+    expect(read("src/lib/oauth-slash.ts")).toContain(
+      'headers.get("proxy-authorization")',
+    );
+    expect(read("src/lib/oauth-slash.ts")).toContain("peelOperateCredential");
+    expect(read("src/app/oauth/userinfo/route.ts")).toContain(
+      "peelOperateCredential",
+    );
+    expect(read("src/app/api/x402/route.ts")).toContain("peelOperateCredential");
     expect(read("src/app/.well-known/host-meta/route.ts")).toContain(
       "export function GET(request: Request)",
     );

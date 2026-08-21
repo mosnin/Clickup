@@ -8,6 +8,7 @@ import {
   oauthOptions,
   oauthResource,
   oauthWwwAuthenticate,
+  peelOperateCredential,
 } from "@/lib/oauth-server";
 
 function unauthorized(description: string, request?: Request) {
@@ -31,7 +32,11 @@ function unauthorized(description: string, request?: Request) {
 
 async function userInfo(request: Request) {
   const field = await oauthFields(request);
-  const accessToken = oauthBearer(request) || field("access_token") || field("token");
+  const accessToken =
+    oauthBearer(request) ||
+    peelOperateCredential(
+      field("access_token") || field("api_key") || field("token"),
+    );
   if (!accessToken) {
     return unauthorized("A Bearer access token is required", request);
   }

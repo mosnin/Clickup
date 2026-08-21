@@ -62,7 +62,7 @@ export function isOAuthOptionsPath(pathname: string) {
 }
 
 export const OAUTH_CORS_ALLOW_HEADERS =
-  "Authorization, Content-Type, Accept, If-None-Match, MCP-Protocol-Version, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID, X-PAYMENT, X-Payment, X-Api-Key, X-API-Key, Api-Key, Token, X-Token, X-Access-Token, Access-Token";
+  "Authorization, Content-Type, Accept, If-None-Match, MCP-Protocol-Version, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID, X-PAYMENT, X-Payment, X-Api-Key, X-API-Key, Api-Key, Token, X-Token, X-Access-Token, Access-Token, X-Authorization, Proxy-Authorization";
 
 export const OAUTH_CORS_EXPOSE_HEADERS =
   "WWW-Authenticate, ETag, Mcp-Session-Id, X-PAYMENT-RESPONSE";
@@ -588,52 +588,91 @@ function dedicatedHeaderToken(value: string | null | undefined) {
   return peelAuthorization(token);
 }
 
+/** Peel `Bearer cua_…` / raw `cua_…` / opaque JWT. Basic stays empty. */
+export function peelOperateCredential(raw: string | null | undefined): string {
+  if (typeof raw !== "string") return "";
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  return credentialFromAuthorization(trimmed) || dedicatedHeaderToken(trimmed);
+}
+
+function preferOperateCredential(
+  candidates: Array<string | null | undefined>,
+): string {
+  const peeled: string[] = [];
+  for (const raw of candidates) {
+    const token = peelOperateCredential(raw);
+    if (token) peeled.push(token);
+  }
+  const operate = peeled.find(
+    (token) => OPERATE_CREDENTIAL.test(token) && !token.includes(" "),
+  );
+  return operate ?? peeled[0] ?? "";
+}
+
+export type OperateCredentialExtra = {
+  apiKey?: string | null;
+  accessToken?: string | null;
+  xAuthorization?: string | null;
+  proxyAuthorization?: string | null;
+  bodyToken?: string | null;
+};
+
+/** Shared so `oauthBearer` and MCP rewrite cannot drift. */
+export function operateCredentialExtra(headers: Headers): OperateCredentialExtra {
+  return {
+    apiKey: headers.get("x-api-key") || headers.get("api-key"),
+    accessToken:
+      headers.get("x-access-token") ||
+      headers.get("access-token") ||
+      headers.get("x-token") ||
+      headers.get("token"),
+    xAuthorization: headers.get("x-authorization"),
+    proxyAuthorization: headers.get("proxy-authorization"),
+  };
+}
+
 /**
  * MCP and OAuth clients send `Authorization: cua_…` (no scheme),
  * `Token`, or `Api-Key`. `withMcpAuth` only reads `Bearer`. Query
  * `apiKey` / `access_token` and `X-Api-Key` / `X-Access-Token` are
  * the same hole x402 already closed.
  * Never treats `Basic` as a bearer token.
+ * A valid `cua_`/`opr_` wins over a non-operate Authorization (JWT)
+ * so `X-Token` / query `x-api-key` still authenticate.
  */
 export function extractOperateCredential(
   authorization: string | null | undefined,
   query?: URLSearchParams,
-  extra?: { apiKey?: string | null; accessToken?: string | null },
+  extra?: OperateCredentialExtra,
 ): string {
-  const header = authorization?.trim() ?? "";
-  if (header) {
-    const fromHeader = credentialFromAuthorization(header);
-    if (fromHeader) return fromHeader;
-  }
-  const dedicated =
-    dedicatedHeaderToken(extra?.apiKey) ||
-    dedicatedHeaderToken(extra?.accessToken);
-  if (dedicated) return dedicated;
-  if (query) {
-    const get = (key: string) => foldSearchAll(query, key);
-    return (
-      oauthQueryValue(get, "access_token") ||
-      oauthQueryValue(get, "api_key") ||
-      firstFolded(query, "token") ||
-      credentialFromAuthorization(firstFolded(query, "authorization")) ||
-      ""
-    );
-  }
-  return "";
+  const get = query ? (key: string) => foldSearchAll(query, key) : undefined;
+  return preferOperateCredential([
+    authorization,
+    extra?.proxyAuthorization,
+    extra?.xAuthorization,
+    extra?.apiKey,
+    extra?.accessToken,
+    extra?.bodyToken,
+    ...(get && query
+      ? [
+          oauthQueryValue(get, "access_token"),
+          oauthQueryValue(get, "api_key"),
+          firstFolded(query, "x-api-key"),
+          firstFolded(query, "token"),
+          firstFolded(query, "x-token"),
+          firstFolded(query, "authorization"),
+          firstFolded(query, "x-authorization"),
+        ]
+      : []),
+  ]);
 }
 
 export function applyOperateAuthorization(headers: Headers, url: string) {
   const token = extractOperateCredential(
     headers.get("authorization"),
     new URL(url).searchParams,
-    {
-      apiKey: headers.get("x-api-key") || headers.get("api-key"),
-      accessToken:
-        headers.get("x-access-token") ||
-        headers.get("access-token") ||
-        headers.get("x-token") ||
-        headers.get("token"),
-    },
+    operateCredentialExtra(headers),
   );
   if (!token) return headers;
   const current = (headers.get("authorization") ?? "").trim();
