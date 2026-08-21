@@ -410,6 +410,24 @@ describe("oauthBearer", () => {
       ),
     ).toBe("cua_after_jwt_auth");
     expect(
+      extractOperateCredential("Bearer eyJhbG.not-cua, cua_after_comma"),
+    ).toBe("cua_after_comma");
+    const dupKey = new Headers();
+    dupKey.append("X-Api-Key", "Bearer eyJhbG.not-cua");
+    dupKey.append("X-Api-Key", "cua_dup_header");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp", { headers: dupKey }),
+      ),
+    ).toBe("cua_dup_header");
+    expect(
+      oauthBearer(
+        new Request(
+          "https://www.operate.to/api/mcp?access_token=eyJhbG.not-cua&access_token=cua_dup_query",
+        ),
+      ),
+    ).toBe("cua_dup_query");
+    expect(
       operateRequestCredential(
         new Request("https://www.operate.to/oauth/userinfo", {
           method: "POST",

@@ -418,6 +418,37 @@ export function firstFolded(
   return Array.isArray(raw) ? (raw[0] ?? "") : raw;
 }
 
+function allFolded(
+  params: { forEach: (cb: (value: string, key: string) => void) => void },
+  key: string,
+): string[] {
+  const raw = foldSearchAll(params, key);
+  return Array.isArray(raw) ? raw.filter((item) => item.length > 0) : raw ? [raw] : [];
+}
+
+const CREDENTIAL_QUERY_NAMES = [
+  "access_token",
+  "api_key",
+  "token",
+  "x-api-key",
+  "x-api-token",
+  "x-token",
+  "authorization",
+  "x-authorization",
+] as const;
+
+function queryCredentialCandidates(query: URLSearchParams): string[] {
+  const get = (key: string) => foldSearchAll(query, key);
+  const out: string[] = [];
+  for (const name of CREDENTIAL_QUERY_NAMES) {
+    for (const alias of oauthFieldAliases(name)) {
+      out.push(...oauthFieldStrings(get(alias)));
+    }
+    out.push(...allFolded(query, name));
+  }
+  return out;
+}
+
 export function oauthParamGet(
   params: Record<string, string | string[] | undefined>,
 ): (name: string) => string | string[] | undefined {
@@ -536,7 +567,7 @@ const OPERATE_CREDENTIAL = /^(cua_|opa_|opr_|opc_|opd_)/i;
 const AUTH_SCHEME_PREFIX =
   /^(Bearer|Token|Api-?Key|ApiKey)(?:\s*:\s*|\s+)/i;
 const AUTH_PART =
-  /,(?=\s*(?:Bearer|Token|Api-?Key|ApiKey|Basic)(?:\s*:\s*|\s+))/i;
+  /,(?=\s*(?:(?:Bearer|Token|Api-?Key|ApiKey|Basic)(?:\s*:\s*|\s+)|(?:cua_|opa_|opr_|opc_|opd_)))/i;
 const BASIC_PREFIX = /^Basic(?:\s*:\s*|\s+)/i;
 
 /** `Bearer "cua_…"`, `Token token=cua_…`. Never applied to Basic. */
@@ -684,7 +715,6 @@ export function extractOperateCredential(
   query?: URLSearchParams,
   extra?: OperateCredentialExtra,
 ): string {
-  const get = query ? (key: string) => foldSearchAll(query, key) : undefined;
   return preferOperateCredential([
     authorization,
     extra?.proxyAuthorization,
@@ -694,16 +724,15 @@ export function extractOperateCredential(
     extra?.accessToken,
     extra?.bodyToken,
     ...(extra?.extraTokens ?? []),
-    ...(get && query
+    ...(query
       ? [
-          oauthQueryValue(get, "access_token"),
-          oauthQueryValue(get, "api_key"),
           firstFolded(query, "x-api-key"),
           firstFolded(query, "x-api-token"),
           firstFolded(query, "token"),
           firstFolded(query, "x-token"),
           firstFolded(query, "authorization"),
           firstFolded(query, "x-authorization"),
+          ...queryCredentialCandidates(query),
         ]
       : []),
   ]);
