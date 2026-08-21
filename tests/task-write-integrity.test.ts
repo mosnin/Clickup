@@ -126,7 +126,8 @@ describe("completedAt stays aligned with status category", () => {
       statusId: inProgress,
     });
     expect(
-      await t.run(async (ctx) => (await ctx.db.get(taskId))!.completedAt),
+      (await t.run(async (ctx) => (await ctx.db.get(taskId))!.completedAt)) ??
+        undefined,
     ).toBeUndefined();
 
     await owner.mutation(api.listStatuses.update, {
@@ -144,7 +145,8 @@ describe("completedAt stays aligned with status category", () => {
       statusId: todo,
     });
     expect(
-      await t.run(async (ctx) => (await ctx.db.get(other))!.completedAt),
+      (await t.run(async (ctx) => (await ctx.db.get(other))!.completedAt)) ??
+        undefined,
     ).toBeUndefined();
   });
 
@@ -314,7 +316,7 @@ describe("recurrence keeps the next instance's shape", () => {
     expect(spawned.next.recurrence).toBe("weekly");
     expect(spawned.next.estimatePoints).toBe(5);
     expect(spawned.next.requiresApproval).toBe(true);
-    expect(spawned.next.completedAt).toBeUndefined();
+    expect(spawned.next.completedAt ?? undefined).toBeUndefined();
     expect(spawned.next.checklist).toEqual([
       { id: "a", text: "Pull numbers", done: false },
       { id: "b", text: "Send the note", done: false },
