@@ -23,6 +23,8 @@ export function isMachineOAuthPath(pathname: string) {
     pathname === "/oauth/userinfo" ||
     pathname === "/api/mcp" ||
     pathname.startsWith("/api/mcp/") ||
+    pathname === "/mcp" ||
+    pathname.startsWith("/mcp/") ||
     pathname === "/api/x402" ||
     pathname.startsWith("/api/x402/") ||
     pathname === "/api/agent" ||
@@ -68,20 +70,27 @@ export const OAUTH_CORS_EXPOSE_HEADERS =
  * Edge middleware can answer OPTIONS without importing `oauth-server`
  * (`node:crypto` / Convex).
  */
-export function oauthCorsHeaders() {
+export function mergeAllowHeaders(requested: string | null | undefined) {
+  if (!requested?.trim()) return OAUTH_CORS_ALLOW_HEADERS;
+  return `${OAUTH_CORS_ALLOW_HEADERS}, ${requested}`;
+}
+
+export function oauthCorsHeaders(request?: Request) {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": OAUTH_CORS_ALLOW_HEADERS,
+    "Access-Control-Allow-Headers": mergeAllowHeaders(
+      request?.headers.get("access-control-request-headers"),
+    ),
     "Access-Control-Expose-Headers": OAUTH_CORS_EXPOSE_HEADERS,
     "Access-Control-Max-Age": "86400",
   };
 }
 
-export function oauthOptions() {
+export function oauthOptions(request?: Request) {
   return new Response(null, {
     status: 204,
-    headers: oauthCorsHeaders(),
+    headers: oauthCorsHeaders(request),
   });
 }
 
@@ -100,12 +109,15 @@ export function isMcpBrowserOrigin(origin: string | null) {
     host === "chatgpt.com" ||
     host === "www.chatgpt.com" ||
     host === "chat.openai.com" ||
+    host === "platform.openai.com" ||
     host === "claude.ai" ||
     host === "www.claude.ai" ||
     host === "claude.com" ||
     host === "www.claude.com" ||
     host === "cursor.com" ||
-    host === "www.cursor.com"
+    host === "www.cursor.com" ||
+    host === "cursor.sh" ||
+    host === "www.cursor.sh"
   ) {
     return true;
   }
@@ -113,7 +125,8 @@ export function isMcpBrowserOrigin(origin: string | null) {
     host.endsWith(".chatgpt.com") ||
     host.endsWith(".claude.ai") ||
     host.endsWith(".claude.com") ||
-    host.endsWith(".cursor.com")
+    host.endsWith(".cursor.com") ||
+    host.endsWith(".cursor.sh")
   );
 }
 
@@ -124,19 +137,33 @@ export function isMcpBrowserOrigin(origin: string | null) {
  * even from `www.chatgpt.com`, localhost inspector, or a new subdomain
  * we have not listed yet.
  */
+export function isMcpAuthChallenge(response: Response) {
+  return (
+    response.status === 401 ||
+    response.status === 403 ||
+    response.headers.has("WWW-Authenticate")
+  );
+}
+
 export function applyMcpCors(req: Request, response: Response) {
   const origin = req.headers.get("origin");
   const known = isMcpBrowserOrigin(origin);
-  const open = req.method === "OPTIONS" || response.status === 401;
+  const open = req.method === "OPTIONS" || isMcpAuthChallenge(response);
   if (!open && !known) return response;
 
   const headers = new Headers(response.headers);
-  headers.set(
-    "Access-Control-Allow-Origin",
-    known && origin ? origin : origin && open ? origin : "*",
-  );
+  const allowOrigin = origin && (known || open) ? origin : "*";
+  headers.set("Access-Control-Allow-Origin", allowOrigin);
+  if (allowOrigin !== "*") {
+    // credentials:include is how some browser MCP clients send the
+    // preflight; * + Allow-Credentials is illegal and hides 401.
+    headers.set("Access-Control-Allow-Credentials", "true");
+  }
   headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-  headers.set("Access-Control-Allow-Headers", OAUTH_CORS_ALLOW_HEADERS);
+  headers.set(
+    "Access-Control-Allow-Headers",
+    mergeAllowHeaders(req.headers.get("access-control-request-headers")),
+  );
   headers.set("Access-Control-Expose-Headers", OAUTH_CORS_EXPOSE_HEADERS);
   headers.set("Access-Control-Max-Age", "86400");
   headers.append("Vary", "Origin");
@@ -178,7 +205,7 @@ export async function readAuthorizeParams(request: Request) {
     try {
       const form = await request.formData();
       for (const [key, value] of form.entries()) {
-        if (typeof value === "string") setIfEmpty(key, value);
+        if (typeof value === "string") setIfEmpty(canonicalOAuthKey(key), value);
       }
     } catch {
       // Fall through with query only.
@@ -188,15 +215,22 @@ export async function readAuthorizeParams(request: Request) {
   const text = (await request.text().catch(() => "")).replace(/^\uFEFF/, "").trim();
   if (
     contentType.includes("application/json") ||
+    contentType.includes("text/json") ||
+    contentType.includes("+json") ||
     text.startsWith("{") ||
     text.startsWith("[")
   ) {
     try {
-      const record = asJsonRecord(JSON.parse(text) as unknown);
+      const record = asJsonRecord(parseJsonBody(text));
       if (record) {
         for (const [key, value] of Object.entries(record)) {
           if (value === undefined || value === null) continue;
-          setIfEmpty(key, typeof value === "string" ? value : String(value));
+          const first = Array.isArray(value) ? value[0] : value;
+          if (first === undefined || first === null) continue;
+          setIfEmpty(
+            canonicalOAuthKey(key),
+            typeof first === "string" ? first : String(first),
+          );
         }
         return merged;
       }
@@ -205,8 +239,64 @@ export async function readAuthorizeParams(request: Request) {
     }
   }
   const params = new URLSearchParams(text);
-  for (const [key, value] of params.entries()) setIfEmpty(key, value);
+  for (const [key, value] of params.entries()) {
+    setIfEmpty(canonicalOAuthKey(key), value);
+  }
   return merged;
+}
+
+const OAUTH_KEY_ALIASES: Record<string, string> = {
+  clientId: "client_id",
+  clientName: "client_name",
+  redirectUri: "redirect_uri",
+  redirectUris: "redirect_uris",
+  grantType: "grant_type",
+  deviceCode: "device_code",
+  userCode: "user_code",
+  refreshToken: "refresh_token",
+  accessToken: "access_token",
+  codeVerifier: "code_verifier",
+  codeChallenge: "code_challenge",
+  codeChallengeMethod: "code_challenge_method",
+  tokenTypeHint: "token_type_hint",
+};
+
+export function canonicalOAuthKey(key: string) {
+  const stripped = key.replace(/\[\d*\]$/, "");
+  return OAUTH_KEY_ALIASES[stripped] ?? stripped;
+}
+
+/** snake_case plus the camelCase / PHP `[]` names JS and PHP clients send. */
+export function oauthFieldAliases(name: string) {
+  const aliases = [name, `${name}[]`, `${name}[0]`];
+  for (const [camel, snake] of Object.entries(OAUTH_KEY_ALIASES)) {
+    if (snake === name) aliases.push(camel, `${camel}[]`, `${camel}[0]`);
+  }
+  if (name === "token") {
+    aliases.push(
+      "access_token",
+      "refresh_token",
+      "accessToken",
+      "refreshToken",
+    );
+  }
+  return aliases;
+}
+
+/** A proxy sometimes JSON.stringifies an already-encoded object. */
+export function parseJsonBody(text: string): unknown {
+  let value: unknown = JSON.parse(text);
+  if (typeof value === "string") {
+    const inner = value.trim();
+    if (inner.startsWith("{") || inner.startsWith("[")) {
+      try {
+        value = JSON.parse(inner);
+      } catch {
+        // Keep the string.
+      }
+    }
+  }
+  return value;
 }
 
 export function isOAuthSlashRewritePath(pathname: string) {
@@ -225,6 +315,11 @@ export function stripOAuthTrailingSlash(pathname: string) {
     collapsed.length > 1 && collapsed.endsWith("/")
       ? collapsed.slice(0, -1)
       : collapsed;
+  let next = stripped;
+  // Clients that guess the MCP default path (`/mcp`) used to 404.
+  if (next === "/mcp") next = "/api/mcp";
+  else if (next.startsWith("/mcp/")) next = `/api/mcp/${next.slice("/mcp/".length)}`;
+  if (next !== pathname && isOAuthSlashRewritePath(next)) return next;
   if (stripped === pathname) return null;
   if (isOAuthSlashRewritePath(stripped)) return stripped;
   return null;

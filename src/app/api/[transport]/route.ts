@@ -3235,7 +3235,11 @@ async function guarded(req: Request): Promise<Response> {
         ? chatgptAuthHandler
         : authHandler;
   const response = await selectedHandler(transportRequest);
-  if (response.status !== 401) return withCors(req, response);
+  const challenge =
+    response.status === 401 ||
+    response.status === 403 ||
+    response.headers.has("WWW-Authenticate");
+  if (!challenge) return withCors(req, response);
   const headers = new Headers(response.headers);
   headers.set("WWW-Authenticate", mcpWwwAuthenticate(req));
   return withCors(

@@ -7,7 +7,13 @@ import {
   servingOrigin,
   validateMcpResource,
 } from "./oauth-resource";
-import { oauthCorsHeaders, oauthOptions } from "./oauth-slash";
+import {
+  oauthCorsHeaders,
+  oauthFieldAliases,
+  oauthOptions,
+  parseJsonBody,
+  canonicalOAuthKey,
+} from "./oauth-slash";
 
 export { servingMcpUrl, servingOrigin };
 export { oauthCorsHeaders, oauthOptions };
@@ -164,7 +170,7 @@ export async function oauthFields(
   const looksJson = trimmed.startsWith("{") || trimmed.startsWith("[");
   if (labelledJson || looksJson) {
     try {
-      const record = asJsonRecord(JSON.parse(trimmed) as unknown);
+      const record = asJsonRecord(parseJsonBody(trimmed));
       if (record) {
         return withQuery((name) => phpRecordString(record, name));
       }
@@ -177,13 +183,8 @@ export async function oauthFields(
   return withQuery((name) => phpFieldString((key) => params.get(key) ?? "", name));
 }
 
-/** PHP / Rails clients send `token[]` / `token[0]` for a scalar field. */
-function phpFieldNames(name: string) {
-  return [name, `${name}[]`, `${name}[0]`];
-}
-
 function phpFieldString(get: (name: string) => string, name: string) {
-  for (const key of phpFieldNames(name)) {
+  for (const key of oauthFieldAliases(name)) {
     const value = get(key);
     if (value) return value;
   }
@@ -191,7 +192,7 @@ function phpFieldString(get: (name: string) => string, name: string) {
 }
 
 function phpRecordString(record: Record<string, unknown>, name: string) {
-  for (const key of phpFieldNames(name)) {
+  for (const key of oauthFieldAliases(name)) {
     const value = record[key];
     if (value === undefined || value === null) continue;
     if (Array.isArray(value)) {
@@ -266,14 +267,11 @@ function coerceRedirectUris(value: unknown): string[] | undefined {
 }
 
 function formRedirectKey(key: string) {
-  if (
-    key === "redirect_uri" ||
-    key === "redirect_uris[]" ||
-    /^redirect_uris\[\d+\]$/.test(key)
-  ) {
+  const canonical = canonicalOAuthKey(key);
+  if (canonical === "redirect_uri" || canonical === "redirect_uris") {
     return "redirect_uris";
   }
-  return key;
+  return canonical;
 }
 
 function withRedirectUris(record: Record<string, unknown>) {
@@ -352,12 +350,20 @@ export async function oauthJsonObject(
   }
   const text = (await request.text().catch(() => "")).replace(/^\uFEFF/, "").trim();
   try {
-    const record = asJsonRecord(JSON.parse(text) as unknown);
-    if (record) return withRedirectUris(record);
+    const record = asJsonRecord(parseJsonBody(text));
+    if (record) return withRedirectUris(canonicalizeOAuthRecord(record));
   } catch {
     // Fall through: some DCR clients POST form-urlencoded.
   }
   return formClientMetadata(text);
+}
+
+function canonicalizeOAuthRecord(record: Record<string, unknown>) {
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(record)) {
+    next[canonicalOAuthKey(key)] = value;
+  }
+  return next;
 }
 
 export function oauthConvexClient() {

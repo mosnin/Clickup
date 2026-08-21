@@ -1,7 +1,9 @@
 import { api } from "@convex/_generated/api";
 import {
+  oauthBearer,
   oauthConvexClient,
   oauthCorsHeaders,
+  oauthFields,
   oauthJson,
   oauthOptions,
   oauthResource,
@@ -22,14 +24,14 @@ function unauthorized(description: string) {
   );
 }
 
-export async function GET(request: Request) {
-  const authorization = request.headers.get("authorization") ?? "";
-  const match = authorization.match(/^Bearer\s+(.+)$/i);
-  if (!match) return unauthorized("A Bearer access token is required");
+async function userInfo(request: Request) {
+  const field = await oauthFields(request);
+  const accessToken = oauthBearer(request) || field("access_token") || field("token");
+  if (!accessToken) return unauthorized("A Bearer access token is required");
 
   try {
     const result = await oauthConvexClient().query(api.oauth.userInfo, {
-      accessToken: match[1],
+      accessToken,
       resource: oauthResource(),
     });
     return oauthJson({
@@ -43,6 +45,14 @@ export async function GET(request: Request) {
       error instanceof Error ? error.message : "The access token is invalid",
     );
   }
+}
+
+export async function GET(request: Request) {
+  return userInfo(request);
+}
+
+export async function POST(request: Request) {
+  return userInfo(request);
 }
 
 export function OPTIONS() {

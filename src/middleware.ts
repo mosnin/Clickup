@@ -57,7 +57,10 @@ export default async function middleware(req: NextRequest, event: never) {
   // fails CORS preflight). Machine OPTIONS are answered here too so a
   // slashed URL never 404s the preflight.
   if (req.method === "OPTIONS" && isOAuthOptionsPath(path)) {
-    return new NextResponse(null, { status: 204, headers: oauthCorsHeaders() });
+    return new NextResponse(null, {
+      status: 204,
+      headers: oauthCorsHeaders(req),
+    });
   }
   // POST authorize is a 404 today (page is GET-only). 303 to GET with the
   // body as query — not 308, which would drop the body.

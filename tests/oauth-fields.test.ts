@@ -149,6 +149,39 @@ describe("oauthFields", () => {
     expect(field("token")).toBe("opr_array");
   });
 
+  it("reads camelCase JSON and a double-encoded JSON string", async () => {
+    const camel = await oauthFields(
+      new Request("https://www.operate.to/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          grantType: "refresh_token",
+          refreshToken: "opr_camel",
+          clientId: "opc_js",
+        }),
+      }),
+    );
+    expect(camel("grant_type")).toBe("refresh_token");
+    expect(camel("refresh_token")).toBe("opr_camel");
+    expect(camel("client_id")).toBe("opc_js");
+    const doubled = await oauthFields(
+      new Request("https://www.operate.to/oauth/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(JSON.stringify({ token: "opr_double" })),
+      }),
+    );
+    expect(doubled("token")).toBe("opr_double");
+    const aliased = await oauthFields(
+      new Request("https://www.operate.to/oauth/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: "opr_access" }),
+      }),
+    );
+    expect(aliased("token")).toBe("opr_access");
+  });
+
   it("reads PHP-style token[] and a one-element JSON array value", async () => {
     const form = await oauthFields(
       new Request("https://www.operate.to/oauth/revoke", {
@@ -207,6 +240,23 @@ describe("oauthJsonObject", () => {
       }),
     );
     expect(body).toMatchObject({ client_name: "Claude" });
+  });
+
+  it("accepts camelCase DCR clientName and redirectUris", async () => {
+    const body = await oauthJsonObject(
+      new Request("https://www.operate.to/oauth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientName: "Cursor",
+          redirectUris: ["https://cursor.com/oauth/callback"],
+        }),
+      }),
+    );
+    expect(body).toMatchObject({
+      client_name: "Cursor",
+      redirect_uris: ["https://cursor.com/oauth/callback"],
+    });
   });
 
   it("treats redirect_uris[] and redirect_uri as redirect_uris", async () => {
@@ -361,7 +411,10 @@ describe("MCP browser CORS", () => {
     expect(isMcpBrowserOrigin("http://127.0.0.1:3000")).toBe(true);
     expect(isMcpBrowserOrigin("https://workspace.claude.ai")).toBe(true);
     expect(isMcpBrowserOrigin("https://www.cursor.com")).toBe(true);
+    expect(isMcpBrowserOrigin("https://platform.openai.com")).toBe(true);
+    expect(isMcpBrowserOrigin("https://cursor.sh")).toBe(true);
     expect(isMcpBrowserOrigin("https://evil.example")).toBe(false);
+    expect(isMcpBrowserOrigin("https://api.openai.com")).toBe(false);
     expect(isOAuthOptionsPath("/oauth/authorize")).toBe(true);
     expect(isOAuthOptionsPath("/oauth/token")).toBe(true);
     expect(isOAuthOptionsPath("/dashboard")).toBe(false);
@@ -394,6 +447,32 @@ describe("MCP browser CORS", () => {
     expect(unknown401.headers.get("Access-Control-Expose-Headers")).toMatch(
       /WWW-Authenticate/,
     );
+    expect(unknown401.headers.get("Access-Control-Allow-Credentials")).toBe(
+      "true",
+    );
+
+    const forbidden = applyMcpCors(
+      new Request("https://www.operate.to/api/mcp", {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://www.chatgpt.com",
+          "Access-Control-Request-Headers": "X-Client-Extra, Authorization",
+        },
+      }),
+      new Response(null, {
+        status: 403,
+        headers: { "WWW-Authenticate": 'Bearer error="insufficient_scope"' },
+      }),
+    );
+    expect(forbidden.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://www.chatgpt.com",
+    );
+    expect(forbidden.headers.get("Access-Control-Expose-Headers")).toMatch(
+      /WWW-Authenticate/,
+    );
+    expect(forbidden.headers.get("Access-Control-Allow-Headers")).toMatch(
+      /X-Client-Extra/i,
+    );
 
     const blocked200 = applyMcpCors(
       new Request("https://www.operate.to/api/mcp", {
@@ -422,6 +501,20 @@ describe("readAuthorizeParams", () => {
     expect(params.get("client_id")).toBe("opc_test");
     expect(params.get("code_challenge_method")).toBe("S256");
     expect(isAuthorizePath("/oauth/authorize/")).toBe(true);
+    const camel = await readAuthorizeParams(
+      new Request("https://www.operate.to/oauth/authorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: "opc_js",
+          redirectUri: "https://chatgpt.com/connector_platform_oauth_redirect",
+          codeChallenge: "abc",
+          codeChallengeMethod: "S256",
+        }),
+      }),
+    );
+    expect(camel.get("client_id")).toBe("opc_js");
+    expect(camel.get("code_challenge_method")).toBe("S256");
   });
 });
 
@@ -463,6 +556,12 @@ describe("stripOAuthTrailingSlash", () => {
     expect(stripOAuthTrailingSlash("/api/agent/manifest/")).toBe(
       "/api/agent/manifest",
     );
+    expect(stripOAuthTrailingSlash("/mcp")).toBe("/api/mcp");
+    expect(stripOAuthTrailingSlash("/mcp/")).toBe("/api/mcp");
+    expect(
+      stripOAuthTrailingSlash("/mcp/.well-known/oauth-protected-resource"),
+    ).toBe("/api/mcp/.well-known/oauth-protected-resource");
+    expect(isMachineOAuthPath("/mcp")).toBe(true);
     expect(isMachineOAuthPath("/oauth/token")).toBe(true);
     expect(isMachineOAuthPath("/oauth/authorize")).toBe(false);
     expect(isHumanOAuthPath("/oauth/authorize")).toBe(true);
@@ -507,6 +606,7 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(middleware).toContain("303");
     expect(middleware).toContain("isOAuthOptionsPath");
     expect(middleware).toContain('req.method === "OPTIONS"');
+    expect(middleware).toContain("oauthCorsHeaders(req)");
     expect(middleware.indexOf("isOAuthOptionsPath")).toBeLessThan(
       middleware.indexOf("return clerk(req, event)"),
     );
@@ -524,7 +624,11 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(
       read("src/app/.well-known/openai-apps-challenge/route.ts"),
     ).toContain("oauthOptions");
+    expect(read("src/app/oauth/userinfo/route.ts")).toContain("export async function POST");
     expect(read("src/app/api/[transport]/route.ts")).toContain("applyMcpCors");
+    expect(read("src/app/api/[transport]/route.ts")).toContain(
+      "response.status === 403",
+    );
     expect(read("src/app/api/[transport]/route.ts")).not.toContain(
       "MCP_BROWSER_ORIGINS",
     );
