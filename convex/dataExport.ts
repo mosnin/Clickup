@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { requireIdentity } from "./_authz";
+import { canAccessSpace, requireIdentity } from "./_authz";
 
 // Workspace data export — portability + compliance. An owner/admin can
 // export their workspace's structure and task data as a single JSON
@@ -123,6 +123,10 @@ export const exportWorkspace = query({
 
     const spaceNodes = [];
     for (const space of spaces) {
+      // Private spaces the caller cannot enter are not theirs to export —
+      // workspace admin is not enough if they are not the creator, a
+      // listed member, or the workspace owner.
+      if (!(await canAccessSpace(ctx, space, identity))) continue;
       const projects = await ctx.db
         .query("projects")
         .withIndex("by_space", (q) => q.eq("spaceId", space._id))
