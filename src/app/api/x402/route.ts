@@ -2,12 +2,11 @@ import { ConvexHttpClient } from "convex/browser";
 import type { FunctionReference } from "convex/server";
 import { api } from "@convex/_generated/api";
 import {
-  oauthBearer,
   oauthCorsHeaders,
   oauthFields,
   oauthOptions,
   oauthWwwAuthenticate,
-  peelOperateCredential,
+  operateRequestCredential,
 } from "@/lib/oauth-server";
 import { firstFolded } from "@/lib/oauth-slash";
 
@@ -36,8 +35,8 @@ function asAction(ref: unknown): FunctionReference<"action"> {
   return ref as FunctionReference<"action">;
 }
 
-function bearer(req: Request): string | null {
-  return oauthBearer(req) || null;
+function bearer(req: Request, bodyToken?: string | null): string | null {
+  return operateRequestCredential(req, bodyToken) || null;
 }
 
 function x402Json(
@@ -75,11 +74,10 @@ function creditsFrom(req: Request, bodyCredits?: unknown): number {
 
 async function handle(req: Request): Promise<Response> {
   const field = await oauthFields(req);
-  const apiKey =
-    bearer(req) ||
-    peelOperateCredential(
-      field("api_key") || field("access_token") || field("token"),
-    );
+  const apiKey = bearer(
+    req,
+    field("api_key") || field("access_token") || field("token"),
+  );
   if (!apiKey) {
     return x402Json(
       { error: "Missing API key. Send Authorization: Bearer cua_..." },

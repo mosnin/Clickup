@@ -16,9 +16,8 @@ import {
   parseJsonBody,
   canonicalOAuthKey,
   canonicalCodeChallengeMethod,
-  extractOperateCredential,
   normalizeOAuthScope,
-  operateCredentialExtra,
+  operateRequestCredential,
   peelOperateCredential,
 } from "./oauth-slash";
 
@@ -28,6 +27,7 @@ export {
   oauthOptions,
   canonicalCodeChallengeMethod,
   peelOperateCredential,
+  operateRequestCredential,
 };
 
 // RFC 8628 §3.4. Lives here rather than beside the handler that reads it,
@@ -280,11 +280,7 @@ function phpRecordString(record: Record<string, unknown>, name: string) {
 
 /** RFC 7009 puts `token` in the body; some logout clients send Bearer only. */
 export function oauthBearer(request: Request): string {
-  return extractOperateCredential(
-    request.headers.get("authorization"),
-    new URL(request.url).searchParams,
-    operateCredentialExtra(request.headers),
-  );
+  return operateRequestCredential(request);
 }
 
 /** `device_code` is the short name clients send instead of the RFC 8628 URN. */

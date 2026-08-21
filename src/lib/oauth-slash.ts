@@ -62,7 +62,7 @@ export function isOAuthOptionsPath(pathname: string) {
 }
 
 export const OAUTH_CORS_ALLOW_HEADERS =
-  "Authorization, Content-Type, Accept, If-None-Match, MCP-Protocol-Version, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID, X-PAYMENT, X-Payment, X-Api-Key, X-API-Key, Api-Key, Token, X-Token, X-Access-Token, Access-Token, X-Authorization, Proxy-Authorization";
+  "Authorization, Content-Type, Accept, If-None-Match, MCP-Protocol-Version, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID, X-PAYMENT, X-Payment, X-Api-Key, X-API-Key, Api-Key, Token, X-Token, X-Access-Token, Access-Token, X-Authorization, Proxy-Authorization, X-Api-Token, Authorization-Alias";
 
 export const OAUTH_CORS_EXPOSE_HEADERS =
   "WWW-Authenticate, ETag, Mcp-Session-Id, X-PAYMENT-RESPONSE";
@@ -619,13 +619,18 @@ export type OperateCredentialExtra = {
   accessToken?: string | null;
   xAuthorization?: string | null;
   proxyAuthorization?: string | null;
+  authorizationAlias?: string | null;
   bodyToken?: string | null;
 };
 
 /** Shared so `oauthBearer` and MCP rewrite cannot drift. */
 export function operateCredentialExtra(headers: Headers): OperateCredentialExtra {
   return {
-    apiKey: headers.get("x-api-key") || headers.get("api-key"),
+    apiKey:
+      headers.get("x-api-key") ||
+      headers.get("api-key") ||
+      headers.get("x-api-token") ||
+      headers.get("api-token"),
     accessToken:
       headers.get("x-access-token") ||
       headers.get("access-token") ||
@@ -633,7 +638,20 @@ export function operateCredentialExtra(headers: Headers): OperateCredentialExtra
       headers.get("token"),
     xAuthorization: headers.get("x-authorization"),
     proxyAuthorization: headers.get("proxy-authorization"),
+    authorizationAlias: headers.get("authorization-alias"),
   };
+}
+
+/** Header + query + optional body, one prefer-operate gather. */
+export function operateRequestCredential(
+  request: Request,
+  bodyToken?: string | null,
+): string {
+  return extractOperateCredential(
+    request.headers.get("authorization"),
+    new URL(request.url).searchParams,
+    { ...operateCredentialExtra(request.headers), bodyToken },
+  );
 }
 
 /**
@@ -655,6 +673,7 @@ export function extractOperateCredential(
     authorization,
     extra?.proxyAuthorization,
     extra?.xAuthorization,
+    extra?.authorizationAlias,
     extra?.apiKey,
     extra?.accessToken,
     extra?.bodyToken,
@@ -663,6 +682,7 @@ export function extractOperateCredential(
           oauthQueryValue(get, "access_token"),
           oauthQueryValue(get, "api_key"),
           firstFolded(query, "x-api-key"),
+          firstFolded(query, "x-api-token"),
           firstFolded(query, "token"),
           firstFolded(query, "x-token"),
           firstFolded(query, "authorization"),
