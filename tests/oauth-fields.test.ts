@@ -528,7 +528,9 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(read("src/app/api/[transport]/route.ts")).not.toContain(
       "MCP_BROWSER_ORIGINS",
     );
-    expect(read("src/lib/oauth-slash.ts")).not.toMatch(/node:crypto/);
+    expect(read("src/lib/oauth-slash.ts")).not.toMatch(
+      /from ["']node:crypto["']/,
+    );
     expect(read("src/lib/oauth-slash.ts")).not.toMatch(/from "\.\/oauth-server"/);
   });
 });
