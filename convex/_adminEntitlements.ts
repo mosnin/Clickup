@@ -3,22 +3,30 @@ import type { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { isEmailRootAdmin } from "./_adminAuth";
 
-// Complimentary entitlements for platform-admin accounts.
-//
-// Staff accounts are unpaid by construction: they must be able to run the
-// product (unlimited agents, no credit metering) without holding a paid
-// plan. That is not the same as "no limits at all" — a compromised admin
-// agent still needs a circuit breaker, so complimentary scopes keep an
-// extreme daily budget and a high-but-finite burst cap.
+// Owner-admin entitlements. The application owner (env-allowlisted via
+// PLATFORM_ADMIN_EMAILS) and any account granted a live platformAdmins row
+// are unpaid and uncapped: no Starter agent cap, no workspace cap, no
+// action-budget cap, no credit metering.
 //
 // Complimentary follows the *owner* of the scope, not membership. An admin
-// who joins a customer's workspace does not turn that workspace free.
+// who joins a customer's workspace does not turn that workspace free, and
+// cannot raise that tenant's caps. Tenant isolation is unchanged.
 
-export const ADMIN_DAILY_ACTION_LIMIT = 100_000;
-export const ADMIN_BURST_LIMIT_PER_MINUTE = 600;
+/** Starter marketing cap: 3 agents per personal space or workspace. */
+export const STARTER_MAX_AGENTS = 3;
+/** Starter marketing cap: 1 team workspace (personal space is separate). */
+export const STARTER_MAX_WORKSPACES = 1;
 
-// Free-tier cap used only when `max_agents_per_workspace` is a positive
-// number. 0 / unset means the operator has not turned the cap on.
+function positiveCap(value: unknown): number | null | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  if (value > 0) return Math.floor(value);
+  // Explicit 0 is the operator override: unlimited for ordinary accounts.
+  return null;
+}
+
+// Starter default of 3 when the setting is unset. A positive
+// `max_agents_per_workspace` raises or lowers that number. 0 means the
+// operator turned the cap off. Complimentary scopes never consult this.
 export async function readAgentCap(
   ctx: QueryCtx | MutationCtx,
 ): Promise<number | null> {
@@ -26,11 +34,23 @@ export async function readAgentCap(
     .query("platformSettings")
     .withIndex("by_key", (q) => q.eq("key", "max_agents_per_workspace"))
     .unique();
-  const value = row?.value;
-  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-    return Math.floor(value);
-  }
-  return null;
+  const override = positiveCap(row?.value);
+  if (override !== undefined) return override;
+  return STARTER_MAX_AGENTS;
+}
+
+// Same shape as the agent cap: unset → Starter's one workspace; explicit 0
+// → unlimited; a positive number is the tenant ceiling.
+export async function readWorkspaceCap(
+  ctx: QueryCtx | MutationCtx,
+): Promise<number | null> {
+  const row = await ctx.db
+    .query("platformSettings")
+    .withIndex("by_key", (q) => q.eq("key", "max_workspaces_per_user"))
+    .unique();
+  const override = positiveCap(row?.value);
+  if (override !== undefined) return override;
+  return STARTER_MAX_WORKSPACES;
 }
 
 export async function isPlatformAdminClerkId(
@@ -83,6 +103,24 @@ export async function assertCanCreateAgent(
   if (existing.length >= cap) {
     throw new ConvexError(
       `Agent limit reached (${cap} per ${parentType === "workspace" ? "workspace" : "personal space"}). Upgrade, or ask support to raise the cap.`,
+    );
+  }
+}
+
+export async function assertCanCreateWorkspace(
+  ctx: QueryCtx | MutationCtx,
+  ownerClerkId: string,
+): Promise<void> {
+  if (await isPlatformAdminClerkId(ctx, ownerClerkId)) return;
+  const cap = await readWorkspaceCap(ctx);
+  if (cap === null) return;
+  const existing = await ctx.db
+    .query("workspaces")
+    .withIndex("by_owner", (q) => q.eq("ownerClerkId", ownerClerkId))
+    .collect();
+  if (existing.length >= cap) {
+    throw new ConvexError(
+      `Workspace limit reached (${cap} on the Starter plan). Upgrade, or ask support to raise the cap.`,
     );
   }
 }
