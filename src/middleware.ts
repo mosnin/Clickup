@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { stripOAuthTrailingSlash } from "@/lib/oauth-slash";
 
 const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
@@ -20,7 +21,12 @@ const isProtectedRoute = createRouteMatcher([
 // authenticating perfectly well. That noise is what made a transport outage
 // look like a credential problem. Same reasoning for the x402 endpoint, which
 // authenticates with a signed payment authorization.
-const isSelfAuthenticated = createRouteMatcher(["/api/mcp", "/api/x402"]);
+const isSelfAuthenticated = createRouteMatcher([
+  "/api/mcp",
+  "/api/mcp/(.*)",
+  "/api/x402",
+]);
+const isPublicDiscovery = createRouteMatcher(["/.well-known/(.*)"]);
 
 const clerk = clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {
@@ -29,7 +35,15 @@ const clerk = clerkMiddleware(async (auth, req) => {
 });
 
 export default function middleware(req: NextRequest, event: never) {
-  if (isSelfAuthenticated(req)) return NextResponse.next();
+  const stripped = stripOAuthTrailingSlash(req.nextUrl.pathname);
+  if (stripped) {
+    const url = req.nextUrl.clone();
+    url.pathname = stripped;
+    return NextResponse.rewrite(url);
+  }
+  if (isSelfAuthenticated(req) || isPublicDiscovery(req)) {
+    return NextResponse.next();
+  }
   return clerk(req, event);
 }
 
@@ -38,5 +52,9 @@ export const config = {
     // Run on every route except Next.js internals and static assets.
     "/((?!_next|.*\\..*|favicon.ico).*)",
     "/(api|trpc)(.*)",
+    // `.well-known` contains a dot, so the first pattern skips it. We still
+    // need to rewrite `/…/api/mcp/` here so a 308 does not drop a GET that
+    // an OAuth client constructed from the resource path.
+    "/.well-known/:path*",
   ],
 };

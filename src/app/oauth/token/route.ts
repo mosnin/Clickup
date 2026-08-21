@@ -3,6 +3,7 @@ import { api } from "@convex/_generated/api";
 import {
   DEVICE_GRANT,
   deviceErrorCode,
+  oauthBasicClientId,
   oauthConvexClient,
   oauthError,
   oauthFields,
@@ -94,7 +95,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const clientId = field("client_id");
+  const clientId = field("client_id") || oauthBasicClientId(request);
   if (!clientId) {
     return oauthError("invalid_client", "client_id is required", 401);
   }

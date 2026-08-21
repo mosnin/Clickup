@@ -183,6 +183,57 @@ export function oauthBearer(request: Request) {
   return match?.[1] ?? "";
 }
 
+/**
+ * RFC 6749 §2.3.1. Public clients still send
+ * `Authorization: Basic base64(client_id:)` with an empty secret, and no
+ * `client_id` in the body. That used to 401 as "client_id is required".
+ */
+export function oauthBasicClientId(request: Request) {
+  const authorization = request.headers.get("authorization") ?? "";
+  const match = authorization.match(/^Basic\s+(\S+)/i);
+  if (!match) return "";
+  try {
+    const decoded = Buffer.from(match[1], "base64").toString("utf8");
+    const colon = decoded.indexOf(":");
+    return (colon === -1 ? decoded : decoded.slice(0, colon)).trim();
+  } catch {
+    return "";
+  }
+}
+
+function formClientMetadata(text: string): Record<string, unknown> | null {
+  const params = new URLSearchParams(text);
+  if (![...params.keys()].length) return null;
+  const record: Record<string, unknown> = {};
+  for (const key of new Set(params.keys())) {
+    const all = params.getAll(key);
+    if (key === "redirect_uris") {
+      const uris: string[] = [];
+      for (const raw of all) {
+        const value = raw.trim();
+        if (value.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(value) as unknown;
+            if (Array.isArray(parsed)) {
+              for (const item of parsed) {
+                if (typeof item === "string" && item) uris.push(item);
+              }
+              continue;
+            }
+          } catch {
+            // A single URI that happens to start with `[`.
+          }
+        }
+        if (value) uris.push(value);
+      }
+      record[key] = uris;
+      continue;
+    }
+    record[key] = all.length > 1 ? all : (all[0] ?? "");
+  }
+  return record;
+}
+
 /** DCR (RFC 7591) is JSON. Strip a BOM so request.json() is not the only path. */
 export async function oauthJsonObject(
   request: Request,
@@ -194,9 +245,9 @@ export async function oauthJsonObject(
       return body as Record<string, unknown>;
     }
   } catch {
-    // Caller maps null to invalid_client_metadata.
+    // Fall through: some DCR clients POST form-urlencoded.
   }
-  return null;
+  return formClientMetadata(text);
 }
 
 export function oauthConvexClient() {

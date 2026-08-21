@@ -2,10 +2,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  oauthBasicClientId,
   oauthBearer,
   oauthFields,
   oauthJsonObject,
 } from "../src/lib/oauth-server";
+import { stripOAuthTrailingSlash } from "../src/lib/oauth-slash";
 
 const read = (file: string) =>
   readFileSync(path.join(process.cwd(), file), "utf8");
@@ -165,6 +167,68 @@ describe("oauthJsonObject", () => {
     );
     expect(body).toMatchObject({ client_name: "Claude" });
   });
+
+  it("accepts form-urlencoded DCR so a non-JSON register is not empty", async () => {
+    const body = await oauthJsonObject(
+      new Request("https://www.operate.to/oauth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_name: "ChatGPT",
+          redirect_uris: "https://chatgpt.com/connector_platform_oauth_redirect",
+        }).toString(),
+      }),
+    );
+    expect(body).toMatchObject({
+      client_name: "ChatGPT",
+      redirect_uris: [
+        "https://chatgpt.com/connector_platform_oauth_redirect",
+      ],
+    });
+  });
+
+  it("parses a JSON array stuffed into a form redirect_uris field", async () => {
+    const body = await oauthJsonObject(
+      new Request("https://www.operate.to/oauth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "client_name=Claude&redirect_uris=%5B%22https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback%22%5D",
+      }),
+    );
+    expect(body).toMatchObject({
+      client_name: "Claude",
+      redirect_uris: ["https://claude.ai/api/mcp/auth_callback"],
+    });
+  });
+});
+
+describe("oauthBasicClientId", () => {
+  it("reads client_id from Basic with an empty secret", () => {
+    const request = new Request("https://www.operate.to/oauth/token", {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${Buffer.from("opc_public:").toString("base64")}`,
+      },
+    });
+    expect(oauthBasicClientId(request)).toBe("opc_public");
+  });
+});
+
+describe("stripOAuthTrailingSlash", () => {
+  it("rewrites POST and well-known trailing slashes that would 308", () => {
+    expect(stripOAuthTrailingSlash("/oauth/token/")).toBe("/oauth/token");
+    expect(stripOAuthTrailingSlash("/oauth/device/")).toBe("/oauth/device");
+    expect(stripOAuthTrailingSlash("/oauth/revoke/")).toBe("/oauth/revoke");
+    expect(stripOAuthTrailingSlash("/oauth/register/")).toBe("/oauth/register");
+    expect(stripOAuthTrailingSlash("/api/mcp/")).toBe("/api/mcp");
+    expect(
+      stripOAuthTrailingSlash(
+        "/.well-known/oauth-protected-resource/api/mcp/",
+      ),
+    ).toBe("/.well-known/oauth-protected-resource/api/mcp");
+    expect(stripOAuthTrailingSlash("/oauth/token")).toBeNull();
+    expect(stripOAuthTrailingSlash("/dashboard/")).toBeNull();
+  });
 });
 
 describe("OAuth POST routes share oauthFields", () => {
@@ -184,5 +248,13 @@ describe("OAuth POST routes share oauthFields", () => {
     const revoke = read("src/app/oauth/revoke/route.ts");
     expect(revoke).toContain("oauthBearer");
     expect(revoke).toContain('field("token") || oauthBearer(request)');
+    const token = read("src/app/oauth/token/route.ts");
+    expect(token).toContain("oauthBasicClientId");
+    expect(token).toContain(
+      'field("client_id") || oauthBasicClientId(request)',
+    );
+    const middleware = read("src/middleware.ts");
+    expect(middleware).toContain("stripOAuthTrailingSlash");
+    expect(middleware).toContain("NextResponse.rewrite");
   });
 });
