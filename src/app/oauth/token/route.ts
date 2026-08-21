@@ -100,7 +100,7 @@ export async function POST(request: Request) {
 
   const clientId = field("client_id") || oauthBasicClientId(request);
   if (!clientId) {
-    return oauthError("invalid_client", "client_id is required", 401);
+    return oauthError("invalid_client", "client_id is required", 401, request);
   }
   const accessToken = randomCredential("opa");
   const refreshToken = randomCredential("opr");

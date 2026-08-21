@@ -14,7 +14,8 @@ export function GET(request?: Request) {
     authorization_servers: officialAuthorizationServers(issuer),
     scopes_supported: [...OAUTH_SCOPES],
     resource_documentation: `${issuer}/plugins`,
-    bearer_methods_supported: ["header"],
+    bearer_methods_supported: ["header", "query"],
+    token_types_supported: ["Bearer"],
     token_endpoint_auth_methods_supported: ["none"],
   });
 }

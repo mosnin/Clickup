@@ -11,6 +11,7 @@ import {
   oauthFields,
   oauthJson,
   oauthJsonObject,
+  oauthPostOnly,
 } from "../src/lib/oauth-server";
 import {
   applyMcpCors,
@@ -176,6 +177,14 @@ describe("oauthFields", () => {
       }),
     );
     expect(audience("resource")).toBe("https://operate.to/api/mcp");
+    const grantAlias = await oauthFields(
+      new Request("https://www.operate.to/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ grant: "code" }),
+      }),
+    );
+    expect(grantAlias("grant_type")).toBe("code");
     const doubled = await oauthFields(
       new Request("https://www.operate.to/oauth/revoke", {
         method: "POST",
@@ -248,14 +257,39 @@ describe("oauthBearer", () => {
     expect(extractOperateCredential("cua_bare", undefined)).toBe("cua_bare");
     expect(extractOperateCredential("Basic abc", undefined)).toBe("");
     expect(
+      extractOperateCredential(undefined, undefined, { apiKey: "cua_header" }),
+    ).toBe("cua_header");
+    expect(
+      extractOperateCredential("Basic abc", undefined, {
+        apiKey: "cua_from_x",
+      }),
+    ).toBe("cua_from_x");
+    expect(
+      extractOperateCredential(undefined, undefined, {
+        apiKey: "Basic abc",
+      }),
+    ).toBe("");
+    expect(
       oauthBearer(
         new Request("https://www.operate.to/api/mcp?apiKey=cua_query"),
       ),
     ).toBe("cua_query");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp", {
+          headers: { "X-Api-Key": "cua_x" },
+        }),
+      ),
+    ).toBe("cua_x");
     expect(canonicalGrantType("device_code")).toBe(DEVICE_GRANT);
+    expect(canonicalGrantType("DEVICE_CODE")).toBe(DEVICE_GRANT);
+    expect(canonicalGrantType("device")).toBe(DEVICE_GRANT);
     expect(canonicalGrantType("authorization-code")).toBe("authorization_code");
+    expect(canonicalGrantType("Authorization_Code")).toBe("authorization_code");
+    expect(canonicalGrantType("authorization")).toBe("authorization_code");
     expect(canonicalGrantType("code")).toBe("authorization_code");
     expect(canonicalGrantType("refresh")).toBe("refresh_token");
+    expect(canonicalGrantType("REFRESH-TOKEN")).toBe("refresh_token");
   });
 });
 
@@ -415,9 +449,15 @@ describe("oauth CORS", () => {
   it("puts WWW-Authenticate on 401 OAuth JSON so browsers can read the challenge", () => {
     const response = oauthError("invalid_client", "client_id is required", 401);
     expect(response.headers.get("WWW-Authenticate")).toMatch(/invalid_client/);
+    expect(response.headers.get("WWW-Authenticate")).toMatch(/resource_metadata=/);
+    expect(response.headers.get("WWW-Authenticate")).toMatch(/as_uri=/);
     expect(response.headers.get("Access-Control-Expose-Headers")).toMatch(
       /WWW-Authenticate/,
     );
+    expect(response.headers.get("Access-Control-Allow-Methods")).toMatch(/HEAD/);
+    const postOnly = oauthPostOnly();
+    expect(postOnly.status).toBe(405);
+    expect(postOnly.headers.get("Allow")).toBe("POST");
   });
 
   it("advertises CORS on OAuth JSON so a browser client can read discovery", () => {
@@ -430,7 +470,7 @@ describe("oauth CORS", () => {
       "DELETE",
     );
     expect(response.headers.get("Access-Control-Allow-Headers")).toMatch(
-      /Accept|If-None-Match|X-PAYMENT|Mcp-Protocol-Version/,
+      /Accept|If-None-Match|X-PAYMENT|Mcp-Protocol-Version|X-Api-Key/,
     );
     expect(response.headers.get("Access-Control-Expose-Headers")).toMatch(
       /WWW-Authenticate/,
@@ -555,6 +595,18 @@ describe("readAuthorizeParams", () => {
     );
     expect(camel.get("client_id")).toBe("opc_js");
     expect(camel.get("code_challenge_method")).toBe("S256");
+    const scopes = await readAuthorizeParams(
+      new Request("https://www.operate.to/oauth/authorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scopes: "openid email operate:read",
+          responseType: "authorization_code",
+        }),
+      }),
+    );
+    expect(scopes.get("scope")).toBe("openid email operate:read");
+    expect(scopes.get("response_type")).toBe("authorization_code");
   });
 });
 
@@ -693,7 +745,12 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(
       read("src/app/.well-known/openai-apps-challenge/route.ts"),
     ).toContain("oauthOptions");
+    expect(read("src/app/oauth/userinfo/route.ts")).toContain("oauthWwwAuthenticate");
+    expect(read("src/app/oauth/authorize/oauth-authorize.tsx")).toContain(
+      'responseTypeRaw === "authorization_code"',
+    );
     expect(read("src/app/oauth/userinfo/route.ts")).toContain("export async function POST");
+    expect(read("src/app/api/[transport]/route.ts")).toContain("guarded as HEAD");
     expect(read("src/app/api/[transport]/route.ts")).toContain("applyMcpCors");
     expect(read("src/app/api/[transport]/route.ts")).toContain(
       "response.status === 403",

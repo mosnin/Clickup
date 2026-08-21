@@ -71,7 +71,8 @@ describe("public MCP OAuth discovery", () => {
     const metadata = await getProtectedResource().json();
     expect(metadata).toMatchObject({
       resource: "https://operate.to/api/mcp",
-      bearer_methods_supported: ["header"],
+      bearer_methods_supported: ["header", "query"],
+      token_types_supported: ["Bearer"],
     });
     expect(metadata.authorization_servers).toEqual(["https://www.operate.to"]);
     expect(canonicalMcpResource("https://operate.to")).toBe(
@@ -131,12 +132,19 @@ describe("public MCP OAuth discovery", () => {
     expect(protectedResourceMetadataUrl("https://www.operate.to")).toBe(
       "https://www.operate.to/.well-known/oauth-protected-resource/api/mcp",
     );
-    expect(mcpWwwAuthenticate(www)).toBe(
-      'Bearer resource_metadata="https://www.operate.to/.well-known/oauth-protected-resource/api/mcp", scope="operate:read"',
+    expect(mcpWwwAuthenticate(www)).toContain(
+      'resource_metadata="https://www.operate.to/.well-known/oauth-protected-resource/api/mcp"',
     );
+    expect(mcpWwwAuthenticate(www)).toContain(
+      'as_uri="https://www.operate.to/.well-known/oauth-authorization-server"',
+    );
+    expect(mcpWwwAuthenticate(www)).toContain('error="invalid_token"');
     const apexChallenge = new Request("https://operate.to/api/mcp");
-    expect(mcpWwwAuthenticate(apexChallenge)).toBe(
-      'Bearer resource_metadata="https://www.operate.to/.well-known/oauth-protected-resource/api/mcp", scope="operate:read"',
+    expect(mcpWwwAuthenticate(apexChallenge)).toContain(
+      'resource_metadata="https://www.operate.to/.well-known/oauth-protected-resource/api/mcp"',
+    );
+    expect(mcpWwwAuthenticate(apexChallenge)).toContain(
+      'as_uri="https://www.operate.to/.well-known/oauth-authorization-server"',
     );
   });
 
@@ -176,6 +184,9 @@ describe("public MCP OAuth discovery", () => {
     expect(card.resource).toBe(CANONICAL_PRODUCTION_MCP_RESOURCE);
     expect(card.resource_metadata).toBe(
       "https://www.operate.to/.well-known/oauth-protected-resource/api/mcp",
+    );
+    expect(card.as_uri).toBe(
+      "https://www.operate.to/.well-known/oauth-authorization-server",
     );
     expect(card.url).not.toContain("https://operate.to/api/mcp");
   });

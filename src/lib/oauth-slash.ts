@@ -60,7 +60,7 @@ export function isOAuthOptionsPath(pathname: string) {
 }
 
 export const OAUTH_CORS_ALLOW_HEADERS =
-  "Authorization, Content-Type, Accept, If-None-Match, MCP-Protocol-Version, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID, X-PAYMENT, X-Payment";
+  "Authorization, Content-Type, Accept, If-None-Match, MCP-Protocol-Version, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID, X-PAYMENT, X-Payment, X-Api-Key, X-API-Key, Api-Key, X-Access-Token";
 
 export const OAUTH_CORS_EXPOSE_HEADERS =
   "WWW-Authenticate, ETag, Mcp-Session-Id, X-PAYMENT-RESPONSE";
@@ -78,7 +78,7 @@ export function mergeAllowHeaders(requested: string | null | undefined) {
 export function oauthCorsHeaders(request?: Request) {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, HEAD, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": mergeAllowHeaders(
       request?.headers.get("access-control-request-headers"),
     ),
@@ -159,7 +159,7 @@ export function applyMcpCors(req: Request, response: Response) {
     // preflight; * + Allow-Credentials is illegal and hides 401.
     headers.set("Access-Control-Allow-Credentials", "true");
   }
-  headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  headers.set("Access-Control-Allow-Methods", "GET, HEAD, POST, DELETE, OPTIONS");
   headers.set(
     "Access-Control-Allow-Headers",
     mergeAllowHeaders(req.headers.get("access-control-request-headers")),
@@ -259,6 +259,10 @@ const OAUTH_KEY_ALIASES: Record<string, string> = {
   codeChallenge: "code_challenge",
   codeChallengeMethod: "code_challenge_method",
   tokenTypeHint: "token_type_hint",
+  scopes: "scope",
+  responseType: "response_type",
+  /** Some clients POST `grant=code` instead of `grant_type`. */
+  grant: "grant_type",
 };
 
 export function canonicalOAuthKey(key: string) {
@@ -281,6 +285,9 @@ export function oauthFieldAliases(name: string) {
     );
   }
   if (name === "resource") aliases.push("audience");
+  if (name === "scope") aliases.push("scopes");
+  if (name === "response_type") aliases.push("responseType");
+  if (name === "grant_type") aliases.push("grant");
   return aliases;
 }
 
@@ -342,15 +349,25 @@ const OPERATE_CREDENTIAL = /^(cua_|opa_|opr_|opc_|opd_)/i;
 const AUTH_SCHEME =
   /^(Bearer|Token|Api-?Key|ApiKey)\s+(\S+)/i;
 
+function dedicatedHeaderToken(value: string | null | undefined) {
+  const token = value?.trim() ?? "";
+  if (!token || /^Basic\s+/i.test(token)) return "";
+  const scheme = token.match(AUTH_SCHEME);
+  if (scheme) return scheme[2];
+  return token;
+}
+
 /**
  * MCP and OAuth clients send `Authorization: cua_…` (no scheme),
  * `Token`, or `Api-Key`. `withMcpAuth` only reads `Bearer`. Query
- * `apiKey` / `access_token` is the same hole x402 already closed.
+ * `apiKey` / `access_token` and `X-Api-Key` / `X-Access-Token` are
+ * the same hole x402 already closed.
  * Never treats `Basic` as a bearer token.
  */
 export function extractOperateCredential(
   authorization: string | null | undefined,
   query?: URLSearchParams,
+  extra?: { apiKey?: string | null; accessToken?: string | null },
 ) {
   const header = authorization?.trim() ?? "";
   if (header) {
@@ -360,6 +377,10 @@ export function extractOperateCredential(
       return header;
     }
   }
+  const dedicated =
+    dedicatedHeaderToken(extra?.apiKey) ||
+    dedicatedHeaderToken(extra?.accessToken);
+  if (dedicated) return dedicated;
   if (query) {
     return (
       query.get("access_token") ||
@@ -375,6 +396,10 @@ export function applyOperateAuthorization(headers: Headers, url: string) {
   const token = extractOperateCredential(
     headers.get("authorization"),
     new URL(url).searchParams,
+    {
+      apiKey: headers.get("x-api-key") || headers.get("api-key"),
+      accessToken: headers.get("x-access-token"),
+    },
   );
   if (!token) return headers;
   if (/^Bearer\s+\S+/i.test(headers.get("authorization") ?? "")) return headers;

@@ -81,9 +81,38 @@ export function protectedResourceMetadataUrl(origin: string) {
   return `${origin.replace(/\/$/, "")}/.well-known/oauth-protected-resource/api/mcp`;
 }
 
-export function mcpWwwAuthenticate(request: Request) {
+export function authorizationServerMetadataUrl(origin: string) {
+  return `${origin.replace(/\/$/, "")}/.well-known/oauth-authorization-server`;
+}
+
+/**
+ * RFC 9728 challenge. `resource_metadata` is the PRM; `as_uri` is the
+ * authorization-server metadata URL. Clients that only read one of the
+ * two still find www discovery. `error` is set on 401/403 so a browser
+ * does not treat a silent Bearer as a successful type match.
+ */
+export function oauthWwwAuthenticate(
+  request?: Request,
+  error?: string,
+  description?: string,
+) {
   const origin = oauthIssuer(request);
-  return `Bearer resource_metadata="${protectedResourceMetadataUrl(origin)}", scope="operate:read"`;
+  const parts = [
+    `resource_metadata="${protectedResourceMetadataUrl(origin)}"`,
+    `as_uri="${authorizationServerMetadataUrl(origin)}"`,
+    `scope="operate:read"`,
+  ];
+  if (error) parts.unshift(`error="${error}"`);
+  if (description) {
+    parts.push(
+      `error_description="${description.replaceAll('"', "'")}"`,
+    );
+  }
+  return `Bearer ${parts.join(", ")}`;
+}
+
+export function mcpWwwAuthenticate(request: Request) {
+  return oauthWwwAuthenticate(request, "invalid_token");
 }
 
 export const OAUTH_SCOPES = [
@@ -212,21 +241,41 @@ export function oauthBearer(request: Request) {
   return extractOperateCredential(
     request.headers.get("authorization"),
     new URL(request.url).searchParams,
+    {
+      apiKey:
+        request.headers.get("x-api-key") || request.headers.get("api-key"),
+      accessToken: request.headers.get("x-access-token"),
+    },
   );
 }
 
 /** `device_code` is the short name clients send instead of the RFC 8628 URN. */
 export function canonicalGrantType(value: string) {
   const grant = value.trim();
-  if (grant === DEVICE_GRANT || grant === "device_code") return DEVICE_GRANT;
+  const lower = grant.toLowerCase();
   if (
-    grant === "authorization_code" ||
-    grant === "authorization-code" ||
-    grant === "code"
+    lower === DEVICE_GRANT ||
+    lower === "device_code" ||
+    lower === "device-code" ||
+    lower === "device"
+  ) {
+    return DEVICE_GRANT;
+  }
+  if (
+    lower === "authorization_code" ||
+    lower === "authorization-code" ||
+    lower === "authorization" ||
+    lower === "code"
   ) {
     return "authorization_code";
   }
-  if (grant === "refresh_token" || grant === "refresh") return "refresh_token";
+  if (
+    lower === "refresh_token" ||
+    lower === "refresh-token" ||
+    lower === "refresh"
+  ) {
+    return "refresh_token";
+  }
   return grant;
 }
 
@@ -414,11 +463,16 @@ export function oauthError(
   error: string,
   description: string,
   status = 400,
+  request?: Request,
 ) {
   const challenge =
     status === 401 || status === 403
       ? {
-          "WWW-Authenticate": `Bearer error="${error}", error_description="${description.replaceAll('"', "'")}"`,
+          "WWW-Authenticate": oauthWwwAuthenticate(
+            request,
+            error,
+            description,
+          ),
         }
       : undefined;
   return oauthJson({ error, error_description: description }, status, challenge);
@@ -426,5 +480,9 @@ export function oauthError(
 
 /** GET probes of token/revoke/register used to 404 from the catch-all. */
 export function oauthPostOnly() {
-  return oauthError("invalid_request", "This endpoint accepts POST", 405);
+  return oauthJson(
+    { error: "invalid_request", error_description: "This endpoint accepts POST" },
+    405,
+    { Allow: "POST" },
+  );
 }

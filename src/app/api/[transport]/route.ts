@@ -3266,6 +3266,7 @@ function options(req: Request) {
 
 export {
   guarded as GET,
+  guarded as HEAD,
   guarded as POST,
   guarded as DELETE,
   options as OPTIONS,

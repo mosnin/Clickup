@@ -29,14 +29,29 @@ export function OAuthAuthorize({ resource }: { resource: string }) {
   const searchParams = useSearchParams();
   const clientId = searchParams.get("client_id") ?? "";
   const redirectUri = searchParams.get("redirect_uri") ?? "";
-  const responseType = searchParams.get("response_type") ?? "";
+  const responseTypeRaw =
+    searchParams.get("response_type") ??
+    searchParams.get("responseType") ??
+    "";
+  const responseType =
+    responseTypeRaw === "" ||
+    responseTypeRaw === "code" ||
+    responseTypeRaw === "authorization_code"
+      ? "code"
+      : responseTypeRaw;
   const scope =
-    searchParams.get("scope") ??
+    searchParams.get("scope") ||
+    searchParams.get("scopes") ||
     "openid email operate:read operate:write";
   const state = searchParams.get("state") ?? "";
   const codeChallenge = searchParams.get("code_challenge") ?? "";
-  const codeChallengeMethod =
+  const codeChallengeMethodRaw =
     searchParams.get("code_challenge_method") ?? "";
+  const codeChallengeMethod =
+    codeChallengeMethodRaw.trim() === "" ||
+    codeChallengeMethodRaw.toUpperCase() === "S256"
+      ? "S256"
+      : codeChallengeMethodRaw;
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const validShape =
     responseType === "code" &&
@@ -50,10 +65,7 @@ export function OAuthAuthorize({ resource }: { resource: string }) {
             scope,
             resource,
             codeChallenge,
-            codeChallengeMethod:
-              codeChallengeMethod.toUpperCase() === "S256"
-                ? "S256"
-                : codeChallengeMethod,
+            codeChallengeMethod,
           }
         : "skip" as const,
     [

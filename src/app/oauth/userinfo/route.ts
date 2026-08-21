@@ -7,9 +7,10 @@ import {
   oauthJson,
   oauthOptions,
   oauthResource,
+  oauthWwwAuthenticate,
 } from "@/lib/oauth-server";
 
-function unauthorized(description: string) {
+function unauthorized(description: string, request?: Request) {
   return Response.json(
     { error: "invalid_token", error_description: description },
     {
@@ -17,7 +18,11 @@ function unauthorized(description: string) {
       headers: {
         "Cache-Control": "no-store",
         Pragma: "no-cache",
-        "WWW-Authenticate": `Bearer error="invalid_token", error_description="${description.replaceAll('"', "'")}"`,
+        "WWW-Authenticate": oauthWwwAuthenticate(
+          request,
+          "invalid_token",
+          description,
+        ),
         ...oauthCorsHeaders(),
       },
     },
@@ -27,7 +32,9 @@ function unauthorized(description: string) {
 async function userInfo(request: Request) {
   const field = await oauthFields(request);
   const accessToken = oauthBearer(request) || field("access_token") || field("token");
-  if (!accessToken) return unauthorized("A Bearer access token is required");
+  if (!accessToken) {
+    return unauthorized("A Bearer access token is required", request);
+  }
 
   try {
     const result = await oauthConvexClient().query(api.oauth.userInfo, {
@@ -43,6 +50,7 @@ async function userInfo(request: Request) {
   } catch (error) {
     return unauthorized(
       error instanceof Error ? error.message : "The access token is invalid",
+      request,
     );
   }
 }

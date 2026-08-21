@@ -178,7 +178,8 @@ export const authorizationRequest = query({
       !client ||
       !validRedirectUri(args.redirectUri) ||
       !client.redirectUris.includes(args.redirectUri) ||
-      args.codeChallengeMethod.toUpperCase() !== "S256" ||
+      (args.codeChallengeMethod.trim() !== "" &&
+        args.codeChallengeMethod.toUpperCase() !== "S256") ||
       !/^[A-Za-z0-9_-]{43,128}$/.test(args.codeChallenge)
     ) {
       throw new ConvexError("Invalid OAuth authorization request");

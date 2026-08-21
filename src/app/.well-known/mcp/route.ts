@@ -1,5 +1,6 @@
 import { servingMcpUrl } from "@/lib/oauth-resource";
 import {
+  authorizationServerMetadataUrl,
   oauthIssuer,
   oauthJson,
   oauthOptions,
@@ -13,6 +14,7 @@ export function GET(request?: Request) {
     url: servingMcpUrl(issuer),
     resource: oauthResource(request),
     resource_metadata: protectedResourceMetadataUrl(issuer),
+    as_uri: authorizationServerMetadataUrl(issuer),
   });
 }
 
