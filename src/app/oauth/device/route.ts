@@ -7,7 +7,6 @@ import {
   oauthIssuer,
   oauthJson,
   oauthOptions,
-  oauthPostOnly,
   randomCredential,
 } from "@/lib/oauth-server";
 
@@ -108,10 +107,22 @@ export async function POST(request: Request) {
 }
 
 // Some agent runtimes probe an endpoint with GET before posting to it.
-// Answering with the method requirement is more useful than a 404 from the
-// catch-all, because the fix is one word in their request.
+// 405 + Allow: POST is the method fix; verification_url is where a
+// human completes the grant, so a GET probe is not a dead end.
 export function GET(request: Request) {
-  return oauthPostOnly(request);
+  const issuer = oauthIssuer(request);
+  const verificationUri = `${issuer}/link`;
+  return oauthJson(
+    {
+      error: "invalid_request",
+      error_description: "This endpoint accepts POST",
+      verification_uri: verificationUri,
+      verification_url: verificationUri,
+    },
+    405,
+    { Allow: "POST" },
+    request,
+  );
 }
 
 export function OPTIONS(request: Request) {

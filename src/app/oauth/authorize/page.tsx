@@ -27,7 +27,9 @@ export default async function OAuthAuthorizePage({
   let resource = "";
   try {
     const candidate =
-      typeof params.resource === "string" ? params.resource : undefined;
+      (typeof params.resource === "string" && params.resource) ||
+      (typeof params.audience === "string" && params.audience) ||
+      undefined;
     resource = validateMcpResource(candidate, oauthIssuer());
   } catch {
     // The client component renders the same non-leaky invalid-request state

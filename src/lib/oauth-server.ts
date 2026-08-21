@@ -13,11 +13,12 @@ import {
   oauthOptions,
   parseJsonBody,
   canonicalOAuthKey,
+  canonicalCodeChallengeMethod,
   extractOperateCredential,
 } from "./oauth-slash";
 
 export { servingMcpUrl, servingOrigin };
-export { oauthCorsHeaders, oauthOptions };
+export { oauthCorsHeaders, oauthOptions, canonicalCodeChallengeMethod };
 
 // RFC 8628 §3.4. Lives here rather than beside the handler that reads it,
 // because a Next route file may only export HTTP handlers and the documented
@@ -264,7 +265,8 @@ export function oauthBearer(request: Request) {
         request.headers.get("x-api-key") || request.headers.get("api-key"),
       accessToken:
         request.headers.get("x-access-token") ||
-        request.headers.get("access-token"),
+        request.headers.get("access-token") ||
+        request.headers.get("token"),
     },
   );
 }
@@ -273,31 +275,24 @@ export function oauthBearer(request: Request) {
 export function canonicalGrantType(value: string) {
   const grant = value.trim();
   const lower = grant.toLowerCase();
+  const compact = lower.replace(/[-_]/g, "");
   if (
     lower === DEVICE_GRANT ||
     lower === "urn:ietf:params:oauth:grant-type:device-code" ||
-    lower === "device_code" ||
-    lower === "device-code" ||
-    lower === "device"
+    compact === "devicecode" ||
+    compact === "device"
   ) {
     return DEVICE_GRANT;
   }
   if (
-    lower === "authorization_code" ||
-    lower === "authorization-code" ||
-    lower === "authorization" ||
-    lower === "auth_code" ||
-    lower === "auth-code" ||
-    lower === "authcode" ||
-    lower === "code"
+    compact === "authorizationcode" ||
+    compact === "authorization" ||
+    compact === "authcode" ||
+    compact === "code"
   ) {
     return "authorization_code";
   }
-  if (
-    lower === "refresh_token" ||
-    lower === "refresh-token" ||
-    lower === "refresh"
-  ) {
+  if (compact === "refreshtoken" || compact === "refresh") {
     return "refresh_token";
   }
   return grant;

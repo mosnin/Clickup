@@ -8,6 +8,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/errors";
+import { canonicalCodeChallengeMethod } from "@/lib/oauth-slash";
 
 function returnHost(redirectUri: string) {
   try {
@@ -27,12 +28,17 @@ function randomCode() {
 
 export function OAuthAuthorize({ resource }: { resource: string }) {
   const searchParams = useSearchParams();
-  const clientId = searchParams.get("client_id") ?? "";
+  const clientId =
+    searchParams.get("client_id") || searchParams.get("clientId") || "";
   const redirectUri =
     searchParams.get("redirect_uri") ||
     searchParams.get("redirect_url") ||
     searchParams.get("callback_uri") ||
     searchParams.get("callback_url") ||
+    searchParams.get("callbackUri") ||
+    searchParams.get("callbackUrl") ||
+    searchParams.get("redirectUri") ||
+    searchParams.get("redirectUrl") ||
     "";
   const responseTypeRaw =
     searchParams.get("response_type") ??
@@ -49,14 +55,17 @@ export function OAuthAuthorize({ resource }: { resource: string }) {
     searchParams.get("scopes") ||
     "openid email operate:read operate:write";
   const state = searchParams.get("state") ?? "";
-  const codeChallenge = searchParams.get("code_challenge") ?? "";
+  const codeChallenge =
+    searchParams.get("code_challenge") ||
+    searchParams.get("codeChallenge") ||
+    "";
   const codeChallengeMethodRaw =
-    searchParams.get("code_challenge_method") ?? "";
-  const codeChallengeMethod =
-    codeChallengeMethodRaw.trim() === "" ||
-    codeChallengeMethodRaw.toUpperCase() === "S256"
-      ? "S256"
-      : codeChallengeMethodRaw;
+    searchParams.get("code_challenge_method") ||
+    searchParams.get("codeChallengeMethod") ||
+    "";
+  const codeChallengeMethod = canonicalCodeChallengeMethod(
+    codeChallengeMethodRaw,
+  );
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const validShape =
     responseType === "code" &&

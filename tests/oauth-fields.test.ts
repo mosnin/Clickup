@@ -16,6 +16,7 @@ import {
 } from "../src/lib/oauth-server";
 import {
   applyMcpCors,
+  canonicalCodeChallengeMethod,
   extractOperateCredential,
   isAuthorizePath,
   isHumanOAuthPath,
@@ -25,6 +26,7 @@ import {
   readAuthorizeParams,
   stripOAuthTrailingSlash,
 } from "../src/lib/oauth-slash";
+import { GET as getDevice } from "../src/app/oauth/device/route";
 
 const read = (file: string) =>
   readFileSync(path.join(process.cwd(), file), "utf8");
@@ -186,6 +188,17 @@ describe("oauthFields", () => {
       }),
     );
     expect(grantAlias("grant_type")).toBe("code");
+    const hyphenGrant = await oauthFields(
+      new Request("https://www.operate.to/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ "grant-type": "authorizationCode" }),
+      }),
+    );
+    expect(hyphenGrant("grant_type")).toBe("authorizationCode");
+    expect(canonicalGrantType(hyphenGrant("grant_type"))).toBe(
+      "authorization_code",
+    );
     const scopeArray = await oauthFields(
       new Request("https://www.operate.to/oauth/token", {
         method: "POST",
@@ -311,6 +324,13 @@ describe("oauthBearer", () => {
         }),
       ),
     ).toBe("cua_x");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp", {
+          headers: { Token: "cua_token_header" },
+        }),
+      ),
+    ).toBe("cua_token_header");
     expect(canonicalGrantType("device_code")).toBe(DEVICE_GRANT);
     expect(canonicalGrantType("DEVICE_CODE")).toBe(DEVICE_GRANT);
     expect(canonicalGrantType("device")).toBe(DEVICE_GRANT);
@@ -318,11 +338,14 @@ describe("oauthBearer", () => {
     expect(canonicalGrantType("Authorization_Code")).toBe("authorization_code");
     expect(canonicalGrantType("authorization")).toBe("authorization_code");
     expect(canonicalGrantType("auth_code")).toBe("authorization_code");
+    expect(canonicalGrantType("authorizationCode")).toBe("authorization_code");
     expect(canonicalGrantType("code")).toBe("authorization_code");
     expect(
       canonicalGrantType("urn:ietf:params:oauth:grant-type:device-code"),
     ).toBe(DEVICE_GRANT);
     expect(canonicalGrantType("refresh")).toBe("refresh_token");
+    expect(canonicalGrantType("refreshToken")).toBe("refresh_token");
+    expect(canonicalGrantType("deviceCode")).toBe(DEVICE_GRANT);
     expect(canonicalGrantType("REFRESH-TOKEN")).toBe("refresh_token");
     expect(
       inferGrantType((name) => (name === "device_code" ? "opd_omit" : "")),
@@ -485,6 +508,30 @@ describe("oauthJsonObject", () => {
       client_name: "Claude",
       redirect_uris: ["https://claude.ai/api/mcp/auth_callback"],
     });
+  });
+});
+
+describe("device GET 405", () => {
+  it("returns Allow POST and verification_url so a GET probe is not a dead end", async () => {
+    const response = getDevice(
+      new Request("https://www.operate.to/oauth/device"),
+    );
+    expect(response.status).toBe(405);
+    expect(response.headers.get("Allow")).toBe("POST");
+    const body = await response.json();
+    expect(body.verification_url).toBe("https://www.operate.to/link");
+    expect(body.verification_uri).toBe("https://www.operate.to/link");
+  });
+});
+
+describe("PKCE method aliases", () => {
+  it("maps s256 / sha256 / hyphenated forms to S256 and leaves unknown methods", () => {
+    expect(canonicalCodeChallengeMethod("")).toBe("S256");
+    expect(canonicalCodeChallengeMethod("s256")).toBe("S256");
+    expect(canonicalCodeChallengeMethod("S256")).toBe("S256");
+    expect(canonicalCodeChallengeMethod("sha256")).toBe("S256");
+    expect(canonicalCodeChallengeMethod("SHA-256")).toBe("S256");
+    expect(canonicalCodeChallengeMethod("plain")).toBe("plain");
   });
 });
 
@@ -719,6 +766,15 @@ describe("stripOAuthTrailingSlash", () => {
     expect(
       stripOAuthTrailingSlash("/mcp/.well-known/oauth-protected-resource"),
     ).toBe("/api/mcp/.well-known/oauth-protected-resource");
+    expect(stripOAuthTrailingSlash("/mcp/.well-known/mcp")).toBe(
+      "/.well-known/mcp",
+    );
+    expect(stripOAuthTrailingSlash("/mcp/.well-known/webfinger")).toBe(
+      "/.well-known/webfinger",
+    );
+    expect(stripOAuthTrailingSlash("/api/mcp/.well-known/mcp")).toBe(
+      "/.well-known/mcp",
+    );
     expect(stripOAuthTrailingSlash("/mcp.json")).toBe("/api/mcp");
     expect(stripOAuthTrailingSlash("/oauth/token.json")).toBe("/oauth/token");
     expect(stripOAuthTrailingSlash("/oauth/device.json")).toBe("/oauth/device");
@@ -824,16 +880,25 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(middleware).toContain('"/oauth.json"');
     expect(middleware).toContain('"/oauth/:path*"');
     expect(middleware).toContain('"/link.json"');
-    expect(read("src/app/oauth/device/route.ts")).toContain("oauthPostOnly");
     expect(read("src/app/oauth/device/route.ts")).toContain("verification_url");
+    expect(read("src/app/oauth/device/route.ts")).toMatch(
+      /export function GET[\s\S]*verification_url/,
+    );
     expect(read("src/app/oauth/register/route.ts")).not.toContain(
       "client_secret_basic",
     );
     expect(read("src/app/oauth/authorize/oauth-authorize.tsx")).toContain(
       "redirect_url",
     );
+    expect(read("src/app/oauth/authorize/oauth-authorize.tsx")).toContain(
+      "canonicalCodeChallengeMethod",
+    );
+    expect(read("src/app/oauth/authorize/page.tsx")).toContain("audience");
     expect(read("src/app/api/x402/route.ts")).toContain("oauthBearer");
     expect(read("src/app/api/x402/route.ts")).toContain("oauthWwwAuthenticate");
+    expect(read("src/app/api/x402/route.ts")).toMatch(
+      /status === 401 \|\| status === 403/,
+    );
     expect(read("src/app/.well-known/webfinger/route.ts")).toContain(
       "oauthOptions",
     );

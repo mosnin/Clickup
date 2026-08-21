@@ -62,7 +62,7 @@ export function isOAuthOptionsPath(pathname: string) {
 }
 
 export const OAUTH_CORS_ALLOW_HEADERS =
-  "Authorization, Content-Type, Accept, If-None-Match, MCP-Protocol-Version, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID, X-PAYMENT, X-Payment, X-Api-Key, X-API-Key, Api-Key, X-Access-Token, Access-Token";
+  "Authorization, Content-Type, Accept, If-None-Match, MCP-Protocol-Version, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID, X-PAYMENT, X-Payment, X-Api-Key, X-API-Key, Api-Key, Token, X-Access-Token, Access-Token";
 
 export const OAUTH_CORS_EXPOSE_HEADERS =
   "WWW-Authenticate, ETag, Mcp-Session-Id, X-PAYMENT-RESPONSE";
@@ -266,6 +266,7 @@ const OAUTH_KEY_ALIASES: Record<string, string> = {
   callbackUri: "redirect_uri",
   callbackUrl: "redirect_uri",
   grantType: "grant_type",
+  "grant-type": "grant_type",
   deviceCode: "device_code",
   userCode: "user_code",
   refreshToken: "refresh_token",
@@ -280,6 +281,13 @@ const OAUTH_KEY_ALIASES: Record<string, string> = {
   /** Some clients POST `grant=code` instead of `grant_type`. */
   grant: "grant_type",
 };
+
+/** PKCE S256, including `s256`, `sha256`, and hyphenated forms. */
+export function canonicalCodeChallengeMethod(value: string) {
+  const compact = value.trim().toLowerCase().replace(/[-_]/g, "");
+  if (!compact || compact === "s256" || compact === "sha256") return "S256";
+  return value.trim();
+}
 
 export function canonicalOAuthKey(key: string) {
   const stripped = key.replace(/\[\d*\]$/, "");
@@ -303,7 +311,7 @@ export function oauthFieldAliases(name: string) {
   if (name === "resource") aliases.push("audience");
   if (name === "scope") aliases.push("scopes");
   if (name === "response_type") aliases.push("responseType");
-  if (name === "grant_type") aliases.push("grant");
+  if (name === "grant_type") aliases.push("grant", "grant-type");
   if (name === "redirect_uri") {
     aliases.push(
       "redirect_url",
@@ -353,6 +361,14 @@ export function stripOAuthTrailingSlash(pathname: string) {
   // Clients that guess the MCP default path (`/mcp`) used to 404.
   if (next === "/mcp") next = "/api/mcp";
   else if (next.startsWith("/mcp/")) next = `/api/mcp/${next.slice("/mcp/".length)}`;
+  // `/mcp/.well-known/mcp` and webfinger live at the host root, not under
+  // `/api/mcp`. The /mcp → /api/mcp rewrite above would 404 them.
+  if (
+    next === "/api/mcp/.well-known/mcp" ||
+    next === "/api/mcp/.well-known/webfinger"
+  ) {
+    next = next.slice("/api/mcp".length);
+  }
   // Clients that treat `/oauth` as the issuer construct
   // `/oauth/.well-known/oauth-authorization-server` and 404'd.
   if (next === "/oauth/.well-known") {
@@ -459,7 +475,9 @@ export function applyOperateAuthorization(headers: Headers, url: string) {
     {
       apiKey: headers.get("x-api-key") || headers.get("api-key"),
       accessToken:
-        headers.get("x-access-token") || headers.get("access-token"),
+        headers.get("x-access-token") ||
+        headers.get("access-token") ||
+        headers.get("token"),
     },
   );
   if (!token) return headers;

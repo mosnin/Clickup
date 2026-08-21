@@ -44,10 +44,21 @@ function x402Json(
   extra?: Record<string, string>,
   request?: Request,
 ) {
-  return Response.json(body, {
-    status,
-    headers: { ...oauthCorsHeaders(request), ...extra },
-  });
+  const headers: Record<string, string> = {
+    ...oauthCorsHeaders(request),
+    ...extra,
+  };
+  if (
+    (status === 401 || status === 403) &&
+    !headers["WWW-Authenticate"] &&
+    request
+  ) {
+    headers["WWW-Authenticate"] = oauthWwwAuthenticate(
+      request,
+      "invalid_token",
+    );
+  }
+  return Response.json(body, { status, headers });
 }
 
 function creditsFrom(req: Request, bodyCredits?: unknown): number {
