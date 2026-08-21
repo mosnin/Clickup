@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireIdentity } from "./_authz";
+import { isWorkspaceOwner, requireIdentity } from "./_authz";
 import { requireAgentByKey, sha256Hex } from "./_agentAuth";
 import {
   consumeRateLimit,
@@ -111,19 +111,15 @@ async function canUseAgent(
 ) {
   if (agent.parentType === "user") return agent.parentId === subject;
   const workspaceId = agent.parentId as Id<"workspaces">;
-  const [workspace, membership] = await Promise.all([
-    ctx.db.get(workspaceId),
-    ctx.db
-      .query("memberships")
-      .withIndex("by_user_and_workspace", (q) =>
-        q.eq("userClerkId", subject).eq("workspaceId", workspaceId),
-      )
-      .unique(),
-  ]);
+  const workspace = await ctx.db.get(workspaceId);
+  if (!workspace) return false;
   // Workspace agents can see the whole workspace by design, including
-  // private Spaces. Only the workspace owner already holds that authority;
-  // letting any member select the agent would be a privilege escalation.
-  return workspace?.ownerClerkId === subject && membership !== null;
+  // private Spaces. Only a live workspace owner already holds that
+  // authority; letting any member select the agent would be a privilege
+  // escalation. Membership role, not ownerClerkId: a transferred owner
+  // must be able to authorize, and a demoted creator must not keep the
+  // token after they lose the role.
+  return await isWorkspaceOwner(ctx, workspaceId, subject);
 }
 
 export const registerClient = mutation({
@@ -199,12 +195,14 @@ export const authorizationRequest = query({
     const scopes = normalizeScopes(args.scope);
     const resource = requireMcpResource(args.resource);
     const identity = await requireIdentity(ctx);
-    const ownedWorkspaces = await ctx.db
-      .query("workspaces")
-      .withIndex("by_owner", (q) => q.eq("ownerClerkId", identity.subject))
+    const memberships = await ctx.db
+      .query("memberships")
+      .withIndex("by_user", (q) => q.eq("userClerkId", identity.subject))
       .collect();
     const workspaceIds = new Set(
-      ownedWorkspaces.map((workspace) => workspace._id as string),
+      memberships
+        .filter((m) => m.role === "owner")
+        .map((m) => m.workspaceId as string),
     );
     const agents = (
       await Promise.all([
