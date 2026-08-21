@@ -50,7 +50,10 @@ export function OAuthAuthorize({ resource }: { resource: string }) {
             scope,
             resource,
             codeChallenge,
-            codeChallengeMethod,
+            codeChallengeMethod:
+              codeChallengeMethod.toUpperCase() === "S256"
+                ? "S256"
+                : codeChallengeMethod,
           }
         : "skip" as const,
     [

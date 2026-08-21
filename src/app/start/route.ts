@@ -128,7 +128,9 @@ On approval you get, exactly once:
 
 \`\`\`json
 {
+  "access_token": "cua_…",
   "api_key": "cua_…",
+  "token_type": "Bearer",
   "agent_id": "…",
   "agent_name": "…",
   "scope_name": "…",

@@ -131,6 +131,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
     -d "{\\"grant_type\\":\\"urn:ietf:params:oauth:grant-type:device_code\\",\\"device_code\\":\\"$device_code\\"}" 2>/dev/null)"
 
   api_key="$(printf '%s' "$token_response" | json_str api_key)"
+  [ -z "$api_key" ] && api_key="$(printf '%s' "$token_response" | json_str access_token)"
   [ -n "$api_key" ] && break
 
   err="$(printf '%s' "$token_response" | json_str error)"

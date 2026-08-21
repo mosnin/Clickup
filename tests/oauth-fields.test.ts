@@ -7,6 +7,7 @@ import {
   oauthBasicClientId,
   oauthBearer,
   oauthCorsHeaders,
+  oauthError,
   oauthFields,
   oauthJson,
   oauthJsonObject,
@@ -167,6 +168,14 @@ describe("oauthFields", () => {
     expect(camel("grant_type")).toBe("refresh_token");
     expect(camel("refresh_token")).toBe("opr_camel");
     expect(camel("client_id")).toBe("opc_js");
+    const audience = await oauthFields(
+      new Request("https://www.operate.to/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audience: "https://operate.to/api/mcp" }),
+      }),
+    );
+    expect(audience("resource")).toBe("https://operate.to/api/mcp");
     const doubled = await oauthFields(
       new Request("https://www.operate.to/oauth/revoke", {
         method: "POST",
@@ -245,6 +254,8 @@ describe("oauthBearer", () => {
     ).toBe("cua_query");
     expect(canonicalGrantType("device_code")).toBe(DEVICE_GRANT);
     expect(canonicalGrantType("authorization-code")).toBe("authorization_code");
+    expect(canonicalGrantType("code")).toBe("authorization_code");
+    expect(canonicalGrantType("refresh")).toBe("refresh_token");
   });
 });
 
@@ -401,6 +412,14 @@ describe("oauthJsonObject", () => {
 });
 
 describe("oauth CORS", () => {
+  it("puts WWW-Authenticate on 401 OAuth JSON so browsers can read the challenge", () => {
+    const response = oauthError("invalid_client", "client_id is required", 401);
+    expect(response.headers.get("WWW-Authenticate")).toMatch(/invalid_client/);
+    expect(response.headers.get("Access-Control-Expose-Headers")).toMatch(
+      /WWW-Authenticate/,
+    );
+  });
+
   it("advertises CORS on OAuth JSON so a browser client can read discovery", () => {
     const response = oauthJson({ issuer: "https://www.operate.to" });
     expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
@@ -582,6 +601,10 @@ describe("stripOAuthTrailingSlash", () => {
     expect(
       stripOAuthTrailingSlash("/mcp/.well-known/oauth-protected-resource"),
     ).toBe("/api/mcp/.well-known/oauth-protected-resource");
+    expect(stripOAuthTrailingSlash("/api/mcp.json")).toBe("/api/mcp");
+    expect(stripOAuthTrailingSlash("/.well-known/mcp.json")).toBe(
+      "/.well-known/mcp",
+    );
     expect(
       stripOAuthTrailingSlash("/.well-known/oauth-protected-resource.json"),
     ).toBe("/.well-known/oauth-protected-resource");
@@ -626,7 +649,9 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(token).toContain(
       'field("client_id") || oauthBasicClientId(request)',
     );
-    expect(token).toContain("field(\"resource\") || undefined");
+    expect(token).toContain(
+      'field("resource") || field("audience") || undefined',
+    );
     expect(token).not.toContain("resource is required");
     expect(token).toContain("oauthPostOnly");
     expect(read("src/app/oauth/register/route.ts")).toContain("oauthPostOnly");
@@ -646,6 +671,11 @@ describe("OAuth POST routes share oauthFields", () => {
     );
     expect(middleware).toContain('"/mcp/:path*"');
     expect(read("src/app/oauth/token/route.ts")).toContain("canonicalGrantType");
+    expect(read("src/app/oauth/token/route.ts")).toContain("access_token: key");
+    expect(read("src/app/.well-known/mcp/route.ts")).toContain("oauthJson");
+    expect(read("src/app/connect/route.ts")).toContain(
+      "json_str access_token",
+    );
     expect(read("src/app/api/[transport]/route.ts")).toContain(
       "applyOperateAuthorization",
     );

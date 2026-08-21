@@ -8,6 +8,7 @@ import { GET as getProtectedResourceByPath } from "../src/app/.well-known/oauth-
 import { GET as getProtectedResourceUnderMcp } from "../src/app/api/mcp/.well-known/oauth-protected-resource/route";
 import { GET as getOAuthMetadataUnderMcp } from "../src/app/api/mcp/.well-known/oauth-authorization-server/route";
 import { GET as getStart } from "../src/app/start/route";
+import { GET as getMcpDiscovery } from "../src/app/.well-known/mcp/route";
 import {
   CANONICAL_PRODUCTION_MCP_RESOURCE,
   canonicalMcpResource,
@@ -54,6 +55,14 @@ describe("public MCP OAuth discovery", () => {
         "email",
         "operate:read",
         "operate:write",
+      ]),
+    );
+    expect(oauth.grant_types_supported).toEqual(
+      expect.arrayContaining([
+        "authorization_code",
+        "refresh_token",
+        "urn:ietf:params:oauth:grant-type:device_code",
+        "device_code",
       ]),
     );
   });
@@ -158,6 +167,17 @@ describe("public MCP OAuth discovery", () => {
     expect(oidcPath).toEqual(oidcRoot);
     expect(asPath.token_endpoint).toBe("https://www.operate.to/oauth/token");
     expect(asPath.issuer).toBe("https://www.operate.to");
+  });
+
+  it("publishes /.well-known/mcp with a www POST URL and PRM", async () => {
+    const request = new Request("https://www.operate.to/.well-known/mcp");
+    const card = await getMcpDiscovery(request).json();
+    expect(card.url).toBe("https://www.operate.to/api/mcp");
+    expect(card.resource).toBe(CANONICAL_PRODUCTION_MCP_RESOURCE);
+    expect(card.resource_metadata).toBe(
+      "https://www.operate.to/.well-known/oauth-protected-resource/api/mcp",
+    );
+    expect(card.url).not.toContain("https://operate.to/api/mcp");
   });
 
   it("never tells a client to POST MCP to the apex host", () => {

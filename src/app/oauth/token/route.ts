@@ -63,10 +63,10 @@ async function deviceGrant(deviceCode: string, request: Request) {
 
   const issuer = oauthIssuer(request);
   return oauthJson({
-    // Named api_key rather than access_token: there is no refresh token
-    // to pair with it, so calling it an access_token would invite a
-    // client to build a refresh loop around nothing. It does expire
-    // (90 days); expires_in is the RFC 8628 field a runtime already reads.
+    // RFC 8628 §3.5 / RFC 6749 §5.1 require access_token. api_key is the
+    // same cua_ value for scripts that already read that field. There is
+    // still no refresh token; expires_in is the 90-day device-key TTL.
+    access_token: key,
     api_key: key,
     token_type: "Bearer",
     expires_in: result.expiresIn,
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
   // Empty resource defaults to the official audience. Clients that omit
   // RFC 8707 `resource` (they already fetched PRM) used to 400 here
   // after a successful body parse.
-  const rawResource = field("resource") || undefined;
+  const rawResource = field("resource") || field("audience") || undefined;
   let resource: string;
   try {
     resource = validateMcpResource(rawResource, oauthIssuer(request));

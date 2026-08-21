@@ -280,6 +280,7 @@ export function oauthFieldAliases(name: string) {
       "refreshToken",
     );
   }
+  if (name === "resource") aliases.push("audience");
   return aliases;
 }
 
@@ -319,12 +320,14 @@ export function stripOAuthTrailingSlash(pathname: string) {
   // Clients that guess the MCP default path (`/mcp`) used to 404.
   if (next === "/mcp") next = "/api/mcp";
   else if (next.startsWith("/mcp/")) next = `/api/mcp/${next.slice("/mcp/".length)}`;
+  if (next === "/mcp.json" || next === "/api/mcp.json") next = "/api/mcp";
   if (next.endsWith(".json") && next.includes("/.well-known/")) {
     const withoutJson = next.slice(0, -".json".length);
     if (
       withoutJson.includes("oauth-protected-resource") ||
       withoutJson.includes("oauth-authorization-server") ||
-      withoutJson.includes("openid-configuration")
+      withoutJson.includes("openid-configuration") ||
+      withoutJson.endsWith("/.well-known/mcp")
     ) {
       next = withoutJson;
     }

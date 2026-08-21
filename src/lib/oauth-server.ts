@@ -117,6 +117,7 @@ export function oauthDiscoveryMetadata(request?: Request) {
       "authorization_code",
       "refresh_token",
       DEVICE_GRANT,
+      "device_code",
     ],
     code_challenge_methods_supported: ["S256"],
     token_endpoint_auth_methods_supported: ["none"],
@@ -216,9 +217,17 @@ export function oauthBearer(request: Request) {
 
 /** `device_code` is the short name clients send instead of the RFC 8628 URN. */
 export function canonicalGrantType(value: string) {
-  if (value === DEVICE_GRANT || value === "device_code") return DEVICE_GRANT;
-  if (value === "authorization-code") return "authorization_code";
-  return value;
+  const grant = value.trim();
+  if (grant === DEVICE_GRANT || grant === "device_code") return DEVICE_GRANT;
+  if (
+    grant === "authorization_code" ||
+    grant === "authorization-code" ||
+    grant === "code"
+  ) {
+    return "authorization_code";
+  }
+  if (grant === "refresh_token" || grant === "refresh") return "refresh_token";
+  return grant;
 }
 
 /**
@@ -388,6 +397,7 @@ export function randomCredential(prefix: string) {
 export function oauthJson(
   body: Record<string, unknown>,
   status = 200,
+  extra?: Record<string, string>,
 ) {
   return Response.json(body, {
     status,
@@ -395,6 +405,7 @@ export function oauthJson(
       "Cache-Control": "no-store",
       Pragma: "no-cache",
       ...oauthCorsHeaders(),
+      ...extra,
     },
   });
 }
@@ -404,7 +415,13 @@ export function oauthError(
   description: string,
   status = 400,
 ) {
-  return oauthJson({ error, error_description: description }, status);
+  const challenge =
+    status === 401 || status === 403
+      ? {
+          "WWW-Authenticate": `Bearer error="${error}", error_description="${description.replaceAll('"', "'")}"`,
+        }
+      : undefined;
+  return oauthJson({ error, error_description: description }, status, challenge);
 }
 
 /** GET probes of token/revoke/register used to 404 from the catch-all. */
