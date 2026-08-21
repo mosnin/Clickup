@@ -585,7 +585,11 @@ function credentialFromAuthorization(header: string) {
 function dedicatedHeaderToken(value: string | null | undefined) {
   const token = value?.trim() ?? "";
   if (!token || BASIC_PREFIX.test(token)) return "";
-  return peelAuthorization(token);
+  if (AUTH_SCHEME_PREFIX.test(token)) return peelAuthorization(token);
+  if (OPERATE_CREDENTIAL.test(token) && !token.includes(" ")) return token;
+  // `Tokencua_…` is a glued scheme, not an opaque JWT.
+  if (/^(Bearer|Token|Api-?Key|ApiKey)/i.test(token)) return "";
+  return token;
 }
 
 /** Peel `Bearer cua_…` / raw `cua_…` / opaque JWT. Basic stays empty. */
