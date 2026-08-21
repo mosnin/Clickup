@@ -6,6 +6,7 @@ import { buildPaymentRequired, paymentRequiredError, x402Config } from "./_x402"
 import {
   ADMIN_BURST_LIMIT_PER_MINUTE,
   ADMIN_DAILY_ACTION_LIMIT,
+  assertAgentScopeNotHeld,
   isComplimentaryScope,
 } from "./_adminEntitlements";
 
@@ -153,6 +154,12 @@ export async function requireAgentByKey(
   const agent = await ctx.db.get(key.agentId);
   if (!agent) throw new ConvexError("Invalid API key");
   if (agent.status !== "active") throw new ConvexError("Agent is paused");
+  // Holds are the entitlement kill switch. They used to apply only to
+  // Clerk-authenticated humans, so a suspended owner's agents — including
+  // every worker under a fleet grant — kept reading and writing. Check
+  // before lastUsedAt / metering / budget so a refusal does not look like
+  // usage and does not spend credits.
+  await assertAgentScopeNotHeld(ctx, agent.parentType, agent.parentId);
   if (oauthToken) {
     let stillAuthorized: boolean;
     if (agent.parentType === "user") {

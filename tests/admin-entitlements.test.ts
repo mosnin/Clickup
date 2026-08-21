@@ -208,7 +208,189 @@ describe("admin complimentary entitlements", () => {
 
     await expect(
       t.mutation(api.agentApi.createSpace, { apiKey, name: "After hold" }),
-    ).rejects.toThrow(/X402_PAYMENT_REQUIRED|insufficient credits/i);
+    ).rejects.toThrow(/account suspended/i);
+    // Reads and presence used to keep working after a hold — that is how a
+    // compromised staff fleet stayed live. whoami is the cheapest probe.
+    await expect(t.query(api.agentApi.whoami, { apiKey })).rejects.toThrow(
+      /account suspended/i,
+    );
+  });
+
+  it("stops a funded tenant agent when the owner is held, not when credits run out", async () => {
+    const t = convexTest(schema, modules);
+    await seedUsers(t);
+    await enableMetering(t, 2);
+    const apiKey = await seedAgent(t, NORMAL.subject, "cua_normal_hold");
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agentWallets", {
+        scopeType: "user",
+        scopeId: NORMAL.subject,
+        balance: 10_000,
+        lifetimeCredits: 10_000,
+        lifetimeSpent: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+    await t
+      .withIdentity(ROOT)
+      .mutation(api.admin.suspendUser, {
+        clerkId: NORMAL.subject,
+        reason: "nonpayment",
+      });
+    await expect(
+      t.mutation(api.agentApi.createSpace, { apiKey, name: "Should not land" }),
+    ).rejects.toThrow(/account suspended/i);
+  });
+
+  it("stops every agent in a suspended workspace, including fleet workers", async () => {
+    const t = convexTest(schema, modules);
+    await seedUsers(t);
+    const { apiKey, workspaceId, holderKey } = await t.run(async (ctx) => {
+      const workspaceId = await ctx.db.insert("workspaces", {
+        name: "Held Co",
+        slug: "held-co",
+        ownerClerkId: NORMAL.subject,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("memberships", {
+        workspaceId,
+        userClerkId: NORMAL.subject,
+        role: "owner",
+        joinedAt: Date.now(),
+      });
+      const holderId = await ctx.db.insert("agents", {
+        name: "Orchestrator",
+        parentType: "workspace",
+        parentId: workspaceId,
+        status: "active",
+        createdByClerkId: NORMAL.subject,
+        createdAt: Date.now(),
+      });
+      const holderKey = "cua_ws_holder";
+      await ctx.db.insert("agentKeys", {
+        agentId: holderId,
+        keyHash: sha256Hex(holderKey),
+        keyPrefix: holderKey.slice(0, 8),
+        createdAt: Date.now(),
+      });
+      const workerId = await ctx.db.insert("agents", {
+        name: "Worker",
+        parentType: "workspace",
+        parentId: workspaceId,
+        status: "active",
+        createdByClerkId: NORMAL.subject,
+        createdAt: Date.now(),
+      });
+      const apiKey = "cua_ws_worker";
+      await ctx.db.insert("agentKeys", {
+        agentId: workerId,
+        keyHash: sha256Hex(apiKey),
+        keyPrefix: apiKey.slice(0, 8),
+        createdAt: Date.now(),
+      });
+      return { apiKey, workspaceId, holderKey };
+    });
+
+    await t
+      .withIdentity(ROOT)
+      .mutation(api.admin.suspendWorkspace, {
+        workspaceId,
+        reason: "abuse",
+      });
+
+    await expect(
+      t.mutation(api.agentApi.createSpace, { apiKey, name: "After ws hold" }),
+    ).rejects.toThrow(/workspace suspended/i);
+    await expect(t.query(api.agentApi.whoami, { apiKey: holderKey })).rejects.toThrow(
+      /workspace suspended/i,
+    );
+  });
+
+  it("stops workspace agents when the owner is held, but not when a member is", async () => {
+    const t = convexTest(schema, modules);
+    await seedUsers(t);
+    const MEMBER = { subject: "user_member", email: "member@company.com" };
+    await t.run(async (ctx) => {
+      await ctx.db.insert("users", { clerkId: MEMBER.subject, email: MEMBER.email });
+    });
+    const { ownerKey, memberPersonalKey, workspaceId } = await t.run(
+      async (ctx) => {
+        const workspaceId = await ctx.db.insert("workspaces", {
+          name: "Team Co",
+          slug: "team-co",
+          ownerClerkId: NORMAL.subject,
+          createdAt: Date.now(),
+        });
+        for (const [userClerkId, role] of [
+          [NORMAL.subject, "owner"],
+          [MEMBER.subject, "member"],
+        ] as const) {
+          await ctx.db.insert("memberships", {
+            workspaceId,
+            userClerkId,
+            role,
+            joinedAt: Date.now(),
+          });
+        }
+        const ownerAgent = await ctx.db.insert("agents", {
+          name: "Team bot",
+          parentType: "workspace",
+          parentId: workspaceId,
+          status: "active",
+          createdByClerkId: NORMAL.subject,
+          createdAt: Date.now(),
+        });
+        const ownerKey = "cua_team_owner";
+        await ctx.db.insert("agentKeys", {
+          agentId: ownerAgent,
+          keyHash: sha256Hex(ownerKey),
+          keyPrefix: ownerKey.slice(0, 8),
+          createdAt: Date.now(),
+        });
+        const memberAgent = await ctx.db.insert("agents", {
+          name: "Member personal",
+          parentType: "user",
+          parentId: MEMBER.subject,
+          status: "active",
+          createdByClerkId: MEMBER.subject,
+          createdAt: Date.now(),
+        });
+        const memberPersonalKey = "cua_member_personal";
+        await ctx.db.insert("agentKeys", {
+          agentId: memberAgent,
+          keyHash: sha256Hex(memberPersonalKey),
+          keyPrefix: memberPersonalKey.slice(0, 8),
+          createdAt: Date.now(),
+        });
+        return { ownerKey, memberPersonalKey, workspaceId };
+      },
+    );
+    void workspaceId;
+
+    await t
+      .withIdentity(ROOT)
+      .mutation(api.admin.suspendUser, {
+        clerkId: MEMBER.subject,
+        reason: "member only",
+      });
+    // A member hold must not take the whole tenant's fleet down.
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: ownerKey }),
+    ).resolves.toMatchObject({ name: "Team bot" });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: memberPersonalKey }),
+    ).rejects.toThrow(/account suspended/i);
+
+    await t
+      .withIdentity(ROOT)
+      .mutation(api.admin.suspendUser, {
+        clerkId: NORMAL.subject,
+        reason: "owner hold",
+      });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: ownerKey }),
+    ).rejects.toThrow(/account suspended/i);
   });
 });
 

@@ -12,6 +12,7 @@ import { requireAgentByKey } from "./_agentAuth";
 import { requirePlatformAdmin, logAdminAction } from "./_adminAuth";
 import { isComplimentaryScope } from "./_adminEntitlements";
 import {
+  atomicToCredits,
   billingConfigurationIssue,
   billingConfigured,
   buildPaymentRequired,
@@ -363,6 +364,22 @@ export const applySettlement = internalMutation({
     }
     if (!Number.isInteger(args.creditsGranted) || args.creditsGranted <= 0) {
       throw new ConvexError("creditsGranted must be a positive integer");
+    }
+    // The ledger is the last line, not a courtesy: creditsGranted arrives
+    // from the settlement action, which also chose amountAtomic from the
+    // caller's `credits` argument. A facilitator that only says "ok" must
+    // not be able to mint more credits than this payment bought at the
+    // configured price. Under-credit (granting less than paid) is allowed.
+    let bought = 0;
+    try {
+      bought = atomicToCredits(args.amountAtomic, x402Config());
+    } catch {
+      throw new ConvexError("invalid settlement amount");
+    }
+    if (!Number.isSafeInteger(bought) || args.creditsGranted > bought) {
+      throw new ConvexError(
+        "creditsGranted exceeds what this payment bought",
+      );
     }
 
     await ctx.db.insert("payments", {
