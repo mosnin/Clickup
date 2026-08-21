@@ -621,24 +621,27 @@ export type OperateCredentialExtra = {
   proxyAuthorization?: string | null;
   authorizationAlias?: string | null;
   bodyToken?: string | null;
+  extraTokens?: Array<string | null | undefined>;
 };
+
+const DEDICATED_CREDENTIAL_HEADERS = [
+  "x-api-key",
+  "api-key",
+  "x-api-token",
+  "api-token",
+  "x-access-token",
+  "access-token",
+  "x-token",
+  "token",
+  "x-authorization",
+  "proxy-authorization",
+  "authorization-alias",
+] as const;
 
 /** Shared so `oauthBearer` and MCP rewrite cannot drift. */
 export function operateCredentialExtra(headers: Headers): OperateCredentialExtra {
   return {
-    apiKey:
-      headers.get("x-api-key") ||
-      headers.get("api-key") ||
-      headers.get("x-api-token") ||
-      headers.get("api-token"),
-    accessToken:
-      headers.get("x-access-token") ||
-      headers.get("access-token") ||
-      headers.get("x-token") ||
-      headers.get("token"),
-    xAuthorization: headers.get("x-authorization"),
-    proxyAuthorization: headers.get("proxy-authorization"),
-    authorizationAlias: headers.get("authorization-alias"),
+    extraTokens: DEDICATED_CREDENTIAL_HEADERS.map((name) => headers.get(name)),
   };
 }
 
@@ -677,6 +680,7 @@ export function extractOperateCredential(
     extra?.apiKey,
     extra?.accessToken,
     extra?.bodyToken,
+    ...(extra?.extraTokens ?? []),
     ...(get && query
       ? [
           oauthQueryValue(get, "access_token"),

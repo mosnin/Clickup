@@ -616,6 +616,26 @@ describe("oauthBearer", () => {
     expect(
       oauthBearer(
         new Request("https://www.operate.to/api/mcp", {
+          headers: {
+            "X-Api-Key": "Bearer eyJhbG.not-cua",
+            "X-Api-Token": "cua_after_jwt_key",
+          },
+        }),
+      ),
+    ).toBe("cua_after_jwt_key");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp", {
+          headers: {
+            "X-Access-Token": "Bearer eyJhbG.not-cua",
+            "X-Token": "cua_after_jwt_access",
+          },
+        }),
+      ),
+    ).toBe("cua_after_jwt_access");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp", {
           headers: { Cookie: "access_token=cua_cookie" },
         }),
       ),
@@ -1374,18 +1394,14 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(read("src/lib/oauth-slash.ts")).toContain(
       'firstFolded(query, "x-api-token")',
     );
-    expect(read("src/lib/oauth-slash.ts")).toContain('headers.get("x-token")');
+    expect(read("src/lib/oauth-slash.ts")).toContain('"x-token"');
+    expect(read("src/lib/oauth-slash.ts")).toContain('"x-authorization"');
+    expect(read("src/lib/oauth-slash.ts")).toContain('"proxy-authorization"');
+    expect(read("src/lib/oauth-slash.ts")).toContain('"x-api-token"');
+    expect(read("src/lib/oauth-slash.ts")).toContain('"authorization-alias"');
+    expect(read("src/lib/oauth-slash.ts")).toContain("extraTokens");
     expect(read("src/lib/oauth-slash.ts")).toContain(
-      'headers.get("x-authorization")',
-    );
-    expect(read("src/lib/oauth-slash.ts")).toContain(
-      'headers.get("proxy-authorization")',
-    );
-    expect(read("src/lib/oauth-slash.ts")).toContain(
-      'headers.get("x-api-token")',
-    );
-    expect(read("src/lib/oauth-slash.ts")).toContain(
-      'headers.get("authorization-alias")',
+      "DEDICATED_CREDENTIAL_HEADERS",
     );
     expect(read("src/lib/oauth-slash.ts")).toContain("peelOperateCredential");
     expect(read("src/lib/oauth-slash.ts")).toContain("operateRequestCredential");
