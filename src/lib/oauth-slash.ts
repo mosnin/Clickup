@@ -569,17 +569,26 @@ function peelAuthorization(header: string) {
 /**
  * Fetch concatenates duplicate Authorization headers with `, `.
  * Basic in a part is never a bearer; a later Bearer/Token still is.
+ * A JWT in the first part must not hide a later `cua_`.
  */
 function credentialFromAuthorization(header: string) {
   const parts = header.split(AUTH_PART);
+  const peeled: string[] = [];
   for (const part of parts) {
     const piece = part.trim();
     if (!piece || BASIC_PREFIX.test(piece)) continue;
-    if (AUTH_SCHEME_PREFIX.test(piece)) return peelAuthorization(piece);
+    if (AUTH_SCHEME_PREFIX.test(piece)) {
+      const token = peelAuthorization(piece);
+      if (token) peeled.push(token);
+      continue;
+    }
     const raw = unwrapCredential(piece);
-    if (OPERATE_CREDENTIAL.test(raw) && !raw.includes(" ")) return raw;
+    if (OPERATE_CREDENTIAL.test(raw) && !raw.includes(" ")) peeled.push(raw);
   }
-  return "";
+  const operate = peeled.find(
+    (token) => OPERATE_CREDENTIAL.test(token) && !token.includes(" "),
+  );
+  return operate ?? peeled[0] ?? "";
 }
 
 function dedicatedHeaderToken(value: string | null | undefined) {
@@ -645,15 +654,19 @@ export function operateCredentialExtra(headers: Headers): OperateCredentialExtra
   };
 }
 
-/** Header + query + optional body, one prefer-operate gather. */
+/** Header + query + optional body fields, one prefer-operate gather. */
 export function operateRequestCredential(
   request: Request,
-  bodyToken?: string | null,
+  bodyToken?: string | null | Array<string | null | undefined>,
 ): string {
+  const extra = operateCredentialExtra(request.headers);
+  const bodies = Array.isArray(bodyToken) ? bodyToken : [bodyToken];
   return extractOperateCredential(
     request.headers.get("authorization"),
     new URL(request.url).searchParams,
-    { ...operateCredentialExtra(request.headers), bodyToken },
+    {
+      extraTokens: [...(extra.extraTokens ?? []), ...bodies],
+    },
   );
 }
 

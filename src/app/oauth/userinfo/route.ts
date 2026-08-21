@@ -31,10 +31,11 @@ function unauthorized(description: string, request?: Request) {
 
 async function userInfo(request: Request) {
   const field = await oauthFields(request);
-  const accessToken = operateRequestCredential(
-    request,
-    field("access_token") || field("api_key") || field("token"),
-  );
+  const accessToken = operateRequestCredential(request, [
+    field("access_token"),
+    field("api_key"),
+    field("token"),
+  ]);
   if (!accessToken) {
     return unauthorized("A Bearer access token is required", request);
   }

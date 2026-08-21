@@ -13,6 +13,7 @@ import {
   oauthJson,
   oauthJsonObject,
   oauthPostOnly,
+  operateRequestCredential,
 } from "../src/lib/oauth-server";
 import {
   applyMcpCors,
@@ -403,6 +404,20 @@ describe("oauthBearer", () => {
     expect(
       extractOperateCredential("Bearer cua_first, Bearer cua_second"),
     ).toBe("cua_first");
+    expect(
+      extractOperateCredential(
+        "Bearer eyJhbG.not-cua, Bearer cua_after_jwt_auth",
+      ),
+    ).toBe("cua_after_jwt_auth");
+    expect(
+      operateRequestCredential(
+        new Request("https://www.operate.to/oauth/userinfo", {
+          method: "POST",
+          headers: { Authorization: "Bearer eyJhbG.not-cua" },
+        }),
+        ["Bearer eyJhbG.body-jwt", "cua_body_operate"],
+      ),
+    ).toBe("cua_body_operate");
     expect(
       extractOperateCredential("Bearer cua_keep, Basic opc_public:"),
     ).toBe("cua_keep");

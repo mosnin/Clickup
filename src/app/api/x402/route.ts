@@ -35,7 +35,10 @@ function asAction(ref: unknown): FunctionReference<"action"> {
   return ref as FunctionReference<"action">;
 }
 
-function bearer(req: Request, bodyToken?: string | null): string | null {
+function bearer(
+  req: Request,
+  bodyToken?: string | null | Array<string | null | undefined>,
+): string | null {
   return operateRequestCredential(req, bodyToken) || null;
 }
 
@@ -74,10 +77,11 @@ function creditsFrom(req: Request, bodyCredits?: unknown): number {
 
 async function handle(req: Request): Promise<Response> {
   const field = await oauthFields(req);
-  const apiKey = bearer(
-    req,
-    field("api_key") || field("access_token") || field("token"),
-  );
+  const apiKey = bearer(req, [
+    field("api_key"),
+    field("access_token"),
+    field("token"),
+  ]);
   if (!apiKey) {
     return x402Json(
       { error: "Missing API key. Send Authorization: Bearer cua_..." },

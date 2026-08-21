@@ -10,10 +10,11 @@ import {
 
 export async function POST(request: Request) {
   const field = await oauthFields(request);
-  const token = operateRequestCredential(
-    request,
-    field("token") || field("access_token") || field("api_key"),
-  );
+  const token = operateRequestCredential(request, [
+    field("token"),
+    field("access_token"),
+    field("api_key"),
+  ]);
   if (token) {
     await oauthConvexClient().mutation(api.oauth.revokeToken, { token });
   }
