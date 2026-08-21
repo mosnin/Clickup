@@ -17,6 +17,7 @@ import { QUERY_VOCABULARY } from "@/lib/data-stream";
 import { ALL_SHAPES } from "@/lib/panel";
 import { STYLE_ENUMS } from "@/lib/component-style";
 import { mcpWwwAuthenticate, oauthResource } from "@/lib/oauth-server";
+import { applyMcpCors } from "@/lib/oauth-slash";
 // The Chat dashboard's agent surface (C6b). A separate application sharing one
 // endpoint (D11), so its catalog lives in its own module and lands here in one
 // line rather than growing this file by a twelfth of itself.
@@ -3166,28 +3167,8 @@ const chatgptAuthHandler = withMcpAuth(
 // under /api — explicitly 404 anything that isn't the MCP endpoint so
 // unknown /api/* paths never reach the MCP handler. (Static routes always
 // win over this dynamic segment, so real API routes are unaffected.)
-const MCP_BROWSER_ORIGINS = new Set([
-  "https://chatgpt.com",
-  "https://claude.ai",
-  "https://claude.com",
-]);
-
 function withCors(req: Request, response: Response) {
-  const origin = req.headers.get("origin");
-  if (!origin || !MCP_BROWSER_ORIGINS.has(origin)) return response;
-  const headers = new Headers(response.headers);
-  headers.set("Access-Control-Allow-Origin", origin);
-  headers.set(
-    "Access-Control-Allow-Headers",
-    "Authorization, Content-Type, Mcp-Protocol-Version, Mcp-Session-Id",
-  );
-  headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-  headers.append("Vary", "Origin");
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
+  return applyMcpCors(req, response);
 }
 
 async function guarded(req: Request): Promise<Response> {

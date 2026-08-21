@@ -52,6 +52,101 @@ export function isAuthorizePath(pathname: string) {
   );
 }
 
+/** OPTIONS must be answered before Clerk on authorize/link. */
+export function isOAuthOptionsPath(pathname: string) {
+  return isMachineOAuthPath(pathname) || isHumanOAuthPath(pathname);
+}
+
+export const OAUTH_CORS_ALLOW_HEADERS =
+  "Authorization, Content-Type, Accept, If-None-Match, MCP-Protocol-Version, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID, X-PAYMENT, X-Payment";
+
+export const OAUTH_CORS_EXPOSE_HEADERS =
+  "WWW-Authenticate, ETag, Mcp-Session-Id, X-PAYMENT-RESPONSE";
+
+/**
+ * Public OAuth/MCP discovery is readable cross-origin. Lives here so
+ * Edge middleware can answer OPTIONS without importing `oauth-server`
+ * (`node:crypto` / Convex).
+ */
+export function oauthCorsHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": OAUTH_CORS_ALLOW_HEADERS,
+    "Access-Control-Expose-Headers": OAUTH_CORS_EXPOSE_HEADERS,
+    "Access-Control-Max-Age": "86400",
+  };
+}
+
+export function oauthOptions() {
+  return new Response(null, {
+    status: 204,
+    headers: oauthCorsHeaders(),
+  });
+}
+
+export function isMcpBrowserOrigin(origin: string | null) {
+  if (!origin) return false;
+  let host: string;
+  try {
+    host = new URL(origin).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  if (host === "localhost" || host === "127.0.0.1" || host === "[::1]") {
+    return true;
+  }
+  if (
+    host === "chatgpt.com" ||
+    host === "www.chatgpt.com" ||
+    host === "chat.openai.com" ||
+    host === "claude.ai" ||
+    host === "www.claude.ai" ||
+    host === "claude.com" ||
+    host === "www.claude.com" ||
+    host === "cursor.com" ||
+    host === "www.cursor.com"
+  ) {
+    return true;
+  }
+  return (
+    host.endsWith(".chatgpt.com") ||
+    host.endsWith(".claude.ai") ||
+    host.endsWith(".claude.com") ||
+    host.endsWith(".cursor.com")
+  );
+}
+
+/**
+ * 200 MCP responses stay origin-allowlisted (Bearer is not a cookie, but
+ * a stolen key in page JS should not become readable). 401 and OPTIONS
+ * are public: a browser must read `WWW-Authenticate` / pass preflight
+ * even from `www.chatgpt.com`, localhost inspector, or a new subdomain
+ * we have not listed yet.
+ */
+export function applyMcpCors(req: Request, response: Response) {
+  const origin = req.headers.get("origin");
+  const known = isMcpBrowserOrigin(origin);
+  const open = req.method === "OPTIONS" || response.status === 401;
+  if (!open && !known) return response;
+
+  const headers = new Headers(response.headers);
+  headers.set(
+    "Access-Control-Allow-Origin",
+    known && origin ? origin : origin && open ? origin : "*",
+  );
+  headers.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+  headers.set("Access-Control-Allow-Headers", OAUTH_CORS_ALLOW_HEADERS);
+  headers.set("Access-Control-Expose-Headers", OAUTH_CORS_EXPOSE_HEADERS);
+  headers.set("Access-Control-Max-Age", "86400");
+  headers.append("Vary", "Origin");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 function asJsonRecord(body: unknown): Record<string, unknown> | null {
   if (body && typeof body === "object" && !Array.isArray(body)) {
     return body as Record<string, unknown>;

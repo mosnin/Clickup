@@ -4,14 +4,18 @@ import { describe, expect, it } from "vitest";
 import {
   oauthBasicClientId,
   oauthBearer,
+  oauthCorsHeaders,
   oauthFields,
   oauthJson,
   oauthJsonObject,
 } from "../src/lib/oauth-server";
 import {
+  applyMcpCors,
   isAuthorizePath,
   isHumanOAuthPath,
   isMachineOAuthPath,
+  isMcpBrowserOrigin,
+  isOAuthOptionsPath,
   readAuthorizeParams,
   stripOAuthTrailingSlash,
 } from "../src/lib/oauth-slash";
@@ -143,6 +147,25 @@ describe("oauthFields", () => {
       }),
     );
     expect(field("token")).toBe("opr_array");
+  });
+
+  it("reads PHP-style token[] and a one-element JSON array value", async () => {
+    const form = await oauthFields(
+      new Request("https://www.operate.to/oauth/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "token[]=opr_php",
+      }),
+    );
+    expect(form("token")).toBe("opr_php");
+    const json = await oauthFields(
+      new Request("https://www.operate.to/oauth/revoke", {
+        method: "POST",
+        headers: { "Content-Type": "text/json" },
+        body: JSON.stringify({ token: ["opr_json_array"] }),
+      }),
+    );
+    expect(json("token")).toBe("opr_json_array");
   });
 
   it("reads a multipart revoke body", async () => {
@@ -313,6 +336,72 @@ describe("oauth CORS", () => {
     expect(response.headers.get("Access-Control-Allow-Methods")).toContain(
       "POST",
     );
+    expect(response.headers.get("Access-Control-Allow-Methods")).toContain(
+      "DELETE",
+    );
+    expect(response.headers.get("Access-Control-Allow-Headers")).toMatch(
+      /Accept|If-None-Match|X-PAYMENT|Mcp-Protocol-Version/,
+    );
+    expect(response.headers.get("Access-Control-Expose-Headers")).toMatch(
+      /WWW-Authenticate/,
+    );
+    const headers = oauthCorsHeaders();
+    expect(headers["Access-Control-Expose-Headers"]).toContain(
+      "WWW-Authenticate",
+    );
+  });
+});
+
+describe("MCP browser CORS", () => {
+  it("allows ChatGPT/Claude/Cursor/localhost and opens 401 + OPTIONS", () => {
+    expect(isMcpBrowserOrigin("https://www.chatgpt.com")).toBe(true);
+    expect(isMcpBrowserOrigin("https://chat.openai.com")).toBe(true);
+    expect(isMcpBrowserOrigin("https://chatgpt.com")).toBe(true);
+    expect(isMcpBrowserOrigin("http://localhost:6274")).toBe(true);
+    expect(isMcpBrowserOrigin("http://127.0.0.1:3000")).toBe(true);
+    expect(isMcpBrowserOrigin("https://workspace.claude.ai")).toBe(true);
+    expect(isMcpBrowserOrigin("https://www.cursor.com")).toBe(true);
+    expect(isMcpBrowserOrigin("https://evil.example")).toBe(false);
+    expect(isOAuthOptionsPath("/oauth/authorize")).toBe(true);
+    expect(isOAuthOptionsPath("/oauth/token")).toBe(true);
+    expect(isOAuthOptionsPath("/dashboard")).toBe(false);
+
+    const challenge = applyMcpCors(
+      new Request("https://www.operate.to/api/mcp", {
+        headers: { Origin: "https://www.chatgpt.com" },
+      }),
+      new Response("unauthorized", {
+        status: 401,
+        headers: { "WWW-Authenticate": 'Bearer resource_metadata="https://www.operate.to/.well-known/oauth-protected-resource/api/mcp"' },
+      }),
+    );
+    expect(challenge.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://www.chatgpt.com",
+    );
+    expect(challenge.headers.get("Access-Control-Expose-Headers")).toMatch(
+      /WWW-Authenticate/,
+    );
+
+    const unknown401 = applyMcpCors(
+      new Request("https://www.operate.to/api/mcp", {
+        headers: { Origin: "https://unknown-inspector.example" },
+      }),
+      new Response(null, { status: 401 }),
+    );
+    expect(unknown401.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://unknown-inspector.example",
+    );
+    expect(unknown401.headers.get("Access-Control-Expose-Headers")).toMatch(
+      /WWW-Authenticate/,
+    );
+
+    const blocked200 = applyMcpCors(
+      new Request("https://www.operate.to/api/mcp", {
+        headers: { Origin: "https://evil.example" },
+      }),
+      new Response("ok", { status: 200 }),
+    );
+    expect(blocked200.headers.get("Access-Control-Allow-Origin")).toBeNull();
   });
 });
 
@@ -416,10 +505,30 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(middleware).toContain("return clerk(req, event)");
     expect(middleware).toContain("readAuthorizeParams");
     expect(middleware).toContain("303");
+    expect(middleware).toContain("isOAuthOptionsPath");
+    expect(middleware).toContain('req.method === "OPTIONS"');
+    expect(middleware.indexOf("isOAuthOptionsPath")).toBeLessThan(
+      middleware.indexOf("return clerk(req, event)"),
+    );
     expect(read("next.config.mjs")).toContain("skipTrailingSlashRedirect: true");
     expect(read("src/app/oauth/token/route.ts")).toContain("oauthOptions");
     expect(
       read("src/app/.well-known/oauth-protected-resource/route.ts"),
     ).toContain("oauthOptions");
+    expect(read("src/app/api/agent/manifest/route.ts")).toContain(
+      "oauthOptions",
+    );
+    expect(read("src/app/api/x402/route.ts")).toContain("oauthOptions");
+    expect(read("src/app/api/x402/route.ts")).toContain("oauthFields");
+    expect(read("src/app/api/x402/route.ts")).not.toMatch(/req\.json\(/);
+    expect(
+      read("src/app/.well-known/openai-apps-challenge/route.ts"),
+    ).toContain("oauthOptions");
+    expect(read("src/app/api/[transport]/route.ts")).toContain("applyMcpCors");
+    expect(read("src/app/api/[transport]/route.ts")).not.toContain(
+      "MCP_BROWSER_ORIGINS",
+    );
+    expect(read("src/lib/oauth-slash.ts")).not.toMatch(/node:crypto/);
+    expect(read("src/lib/oauth-slash.ts")).not.toMatch(/from "\.\/oauth-server"/);
   });
 });

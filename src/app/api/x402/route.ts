@@ -1,6 +1,7 @@
 import { ConvexHttpClient } from "convex/browser";
 import type { FunctionReference } from "convex/server";
 import { api } from "@convex/_generated/api";
+import { oauthCorsHeaders, oauthFields, oauthOptions } from "@/lib/oauth-server";
 
 // Protocol-faithful x402 endpoint for topping up agent credits.
 //
@@ -34,6 +35,17 @@ function bearer(req: Request): string | null {
   return url.searchParams.get("apiKey");
 }
 
+function x402Json(
+  body: unknown,
+  status = 200,
+  extra?: Record<string, string>,
+) {
+  return Response.json(body, {
+    status,
+    headers: { ...oauthCorsHeaders(), ...extra },
+  });
+}
+
 function creditsFrom(req: Request, bodyCredits?: unknown): number {
   const url = new URL(req.url);
   const raw = url.searchParams.get("credits") ?? bodyCredits;
@@ -47,34 +59,31 @@ function creditsFrom(req: Request, bodyCredits?: unknown): number {
 async function handle(req: Request): Promise<Response> {
   const apiKey = bearer(req);
   if (!apiKey) {
-    return Response.json(
+    return x402Json(
       { error: "Missing API key. Send Authorization: Bearer cua_..." },
-      { status: 401 },
+      401,
     );
   }
 
-  let body: Record<string, unknown> = {};
-  if (req.method === "POST") {
-    try {
-      body = (await req.json()) as Record<string, unknown>;
-    } catch {
-      body = {};
-    }
-  }
+  const field = await oauthFields(req);
 
   let credits: number;
   try {
-    credits = creditsFrom(req, body.credits);
+    credits = creditsFrom(req, field("credits") || undefined);
   } catch (err) {
-    return Response.json(
+    return x402Json(
       { error: err instanceof Error ? err.message : "bad credits" },
-      { status: 400 },
+      400,
     );
   }
 
   const client = convexClient();
   const xPayment =
-    req.headers.get("x-payment") ?? (body.xPayment as string | undefined);
+    req.headers.get("x-payment") ||
+    field("xPayment") ||
+    field("x_payment") ||
+    field("X-PAYMENT") ||
+    undefined;
 
   // No payment yet → return the 402 challenge.
   if (!xPayment) {
@@ -91,20 +100,20 @@ async function handle(req: Request): Promise<Response> {
         };
       };
       if (wallet.pricing?.available === false) {
-        return Response.json(
+        return x402Json(
           {
             error: `Billing unavailable: ${
               wallet.pricing.configurationIssue ?? "payment setup is incomplete"
             }`,
           },
-          { status: 503 },
+          503,
         );
       }
       const challenge = await client.query(
         asQuery(api.x402.topupRequirements),
         { apiKey, credits },
       );
-      return Response.json(challenge, { status: 402 });
+      return x402Json(challenge, 402);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const status = /invalid api key/i.test(message)
@@ -112,7 +121,7 @@ async function handle(req: Request): Promise<Response> {
         : /billing unavailable|not configured/i.test(message)
           ? 503
           : 400;
-      return Response.json({ error: message }, { status });
+      return x402Json({ error: message }, status);
     }
   }
 
@@ -124,10 +133,7 @@ async function handle(req: Request): Promise<Response> {
       credits,
     })) as Record<string, unknown>;
     const encoded = Buffer.from(JSON.stringify(result)).toString("base64");
-    return Response.json(result, {
-      status: 200,
-      headers: { "X-PAYMENT-RESPONSE": encoded },
-    });
+    return x402Json(result, 200, { "X-PAYMENT-RESPONSE": encoded });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const status = /invalid api key/i.test(message)
@@ -137,7 +143,7 @@ async function handle(req: Request): Promise<Response> {
         : /billing unavailable|not configured/i.test(message)
           ? 503
           : 402;
-    return Response.json({ error: message }, { status });
+    return x402Json({ error: message }, status);
   }
 }
 
@@ -147,4 +153,8 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   return handle(req);
+}
+
+export function OPTIONS() {
+  return oauthOptions();
 }

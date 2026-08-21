@@ -7,8 +7,10 @@ import {
   servingOrigin,
   validateMcpResource,
 } from "./oauth-resource";
+import { oauthCorsHeaders, oauthOptions } from "./oauth-slash";
 
 export { servingMcpUrl, servingOrigin };
+export { oauthCorsHeaders, oauthOptions };
 
 // RFC 8628 §3.4. Lives here rather than beside the handler that reads it,
 // because a Next route file may only export HTTP handlers and the documented
@@ -137,16 +139,17 @@ export async function oauthFields(
   const contentType = request.headers.get("content-type") ?? "";
   const query = new URL(request.url).searchParams;
   const withQuery = (fromBody: (name: string) => string) => {
-    return (name: string) => fromBody(name) || query.get(name) || "";
+    return (name: string) =>
+      fromBody(name) || phpFieldString((key) => query.get(key) || "", name);
   };
 
   if (contentType.includes("multipart/form-data")) {
     try {
       const form = await request.formData();
-      return withQuery((name) => {
-        const value = form.get(name);
+      return withQuery((name) => phpFieldString((key) => {
+        const value = form.get(key);
         return typeof value === "string" ? value : "";
-      });
+      }, name));
     } catch {
       return withQuery(() => "");
     }
@@ -154,17 +157,16 @@ export async function oauthFields(
 
   const text = (await request.text().catch(() => "")).replace(/^\uFEFF/, "");
   const trimmed = text.trim();
-  const labelledJson = contentType.includes("application/json");
+  const labelledJson =
+    contentType.includes("application/json") ||
+    contentType.includes("text/json") ||
+    contentType.includes("+json");
   const looksJson = trimmed.startsWith("{") || trimmed.startsWith("[");
   if (labelledJson || looksJson) {
     try {
       const record = asJsonRecord(JSON.parse(trimmed) as unknown);
       if (record) {
-        return withQuery((name) => {
-          const value = record[name];
-          if (value === undefined || value === null) return "";
-          return typeof value === "string" ? value : String(value);
-        });
+        return withQuery((name) => phpRecordString(record, name));
       }
     } catch {
       // Fall through: a JSON Content-Type is sometimes wrapped around
@@ -172,7 +174,34 @@ export async function oauthFields(
     }
   }
   const params = new URLSearchParams(trimmed);
-  return withQuery((name) => params.get(name) ?? "");
+  return withQuery((name) => phpFieldString((key) => params.get(key) ?? "", name));
+}
+
+/** PHP / Rails clients send `token[]` / `token[0]` for a scalar field. */
+function phpFieldNames(name: string) {
+  return [name, `${name}[]`, `${name}[0]`];
+}
+
+function phpFieldString(get: (name: string) => string, name: string) {
+  for (const key of phpFieldNames(name)) {
+    const value = get(key);
+    if (value) return value;
+  }
+  return "";
+}
+
+function phpRecordString(record: Record<string, unknown>, name: string) {
+  for (const key of phpFieldNames(name)) {
+    const value = record[key];
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      const first = value.find((item) => item !== undefined && item !== null);
+      if (first === undefined) continue;
+      return typeof first === "string" ? first : String(first);
+    }
+    return typeof value === "string" ? value : String(value);
+  }
+  return "";
 }
 
 /** RFC 7009 puts `token` in the body; some logout clients send Bearer only. */
@@ -339,22 +368,6 @@ export function oauthConvexClient() {
 
 export function randomCredential(prefix: string) {
   return `${prefix}_${randomBytes(32).toString("base64url")}`;
-}
-
-export function oauthCorsHeaders() {
-  return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Authorization, Content-Type",
-    "Access-Control-Max-Age": "86400",
-  };
-}
-
-export function oauthOptions() {
-  return new Response(null, {
-    status: 204,
-    headers: oauthCorsHeaders(),
-  });
 }
 
 export function oauthJson(

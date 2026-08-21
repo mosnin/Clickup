@@ -4,6 +4,8 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import {
   isAuthorizePath,
   isMachineOAuthPath,
+  isOAuthOptionsPath,
+  oauthCorsHeaders,
   readAuthorizeParams,
   stripOAuthTrailingSlash,
 } from "@/lib/oauth-slash";
@@ -51,6 +53,12 @@ const clerk = clerkMiddleware(async (auth, req) => {
 export default async function middleware(req: NextRequest, event: never) {
   const stripped = stripOAuthTrailingSlash(req.nextUrl.pathname);
   const path = stripped ?? req.nextUrl.pathname;
+  // OPTIONS on authorize/link must not reach Clerk (a sign-in redirect
+  // fails CORS preflight). Machine OPTIONS are answered here too so a
+  // slashed URL never 404s the preflight.
+  if (req.method === "OPTIONS" && isOAuthOptionsPath(path)) {
+    return new NextResponse(null, { status: 204, headers: oauthCorsHeaders() });
+  }
   // POST authorize is a 404 today (page is GET-only). 303 to GET with the
   // body as query — not 308, which would drop the body.
   if (req.method === "POST" && isAuthorizePath(path)) {

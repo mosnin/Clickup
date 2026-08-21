@@ -1,5 +1,5 @@
 import { buildManifest, manifestEtag } from "@/lib/agent-manifest";
-import { oauthIssuer } from "@/lib/oauth-server";
+import { oauthCorsHeaders, oauthIssuer, oauthOptions } from "@/lib/oauth-server";
 
 // GET /api/agent/manifest — "has anything I learned changed?"
 //
@@ -18,7 +18,11 @@ export async function GET(request: Request) {
   if (request.headers.get("if-none-match") === etag) {
     return new Response(null, {
       status: 304,
-      headers: { ETag: etag, "Cache-Control": "public, max-age=60" },
+      headers: {
+        ETag: etag,
+        "Cache-Control": "public, max-age=60",
+        ...oauthCorsHeaders(),
+      },
     });
   }
 
@@ -29,8 +33,13 @@ export async function GET(request: Request) {
       // long TTL here would make an agent's update check answer with
       // yesterday's surface, which is worse than not checking.
       "Cache-Control": "public, max-age=60, s-maxage=60",
+      ...oauthCorsHeaders(),
     },
   });
+}
+
+export function OPTIONS() {
+  return oauthOptions();
 }
 
 export const dynamic = "force-dynamic";
