@@ -76,14 +76,21 @@ export function mergeAllowHeaders(requested: string | null | undefined) {
 }
 
 export function oauthCorsHeaders(request?: Request) {
+  const origin = request?.headers.get("origin")?.trim();
+  const allowOrigin =
+    origin && origin !== "null" && origin !== "*" ? origin : "*";
   return {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": allowOrigin,
+    ...(allowOrigin !== "*"
+      ? { "Access-Control-Allow-Credentials": "true" }
+      : {}),
     "Access-Control-Allow-Methods": "GET, HEAD, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": mergeAllowHeaders(
       request?.headers.get("access-control-request-headers"),
     ),
     "Access-Control-Expose-Headers": OAUTH_CORS_EXPOSE_HEADERS,
     "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
   };
 }
 
@@ -250,6 +257,12 @@ const OAUTH_KEY_ALIASES: Record<string, string> = {
   clientName: "client_name",
   redirectUri: "redirect_uri",
   redirectUris: "redirect_uris",
+  redirect_url: "redirect_uri",
+  redirectUrl: "redirect_uri",
+  callback_uri: "redirect_uri",
+  callback_url: "redirect_uri",
+  callbackUri: "redirect_uri",
+  callbackUrl: "redirect_uri",
   grantType: "grant_type",
   deviceCode: "device_code",
   userCode: "user_code",
@@ -288,6 +301,16 @@ export function oauthFieldAliases(name: string) {
   if (name === "scope") aliases.push("scopes");
   if (name === "response_type") aliases.push("responseType");
   if (name === "grant_type") aliases.push("grant");
+  if (name === "redirect_uri") {
+    aliases.push(
+      "redirect_url",
+      "redirectUrl",
+      "callback_uri",
+      "callback_url",
+      "callbackUri",
+      "callbackUrl",
+    );
+  }
   return aliases;
 }
 

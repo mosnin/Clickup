@@ -28,7 +28,12 @@ function randomCode() {
 export function OAuthAuthorize({ resource }: { resource: string }) {
   const searchParams = useSearchParams();
   const clientId = searchParams.get("client_id") ?? "";
-  const redirectUri = searchParams.get("redirect_uri") ?? "";
+  const redirectUri =
+    searchParams.get("redirect_uri") ||
+    searchParams.get("redirect_url") ||
+    searchParams.get("callback_uri") ||
+    searchParams.get("callback_url") ||
+    "";
   const responseTypeRaw =
     searchParams.get("response_type") ??
     searchParams.get("responseType") ??

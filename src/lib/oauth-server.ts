@@ -98,6 +98,7 @@ export function oauthWwwAuthenticate(
 ) {
   const origin = oauthIssuer(request);
   const parts = [
+    `realm="${origin}"`,
     `resource_metadata="${protectedResourceMetadataUrl(origin)}"`,
     `as_uri="${authorizationServerMetadataUrl(origin)}"`,
     `scope="operate:read"`,
@@ -227,6 +228,13 @@ function phpRecordString(record: Record<string, unknown>, name: string) {
     const value = record[key];
     if (value === undefined || value === null) continue;
     if (Array.isArray(value)) {
+      if (name === "scope") {
+        const scopes = value.filter(
+          (item): item is string => typeof item === "string" && item.length > 0,
+        );
+        if (scopes.length) return scopes.join(" ");
+        continue;
+      }
       const first = value.find((item) => item !== undefined && item !== null);
       if (first === undefined) continue;
       return typeof first === "string" ? first : String(first);
@@ -447,13 +455,14 @@ export function oauthJson(
   body: Record<string, unknown>,
   status = 200,
   extra?: Record<string, string>,
+  request?: Request,
 ) {
   return Response.json(body, {
     status,
     headers: {
       "Cache-Control": "no-store",
       Pragma: "no-cache",
-      ...oauthCorsHeaders(),
+      ...oauthCorsHeaders(request),
       ...extra,
     },
   });
@@ -475,7 +484,12 @@ export function oauthError(
           ),
         }
       : undefined;
-  return oauthJson({ error, error_description: description }, status, challenge);
+  return oauthJson(
+    { error, error_description: description },
+    status,
+    challenge,
+    request,
+  );
 }
 
 /** GET probes of token/revoke/register used to 404 from the catch-all. */

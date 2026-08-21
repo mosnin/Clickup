@@ -21,7 +21,7 @@ export async function GET(request: Request) {
       headers: {
         ETag: etag,
         "Cache-Control": "public, max-age=60",
-        ...oauthCorsHeaders(),
+        ...oauthCorsHeaders(request),
       },
     });
   }
@@ -33,13 +33,13 @@ export async function GET(request: Request) {
       // long TTL here would make an agent's update check answer with
       // yesterday's surface, which is worse than not checking.
       "Cache-Control": "public, max-age=60, s-maxage=60",
-      ...oauthCorsHeaders(),
+      ...oauthCorsHeaders(request),
     },
   });
 }
 
-export function OPTIONS() {
-  return oauthOptions();
+export function OPTIONS(request: Request) {
+  return oauthOptions(request);
 }
 
 export const dynamic = "force-dynamic";

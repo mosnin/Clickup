@@ -185,6 +185,20 @@ describe("oauthFields", () => {
       }),
     );
     expect(grantAlias("grant_type")).toBe("code");
+    const scopeArray = await oauthFields(
+      new Request("https://www.operate.to/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scope: ["openid", "email", "operate:read"],
+          redirect_url: "https://chatgpt.com/connector_platform_oauth_redirect",
+        }),
+      }),
+    );
+    expect(scopeArray("scope")).toBe("openid email operate:read");
+    expect(scopeArray("redirect_uri")).toBe(
+      "https://chatgpt.com/connector_platform_oauth_redirect",
+    );
     const doubled = await oauthFields(
       new Request("https://www.operate.to/oauth/revoke", {
         method: "POST",
@@ -455,9 +469,19 @@ describe("oauth CORS", () => {
       /WWW-Authenticate/,
     );
     expect(response.headers.get("Access-Control-Allow-Methods")).toMatch(/HEAD/);
+    expect(response.headers.get("WWW-Authenticate")).toMatch(/realm=/);
     const postOnly = oauthPostOnly();
     expect(postOnly.status).toBe(405);
     expect(postOnly.headers.get("Allow")).toBe("POST");
+    const credentialed = oauthCorsHeaders(
+      new Request("https://www.operate.to/oauth/token", {
+        headers: { Origin: "https://chatgpt.com" },
+      }),
+    );
+    expect(credentialed["Access-Control-Allow-Origin"]).toBe(
+      "https://chatgpt.com",
+    );
+    expect(credentialed["Access-Control-Allow-Credentials"]).toBe("true");
   });
 
   it("advertises CORS on OAuth JSON so a browser client can read discovery", () => {
@@ -607,6 +631,19 @@ describe("readAuthorizeParams", () => {
     );
     expect(scopes.get("scope")).toBe("openid email operate:read");
     expect(scopes.get("response_type")).toBe("authorization_code");
+    const redirectUrl = await readAuthorizeParams(
+      new Request("https://www.operate.to/oauth/authorize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          redirect_url:
+            "https://chatgpt.com/connector_platform_oauth_redirect",
+        }),
+      }),
+    );
+    expect(redirectUrl.get("redirect_uri")).toBe(
+      "https://chatgpt.com/connector_platform_oauth_redirect",
+    );
   });
 });
 
@@ -722,6 +759,16 @@ describe("OAuth POST routes share oauthFields", () => {
       middleware.indexOf("return clerk(req, event)"),
     );
     expect(middleware).toContain('"/mcp/:path*"');
+    expect(read("src/app/oauth/device/route.ts")).toContain("oauthPostOnly");
+    expect(read("src/app/oauth/device/route.ts")).toContain("verification_url");
+    expect(read("src/app/oauth/register/route.ts")).not.toContain(
+      "client_secret_basic",
+    );
+    expect(read("src/app/oauth/authorize/oauth-authorize.tsx")).toContain(
+      "redirect_url",
+    );
+    expect(read("src/app/api/x402/route.ts")).toContain("oauthBearer");
+    expect(read("src/app/api/x402/route.ts")).toContain("oauthWwwAuthenticate");
     expect(read("src/app/oauth/token/route.ts")).toContain("canonicalGrantType");
     expect(read("src/app/oauth/token/route.ts")).toContain("access_token: key");
     expect(read("src/app/.well-known/mcp/route.ts")).toContain("oauthJson");

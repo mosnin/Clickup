@@ -40,7 +40,7 @@ const DEVICE_ERROR_HELP: Record<string, (interval?: number) => string> = {
 // between a human approving and the poller collecting.
 async function deviceGrant(deviceCode: string, request: Request) {
   if (!deviceCode) {
-    return oauthError("invalid_request", "device_code is required");
+    return oauthError("invalid_request", "device_code is required", 400, request);
   }
   // Generated before the call because the mutation stores the hash and
   // returns nothing that could reconstruct it.
@@ -62,21 +62,26 @@ async function deviceGrant(deviceCode: string, request: Request) {
   }
 
   const issuer = oauthIssuer(request);
-  return oauthJson({
-    // RFC 8628 §3.5 / RFC 6749 §5.1 require access_token. api_key is the
-    // same cua_ value for scripts that already read that field. There is
-    // still no refresh token; expires_in is the 90-day device-key TTL.
-    access_token: key,
-    api_key: key,
-    token_type: "Bearer",
-    expires_in: result.expiresIn,
-    agent_id: result.agentId,
-    agent_name: result.agentName,
-    agent_created: result.agentCreated,
-    scope_name: result.scopeName,
-    mcp_url: servingMcpUrl(issuer),
-    manifest_url: `${issuer}/api/agent/manifest`,
-  });
+  return oauthJson(
+    {
+      // RFC 8628 §3.5 / RFC 6749 §5.1 require access_token. api_key is the
+      // same cua_ value for scripts that already read that field. There is
+      // still no refresh token; expires_in is the 90-day device-key TTL.
+      access_token: key,
+      api_key: key,
+      token_type: "Bearer",
+      expires_in: result.expiresIn,
+      agent_id: result.agentId,
+      agent_name: result.agentName,
+      agent_created: result.agentCreated,
+      scope_name: result.scopeName,
+      mcp_url: servingMcpUrl(issuer),
+      manifest_url: `${issuer}/api/agent/manifest`,
+    },
+    200,
+    undefined,
+    request,
+  );
 }
 
 export async function POST(request: Request) {
@@ -94,6 +99,8 @@ export async function POST(request: Request) {
       return oauthError(
         "invalid_grant",
         error instanceof Error ? error.message : "Device grant failed",
+        400,
+        request,
       );
     }
   }
@@ -115,6 +122,8 @@ export async function POST(request: Request) {
     return oauthError(
       "invalid_target",
       error instanceof Error ? error.message : "Invalid resource",
+      400,
+      request,
     );
   }
   try {
@@ -126,6 +135,8 @@ export async function POST(request: Request) {
         return oauthError(
           "invalid_request",
           "code, redirect_uri, and code_verifier are required",
+          400,
+          request,
         );
       }
       const result = await oauthConvexClient().mutation(
@@ -140,18 +151,28 @@ export async function POST(request: Request) {
           resource,
         },
       );
-      return oauthJson({
-        access_token: accessToken,
-        token_type: "Bearer",
-        expires_in: result.expiresIn,
-        refresh_token: refreshToken,
-        scope: result.scope,
-      });
+      return oauthJson(
+        {
+          access_token: accessToken,
+          token_type: "Bearer",
+          expires_in: result.expiresIn,
+          refresh_token: refreshToken,
+          scope: result.scope,
+        },
+        200,
+        undefined,
+        request,
+      );
     }
     if (grantType === "refresh_token") {
       const currentRefreshToken = field("refresh_token");
       if (!currentRefreshToken) {
-        return oauthError("invalid_request", "refresh_token is required");
+        return oauthError(
+          "invalid_request",
+          "refresh_token is required",
+          400,
+          request,
+        );
       }
       const result = await oauthConvexClient().mutation(
         api.oauth.refreshAccessToken,
@@ -164,21 +185,33 @@ export async function POST(request: Request) {
         },
       );
       if (!result.ok) {
-        return oauthError("invalid_grant", result.error);
+        return oauthError("invalid_grant", result.error, 400, request);
       }
-      return oauthJson({
-        access_token: accessToken,
-        token_type: "Bearer",
-        expires_in: result.expiresIn,
-        refresh_token: refreshToken,
-        scope: result.scope,
-      });
+      return oauthJson(
+        {
+          access_token: accessToken,
+          token_type: "Bearer",
+          expires_in: result.expiresIn,
+          refresh_token: refreshToken,
+          scope: result.scope,
+        },
+        200,
+        undefined,
+        request,
+      );
     }
-    return oauthError("unsupported_grant_type", "Unsupported grant_type");
+    return oauthError(
+      "unsupported_grant_type",
+      "Unsupported grant_type",
+      400,
+      request,
+    );
   } catch (error) {
     return oauthError(
       "invalid_grant",
       error instanceof Error ? error.message : "Token grant failed",
+      400,
+      request,
     );
   }
 }
@@ -187,6 +220,6 @@ export function GET() {
   return oauthPostOnly();
 }
 
-export function OPTIONS() {
-  return oauthOptions();
+export function OPTIONS(request: Request) {
+  return oauthOptions(request);
 }

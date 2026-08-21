@@ -23,7 +23,7 @@ function unauthorized(description: string, request?: Request) {
           "invalid_token",
           description,
         ),
-        ...oauthCorsHeaders(),
+        ...oauthCorsHeaders(request),
       },
     },
   );
@@ -41,12 +41,17 @@ async function userInfo(request: Request) {
       accessToken,
       resource: oauthResource(),
     });
-    return oauthJson({
-      sub: result.subject,
-      email: result.email,
-      email_verified: result.emailVerified,
-      ...(result.name ? { name: result.name } : {}),
-    });
+    return oauthJson(
+      {
+        sub: result.subject,
+        email: result.email,
+        email_verified: result.emailVerified,
+        ...(result.name ? { name: result.name } : {}),
+      },
+      200,
+      undefined,
+      request,
+    );
   } catch (error) {
     return unauthorized(
       error instanceof Error ? error.message : "The access token is invalid",
@@ -63,8 +68,8 @@ export async function POST(request: Request) {
   return userInfo(request);
 }
 
-export function OPTIONS() {
-  return oauthOptions();
+export function OPTIONS(request: Request) {
+  return oauthOptions(request);
 }
 
 export const dynamic = "force-dynamic";

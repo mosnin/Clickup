@@ -7,6 +7,7 @@ import {
   oauthIssuer,
   oauthJson,
   oauthOptions,
+  oauthPostOnly,
   randomCredential,
 } from "@/lib/oauth-server";
 
@@ -65,15 +66,25 @@ export async function POST(request: Request) {
         api.agentAuth.createDeviceRequest,
         { deviceCode, userCode: code, clientName, clientIp, proxySecret },
       );
-      return oauthJson({
-        device_code: deviceCode,
-        user_code: code,
-        verification_uri: `${issuer}/link`,
-        // RFC 8628 §3.3.1. Agents that render a QR code use this one.
-        verification_uri_complete: `${issuer}/link?code=${encodeURIComponent(code)}`,
-        expires_in: result.expiresIn,
-        interval: result.interval,
-      });
+      const verificationUri = `${issuer}/link`;
+      const verificationUriComplete = `${issuer}/link?code=${encodeURIComponent(code)}`;
+      return oauthJson(
+        {
+          device_code: deviceCode,
+          user_code: code,
+          verification_uri: verificationUri,
+          // RFC 8628 §3.3.1. Agents that render a QR code use this one.
+          verification_uri_complete: verificationUriComplete,
+          // Libraries that read `_url` instead of `_uri`.
+          verification_url: verificationUri,
+          verification_url_complete: verificationUriComplete,
+          expires_in: result.expiresIn,
+          interval: result.interval,
+        },
+        200,
+        undefined,
+        request,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       // A collision means this user code is live for somebody else; retrying
@@ -83,29 +94,26 @@ export async function POST(request: Request) {
       // own status because a client that retries a 429 as if it were a 500
       // is precisely the client the limit exists to stop.
       if (message.includes("Too many")) {
-        return oauthError("slow_down", message, 429);
+        return oauthError("slow_down", message, 429, request);
       }
       return oauthError(
         "server_error",
         "Could not start device authorization",
         500,
+        request,
       );
     }
   }
-  return oauthError("server_error", "Could not allocate a user code", 503);
+  return oauthError("server_error", "Could not allocate a user code", 503, request);
 }
 
 // Some agent runtimes probe an endpoint with GET before posting to it.
 // Answering with the method requirement is more useful than a 404 from the
 // catch-all, because the fix is one word in their request.
 export function GET() {
-  return oauthError(
-    "invalid_request",
-    "The device authorization endpoint accepts POST",
-    405,
-  );
+  return oauthPostOnly();
 }
 
-export function OPTIONS() {
-  return oauthOptions();
+export function OPTIONS(request: Request) {
+  return oauthOptions(request);
 }

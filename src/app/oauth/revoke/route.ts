@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   }
   return new Response(null, {
     status: 200,
-    headers: { "Cache-Control": "no-store", ...oauthCorsHeaders() },
+    headers: { "Cache-Control": "no-store", ...oauthCorsHeaders(request) },
   });
 }
 
@@ -24,6 +24,6 @@ export function GET() {
   return oauthPostOnly();
 }
 
-export function OPTIONS() {
-  return oauthOptions();
+export function OPTIONS(request: Request) {
+  return oauthOptions(request);
 }

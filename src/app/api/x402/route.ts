@@ -1,7 +1,13 @@
 import { ConvexHttpClient } from "convex/browser";
 import type { FunctionReference } from "convex/server";
 import { api } from "@convex/_generated/api";
-import { oauthCorsHeaders, oauthFields, oauthOptions } from "@/lib/oauth-server";
+import {
+  oauthBearer,
+  oauthCorsHeaders,
+  oauthFields,
+  oauthOptions,
+  oauthWwwAuthenticate,
+} from "@/lib/oauth-server";
 
 // Protocol-faithful x402 endpoint for topping up agent credits.
 //
@@ -29,20 +35,18 @@ function asAction(ref: unknown): FunctionReference<"action"> {
 }
 
 function bearer(req: Request): string | null {
-  const auth = req.headers.get("authorization");
-  if (auth?.startsWith("Bearer ")) return auth.slice(7).trim();
-  const url = new URL(req.url);
-  return url.searchParams.get("apiKey");
+  return oauthBearer(req) || null;
 }
 
 function x402Json(
   body: unknown,
   status = 200,
   extra?: Record<string, string>,
+  request?: Request,
 ) {
   return Response.json(body, {
     status,
-    headers: { ...oauthCorsHeaders(), ...extra },
+    headers: { ...oauthCorsHeaders(request), ...extra },
   });
 }
 
@@ -62,6 +66,14 @@ async function handle(req: Request): Promise<Response> {
     return x402Json(
       { error: "Missing API key. Send Authorization: Bearer cua_..." },
       401,
+      {
+        "WWW-Authenticate": oauthWwwAuthenticate(
+          req,
+          "invalid_token",
+          "A Bearer access token is required",
+        ),
+      },
+      req,
     );
   }
 
@@ -74,6 +86,8 @@ async function handle(req: Request): Promise<Response> {
     return x402Json(
       { error: err instanceof Error ? err.message : "bad credits" },
       400,
+      undefined,
+      req,
     );
   }
 
@@ -107,13 +121,15 @@ async function handle(req: Request): Promise<Response> {
             }`,
           },
           503,
+          undefined,
+          req,
         );
       }
       const challenge = await client.query(
         asQuery(api.x402.topupRequirements),
         { apiKey, credits },
       );
-      return x402Json(challenge, 402);
+      return x402Json(challenge, 402, undefined, req);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const status = /invalid api key/i.test(message)
@@ -121,7 +137,7 @@ async function handle(req: Request): Promise<Response> {
         : /billing unavailable|not configured/i.test(message)
           ? 503
           : 400;
-      return x402Json({ error: message }, status);
+      return x402Json({ error: message }, status, undefined, req);
     }
   }
 
@@ -133,7 +149,7 @@ async function handle(req: Request): Promise<Response> {
       credits,
     })) as Record<string, unknown>;
     const encoded = Buffer.from(JSON.stringify(result)).toString("base64");
-    return x402Json(result, 200, { "X-PAYMENT-RESPONSE": encoded });
+    return x402Json(result, 200, { "X-PAYMENT-RESPONSE": encoded }, req);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const status = /invalid api key/i.test(message)
@@ -143,7 +159,7 @@ async function handle(req: Request): Promise<Response> {
         : /billing unavailable|not configured/i.test(message)
           ? 503
           : 402;
-    return x402Json({ error: message }, status);
+    return x402Json({ error: message }, status, undefined, req);
   }
 }
 
@@ -155,6 +171,6 @@ export async function GET(req: Request) {
   return handle(req);
 }
 
-export function OPTIONS() {
-  return oauthOptions();
+export function OPTIONS(request: Request) {
+  return oauthOptions(request);
 }

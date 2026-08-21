@@ -17,22 +17,20 @@ export async function POST(request: Request) {
     return oauthError(
       "invalid_client_metadata",
       "Body must be a JSON or form-encoded object",
+      400,
+      request,
     );
   }
   const input = parsed as {
     client_name?: string;
     redirect_uris?: string[];
-    token_endpoint_auth_method?: string;
   };
-  if (
-    !input.client_name ||
-    !Array.isArray(input.redirect_uris) ||
-    input.token_endpoint_auth_method === "client_secret_basic" ||
-    input.token_endpoint_auth_method === "client_secret_post"
-  ) {
+  if (!input.client_name || !Array.isArray(input.redirect_uris)) {
     return oauthError(
       "invalid_client_metadata",
       "A public PKCE client_name and redirect_uris are required",
+      400,
+      request,
     );
   }
   const clientId = randomCredential("opc");
@@ -56,11 +54,13 @@ export async function POST(request: Request) {
     const description =
       error instanceof Error ? error.message : "Client registration failed";
     if (/too many oauth client registrations/i.test(description)) {
-      return oauthError("temporarily_unavailable", description, 429);
+      return oauthError("temporarily_unavailable", description, 429, request);
     }
     return oauthError(
       "invalid_redirect_uri",
       description,
+      400,
+      request,
     );
   }
   return oauthJson(
@@ -75,6 +75,8 @@ export async function POST(request: Request) {
       client_uri: `${oauthIssuer(request)}/plugins`,
     },
     201,
+    undefined,
+    request,
   );
 }
 
@@ -82,6 +84,6 @@ export function GET() {
   return oauthPostOnly();
 }
 
-export function OPTIONS() {
-  return oauthOptions();
+export function OPTIONS(request: Request) {
+  return oauthOptions(request);
 }

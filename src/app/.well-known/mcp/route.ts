@@ -10,14 +10,19 @@ import {
 
 export function GET(request?: Request) {
   const issuer = oauthIssuer(request);
-  return oauthJson({
-    url: servingMcpUrl(issuer),
-    resource: oauthResource(request),
-    resource_metadata: protectedResourceMetadataUrl(issuer),
-    as_uri: authorizationServerMetadataUrl(issuer),
-  });
+  return oauthJson(
+    {
+      url: servingMcpUrl(issuer),
+      resource: oauthResource(request),
+      resource_metadata: protectedResourceMetadataUrl(issuer),
+      as_uri: authorizationServerMetadataUrl(issuer),
+    },
+    200,
+    undefined,
+    request,
+  );
 }
 
-export function OPTIONS() {
-  return oauthOptions();
+export function OPTIONS(request: Request) {
+  return oauthOptions(request);
 }
