@@ -390,7 +390,6 @@ export const refreshAccessToken = mutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    const resource = requireMcpResource(args.resource);
     const current = await ctx.db
       .query("oauthAccessTokens")
       .withIndex("by_refresh_hash", (q) =>
@@ -403,9 +402,10 @@ export const refreshAccessToken = mutation({
     if (current.revokedAt !== undefined) {
       // Must succeed (not throw): a thrown mutation rolls back the family
       // revoke, which would leave the stolen successor tokens live.
-      // Client id is checked after this: a spent token presented with the
-      // wrong client is still reuse, and skipping the family walk would
-      // leave the successor live.
+      // Resource and client id are checked after this: a spent token
+      // presented with an unofficial audience or the wrong client is
+      // still reuse. Validating resource first used to throw and skip
+      // the family walk.
       await revokeRefreshFamily(ctx, current, now);
       return {
         ok: false as const,
@@ -415,6 +415,7 @@ export const refreshAccessToken = mutation({
     if (current.clientId !== args.clientId) {
       throw new ConvexError("Invalid or expired refresh token");
     }
+    const resource = requireMcpResource(args.resource);
     if (current.refreshExpiresAt <= now || current.resource !== resource) {
       throw new ConvexError("Invalid or expired refresh token");
     }

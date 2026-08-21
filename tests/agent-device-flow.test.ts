@@ -426,6 +426,7 @@ describe("device authorization", () => {
     });
     expect(live[0].revokedAt).toBeUndefined();
     expect(live[0].expiresAt).toBeGreaterThan(Date.now());
+    expect(live[0].expired).toBe(false);
     await t.run(async (ctx) => {
       const key = await ctx.db.query("agentKeys").first();
       await ctx.db.patch(key!._id, { expiresAt: Date.now() - 1 });

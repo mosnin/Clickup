@@ -11,8 +11,8 @@ Production endpoints:
 - Claude MCP: `https://www.operate.to/api/mcp?profile=claude`
 - OAuth protected-resource metadata: `https://www.operate.to/.well-known/oauth-protected-resource`
 - OAuth authorization-server metadata: `https://www.operate.to/.well-known/oauth-authorization-server`
-- OpenID discovery: `https://operate.to/.well-known/openid-configuration`
-- Verified-email UserInfo: `https://operate.to/oauth/userinfo`
+- OpenID discovery: `https://www.operate.to/.well-known/openid-configuration`
+- Verified-email UserInfo: `https://www.operate.to/oauth/userinfo`
 - Documentation and support: `https://operate.to/plugins`
 - Privacy: `https://operate.to/legal/privacy`
 - Terms: `https://operate.to/legal/terms`

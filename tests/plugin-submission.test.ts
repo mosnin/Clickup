@@ -91,6 +91,24 @@ describe("public Operate plugin package", () => {
     }
   });
 
+  it("points OAuth discovery at www, not apex", () => {
+    const readme = readFileSync(
+      join(ROOT, "docs/plugin-submission/README.md"),
+      "utf8",
+    );
+    expect(readme).toContain(
+      "https://www.operate.to/.well-known/oauth-authorization-server",
+    );
+    expect(readme).toContain(
+      "https://www.operate.to/.well-known/openid-configuration",
+    );
+    expect(readme).toContain("https://www.operate.to/oauth/userinfo");
+    expect(readme).not.toMatch(
+      /https:\/\/operate\.to\/\.well-known\//,
+    );
+    expect(readme).not.toMatch(/https:\/\/operate\.to\/oauth\//);
+  });
+
   it("never tells a client to POST MCP to the apex host", () => {
     const yaml = readFileSync(
       join(ROOT, "plugins/operate/agents/openai.yaml"),

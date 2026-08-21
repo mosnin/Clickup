@@ -590,8 +590,9 @@ export const listKeys = query({
       // Surfacing that here is what stops the panel presenting a corpse
       // as "never used" with a Revoke button.
       expired:
-        k.source === "device" &&
-        (k.expiresAt === undefined || k.expiresAt <= now),
+        k.source === "device"
+          ? k.expiresAt === undefined || k.expiresAt <= now
+          : k.expiresAt !== undefined && k.expiresAt <= now,
     }));
   },
 });

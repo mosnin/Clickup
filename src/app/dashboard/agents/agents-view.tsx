@@ -1078,9 +1078,11 @@ function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
                       ? "revoked"
                       : k.expired
                         ? "expired"
-                        : k.lastUsedAt
-                          ? `last used ${timeAgo(k.lastUsedAt)}`
-                          : "never used"}
+                        : k.expiresAt
+                          ? `expires ${new Date(k.expiresAt).toLocaleDateString()}`
+                          : k.lastUsedAt
+                            ? `last used ${timeAgo(k.lastUsedAt)}`
+                            : "never used"}
                   </TableCell>
                   <TableCell className="text-right">
                     {!k.revokedAt && !k.expired && (
