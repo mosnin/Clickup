@@ -91,6 +91,20 @@ describe("public Operate plugin package", () => {
     }
   });
 
+  it("never tells a client to POST MCP to the apex host", () => {
+    const yaml = readFileSync(
+      join(ROOT, "plugins/operate/agents/openai.yaml"),
+      "utf8",
+    );
+    const mcp = readFileSync(join(ROOT, "plugins/operate/.mcp.json"), "utf8");
+    expect(yaml).not.toMatch(/https:\/\/operate\.to\/api\/mcp/);
+    expect(yaml).toContain(
+      "https://www.operate.to/api/mcp?profile=chatgpt",
+    );
+    expect(mcp).not.toMatch(/https:\/\/operate\.to\/api\/mcp/);
+    expect(mcp).toContain("https://www.operate.to/api/mcp?profile=chatgpt");
+  });
+
   it("publishes OAuth linking metadata on every advertised tool", () => {
     const route = readFileSync(
       join(ROOT, "src/app/api/[transport]/route.ts"),
