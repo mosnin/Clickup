@@ -577,12 +577,21 @@ export const listKeys = query({
       .query("agentKeys")
       .withIndex("by_agent", (q) => q.eq("agentId", agentId))
       .collect();
+    const now = Date.now();
     return keys.map((k) => ({
       _id: k._id,
       keyPrefix: k.keyPrefix,
       createdAt: k.createdAt,
       revokedAt: k.revokedAt,
       lastUsedAt: k.lastUsedAt,
+      expiresAt: k.expiresAt,
+      source: k.source,
+      // Device-grant keys die at expiresAt even when revokedAt is unset.
+      // Surfacing that here is what stops the panel presenting a corpse
+      // as "never used" with a Revoke button.
+      expired:
+        k.source === "device" &&
+        (k.expiresAt === undefined || k.expiresAt <= now),
     }));
   },
 });
@@ -833,6 +842,7 @@ export const _storeKey = internalMutation({
       keyHash: args.keyHash,
       keyPrefix: args.keyPrefix,
       createdAt: Date.now(),
+      source: "human",
     });
   },
 });

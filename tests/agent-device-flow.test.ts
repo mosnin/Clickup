@@ -395,6 +395,46 @@ describe("device authorization", () => {
     await expect(t.query(api.agentApi.whoami, { apiKey: KEY })).rejects.toThrow(
       /invalid api key/i,
     );
+    const listed = await asOwner.query(api.agents.listKeys, {
+      agentId: (await t.run(async (ctx) => (await ctx.db.query("agents").first())!._id)),
+    });
+    expect(listed[0]).toMatchObject({ source: "device", expired: true });
+  });
+
+  it("surfaces a lapsed device-grant key as expired rather than live", async () => {
+    const { t, workspaceId } = await setup();
+    await startRequest(t);
+    const asOwner = t.withIdentity(OWNER);
+    const approved = await asOwner.mutation(api.agentAuth.approveDeviceRequest, {
+      userCode: USER_CODE,
+      parentType: "workspace",
+      parentId: workspaceId,
+      agentName: "Scout",
+      role: "member",
+    });
+    if (!approved.approved) throw new Error("approval was refused");
+    await t.mutation(api.agentAuth.claimDeviceRequest, {
+      deviceCode: DEVICE_CODE,
+      ...KEY_MATERIAL,
+    });
+    const live = await asOwner.query(api.agents.listKeys, {
+      agentId: approved.agentId,
+    });
+    expect(live[0]).toMatchObject({
+      source: "device",
+      expired: false,
+    });
+    expect(live[0].revokedAt).toBeUndefined();
+    expect(live[0].expiresAt).toBeGreaterThan(Date.now());
+    await t.run(async (ctx) => {
+      const key = await ctx.db.query("agentKeys").first();
+      await ctx.db.patch(key!._id, { expiresAt: Date.now() - 1 });
+    });
+    const listed = await asOwner.query(api.agents.listKeys, {
+      agentId: approved.agentId,
+    });
+    expect(listed[0]).toMatchObject({ expired: true });
+    expect(listed[0].revokedAt).toBeUndefined();
   });
 
   it("revokes the oldest live device key when a sixth is minted", async () => {

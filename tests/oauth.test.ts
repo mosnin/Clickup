@@ -264,6 +264,54 @@ describe("OAuth 2.1 remote MCP authorization", () => {
     ).resolves.toMatchObject({ ok: false });
   });
 
+  it("reuse of a spent refresh with the wrong client_id still kills the family", async () => {
+    const { t, owner, agentId } = await setup();
+    const code = "opc_wrong_client_reuse";
+    await owner.mutation(api.oauth.approveAuthorization, {
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      scope: "operate:read operate:write",
+      resource: RESOURCE,
+      codeChallenge: CHALLENGE,
+      code,
+      agentId,
+    });
+    const refreshToken = "opr_wrong_client_first";
+    await t.mutation(api.oauth.exchangeAuthorizationCode, {
+      code,
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      codeVerifier: VERIFIER,
+      accessToken: "opa_wrong_client_first",
+      refreshToken,
+      resource: RESOURCE,
+    });
+    const liveAccess = "opa_wrong_client_live";
+    await t.mutation(api.oauth.refreshAccessToken, {
+      refreshToken,
+      clientId: CLIENT_ID,
+      accessToken: liveAccess,
+      nextRefreshToken: "opr_wrong_client_live",
+      resource: RESOURCE,
+    });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: liveAccess }),
+    ).resolves.toMatchObject({ agentId });
+
+    await expect(
+      t.mutation(api.oauth.refreshAccessToken, {
+        refreshToken,
+        clientId: "opc_some_other_client",
+        accessToken: "opa_should_not_issue",
+        nextRefreshToken: "opr_should_not_issue",
+        resource: RESOURCE,
+      }),
+    ).resolves.toMatchObject({ ok: false });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: liveAccess }),
+    ).rejects.toThrow(/invalid api key/i);
+  });
+
   it("binds www and apex as one audience and refuses unofficial hosts", async () => {
     const { t, owner, agentId } = await setup();
     await expect(

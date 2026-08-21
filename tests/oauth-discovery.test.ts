@@ -14,6 +14,7 @@ import {
 import {
   isOfficialMcpResource,
   normalizeOfficialMcpResource,
+  officialAuthorizationServers,
 } from "../convex/_oauthResource";
 import { mcpWwwAuthenticate, oauthIssuer } from "../src/lib/oauth-server";
 import { publicOrigin } from "../src/lib/public-origin";
@@ -54,8 +55,7 @@ describe("public MCP OAuth discovery", () => {
       resource: "https://operate.to/api/mcp",
       bearer_methods_supported: ["header"],
     });
-    expect(metadata.authorization_servers[0]).toBe("https://www.operate.to");
-    expect(metadata.authorization_servers).toContain("https://operate.to");
+    expect(metadata.authorization_servers).toEqual(["https://www.operate.to"]);
     expect(canonicalMcpResource("https://operate.to")).toBe(
       "https://operate.to/api/mcp",
     );
@@ -103,7 +103,7 @@ describe("public MCP OAuth discovery", () => {
     const resource = await getProtectedResource(request).json();
     expect(oauth.issuer).toBe("https://www.operate.to");
     expect(oauth.token_endpoint).toBe("https://www.operate.to/oauth/token");
-    expect(resource.authorization_servers[0]).toBe("https://www.operate.to");
+    expect(resource.authorization_servers).toEqual(["https://www.operate.to"]);
     expect(resource.resource).toBe(CANONICAL_PRODUCTION_MCP_RESOURCE);
   });
 
@@ -138,6 +138,15 @@ describe("public MCP OAuth discovery", () => {
     expect(servingOrigin("https://operate.to/oauth/token")).toBe(
       "https://www.operate.to",
     );
+    expect(officialAuthorizationServers("https://operate.to")).toEqual([
+      "https://www.operate.to",
+    ]);
+    expect(officialAuthorizationServers("https://www.operate.to")).toEqual([
+      "https://www.operate.to",
+    ]);
+    expect(officialAuthorizationServers("http://localhost:3000")).toEqual([
+      "http://localhost:3000",
+    ]);
 
     const previous = process.env.OPERATE_PUBLIC_URL;
     process.env.OPERATE_PUBLIC_URL = "https://operate.to";

@@ -142,6 +142,9 @@ export function officialAuthorizationServers(preferredIssuer: string) {
   if (!isOfficialOrigin(preferred) || isLoopbackHost(new URL(preferred).hostname)) {
     return [preferred];
   }
-  const aliases = [SERVING_PRODUCTION_ORIGIN, CANONICAL_PRODUCTION_ORIGIN];
-  return [preferred, ...aliases.filter((origin) => origin !== preferred)];
+  // Never advertise apex. Clients that treat an authorization_servers
+  // entry as a POST base hit /oauth/token and /oauth/device on a host
+  // that 308s and drops the body. Audience stays operate.to; the AS
+  // a runtime talks to is www.
+  return [SERVING_PRODUCTION_ORIGIN];
 }

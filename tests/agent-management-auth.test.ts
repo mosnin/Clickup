@@ -141,6 +141,10 @@ describe("workspace agent management authorization", () => {
     const minted = await owner.action(api.agentKeys.createKey, { agentId });
     expect(minted.key).toMatch(/^cua_[a-f0-9]{48}$/);
     expect(await owner.query(api.agents.listKeys, { agentId })).toHaveLength(2);
+    const mintedRow = (await owner.query(api.agents.listKeys, { agentId })).find(
+      (key) => key.keyPrefix === minted.keyPrefix,
+    );
+    expect(mintedRow).toMatchObject({ source: "human", expired: false });
     await owner.mutation(api.agents.revokeKey, { keyId });
     const keys = await owner.query(api.agents.listKeys, { agentId });
     expect(keys.find((key) => key._id === keyId)?.revokedAt).toBeTypeOf(

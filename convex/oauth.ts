@@ -397,17 +397,23 @@ export const refreshAccessToken = mutation({
         q.eq("refreshTokenHash", sha256Hex(args.refreshToken)),
       )
       .unique();
-    if (!current || current.clientId !== args.clientId) {
+    if (!current) {
       throw new ConvexError("Invalid or expired refresh token");
     }
     if (current.revokedAt !== undefined) {
       // Must succeed (not throw): a thrown mutation rolls back the family
       // revoke, which would leave the stolen successor tokens live.
+      // Client id is checked after this: a spent token presented with the
+      // wrong client is still reuse, and skipping the family walk would
+      // leave the successor live.
       await revokeRefreshFamily(ctx, current, now);
       return {
         ok: false as const,
         error: "Invalid or expired refresh token",
       };
+    }
+    if (current.clientId !== args.clientId) {
+      throw new ConvexError("Invalid or expired refresh token");
     }
     if (current.refreshExpiresAt <= now || current.resource !== resource) {
       throw new ConvexError("Invalid or expired refresh token");

@@ -1076,12 +1076,14 @@ function KeysPanel({ agentId }: { agentId: Id<"agents"> }) {
                   <TableCell className="text-xs text-muted-foreground">
                     {k.revokedAt
                       ? "revoked"
-                      : k.lastUsedAt
-                        ? `last used ${timeAgo(k.lastUsedAt)}`
-                        : "never used"}
+                      : k.expired
+                        ? "expired"
+                        : k.lastUsedAt
+                          ? `last used ${timeAgo(k.lastUsedAt)}`
+                          : "never used"}
                   </TableCell>
                   <TableCell className="text-right">
-                    {!k.revokedAt && (
+                    {!k.revokedAt && !k.expired && (
                       <button
                         type="button"
                         onClick={() =>
