@@ -523,9 +523,11 @@ export function stripOAuthTrailingSlash(pathname: string) {
 }
 
 const OPERATE_CREDENTIAL = /^(cua_|opa_|opr_|opc_|opd_)/i;
-const AUTH_SCHEME_PREFIX = /^(Bearer|Token|Api-?Key|ApiKey):?\s+/i;
-const AUTH_PART = /,(?=\s*(?:Bearer|Token|Api-?Key|ApiKey|Basic):?\s+)/i;
-const BASIC_PREFIX = /^Basic:?\s+/i;
+/** `Token cua_`, `Token: cua_`, `Token:cua_`. Not `Tokencua_`. */
+const AUTH_SCHEME_PREFIX = /^(Bearer|Token|Api-?Key|ApiKey)(?::\s*|\s+)/i;
+const AUTH_PART =
+  /,(?=\s*(?:Bearer|Token|Api-?Key|ApiKey|Basic)(?::\s*|\s+))/i;
+const BASIC_PREFIX = /^Basic(?::\s*|\s+)/i;
 
 /** `Bearer "cua_…"`, `Token token=cua_…`. Never applied to Basic. */
 function unwrapCredential(raw: string) {

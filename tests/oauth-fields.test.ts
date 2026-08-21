@@ -369,6 +369,19 @@ describe("oauthBearer", () => {
     expect(extractOperateCredential("Api-Key: cua_colon_key", undefined)).toBe(
       "cua_colon_key",
     );
+    expect(extractOperateCredential("Token:cua_nospace", undefined)).toBe(
+      "cua_nospace",
+    );
+    expect(extractOperateCredential("Bearer:cua_nospace_bearer", undefined)).toBe(
+      "cua_nospace_bearer",
+    );
+    expect(extractOperateCredential("Api-Key:cua_nospace_key", undefined)).toBe(
+      "cua_nospace_key",
+    );
+    expect(extractOperateCredential("Tokencua_glued", undefined)).toBe("");
+    expect(
+      extractOperateCredential("Basic:opc_public:, Token:cua_after_basic_colon"),
+    ).toBe("cua_after_basic_colon");
     expect(
       extractOperateCredential("Basic opc_public:, Bearer cua_after_basic"),
     ).toBe("cua_after_basic");
@@ -1169,6 +1182,11 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(read("src/app/.well-known/webfinger/route.ts")).toContain(
       "oauthOptions",
     );
+    expect(read("src/app/.well-known/webfinger/route.ts")).toContain(
+      "foldSearchAll",
+    );
+    expect(read("src/app/api/x402/route.ts")).toContain("foldSearchAll");
+    expect(read("src/lib/oauth-slash.ts")).toContain("(?::\\s*|\\s+)");
     expect(read("src/app/.well-known/host-meta/route.ts")).toContain(
       "export function GET(request: Request)",
     );

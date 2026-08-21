@@ -242,6 +242,14 @@ describe("public MCP OAuth discovery", () => {
         href: "https://www.operate.to",
       },
     ]);
+    const folded = await (
+      await getWebfinger(
+        new Request(
+          "https://www.operate.to/.well-known/webfinger?RESOURCE=acct:ops@operate.to",
+        ),
+      )
+    ).json();
+    expect(folded.subject).toBe("acct:ops@operate.to");
   });
 
   it("publishes /.well-known/mcp with a www POST URL and PRM", async () => {

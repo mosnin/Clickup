@@ -8,6 +8,7 @@ import {
   oauthOptions,
   oauthWwwAuthenticate,
 } from "@/lib/oauth-server";
+import { foldSearchAll } from "@/lib/oauth-slash";
 
 // Protocol-faithful x402 endpoint for topping up agent credits.
 //
@@ -63,7 +64,7 @@ function x402Json(
 
 function creditsFrom(req: Request, bodyCredits?: unknown): number {
   const url = new URL(req.url);
-  const raw = url.searchParams.get("credits") ?? bodyCredits;
+  const raw = foldSearchAll(url.searchParams, "credits") || bodyCredits;
   const n = Number(raw ?? 1000);
   if (!Number.isInteger(n) || n <= 0) {
     throw new Error("credits must be a positive integer");
