@@ -11,6 +11,8 @@ import { GET as getStart } from "../src/app/start/route";
 import { GET as getMcpDiscovery } from "../src/app/.well-known/mcp/route";
 import { GET as getOAuthIndex } from "../src/app/oauth/route";
 import { GET as getWebfinger } from "../src/app/.well-known/webfinger/route";
+import { GET as getHostMeta } from "../src/app/.well-known/host-meta/route";
+import { GET as getMcpUnderApi } from "../src/app/api/mcp/.well-known/mcp/route";
 import {
   CANONICAL_PRODUCTION_MCP_RESOURCE,
   canonicalMcpResource,
@@ -81,7 +83,7 @@ describe("public MCP OAuth discovery", () => {
     expect(metadata).toMatchObject({
       resource: "https://operate.to/api/mcp",
       bearer_methods_supported: ["header", "query"],
-      token_types_supported: ["Bearer"],
+      token_types_supported: ["Bearer", "Token"],
     });
     expect(metadata.authorization_servers).toEqual(["https://www.operate.to"]);
     expect(canonicalMcpResource("https://operate.to")).toBe(
@@ -195,6 +197,26 @@ describe("public MCP OAuth discovery", () => {
     expect(index).toEqual(asRoot);
   });
 
+  it("answers host-meta so older OpenID discovery is not 404", async () => {
+    const request = new Request("https://www.operate.to/.well-known/host-meta");
+    const meta = await getHostMeta(request);
+    expect(meta.headers.get("Content-Type")).toMatch(/jrd\+json|json/);
+    const body = await meta.json();
+    expect(body.subject).toBe("https://www.operate.to");
+    expect(body.links).toEqual(
+      expect.arrayContaining([
+        {
+          rel: "http://openid.net/specs/connect/1.0/issuer",
+          href: "https://www.operate.to",
+        },
+        expect.objectContaining({
+          rel: "lrdd",
+          template: "https://www.operate.to/.well-known/webfinger?resource={uri}",
+        }),
+      ]),
+    );
+  });
+
   it("answers webfinger so ChatGPT Enterprise domain checks are not 404", async () => {
     const request = new Request(
       "https://www.operate.to/.well-known/webfinger?resource=acct:ops@operate.to",
@@ -223,6 +245,8 @@ describe("public MCP OAuth discovery", () => {
       "https://www.operate.to/.well-known/oauth-authorization-server",
     );
     expect(card.url).not.toContain("https://operate.to/api/mcp");
+    const underApi = await getMcpUnderApi(request).json();
+    expect(underApi).toEqual(card);
   });
 
   it("never tells a client to POST MCP to the apex host", () => {

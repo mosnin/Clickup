@@ -386,6 +386,7 @@ export function stripOAuthTrailingSlash(pathname: string) {
         withoutJson.includes("oauth-authorization-server") ||
         withoutJson.includes("openid-configuration") ||
         withoutJson.includes("webfinger") ||
+        withoutJson.includes("host-meta") ||
         withoutJson.endsWith("/.well-known/mcp"))
     ) {
       next = withoutJson;
@@ -400,8 +401,7 @@ export function stripOAuthTrailingSlash(pathname: string) {
 }
 
 const OPERATE_CREDENTIAL = /^(cua_|opa_|opr_|opc_|opd_)/i;
-const AUTH_SCHEME =
-  /^(Bearer|Token|Api-?Key|ApiKey)\s+(\S+)/i;
+const AUTH_SCHEME_PREFIX = /^(Bearer|Token|Api-?Key|ApiKey)\s+/i;
 
 /** `Bearer "cua_…"`, `Token token=cua_…`. Never applied to Basic. */
 function unwrapCredential(raw: string) {
@@ -421,12 +421,19 @@ function unwrapCredential(raw: string) {
   return token;
 }
 
+/** Peel repeated `Bearer Bearer cua_…` / `Token Token …` prefixes. */
+function peelAuthorization(header: string) {
+  let rest = header.trim();
+  while (AUTH_SCHEME_PREFIX.test(rest)) {
+    rest = rest.replace(AUTH_SCHEME_PREFIX, "").trim();
+  }
+  return unwrapCredential(rest);
+}
+
 function dedicatedHeaderToken(value: string | null | undefined) {
   const token = value?.trim() ?? "";
   if (!token || /^Basic\s+/i.test(token)) return "";
-  const scheme = token.match(AUTH_SCHEME);
-  if (scheme) return unwrapCredential(scheme[2]);
-  return unwrapCredential(token);
+  return peelAuthorization(token);
 }
 
 /**
@@ -443,9 +450,11 @@ export function extractOperateCredential(
 ) {
   const header = authorization?.trim() ?? "";
   if (header) {
-    const scheme = header.match(AUTH_SCHEME);
-    if (scheme) return unwrapCredential(scheme[2]);
-    if (!/^Basic\s+/i.test(header)) {
+    if (/^Basic\s+/i.test(header)) {
+      // Basic is a client_id carrier, never a bearer token.
+    } else if (AUTH_SCHEME_PREFIX.test(header)) {
+      return peelAuthorization(header);
+    } else {
       const raw = unwrapCredential(header);
       if (OPERATE_CREDENTIAL.test(raw) && !raw.includes(" ")) {
         return raw;
@@ -481,7 +490,8 @@ export function applyOperateAuthorization(headers: Headers, url: string) {
     },
   );
   if (!token) return headers;
-  if (/^Bearer\s+\S+/i.test(headers.get("authorization") ?? "")) return headers;
+  const current = (headers.get("authorization") ?? "").trim();
+  if (current.toLowerCase() === `bearer ${token}`.toLowerCase()) return headers;
   headers.set("Authorization", `Bearer ${token}`);
   return headers;
 }

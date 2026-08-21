@@ -275,7 +275,7 @@ export function oauthBearer(request: Request) {
 export function canonicalGrantType(value: string) {
   const grant = value.trim();
   const lower = grant.toLowerCase();
-  const compact = lower.replace(/[-_]/g, "");
+  const compact = lower.replace(/[-_\s]+/g, "");
   if (
     lower === DEVICE_GRANT ||
     lower === "urn:ietf:params:oauth:grant-type:device-code" ||

@@ -18,7 +18,7 @@ export function GET(request: Request) {
       scopes_supported: [...OAUTH_SCOPES],
       resource_documentation: `${issuer}/plugins`,
       bearer_methods_supported: ["header", "query"],
-      token_types_supported: ["Bearer"],
+      token_types_supported: ["Bearer", "Token"],
       token_endpoint_auth_methods_supported: ["none"],
     },
     200,

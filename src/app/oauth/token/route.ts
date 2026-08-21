@@ -58,7 +58,12 @@ async function deviceGrant(deviceCode: string, request: Request) {
   // a Convex deployment — see tests/agent-device-http.test.ts.
   const error = deviceErrorCode(result.state, result.slowDown);
   if (error) {
-    return oauthError(error, DEVICE_ERROR_HELP[error](result.interval), 400);
+    return oauthError(
+      error,
+      DEVICE_ERROR_HELP[error](result.interval),
+      400,
+      request,
+    );
   }
 
   const issuer = oauthIssuer(request);

@@ -16,6 +16,7 @@ import {
 } from "../src/lib/oauth-server";
 import {
   applyMcpCors,
+  applyOperateAuthorization,
   canonicalCodeChallengeMethod,
   extractOperateCredential,
   isAuthorizePath,
@@ -300,6 +301,17 @@ describe("oauthBearer", () => {
       "cua_named",
     );
     expect(
+      extractOperateCredential("Bearer Bearer cua_double", undefined),
+    ).toBe("cua_double");
+    expect(
+      extractOperateCredential("Token Token cua_double_token", undefined),
+    ).toBe("cua_double_token");
+    const rewritten = applyOperateAuthorization(
+      new Headers({ Authorization: "Bearer Bearer cua_rewritten" }),
+      "https://www.operate.to/api/mcp",
+    );
+    expect(rewritten.get("Authorization")).toBe("Bearer cua_rewritten");
+    expect(
       extractOperateCredential(undefined, undefined, { apiKey: "cua_header" }),
     ).toBe("cua_header");
     expect(
@@ -339,6 +351,7 @@ describe("oauthBearer", () => {
     expect(canonicalGrantType("authorization")).toBe("authorization_code");
     expect(canonicalGrantType("auth_code")).toBe("authorization_code");
     expect(canonicalGrantType("authorizationCode")).toBe("authorization_code");
+    expect(canonicalGrantType("authorization code")).toBe("authorization_code");
     expect(canonicalGrantType("code")).toBe("authorization_code");
     expect(
       canonicalGrantType("urn:ietf:params:oauth:grant-type:device-code"),
@@ -775,6 +788,9 @@ describe("stripOAuthTrailingSlash", () => {
     expect(stripOAuthTrailingSlash("/api/mcp/.well-known/mcp")).toBe(
       "/.well-known/mcp",
     );
+    expect(stripOAuthTrailingSlash("/.well-known/host-meta.json")).toBe(
+      "/.well-known/host-meta",
+    );
     expect(stripOAuthTrailingSlash("/mcp.json")).toBe("/api/mcp");
     expect(stripOAuthTrailingSlash("/oauth/token.json")).toBe("/oauth/token");
     expect(stripOAuthTrailingSlash("/oauth/device.json")).toBe("/oauth/device");
@@ -901,6 +917,18 @@ describe("OAuth POST routes share oauthFields", () => {
     );
     expect(read("src/app/.well-known/webfinger/route.ts")).toContain(
       "oauthOptions",
+    );
+    expect(read("src/app/.well-known/host-meta/route.ts")).toContain(
+      "export function GET(request: Request)",
+    );
+    expect(read("src/app/.well-known/host-meta/route.ts")).not.toContain(
+      "request?: Request",
+    );
+    expect(read("src/app/api/mcp/.well-known/mcp/route.ts")).toContain(
+      ".well-known/mcp/route",
+    );
+    expect(read("src/app/oauth/token/route.ts")).toMatch(
+      /oauthError\(\s*error,\s*DEVICE_ERROR_HELP\[error\]\(result\.interval\),\s*400,\s*request,/,
     );
     expect(read("src/app/oauth/route.ts")).toContain(
       "export function GET(request: Request)",
