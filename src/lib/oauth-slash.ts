@@ -62,7 +62,7 @@ export function isOAuthOptionsPath(pathname: string) {
 }
 
 export const OAUTH_CORS_ALLOW_HEADERS =
-  "Authorization, Content-Type, Accept, If-None-Match, MCP-Protocol-Version, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID, X-PAYMENT, X-Payment, X-Api-Key, X-API-Key, Api-Key, Token, X-Access-Token, Access-Token";
+  "Authorization, Content-Type, Accept, If-None-Match, MCP-Protocol-Version, Mcp-Protocol-Version, Mcp-Session-Id, Last-Event-ID, X-PAYMENT, X-Payment, X-Api-Key, X-API-Key, Api-Key, Token, X-Token, X-Access-Token, Access-Token";
 
 export const OAUTH_CORS_EXPOSE_HEADERS =
   "WWW-Authenticate, ETag, Mcp-Session-Id, X-PAYMENT-RESPONSE";
@@ -615,6 +615,7 @@ export function extractOperateCredential(
       oauthQueryValue(get, "access_token") ||
       oauthQueryValue(get, "api_key") ||
       firstFolded(query, "token") ||
+      credentialFromAuthorization(firstFolded(query, "authorization")) ||
       ""
     );
   }
@@ -630,6 +631,7 @@ export function applyOperateAuthorization(headers: Headers, url: string) {
       accessToken:
         headers.get("x-access-token") ||
         headers.get("access-token") ||
+        headers.get("x-token") ||
         headers.get("token"),
     },
   );

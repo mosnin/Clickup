@@ -481,6 +481,27 @@ describe("oauthBearer", () => {
     ).toBe("string");
     expect(
       oauthBearer(
+        new Request(
+          "https://www.operate.to/api/mcp?authorization=Bearer%20cua_query_auth",
+        ),
+      ),
+    ).toBe("cua_query_auth");
+    expect(
+      oauthBearer(
+        new Request(
+          "https://www.operate.to/api/mcp?Authorization=Token:cua_query_colon",
+        ),
+      ),
+    ).toBe("cua_query_colon");
+    expect(
+      oauthBearer(
+        new Request(
+          "https://www.operate.to/api/mcp?authorization=Basic%20opc_public:",
+        ),
+      ),
+    ).toBe("");
+    expect(
+      oauthBearer(
         new Request("https://www.operate.to/api/mcp", {
           headers: { "X-Api-Key": "cua_x" },
         }),
@@ -493,6 +514,13 @@ describe("oauthBearer", () => {
         }),
       ),
     ).toBe("cua_token_header");
+    expect(
+      oauthBearer(
+        new Request("https://www.operate.to/api/mcp", {
+          headers: { "X-Token": "cua_x_token" },
+        }),
+      ),
+    ).toBe("cua_x_token");
     expect(canonicalGrantType("device_code")).toBe(DEVICE_GRANT);
     expect(canonicalGrantType("DEVICE_CODE")).toBe(DEVICE_GRANT);
     expect(canonicalGrantType("device")).toBe(DEVICE_GRANT);
@@ -796,7 +824,7 @@ describe("oauth CORS", () => {
       "DELETE",
     );
     expect(response.headers.get("Access-Control-Allow-Headers")).toMatch(
-      /Accept|If-None-Match|X-PAYMENT|Mcp-Protocol-Version|X-Api-Key/,
+      /Accept|If-None-Match|X-PAYMENT|Mcp-Protocol-Version|X-Api-Key|X-Token/,
     );
     expect(response.headers.get("Access-Control-Expose-Headers")).toMatch(
       /WWW-Authenticate/,
@@ -1216,6 +1244,10 @@ describe("OAuth POST routes share oauthFields", () => {
     expect(read("src/lib/oauth-server.ts")).toContain(
       "export function oauthBearer(request: Request): string",
     );
+    expect(read("src/lib/oauth-slash.ts")).toContain(
+      'firstFolded(query, "authorization")',
+    );
+    expect(read("src/lib/oauth-slash.ts")).toContain('headers.get("x-token")');
     expect(read("src/app/.well-known/host-meta/route.ts")).toContain(
       "export function GET(request: Request)",
     );

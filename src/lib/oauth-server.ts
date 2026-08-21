@@ -282,6 +282,7 @@ export function oauthBearer(request: Request): string {
       accessToken:
         request.headers.get("x-access-token") ||
         request.headers.get("access-token") ||
+        request.headers.get("x-token") ||
         request.headers.get("token"),
     },
   );
