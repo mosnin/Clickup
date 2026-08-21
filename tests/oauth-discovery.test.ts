@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { GET as getOAuthMetadata } from "../src/app/.well-known/oauth-authorization-server/route";
 import { GET as getOpenIdMetadata } from "../src/app/.well-known/openid-configuration/route";
 import { GET as getProtectedResource } from "../src/app/.well-known/oauth-protected-resource/route";
+import { GET as getProtectedResourceByPath } from "../src/app/.well-known/oauth-protected-resource/[...path]/route";
+import { GET as getProtectedResourceUnderMcp } from "../src/app/api/mcp/.well-known/oauth-protected-resource/route";
 import { GET as getStart } from "../src/app/start/route";
 import {
   CANONICAL_PRODUCTION_MCP_RESOURCE,
@@ -16,7 +18,11 @@ import {
   normalizeOfficialMcpResource,
   officialAuthorizationServers,
 } from "../convex/_oauthResource";
-import { mcpWwwAuthenticate, oauthIssuer } from "../src/lib/oauth-server";
+import {
+  mcpWwwAuthenticate,
+  oauthIssuer,
+  protectedResourceMetadataUrl,
+} from "../src/lib/oauth-server";
 import { publicOrigin } from "../src/lib/public-origin";
 
 describe("public MCP OAuth discovery", () => {
@@ -110,9 +116,29 @@ describe("public MCP OAuth discovery", () => {
   it("uses the official request origin for MCP 401 challenges too", () => {
     const www = new Request("https://www.operate.to/api/mcp?profile=chatgpt");
     expect(oauthIssuer(www)).toBe("https://www.operate.to");
-    expect(mcpWwwAuthenticate(www)).toBe(
-      'Bearer resource_metadata="https://www.operate.to/.well-known/oauth-protected-resource", scope="operate:read"',
+    expect(protectedResourceMetadataUrl("https://www.operate.to")).toBe(
+      "https://www.operate.to/.well-known/oauth-protected-resource/api/mcp",
     );
+    expect(mcpWwwAuthenticate(www)).toBe(
+      'Bearer resource_metadata="https://www.operate.to/.well-known/oauth-protected-resource/api/mcp", scope="operate:read"',
+    );
+    const apexChallenge = new Request("https://operate.to/api/mcp");
+    expect(mcpWwwAuthenticate(apexChallenge)).toBe(
+      'Bearer resource_metadata="https://www.operate.to/.well-known/oauth-protected-resource/api/mcp", scope="operate:read"',
+    );
+  });
+
+  it("serves RFC 9728 path-inserted protected-resource metadata on www", async () => {
+    const request = new Request(
+      "https://www.operate.to/.well-known/oauth-protected-resource/api/mcp",
+    );
+    const root = await getProtectedResource(request).json();
+    const byPath = await getProtectedResourceByPath(request).json();
+    const underMcp = await getProtectedResourceUnderMcp(request).json();
+    expect(byPath).toEqual(root);
+    expect(underMcp).toEqual(root);
+    expect(byPath.authorization_servers).toEqual(["https://www.operate.to"]);
+    expect(byPath.resource).toBe(CANONICAL_PRODUCTION_MCP_RESOURCE);
   });
 
   it("never tells a client to POST MCP to the apex host", () => {

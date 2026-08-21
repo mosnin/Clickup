@@ -61,9 +61,20 @@ export function oauthIssuer(request?: Request) {
   );
 }
 
+/**
+ * RFC 9728 inserts `/.well-known/oauth-protected-resource` between host
+ * and path. The audience is `https://operate.to/api/mcp`, so clients that
+ * construct metadata (instead of following WWW-Authenticate) GET
+ * `/.well-known/oauth-protected-resource/api/mcp`. Root metadata still
+ * exists; this is the URL a pathful resource MUST publish.
+ */
+export function protectedResourceMetadataUrl(origin: string) {
+  return `${origin.replace(/\/$/, "")}/.well-known/oauth-protected-resource/api/mcp`;
+}
+
 export function mcpWwwAuthenticate(request: Request) {
   const origin = oauthIssuer(request);
-  return `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource", scope="operate:read"`;
+  return `Bearer resource_metadata="${protectedResourceMetadataUrl(origin)}", scope="operate:read"`;
 }
 
 export const OAUTH_SCOPES = [
@@ -115,11 +126,32 @@ export function oauthDiscoveryMetadata(request?: Request) {
  * with `{`, otherwise application/x-www-form-urlencoded. A failed JSON
  * parse falls through to form — labelled-JSON + `token=…` used to
  * return empty and skip revoke.
+ *
+ * Body wins; the query string fills an empty field (some libraries POST
+ * `?token=` / `?grant_type=` with no entity). Multipart is read before
+ * text so a FormData client is not parsed as raw boundary noise.
  */
 export async function oauthFields(
   request: Request,
 ): Promise<(name: string) => string> {
   const contentType = request.headers.get("content-type") ?? "";
+  const query = new URL(request.url).searchParams;
+  const withQuery = (fromBody: (name: string) => string) => {
+    return (name: string) => fromBody(name) || query.get(name) || "";
+  };
+
+  if (contentType.includes("multipart/form-data")) {
+    try {
+      const form = await request.formData();
+      return withQuery((name) => {
+        const value = form.get(name);
+        return typeof value === "string" ? value : "";
+      });
+    } catch {
+      return withQuery(() => "");
+    }
+  }
+
   const text = (await request.text().catch(() => "")).replace(/^\uFEFF/, "");
   const trimmed = text.trim();
   const labelledJson = contentType.includes("application/json");
@@ -129,11 +161,11 @@ export async function oauthFields(
       const body = JSON.parse(trimmed) as unknown;
       if (body && typeof body === "object" && !Array.isArray(body)) {
         const record = body as Record<string, unknown>;
-        return (name) => {
+        return withQuery((name) => {
           const value = record[name];
           if (value === undefined || value === null) return "";
           return typeof value === "string" ? value : String(value);
-        };
+        });
       }
     } catch {
       // Fall through: a JSON Content-Type is sometimes wrapped around
@@ -141,7 +173,14 @@ export async function oauthFields(
     }
   }
   const params = new URLSearchParams(trimmed);
-  return (name) => params.get(name) ?? "";
+  return withQuery((name) => params.get(name) ?? "");
+}
+
+/** RFC 7009 puts `token` in the body; some logout clients send Bearer only. */
+export function oauthBearer(request: Request) {
+  const authorization = request.headers.get("authorization") ?? "";
+  const match = authorization.match(/^Bearer\s+(\S+)/i);
+  return match?.[1] ?? "";
 }
 
 /** DCR (RFC 7591) is JSON. Strip a BOM so request.json() is not the only path. */

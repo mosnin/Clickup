@@ -97,6 +97,9 @@ describe("public Operate plugin package", () => {
       "utf8",
     );
     expect(readme).toContain(
+      "https://www.operate.to/.well-known/oauth-protected-resource/api/mcp",
+    );
+    expect(readme).toContain(
       "https://www.operate.to/.well-known/oauth-authorization-server",
     );
     expect(readme).toContain(

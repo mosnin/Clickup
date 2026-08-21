@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { oauthFields, oauthJsonObject } from "../src/lib/oauth-server";
+import {
+  oauthBearer,
+  oauthFields,
+  oauthJsonObject,
+} from "../src/lib/oauth-server";
 
 const read = (file: string) =>
   readFileSync(path.join(process.cwd(), file), "utf8");
@@ -100,6 +104,51 @@ describe("oauthFields", () => {
     );
     expect(field("token")).toBe("opr_bom");
   });
+
+  it("reads a query-string token when the body is empty", async () => {
+    const field = await oauthFields(
+      new Request("https://www.operate.to/oauth/revoke?token=opr_query", {
+        method: "POST",
+      }),
+    );
+    expect(field("token")).toBe("opr_query");
+  });
+
+  it("lets the body win over a conflicting query string", async () => {
+    const field = await oauthFields(
+      new Request("https://www.operate.to/oauth/revoke?token=opr_query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: "opr_body" }),
+      }),
+    );
+    expect(field("token")).toBe("opr_body");
+  });
+
+  it("reads a multipart revoke body", async () => {
+    const form = new FormData();
+    form.set("token", "opr_multipart");
+    const field = await oauthFields(
+      new Request("https://www.operate.to/oauth/revoke", {
+        method: "POST",
+        body: form,
+      }),
+    );
+    expect(field("token")).toBe("opr_multipart");
+  });
+});
+
+describe("oauthBearer", () => {
+  it("reads a Bearer access or refresh token from Authorization", () => {
+    const request = new Request("https://www.operate.to/oauth/revoke", {
+      method: "POST",
+      headers: { Authorization: "Bearer opr_header_only" },
+    });
+    expect(oauthBearer(request)).toBe("opr_header_only");
+    expect(oauthBearer(new Request("https://www.operate.to/oauth/revoke"))).toBe(
+      "",
+    );
+  });
 });
 
 describe("oauthJsonObject", () => {
@@ -132,5 +181,8 @@ describe("OAuth POST routes share oauthFields", () => {
     const register = read("src/app/oauth/register/route.ts");
     expect(register).toContain("oauthJsonObject");
     expect(register).not.toMatch(/request\.json\(/);
+    const revoke = read("src/app/oauth/revoke/route.ts");
+    expect(revoke).toContain("oauthBearer");
+    expect(revoke).toContain('field("token") || oauthBearer(request)');
   });
 });

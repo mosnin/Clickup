@@ -9,7 +9,7 @@ Production endpoints:
 
 - ChatGPT MCP: `https://www.operate.to/api/mcp?profile=chatgpt`
 - Claude MCP: `https://www.operate.to/api/mcp?profile=claude`
-- OAuth protected-resource metadata: `https://www.operate.to/.well-known/oauth-protected-resource`
+- OAuth protected-resource metadata: `https://www.operate.to/.well-known/oauth-protected-resource` (RFC 9728 path form: `https://www.operate.to/.well-known/oauth-protected-resource/api/mcp`)
 - OAuth authorization-server metadata: `https://www.operate.to/.well-known/oauth-authorization-server`
 - OpenID discovery: `https://www.operate.to/.well-known/openid-configuration`
 - Verified-email UserInfo: `https://www.operate.to/oauth/userinfo`
