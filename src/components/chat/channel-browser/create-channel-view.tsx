@@ -17,6 +17,7 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ChatChannelVisibility } from "@/lib/buzz/channel-types";
+import { createChannelError } from "@/lib/buzz/create-channel";
 import {
   canonicalChannelName,
   type BrowsableChannelKind,
@@ -101,14 +102,10 @@ export function CreateChannelView({
         templateId: templateId ?? undefined,
       });
     } catch (err) {
-      // The server's own reason, when there is one — "a channel by that name
-      // already exists" is far more useful than "failed to create channel",
-      // and it is the message that tells someone what to do next.
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : `Failed to create ${noun}.`,
-      );
+      // Mapped, never raw: a validator dump or "Server Error" is not a next
+      // action. Name clashes and missing names stay specific; everything
+      // else is a sentence about what to do.
+      setError(createChannelError(err, noun));
     }
   }
 
@@ -257,7 +254,7 @@ export function CreateChannelView({
       </fieldset>
 
       {error ? (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       ) : null}

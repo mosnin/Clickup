@@ -24,6 +24,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useMutation, useQuery, type OptionalRestArgsOrSkip } from "convex/react";
 import { makeFunctionReference, type FunctionReference } from "convex/server";
 import type { ChatScope } from "@/lib/buzz/channel-types";
+import { createChannelError } from "@/lib/buzz/create-channel";
+import { useEnsureChatIdentity } from "@/components/chat/shell/ensure-chat-identity";
 import type { TimelineActor } from "@/lib/buzz/timeline";
 import { MessagesBoundary } from "@/components/chat/transcript/messages-data";
 import type { ForgeEvent, Project } from "@/lib/buzz/project";
@@ -307,16 +309,23 @@ export function useOpenBranchRoom(
 }) => Promise<{ channelId: string }> {
   const create = useMutation(createChannel);
   const bind = useMutation(bindBranch);
+  const ensureIdentity = useEnsureChatIdentity();
   return useCallback(
     async (input) => {
       if (!scope) throw new Error("No community selected");
       const args = { scopeType: scope.scopeType, scopeId: scope.scopeId };
-      const room = await create({
-        ...args,
-        name: input.branch,
-        description: input.title ?? `Work on ${input.branch}`,
-        ...(input.visibility ? { visibility: input.visibility } : {}),
-      });
+      await ensureIdentity();
+      let room: { channelId: string; name: string };
+      try {
+        room = await create({
+          ...args,
+          name: input.branch,
+          description: input.title ?? `Work on ${input.branch}`,
+          ...(input.visibility ? { visibility: input.visibility } : {}),
+        });
+      } catch (error) {
+        throw new Error(createChannelError(error));
+      }
       try {
         await bind({
           ...args,
@@ -336,6 +345,6 @@ export function useOpenBranchRoom(
       }
       return { channelId: room.channelId };
     },
-    [create, bind, scope],
+    [create, bind, scope, ensureIdentity],
   );
 }

@@ -202,7 +202,7 @@ export const PRODUCTS_MENU = {
     },
     {
       title: "operate for Agents",
-      body: "A hosted MCP server with 80+ tools. Connect any runtime in minutes and put it to work.",
+      body: "A hosted MCP server. Connect any runtime in minutes and put it to work.",
       href: "/features#mcp",
     },
   ],

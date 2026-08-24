@@ -865,7 +865,7 @@ function StatsCards({
             nextTask ? (
               <span className="flex items-center gap-2">
                 <span className="min-w-0 flex-1">
-                  <span className="block font-mono text-[0.6875rem] uppercase leading-none tracking-[0.1em] text-muted-foreground">
+                  <span className="block font-mono text-tiny uppercase leading-none tracking-[0.1em] text-muted-foreground">
                     Next up
                   </span>
                   <span className="mt-1.5 line-clamp-1 block text-sm font-medium text-foreground">

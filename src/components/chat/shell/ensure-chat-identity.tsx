@@ -30,20 +30,74 @@
 // (`identity.storeKey` re-checks inside the insert), so calling this on every
 // load is safe and cheap after the first.
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useAction, useQuery } from "convex/react";
-import { makeFunctionReference } from "convex/server";
+import { makeFunctionReference, type FunctionReference } from "convex/server";
+import { api } from "@convex/_generated/api";
 import { myPubkeyRef } from "@/components/chat/presence/refs";
 
 // Named by hand for the reason `presence/refs.ts` documents: the checked-in
 // `convex/_generated/api.d.ts` stub predates `convex/buzz/*`, so
 // `api.buzz.keys.mint` does not typecheck until the CLI regenerates it. The
 // path resolves identically at runtime.
-const mintRef = makeFunctionReference<
+export const mintRef = makeFunctionReference<
   "action",
   { principal: { type: "user" } },
   { pubkey: string; created: boolean }
 >("buzz/keys:mint");
+
+/**
+ * The same functions `mintRef` / `myPubkeyRef` name, reached through the
+ * generated `api` path proxy so a UI test can seed `buzz.identity.myPubkey`
+ * and assert `buzz.keys.mint`. Runtime resolution is identical.
+ */
+const buzzIdentity = (
+  api as unknown as {
+    buzz: {
+      identity: {
+        myPubkey: FunctionReference<
+          "query",
+          "public",
+          Record<string, never>,
+          { pubkey: string | null } | null
+        >;
+      };
+      keys: {
+        mint: FunctionReference<
+          "action",
+          "public",
+          { principal: { type: "user" } },
+          { pubkey: string; created: boolean }
+        >;
+      };
+    };
+  }
+).buzz;
+
+/**
+ * Awaitable half of the bootstrap: mint if this principal has no key yet.
+ *
+ * The shell's `<EnsureChatIdentity />` is fire-and-forget, so a first-visit
+ * create can race it and land on "has no signing identity". Create (and any
+ * other write that must not dead-end on first open) calls this first. Mint
+ * is idempotent — a key that already exists comes back and nothing is written.
+ */
+export function useEnsureChatIdentity(): () => Promise<string | null> {
+  // `api.buzz.*` via the path proxy so a UI test can see `buzz.keys.mint`
+  // and seed `buzz.identity.myPubkey`. `mintRef` / `myPubkeyRef` stay the
+  // runtime names the shell bootstrap and its wiring test already pin.
+  const identity = useQuery(buzzIdentity.identity.myPubkey, {});
+  const mint = useAction(buzzIdentity.keys.mint);
+  return useCallback(async () => {
+    if (identity?.pubkey) return identity.pubkey;
+    try {
+      const minted = await mint({ principal: { type: "user" } });
+      return minted?.pubkey ?? null;
+    } catch {
+      return identity?.pubkey ?? null;
+    }
+  }, [identity, mint]);
+}
 
 /** How many times to try before leaving it to the write path to complain. */
 const MAX_ATTEMPTS = 3;
