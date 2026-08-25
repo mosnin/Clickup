@@ -788,14 +788,26 @@ function ExportSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
         if (page.isDone || page.continueCursor === null) break;
         cursor = page.continueCursor;
       }
-      const assembled = { ...data, spaces, continueCursor: null, isDone: true };
+      const assembled: Record<string, unknown> = {
+        ...data,
+        spaces,
+        continueCursor: null,
+        isDone: true,
+      };
       const blob = new Blob([JSON.stringify(assembled, null, 2)], {
         type: "application/json",
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${(assembled.workspace as { slug?: string }).slug || "workspace"}-export.json`;
+      const slug =
+        assembled.workspace &&
+        typeof assembled.workspace === "object" &&
+        "slug" in assembled.workspace &&
+        typeof assembled.workspace.slug === "string"
+          ? assembled.workspace.slug
+          : "workspace";
+      a.download = `${slug}-export.json`;
       a.click();
       URL.revokeObjectURL(url);
       toast("Export downloaded");

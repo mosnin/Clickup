@@ -8,6 +8,7 @@
 // same transaction as the task write they're accounting for. `getRollup`
 // is the read-side counterpart for queries, which can't write: a missing
 // row means the caller should fall back to scanning that one list itself.
+import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";

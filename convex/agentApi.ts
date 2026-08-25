@@ -26,7 +26,12 @@ import {
 } from "./pendingEffects";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { decodeCursor, encodeCursor, pageLimit } from "./_pagination";
+import {
+  decodeCursor,
+  encodeCursor,
+  pageLimit,
+  LIST_SCAN_CAP,
+} from "./_pagination";
 import {
   agentActor,
   agentCanTouchList,
@@ -1765,11 +1770,11 @@ export const listTasks = query({
     })[] = [];
 
     let listOffset = start?.listOffset ?? 0;
-    let continueCursor = start?.continueCursor ?? null;
+    let skip = start?.skip ?? 0;
 
-    const pushView = async (t: TaskRow): Promise<boolean> => {
+    const pushView = async (t: TaskRow): Promise<void> => {
       if (args.assignedToMe && !t.assigneeClerkIds.includes(agent._id)) {
-        return false;
+        return;
       }
       const view = await taskView(ctx, t);
       if (
@@ -1777,7 +1782,7 @@ export const listTasks = query({
         (view.status?.category === "complete" ||
           view.status?.category === "closed")
       ) {
-        return false;
+        return;
       }
       if (view.description !== undefined && view.description.length > 300) {
         views.push({
@@ -1788,43 +1793,61 @@ export const listTasks = query({
       } else {
         views.push(view);
       }
-      return true;
     };
 
+    // One `.paginate()` per query is a Convex hard limit, so a scope walk
+    // uses `.take()` per list (capped) and a cursor of (list, skip).
     while (listOffset < sources.length && views.length < max) {
       const source = sources[listOffset];
-      const remaining = max - views.length;
-      const page =
+      const rows =
         source.kind === "list"
           ? await ctx.db
               .query("tasks")
               .withIndex("by_list", (q) => q.eq("listId", source.listId))
-              .paginate({ numItems: remaining, cursor: continueCursor })
+              .take(LIST_SCAN_CAP)
           : await ctx.db
               .query("tasks")
               .withIndex("by_sprint", (q) => q.eq("sprintId", source.sprintId))
-              .paginate({ numItems: remaining, cursor: continueCursor });
+              .take(LIST_SCAN_CAP);
+      rows.sort((a, b) => a.position - b.position);
 
-      for (const t of page.page) {
-        await pushView(t);
+      const eligible: TaskRow[] = [];
+      for (const t of rows) {
+        if (args.assignedToMe && !t.assigneeClerkIds.includes(agent._id)) {
+          continue;
+        }
+        if (!args.includeCompleted) {
+          const status = await ctx.db.get(t.statusId);
+          if (
+            status?.category === "complete" ||
+            status?.category === "closed"
+          ) {
+            continue;
+          }
+        }
+        eligible.push(t);
       }
 
-      if (!page.isDone) {
-        continueCursor = page.continueCursor;
-        if (views.length >= max) break;
-        continue;
+      let idx = skip;
+      skip = 0;
+      while (idx < eligible.length && views.length < max) {
+        await pushView(eligible[idx]);
+        idx += 1;
+      }
+      if (idx < eligible.length) {
+        return {
+          tasks: views,
+          continueCursor: encodeCursor({ listOffset, skip: idx }),
+          isDone: false,
+        };
       }
       listOffset += 1;
-      continueCursor = null;
     }
 
-    const isDone = listOffset >= sources.length && continueCursor === null;
     return {
       tasks: views,
-      continueCursor: isDone
-        ? null
-        : encodeCursor({ listOffset, continueCursor }),
-      isDone,
+      continueCursor: null,
+      isDone: true,
     };
   },
 });
@@ -3659,20 +3682,20 @@ export const searchTasks = query({
     }[] = [];
 
     let listOffset = start?.listOffset ?? 0;
-    let continueCursor = start?.continueCursor ?? null;
+    let skip = start?.skip ?? 0;
 
     while (listOffset < scoped.length && results.length < limit) {
       const list = scoped[listOffset].list;
-      const remaining = limit - results.length;
-      const page = await ctx.db
+      const rows = await ctx.db
         .query("tasks")
         .withIndex("by_list", (q) => q.eq("listId", list._id))
-        .paginate({ numItems: remaining, cursor: continueCursor });
-      for (const t of page.page) {
+        .take(LIST_SCAN_CAP);
+      const matches: typeof results = [];
+      for (const t of rows) {
         const hay = `${t.title}\n${t.description ?? ""}`.toLowerCase();
         if (!hay.includes(needle)) continue;
         const status = await ctx.db.get(t.statusId);
-        results.push({
+        matches.push({
           taskId: t._id,
           listId: list._id,
           title: t.title,
@@ -3683,22 +3706,26 @@ export const searchTasks = query({
           dueDate: t.dueDate,
         });
       }
-      if (!page.isDone) {
-        continueCursor = page.continueCursor;
-        if (results.length >= limit) break;
-        continue;
+      let idx = skip;
+      skip = 0;
+      while (idx < matches.length && results.length < limit) {
+        results.push(matches[idx]);
+        idx += 1;
+      }
+      if (idx < matches.length) {
+        return {
+          results,
+          continueCursor: encodeCursor({ listOffset, skip: idx }),
+          isDone: false,
+        };
       }
       listOffset += 1;
-      continueCursor = null;
     }
 
-    const isDone = listOffset >= scoped.length && continueCursor === null;
     return {
       results,
-      continueCursor: isDone
-        ? null
-        : encodeCursor({ listOffset, continueCursor }),
-      isDone,
+      continueCursor: null,
+      isDone: true,
     };
   },
 });
