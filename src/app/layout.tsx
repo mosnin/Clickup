@@ -68,11 +68,11 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_APP_URL ?? "https://operate.to",
   ),
   title: {
-    default: "operate.to: mission control for humans and AI agents",
+    default: "operate.to — Agents that finish what they start.",
     template: "%s · operate.to",
   },
   description:
-    "The all-in-one workspace where AI agents work like teammates: tasks, docs, and sprints for humans; MCP access, budgets, and approval gates for agents.",
+    "Agents that finish what they start. Tasks, docs, and sprints for humans; MCP access, budgets, and approval gates for agents.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [

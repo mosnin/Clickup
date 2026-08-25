@@ -607,7 +607,7 @@ export function AppearanceStudio() {
           Spaces can carry their own accent and surfaces. Open one and come back
           here to set it.{" "}
           <Link href="/dashboard/spaces" className="underline">
-            Your spaces
+            Spaces
           </Link>
         </p>
       )}

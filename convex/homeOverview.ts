@@ -10,8 +10,8 @@ import { listUserSpaces } from "./_userSpaces";
 // reactive, so every tile on Home moves the moment the data does — a task
 // completes, an agent heartbeats, a comment lands.
 //
-// Walks the user's accessible lists (same O(tasks-in-scope) shape as
-// reports.workspaceSummary / myWork); fine at target scale.
+// Status totals come from listRollups. Open lists still scan a bounded
+// page of tasks for overdue / "mine" figures.
 
 type ProjectCard = {
   listId: Id<"lists">;
@@ -215,7 +215,7 @@ export const get = query({
           const tasks = await ctx.db
             .query("tasks")
             .withIndex("by_list", (q) => q.eq("listId", list._id))
-            .collect();
+            .take(400);
 
           let scannedDone = 0;
           let scannedInProgress = 0;

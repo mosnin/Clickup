@@ -494,10 +494,10 @@ function SpacesDisclosure({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={toggle}
                 aria-expanded={open}
-                tooltip="Your spaces"
+                tooltip="Spaces"
               >
                 <Boxes />
-                <span className="flex-1">Your spaces</span>
+                <span className="flex-1">Spaces</span>
                 <ChevronRight
                   aria-hidden
                   className={cn(

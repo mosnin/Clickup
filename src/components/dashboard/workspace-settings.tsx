@@ -775,16 +775,27 @@ function ExportSection({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   async function onExport() {
     setPending(true);
     try {
-      const data = await convex.query(api.dataExport.exportWorkspace, {
-        workspaceId,
-      });
-      const blob = new Blob([JSON.stringify(data, null, 2)], {
+      let cursor: number | undefined;
+      let data: Record<string, unknown> | null = null;
+      const spaces: unknown[] = [];
+      for (;;) {
+        const page = await convex.query(api.dataExport.exportWorkspace, {
+          workspaceId,
+          cursor,
+        });
+        if (!data) data = page as unknown as Record<string, unknown>;
+        spaces.push(...page.spaces);
+        if (page.isDone || page.continueCursor === null) break;
+        cursor = page.continueCursor;
+      }
+      const assembled = { ...data, spaces, continueCursor: null, isDone: true };
+      const blob = new Blob([JSON.stringify(assembled, null, 2)], {
         type: "application/json",
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${data.workspace.slug || "workspace"}-export.json`;
+      a.download = `${(assembled.workspace as { slug?: string }).slug || "workspace"}-export.json`;
       a.click();
       URL.revokeObjectURL(url);
       toast("Export downloaded");

@@ -220,7 +220,10 @@ describe("agent governance", () => {
       }),
     ).rejects.toThrow(/read-only/);
     // Reads and presence still work.
-    expect(await t.query(api.agentApi.listTasks, { apiKey })).toEqual([]);
+    expect(await t.query(api.agentApi.listTasks, { apiKey })).toMatchObject({
+      tasks: [],
+      isDone: true,
+    });
     await t.mutation(api.agentApi.heartbeat, {
       apiKey,
       statusText: "observing",
@@ -273,7 +276,9 @@ describe("agent governance", () => {
       minute,
       minuteCount: BURST_LIMIT_PER_MINUTE,
     });
-    expect(await t.query(api.agentApi.listTasks, { apiKey })).toHaveLength(1);
+    expect(
+      (await t.query(api.agentApi.listTasks, { apiKey })).tasks,
+    ).toHaveLength(1);
 
     // A throttled runtime must still be able to observe work and report
     // liveness so operators can diagnose it instead of seeing a false outage.

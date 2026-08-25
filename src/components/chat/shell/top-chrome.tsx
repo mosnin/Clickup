@@ -101,6 +101,12 @@ export function ChatTopChrome({ onOpenNav }: { onOpenNav: () => void }) {
         </button>
 
         <p className="chat-quiet min-w-0 flex-1 truncate text-xs">
+          <span
+            className="mr-2 inline-flex shrink-0 items-center rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+            title="Chat is beta. Rooms work without Ably. Huddle audio, Pulse search, and DMs are not yet."
+          >
+            Beta
+          </span>
           {scopeName ? <span>{scopeName}</span> : null}
           {channel ? (
             <>

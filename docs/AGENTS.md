@@ -55,7 +55,9 @@ proxy:
 (`rename_list` / `update_list_meta` / `delete_list` / `reorder_lists` /
 `move_list`, and the folder half: `rename_folder` / `delete_folder` /
 `reorder_folders`),
-`list_tasks` / `get_task` / `create_task` / `create_tasks` (bulk: up to 50
+`list_tasks` (paged: `{ tasks, continueCursor, isDone }`; pass `cursor` +
+`limit`, default 100 / max 500 — do not ask for everything) /
+`get_task` / `create_task` / `create_tasks` (bulk: up to 50
 tasks with inline subtasks + dependencies in one call) / `update_task` /
 `complete_task` / `reorder_tasks`, `claim_task` / `release_task`,
 `set_checklist`, `add_dependency`, `search_tasks` / `semantic_search`,

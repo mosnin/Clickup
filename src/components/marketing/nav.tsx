@@ -143,31 +143,20 @@ export function MarketingNav() {
             : "border-b border-white/10 bg-background/85 backdrop-blur-md",
         )}
       >
-        {/* Top announcement marquee — a seamless scrolling ticker (no dot),
-            the whole strip links to the announcement. */}
+        {/* One announcement, said once. A repeating ticker read as four
+            copies of the same sentence on every page. */}
         <Link
           href={ANNOUNCE_BAR.cta.href}
           aria-label={`${ANNOUNCE_BAR.text} ${ANNOUNCE_BAR.cta.label}`}
-          className="marquee-mask relative block overflow-hidden border-b border-white/10 bg-[#0c0c0c] py-2"
+          className="block border-b border-white/10 bg-[#0c0c0c] px-4 py-2"
         >
-          <div aria-hidden className="marquee-track flex w-max">
-            {[0, 1].map((set) => (
-              <div key={set} className="flex shrink-0">
-                {[0, 1, 2].map((k) => (
-                  <span
-                    key={k}
-                    className="mx-8 inline-flex items-center gap-2 whitespace-nowrap text-xs text-white/70"
-                  >
-                    {ANNOUNCE_BAR.text}
-                    <span className="inline-flex items-center gap-1 font-medium text-azure-300">
-                      {ANNOUNCE_BAR.cta.label}
-                      <ArrowRight className="size-3" />
-                    </span>
-                  </span>
-                ))}
-              </div>
-            ))}
-          </div>
+          <span className="mx-auto flex max-w-5xl items-center justify-center gap-2 text-center text-xs text-white/70">
+            <span className="min-w-0 truncate">{ANNOUNCE_BAR.text}</span>
+            <span className="inline-flex shrink-0 items-center gap-1 font-medium text-azure-300">
+              {ANNOUNCE_BAR.cta.label}
+              <ArrowRight className="size-3" />
+            </span>
+          </span>
         </Link>
         <Container>
           <div className="flex h-16 items-center justify-between">
