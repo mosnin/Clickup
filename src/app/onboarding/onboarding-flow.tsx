@@ -45,7 +45,7 @@ export function OnboardingFlow({ firstName }: { firstName: string }) {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className="relative flex min-h-dvh flex-col overflow-hidden bg-[linear-gradient(180deg,#fbfbfc_0%,#f2f2f5_100%)]">
+      <div className="relative flex min-h-dvh flex-col overflow-hidden bg-[linear-gradient(180deg,#fbfbfc_0%,#f2f2f5_100%)] dark:bg-[linear-gradient(180deg,#1a1a1e_0%,#131316_100%)]">
         <Aurora />
 
         <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-1 flex-col px-5 sm:px-8">
@@ -145,31 +145,28 @@ function Aurora() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0">
       <motion.span
-        className="absolute -left-32 -top-24 h-[32rem] w-[32rem] rounded-full blur-3xl"
+        className="absolute -left-32 -top-24 h-[32rem] w-[32rem] rounded-full opacity-50 blur-3xl dark:opacity-[0.16]"
         style={{
           background:
             "radial-gradient(closest-side, var(--color-pastel-blue), transparent 70%)",
-          opacity: 0.5,
         }}
         animate={{ x: [0, 40, 0], y: [0, 30, 0], scale: [1, 1.08, 1] }}
         transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.span
-        className="absolute -right-24 top-1/3 h-[28rem] w-[28rem] rounded-full blur-3xl"
+        className="absolute -right-24 top-1/3 h-[28rem] w-[28rem] rounded-full opacity-45 blur-3xl dark:opacity-[0.14]"
         style={{
           background:
             "radial-gradient(closest-side, var(--color-pastel-purple), transparent 70%)",
-          opacity: 0.45,
         }}
         animate={{ x: [0, -30, 0], y: [0, 40, 0], scale: [1, 1.1, 1] }}
         transition={{ duration: 28, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.span
-        className="absolute -bottom-32 left-1/3 h-[26rem] w-[26rem] rounded-full blur-3xl"
+        className="absolute -bottom-32 left-1/3 h-[26rem] w-[26rem] rounded-full opacity-40 blur-3xl dark:opacity-[0.12]"
         style={{
           background:
             "radial-gradient(closest-side, var(--color-pastel-pink), transparent 70%)",
-          opacity: 0.4,
         }}
         animate={{ x: [0, 30, 0], y: [0, -20, 0], scale: [1, 1.06, 1] }}
         transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
@@ -405,15 +402,16 @@ function LivePreview({
   return (
     <motion.div
       layout
-      className="mx-auto w-full max-w-sm rounded-[1.5rem] bg-white p-5 shadow-[0_1px_2px_rgb(16_16_18/0.04),0_30px_60px_-30px_rgb(16_16_18/0.35)]"
+      className="mx-auto w-full max-w-sm rounded-[1.5rem] bg-card p-5 shadow-[0_1px_2px_rgb(16_16_18/0.04),0_30px_60px_-30px_rgb(16_16_18/0.35)] dark:ring-1 dark:ring-white/[0.04] dark:shadow-[0_1px_2px_rgb(0_0_0/0.3),0_30px_60px_-30px_rgb(0_0_0/0.7)]"
       transition={SPRING}
     >
       <div className="flex items-center gap-2">
         <motion.span
           layout
-          className="inline-block h-3 w-3 rounded"
-          animate={{ backgroundColor: workspaceName.trim() ? "#6366f1" : "#d9d9de" }}
-          transition={{ duration: 0.4 }}
+          className={cn(
+            "inline-block h-3 w-3 rounded transition-colors duration-300",
+            workspaceName.trim() ? "bg-[#6366f1]" : "bg-foreground/15",
+          )}
         />
         <motion.span layout className="truncate text-sm font-semibold">
           {ws}
@@ -595,11 +593,11 @@ function BuildStep({
                 <motion.span
                   initial={false}
                   animate={{
-                    backgroundColor: reached ? "#101012" : "#ececee",
+                    opacity: reached ? 1 : 0.3,
                     scale: reached ? 1 : 0.7,
                   }}
                   transition={SPRING}
-                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  className="inline-block h-2.5 w-2.5 rounded-full bg-foreground"
                 />
                 <span className={reached ? "" : "text-muted-foreground"}>
                   {label}
