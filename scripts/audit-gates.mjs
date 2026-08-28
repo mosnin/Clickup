@@ -829,6 +829,18 @@ export function collectFindings(opts) {
       }
       if (!own.trim()) continue;
       if (el.closest("script, style, [hidden]")) continue;
+      // Inert content is a PICTURE. The style carousel draws the real
+      // renderer's output inside `inert` specimen cards, and the non-centred
+      // cards are additionally faded to ~0.3 as "not the current pick" —
+      // 1,600 findings in one run were axis labels inside those faded
+      // pictures. The centred, full-opacity component is audited where it
+      // actually ships; a swatch is judged by the pick it offers, not by AA.
+      if (el.closest('[inert], [aria-hidden="true"]')) {
+        skipped.contrast++;
+        skipped.reasons["inert content (a picture)"] =
+          (skipped.reasons["inert content (a picture)"] || 0) + 1;
+        continue;
+      }
       // WCAG 1.4.3 exempts inactive controls, and so does this: a disabled
       // button is meant to read as unavailable, and flagging every one of them
       // would bury the failures that matter under the ones that are correct.

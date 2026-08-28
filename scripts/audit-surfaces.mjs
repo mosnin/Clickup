@@ -374,7 +374,17 @@ export async function measureLiveBehind(page) {
           return r.width * r.height > 150;
         },
       );
-      return marks.slice(0, 12).map((el) => getComputedStyle(el).fill);
+      // The mark's actual PAINT: a line chart's big paths are stroked with
+      // `fill: none`, so sampling fill alone reads "none" before and after
+      // and reports a working palette dead — which is exactly what happened
+      // on CI, where the size filter matched only stroked paths while the
+      // dev container happened to include one filled area deeper in the
+      // list. A "none" stays in the sample (position keeps before/after
+      // aligned) but can never register as a change.
+      return marks.slice(0, 12).map((el) => {
+        const cs = getComputedStyle(el);
+        return cs.fill && cs.fill !== "none" ? cs.fill : cs.stroke;
+      });
     });
 
   const before = await sample();
@@ -385,23 +395,26 @@ export async function measureLiveBehind(page) {
   if (options.length < 2) {
     return { measurable: false, why: "the colour chapter offered nothing to pick" };
   }
-  // The last option rather than the second: adjacent palettes can be close
-  // enough that a real change reads as no change, which would report a working
-  // control as dead — the false alarm that gets a gate switched off.
-  await options[options.length - 1].click();
-  // Poll until the canvas changes rather than sampling once at a fixed delay:
-  // the token morph runs on rAF frames, and one 1400ms reading reported a
-  // working control dead on a loaded CI runner while every local run saw it
-  // land. The deadline stays generous because "dead" caps the whole score —
-  // a false alarm here is the expensive kind.
+  // Several options, farthest first, force-clicked — the same discipline
+  // scripts/verify-customize.mjs learned: the shelf is a snap carousel whose
+  // centred card is the applied one, and an unforced single click can land on
+  // a card the snap has already moved (Chromium's headless shell re-snaps
+  // between the scroll and the press), which reported a working control dead
+  // on CI while every local run saw it land. Farthest-first keeps the real
+  // change visible (adjacent palettes can be near-identical), and polling
+  // after each press gives the rAF token morph time to write. Only a shelf
+  // where NO option changes anything is dead.
   let after = before;
   let changed = false;
-  const deadline = Date.now() + 6000;
-  while (Date.now() < deadline) {
-    await page.waitForTimeout(500);
-    after = await sample();
-    changed = before.some((c, i) => after[i] !== undefined && after[i] !== c);
-    if (changed) break;
+  for (let i = options.length - 1; i >= 0 && !changed; i--) {
+    await options[i].click({ force: true }).catch(() => {});
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline) {
+      await page.waitForTimeout(400);
+      after = await sample();
+      changed = before.some((c, j) => after[j] !== undefined && after[j] !== c);
+      if (changed) break;
+    }
   }
   return { measurable: true, changed, before, after };
 }
