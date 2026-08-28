@@ -20,6 +20,7 @@ import { chromium } from "playwright-core";
 import { createServer } from "node:http";
 import { readFileSync, existsSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
+import { CHROME } from "./lib/browser.mjs";
 
 const OUT = "/tmp/design-gallery";
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css" };
@@ -36,7 +37,7 @@ const server = createServer((req, res) => {
 await new Promise((r) => server.listen(4601, r));
 
 const browser = await chromium.launch({
-  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  executablePath: CHROME,
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });

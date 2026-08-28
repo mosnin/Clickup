@@ -237,16 +237,94 @@ export function collectFindings(opts) {
   // rather than guessing, and the refusal is counted. A number nobody can
   // check is worse than a hole somebody can see.
   function effectiveBackground(el) {
-    let acc = { r: 0, g: 0, b: 0, a: 0 };
-    let node = el;
+    // The ink's translucency comes from its ancestors' opacity, whatever
+    // turns out to paint behind it.
     let fgOpacity = 1;
-    let first = true;
-    while (node && node.nodeType === 1) {
-      const cs = getComputedStyle(node);
-      if (!first) {
-        const o = parseFloat(cs.opacity);
-        if (Number.isFinite(o) && o < 1) fgOpacity *= o;
+    for (let n = el.parentElement; n && n.nodeType === 1; n = n.parentElement) {
+      const o = parseFloat(getComputedStyle(n).opacity);
+      if (Number.isFinite(o) && o < 1) fgOpacity *= o;
+    }
+    let acc = { r: 0, g: 0, b: 0, a: 0 };
+
+    const finish = () => {
+      // Nothing opaque in the stack: the canvas colour shows through.
+      const canvasBg =
+        toRgba(getComputedStyle(document.documentElement).backgroundColor) ||
+        toRgba(getComputedStyle(document.body).backgroundColor);
+      if (canvasBg && canvasBg.a > 0) {
+        acc = composite(acc, canvasBg);
+        if (acc.a >= 0.999) return { colour: acc, why: null, fgOpacity };
       }
+      return { colour: null, why: "no opaque backdrop", fgOpacity };
+    };
+
+    // What is actually PAINTED under the text, topmost first. Walking only
+    // the ancestor chain missed every backdrop drawn by a sibling — an SVG
+    // bar under its axis label, a positioned chip under a name — and
+    // composited the white card behind the chip instead, reporting
+    // white-on-white for text that was perfectly legible on its near-black
+    // pill (36 findings in one run, every crop fine). `elementsFromPoint`
+    // returns the true stacking order with ancestors at their real position,
+    // so both kinds of backdrop are one walk. SVG shapes paint with `fill`,
+    // not `background-color`.
+    const r = el.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    if (
+      r.width > 0 &&
+      r.height > 0 &&
+      cx >= 0 &&
+      cy >= 0 &&
+      cx <= window.innerWidth &&
+      cy <= window.innerHeight
+    ) {
+      const stack = document.elementsFromPoint(cx, cy);
+      const from = stack.indexOf(el);
+      // `el` absent (pointer-events: none, display quirks) means the stack
+      // cannot be trusted relative to it — fall through to the ancestor walk.
+      if (from !== -1) {
+        for (const under of stack.slice(from + 1)) {
+          const cs = getComputedStyle(under);
+          const svgShape =
+            under.namespaceURI === "http://www.w3.org/2000/svg" &&
+            under.tagName.toLowerCase() !== "svg";
+          if (svgShape) {
+            const fill = cs.fill;
+            if (fill && fill.startsWith("url(")) {
+              return { colour: null, why: "svg paint", fgOpacity };
+            }
+            const paint = toRgba(fill);
+            if (paint && paint.a > 0) {
+              const fo = parseFloat(cs.fillOpacity);
+              const eo = parseFloat(cs.opacity);
+              const a =
+                paint.a *
+                (Number.isFinite(fo) ? fo : 1) *
+                (Number.isFinite(eo) ? eo : 1);
+              if (a > 0) {
+                acc = composite(acc, { ...paint, a });
+                if (acc.a >= 0.999) return { colour: acc, why: null, fgOpacity };
+              }
+            }
+            continue;
+          }
+          if (cs.backgroundImage && cs.backgroundImage !== "none") {
+            return { colour: null, why: "background-image", fgOpacity };
+          }
+          const bg = toRgba(cs.backgroundColor);
+          if (bg && bg.a > 0) {
+            acc = composite(acc, bg);
+            if (acc.a >= 0.999) return { colour: acc, why: null, fgOpacity };
+          }
+        }
+        return finish();
+      }
+    }
+
+    // Fallback: the ancestor chain, for text the hit-test cannot see.
+    acc = { r: 0, g: 0, b: 0, a: 0 };
+    for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
+      const cs = getComputedStyle(node);
       if (cs.backgroundImage && cs.backgroundImage !== "none") {
         return { colour: null, why: "background-image", fgOpacity };
       }
@@ -255,18 +333,8 @@ export function collectFindings(opts) {
         acc = composite(acc, bg);
         if (acc.a >= 0.999) return { colour: acc, why: null, fgOpacity };
       }
-      first = false;
-      node = node.parentElement;
     }
-    // Nothing opaque all the way up: the canvas colour is what shows through.
-    const canvasBg =
-      toRgba(getComputedStyle(document.documentElement).backgroundColor) ||
-      toRgba(getComputedStyle(document.body).backgroundColor);
-    if (canvasBg && canvasBg.a > 0) {
-      acc = composite(acc, canvasBg);
-      if (acc.a >= 0.999) return { colour: acc, why: null, fgOpacity };
-    }
-    return { colour: null, why: "no opaque backdrop", fgOpacity };
+    return finish();
   }
 
   // ── Bookkeeping ─────────────────────────────────────────────────────

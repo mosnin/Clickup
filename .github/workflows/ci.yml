@@ -47,3 +47,63 @@ jobs:
       # no gate, because it reads as coverage.
       - run: npx playwright-core install --with-deps chromium
       - run: npm test
+
+  # The browser harnesses, on every PR. The unit suite alone let the grid's
+  # overlapping-tiles scramble ship with 3,143 tests green: jsdom cannot drag,
+  # so the only tests that can see a gesture bug are the ones that put a real
+  # pointer on real pixels. This job is those tests. It is a separate job so
+  # its ~15 minutes run beside the unit suite rather than after it.
+  browser-harnesses:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The gallery is bundled against the app's own compiled stylesheet
+      # (.next/static/css) — same placeholder env story as the test job.
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
+          CLERK_SECRET_KEY: sk_test_placeholder
+          NEXT_PUBLIC_CONVEX_URL: https://placeholder-000.convex.cloud
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run gallery
+      # Gestures under a real pointer: resize, reorder, touch, overlap, spill.
+      - run: node scripts/verify-resize.mjs
+      # The Work ⇄ Chat view transition, measured mid-flight.
+      - run: node scripts/verify-mode-transition.mjs
+      # The customiser: select a panel, open the sheet, a pick lands behind it.
+      - run: node scripts/verify-customize.mjs
+      # Situation panels arrive with consent and displace nothing.
+      - run: node scripts/verify-situation.mjs
+      # Charts draw negatives on the correct side.
+      - run: node scripts/verify-negatives.mjs
+      # The sidebar hold-and-drag pickup.
+      - run: node scripts/verify-nav-grab.mjs
+      # Chat's wiring: routes linked, validators matched, no stray imports.
+      - run: node scripts/chat-sweep.mjs
+      # Home's tiles fit their boxes at 1280/900/390 — a tile whose content
+      # exceeds its box reads as clipped on a phone.
+      - run: |
+          out="$(node scripts/measure-home.mjs)"
+          echo "$out"
+          if grep -q 'SCROLLS' <<< "$out"; then
+            echo '::error::a Home tile is taller than its box (see SCROLLS above)'
+            exit 1
+          fi
+      # The calibrated audit over every gallery surface. `--fail-on=high`
+      # means real defects fail the build; the audit refuses to emit a result
+      # at all if its gates did not fire on the broken calibration fixtures.
+      - run: node scripts/audit.mjs --fail-on=high
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-findings
+          path: |
+            /tmp/audit/FINDINGS.md
+            /tmp/audit/findings.json
+            /tmp/audit/crops
+          if-no-files-found: ignore

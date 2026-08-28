@@ -11,7 +11,6 @@ import {
   createMagneticField,
   inhale,
   jiggle,
-  morphLayout,
   scaled,
   settleDeform,
   tearOut,
@@ -308,7 +307,6 @@ export function EditableGrid({
   const available = useMemo(() => tiles.map((t) => t.id), [tiles]);
   const situations = useScreenSituations({
     screenKey: screenKey ?? gridId,
-    gridId,
     // The reader's own arrangement, deliberately without the preview below —
     // otherwise previewing a panel would make it look already-placed and the
     // banner offering it would vanish under the reader's hand.
@@ -552,13 +550,11 @@ export function EditableGrid({
           next.splice(current, 1);
           next.splice(over, 0, id);
           orderRef.current = next;
-          // Reflow everything except the tile under the finger — that one is
-          // already where the pointer says it is. Local state, never a write:
-          // the neighbours part now, and the arrangement is saved once, when
-          // the gesture ends.
-          morphLayout(grid, () => setDragOrder(next), {
-            children: '[data-tile]:not([data-dragging="true"])',
-          });
+          // Local state, never a write: the neighbours part now (their CSS
+          // transition carries the reflow; the dragged tile is exempt via
+          // `[data-dragging]`), and the arrangement is saved once, when the
+          // gesture ends.
+          setDragOrder(next);
         },
         onRelease: (self) => {
           delete el.dataset.dragging;
@@ -643,9 +639,7 @@ export function EditableGrid({
     const widgets = [...layout.widgets];
     const [moved] = widgets.splice(from, 1);
     widgets.splice(to, 0, moved);
-    morphLayout(gridRef.current ?? `#${gridId}`, () =>
-      commit({ widgets }, { droppedAt: to }),
-    );
+    commit({ widgets }, { droppedAt: to });
   }
 
   /**
@@ -669,19 +663,17 @@ export function EditableGrid({
         ? current?.rows
         : (Math.min(Math.max(rows, 1), MAX_ROWS) as WidgetRows);
     if (current?.span === clampedSpan && current?.rows === clampedRows) return;
-    morphLayout(gridRef.current ?? `#${gridId}`, () =>
-      commit({
-        widgets: layout.widgets.map((w) =>
-          w.id === id
-            ? {
-                ...w,
-                span: clampedSpan,
-                ...(clampedRows === undefined ? {} : { rows: clampedRows }),
-              }
-            : w,
-        ),
-      }),
-    );
+    commit({
+      widgets: layout.widgets.map((w) =>
+        w.id === id
+          ? {
+              ...w,
+              span: clampedSpan,
+              ...(clampedRows === undefined ? {} : { rows: clampedRows }),
+            }
+          : w,
+      ),
+    });
   }
 
   function resize(id: string, delta: number) {
@@ -695,7 +687,7 @@ export function EditableGrid({
       ) as WidgetSpan;
       return { ...w, span: next };
     });
-    morphLayout(gridRef.current ?? `#${gridId}`, () => commit({ widgets }));
+    commit({ widgets });
   }
 
   function remove(id: string) {
@@ -703,9 +695,7 @@ export function EditableGrid({
       `[data-tile="${id}"]`,
     );
     const drop = () =>
-      morphLayout(gridRef.current ?? `#${gridId}`, () =>
-        commit({ widgets: layout.widgets.filter((w) => w.id !== id) }),
-      );
+      commit({ widgets: layout.widgets.filter((w) => w.id !== id) });
     if (el) tearOut(el, drop);
     else drop();
   }

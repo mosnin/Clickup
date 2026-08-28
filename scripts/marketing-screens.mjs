@@ -19,11 +19,11 @@ import { createServer } from "node:http";
 import { readFileSync, existsSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CHROME } from "./lib/browser.mjs";
 
 const ROOT = join(fileURLToPath(import.meta.url), "..", "..");
 const GALLERY = "/tmp/design-gallery";
 const OUT = join(ROOT, "public", "screenshots");
-const CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 const MIME = {
   ".html": "text/html",
   ".css": "text/css",

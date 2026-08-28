@@ -14,6 +14,7 @@
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { chromium } from "playwright-core";
+import { CHROME } from "./lib/browser.mjs";
 
 const OUT = "/tmp/marketing-shots";
 const PORT = 4610;
@@ -50,7 +51,7 @@ try {
   await waitForServer();
 
   const browser = await chromium.launch({
-    executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+    executablePath: CHROME,
     // Software rasterisation, explicitly. This page is unusually expensive to
     // paint — stacked blurred glass layers, canvas fills, blurred PNG masks —
     // and with the default GPU path headless Chromium never hands back a frame,

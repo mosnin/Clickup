@@ -8,7 +8,6 @@ import { api } from "@convex/_generated/api";
 import { EASE } from "@/components/motion";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
-import { morphLayout } from "@/lib/anime";
 import type { ScreenLayout } from "@/lib/screen-layout";
 import {
   nextAnnouncement,
@@ -64,7 +63,6 @@ type ForScreenRow = {
 
 export function useScreenSituations({
   screenKey,
-  gridId,
   layout,
   available,
   enabled = true,
@@ -72,7 +70,6 @@ export function useScreenSituations({
   onRemove,
 }: {
   screenKey: string;
-  gridId: string;
   /** The reader's OWN saved layout — never one being previewed. */
   layout: ScreenLayout;
   /** Widget ids this screen can actually draw. */
@@ -145,9 +142,9 @@ export function useScreenSituations({
   //
   // A preview is only honest while the thing it is previewing is still on
   // offer. The moment the condition stops holding, the panel on the canvas is
-  // there for a reason that is no longer true — so it steps back, through
-  // `morphLayout` so the grid closes the gap as one movement rather than
-  // snapping, and says why. Nothing is written: nothing ever was.
+  // there for a reason that is no longer true — so it steps back (the tiles'
+  // own CSS transition closes the gap as one movement rather than snapping)
+  // and says why. Nothing is written: nothing ever was.
   const live = arrival !== null && arrival.subscriptionId === previewing;
   const previewedState =
     states.find((s) => s.subscriptionId === previewing) ?? null;
@@ -159,11 +156,9 @@ export function useScreenSituations({
   const previewedDescription = previewedState?.description ?? null;
   useEffect(() => {
     if (previewing === null || live) return;
-    morphLayout(`#${gridId}`, () => {
-      setPreviewing(null);
-      setWithdrawn(previewedDescription);
-    });
-  }, [gridId, live, previewedDescription, previewing]);
+    setPreviewing(null);
+    setWithdrawn(previewedDescription);
+  }, [live, previewedDescription, previewing]);
 
   // Read inside the callbacks below without making them depend on it, so a
   // toast handler built one render ago still answers about the current state.
@@ -198,14 +193,14 @@ export function useScreenSituations({
 
   const acknowledgeDeparture = useCallback(
     (s: SituationState, remove: boolean) => {
-      if (remove) morphLayout(`#${gridId}`, () => onRemove(s.panelId));
+      if (remove) onRemove(s.panelId);
       void acknowledge({
         subscriptionId: s.subscriptionId as Id<"panelSituations">,
       }).catch((e) =>
         toast(errorMessage(e, "Couldn't answer that"), { kind: "error" }),
       );
     },
-    [acknowledge, gridId, onRemove, toast],
+    [acknowledge, onRemove, toast],
   );
 
   const banner = (
@@ -216,14 +211,12 @@ export function useScreenSituations({
           description={arrival.description}
           previewing={live}
           onPreview={() =>
-            morphLayout(`#${gridId}`, () =>
-              setPreviewing(live ? null : arrival.subscriptionId),
-            )
+            setPreviewing(live ? null : arrival.subscriptionId)
           }
           onDismiss={() => answer(arrival, "dismissed")}
           onKeep={() => {
             if (live) answer(arrival, "kept");
-            else morphLayout(`#${gridId}`, () => answer(arrival, "kept"));
+            else answer(arrival, "kept");
           }}
         />
       ) : departure ? (

@@ -37,19 +37,19 @@ import {
 import { extname, join, normalize } from "node:path";
 import { GATES, SEVERITY_ORDER, ceilingFor, collectFindings } from "./audit-gates.mjs";
 import { overlapsOn, spillsOn } from "./lib/tile-geometry.mjs";
-import { SURFACES, measureLiveBehind } from "./audit-surfaces.mjs";
+import { SURFACES, measureLiveBehind, openStudio } from "./audit-surfaces.mjs";
 import {
   measureResize,
   measureReorder,
   gestureFindings,
 } from "./audit-gesture.mjs";
+import { CHROME } from "./lib/browser.mjs";
 
 const GALLERY = "/tmp/design-gallery";
 // Port 0 asks the OS for a free one. A fixed port is a second thing two
 // concurrent runs collide over, and the collision arrives as `EADDRINUSE`
 // half way through somebody's coverage rather than as anything about the UI.
 const PORT = 0;
-const CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 
 const args = process.argv.slice(2);
 const only = (args.find((a) => a.startsWith("--only=")) || "").slice(7);
@@ -786,12 +786,7 @@ const liveBehind = [];
 for (const viewport of VIEWPORTS) {
   try {
     const { page } = await openPage("home.html?studio=1", viewport, "light", 2600);
-    await page.locator('[data-tile="activity"]').first().click({
-      position: { x: 40, y: 30 },
-    });
-    await page.waitForTimeout(400);
-    await page.locator("#style-island button").first().click();
-    await page.waitForTimeout(1500);
+    await openStudio(page, "activity");
     await page.getByRole("tab", { name: "Colour", exact: true }).first().click();
     await page.waitForTimeout(1200);
     const before = `crops/live-behind-${viewport.label}-before.png`;

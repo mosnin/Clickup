@@ -72,7 +72,7 @@
   --color-foreground: #101010;
   --color-muted: #f5f5f6;
   /* Kept in step with `--ui-muted-base` below, which is what actually wins. */
-  --color-muted-foreground: #6b6b75;
+  --color-muted-foreground: #63636d;
   --color-border: #ececee;
 
   /* "Brand" is ink now: black CTAs, gray chips. Kept as a scale so the
@@ -150,7 +150,7 @@
 
   /* Semantic states. Danger is a muted brick, never alarm-red; unread is the
      single accent used by every unread indicator in the app. */
-  --color-danger: #c2453a;
+  --color-danger: #b84136;
   --color-unread: #5f7d00;
 
   /* Marketing v2 palette — electric azure over deep navy for the hero
@@ -189,7 +189,7 @@
   --color-secondary-foreground: #101010;
   --color-accent: #f0f0f2;
   --color-accent-foreground: #101010;
-  --color-destructive: #c2453a;
+  --color-destructive: #b84136;
   --color-input: #ececee;
   --color-ring: #8b8b94;
   --color-chart-1: #d9e8fa;
@@ -425,6 +425,48 @@
   }
 }
 
+/* Tiles move by CSS transition, never by a JS layout animation.
+
+   anime's FLIP (`morphLayout`) was a second writer on the grid's
+   left/top/width/height. Interrupt one mid-flight — a second slot crossing,
+   the drop's commit landing while the drag's reflow still runs — and its
+   cleanup restores the inline styles it captured earlier over the ones React
+   has since rendered. React's diff believes those styles unchanged and never
+   rewrites them, so tiles strand at stale positions and overlap until
+   something unrelated re-renders the exact keys (the scramble
+   `scripts/verify-resize.mjs` catches). A transition holds no captured state:
+   retargeting mid-flight is what transitions are for, so that failure cannot
+   be expressed. React (fed by `pack`) stays the only writer of geometry.
+
+   The dragged tile is exempt — its position belongs to the pointer — and the
+   live resize's inline `transition: none` still outranks this rule. */
+[data-tile] {
+  transition-property: left, top, width, height;
+  transition-duration: calc(var(--ui-motion-scale, 1) * 340ms);
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+[data-tile][data-dragging="true"] {
+  transition: none;
+}
+/* A tile that arrives (tray drop, accepted proposal, situation panel) fades
+   in while its neighbours' transitions carry the reflow. Opacity only: the
+   outer tile's transform belongs to the drag, and the inner's to the wobble. */
+@keyframes tile-enter {
+  from {
+    opacity: 0;
+  }
+}
+[data-tile] {
+  animation: tile-enter calc(var(--ui-motion-scale, 1) * 280ms)
+    cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-tile] {
+    transition: none;
+    animation: none;
+  }
+}
+
 /* ── Chart palettes, one hue per family, one lightness per theme ──────────
    A palette's identity is its hue; how light that hue needs to be is a
    question about what is behind it, which only the theme knows. Pinning both
@@ -543,7 +585,7 @@
      by `tests/ui/panel-fit`, which reported it 1,794 times. The cool cast is
      kept (R=G, B+10, the same relationship the old value had) so this reads
      as the same grey, only doing its job. */
-  --ui-muted-base: #6b6b75;
+  --ui-muted-base: #63636d;
 }
 :root[data-theme="dark"] {
   --ui-muted-base: #9e9e9e;
@@ -669,7 +711,7 @@
      pair declared here, and the reader's contrast preference still applies. */
   --color-background: #f4f4f4;
   --color-foreground: #0e0e0e;
-  --ui-muted-base: #6b6b75;
+  --ui-muted-base: #63636d;
   --color-border: #ececee;
   --color-muted: #f5f5f6;
   --color-card: #ffffff;
@@ -1031,7 +1073,7 @@ body {
   --color-card: #ffffff;
   --color-card-foreground: #101010;
   --color-muted: #f5f5f6;
-  --color-muted-foreground: #6b6b75;
+  --color-muted-foreground: #63636d;
   --color-border: #ececee;
   --color-accent: #f0f0f2;
   --color-accent-foreground: #101010;
@@ -1807,7 +1849,13 @@ body {
   .tap-target::after {
     content: "";
     position: absolute;
-    inset: min(0px, calc((100% - var(--tap-floor, 2.75rem)) / 2));
+    /* 2.875rem (46px), not the bare 44px floor: arrange mode's `inhale()`
+       scales tiles — and the chrome that travels with them — to 0.965, which
+       dragged a 44px halo down to 42.5 under the finger while it measured 44
+       in its own CSS. 46 × 0.965 = 44.4, so the floor is cleared by the
+       pixels that actually get pressed, scaled or not. The halo is hit area
+       only, so the extra 2px paints nothing. */
+    inset: min(0px, calc((100% - var(--tap-floor, 2.875rem)) / 2));
   }
 }
 

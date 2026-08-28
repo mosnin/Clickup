@@ -8,6 +8,7 @@ import { createServer } from "node:http";
 import { readFileSync, existsSync } from "node:fs";
 import { join, extname } from "node:path";
 import { chromium } from "playwright-core";
+import { CHROME } from "./lib/browser.mjs";
 
 const ROOT = "/tmp/design-gallery";
 const MIME = {
@@ -31,7 +32,7 @@ const server = createServer((req, res) => {
 await new Promise((r) => server.listen(4601, r));
 
 const browser = await chromium.launch({
-  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  executablePath: CHROME,
 });
 
 const SELECTORS = [

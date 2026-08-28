@@ -17,6 +17,7 @@ import { chromium } from "playwright-core";
 import { createServer } from "node:http";
 import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
+import { CHROME } from "./lib/browser.mjs";
 
 // Where the BUILD lives, and where SHOTS live — deliberately two directories.
 // `build-gallery.mjs` runs Vite with `emptyOutDir`, so writing shots into the
@@ -52,7 +53,7 @@ const server = createServer((req, res) => {
 await new Promise((resolve) => server.listen(4599, resolve));
 
 const browser = await chromium.launch({
-  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  executablePath: CHROME,
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({

@@ -28,8 +28,10 @@ async function chapterNames(page) {
   );
 }
 
-/** Select a panel, then open the style sheet over it. */
-async function openStudio(page, tile) {
+/** Select a panel, then open the style sheet over it. Exported so the
+ * audit's live-behind measurement opens the studio through the same door —
+ * a second copy of this flow is how the last driver drifted unreachable. */
+export async function openStudio(page, tile) {
   // Clicking the tile IS the scope selector — a delegated capture-phase
   // handler in the customise provider turns the press into a selection. Going
   // through it rather than calling the setter is the point: the question is
@@ -37,8 +39,14 @@ async function openStudio(page, tile) {
   // handed props.
   const target = page.locator(`[data-tile="${tile}"]`).first();
   await target.click({ position: { x: 40, y: 30 } });
-  await page.waitForTimeout(400);
-  await page.locator("#style-island button").first().click();
+  await page.waitForTimeout(700);
+  // Selecting a tile opens the sheet directly (the island's launcher button
+  // unmounts the moment a selection exists — clicking it here is what made
+  // every studio surface "unreachable" for a round). The island press is only
+  // the fallback for a build where selection does not auto-open.
+  if ((await page.locator("[data-studio-chapter]").count()) === 0) {
+    await page.locator("#style-island button").first().click({ timeout: 5000 });
+  }
   await page.waitForTimeout(1500);
 }
 

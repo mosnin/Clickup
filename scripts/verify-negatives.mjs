@@ -28,6 +28,7 @@ import { chromium } from "playwright-core";
 import { createServer } from "node:http";
 import { readFileSync, existsSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
+import { CHROME } from "./lib/browser.mjs";
 
 const ROOT = "/tmp/design-gallery";
 const PORT = 4611;
@@ -64,7 +65,7 @@ await new Promise((r) => server.listen(PORT, r));
 // `chromium.launch()` with no path asks Playwright to resolve its own download
 // and fails in this environment.
 const browser = await chromium.launch({
-  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  executablePath: CHROME,
 });
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
 
