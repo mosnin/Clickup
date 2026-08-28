@@ -258,9 +258,25 @@ export function collectFindings(opts) {
       return { colour: null, why: "no opaque backdrop", fgOpacity };
     };
 
-    // What is actually PAINTED under the text, topmost first. Walking only
-    // the ancestor chain missed every backdrop drawn by a sibling — an SVG
-    // bar under its axis label, a positioned chip under a name — and
+    // The element's own paint comes first, whatever else is under it — a
+    // monogram chip IS its own backdrop, and a walk that starts below the
+    // element reports the card behind the chip instead (538 white-on-white
+    // findings in one run, every crop a legible purple or black chip).
+    {
+      const cs = getComputedStyle(el);
+      if (cs.backgroundImage && cs.backgroundImage !== "none") {
+        return { colour: null, why: "background-image", fgOpacity };
+      }
+      const own = toRgba(cs.backgroundColor);
+      if (own && own.a > 0) {
+        acc = composite(acc, own);
+        if (acc.a >= 0.999) return { colour: acc, why: null, fgOpacity };
+      }
+    }
+
+    // Then what is actually PAINTED under the text, topmost first. Walking
+    // only the ancestor chain missed every backdrop drawn by a sibling — an
+    // SVG bar under its axis label, a positioned chip under a name — and
     // composited the white card behind the chip instead, reporting
     // white-on-white for text that was perfectly legible on its near-black
     // pill (36 findings in one run, every crop fine). `elementsFromPoint`
