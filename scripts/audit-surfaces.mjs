@@ -389,8 +389,19 @@ export async function measureLiveBehind(page) {
   // enough that a real change reads as no change, which would report a working
   // control as dead — the false alarm that gets a gate switched off.
   await options[options.length - 1].click();
-  await page.waitForTimeout(1400);
-  const after = await sample();
-  const changed = before.some((c, i) => after[i] !== undefined && after[i] !== c);
+  // Poll until the canvas changes rather than sampling once at a fixed delay:
+  // the token morph runs on rAF frames, and one 1400ms reading reported a
+  // working control dead on a loaded CI runner while every local run saw it
+  // land. The deadline stays generous because "dead" caps the whole score —
+  // a false alarm here is the expensive kind.
+  let after = before;
+  let changed = false;
+  const deadline = Date.now() + 6000;
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(500);
+    after = await sample();
+    changed = before.some((c, i) => after[i] !== undefined && after[i] !== c);
+    if (changed) break;
+  }
   return { measurable: true, changed, before, after };
 }

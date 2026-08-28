@@ -337,9 +337,61 @@ export function collectFindings(opts) {
       }
     }
 
-    // Fallback: the ancestor chain, for text the hit-test cannot see.
-    acc = { r: 0, g: 0, b: 0, a: 0 };
-    for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
+    // SVG text the hit-test cannot see (charts routinely set
+    // `pointer-events: none` on their internals, which removes them from
+    // `elementsFromPoint` entirely): its backdrop is a sibling shape in the
+    // same svg — the bar under its axis label, the chip rect under a name.
+    // The LAST shape in document order whose box contains the text's centre
+    // is the one painted on top beneath the text.
+    if (el.namespaceURI === "http://www.w3.org/2000/svg") {
+      const svgRoot = el.closest("svg");
+      if (svgRoot) {
+        let paint = null;
+        for (const s of svgRoot.querySelectorAll(
+          "rect, circle, ellipse, path, polygon",
+        )) {
+          if (s.contains(el) || el.contains(s)) continue;
+          const b = s.getBoundingClientRect();
+          if (cx < b.left || cx > b.right || cy < b.top || cy > b.bottom) {
+            continue;
+          }
+          const scs = getComputedStyle(s);
+          const fill = scs.fill;
+          if (fill && fill.startsWith("url(")) {
+            paint = "unmeasurable";
+            continue;
+          }
+          const rgba = toRgba(fill);
+          if (rgba && rgba.a > 0) {
+            const fo = parseFloat(scs.fillOpacity);
+            const eo = parseFloat(scs.opacity);
+            const a =
+              rgba.a *
+              (Number.isFinite(fo) ? fo : 1) *
+              (Number.isFinite(eo) ? eo : 1);
+            paint = a > 0 ? { ...rgba, a } : paint;
+          }
+        }
+        if (paint === "unmeasurable") {
+          return { colour: null, why: "svg paint", fgOpacity };
+        }
+        if (paint) {
+          acc = composite(acc, paint);
+          if (acc.a >= 0.999) return { colour: acc, why: null, fgOpacity };
+        }
+      }
+    }
+
+    // Fallback: the ancestor chain, for text the hit-test cannot see. It
+    // CONTINUES the composite — the element's own paint (and any svg shape
+    // found above) is already in `acc`, so this starts at the parent rather
+    // than resetting; a reset here silently discarded a translucent own
+    // background on every element the hit-test missed.
+    for (
+      let node = el.parentElement;
+      node && node.nodeType === 1;
+      node = node.parentElement
+    ) {
       const cs = getComputedStyle(node);
       if (cs.backgroundImage && cs.backgroundImage !== "none") {
         return { colour: null, why: "background-image", fgOpacity };
@@ -757,6 +809,15 @@ export function collectFindings(opts) {
 
   // ── 5. Contrast, against the effective background, for real text ────
   {
+    // An open sheet makes the page behind it a BACKDROP: the canvas is faded
+    // on purpose while the sheet is the readable surface, so text out there
+    // is not presented for reading and AA has no claim on it. Without this,
+    // every studio surface reported its entire dimmed Home behind the sheet
+    // (~1,900 findings in one run, all of them the fade doing its job).
+    // Skipped and counted, never scored.
+    const overlayRoot = document.querySelector(
+      '[role="dialog"], [data-studio], #style-studio',
+    );
     const all = document.querySelectorAll("body *");
     for (const el of all) {
       if (ignored(el)) continue;
@@ -791,6 +852,12 @@ export function collectFindings(opts) {
       if (!back.colour) {
         skipped.contrast++;
         skipped.reasons[back.why] = (skipped.reasons[back.why] || 0) + 1;
+        continue;
+      }
+      if (overlayRoot && !overlayRoot.contains(el) && back.fgOpacity < 0.95) {
+        skipped.contrast++;
+        skipped.reasons["dimmed behind an open sheet"] =
+          (skipped.reasons["dimmed behind an open sheet"] || 0) + 1;
         continue;
       }
       const fg = composite(
@@ -1003,6 +1070,12 @@ export function collectFindings(opts) {
       'button, a[href], [role="button"], [role="tab"], input:not([type="hidden"]), select, summary, [role="switch"]',
     )) {
       if (ignored(el)) continue;
+      // A target a pointer cannot reach is not a target. Specimens draw real
+      // rows and buttons as PICTURES behind `pointer-events: none` (and
+      // `inert`); the press lands on the specimen card wrapping them, which
+      // is the target this gate should be measuring instead.
+      if (getComputedStyle(el).pointerEvents === "none") continue;
+      if (el.closest('[inert], [aria-hidden="true"]')) continue;
       const box = paintedBox(el);
       if (!box) continue;
       let w = box.width;
