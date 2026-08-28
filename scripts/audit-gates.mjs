@@ -340,20 +340,39 @@ export function collectFindings(opts) {
     // SVG text the hit-test cannot see (charts routinely set
     // `pointer-events: none` on their internals, which removes them from
     // `elementsFromPoint` entirely): its backdrop is a sibling shape in the
-    // same svg — the bar under its axis label, the chip rect under a name.
-    // The LAST shape in document order whose box contains the text's centre
-    // is the one painted on top beneath the text.
+    // same svg — the bar its label is written on, the chip under a name.
+    // The LAST shape in document order that actually PAINTS at the text's
+    // centre is the one beneath the text. Bounding-box containment is not
+    // that test: a line or area path's box spans the whole plot while its
+    // fill covers a sliver of it, and box-containment attributed a dark
+    // plot-path to a legible "41" on the white card (1.2:1 reported) —
+    // while any size heuristic that rejects big boxes also rejects the
+    // 76x92 bar a name really is painted on. `isPointInFill` answers with
+    // the actual geometry, so both cases resolve without a guess.
     if (el.namespaceURI === "http://www.w3.org/2000/svg") {
       const svgRoot = el.closest("svg");
       if (svgRoot) {
         let paint = null;
         for (const s of svgRoot.querySelectorAll(
-          "rect, circle, ellipse, path, polygon",
+          "rect, circle, ellipse, path",
         )) {
           if (s.contains(el) || el.contains(s)) continue;
           const b = s.getBoundingClientRect();
           if (cx < b.left || cx > b.right || cy < b.top || cy > b.bottom) {
             continue;
+          }
+          if (typeof s.isPointInFill === "function") {
+            try {
+              const m = s.getScreenCTM();
+              if (m) {
+                const local = new DOMPoint(cx, cy).matrixTransform(
+                  m.inverse(),
+                );
+                if (!s.isPointInFill(local)) continue;
+              }
+            } catch {
+              // Geometry unavailable: fall back to the box test above.
+            }
           }
           const scs = getComputedStyle(s);
           const fill = scs.fill;
