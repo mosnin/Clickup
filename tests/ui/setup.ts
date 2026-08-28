@@ -6,16 +6,23 @@ import { cleanup } from "@testing-library/react";
 // about the component instead of about the environment.
 afterEach(async () => {
   cleanup();
-  // React's concurrent scheduler flushes remaining work on a later macrotask
+  // React's concurrent scheduler flushes remaining work on later macrotasks
   // (setImmediate under jsdom). Unmounting queues that flush; if the test file
   // ends first, the scheduler wakes up after the environment is gone and dies
-  // on `window is not defined`. One tick here lets it land while the window
-  // still exists.
-  await new Promise((resolve) => setImmediate(resolve));
-  // Twice: the first flush can itself schedule a continuation (React yields
-  // long work across multiple macrotasks), and a single tick still lost the
-  // race under a loaded worker pool.
-  await new Promise((resolve) => setImmediate(resolve));
+  // on `window is not defined`.
+  //
+  // Two setImmediate ticks were not enough: a component's zero-timer (a
+  // debounce, a positioning callback) can fire BETWEEN immediates, schedule a
+  // state update, and put fresh scheduler work on the immediate queue after
+  // the drain has moved on — CI's loaded worker pool lost exactly that race
+  // while every laptop won it. So the drain alternates BOTH queues (immediates
+  // run before timers each turn of the loop) enough rounds to exhaust a chain
+  // of continuations. Bounded, so a genuinely self-rescheduling loop in a
+  // component still ends the test rather than hanging it.
+  for (let i = 0; i < 8; i++) {
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
 });
 
 if (!window.matchMedia) {
