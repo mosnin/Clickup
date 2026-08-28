@@ -10,5 +10,13 @@ import { existsSync } from "node:fs";
 
 const MANAGED = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 
-/** Pass as `executablePath` to `chromium.launch()`. */
-export const CHROME = existsSync(MANAGED) ? MANAGED : undefined;
+/** Pass as `executablePath` to `chromium.launch()`.
+ *
+ * `AUDIT_CHROME=bundled` forces playwright-core's own browser even where the
+ * managed binary exists — the way to reproduce exactly what CI runs, on a
+ * machine that has both. Any other AUDIT_CHROME value is used as the path. */
+export const CHROME =
+  process.env.AUDIT_CHROME === "bundled"
+    ? undefined
+    : (process.env.AUDIT_CHROME ??
+      (existsSync(MANAGED) ? MANAGED : undefined));
