@@ -47,7 +47,12 @@
 // it. Nothing below reimplements a limit, and nothing below should ever start.
 
 import { v } from "convex/values";
-import { mutation, query } from "../_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "../_generated/server";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import type { Doc } from "../_generated/dataModel";
 import {
@@ -75,6 +80,31 @@ import { searchMessagesCore } from "./search";
 import { describePubkey, pubkeyFor } from "./identity";
 import type { Scope } from "./log";
 import type { NostrEvent } from "./_nostr";
+import {
+  dispatchHostedMcp,
+  hostedMcpMutationBuilder,
+  hostedMcpQueryBuilder,
+  type HostedMcpRegistry,
+} from "../_hostedMcp";
+
+const hostedMcpQueries: HostedMcpRegistry = new Map();
+const hostedMcpMutations: HostedMcpRegistry = new Map();
+const hostedMcpQuery = (name: string) =>
+  hostedMcpQueryBuilder(hostedMcpQueries, name, query);
+const hostedMcpMutation = (name: string) =>
+  hostedMcpMutationBuilder(hostedMcpMutations, name, mutation);
+
+export const _hostedMcpQuery = internalQuery({
+  args: { operation: v.string(), apiKeyHash: v.string(), input: v.any() },
+  handler: async (ctx, args): Promise<unknown> =>
+    await dispatchHostedMcp(hostedMcpQueries, ctx, args),
+});
+
+export const _hostedMcpMutation = internalMutation({
+  args: { operation: v.string(), apiKeyHash: v.string(), input: v.any() },
+  handler: async (ctx, args): Promise<unknown> =>
+    await dispatchHostedMcp(hostedMcpMutations, ctx, args),
+});
 
 // ---------------------------------------------------------------------------
 // The community, and the principal acting in it
@@ -103,7 +133,11 @@ async function requireAgentPrincipal(
   ctx: QueryCtx | MutationCtx,
   apiKey: string,
   mode: "read" | "write" | "presence" = "read",
-): Promise<{ agent: Doc<"agents">; scope: Scope; principal: ChannelPrincipal }> {
+): Promise<{
+  agent: Doc<"agents">;
+  scope: Scope;
+  principal: ChannelPrincipal;
+}> {
   const { agent } = await requireAgentByKey(ctx, apiKey, mode);
   return {
     agent,
@@ -150,7 +184,10 @@ async function authorsFor(
   ctx: QueryCtx,
   events: readonly NostrEvent[],
 ): Promise<
-  Record<string, { name: string; isAgent: boolean; actorType: string; actorId: string }>
+  Record<
+    string,
+    { name: string; isAgent: boolean; actorType: string; actorId: string }
+  >
 > {
   const out: Record<
     string,
@@ -169,7 +206,12 @@ async function authorsFor(
       : // A relay-signed row (a system message) has no principal behind it, and
         // saying so is better than inventing one: "the community said this" is
         // exactly the distinction relay signing exists to draw.
-        { name: "the community", isAgent: false, actorType: "relay", actorId: "" };
+        {
+          name: "the community",
+          isAgent: false,
+          actorType: "relay",
+          actorId: "",
+        };
   }
   return out;
 }
@@ -188,7 +230,7 @@ async function authorsFor(
  * runs when the agent is attached to a room, precisely so that an agent cannot
  * summon its own identity (02-agents §10.3).
  */
-export const identity = query({
+export const identity = hostedMcpQuery("identity")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent, scope } = await requireAgentPrincipal(ctx, apiKey);
@@ -205,7 +247,8 @@ export const identity = query({
       // agent may write in the rooms it is in but may not change its own
       // membership.
       canWrite: role !== "readonly",
-      canChangeOwnMembership: role !== "readonly" && agent.allowedListIds === undefined,
+      canChangeOwnMembership:
+        role !== "readonly" && agent.allowedListIds === undefined,
       ...(pubkey === null
         ? {
             note: "This agent has no Chat signing key yet, so it cannot post, react or join. A human mints one when the agent is attached to a room.",
@@ -227,7 +270,7 @@ export const identity = query({
  * that matters to a harness: an open room it can see but has not joined is
  * readable and not writable, which is the header a person sees too.
  */
-export const listChannels = query({
+export const listChannels = hostedMcpQuery("listChannels")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent, scope } = await requireAgentPrincipal(ctx, apiKey);
@@ -253,20 +296,28 @@ export const listChannels = query({
  * A private room refuses regardless — `joinChannelCore` says so — because a
  * private room is joined by being added.
  */
-export const joinChannel = mutation({
+export const joinChannel = hostedMcpMutation("joinChannel")({
   args: { apiKey: v.string(), channelId: v.string() },
   handler: async (ctx, { apiKey, channelId }) => {
-    const { agent, scope, principal } = await requireAgentPrincipal(ctx, apiKey, "write");
+    const { agent, scope, principal } = await requireAgentPrincipal(
+      ctx,
+      apiKey,
+      "write",
+    );
     requireUnrestricted(agent);
     return await joinChannelCore(ctx, scope, channelId, principal);
   },
 });
 
 /** Leave a room. Same governance as joining, and for the same reason. */
-export const leaveChannel = mutation({
+export const leaveChannel = hostedMcpMutation("leaveChannel")({
   args: { apiKey: v.string(), channelId: v.string() },
   handler: async (ctx, { apiKey, channelId }) => {
-    const { agent, scope, principal } = await requireAgentPrincipal(ctx, apiKey, "write");
+    const { agent, scope, principal } = await requireAgentPrincipal(
+      ctx,
+      apiKey,
+      "write",
+    );
     requireUnrestricted(agent);
     return await leaveChannelCore(ctx, scope, channelId, principal);
   },
@@ -289,7 +340,7 @@ export const leaveChannel = mutation({
  * is the room narrating itself. The `e` tags carry threading (`root` / `reply`
  * markers), the `p` tags carry mentions.
  */
-export const readChannel = query({
+export const readChannel = hostedMcpQuery("readChannel")({
   args: {
     apiKey: v.string(),
     channelId: v.string(),
@@ -297,8 +348,16 @@ export const readChannel = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, { apiKey, channelId, cursor, limit }) => {
-    const { agent, scope, principal } = await requireAgentPrincipal(ctx, apiKey);
-    const { channel, membership } = await requireRoom(ctx, scope, principal, channelId);
+    const { agent, scope, principal } = await requireAgentPrincipal(
+      ctx,
+      apiKey,
+    );
+    const { channel, membership } = await requireRoom(
+      ctx,
+      scope,
+      principal,
+      channelId,
+    );
     const readerPubkey = (await pubkeyFor(ctx, "agent", agent._id)) ?? "";
     const page = await readChannelPage(ctx, scope, channel, readerPubkey, {
       ...(cursor !== undefined ? { cursor } : {}),
@@ -321,7 +380,7 @@ export const readChannel = query({
  * One thread: the message that started it, its whole subtree, and the events
  * that overlay them — read forwards, the way a thread is read.
  */
-export const readThread = query({
+export const readThread = hostedMcpQuery("readThread")({
   args: {
     apiKey: v.string(),
     channelId: v.string(),
@@ -330,7 +389,10 @@ export const readThread = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, { apiKey, channelId, rootId, cursor, limit }) => {
-    const { agent, scope, principal } = await requireAgentPrincipal(ctx, apiKey);
+    const { agent, scope, principal } = await requireAgentPrincipal(
+      ctx,
+      apiKey,
+    );
     const { channel } = await requireRoom(ctx, scope, principal, channelId);
     const readerPubkey = (await pubkeyFor(ctx, "agent", agent._id)) ?? "";
     const page = await readThreadPage(ctx, scope, channel, readerPubkey, {
@@ -356,7 +418,7 @@ export const readThread = query({
  * design (a relevance-ordered index cannot be paged stably while the log is
  * being written to); `truncated` says to narrow the question instead.
  */
-export const search = query({
+export const search = hostedMcpQuery("search")({
   args: {
     apiKey: v.string(),
     text: v.string(),
@@ -398,7 +460,7 @@ export const search = query({
  * the whole community and writable by its members, which is the same sentence
  * the room header shows a person.
  */
-export const postMessage = mutation({
+export const postMessage = hostedMcpMutation("postMessage")({
   args: {
     apiKey: v.string(),
     channelId: v.string(),
@@ -407,7 +469,11 @@ export const postMessage = mutation({
     rootId: v.optional(v.string()),
   },
   handler: async (ctx, { apiKey, channelId, ...input }) => {
-    const { scope, principal } = await requireAgentPrincipal(ctx, apiKey, "write");
+    const { scope, principal } = await requireAgentPrincipal(
+      ctx,
+      apiKey,
+      "write",
+    );
     return await postMessageCore(ctx, scope, channelId, principal, input);
   },
 });
@@ -416,7 +482,7 @@ export const postMessage = mutation({
  * React to a message. Idempotent: the same emoji twice is the same act, and the
  * second call hands back the first reaction rather than adding a row.
  */
-export const react = mutation({
+export const react = hostedMcpMutation("react")({
   args: {
     apiKey: v.string(),
     channelId: v.string(),
@@ -424,13 +490,17 @@ export const react = mutation({
     emoji: v.string(),
   },
   handler: async (ctx, { apiKey, channelId, ...input }) => {
-    const { scope, principal } = await requireAgentPrincipal(ctx, apiKey, "write");
+    const { scope, principal } = await requireAgentPrincipal(
+      ctx,
+      apiKey,
+      "write",
+    );
     return await reactCore(ctx, scope, channelId, principal, input);
   },
 });
 
 /** Take a reaction back. Removing one that was never there is not an error. */
-export const unreact = mutation({
+export const unreact = hostedMcpMutation("unreact")({
   args: {
     apiKey: v.string(),
     channelId: v.string(),
@@ -438,7 +508,11 @@ export const unreact = mutation({
     emoji: v.string(),
   },
   handler: async (ctx, { apiKey, channelId, ...input }) => {
-    const { scope, principal } = await requireAgentPrincipal(ctx, apiKey, "write");
+    const { scope, principal } = await requireAgentPrincipal(
+      ctx,
+      apiKey,
+      "write",
+    );
     return await unreactCore(ctx, scope, channelId, principal, input);
   },
 });
@@ -461,7 +535,7 @@ export const unreact = mutation({
  * A room the agent is not in is a quiet no-op rather than a refusal, exactly as
  * it is for a person glancing at an open room they never joined.
  */
-export const markRead = mutation({
+export const markRead = hostedMcpMutation("markRead")({
   args: {
     apiKey: v.string(),
     channelId: v.string(),
@@ -470,8 +544,17 @@ export const markRead = mutation({
     topLevelOnly: v.optional(v.boolean()),
   },
   handler: async (ctx, { apiKey, channelId, readAt, topLevelOnly }) => {
-    const { scope, principal } = await requireAgentPrincipal(ctx, apiKey, "presence");
-    const { channel, membership } = await requireRoom(ctx, scope, principal, channelId);
+    const { scope, principal } = await requireAgentPrincipal(
+      ctx,
+      apiKey,
+      "presence",
+    );
+    const { channel, membership } = await requireRoom(
+      ctx,
+      scope,
+      principal,
+      channelId,
+    );
     if (!membership) return { markedAt: null };
     return await markChannelReadCore(ctx, scope, channel, principal, {
       ...(readAt !== undefined ? { readAt } : {}),
@@ -498,7 +581,7 @@ export const markRead = mutation({
  * "I took my status down" is a fact readers need, and a cache holding the old
  * one needs something newer to learn from.
  */
-export const setStatus = mutation({
+export const setStatus = hostedMcpMutation("setStatus")({
   args: {
     apiKey: v.string(),
     text: v.string(),
@@ -507,7 +590,11 @@ export const setStatus = mutation({
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, { apiKey, text, emoji, expiresAt }) => {
-    const { scope, principal } = await requireAgentPrincipal(ctx, apiKey, "presence");
+    const { scope, principal } = await requireAgentPrincipal(
+      ctx,
+      apiKey,
+      "presence",
+    );
     return await publishStatus(ctx, scope, principal.actor, {
       text: text.trim().slice(0, USER_STATUS_MAX_LENGTH),
       emoji: (emoji ?? "").trim(),

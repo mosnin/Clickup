@@ -43,7 +43,7 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   const token = tokenOrResponse(request);
   if (token instanceof Response) return token;
-  let input: { externalInstallationId?: unknown };
+  let input: unknown;
   try {
     input = await request.json();
   } catch {
@@ -52,7 +52,13 @@ export async function PUT(request: Request) {
       400,
     );
   }
-  if (typeof input.externalInstallationId !== "string") {
+  if (
+    input === null ||
+    typeof input !== "object" ||
+    Array.isArray(input) ||
+    typeof (input as Record<string, unknown>).externalInstallationId !==
+      "string"
+  ) {
     return companyOsJson(
       {
         error: "invalid_request",
@@ -61,13 +67,15 @@ export async function PUT(request: Request) {
       400,
     );
   }
+  const externalInstallationId = (input as Record<string, string>)
+    .externalInstallationId;
   try {
     const installation = await companyOsBackend<ConnectorInstallation>(
       "installation.upsert",
       token,
       {
         resource: companyOsOAuthResource(),
-        externalInstallationId: input.externalInstallationId,
+        externalInstallationId,
       },
     );
     return companyOsJson({
@@ -84,36 +92,41 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   const token = tokenOrResponse(request);
   if (token instanceof Response) return token;
-  let externalInstallationId: string | undefined;
-  if (request.headers.get("content-length") !== "0") {
-    const input = (await request.json().catch(() => null)) as {
-      externalInstallationId?: unknown;
-    } | null;
-    if (input?.externalInstallationId !== undefined) {
-      if (typeof input.externalInstallationId !== "string") {
-        return companyOsJson(
-          {
-            error: "invalid_request",
-            error_description: "externalInstallationId must be a string",
-          },
-          400,
-        );
-      }
-      externalInstallationId = input.externalInstallationId;
-    }
+  let input: unknown;
+  try {
+    input = await request.json();
+  } catch {
+    return companyOsJson(
+      { error: "invalid_request", error_description: "Body must be JSON" },
+      400,
+    );
   }
+  if (
+    input === null ||
+    typeof input !== "object" ||
+    Array.isArray(input) ||
+    typeof (input as Record<string, unknown>).externalInstallationId !==
+      "string" ||
+    (input as Record<string, string>).externalInstallationId.trim().length === 0
+  ) {
+    return companyOsJson(
+      {
+        error: "invalid_request",
+        error_description: "externalInstallationId is required",
+      },
+      400,
+    );
+  }
+  const externalInstallationId = (input as Record<string, string>)
+    .externalInstallationId;
   try {
     const result = await companyOsBackend<{
       disconnected: boolean;
       tokenRevoked: boolean;
-    }>(
-      "installation.disconnect",
-      token,
-      {
-        resource: companyOsOAuthResource(),
-        ...(externalInstallationId ? { externalInstallationId } : {}),
-      },
-    );
+    }>("installation.disconnect", token, {
+      resource: companyOsOAuthResource(),
+      externalInstallationId,
+    });
     return companyOsJson(result);
   } catch (error) {
     return companyOsRouteError(error);

@@ -1,17 +1,22 @@
 import { ConvexError } from "convex/values";
-import type { QueryCtx, MutationCtx, DatabaseWriter } from "./_generated/server";
+import type {
+  QueryCtx,
+  MutationCtx,
+  DatabaseWriter,
+} from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { getSpaceForList } from "./_authz";
-import { buildPaymentRequired, paymentRequiredError, x402Config } from "./_x402";
+import {
+  buildPaymentRequired,
+  paymentRequiredError,
+  x402Config,
+} from "./_x402";
 import {
   ADMIN_BURST_LIMIT_PER_MINUTE,
   ADMIN_DAILY_ACTION_LIMIT,
   isComplimentaryScope,
 } from "./_adminEntitlements";
-import {
-  oauthLegacyAuthorityKey,
-  oauthResourcesMatch,
-} from "./_oauthResource";
+import { oauthLegacyAuthorityKey, oauthResourcesMatch } from "./_oauthResource";
 
 // Agent-side counterpart of _authz.ts. Human calls authenticate via Clerk
 // (ctx.auth); agent calls authenticate via an API key passed as an argument
@@ -76,8 +81,14 @@ export function sha256Hex(input: string): string {
       const s1 = rotr(w[t - 2], 17) ^ rotr(w[t - 2], 19) ^ (w[t - 2] >>> 10);
       w[t] = (w[t - 16] + s0 + w[t - 7] + s1) >>> 0;
     }
-    let a = h[0], b = h[1], c = h[2], d = h[3];
-    let e = h[4], f = h[5], g = h[6], hh = h[7];
+    let a = h[0],
+      b = h[1],
+      c = h[2],
+      d = h[3];
+    let e = h[4],
+      f = h[5],
+      g = h[6],
+      hh = h[7];
     for (let t = 0; t < 64; t++) {
       const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
       const ch = (e & f) ^ (~e & g);
@@ -85,13 +96,23 @@ export function sha256Hex(input: string): string {
       const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
       const maj = (a & b) ^ (a & c) ^ (b & c);
       const temp2 = (S0 + maj) >>> 0;
-      hh = g; g = f; f = e; e = (d + temp1) >>> 0;
-      d = c; c = b; b = a; a = (temp1 + temp2) >>> 0;
+      hh = g;
+      g = f;
+      f = e;
+      e = (d + temp1) >>> 0;
+      d = c;
+      c = b;
+      b = a;
+      a = (temp1 + temp2) >>> 0;
     }
-    h[0] = (h[0] + a) >>> 0; h[1] = (h[1] + b) >>> 0;
-    h[2] = (h[2] + c) >>> 0; h[3] = (h[3] + d) >>> 0;
-    h[4] = (h[4] + e) >>> 0; h[5] = (h[5] + f) >>> 0;
-    h[6] = (h[6] + g) >>> 0; h[7] = (h[7] + hh) >>> 0;
+    h[0] = (h[0] + a) >>> 0;
+    h[1] = (h[1] + b) >>> 0;
+    h[2] = (h[2] + c) >>> 0;
+    h[3] = (h[3] + d) >>> 0;
+    h[4] = (h[4] + e) >>> 0;
+    h[5] = (h[5] + f) >>> 0;
+    h[6] = (h[6] + g) >>> 0;
+    h[7] = (h[7] + hh) >>> 0;
   }
   return h.map((x) => x.toString(16).padStart(8, "0")).join("");
 }
@@ -107,6 +128,30 @@ export const DEFAULT_DAILY_ACTION_LIMIT = 2000;
 // retry loop gets stopped in seconds instead of after burning a whole
 // day's budget.
 export const BURST_LIMIT_PER_MINUTE = 60;
+
+const VALIDATED_KEY_HASH = Symbol("validated-agent-key-hash");
+
+export type AgentKeyCredential =
+  | string
+  | { readonly [VALIDATED_KEY_HASH]: string };
+
+/**
+ * Create the non-serializable credential used after an HTTP action has hashed
+ * a hosted MCP bearer. A caller cannot manufacture this through a public
+ * Convex argument because Symbols are not Convex values.
+ */
+export function validatedAgentKeyHash(keyHash: string): AgentKeyCredential {
+  if (!/^[a-f0-9]{64}$/.test(keyHash)) {
+    throw new ConvexError("Invalid API key");
+  }
+  return Object.freeze({ [VALIDATED_KEY_HASH]: keyHash });
+}
+
+function keyHashForCredential(credential: AgentKeyCredential): string {
+  return typeof credential === "string"
+    ? sha256Hex(credential)
+    : credential[VALIDATED_KEY_HASH];
+}
 
 function utcDay(): string {
   return new Date().toISOString().slice(0, 10);
@@ -176,9 +221,7 @@ export async function requireAgentByKeyHash(
     });
     const legacyRevocation = await ctx.db
       .query("oauthLegacyRevocations")
-      .withIndex("by_authority_key", (q) =>
-        q.eq("authorityKey", authorityKey),
-      )
+      .withIndex("by_authority_key", (q) => q.eq("authorityKey", authorityKey))
       .unique();
     if (
       legacyRevocation &&
@@ -219,15 +262,14 @@ export async function requireAgentByKeyHash(
       expectedOAuthResource !== undefined &&
       !oauthResourcesMatch(oauthToken.resource, expectedOAuthResource)
     ) {
-      throw new ConvexError("OAuth token audience does not match this resource");
+      throw new ConvexError(
+        "OAuth token audience does not match this resource",
+      );
     }
     if (!oauthToken.scopes.includes("operate:read")) {
       throw new ConvexError("OAuth token is missing operate:read");
     }
-    if (
-      mode !== "read" &&
-      !oauthToken.scopes.includes("operate:write")
-    ) {
+    if (mode !== "read" && !oauthToken.scopes.includes("operate:write")) {
       throw new ConvexError("OAuth token is missing operate:write");
     }
   }
@@ -359,9 +401,7 @@ export async function requireAgentByKeyHash(
           const wallet = await db
             .query("agentWallets")
             .withIndex("by_scope", (q) =>
-              q
-                .eq("scopeType", agent.parentType)
-                .eq("scopeId", agent.parentId),
+              q.eq("scopeType", agent.parentType).eq("scopeId", agent.parentId),
             )
             .unique();
           const balance = wallet?.balance ?? 0;
@@ -399,9 +439,9 @@ export async function requireAgentByKeyHash(
       // Complimentary scopes default to the staff ceiling. An explicit
       // per-agent budget still wins when it is *lower* (a human throttling
       // one agent); it cannot raise the circuit breaker.
-      const requested = agent.dailyActionLimit ?? (
-        complimentary ? ADMIN_DAILY_ACTION_LIMIT : DEFAULT_DAILY_ACTION_LIMIT
-      );
+      const requested =
+        agent.dailyActionLimit ??
+        (complimentary ? ADMIN_DAILY_ACTION_LIMIT : DEFAULT_DAILY_ACTION_LIMIT);
       const limit = complimentary
         ? Math.min(requested, ADMIN_DAILY_ACTION_LIMIT)
         : requested;
@@ -443,13 +483,13 @@ export async function requireAgentByKeyHash(
 
 export async function requireAgentByKey(
   ctx: QueryCtx | MutationCtx,
-  apiKey: string,
+  apiKey: AgentKeyCredential,
   mode: "read" | "write" | "presence" = "read",
   expectedOAuthResource?: string,
 ) {
   return await requireAgentByKeyHash(
     ctx,
-    sha256Hex(apiKey),
+    keyHashForCredential(apiKey),
     mode,
     expectedOAuthResource,
   );

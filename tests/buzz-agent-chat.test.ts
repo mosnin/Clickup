@@ -1033,7 +1033,7 @@ describe("the MCP catalog", () => {
   const exported = new Set(
     [
       ...source.matchAll(
-        /^export const ([A-Za-z0-9_]+) = (?:query|mutation|action)\(/gm,
+        /^export const ([A-Za-z0-9_]+) = (?:query|mutation|action|hostedMcpQuery|hostedMcpMutation)\(/gm,
       ),
     ].map((m) => m[1]),
   );

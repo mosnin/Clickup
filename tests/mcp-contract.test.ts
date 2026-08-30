@@ -65,7 +65,7 @@ function exportedAgentApiFunctions(): Set<string> {
   return new Set(
     [
       ...agentApiSource.matchAll(
-        /^export const ([A-Za-z0-9_]+) = (?:query|mutation|action|internalQuery|internalMutation|internalAction)\(/gm,
+        /^export const ([A-Za-z0-9_]+) = (?:query|mutation|action|internalQuery|internalMutation|internalAction|hostedMcpQuery|hostedMcpMutation)\(/gm,
       ),
     ].map((m) => m[1]),
   );

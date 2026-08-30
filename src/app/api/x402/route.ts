@@ -1,6 +1,9 @@
-import { ConvexHttpClient } from "convex/browser";
 import type { FunctionReference } from "convex/server";
 import { api } from "@convex/_generated/api";
+import {
+  HostedMcpClient,
+  hostedMcpClient,
+} from "@/lib/hosted-mcp-client";
 
 // Protocol-faithful x402 endpoint for topping up agent credits.
 //
@@ -14,10 +17,8 @@ import { api } from "@convex/_generated/api";
 // X-PAYMENT-RESPONSE header. This is the same flow the MCP tools expose, in
 // raw HTTP so any x402-capable client can pay without speaking MCP.
 
-function convexClient(): ConvexHttpClient {
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not configured");
-  return new ConvexHttpClient(url);
+function convexClient(): HostedMcpClient {
+  return hostedMcpClient();
 }
 
 function asQuery(ref: unknown): FunctionReference<"query"> {
@@ -30,8 +31,7 @@ function asAction(ref: unknown): FunctionReference<"action"> {
 function bearer(req: Request): string | null {
   const auth = req.headers.get("authorization");
   if (auth?.startsWith("Bearer ")) return auth.slice(7).trim();
-  const url = new URL(req.url);
-  return url.searchParams.get("apiKey");
+  return null;
 }
 
 function creditsFrom(req: Request, bodyCredits?: unknown): number {

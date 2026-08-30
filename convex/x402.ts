@@ -8,7 +8,7 @@ import {
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
-import { requireAgentByKey } from "./_agentAuth";
+import { requireAgentByKey, validatedAgentKeyHash } from "./_agentAuth";
 import { requirePlatformAdmin, logAdminAction } from "./_adminAuth";
 import { isComplimentaryScope } from "./_adminEntitlements";
 import {
@@ -19,6 +19,21 @@ import {
   creditsToDisplayAmount,
   x402Config,
 } from "./_x402";
+import {
+  dispatchHostedMcp,
+  hostedMcpQueryBuilder,
+  type HostedMcpRegistry,
+} from "./_hostedMcp";
+
+const hostedMcpQueries: HostedMcpRegistry = new Map();
+const hostedMcpQuery = (name: string) =>
+  hostedMcpQueryBuilder(hostedMcpQueries, name, query);
+
+export const _hostedMcpQuery = internalQuery({
+  args: { operation: v.string(), apiKeyHash: v.string(), input: v.any() },
+  handler: async (ctx, args): Promise<unknown> =>
+    await dispatchHostedMcp(hostedMcpQueries, ctx, args),
+});
 
 // x402 agent-payment surface. Agents top up a prepaid credit wallet by
 // paying via the x402 protocol; metered actions consume credits (enforced
@@ -143,8 +158,7 @@ export async function applyCreditDelta(
     throw new ConvexError("Credit adjustment must be a non-zero integer");
   }
   const wallet = await ensureWallet(ctx, scopeType, scopeId);
-  const applied =
-    delta < 0 ? -Math.min(wallet.balance, -delta) : delta;
+  const applied = delta < 0 ? -Math.min(wallet.balance, -delta) : delta;
   const balance = wallet.balance + applied;
   await ctx.db.patch(wallet._id, {
     balance,
@@ -201,7 +215,7 @@ function pricingSummary() {
 // ── Agent-facing (API key) ──────────────────────────────────────────────────
 
 // The agent's own wallet: balance, pricing, metering status, recent ledger.
-export const walletByKey = query({
+export const walletByKey = hostedMcpQuery("walletByKey")({
   args: { apiKey: v.string() },
   returns: v.object({
     scopeType: SCOPE,
@@ -277,7 +291,7 @@ export const walletByKey = query({
 // The x402 402 challenge for buying `credits` credits — what an agent gets
 // when it needs to pay. The agent constructs an X-PAYMENT from `accepts` and
 // submits it to the settle endpoint / MCP tool.
-export const topupRequirements = query({
+export const topupRequirements = hostedMcpQuery("topupRequirements")({
   args: { apiKey: v.string(), credits: v.number() },
   returns: v.object({
     x402Version: v.number(),
@@ -320,6 +334,27 @@ export const resolveScopeByKey = internalQuery({
   }),
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "read");
+    return {
+      scopeType: agent.parentType,
+      scopeId: agent.parentId,
+      agentId: agent._id,
+    };
+  },
+});
+
+export const resolveScopeByKeyHash = internalQuery({
+  args: { apiKeyHash: v.string() },
+  returns: v.object({
+    scopeType: SCOPE,
+    scopeId: v.string(),
+    agentId: v.id("agents"),
+  }),
+  handler: async (ctx, { apiKeyHash }) => {
+    const { agent } = await requireAgentByKey(
+      ctx,
+      validatedAgentKeyHash(apiKeyHash),
+      "read",
+    );
     return {
       scopeType: agent.parentType,
       scopeId: agent.parentId,

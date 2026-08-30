@@ -1,15 +1,12 @@
-import { internalMutation } from "./_generated/server";
+import { v } from "convex/values";
+import { internalMutation, type MutationCtx } from "./_generated/server";
 import { presenceIsStale } from "./presence";
 import type { Doc } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { emitEvent, scopeForList } from "./events";
 import { notify } from "./notificationCenter";
 import { CLAIM_TTL_MS } from "./tasks";
-import {
-  detectThrash,
-  describeThrash,
-  type ThrashRun,
-} from "./_thrash";
+import { detectThrash, describeThrash, type ThrashRun } from "./_thrash";
 import {
   MAX_EXECUTION_ATTEMPTS,
   decideRecovery,
@@ -20,6 +17,7 @@ import {
   abandonExecutionAssignmentForTask,
   finishExecutionAssignment,
 } from "./executionLifecycle";
+import { oauthLegacyAuthorityKey } from "./_oauthResource";
 
 // Unattended-operation safety nets, driven from convex/crons.ts.
 
@@ -167,7 +165,9 @@ export const watchdog = internalMutation({
     const soonHorizon = now + 24 * 60 * 60 * 1000;
     const soonTasks = await ctx.db
       .query("tasks")
-      .withIndex("by_due", (q) => q.gt("dueDate", now).lt("dueDate", soonHorizon))
+      .withIndex("by_due", (q) =>
+        q.gt("dueDate", now).lt("dueDate", soonHorizon),
+      )
       .collect();
     for (const task of soonTasks) {
       if (
@@ -310,7 +310,11 @@ export const watchdog = internalMutation({
       alreadyReported[run.taskId] = t?.thrashNotifiedAt;
     }
 
-    for (const finding of detectThrash(runsForDetection, now, alreadyReported)) {
+    for (const finding of detectThrash(
+      runsForDetection,
+      now,
+      alreadyReported,
+    )) {
       const task = await ctx.db.get(finding.taskId as Doc<"tasks">["_id"]);
       if (!task) continue;
       const status = await ctx.db.get(task.statusId);
@@ -535,17 +539,27 @@ const DEVICE_REQUEST_RETENTION_MS = 24 * 60 * 60 * 1000;
 // Comfortably longer than the longest rate-limit window, so pruning can
 // never hand somebody a fresh budget early.
 const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1000;
+// OAuth replay evidence must outlive every credential in its grant family.
+// Families can rotate indefinitely, so evidence is retained while the durable
+// grant is active. Once the family is terminal, keep one full 30-day refresh
+// lifetime plus a 14-day retry/recovery margin before deleting anything.
+const OAUTH_REPLAY_EVIDENCE_RETENTION_MS = 44 * 24 * 60 * 60 * 1000;
 const PRUNE_BATCH = 500;
 
 // Daily pruning. Tables are append-only, so oldest-by-_creationTime and
-// oldest-by-createdAt coincide; each run deletes at most one batch per
-// table and the next day's run catches up if there's backlog.
+// oldest-by-createdAt coincide; each run deletes at most one batch per table
+// and the next day's run catches up if there's backlog. OAuth evidence uses
+// separate cursor-backed passes below so protected rows cannot pin the head.
 export const prune = internalMutation({
   args: {},
+  returns: v.null(),
   handler: async (ctx) => {
     const now = Date.now();
 
-    const oldEvents = await ctx.db.query("events").order("asc").take(PRUNE_BATCH);
+    const oldEvents = await ctx.db
+      .query("events")
+      .order("asc")
+      .take(PRUNE_BATCH);
     for (const e of oldEvents) {
       if (e.createdAt < now - EVENT_RETENTION_MS) await ctx.db.delete(e._id);
     }
@@ -615,20 +629,160 @@ export const prune = internalMutation({
       .take(PRUNE_BATCH);
     for (const row of legacyPresence) await ctx.db.delete(row._id);
 
-    const oldCodes = await ctx.db
+    return null;
+  },
+});
+
+async function maintenanceCursor(
+  ctx: MutationCtx,
+  key: "oauth_authorization_codes" | "oauth_access_tokens",
+) {
+  return await ctx.db
+    .query("maintenanceCursors")
+    .withIndex("by_key", (q) => q.eq("key", key))
+    .unique();
+}
+
+async function advanceMaintenanceCursor(
+  ctx: MutationCtx,
+  key: "oauth_authorization_codes" | "oauth_access_tokens",
+  existing: Awaited<ReturnType<typeof maintenanceCursor>>,
+  page: { isDone: boolean; continueCursor: string },
+  now: number,
+) {
+  if (page.isDone) {
+    if (existing) await ctx.db.delete(existing._id);
+    return;
+  }
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      cursor: page.continueCursor,
+      updatedAt: now,
+    });
+  } else {
+    await ctx.db.insert("maintenanceCursors", {
+      key,
+      cursor: page.continueCursor,
+      updatedAt: now,
+    });
+  }
+}
+
+// Each OAuth pass uses exactly one paginated query, advances a durable opaque
+// cursor, and wraps after reaching the tail. A finite protected prefix is
+// therefore revisited for recovery but cannot permanently starve later rows.
+export const pruneOAuthAuthorizationCodes = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const cursor = await maintenanceCursor(ctx, "oauth_authorization_codes");
+    const page = await ctx.db
       .query("oauthAuthorizationCodes")
       .order("asc")
-      .take(PRUNE_BATCH);
-    for (const code of oldCodes) {
-      if (code.expiresAt < now) await ctx.db.delete(code._id);
-    }
+      .paginate({ cursor: cursor?.cursor ?? null, numItems: PRUNE_BATCH });
+    for (const code of page.page) {
+      if (code.expiresAt >= now) continue;
 
-    const oldOAuthTokens = await ctx.db
+      // An unused expired code never issued credentials and is safe to drop.
+      if (code.usedAt === undefined) {
+        await ctx.db.delete(code._id);
+        continue;
+      }
+
+      // A consumed code is the durable verifier for exact authorization-code
+      // replay recovery. Its hash is also the grant-family id. Keep it for the
+      // full active family lifetime, and fail closed if that association is
+      // missing or corrupt rather than erasing the only recovery evidence.
+      const grant = await ctx.db
+        .query("oauthTokenGrants")
+        .withIndex("by_grant_id", (q) => q.eq("grantId", code.codeHash))
+        .unique();
+      if (
+        grant?.revokedAt !== undefined &&
+        grant.revokedAt < now - OAUTH_REPLAY_EVIDENCE_RETENTION_MS
+      ) {
+        await ctx.db.delete(code._id);
+      }
+    }
+    await advanceMaintenanceCursor(
+      ctx,
+      "oauth_authorization_codes",
+      cursor,
+      page,
+      now,
+    );
+    return null;
+  },
+});
+
+export const pruneOAuthAccessTokens = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const cursor = await maintenanceCursor(ctx, "oauth_access_tokens");
+    const page = await ctx.db
       .query("oauthAccessTokens")
       .order("asc")
-      .take(PRUNE_BATCH);
-    for (const token of oldOAuthTokens) {
-      if (token.refreshExpiresAt < now) await ctx.db.delete(token._id);
+      .paginate({ cursor: cursor?.cursor ?? null, numItems: PRUNE_BATCH });
+    for (const token of page.page) {
+      if (token.refreshExpiresAt >= now) continue;
+
+      if (token.grantId) {
+        const grant = await ctx.db
+          .query("oauthTokenGrants")
+          .withIndex("by_grant_id", (q) => q.eq("grantId", token.grantId!))
+          .unique();
+        // Rotated refresh rows are the durable replay detector for every live
+        // successor in the family. Missing grant state is not deletion proof.
+        if (
+          grant?.revokedAt !== undefined &&
+          grant.revokedAt < now - OAUTH_REPLAY_EVIDENCE_RETENTION_MS
+        ) {
+          await ctx.db.delete(token._id);
+        }
+        continue;
+      }
+
+      // Pre-family tokens cannot be associated with one successor chain. A
+      // durable authority-wide fence created by replay recovery is the only
+      // proof that deleting an old legacy row cannot re-enable that authority.
+      // Rows without a usable resource or matching fence stay fail-closed.
+      if (!token.resource) continue;
+      let authorityKey: string;
+      try {
+        authorityKey = oauthLegacyAuthorityKey({
+          clientId: token.clientId,
+          resource: token.resource,
+          userClerkId: token.userClerkId,
+          ...(token.agentId ? { agentId: token.agentId } : {}),
+          ...(token.workspaceId ? { workspaceId: token.workspaceId } : {}),
+        });
+      } catch {
+        continue;
+      }
+      const fence = await ctx.db
+        .query("oauthLegacyRevocations")
+        .withIndex("by_authority_key", (q) =>
+          q.eq("authorityKey", authorityKey),
+        )
+        .unique();
+      if (
+        fence &&
+        token.createdAt <= fence.revokedBefore &&
+        fence.updatedAt < now - OAUTH_REPLAY_EVIDENCE_RETENTION_MS
+      ) {
+        await ctx.db.delete(token._id);
+      }
     }
+    await advanceMaintenanceCursor(
+      ctx,
+      "oauth_access_tokens",
+      cursor,
+      page,
+      now,
+    );
+    return null;
   },
 });

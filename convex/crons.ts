@@ -78,4 +78,18 @@ crons.interval(
   {},
 );
 
+crons.interval(
+  "prune OAuth authorization-code replay evidence",
+  { hours: 24 },
+  internal.maintenance.pruneOAuthAuthorizationCodes,
+  {},
+);
+
+crons.interval(
+  "prune OAuth refresh-token replay evidence",
+  { hours: 24 },
+  internal.maintenance.pruneOAuthAccessTokens,
+  {},
+);
+
 export default crons;

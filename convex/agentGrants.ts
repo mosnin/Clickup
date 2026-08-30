@@ -1,5 +1,10 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
@@ -7,6 +12,31 @@ import { requireAgentByKey } from "./_agentAuth";
 import { assertCanCreateAgent } from "./_adminEntitlements";
 import { attenuate, clampFleetSize, type Envelope } from "./_envelope";
 import { emitEvent } from "./events";
+import {
+  dispatchHostedMcp,
+  hostedMcpMutationBuilder,
+  hostedMcpQueryBuilder,
+  type HostedMcpRegistry,
+} from "./_hostedMcp";
+
+const hostedMcpQueries: HostedMcpRegistry = new Map();
+const hostedMcpMutations: HostedMcpRegistry = new Map();
+const hostedMcpQuery = (name: string) =>
+  hostedMcpQueryBuilder(hostedMcpQueries, name, query);
+const hostedMcpMutation = (name: string) =>
+  hostedMcpMutationBuilder(hostedMcpMutations, name, mutation);
+
+export const _hostedMcpQuery = internalQuery({
+  args: { operation: v.string(), apiKeyHash: v.string(), input: v.any() },
+  handler: async (ctx, args): Promise<unknown> =>
+    await dispatchHostedMcp(hostedMcpQueries, ctx, args),
+});
+
+export const _hostedMcpMutation = internalMutation({
+  args: { operation: v.string(), apiKeyHash: v.string(), input: v.any() },
+  handler: async (ctx, args): Promise<unknown> =>
+    await dispatchHostedMcp(hostedMcpMutations, ctx, args),
+});
 
 // Fleet provisioning. See _envelope.ts for the rule everything here obeys.
 //
@@ -35,7 +65,10 @@ async function activeGrantForHolder(
   return grant;
 }
 
-async function fleetMembers(ctx: QueryCtx | MutationCtx, grantId: Id<"agentGrants">) {
+async function fleetMembers(
+  ctx: QueryCtx | MutationCtx,
+  grantId: Id<"agentGrants">,
+) {
   return await ctx.db
     .query("agents")
     .withIndex("by_grant", (q) => q.eq("provisionedByGrantId", grantId))
@@ -118,7 +151,8 @@ export const revokeFleet = mutation({
     const identity = await requireIdentity(ctx);
     const grant = await ctx.db.get(grantId);
     if (!grant) throw new ConvexError("No such grant");
-    if (grant.revokedAt !== undefined) return { revoked: 0, alreadyRevoked: true };
+    if (grant.revokedAt !== undefined)
+      return { revoked: 0, alreadyRevoked: true };
     const holder = await ctx.db.get(grant.holderAgentId);
     await requireFleetManage(ctx, holder ?? grant, identity.subject);
 
@@ -163,7 +197,14 @@ export const listForScope = query({
   },
   handler: async (ctx, args) => {
     const identity = await requireIdentity(ctx);
-    if (!(await canSeeScope(ctx, args.parentType, args.parentId, identity.subject))) {
+    if (
+      !(await canSeeScope(
+        ctx,
+        args.parentType,
+        args.parentId,
+        identity.subject,
+      ))
+    ) {
       return [];
     }
     const grants = await ctx.db
@@ -208,7 +249,7 @@ export const listForScope = query({
 
 // provision_agent over MCP. The orchestrator names a worker and asks for
 // governance; what it gets is the intersection with its grant.
-export const provisionAgent = mutation({
+export const provisionAgent = hostedMcpMutation("provisionAgent")({
   args: {
     apiKey: v.string(),
     name: v.string(),
@@ -227,7 +268,11 @@ export const provisionAgent = mutation({
     // "write" mode: provisioning counts against the orchestrator's own daily
     // budget and burst cap, so a runaway loop minting agents is stopped by
     // the limits that already exist rather than needing a new one.
-    const { agent: holder } = await requireAgentByKey(ctx, args.apiKey, "write");
+    const { agent: holder } = await requireAgentByKey(
+      ctx,
+      args.apiKey,
+      "write",
+    );
     const grant = await activeGrantForHolder(ctx, holder._id);
     if (!grant) {
       throw new ConvexError(
@@ -303,7 +348,8 @@ export const provisionAgent = mutation({
         // more than it may have is visible rather than silently trimmed.
         narrowed:
           governance.role !== (args.role ?? governance.role) ||
-          governance.dailyActionLimit !== (args.dailyActionLimit ?? governance.dailyActionLimit),
+          governance.dailyActionLimit !==
+            (args.dailyActionLimit ?? governance.dailyActionLimit),
       },
     });
 
@@ -321,7 +367,7 @@ export const provisionAgent = mutation({
 // What an orchestrator is allowed to do, for its own planning. Returns null
 // rather than throwing when there is no grant: "may I provision" is a
 // reasonable question to ask and a no is an answer, not an error.
-export const myFleet = query({
+export const myFleet = hostedMcpQuery("myFleet")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);

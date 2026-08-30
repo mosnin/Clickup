@@ -21,7 +21,7 @@
 import { z } from "zod";
 import { anyApi } from "convex/server";
 import type { FunctionReference } from "convex/server";
-import type { ConvexHttpClient } from "convex/browser";
+import type { HostedMcpClient } from "../hosted-mcp-client";
 
 const chat = anyApi.buzz.agentChat as unknown as Record<
   string,
@@ -46,14 +46,16 @@ export type ChatAgentTool = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- zod raw shapes are heterogeneous by design
   shape: Record<string, any>;
   run: (
-    client: ConvexHttpClient,
+    client: HostedMcpClient,
     apiKey: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- validated by zod before reaching run()
     args: any,
   ) => Promise<unknown>;
 };
 
-const channelId = z.string().describe("The room's channel id, from chat_list_channels");
+const channelId = z
+  .string()
+  .describe("The room's channel id, from chat_list_channels");
 
 export const CHAT_AGENT_TOOLS: ChatAgentTool[] = [
   {
@@ -77,7 +79,10 @@ export const CHAT_AGENT_TOOLS: ChatAgentTool[] = [
     shape: {
       channelId,
       cursor: z.string().optional().describe("nextCursor from a previous page"),
-      limit: z.number().optional().describe("events per page (default 50, max 200)"),
+      limit: z
+        .number()
+        .optional()
+        .describe("events per page (default 50, max 200)"),
     },
     run: (c, k, a) => c.query(asQuery(chat.readChannel), { apiKey: k, ...a }),
   },
@@ -87,9 +92,14 @@ export const CHAT_AGENT_TOOLS: ChatAgentTool[] = [
       "One thread read forwards: the message that started it, every reply beneath it however deep, and the edits, deletions and reactions that overlay them. Use this after chat_read_channel shows a message you were mentioned in, so you answer with the whole conversation rather than the one line that named you.",
     shape: {
       channelId,
-      rootId: z.string().describe("The event id of the message that starts the thread"),
+      rootId: z
+        .string()
+        .describe("The event id of the message that starts the thread"),
       cursor: z.string().optional(),
-      limit: z.number().optional().describe("replies per page (default 100, max 200)"),
+      limit: z
+        .number()
+        .optional()
+        .describe("replies per page (default 100, max 200)"),
     },
     run: (c, k, a) => c.query(asQuery(chat.readThread), { apiKey: k, ...a }),
   },
@@ -100,7 +110,10 @@ export const CHAT_AGENT_TOOLS: ChatAgentTool[] = [
     shape: {
       text: z.string().describe("free text; operators are not parsed here"),
       channelIds: z.array(z.string()).optional().describe("at most 8 rooms"),
-      authors: z.array(z.string()).optional().describe("filter by signing pubkey"),
+      authors: z
+        .array(z.string())
+        .optional()
+        .describe("filter by signing pubkey"),
       since: z.number().optional().describe("unix seconds, inclusive"),
       until: z.number().optional().describe("unix seconds, inclusive"),
       limit: z.number().optional().describe("default 12, max 100"),
@@ -121,9 +134,12 @@ export const CHAT_AGENT_TOOLS: ChatAgentTool[] = [
       rootId: z
         .string()
         .optional()
-        .describe("optional; verified against the parent's own thread, never believed"),
+        .describe(
+          "optional; verified against the parent's own thread, never believed",
+        ),
     },
-    run: (c, k, a) => c.mutation(asMutation(chat.postMessage), { apiKey: k, ...a }),
+    run: (c, k, a) =>
+      c.mutation(asMutation(chat.postMessage), { apiKey: k, ...a }),
   },
   {
     name: "chat_react",
@@ -152,14 +168,16 @@ export const CHAT_AGENT_TOOLS: ChatAgentTool[] = [
     description:
       "Join an open room in your community so you can post in it. Private rooms cannot be joined — somebody in one has to add you. Refused if your agent is restricted to specific lists: widening your own reach is not something a restricted agent may do.",
     shape: { channelId },
-    run: (c, k, a) => c.mutation(asMutation(chat.joinChannel), { apiKey: k, ...a }),
+    run: (c, k, a) =>
+      c.mutation(asMutation(chat.joinChannel), { apiKey: k, ...a }),
   },
   {
     name: "chat_leave_channel",
     description:
       "Leave a room. Refused if you are its last owner and other people are still in it — a room nobody can govern has no repair path.",
     shape: { channelId },
-    run: (c, k, a) => c.mutation(asMutation(chat.leaveChannel), { apiKey: k, ...a }),
+    run: (c, k, a) =>
+      c.mutation(asMutation(chat.leaveChannel), { apiKey: k, ...a }),
   },
   {
     name: "chat_mark_read",
@@ -176,7 +194,8 @@ export const CHAT_AGENT_TOOLS: ChatAgentTool[] = [
         .optional()
         .describe("true when you only read the main timeline, not its threads"),
     },
-    run: (c, k, a) => c.mutation(asMutation(chat.markRead), { apiKey: k, ...a }),
+    run: (c, k, a) =>
+      c.mutation(asMutation(chat.markRead), { apiKey: k, ...a }),
   },
   {
     name: "chat_set_status",
@@ -188,9 +207,12 @@ export const CHAT_AGENT_TOOLS: ChatAgentTool[] = [
       expiresAt: z
         .number()
         .optional()
-        .describe("epoch ms; omit for 'until I clear it'. A status with no expiry is one people learn to ignore."),
+        .describe(
+          "epoch ms; omit for 'until I clear it'. A status with no expiry is one people learn to ignore.",
+        ),
     },
-    run: (c, k, a) => c.mutation(asMutation(chat.setStatus), { apiKey: k, ...a }),
+    run: (c, k, a) =>
+      c.mutation(asMutation(chat.setStatus), { apiKey: k, ...a }),
   },
 ];
 

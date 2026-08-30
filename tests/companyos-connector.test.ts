@@ -14,13 +14,12 @@ const OWNER = { subject: "companyos_owner", email: "owner@example.com" };
 const OTHER = { subject: "companyos_other", email: "other@example.com" };
 const MEMBER = { subject: "companyos_member", email: "member@example.com" };
 const CLIENT_ID = "opc_companyos_test";
-const REDIRECT_URI = "https://www.companyos.sh/api/marketplace/oauth/operate/callback";
+const REDIRECT_URI =
+  "https://www.companyos.sh/api/marketplace/oauth/operate/callback";
 const RESOURCE = "https://www.operate.to/api/companyos";
 const MCP_RESOURCE = "https://www.operate.to/api/mcp";
 const VERIFIER = "v".repeat(64);
-const CHALLENGE = createHash("sha256")
-  .update(VERIFIER)
-  .digest("base64url");
+const CHALLENGE = createHash("sha256").update(VERIFIER).digest("base64url");
 
 function credentialHash(value: string) {
   return createHash("sha256").update(value).digest("hex");
@@ -362,7 +361,9 @@ describe("Company OS Connect v1 provider contract", () => {
         state,
         tokens.accessToken,
         "installation.upsert",
-        { externalInstallationId: "companyos_account_only" },
+        {
+          externalInstallationId: "companyos_account_only",
+        },
       ),
     ).rejects.toThrow(/missing the required scope/i);
   });
@@ -374,19 +375,33 @@ describe("Company OS Connect v1 provider contract", () => {
       state,
       accessToken,
       "installation.upsert",
-      { externalInstallationId: "companyos_installation_pagination" },
+      {
+        externalInstallationId: "companyos_installation_pagination",
+      },
     );
-    const first = await backend<ConnectorSnapshot>(state, accessToken, "snapshot", {
-      objectType: "space",
-      paginationOpts: { numItems: 1, cursor: null },
-    });
+    const first = await backend<ConnectorSnapshot>(
+      state,
+      accessToken,
+      "snapshot",
+      {
+        objectType: "space",
+        paginationOpts: { numItems: 1, cursor: null },
+      },
+    );
     expect(first.page).toHaveLength(1);
     expect(first.isDone).toBe(false);
-    const second = await backend<ConnectorSnapshot>(state, accessToken, "snapshot", {
-      objectType: "space",
-      paginationOpts: { numItems: 1, cursor: first.continueCursor },
-    });
-    const ids = [...first.page, ...second.page].map((object) => object.externalId);
+    const second = await backend<ConnectorSnapshot>(
+      state,
+      accessToken,
+      "snapshot",
+      {
+        objectType: "space",
+        paginationOpts: { numItems: 1, cursor: first.continueCursor },
+      },
+    );
+    const ids = [...first.page, ...second.page].map(
+      (object) => object.externalId,
+    );
     expect(ids).toEqual([
       `operate:space:${state.spaceId}`,
       `operate:space:${state.secondSpaceId}`,
@@ -400,12 +415,17 @@ describe("Company OS Connect v1 provider contract", () => {
         paginationOpts: { numItems: 10, cursor: null },
       }),
     ).rejects.toThrow(/requested object was not found/i);
-    const tasks = await backend<ConnectorSnapshot>(state, accessToken, "snapshot", {
-      objectType: "task",
-      parentType: "list",
-      parentId: state.listId,
-      paginationOpts: { numItems: 10, cursor: null },
-    });
+    const tasks = await backend<ConnectorSnapshot>(
+      state,
+      accessToken,
+      "snapshot",
+      {
+        objectType: "task",
+        parentType: "list",
+        parentId: state.listId,
+        paginationOpts: { numItems: 10, cursor: null },
+      },
+    );
     expect(tasks.page).toMatchObject([
       {
         objectType: "task",
@@ -512,11 +532,7 @@ describe("Company OS Connect v1 provider contract", () => {
       },
     );
     expect(installation.status).toBe("active");
-    const staleParallelGrant = await grant(
-      state,
-      undefined,
-      "stale-parallel",
-    );
+    const staleParallelGrant = await grant(state, undefined, "stale-parallel");
     const delayedCode = "opc_companyos_code_delayed";
     await state.owner.mutation(api.oauth.approveAuthorization, {
       clientId: CLIENT_ID,
@@ -594,7 +610,9 @@ describe("Company OS Connect v1 provider contract", () => {
         state,
         staleParallelGrant.accessToken,
         "installation.upsert",
-        { externalInstallationId: "companyos_installation_acme" },
+        {
+          externalInstallationId: "companyos_installation_acme",
+        },
       ),
     ).rejects.toThrow(/invalid or no longer authorized/i);
     await expect(
@@ -602,7 +620,9 @@ describe("Company OS Connect v1 provider contract", () => {
         state,
         staleParallelGrant.accessToken,
         "installation.upsert",
-        { externalInstallationId: "companyos_installation_alternate" },
+        {
+          externalInstallationId: "companyos_installation_alternate",
+        },
       ),
     ).rejects.toThrow(/invalid or no longer authorized/i);
 
@@ -637,7 +657,9 @@ describe("Company OS Connect v1 provider contract", () => {
         state,
         fresh.accessToken,
         "installation.upsert",
-        { externalInstallationId: "companyos_installation_alternate" },
+        {
+          externalInstallationId: "companyos_installation_alternate",
+        },
       ),
     ).rejects.toThrow(/different installation identity/i);
     await expect(
@@ -645,7 +667,9 @@ describe("Company OS Connect v1 provider contract", () => {
         state,
         fresh.accessToken,
         "installation.upsert",
-        { externalInstallationId: "companyos_installation_acme" },
+        {
+          externalInstallationId: "companyos_installation_acme",
+        },
       ),
     ).resolves.toMatchObject({ status: "active" });
     await expect(
@@ -684,6 +708,91 @@ describe("Company OS Connect v1 provider contract", () => {
     await expect(
       backend<ConnectorAccount>(state, fresh.accessToken, "account"),
     ).rejects.toThrow(/invalid or no longer authorized/i);
+  });
+
+  it("makes exact installation cleanup durable and idempotent across a lost response", async () => {
+    const state = await setup();
+    const tokens = await grant(state, undefined, "cleanup-recovery");
+    const externalInstallationId = "companyos_installation_cleanup_recovery";
+
+    // Central arms cleanup before PUT. If PUT never commits, DELETE still
+    // durably records that this exact installation is absent and revokes the
+    // grant rather than leaving an ambiguous live authorization behind.
+    await expect(
+      backend<{ disconnected: boolean; tokenRevoked: boolean }>(
+        state,
+        tokens.accessToken,
+        "installation.disconnect",
+        { externalInstallationId },
+      ),
+    ).resolves.toEqual({ disconnected: true, tokenRevoked: true });
+
+    // A dropped DELETE response is recoverable with the same now-revoked
+    // bearer, but only for the exact durable receipt.
+    await expect(
+      backend<{ disconnected: boolean; tokenRevoked: boolean }>(
+        state,
+        tokens.accessToken,
+        "installation.disconnect",
+        { externalInstallationId },
+      ),
+    ).resolves.toEqual({ disconnected: true, tokenRevoked: true });
+    await expect(
+      backend(state, tokens.accessToken, "installation.disconnect", {
+        externalInstallationId: "companyos_installation_wrong_cleanup",
+      }),
+    ).rejects.toThrow(/invalid or no longer authorized/i);
+
+    const receipt = await state.t.run(async (ctx) =>
+      ctx.db
+        .query("companyOsInstallations")
+        .withIndex("by_external_installation_id", (q) =>
+          q.eq("externalInstallationId", externalInstallationId),
+        )
+        .unique(),
+    );
+    expect(receipt).toMatchObject({
+      externalInstallationId,
+      status: "disconnected",
+      oauthGrantId: expect.any(String),
+    });
+    await expect(
+      backend<ConnectorAccount>(state, tokens.accessToken, "account"),
+    ).rejects.toThrow(/invalid or no longer authorized/i);
+  });
+
+  it("rejects installation cleanup without the exact external id before revocation", async () => {
+    const state = await setup();
+    const tokens = await grant(state, undefined, "cleanup-id-required");
+
+    await expect(
+      backend(state, tokens.accessToken, "installation.disconnect"),
+    ).rejects.toThrow(/externalInstallationId is required/i);
+    await expect(
+      backend<ConnectorAccount>(state, tokens.accessToken, "account"),
+    ).resolves.toMatchObject({ subject: OWNER.subject });
+  });
+
+  it("rejects a non-object direct backend body without consuming authority", async () => {
+    const state = await setup();
+    const tokens = await grant(state, undefined, "non-object-backend-body");
+    const response = await state.t.fetch("/companyos/internal", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${tokens.accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: "null",
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "invalid_request",
+      error_description: "Body must be an object",
+    });
+    await expect(
+      backend<ConnectorAccount>(state, tokens.accessToken, "account"),
+    ).resolves.toMatchObject({ subject: OWNER.subject });
   });
 
   it("fails closed when the OAuth subject no longer has an active user record", async () => {

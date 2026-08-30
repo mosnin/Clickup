@@ -55,10 +55,7 @@ export default defineSchema({
     // a schema migration alone.
     executionPolicy: v.optional(
       v.object({
-        mode: v.union(
-          v.literal("supervised"),
-          v.literal("bounded_autonomous"),
-        ),
+        mode: v.union(v.literal("supervised"), v.literal("bounded_autonomous")),
         version: v.number(),
         maxPlanTasks: v.number(),
         maxTasksPerWave: v.number(),
@@ -77,11 +74,7 @@ export default defineSchema({
   memberships: defineTable({
     workspaceId: v.id("workspaces"),
     userClerkId: v.string(),
-    role: v.union(
-      v.literal("owner"),
-      v.literal("admin"),
-      v.literal("member"),
-    ),
+    role: v.union(v.literal("owner"), v.literal("admin"), v.literal("member")),
     joinedAt: v.number(),
   })
     .index("by_workspace", ["workspaceId"])
@@ -152,8 +145,7 @@ export default defineSchema({
         }),
       ),
     ),
-  })
-    .index("by_parent", ["parentType", "parentId"]),
+  }).index("by_parent", ["parentType", "parentId"]),
 
   // Deprecated: superseded by `projects` below. Kept declared only so the
   // one-shot migration in migrations.ts can read the rows it converts —
@@ -165,8 +157,7 @@ export default defineSchema({
     spaceId: v.id("spaces"),
     position: v.number(),
     createdAt: v.number(),
-  })
-    .index("by_space", ["spaceId"]),
+  }).index("by_space", ["spaceId"]),
 
   // ── Projects ──
   // The layer between a Space and its Lists: Workspace → Space → Project →
@@ -428,15 +419,8 @@ export default defineSchema({
         // relationship field links to.
         rollup: v.optional(
           v.object({
-            source: v.union(
-              v.literal("subtasks"),
-              v.literal("relationship"),
-            ),
-            op: v.union(
-              v.literal("sum"),
-              v.literal("avg"),
-              v.literal("count"),
-            ),
+            source: v.union(v.literal("subtasks"), v.literal("relationship")),
+            op: v.union(v.literal("sum"), v.literal("avg"), v.literal("count")),
             sourceFieldId: v.optional(v.id("customFields")),
             relationFieldId: v.optional(v.id("customFields")),
           }),
@@ -512,11 +496,7 @@ export default defineSchema({
     // with its dates advanced by the chosen interval. The new task copies
     // the same recurrence so the cycle continues.
     recurrence: v.optional(
-      v.union(
-        v.literal("daily"),
-        v.literal("weekly"),
-        v.literal("monthly"),
-      ),
+      v.union(v.literal("daily"), v.literal("weekly"), v.literal("monthly")),
     ),
     // Phase 12 — agent collaboration:
     //   - sprintId groups tasks into a sprint (see `sprints`).
@@ -693,11 +673,7 @@ export default defineSchema({
       v.literal("resolved"),
     ),
     assessedByActorType: v.optional(
-      v.union(
-        v.literal("user"),
-        v.literal("agent"),
-        v.literal("system"),
-      ),
+      v.union(v.literal("user"), v.literal("agent"), v.literal("system")),
     ),
     assessedByActorId: v.optional(v.string()),
     note: v.optional(v.string()),
@@ -737,10 +713,7 @@ export default defineSchema({
       ),
     ),
     authorizationSource: v.optional(
-      v.union(
-        v.literal("human_review"),
-        v.literal("workspace_policy"),
-      ),
+      v.union(v.literal("human_review"), v.literal("workspace_policy")),
     ),
     // Policy-authorized plans are valid only while this exact workspace
     // policy version remains active. Human approval does not depend on it.
@@ -825,10 +798,7 @@ export default defineSchema({
         taskId: v.id("tasks"),
         taskRef: v.string(),
         agentId: v.id("agents"),
-        delivery: v.union(
-          v.literal("notify_url"),
-          v.literal("poll_required"),
-        ),
+        delivery: v.union(v.literal("notify_url"), v.literal("poll_required")),
         contextPacketCount: v.optional(v.number()),
         estimatedContextTokens: v.optional(v.number()),
         contextVersionFingerprint: v.optional(v.string()),
@@ -857,10 +827,7 @@ export default defineSchema({
     taskId: v.id("tasks"),
     taskRef: v.string(),
     agentId: v.id("agents"),
-    delivery: v.union(
-      v.literal("notify_url"),
-      v.literal("poll_required"),
-    ),
+    delivery: v.union(v.literal("notify_url"), v.literal("poll_required")),
     contextPacketCount: v.optional(v.number()),
     estimatedContextTokens: v.optional(v.number()),
     contextVersionFingerprint: v.optional(v.string()),
@@ -908,9 +875,7 @@ export default defineSchema({
   agentPingDeliveries: defineTable({
     // Optional for migration compatibility with execution-only receipts
     // created before delivery was generalized.
-    scopeType: v.optional(
-      v.union(v.literal("user"), v.literal("workspace")),
-    ),
+    scopeType: v.optional(v.union(v.literal("user"), v.literal("workspace"))),
     scopeId: v.optional(v.string()),
     workspaceId: v.optional(v.id("workspaces")),
     sourceKind: v.optional(
@@ -958,11 +923,7 @@ export default defineSchema({
     .index("by_execution_assignment", ["executionAssignmentId"])
     .index("by_source", ["sourceKind", "sourceId"])
     .index("by_agent", ["agentId", "createdAt"])
-    .index("by_agent_acknowledged", [
-      "agentId",
-      "acknowledgedAt",
-      "createdAt",
-    ])
+    .index("by_agent_acknowledged", ["agentId", "acknowledgedAt", "createdAt"])
     .index("by_workspace", ["workspaceId", "createdAt"])
     .index("by_status", ["status", "createdAt"]),
 
@@ -996,8 +957,7 @@ export default defineSchema({
     reviewNote: v.optional(v.string()),
     reviewedAt: v.optional(v.number()),
     updatedAt: v.number(),
-  })
-    .index("by_plan", ["planId", "criterionIndex"]),
+  }).index("by_plan", ["planId", "criterionIndex"]),
 
   // External integrations attached to a workspace. Each kind stores its
   // own credential shape inside `config` (e.g. { webhookUrl } for Slack).
@@ -1245,7 +1205,6 @@ export default defineSchema({
       dimensions: 1536,
       filterFields: ["scopeType", "scopeId"],
     }),
-
 
   // ── Pages ──
   // The long-form layer: briefs, specs, decision records, runbooks — the
@@ -1512,7 +1471,7 @@ export default defineSchema({
      * what lets a change to the space's look still reach it.
      */
     panelStyles: v.optional(v.any()),
-}).index("by_user", ["userClerkId"]),
+  }).index("by_user", ["userClerkId"]),
 
   // A screen someone has composed for themselves.
   //
@@ -1667,16 +1626,18 @@ export default defineSchema({
      * condition stops holding — see the note in `situations.ts`. A panel that
      * was only ever previewed was never theirs. Absent = never answered.
      */
-    resolution: v.optional(
-      v.union(v.literal("kept"), v.literal("dismissed")),
-    ),
+    resolution: v.optional(v.union(v.literal("kept"), v.literal("dismissed"))),
     /** Cron ordering, so the sweep is an index range rather than a scan. */
     nextCheckAt: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_owner_and_screen", ["ownerClerkId", "screenKey"])
-    .index("by_owner_screen_and_panel", ["ownerClerkId", "screenKey", "panelId"])
+    .index("by_owner_screen_and_panel", [
+      "ownerClerkId",
+      "screenKey",
+      "panelId",
+    ])
     .index("by_next_check", ["nextCheckAt"]),
 
   // An agent's suggestion for how a screen could be arranged.
@@ -1831,7 +1792,11 @@ export default defineSchema({
     needsHuman: v.optional(v.boolean()),
     /** Evidence: which way it cuts. */
     stance: v.optional(
-      v.union(v.literal("supports"), v.literal("refutes"), v.literal("neutral")),
+      v.union(
+        v.literal("supports"),
+        v.literal("refutes"),
+        v.literal("neutral"),
+      ),
     ),
     /** Decisions: which option won, and whether a person has signed off. */
     chosenOptionId: v.optional(v.id("planNodes")),
@@ -2132,6 +2097,18 @@ export default defineSchema({
     reason: v.literal("legacy_refresh_replay"),
   }).index("by_authority_key", ["authorityKey"]),
 
+  // Opaque Convex pagination cursors for bounded maintenance passes. Keeping
+  // one cursor per OAuth evidence table prevents protected live-family rows
+  // at the head of either table from starving terminal rows behind them.
+  maintenanceCursors: defineTable({
+    key: v.union(
+      v.literal("oauth_authorization_codes"),
+      v.literal("oauth_access_tokens"),
+    ),
+    cursor: v.string(),
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]),
+
   // Provider-side lifecycle binding for a Company OS installation. OAuth
   // credentials remain hashed in oauthAccessTokens; this row holds only the
   // external installation identity and the authority envelope it received.
@@ -2168,10 +2145,7 @@ export default defineSchema({
     externalId: v.string(),
     version: v.string(),
     updatedAt: v.number(),
-  }).index("by_workspace_and_external_id", [
-    "workspaceId",
-    "externalId",
-  ]),
+  }).index("by_workspace_and_external_id", ["workspaceId", "externalId"]),
 
   // Fleet provisioning grants — one human approval, many agents.
   //
@@ -2867,11 +2841,7 @@ export default defineSchema({
   creditAdjustments: defineTable({
     scopeType: v.union(v.literal("user"), v.literal("workspace")),
     scopeId: v.string(),
-    kind: v.union(
-      v.literal("grant"),
-      v.literal("refund"),
-      v.literal("debit"),
-    ),
+    kind: v.union(v.literal("grant"), v.literal("refund"), v.literal("debit")),
     // Always positive. Direction comes from `kind`.
     credits: v.number(),
     paymentId: v.optional(v.id("payments")),

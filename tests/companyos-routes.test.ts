@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as getAccount } from "../src/app/api/companyos/v1/account/route";
 import { GET as getSnapshot } from "../src/app/api/companyos/v1/snapshot/route";
+import { DELETE as deleteInstallation } from "../src/app/api/companyos/v1/installation/route";
 
 const TOKEN = "opa_route_contract";
 
@@ -73,41 +74,41 @@ describe("Company OS Connect canonical HTTP routes", () => {
   });
 
   it("flattens bounded provider pages into the v1 snapshot envelope", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(
-      async (_input, init) => {
-        const body = JSON.parse(String(init?.body)) as {
-          operation: string;
-          objectType: string;
-        };
-        expect(body.operation).toBe("snapshot");
-        if (body.objectType === "workspace") {
-          return Response.json({
-            page: [object("workspace", "workspace_123", "/dashboard/w/workspace_123")],
-            isDone: true,
-            continueCursor: "workspace:end",
-          });
-        }
-        if (body.objectType === "space") {
-          return Response.json({
-            page: [object("space", "space_123", "/dashboard/s/space_123")],
-            isDone: true,
-            continueCursor: "space:end",
-          });
-        }
-        if (body.objectType === "project") {
-          return Response.json({
-            page: [object("project", "project_123", "/dashboard/p/project_123")],
-            isDone: true,
-            continueCursor: "project:end",
-          });
-        }
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as {
+        operation: string;
+        objectType: string;
+      };
+      expect(body.operation).toBe("snapshot");
+      if (body.objectType === "workspace") {
         return Response.json({
-          page: [],
+          page: [
+            object("workspace", "workspace_123", "/dashboard/w/workspace_123"),
+          ],
           isDone: true,
-          continueCursor: "end",
+          continueCursor: "workspace:end",
         });
-      },
-    );
+      }
+      if (body.objectType === "space") {
+        return Response.json({
+          page: [object("space", "space_123", "/dashboard/s/space_123")],
+          isDone: true,
+          continueCursor: "space:end",
+        });
+      }
+      if (body.objectType === "project") {
+        return Response.json({
+          page: [object("project", "project_123", "/dashboard/p/project_123")],
+          isDone: true,
+          continueCursor: "project:end",
+        });
+      }
+      return Response.json({
+        page: [],
+        isDone: true,
+        continueCursor: "end",
+      });
+    });
 
     const response = await getSnapshot(
       new Request("https://www.operate.to/api/companyos/v1/snapshot?limit=3", {
@@ -154,4 +155,94 @@ describe("Company OS Connect canonical HTTP routes", () => {
     expect(response.status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("returns the durable idempotent installation cleanup receipt", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        Response.json({ disconnected: true, tokenRevoked: true }),
+      );
+    const response = await deleteInstallation(
+      new Request("https://www.operate.to/api/companyos/v1/installation", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          externalInstallationId: "companyos_installation_cleanup",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.json()).resolves.toEqual({
+      disconnected: true,
+      tokenRevoked: true,
+    });
+    const [, init] = fetchMock.mock.calls[0] as [unknown, RequestInit];
+    expect(new Headers(init.headers).get("authorization")).toBe(
+      `Bearer ${TOKEN}`,
+    );
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      operation: "installation.disconnect",
+      externalInstallationId: "companyos_installation_cleanup",
+    });
+    expect(JSON.stringify(body)).not.toContain(TOKEN);
+  });
+
+  it("rejects bodyless cleanup before any side effect, including an identical retry", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const request = () =>
+      new Request("https://www.operate.to/api/companyos/v1/installation", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${TOKEN}` },
+      });
+
+    const first = await deleteInstallation(request());
+    const retryAfterLostResponse = await deleteInstallation(request());
+
+    expect(first.status).toBe(400);
+    expect(retryAfterLostResponse.status).toBe(400);
+    await expect(first.json()).resolves.toMatchObject({
+      error: "invalid_request",
+    });
+    await expect(retryAfterLostResponse.json()).resolves.toMatchObject({
+      error: "invalid_request",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["malformed JSON", "{"],
+    ["JSON null", "null"],
+    ["empty installation id", JSON.stringify({ externalInstallationId: "" })],
+    [
+      "whitespace installation id",
+      JSON.stringify({ externalInstallationId: "   " }),
+    ],
+  ])(
+    "rejects %s for cleanup without contacting the backend",
+    async (_, body) => {
+      const fetchMock = vi.spyOn(globalThis, "fetch");
+      const response = await deleteInstallation(
+        new Request("https://www.operate.to/api/companyos/v1/installation", {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body,
+        }),
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: "invalid_request",
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    },
+  );
 });

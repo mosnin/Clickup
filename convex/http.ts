@@ -4,6 +4,13 @@ import { Webhook } from "svix";
 import type { WebhookEvent } from "@clerk/backend";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import {
+  ConvexError,
+  convexToJson,
+  jsonToConvex,
+  type JSONValue,
+  type Value,
+} from "convex/values";
 import { sha256Hex } from "./_agentAuth";
 import { pkceChallenge } from "./oauth";
 
@@ -101,7 +108,11 @@ const fireWorkflowWebhook = httpAction(async (ctx, request) => {
   const parts = url.pathname.split("/").filter(Boolean); // ["hooks", type, id, workflowId]
   const [, scopeType, scopeId, workflowId] = parts;
 
-  if ((scopeType !== "user" && scopeType !== "workspace") || !scopeId || !workflowId) {
+  if (
+    (scopeType !== "user" && scopeType !== "workspace") ||
+    !scopeId ||
+    !workflowId
+  ) {
     return new Response("not found", { status: 404 });
   }
 
@@ -131,11 +142,15 @@ const fireWorkflowWebhook = httpAction(async (ctx, request) => {
     body,
   })) as { status: string; runId?: string };
 
-  if (result.status !== "accepted") return new Response("not found", { status: 404 });
-  return new Response(JSON.stringify({ status: "accepted", runId: result.runId }), {
-    status: 202,
-    headers: { "content-type": "application/json" },
-  });
+  if (result.status !== "accepted")
+    return new Response("not found", { status: 404 });
+  return new Response(
+    JSON.stringify({ status: "accepted", runId: result.runId }),
+    {
+      status: 202,
+      headers: { "content-type": "application/json" },
+    },
+  );
 });
 
 /**
@@ -144,7 +159,8 @@ const fireWorkflowWebhook = httpAction(async (ctx, request) => {
  * `internal.buzz.*` yet. Same device, and the same reason, as
  * `convex/buzz/keys.ts`. Delete the cast the first time the CLI regenerates.
  */
-const fireWebhookRef = anyApi.buzz.workflows.fireWebhook as unknown as FunctionReference<
+const fireWebhookRef = anyApi.buzz.workflows
+  .fireWebhook as unknown as FunctionReference<
   "mutation",
   "internal",
   {
@@ -175,13 +191,15 @@ type OAuthRefreshArgs = {
   resource: string;
 };
 
-const oauthExchangeRef = anyApi.oauth.exchangeAuthorizationCode as unknown as FunctionReference<
+const oauthExchangeRef = anyApi.oauth
+  .exchangeAuthorizationCode as unknown as FunctionReference<
   "mutation",
   "internal",
   OAuthExchangeArgs,
   unknown
 >;
-const oauthRefreshRef = anyApi.oauth.refreshAccessToken as unknown as FunctionReference<
+const oauthRefreshRef = anyApi.oauth
+  .refreshAccessToken as unknown as FunctionReference<
   "mutation",
   "internal",
   OAuthRefreshArgs,
@@ -202,13 +220,15 @@ type DeviceClaimArgs = {
   keyPrefix?: string;
 };
 
-const deviceCreateRef = anyApi.agentAuth.createDeviceRequest as unknown as FunctionReference<
+const deviceCreateRef = anyApi.agentAuth
+  .createDeviceRequest as unknown as FunctionReference<
   "mutation",
   "internal",
   DeviceCreateArgs,
   unknown
 >;
-const deviceClaimRef = anyApi.agentAuth.claimDeviceRequest as unknown as FunctionReference<
+const deviceClaimRef = anyApi.agentAuth
+  .claimDeviceRequest as unknown as FunctionReference<
   "mutation",
   "internal",
   DeviceClaimArgs,
@@ -239,13 +259,15 @@ type CompanyOsBackendArgs = {
   externalInstallationId?: string;
 };
 
-const companyOsAccountRef = anyApi.companyOsConnector.account as unknown as FunctionReference<
+const companyOsAccountRef = anyApi.companyOsConnector
+  .account as unknown as FunctionReference<
   "query",
   "internal",
   Pick<CompanyOsBackendArgs, "accessTokenHash" | "resource">,
   unknown
 >;
-const companyOsSnapshotRef = anyApi.companyOsConnector.snapshot as unknown as FunctionReference<
+const companyOsSnapshotRef = anyApi.companyOsConnector
+  .snapshot as unknown as FunctionReference<
   "mutation",
   "internal",
   Required<
@@ -280,10 +302,48 @@ const companyOsDisconnectInstallationRef = anyApi.companyOsConnector
   .disconnectInstallation as unknown as FunctionReference<
   "mutation",
   "internal",
-  Pick<
-    CompanyOsBackendArgs,
-    "accessTokenHash" | "resource" | "externalInstallationId"
+  Required<
+    Pick<
+      CompanyOsBackendArgs,
+      "accessTokenHash" | "resource" | "externalInstallationId"
+    >
   >,
+  unknown
+>;
+
+type HostedMcpDispatchArgs = {
+  operation: string;
+  apiKeyHash: string;
+  input: unknown;
+};
+
+const hostedMcpDispatchers = {
+  "agentApi:query": anyApi.agentApi._hostedMcpQuery,
+  "agentApi:mutation": anyApi.agentApi._hostedMcpMutation,
+  "agentGrants:query": anyApi.agentGrants._hostedMcpQuery,
+  "agentGrants:mutation": anyApi.agentGrants._hostedMcpMutation,
+  "buzz/agentChat:query": anyApi.buzz.agentChat._hostedMcpQuery,
+  "buzz/agentChat:mutation": anyApi.buzz.agentChat._hostedMcpMutation,
+  "x402:query": anyApi.x402._hostedMcpQuery,
+} as const;
+
+const hostedMcpSearchRef = anyApi.agentAi
+  ._hostedMcpSearch as unknown as FunctionReference<
+  "action",
+  "internal",
+  {
+    apiKeyHash: string;
+    query: string;
+    kinds?: ("doc" | "task" | "page" | "message")[];
+  },
+  unknown
+>;
+
+const hostedMcpSettleTopupRef = anyApi.x402Actions
+  ._hostedMcpSettleTopup as unknown as FunctionReference<
+  "action",
+  "internal",
+  { apiKeyHash: string; xPayment: string; credits: number },
   unknown
 >;
 
@@ -306,6 +366,197 @@ function requiredString(
   return typeof value === "string" && value !== "" ? value : null;
 }
 
+function hostedMcpHttpJson(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "no-store",
+      pragma: "no-cache",
+    },
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+// Private adapter for the hosted MCP route. The OAuth bearer is confined to
+// this HTTP action's Authorization header. Only its SHA-256 hash crosses into
+// internal Convex functions, keeping the raw credential out of function args
+// and normal query/mutation/action telemetry.
+const handleHostedMcpBackend = httpAction(async (ctx, request) => {
+  const authorization = request.headers.get("authorization") ?? "";
+  const bearer = /^Bearer ([^\s]+)$/i.exec(authorization)?.[1];
+  if (!bearer) {
+    return hostedMcpHttpJson(
+      {
+        ok: false,
+        error: "invalid_token",
+        error_description: "A Bearer token is required",
+      },
+      401,
+    );
+  }
+  const raw = await request.text();
+  if (raw.length > 128 * 1024) {
+    return hostedMcpHttpJson(
+      {
+        ok: false,
+        error: "invalid_request",
+        error_description: "Request body is too large",
+      },
+      413,
+    );
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!isRecord(parsed)) throw new Error("not an object");
+    body = parsed;
+  } catch {
+    return hostedMcpHttpJson(
+      {
+        ok: false,
+        error: "invalid_request",
+        error_description: "Body must be a JSON object",
+      },
+      400,
+    );
+  }
+
+  const functionName = body.functionName;
+  const functionType = body.functionType;
+  if (
+    typeof functionName !== "string" ||
+    (functionType !== "query" &&
+      functionType !== "mutation" &&
+      functionType !== "action") ||
+    body.input === undefined
+  ) {
+    return hostedMcpHttpJson(
+      {
+        ok: false,
+        error: "invalid_request",
+        error_description: "functionName, functionType, and input are required",
+      },
+      400,
+    );
+  }
+
+  let input: unknown;
+  try {
+    input = jsonToConvex(body.input as JSONValue);
+  } catch {
+    return hostedMcpHttpJson(
+      {
+        ok: false,
+        error: "invalid_request",
+        error_description: "input is not valid Convex JSON",
+      },
+      400,
+    );
+  }
+  if (
+    !isRecord(input) ||
+    Object.prototype.hasOwnProperty.call(input, "apiKey") ||
+    Object.prototype.hasOwnProperty.call(input, "apiKeyHash")
+  ) {
+    return hostedMcpHttpJson(
+      {
+        ok: false,
+        error: "invalid_request",
+        error_description: "input must be an object without credentials",
+      },
+      400,
+    );
+  }
+
+  const apiKeyHash = sha256Hex(bearer);
+  try {
+    let value: unknown;
+    if (functionType === "action") {
+      if (functionName === "agentAi:search") {
+        value = await ctx.runAction(hostedMcpSearchRef, {
+          apiKeyHash,
+          ...(input as {
+            query: string;
+            kinds?: ("doc" | "task" | "page" | "message")[];
+          }),
+        });
+      } else if (functionName === "x402Actions:settleTopup") {
+        value = await ctx.runAction(hostedMcpSettleTopupRef, {
+          apiKeyHash,
+          ...(input as { xPayment: string; credits: number }),
+        });
+      } else {
+        throw new ConvexError("Unknown hosted MCP operation");
+      }
+    } else {
+      const separator = functionName.lastIndexOf(":");
+      const moduleName = functionName.slice(0, separator);
+      const operation = functionName.slice(separator + 1);
+      const dispatcherKey =
+        `${moduleName}:${functionType}` as keyof typeof hostedMcpDispatchers;
+      const dispatcher = hostedMcpDispatchers[dispatcherKey];
+      if (!dispatcher || separator < 1 || operation.length === 0) {
+        throw new ConvexError("Unknown hosted MCP operation");
+      }
+      const args: HostedMcpDispatchArgs = { operation, apiKeyHash, input };
+      if (functionType === "query") {
+        value = await ctx.runQuery(
+          dispatcher as unknown as FunctionReference<
+            "query",
+            "internal",
+            HostedMcpDispatchArgs,
+            unknown
+          >,
+          args,
+        );
+      } else {
+        value = await ctx.runMutation(
+          dispatcher as unknown as FunctionReference<
+            "mutation",
+            "internal",
+            HostedMcpDispatchArgs,
+            unknown
+          >,
+          args,
+        );
+      }
+    }
+    return hostedMcpHttpJson({
+      ok: true,
+      value: convexToJson((value === undefined ? null : value) as Value),
+    });
+  } catch (error) {
+    if (error instanceof ConvexError) {
+      const errorData = convexToJson(error.data);
+      const description =
+        typeof error.data === "string" ? error.data : "Operation refused";
+      const invalidToken = /invalid api key/i.test(description);
+      return hostedMcpHttpJson(
+        {
+          ok: false,
+          error: invalidToken ? "invalid_token" : "operation_failed",
+          error_description: description,
+          error_data: errorData,
+        },
+        invalidToken ? 401 : 400,
+      );
+    }
+    return hostedMcpHttpJson(
+      {
+        ok: false,
+        error: "operation_failed",
+        error_description: "Hosted MCP operation failed",
+      },
+      500,
+    );
+  }
+});
+
 // Token exchange secrets stay in a redacted Authorization header. Only the
 // PKCE challenge and SHA-256 credential hashes cross into Convex mutation
 // arguments, preventing plaintext access/refresh tokens or code verifiers
@@ -314,26 +565,39 @@ const handleOAuthTokenBackend = httpAction(async (ctx, request) => {
   const raw = await request.text();
   if (raw.length > 16 * 1024) {
     return companyOsHttpJson(
-      { error: "invalid_request", error_description: "Request body is too large" },
+      {
+        error: "invalid_request",
+        error_description: "Request body is too large",
+      },
       413,
     );
   }
-  let input: Record<string, unknown>;
+  let parsed: unknown;
   try {
-    input = JSON.parse(raw) as Record<string, unknown>;
+    parsed = JSON.parse(raw) as unknown;
   } catch {
     return companyOsHttpJson(
       { error: "invalid_request", error_description: "Body must be JSON" },
       400,
     );
   }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "Body must be an object" },
+      400,
+    );
+  }
+  const input = parsed as Record<string, unknown>;
   const operation = requiredString(input, "operation");
   const clientId = requiredString(input, "clientId");
   const resource = requiredString(input, "resource");
   const accessTokenHash = requiredString(input, "accessTokenHash");
   if (!operation || !clientId || !resource || !accessTokenHash) {
     return companyOsHttpJson(
-      { error: "invalid_request", error_description: "Token request is incomplete" },
+      {
+        error: "invalid_request",
+        error_description: "Token request is incomplete",
+      },
       400,
     );
   }
@@ -348,7 +612,10 @@ const handleOAuthTokenBackend = httpAction(async (ctx, request) => {
       const refreshTokenHash = requiredString(input, "refreshTokenHash");
       if (!verifier || !codeHash || !redirectUri || !refreshTokenHash) {
         return companyOsHttpJson(
-          { error: "invalid_request", error_description: "Token request is incomplete" },
+          {
+            error: "invalid_request",
+            error_description: "Token request is incomplete",
+          },
           400,
         );
       }
@@ -372,7 +639,10 @@ const handleOAuthTokenBackend = httpAction(async (ctx, request) => {
       );
       if (!refreshToken || !nextRefreshTokenHash) {
         return companyOsHttpJson(
-          { error: "invalid_request", error_description: "Token request is incomplete" },
+          {
+            error: "invalid_request",
+            error_description: "Token request is incomplete",
+          },
           400,
         );
       }
@@ -387,7 +657,10 @@ const handleOAuthTokenBackend = httpAction(async (ctx, request) => {
       );
     }
     return companyOsHttpJson(
-      { error: "invalid_request", error_description: "Unknown token operation" },
+      {
+        error: "invalid_request",
+        error_description: "Unknown token operation",
+      },
       400,
     );
   } catch {
@@ -405,7 +678,10 @@ const handleOAuthDeviceBackend = httpAction(async (ctx, request) => {
   const raw = await request.text();
   if (raw.length > 16 * 1024) {
     return companyOsHttpJson(
-      { error: "invalid_request", error_description: "Request body is too large" },
+      {
+        error: "invalid_request",
+        error_description: "Request body is too large",
+      },
       413,
     );
   }
@@ -428,7 +704,10 @@ const handleOAuthDeviceBackend = httpAction(async (ctx, request) => {
         typeof input.clientName === "string" ? input.clientName : "";
       if (!deviceCodeHash || !userCode) {
         return companyOsHttpJson(
-          { error: "invalid_request", error_description: "Device request is incomplete" },
+          {
+            error: "invalid_request",
+            error_description: "Device request is incomplete",
+          },
           400,
         );
       }
@@ -453,7 +732,10 @@ const handleOAuthDeviceBackend = httpAction(async (ctx, request) => {
       const deviceCode = /^Device ([^\s]+)$/i.exec(authorization)?.[1];
       if (!deviceCode) {
         return companyOsHttpJson(
-          { error: "invalid_request", error_description: "A device credential is required" },
+          {
+            error: "invalid_request",
+            error_description: "A device credential is required",
+          },
           401,
         );
       }
@@ -470,11 +752,15 @@ const handleOAuthDeviceBackend = httpAction(async (ctx, request) => {
       );
     }
     return companyOsHttpJson(
-      { error: "invalid_request", error_description: "Unknown device operation" },
+      {
+        error: "invalid_request",
+        error_description: "Unknown device operation",
+      },
       400,
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Device request failed";
+    const message =
+      error instanceof Error ? error.message : "Device request failed";
     return companyOsHttpJson(
       {
         error: /too many/i.test(message) ? "slow_down" : "invalid_request",
@@ -491,14 +777,20 @@ const handleOAuthUserInfoBackend = httpAction(async (ctx, request) => {
   )?.[1];
   if (!bearer) {
     return companyOsHttpJson(
-      { error: "invalid_token", error_description: "A Bearer token is required" },
+      {
+        error: "invalid_token",
+        error_description: "A Bearer token is required",
+      },
       401,
     );
   }
   const raw = await request.text();
   if (raw.length > 4 * 1024) {
     return companyOsHttpJson(
-      { error: "invalid_request", error_description: "Request body is too large" },
+      {
+        error: "invalid_request",
+        error_description: "Request body is too large",
+      },
       413,
     );
   }
@@ -527,14 +819,18 @@ const handleOAuthUserInfoBackend = httpAction(async (ctx, request) => {
     );
   } catch {
     return companyOsHttpJson(
-      { error: "invalid_token", error_description: "The access token is invalid" },
+      {
+        error: "invalid_token",
+        error_description: "The access token is invalid",
+      },
       401,
     );
   }
 });
 
 function companyOsHttpFailure(error: unknown) {
-  const message = error instanceof Error ? error.message : "Connector request failed";
+  const message =
+    error instanceof Error ? error.message : "Connector request failed";
   if (/missing required scope/i.test(message)) {
     return companyOsHttpJson(
       {
@@ -548,14 +844,18 @@ function companyOsHttpFailure(error: unknown) {
     return companyOsHttpJson(
       {
         error: "invalid_token",
-        error_description: "The access token is invalid or no longer authorized",
+        error_description:
+          "The access token is invalid or no longer authorized",
       },
       401,
     );
   }
   if (/outside the authorized workspace/i.test(message)) {
     return companyOsHttpJson(
-      { error: "not_found", error_description: "The requested object was not found" },
+      {
+        error: "not_found",
+        error_description: "The requested object was not found",
+      },
       404,
     );
   }
@@ -584,26 +884,39 @@ const handleCompanyOsBackend = httpAction(async (ctx, request) => {
   const bearer = /^Bearer ([^\s]+)$/i.exec(authorization)?.[1];
   if (!bearer) {
     return companyOsHttpJson(
-      { error: "invalid_token", error_description: "A Bearer token is required" },
+      {
+        error: "invalid_token",
+        error_description: "A Bearer token is required",
+      },
       401,
     );
   }
   const raw = await request.text();
   if (raw.length > 32 * 1024) {
     return companyOsHttpJson(
-      { error: "invalid_request", error_description: "Request body is too large" },
+      {
+        error: "invalid_request",
+        error_description: "Request body is too large",
+      },
       413,
     );
   }
-  let input: Record<string, unknown>;
+  let parsed: unknown;
   try {
-    input = JSON.parse(raw) as Record<string, unknown>;
+    parsed = JSON.parse(raw) as unknown;
   } catch {
     return companyOsHttpJson(
       { error: "invalid_request", error_description: "Body must be JSON" },
       400,
     );
   }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "Body must be an object" },
+      400,
+    );
+  }
+  const input = parsed as Record<string, unknown>;
   const operation = input.operation;
   const resource = input.resource;
   if (typeof operation !== "string" || typeof resource !== "string") {
@@ -624,7 +937,8 @@ const handleCompanyOsBackend = httpAction(async (ctx, request) => {
     }
     if (operation === "snapshot") {
       const objectType = input.objectType as CompanyOsBackendArgs["objectType"];
-      const paginationOpts = input.paginationOpts as CompanyOsBackendArgs["paginationOpts"];
+      const paginationOpts =
+        input.paginationOpts as CompanyOsBackendArgs["paginationOpts"];
       if (!objectType || !paginationOpts) {
         return companyOsHttpJson(
           {
@@ -641,10 +955,17 @@ const handleCompanyOsBackend = httpAction(async (ctx, request) => {
           objectType,
           paginationOpts,
           ...(typeof input.parentType === "string"
-            ? { parentType: input.parentType as CompanyOsBackendArgs["parentType"] }
+            ? {
+                parentType:
+                  input.parentType as CompanyOsBackendArgs["parentType"],
+              }
             : {}),
-          ...(typeof input.parentId === "string" ? { parentId: input.parentId } : {}),
-          ...(typeof input.legacy === "boolean" ? { legacy: input.legacy } : {}),
+          ...(typeof input.parentId === "string"
+            ? { parentId: input.parentId }
+            : {}),
+          ...(typeof input.legacy === "boolean"
+            ? { legacy: input.legacy }
+            : {}),
         }),
       );
     }
@@ -675,13 +996,23 @@ const handleCompanyOsBackend = httpAction(async (ctx, request) => {
       );
     }
     if (operation === "installation.disconnect") {
+      if (
+        typeof input.externalInstallationId !== "string" ||
+        input.externalInstallationId.trim().length === 0
+      ) {
+        return companyOsHttpJson(
+          {
+            error: "invalid_request",
+            error_description: "externalInstallationId is required",
+          },
+          400,
+        );
+      }
       return companyOsHttpJson(
         await ctx.runMutation(companyOsDisconnectInstallationRef, {
           accessTokenHash,
           resource,
-          ...(typeof input.externalInstallationId === "string"
-            ? { externalInstallationId: input.externalInstallationId }
-            : {}),
+          externalInstallationId: input.externalInstallationId,
         }),
       );
     }
@@ -696,6 +1027,11 @@ const handleCompanyOsBackend = httpAction(async (ctx, request) => {
 
 const http = httpRouter();
 http.route({ path: "/clerk", method: "POST", handler: handleClerkWebhook });
+http.route({
+  path: "/oauth/internal/mcp",
+  method: "POST",
+  handler: handleHostedMcpBackend,
+});
 http.route({
   path: "/oauth/internal/token",
   method: "POST",
@@ -717,5 +1053,9 @@ http.route({
   handler: handleCompanyOsBackend,
 });
 // pathPrefix, because the community and the workflow id are path segments.
-http.route({ pathPrefix: "/hooks/", method: "POST", handler: fireWorkflowWebhook });
+http.route({
+  pathPrefix: "/hooks/",
+  method: "POST",
+  handler: fireWorkflowWebhook,
+});
 export default http;

@@ -1,9 +1,16 @@
 import { ConvexError, v } from "convex/values";
 import {
+  internalMutation,
   internalQuery,
   mutation,
   query,
 } from "./_generated/server";
+import {
+  dispatchHostedMcp,
+  hostedMcpMutationBuilder,
+  hostedMcpQueryBuilder,
+  type HostedMcpRegistry,
+} from "./_hostedMcp";
 import { internal } from "./_generated/api";
 import { notify } from "./notificationCenter";
 import {
@@ -20,10 +27,7 @@ import {
   trimToBudget,
   type ContextSection,
 } from "./_taskContext";
-import {
-  completionNeedsApproval,
-  proposeCompletion,
-} from "./pendingEffects";
+import { completionNeedsApproval, proposeCompletion } from "./pendingEffects";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -38,9 +42,11 @@ import {
   requireUnrestricted,
   requireWorkspaceAccessForAgent,
   sha256Hex,
+  validatedAgentKeyHash,
   canAgentAccessSpace,
   BURST_LIMIT_PER_MINUTE,
   DEFAULT_DAILY_ACTION_LIMIT,
+  type AgentKeyCredential,
 } from "./_agentAuth";
 import {
   ADMIN_BURST_LIMIT_PER_MINUTE,
@@ -118,10 +124,7 @@ import { createScheduledTaskCore, computeNextRunAt } from "./scheduledTasks";
 import { createSubscription } from "./webhooks";
 import { skillsForScope } from "./skills";
 import { withDerivedProgress } from "./goals";
-import {
-  blueprintTaskFields,
-  createTaskBlueprintCore,
-} from "./taskBlueprints";
+import { blueprintTaskFields, createTaskBlueprintCore } from "./taskBlueprints";
 import { createChannelCore } from "./channels";
 import { markChannelReadCore } from "./messages";
 import {
@@ -142,10 +145,7 @@ import { seedDefaultStatuses } from "./listStatuses";
 import { emitEvent, scopeForList } from "./events";
 import { getRollup } from "./rollups";
 import { executionPlanSummary, executionPlanView } from "./executionPlans";
-import {
-  hasCapabilities,
-  missingCapabilities,
-} from "./capabilities";
+import { hasCapabilities, missingCapabilities } from "./capabilities";
 import {
   executionControlCore,
   executionReadinessCore,
@@ -197,17 +197,40 @@ import {
 } from "./revisions";
 import { clipText, tiptapToText } from "./_docText";
 import { markdownExcerpt } from "./_markdown";
-import {
-  attachPageCore,
-  createPageCore,
-  updatePageCore,
-} from "./pages";
+import { attachPageCore, createPageCore, updatePageCore } from "./pages";
 
 // The agent-facing API: every function here authenticates with an agent
 // API key instead of Clerk, resolves the agent's scope (personal space or
 // workspace), and reuses the same *Core write paths as the human app so
 // automations, notifications, and events behave identically no matter who
 // acted. The MCP server (src/app/api/mcp) is a thin adapter over these.
+
+const hostedMcpQueries: HostedMcpRegistry = new Map();
+const hostedMcpMutations: HostedMcpRegistry = new Map();
+const hostedMcpQuery = (name: string) =>
+  hostedMcpQueryBuilder(hostedMcpQueries, name, query);
+const hostedMcpMutation = (name: string) =>
+  hostedMcpMutationBuilder(hostedMcpMutations, name, mutation);
+
+export const _hostedMcpQuery = internalQuery({
+  args: {
+    operation: v.string(),
+    apiKeyHash: v.string(),
+    input: v.any(),
+  },
+  handler: async (ctx, args): Promise<unknown> =>
+    await dispatchHostedMcp(hostedMcpQueries, ctx, args),
+});
+
+export const _hostedMcpMutation = internalMutation({
+  args: {
+    operation: v.string(),
+    apiKeyHash: v.string(),
+    input: v.any(),
+  },
+  handler: async (ctx, args): Promise<unknown> =>
+    await dispatchHostedMcp(hostedMcpMutations, ctx, args),
+});
 
 const priorityValidator = v.union(
   v.literal("urgent"),
@@ -522,7 +545,7 @@ function textToTiptap(text: string): unknown {
 
 // ── Identity & presence ────────────────────────────────────────────────
 
-export const whoami = query({
+export const whoami = hostedMcpQuery("whoami")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent, key } = await requireAgentByKey(ctx, apiKey);
@@ -651,7 +674,8 @@ export const whoami = query({
         // A credential is either a minted API key or an OAuth access token.
         // Which one is in play changes how it was obtained and how it is
         // revoked, so the caller should not have to guess.
-        authMethod: "keyPrefix" in key ? ("api_key" as const) : ("oauth" as const),
+        authMethod:
+          "keyPrefix" in key ? ("api_key" as const) : ("oauth" as const),
         keyPrefix: "keyPrefix" in key ? key.keyPrefix : null,
         // The one sentence a human needs when a connector is bound to the
         // wrong place: this is what you are editing.
@@ -668,7 +692,7 @@ export const whoami = query({
 // MCP clients call this during transport authentication. A successful
 // connection is presence even before the client starts a task or schedules
 // explicit heartbeats, so Mission Control should reflect it immediately.
-export const connect = mutation({
+export const connect = hostedMcpMutation("connect")({
   args: { apiKey: v.string(), resource: v.optional(v.string()) },
   handler: async (ctx, { apiKey, resource }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "read", resource);
@@ -703,7 +727,7 @@ export const connect = mutation({
 
 // Presence ping. Call every few minutes while working: bumps lastSeenAt,
 // optionally sets the "now working on" line shown in Mission Control.
-export const heartbeat = mutation({
+export const heartbeat = hostedMcpMutation("heartbeat")({
   args: {
     apiKey: v.string(),
     statusText: v.optional(v.string()),
@@ -838,7 +862,7 @@ async function requireSurfaceAccessForAgent(
  * older one rather than queueing, because "here are four layouts I've thought
  * of" is noise where "here is my current best suggestion" is signal.
  */
-export const proposeScreen = mutation({
+export const proposeScreen = hostedMcpMutation("proposeScreen")({
   args: {
     apiKey: v.string(),
     projectId: v.id("projects"),
@@ -927,7 +951,7 @@ export const proposeScreen = mutation({
  * of" is noise where "here is the one I think you are missing" is signal, and
  * every pending proposal is a banner on somebody's screen.
  */
-export const proposePanel = mutation({
+export const proposePanel = hostedMcpMutation("proposePanel")({
   args: {
     apiKey: v.string(),
     projectId: v.id("projects"),
@@ -992,7 +1016,7 @@ export const proposePanel = mutation({
 // actor changes the outcome is closing a question — see `decideCore`.
 
 /** Raise a question this project has not answered. */
-export const planAsk = mutation({
+export const planAsk = hostedMcpMutation("planAsk")({
   args: {
     apiKey: v.string(),
     projectId: v.id("projects"),
@@ -1015,7 +1039,7 @@ export const planAsk = mutation({
 });
 
 /** Offer a candidate answer to a question. */
-export const planOption = mutation({
+export const planOption = hostedMcpMutation("planOption")({
   args: {
     apiKey: v.string(),
     questionId: v.id("planNodes"),
@@ -1038,7 +1062,7 @@ export const planOption = mutation({
 });
 
 /** File something you actually learned, under the option it bears on. */
-export const planEvidence = mutation({
+export const planEvidence = hostedMcpMutation("planEvidence")({
   args: {
     apiKey: v.string(),
     optionId: v.id("planNodes"),
@@ -1076,7 +1100,7 @@ export const planEvidence = mutation({
  * decision lands unaccepted, reading as "waiting on you" until a person signs
  * off. The reply says which happened so the agent knows whether to proceed.
  */
-export const planDecide = mutation({
+export const planDecide = hostedMcpMutation("planDecide")({
   args: {
     apiKey: v.string(),
     questionId: v.id("planNodes"),
@@ -1109,7 +1133,7 @@ export const planDecide = mutation({
  * record. That is a signal no agent currently has: not "did I finish the
  * task" but "was the call right".
  */
-export const planExpect = mutation({
+export const planExpect = hostedMcpMutation("planExpect")({
   args: {
     apiKey: v.string(),
     decisionId: v.id("planNodes"),
@@ -1187,7 +1211,7 @@ export const planExpect = mutation({
 });
 
 /** Take back something you wrote, without erasing that you wrote it. */
-export const planRetract = mutation({
+export const planRetract = hostedMcpMutation("planRetract")({
   args: { apiKey: v.string(), nodeId: v.id("planNodes") },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
@@ -1215,7 +1239,7 @@ export const planRetract = mutation({
  * derives the state, and an agent runs the same function the screen does, so
  * the two can never disagree about what is settled.
  */
-export const planRead = query({
+export const planRead = hostedMcpQuery("planRead")({
   args: { apiKey: v.string(), projectId: v.id("projects") },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "read");
@@ -1261,7 +1285,7 @@ export const planRead = query({
  * Read-only and presence-classified: knowing what is expected of you should
  * never cost budget, or agents will skip it and guess.
  */
-export const brief = query({
+export const brief = hostedMcpQuery("brief")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "read");
@@ -1362,7 +1386,7 @@ export const brief = query({
 });
 
 /** Settled decisions across every project in my scope. See `plans.decisionsInScope`. */
-export const findDecisions = query({
+export const findDecisions = hostedMcpQuery("findDecisions")({
   args: {
     apiKey: v.string(),
     search: v.optional(v.string()),
@@ -1392,7 +1416,8 @@ export const findDecisions = query({
       decidedAt: number;
     }[] = [];
     for (const row of rows) {
-      if (row.retractedAt !== undefined || row.acceptedAt === undefined) continue;
+      if (row.retractedAt !== undefined || row.acceptedAt === undefined)
+        continue;
       const question = row.parentId ? await ctx.db.get(row.parentId) : null;
       if (!question || question.retractedAt !== undefined) continue;
       if (
@@ -1415,7 +1440,7 @@ export const findDecisions = query({
   },
 });
 
-export const setFocus = mutation({
+export const setFocus = hostedMcpMutation("setFocus")({
   args: {
     apiKey: v.string(),
     surfaceType: PRESENCE_SURFACE,
@@ -1431,15 +1456,31 @@ export const setFocus = mutation({
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "presence");
     // The agent's own scope check, not the human one: an agent restricted to
     // certain lists must not be able to appear on a surface it can't touch.
-    await requireSurfaceAccessForAgent(ctx, args.surfaceType, args.surfaceId, agent);
+    await requireSurfaceAccessForAgent(
+      ctx,
+      args.surfaceType,
+      args.surfaceId,
+      agent,
+    );
     if (args.leaving) {
-      await clearActorPresence(ctx, args.surfaceType, args.surfaceId, agent._id);
+      await clearActorPresence(
+        ctx,
+        args.surfaceType,
+        args.surfaceId,
+        agent._id,
+      );
       return { present: false };
     }
-    await markPresence(ctx, args.surfaceType, args.surfaceId, agentActor(agent), {
-      editing: args.editing ?? false,
-      detail: args.detail ?? agent.statusText ?? undefined,
-    });
+    await markPresence(
+      ctx,
+      args.surfaceType,
+      args.surfaceId,
+      agentActor(agent),
+      {
+        editing: args.editing ?? false,
+        detail: args.detail ?? agent.statusText ?? undefined,
+      },
+    );
     return { present: true };
   },
 });
@@ -1447,7 +1488,9 @@ export const setFocus = mutation({
 // End-to-end wake receipt. The outbound HTTP response proves only that a
 // runtime endpoint accepted a notification; this authenticated callback proves
 // the intended agent consumed it and resumed the collaboration protocol.
-export const acknowledgeWakeDelivery = mutation({
+export const acknowledgeWakeDelivery = hostedMcpMutation(
+  "acknowledgeWakeDelivery",
+)({
   args: {
     apiKey: v.string(),
     deliveryId: v.id("agentPingDeliveries"),
@@ -1480,7 +1523,7 @@ export const acknowledgeWakeDelivery = mutation({
 // Pull fallback for runtimes that were offline, restarted between HTTP accept
 // and processing, or intentionally operate without a notify URL. Unconsumed
 // wakes remain available until the target agent acknowledges each receipt.
-export const listWakeInbox = query({
+export const listWakeInbox = hostedMcpQuery("listWakeInbox")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -1507,7 +1550,7 @@ export const listWakeInbox = query({
 
 // ── Structure: tree, spaces, projects, lists ────────────────────────────
 
-export const getTree = query({
+export const getTree = hostedMcpQuery("getTree")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -1553,11 +1596,15 @@ export const getTree = query({
           .map(treeListNode),
       });
     }
-    return { scopeType: agent.parentType, scopeId: agent.parentId, spaces: out };
+    return {
+      scopeType: agent.parentType,
+      scopeId: agent.parentId,
+      spaces: out,
+    };
   },
 });
 
-export const createSpace = mutation({
+export const createSpace = hostedMcpMutation("createSpace")({
   args: { apiKey: v.string(), name: v.string() },
   handler: async (ctx, { apiKey, name }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
@@ -1583,7 +1630,7 @@ export const createSpace = mutation({
 // activity feed as `project.created` exactly like a human-created one — and
 // picks up the core's append-after-max positioning instead of a row count
 // that collides once a project has been deleted.
-export const createProject = mutation({
+export const createProject = hostedMcpMutation("createProject")({
   args: {
     apiKey: v.string(),
     spaceId: v.id("spaces"),
@@ -1659,7 +1706,7 @@ export const createProject = mutation({
   },
 });
 
-export const createList = mutation({
+export const createList = hostedMcpMutation("createList")({
   args: {
     apiKey: v.string(),
     name: v.string(),
@@ -1700,7 +1747,7 @@ export const createList = mutation({
   },
 });
 
-export const listStatusesForList = query({
+export const listStatusesForList = hostedMcpQuery("listStatusesForList")({
   args: { apiKey: v.string(), listId: v.id("lists") },
   handler: async (ctx, { apiKey, listId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -1721,7 +1768,7 @@ export const listStatusesForList = query({
 
 // ── Tasks ──────────────────────────────────────────────────────────────
 
-export const listTasks = query({
+export const listTasks = hostedMcpQuery("listTasks")({
   args: {
     apiKey: v.string(),
     listId: v.optional(v.id("lists")),
@@ -1763,7 +1810,8 @@ export const listTasks = query({
           .query("projects")
           .withIndex("by_space", (q) => q.eq("spaceId", space._id))
           .collect();
-        for (const f of projects) listParents.push({ type: "project", id: f._id });
+        for (const f of projects)
+          listParents.push({ type: "project", id: f._id });
         for (const p of listParents) {
           const lists = await ctx.db
             .query("lists")
@@ -1825,7 +1873,6 @@ export const listTasks = query({
   },
 });
 
-
 /**
  * Everything you need before touching this task, in one call.
  *
@@ -1841,7 +1888,7 @@ export const listTasks = query({
  * responses was the step most likely to be got subtly wrong, and getting it
  * wrong means claiming to have read a version you have not.
  */
-export const getTaskContext = query({
+export const getTaskContext = hostedMcpQuery("getTaskContext")({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -1854,9 +1901,7 @@ export const getTaskContext = query({
     const { task, list } = await requireTaskAccessForAgent(ctx, taskId, agent);
 
     const readiness = await contextReadinessForAgent(ctx, taskId, agent._id);
-    const revisions = openOnly(
-      await revisionsForParent(ctx, "task", taskId),
-    );
+    const revisions = openOnly(await revisionsForParent(ctx, "task", taskId));
     const decisionRows = await decisionRowsForTask(ctx, taskId);
     const packets = await listPacketsForTask(ctx, taskId);
     const outcomes = await recentOutcomesFor(ctx, taskId);
@@ -1909,9 +1954,7 @@ export const getTaskContext = query({
         items: packets.map((p) => ({
           id: p.packetId as string,
           label: "context packet",
-          tokens: estimateTokens(
-            `${p.title}${p.summary ?? ""}${p.content}`,
-          ),
+          tokens: estimateTokens(`${p.title}${p.summary ?? ""}${p.content}`),
           value: p,
         })),
       },
@@ -1977,7 +2020,7 @@ export const getTaskContext = query({
   },
 });
 
-export const getTask = query({
+export const getTask = hostedMcpQuery("getTask")({
   args: { apiKey: v.string(), taskId: v.id("tasks") },
   handler: async (ctx, { apiKey, taskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -2026,9 +2069,9 @@ export const getTask = query({
       fieldValues.map((r) => [r.fieldId as string, r]),
     );
     const derived = new Map(
-      (
-        await computeDerivedValues(ctx, task, customFieldDefs, fieldValues)
-      ).map((c) => [c.fieldId as string, c.value]),
+      (await computeDerivedValues(ctx, task, customFieldDefs, fieldValues)).map(
+        (c) => [c.fieldId as string, c.value],
+      ),
     );
     const customFields = customFieldDefs
       .sort((a, b) => a.position - b.position)
@@ -2156,7 +2199,7 @@ async function pinnedContextForList(
 
 // ── Shared project context ─────────────────────────────────────────────
 
-export const listContextPackets = query({
+export const listContextPackets = hostedMcpQuery("listContextPackets")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -2181,7 +2224,7 @@ export const listContextPackets = query({
   },
 });
 
-export const getContextPacket = query({
+export const getContextPacket = hostedMcpQuery("getContextPacket")({
   args: { apiKey: v.string(), packetId: v.id("contextPackets") },
   handler: async (ctx, { apiKey, packetId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -2203,7 +2246,7 @@ export const getContextPacket = query({
   },
 });
 
-export const createContextPacket = mutation({
+export const createContextPacket = hostedMcpMutation("createContextPacket")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -2227,7 +2270,7 @@ export const createContextPacket = mutation({
   },
 });
 
-export const updateContextPacket = mutation({
+export const updateContextPacket = hostedMcpMutation("updateContextPacket")({
   args: {
     apiKey: v.string(),
     packetId: v.id("contextPackets"),
@@ -2252,7 +2295,9 @@ export const updateContextPacket = mutation({
   },
 });
 
-export const acknowledgeTaskContext = mutation({
+export const acknowledgeTaskContext = hostedMcpMutation(
+  "acknowledgeTaskContext",
+)({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -2295,7 +2340,7 @@ export const acknowledgeTaskContext = mutation({
   },
 });
 
-export const deleteContextPacket = mutation({
+export const deleteContextPacket = hostedMcpMutation("deleteContextPacket")({
   args: {
     apiKey: v.string(),
     packetId: v.id("contextPackets"),
@@ -2316,7 +2361,7 @@ export const deleteContextPacket = mutation({
   },
 });
 
-export const attachContextPacket = mutation({
+export const attachContextPacket = hostedMcpMutation("attachContextPacket")({
   args: {
     apiKey: v.string(),
     packetId: v.id("contextPackets"),
@@ -2334,9 +2379,7 @@ export const attachContextPacket = mutation({
     let attached = 0;
     for (const taskId of args.taskIds) {
       const { task } = await requireTaskAccessForAgent(ctx, taskId, agent);
-      if (
-        await attachContextPacketCore(ctx, packet, task, agentActor(agent))
-      ) {
+      if (await attachContextPacketCore(ctx, packet, task, agentActor(agent))) {
         attached += 1;
       }
     }
@@ -2344,7 +2387,7 @@ export const attachContextPacket = mutation({
   },
 });
 
-export const detachContextPacket = mutation({
+export const detachContextPacket = hostedMcpMutation("detachContextPacket")({
   args: {
     apiKey: v.string(),
     packetId: v.id("contextPackets"),
@@ -2357,21 +2400,19 @@ export const detachContextPacket = mutation({
     if (!packet) throw new ConvexError("Context packet not found");
     const { task } = await requireTaskAccessForAgent(ctx, args.taskId, agent);
     if (task.listId !== packet.listId) {
-      throw new ConvexError("Context packet and task belong to different projects");
+      throw new ConvexError(
+        "Context packet and task belong to different projects",
+      );
     }
     return {
-      detached: await detachContextPacketCore(
-        ctx,
-        packet._id,
-        task._id,
-      ),
+      detached: await detachContextPacketCore(ctx, packet._id, task._id),
     };
   },
 });
 
 // ── Versioned operating decisions ─────────────────────────────────────
 
-export const listDecisionsForTask = query({
+export const listDecisionsForTask = hostedMcpQuery("listDecisionsForTask")({
   args: { apiKey: v.string(), taskId: v.id("tasks") },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey);
@@ -2380,7 +2421,7 @@ export const listDecisionsForTask = query({
   },
 });
 
-export const createDecision = mutation({
+export const createDecision = hostedMcpMutation("createDecision")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -2405,7 +2446,7 @@ export const createDecision = mutation({
   },
 });
 
-export const supersedeDecision = mutation({
+export const supersedeDecision = hostedMcpMutation("supersedeDecision")({
   args: {
     apiKey: v.string(),
     decisionId: v.id("decisions"),
@@ -2435,7 +2476,7 @@ export const supersedeDecision = mutation({
   },
 });
 
-export const assessDecisionImpact = mutation({
+export const assessDecisionImpact = hostedMcpMutation("assessDecisionImpact")({
   args: {
     apiKey: v.string(),
     impactId: v.id("decisionImpacts"),
@@ -2462,7 +2503,7 @@ export const assessDecisionImpact = mutation({
   },
 });
 
-export const createTask = mutation({
+export const createTask = hostedMcpMutation("createTask")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -2492,7 +2533,7 @@ export const createTask = mutation({
   },
 });
 
-export const updateTask = mutation({
+export const updateTask = hostedMcpMutation("updateTask")({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -2528,10 +2569,7 @@ export const updateTask = mutation({
     });
     if (args.statusId) {
       const status = await ctx.db.get(args.statusId);
-      if (
-        status?.category === "complete" ||
-        status?.category === "closed"
-      ) {
+      if (status?.category === "complete" || status?.category === "closed") {
         await requireTaskExecutionReady(ctx, args.taskId, agent._id);
       }
     }
@@ -2542,7 +2580,7 @@ export const updateTask = mutation({
 
 // Thin wrapper for the common "just set the estimate" case, so agents don't
 // need to round-trip the full updateTask shape for one field.
-export const setEstimate = mutation({
+export const setEstimate = hostedMcpMutation("setEstimate")({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -2560,7 +2598,7 @@ export const setEstimate = mutation({
 });
 
 // Move the task to its list's first complete-category status.
-export const completeTask = mutation({
+export const completeTask = hostedMcpMutation("completeTask")({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -2644,7 +2682,7 @@ export const completeTask = mutation({
   },
 });
 
-export const deleteTask = mutation({
+export const deleteTask = hostedMcpMutation("deleteTask")({
   args: { apiKey: v.string(), taskId: v.id("tasks") },
   handler: async (ctx, { apiKey, taskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
@@ -2653,7 +2691,7 @@ export const deleteTask = mutation({
   },
 });
 
-export const claimTask = mutation({
+export const claimTask = hostedMcpMutation("claimTask")({
   args: { apiKey: v.string(), taskId: v.id("tasks") },
   handler: async (ctx, { apiKey, taskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
@@ -2679,7 +2717,7 @@ export const claimTask = mutation({
   },
 });
 
-export const releaseTask = mutation({
+export const releaseTask = hostedMcpMutation("releaseTask")({
   args: { apiKey: v.string(), taskId: v.id("tasks") },
   handler: async (ctx, { apiKey, taskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
@@ -2695,7 +2733,7 @@ export const releaseTask = mutation({
   },
 });
 
-export const setChecklist = mutation({
+export const setChecklist = hostedMcpMutation("setChecklist")({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -2708,7 +2746,7 @@ export const setChecklist = mutation({
   },
 });
 
-export const addDependency = mutation({
+export const addDependency = hostedMcpMutation("addDependency")({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -2728,7 +2766,7 @@ export const addDependency = mutation({
   },
 });
 
-export const removeDependency = mutation({
+export const removeDependency = hostedMcpMutation("removeDependency")({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -2751,7 +2789,7 @@ export const removeDependency = mutation({
 
 // ── Comments & mentions ────────────────────────────────────────────────
 
-export const listComments = query({
+export const listComments = hostedMcpQuery("listComments")({
   args: {
     apiKey: v.string(),
     parentType: v.union(
@@ -2787,7 +2825,7 @@ export const listComments = query({
   },
 });
 
-export const addComment = mutation({
+export const addComment = hostedMcpMutation("addComment")({
   args: {
     apiKey: v.string(),
     parentType: v.union(
@@ -2830,7 +2868,7 @@ export const addComment = mutation({
 });
 
 // The agent's inbox: everywhere it has been @mentioned.
-export const listMyMentions = query({
+export const listMyMentions = hostedMcpQuery("listMyMentions")({
   args: { apiKey: v.string(), unreadOnly: v.optional(v.boolean()) },
   handler: async (ctx, { apiKey, unreadOnly }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -2859,7 +2897,7 @@ export const listMyMentions = query({
   },
 });
 
-export const markMentionRead = mutation({
+export const markMentionRead = hostedMcpMutation("markMentionRead")({
   args: { apiKey: v.string(), mentionId: v.id("mentions") },
   handler: async (ctx, { apiKey, mentionId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "presence");
@@ -2873,7 +2911,7 @@ export const markMentionRead = mutation({
 
 // ── Members & agents in scope ──────────────────────────────────────────
 
-export const listMembers = query({
+export const listMembers = hostedMcpQuery("listMembers")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -2959,7 +2997,7 @@ function requireWorkspaceAgent(agent: Doc<"agents">): Id<"workspaces"> {
   return agent.parentId as Id<"workspaces">;
 }
 
-export const createSprint = mutation({
+export const createSprint = hostedMcpMutation("createSprint")({
   args: {
     apiKey: v.string(),
     name: v.string(),
@@ -2985,7 +3023,7 @@ export const createSprint = mutation({
   },
 });
 
-export const listSprints = query({
+export const listSprints = hostedMcpQuery("listSprints")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -2998,7 +3036,7 @@ export const listSprints = query({
   },
 });
 
-export const updateSprint = mutation({
+export const updateSprint = hostedMcpMutation("updateSprint")({
   args: {
     apiKey: v.string(),
     sprintId: v.id("sprints"),
@@ -3007,11 +3045,7 @@ export const updateSprint = mutation({
     startDate: v.optional(v.number()),
     endDate: v.optional(v.number()),
     status: v.optional(
-      v.union(
-        v.literal("planned"),
-        v.literal("active"),
-        v.literal("complete"),
-      ),
+      v.union(v.literal("planned"), v.literal("active"), v.literal("complete")),
     ),
   },
   handler: async (ctx, args) => {
@@ -3026,7 +3060,7 @@ export const updateSprint = mutation({
   },
 });
 
-export const sprintSummary = query({
+export const sprintSummary = hostedMcpQuery("sprintSummary")({
   args: { apiKey: v.string(), sprintId: v.id("sprints") },
   handler: async (ctx, { apiKey, sprintId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -3039,7 +3073,7 @@ export const sprintSummary = query({
   },
 });
 
-export const setSprintCapacity = mutation({
+export const setSprintCapacity = hostedMcpMutation("setSprintCapacity")({
   args: {
     apiKey: v.string(),
     sprintId: v.id("sprints"),
@@ -3060,7 +3094,9 @@ export const setSprintCapacity = mutation({
   },
 });
 
-export const setSprintRetrospective = mutation({
+export const setSprintRetrospective = hostedMcpMutation(
+  "setSprintRetrospective",
+)({
   args: { apiKey: v.string(), sprintId: v.id("sprints"), text: v.string() },
   handler: async (ctx, { apiKey, sprintId, text }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
@@ -3081,7 +3117,7 @@ export const setSprintRetrospective = mutation({
 // restrictions) with enough detail to render/reason about a Kanban board —
 // status, assignees, estimate, milestone flag, and how many open blockers
 // stand in the way.
-export const getSprintBoard = query({
+export const getSprintBoard = hostedMcpQuery("getSprintBoard")({
   args: { apiKey: v.string(), sprintId: v.id("sprints") },
   handler: async (ctx, { apiKey, sprintId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -3109,7 +3145,11 @@ export const getSprintBoard = query({
         listId: t.listId,
         listName: listNames.get(t.listId)!,
         status: status
-          ? { statusId: status._id, name: status.name, category: status.category }
+          ? {
+              statusId: status._id,
+              name: status.name,
+              category: status.category,
+            }
           : null,
         assigneeIds: t.assigneeClerkIds,
         estimatePoints: t.estimatePoints,
@@ -3125,7 +3165,7 @@ export const getSprintBoard = query({
 // total and how many committed tasks still need an estimate), plus a
 // sample of open backlog work not yet pulled in, so an agent can propose
 // what to add without walking the whole scope itself.
-export const getSprintPlanning = query({
+export const getSprintPlanning = hostedMcpQuery("getSprintPlanning")({
   args: { apiKey: v.string(), sprintId: v.id("sprints") },
   handler: async (ctx, { apiKey, sprintId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -3154,7 +3194,11 @@ export const getSprintPlanning = query({
         estimatePoints: t.estimatePoints,
         milestone: t.milestone ?? false,
         status: status
-          ? { statusId: status._id, name: status.name, category: status.category }
+          ? {
+              statusId: status._id,
+              name: status.name,
+              category: status.category,
+            }
           : null,
       });
     }
@@ -3210,7 +3254,7 @@ export const getSprintPlanning = query({
 
 // ── Scheduled (time-based recurring) tasks ─────────────────────────────
 
-export const createScheduledTask = mutation({
+export const createScheduledTask = hostedMcpMutation("createScheduledTask")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -3248,7 +3292,7 @@ export const createScheduledTask = mutation({
   },
 });
 
-export const listScheduledTasks = query({
+export const listScheduledTasks = hostedMcpQuery("listScheduledTasks")({
   args: { apiKey: v.string(), listId: v.id("lists") },
   handler: async (ctx, { apiKey, listId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -3282,7 +3326,7 @@ export const listScheduledTasks = query({
   },
 });
 
-export const updateScheduledTask = mutation({
+export const updateScheduledTask = hostedMcpMutation("updateScheduledTask")({
   args: {
     apiKey: v.string(),
     scheduledTaskId: v.id("scheduledTasks"),
@@ -3315,7 +3359,7 @@ export const updateScheduledTask = mutation({
   },
 });
 
-export const deleteScheduledTask = mutation({
+export const deleteScheduledTask = hostedMcpMutation("deleteScheduledTask")({
   args: { apiKey: v.string(), scheduledTaskId: v.id("scheduledTasks") },
   handler: async (ctx, { apiKey, scheduledTaskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
@@ -3328,7 +3372,7 @@ export const deleteScheduledTask = mutation({
 
 // ── Webhooks (agent-registered hooks) ──────────────────────────────────
 
-export const registerWebhook = mutation({
+export const registerWebhook = hostedMcpMutation("registerWebhook")({
   args: {
     apiKey: v.string(),
     url: v.string(),
@@ -3352,7 +3396,7 @@ export const registerWebhook = mutation({
   },
 });
 
-export const listWebhooks = query({
+export const listWebhooks = hostedMcpQuery("listWebhooks")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -3377,7 +3421,7 @@ export const listWebhooks = query({
   },
 });
 
-export const deleteWebhook = mutation({
+export const deleteWebhook = hostedMcpMutation("deleteWebhook")({
   args: { apiKey: v.string(), subscriptionId: v.id("webhookSubscriptions") },
   handler: async (ctx, { apiKey, subscriptionId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
@@ -3401,7 +3445,7 @@ export const deleteWebhook = mutation({
 
 // ── Events (cursor polling) ────────────────────────────────────────────
 
-export const listEvents = query({
+export const listEvents = hostedMcpQuery("listEvents")({
   args: {
     apiKey: v.string(),
     sinceCreatedAt: v.optional(v.number()),
@@ -3438,30 +3482,22 @@ export const listEvents = query({
 
 // ── Skills ─────────────────────────────────────────────────────────────
 
-export const listSkills = query({
+export const listSkills = hostedMcpQuery("listSkills")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
-    const skills = await skillsForScope(
-      ctx,
-      agent.parentType,
-      agent.parentId,
-    );
+    const skills = await skillsForScope(ctx, agent.parentType, agent.parentId);
     return skills
       .filter((s) => s.enabled)
       .map(({ content: _content, _id: _rowId, ...rest }) => rest);
   },
 });
 
-export const getSkill = query({
+export const getSkill = hostedMcpQuery("getSkill")({
   args: { apiKey: v.string(), slug: v.string() },
   handler: async (ctx, { apiKey, slug }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
-    const skills = await skillsForScope(
-      ctx,
-      agent.parentType,
-      agent.parentId,
-    );
+    const skills = await skillsForScope(ctx, agent.parentType, agent.parentId);
     const skill = skills.find((s) => s.slug === slug && s.enabled);
     if (!skill) return null;
     const { _id: _rowId, ...rest } = skill;
@@ -3469,7 +3505,7 @@ export const getSkill = query({
   },
 });
 
-export const createSkill = mutation({
+export const createSkill = hostedMcpMutation("createSkill")({
   args: {
     apiKey: v.string(),
     slug: v.string(),
@@ -3533,7 +3569,7 @@ async function resolveLegacyPageId(
   return doc?.migratedToPageId ?? null;
 }
 
-export const listDocs = query({
+export const listDocs = hostedMcpQuery("listDocs")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -3556,7 +3592,7 @@ export const listDocs = query({
   },
 });
 
-export const getDoc = query({
+export const getDoc = hostedMcpQuery("getDoc")({
   args: { apiKey: v.string(), docId: v.string() },
   handler: async (ctx, { apiKey, docId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -3582,7 +3618,7 @@ export const getDoc = query({
   },
 });
 
-export const createDoc = mutation({
+export const createDoc = hostedMcpMutation("createDoc")({
   args: { apiKey: v.string(), title: v.string(), text: v.optional(v.string()) },
   handler: async (ctx, { apiKey, title, text }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
@@ -3597,7 +3633,7 @@ export const createDoc = mutation({
   },
 });
 
-export const updateDoc = mutation({
+export const updateDoc = hostedMcpMutation("updateDoc")({
   args: {
     apiKey: v.string(),
     docId: v.string(),
@@ -3627,8 +3663,12 @@ export const updateDoc = mutation({
 
 // ── Keyword search (no AI required; semantic search is agentAi.search) ─
 
-export const searchTasks = query({
-  args: { apiKey: v.string(), query: v.string(), limit: v.optional(v.number()) },
+export const searchTasks = hostedMcpQuery("searchTasks")({
+  args: {
+    apiKey: v.string(),
+    query: v.string(),
+    limit: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey);
     const needle = args.query.trim().toLowerCase();
@@ -3702,15 +3742,40 @@ export const searchTasks = query({
 
 export const _validateKey = internalQuery({
   args: { apiKey: v.string() },
-  handler: async (ctx, { apiKey }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
-    return {
-      agentId: agent._id,
-      scopeType: agent.parentType,
-      scopeId: agent.parentId,
-    };
-  },
+  handler: async (ctx, { apiKey }) => validateKeyCore(ctx, apiKey),
 });
+
+export const _validateKeyHash = internalQuery({
+  args: { apiKeyHash: v.string() },
+  handler: async (ctx, { apiKeyHash }) =>
+    validateKeyCore(ctx, validatedAgentKeyHash(apiKeyHash)),
+});
+
+async function validateKeyCore(ctx: QueryCtx, credential: AgentKeyCredential) {
+  const { agent } = await requireAgentByKey(ctx, credential);
+  return {
+    agentId: agent._id,
+    scopeType: agent.parentType,
+    scopeId: agent.parentId,
+  };
+}
+
+const searchHitValidator = v.object({
+  parentType: v.union(
+    v.literal("doc"),
+    v.literal("task"),
+    v.literal("page"),
+    v.literal("message"),
+  ),
+  parentId: v.string(),
+  textPreview: v.string(),
+});
+
+type SearchHit = {
+  parentType: "doc" | "task" | "page" | "message";
+  parentId: string;
+  textPreview: string;
+};
 
 // Post-filter for semantic search (agentAi.search): the vector index only
 // scopes by user/workspace, so list-restricted agents need their task hits
@@ -3720,62 +3785,65 @@ export const _validateKey = internalQuery({
 export const _filterSearchHits = internalQuery({
   args: {
     apiKey: v.string(),
-    hits: v.array(
-      v.object({
-        parentType: v.union(
-          v.literal("doc"),
-          v.literal("task"),
-          v.literal("page"),
-          v.literal("message"),
-        ),
-        parentId: v.string(),
-        textPreview: v.string(),
-      }),
-    ),
+    hits: v.array(searchHitValidator),
   },
-  handler: async (ctx, { apiKey, hits }) => {
-    const { agent } = await requireAgentByKey(ctx, apiKey);
-    if (agent.allowedListIds === undefined) return hits;
-    const out = [];
-    for (const hit of hits) {
-      // Docs and pages pass: a restricted agent can read every doc and page
-      // in its scope, same as listDocs/getDoc and list_pages. `page` used to
-      // fall through to the task branch below, where normalizeId returned
-      // null and the hit was silently dropped — a restricted agent could
-      // never find a page by search, and nothing said so.
-      if (hit.parentType === "doc" || hit.parentType === "page") {
+  handler: async (ctx, { apiKey, hits }) =>
+    filterSearchHitsCore(ctx, apiKey, hits),
+});
+
+export const _filterSearchHitsHash = internalQuery({
+  args: {
+    apiKeyHash: v.string(),
+    hits: v.array(searchHitValidator),
+  },
+  handler: async (ctx, { apiKeyHash, hits }) =>
+    filterSearchHitsCore(ctx, validatedAgentKeyHash(apiKeyHash), hits),
+});
+
+async function filterSearchHitsCore(
+  ctx: QueryCtx,
+  credential: AgentKeyCredential,
+  hits: SearchHit[],
+) {
+  const { agent } = await requireAgentByKey(ctx, credential);
+  if (agent.allowedListIds === undefined) return hits;
+  const out: SearchHit[] = [];
+  for (const hit of hits) {
+    // Docs and pages pass: a restricted agent can read every doc and page
+    // in its scope, same as listDocs/getDoc and list_pages. `page` used to
+    // fall through to the task branch below, where normalizeId returned
+    // null and the hit was silently dropped — a restricted agent could
+    // never find a page by search, and nothing said so.
+    if (hit.parentType === "doc" || hit.parentType === "page") {
+      out.push(hit);
+      continue;
+    }
+    // A message inherits its parent's boundary. A channel message is scoped
+    // like a doc; a task comment is only as readable as its task, so an
+    // allow-list has to reach through the comment to the task behind it.
+    if (hit.parentType === "message") {
+      const messageId = ctx.db.normalizeId("messages", hit.parentId);
+      if (!messageId) continue;
+      const message = await ctx.db.get(messageId);
+      if (!message) continue;
+      if (message.parentType === "channel") {
         out.push(hit);
         continue;
       }
-      // A message inherits its parent's boundary. A channel message is scoped
-      // like a doc; a task comment is only as readable as its task, so an
-      // allow-list has to reach through the comment to the task behind it.
-      if (hit.parentType === "message") {
-        const messageId = ctx.db.normalizeId("messages", hit.parentId);
-        if (!messageId) continue;
-        const message = await ctx.db.get(messageId);
-        if (!message) continue;
-        if (message.parentType === "channel") {
-          out.push(hit);
-          continue;
-        }
-        if (message.parentType !== "task") continue;
-        const parentTask = await ctx.db.get(
-          message.parentId as Id<"tasks">,
-        );
-        if (!parentTask) continue;
-        if (agentCanTouchList(agent, parentTask.listId)) out.push(hit);
-        continue;
-      }
-      const taskId = ctx.db.normalizeId("tasks", hit.parentId);
-      if (!taskId) continue;
-      const task = await ctx.db.get(taskId);
-      if (!task) continue;
-      if (agentCanTouchList(agent, task.listId)) out.push(hit);
+      if (message.parentType !== "task") continue;
+      const parentTask = await ctx.db.get(message.parentId as Id<"tasks">);
+      if (!parentTask) continue;
+      if (agentCanTouchList(agent, parentTask.listId)) out.push(hit);
+      continue;
     }
-    return out;
-  },
-});
+    const taskId = ctx.db.normalizeId("tasks", hit.parentId);
+    if (!taskId) continue;
+    const task = await ctx.db.get(taskId);
+    if (!task) continue;
+    if (agentCanTouchList(agent, task.listId)) out.push(hit);
+  }
+  return out;
+}
 
 // ── Dispatch: what should I work on next? ──────────────────────────────
 
@@ -3783,7 +3851,7 @@ export const _filterSearchHits = internalQuery({
 // unclaimed (or expired-claim) and unblocked, preferring the agent's own
 // assignments, then unassigned work. Sorted urgent→low, then due date,
 // then age.
-export const nextTask = query({
+export const nextTask = hostedMcpQuery("nextTask")({
   args: {
     apiKey: v.string(),
     includeUnassigned: v.optional(v.boolean()),
@@ -4048,7 +4116,7 @@ export const nextTask = query({
 // Hand a task to another member or agent with a context note. Reassigns,
 // releases my claim, posts the note as a comment mentioning the
 // recipient, and emits task.handoff.
-export const handoffTask = mutation({
+export const handoffTask = hostedMcpMutation("handoffTask")({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -4102,7 +4170,7 @@ export const handoffTask = mutation({
 // it isn't up, emits task.approval_requested, and emails a responsible
 // human (a human assignee if any, else the task creator if human, else
 // the workspace owner / personal-space owner).
-export const requestApproval = mutation({
+export const requestApproval = hostedMcpMutation("requestApproval")({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -4181,7 +4249,7 @@ export const requestApproval = mutation({
 
 // Start a structured work session. Humans see it on the agent's detail
 // page; finish it with finishRun when done.
-export const startRun = mutation({
+export const startRun = hostedMcpMutation("startRun")({
   args: {
     apiKey: v.string(),
     title: v.string(),
@@ -4195,11 +4263,7 @@ export const startRun = mutation({
       throw new ConvexError("Run title must be 200 characters or fewer");
     }
     if (args.taskId) {
-      const { task } = await requireTaskAccessForAgent(
-        ctx,
-        args.taskId,
-        agent,
-      );
+      const { task } = await requireTaskAccessForAgent(ctx, args.taskId, agent);
       await requireTaskExecutionReady(ctx, args.taskId, agent._id);
       if (
         task.claimedByActorId !== agent._id ||
@@ -4266,7 +4330,7 @@ export const startRun = mutation({
  * the budget for doing it. The discipline is on granularity instead — steps
  * are chapters, narration is a sentence replaced in place, state is small.
  */
-export const emitRunEvent = mutation({
+export const emitRunEvent = hostedMcpMutation("emitRunEvent")({
   args: {
     apiKey: v.string(),
     runId: v.id("agentRuns"),
@@ -4396,7 +4460,7 @@ export const emitRunEvent = mutation({
   },
 });
 
-export const finishRun = mutation({
+export const finishRun = hostedMcpMutation("finishRun")({
   args: {
     apiKey: v.string(),
     runId: v.id("agentRuns"),
@@ -4504,9 +4568,7 @@ export const finishRun = mutation({
         const fleet = await ctx.db
           .query("agents")
           .withIndex("by_parent", (q) =>
-            q
-              .eq("parentType", agent.parentType)
-              .eq("parentId", agent.parentId),
+            q.eq("parentType", agent.parentType).eq("parentId", agent.parentId),
           )
           .take(100);
         for (const member of fleet) {
@@ -4530,10 +4592,7 @@ export const finishRun = mutation({
         },
       );
     }
-    if (
-      args.status !== "succeeded" &&
-      run.taskId
-    ) {
+    if (args.status !== "succeeded" && run.taskId) {
       const task = await ctx.db.get(run.taskId);
       if (task?.claimedByActorId === agent._id) {
         await releaseTaskCore(ctx, run.taskId, agentActor(agent));
@@ -4566,7 +4625,7 @@ export const finishRun = mutation({
 
 // Report a failure outside any run: recorded as an instant failed run and
 // surfaced as an agent.error event so humans (and watching agents) see it.
-export const reportError = mutation({
+export const reportError = hostedMcpMutation("reportError")({
   args: {
     apiKey: v.string(),
     message: v.string(),
@@ -4596,12 +4655,10 @@ export const reportError = mutation({
         await ctx.db.patch(runId, {
           executionAssignmentId: assignment._id,
         });
-        await finishExecutionAssignment(
-          ctx,
-          assignment._id,
-          agent._id,
-          { status: "failed", error: args.message },
-        );
+        await finishExecutionAssignment(ctx, assignment._id, agent._id, {
+          status: "failed",
+          error: args.message,
+        });
       }
       const task = await ctx.db.get(args.taskId);
       if (task?.claimedByActorId === agent._id) {
@@ -4674,7 +4731,7 @@ function runSummary(run: Doc<"agentRuns">) {
  * list-restricted agent cannot read runs about work it is fenced out of —
  * a run leaks its task's title and the reasoning around it.
  */
-export const listRuns = query({
+export const listRuns = hostedMcpQuery("listRuns")({
   args: {
     apiKey: v.string(),
     taskId: v.optional(v.id("tasks")),
@@ -4746,7 +4803,7 @@ export const listRuns = query({
 });
 
 /** One run in full: its steps, its narration, its artifacts, its ending. */
-export const getRun = query({
+export const getRun = hostedMcpQuery("getRun")({
   args: { apiKey: v.string(), runId: v.id("agentRuns") },
   handler: async (ctx, { apiKey, runId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -4812,7 +4869,7 @@ async function recentOutcomesFor(
 
 // ── Channels (agent↔agent topic threads) ───────────────────────────────
 
-export const listChannels = query({
+export const listChannels = hostedMcpQuery("listChannels")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -4872,7 +4929,7 @@ export const listChannels = query({
  * agent has to re-parse prose to learn which project is being discussed,
  * which is exactly what messages.refs exists to avoid.
  */
-export const readChannel = query({
+export const readChannel = hostedMcpQuery("readChannel")({
   args: {
     apiKey: v.string(),
     channelId: v.id("channels"),
@@ -4936,7 +4993,7 @@ export const readChannel = query({
   },
 });
 
-export const markChannelRead = mutation({
+export const markChannelRead = hostedMcpMutation("markChannelRead")({
   args: { apiKey: v.string(), channelId: v.id("channels") },
   handler: async (ctx, { apiKey, channelId }) => {
     // "presence" rather than "write": catching up on reading is not a
@@ -4955,7 +5012,7 @@ export const markChannelRead = mutation({
   },
 });
 
-export const setChannelTopic = mutation({
+export const setChannelTopic = hostedMcpMutation("setChannelTopic")({
   args: {
     apiKey: v.string(),
     channelId: v.id("channels"),
@@ -4985,7 +5042,7 @@ export const setChannelTopic = mutation({
  * Same set the human composer's `#` menu reads, so a person and an agent
  * writing about the same project produce the same token.
  */
-export const referenceTargets = query({
+export const referenceTargets = hostedMcpQuery("referenceTargets")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -5056,7 +5113,7 @@ export const referenceTargets = query({
 });
 
 // Create (or join — same name returns the existing id) a topic channel.
-export const createChannel = mutation({
+export const createChannel = hostedMcpMutation("createChannel")({
   args: { apiKey: v.string(), name: v.string() },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
@@ -5070,7 +5127,7 @@ export const createChannel = mutation({
 
 // ── Time tracking ──────────────────────────────────────────────────────
 
-export const logTime = mutation({
+export const logTime = hostedMcpMutation("logTime")({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -5081,7 +5138,8 @@ export const logTime = mutation({
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
     await requireTaskAccessForAgent(ctx, args.taskId, agent);
-    if (args.durationMs <= 0) throw new ConvexError("durationMs must be positive");
+    if (args.durationMs <= 0)
+      throw new ConvexError("durationMs must be positive");
     const startedAt = args.startedAt ?? Date.now() - args.durationMs;
     return await ctx.db.insert("timeEntries", {
       taskId: args.taskId,
@@ -5096,7 +5154,7 @@ export const logTime = mutation({
   },
 });
 
-export const listTimeEntries = query({
+export const listTimeEntries = hostedMcpQuery("listTimeEntries")({
   args: { apiKey: v.string(), taskId: v.id("tasks") },
   handler: async (ctx, { apiKey, taskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -5120,7 +5178,7 @@ export const listTimeEntries = query({
 
 // ── Goals ──────────────────────────────────────────────────────────────
 
-export const listGoals = query({
+export const listGoals = hostedMcpQuery("listGoals")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -5153,7 +5211,7 @@ export const listGoals = query({
   },
 });
 
-export const createGoal = mutation({
+export const createGoal = hostedMcpMutation("createGoal")({
   args: {
     apiKey: v.string(),
     title: v.string(),
@@ -5217,7 +5275,7 @@ export const createGoal = mutation({
   },
 });
 
-export const setGoalProgress = mutation({
+export const setGoalProgress = hostedMcpMutation("setGoalProgress")({
   args: {
     apiKey: v.string(),
     goalId: v.id("goals"),
@@ -5261,7 +5319,10 @@ export const setGoalProgress = mutation({
       entityType: "goal",
       entityId: args.goalId,
       entityTitle: goal.title,
-      payload: { currentValue: args.currentValue, targetValue: goal.targetValue },
+      payload: {
+        currentValue: args.currentValue,
+        targetValue: goal.targetValue,
+      },
     });
   },
 });
@@ -5275,7 +5336,7 @@ const automationActionValidator = v.union(
   v.object({ kind: v.literal("set_due_in_days"), days: v.number() }),
 );
 
-export const listAutomationsForList = query({
+export const listAutomationsForList = hostedMcpQuery("listAutomationsForList")({
   args: { apiKey: v.string(), listId: v.id("lists") },
   handler: async (ctx, { apiKey, listId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -5295,7 +5356,7 @@ export const listAutomationsForList = query({
   },
 });
 
-export const createAutomation = mutation({
+export const createAutomation = hostedMcpMutation("createAutomation")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -5318,7 +5379,7 @@ export const createAutomation = mutation({
   },
 });
 
-export const deleteAutomation = mutation({
+export const deleteAutomation = hostedMcpMutation("deleteAutomation")({
   args: { apiKey: v.string(), automationId: v.id("listAutomations") },
   handler: async (ctx, { apiKey, automationId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
@@ -5336,7 +5397,7 @@ export const deleteAutomation = mutation({
 // same message create_sprint gives, rather than being handed a catalog it
 // could never apply.
 
-export const listSprintTemplates = query({
+export const listSprintTemplates = hostedMcpQuery("listSprintTemplates")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -5345,7 +5406,7 @@ export const listSprintTemplates = query({
   },
 });
 
-export const applySprintTemplate = mutation({
+export const applySprintTemplate = hostedMcpMutation("applySprintTemplate")({
   args: {
     apiKey: v.string(),
     slug: v.string(),
@@ -5385,15 +5446,16 @@ export const applySprintTemplate = mutation({
 // cores the human Template Center calls.
 
 /** The destination shape each entity type accepts. */
-const TEMPLATE_DESTINATIONS: Record<string, ("space" | "project" | "list")[]> = {
-  list: ["space", "project"],
-  task: ["list"],
-  doc: ["space"],
-  whiteboard: ["space"],
-  view: ["list"],
-};
+const TEMPLATE_DESTINATIONS: Record<string, ("space" | "project" | "list")[]> =
+  {
+    list: ["space", "project"],
+    task: ["list"],
+    doc: ["space"],
+    whiteboard: ["space"],
+    view: ["list"],
+  };
 
-export const listCatalogTemplates = query({
+export const listCatalogTemplates = hostedMcpQuery("listCatalogTemplates")({
   args: {
     apiKey: v.string(),
     entityType: v.optional(v.string()),
@@ -5433,7 +5495,7 @@ export const listCatalogTemplates = query({
   },
 });
 
-export const getCatalogTemplate = query({
+export const getCatalogTemplate = hostedMcpQuery("getCatalogTemplate")({
   args: { apiKey: v.string(), slug: v.string() },
   handler: async (ctx, { apiKey, slug }) => {
     await requireAgentByKey(ctx, apiKey);
@@ -5453,7 +5515,7 @@ export const getCatalogTemplate = query({
   },
 });
 
-export const applyCatalogTemplate = mutation({
+export const applyCatalogTemplate = hostedMcpMutation("applyCatalogTemplate")({
   args: {
     apiKey: v.string(),
     slug: v.string(),
@@ -5607,7 +5669,7 @@ export const applyCatalogTemplate = mutation({
 
 // ── Starter list templates (the four built-in list presets) ────────────
 
-export const listTemplates = query({
+export const listTemplates = hostedMcpQuery("listTemplates")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     await requireAgentByKey(ctx, apiKey);
@@ -5615,7 +5677,7 @@ export const listTemplates = query({
   },
 });
 
-export const applyTemplate = mutation({
+export const applyTemplate = hostedMcpMutation("applyTemplate")({
   args: {
     apiKey: v.string(),
     templateId: v.string(),
@@ -5652,7 +5714,7 @@ export const applyTemplate = mutation({
 
 // ── Custom fields ──────────────────────────────────────────────────────
 
-export const listCustomFields = query({
+export const listCustomFields = hostedMcpQuery("listCustomFields")({
   args: { apiKey: v.string(), listId: v.id("lists") },
   handler: async (ctx, { apiKey, listId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -5709,7 +5771,7 @@ const FIELD_WRITE_HINTS: Record<string, string> = {
  * computed ones (formula results, rollup results, vote counts) that have no
  * stored row and therefore never appear in a raw value read.
  */
-export const getTaskFields = query({
+export const getTaskFields = hostedMcpQuery("getTaskFields")({
   args: { apiKey: v.string(), taskId: v.id("tasks") },
   handler: async (ctx, { apiKey, taskId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -5737,7 +5799,7 @@ export const getTaskFields = query({
   },
 });
 
-export const setTaskFieldValue = mutation({
+export const setTaskFieldValue = hostedMcpMutation("setTaskFieldValue")({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -5786,7 +5848,7 @@ export const setTaskFieldValue = mutation({
   },
 });
 
-export const clearTaskFieldValue = mutation({
+export const clearTaskFieldValue = hostedMcpMutation("clearTaskFieldValue")({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -5820,7 +5882,7 @@ export const clearTaskFieldValue = mutation({
 // skills, to my personal space or workspace. Applying one copies its items
 // onto a task's embedded checklist.
 
-export const listChecklistTemplates = query({
+export const listChecklistTemplates = hostedMcpQuery("listChecklistTemplates")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -5840,7 +5902,9 @@ export const listChecklistTemplates = query({
   },
 });
 
-export const createChecklistTemplate = mutation({
+export const createChecklistTemplate = hostedMcpMutation(
+  "createChecklistTemplate",
+)({
   args: { apiKey: v.string(), name: v.string(), items: v.array(v.string()) },
   handler: async (ctx, { apiKey, name, items }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
@@ -5864,7 +5928,9 @@ export const createChecklistTemplate = mutation({
 // Appends the template's items onto the task's existing checklist (doesn't
 // replace it) so applying a second template — or a human's own items —
 // composes rather than clobbers.
-export const applyChecklistTemplate = mutation({
+export const applyChecklistTemplate = hostedMcpMutation(
+  "applyChecklistTemplate",
+)({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -5901,7 +5967,7 @@ export const applyChecklistTemplate = mutation({
 // project metadata a portfolio view needs. Uses the precomputed rollup
 // when available and falls back to a direct scan of that one list
 // otherwise (same fallback rule as the human Home/Space overview).
-export const getPortfolio = query({
+export const getPortfolio = hostedMcpQuery("getPortfolio")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -5924,7 +5990,10 @@ export const getPortfolio = query({
         inProgress = 0;
         for (const t of tasks) {
           const status = await ctx.db.get(t.statusId);
-          if (status?.category === "complete" || status?.category === "closed") {
+          if (
+            status?.category === "complete" ||
+            status?.category === "closed"
+          ) {
             done++;
           } else if (status?.category === "in_progress") {
             inProgress++;
@@ -5962,7 +6031,7 @@ export const getPortfolio = query({
  * assembled in memory to be traversed, so the boundary needs to be one an
  * access check already covers and one whose size a person chose.
  */
-export const getTaskGraph = query({
+export const getTaskGraph = hostedMcpQuery("getTaskGraph")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -5984,8 +6053,7 @@ export const getTaskGraph = query({
       titles.set(t._id, t.title);
       nodes.push({
         id: t._id,
-        done:
-          status?.category === "complete" || status?.category === "closed",
+        done: status?.category === "complete" || status?.category === "closed",
         blockedBy: (t.blockedByTaskIds ?? []) as string[],
       });
     }
@@ -6007,7 +6075,10 @@ export const getTaskGraph = query({
       nextBest: unlockRanking(nodes)
         .slice(0, 10)
         .map((r) => ({ ...named(r.id), unlocks: r.unlocks, depth: r.depth })),
-      unreachable: stalls.map((s) => ({ ...named(s.id), blocking: s.blocking })),
+      unreachable: stalls.map((s) => ({
+        ...named(s.id),
+        blocking: s.blocking,
+      })),
       around: aroundTaskId
         ? (() => {
             const n = neighbourhood(nodes, aroundTaskId, 2);
@@ -6022,7 +6093,7 @@ export const getTaskGraph = query({
   },
 });
 
-export const getTaskNetwork = query({
+export const getTaskNetwork = hostedMcpQuery("getTaskNetwork")({
   args: { apiKey: v.string(), listId: v.id("lists") },
   handler: async (ctx, { apiKey, listId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -6038,7 +6109,11 @@ export const getTaskNetwork = query({
         taskId: t._id,
         title: t.title,
         status: status
-          ? { statusId: status._id, name: status.name, category: status.category }
+          ? {
+              statusId: status._id,
+              name: status.name,
+              category: status.category,
+            }
           : null,
         blockedByTaskIds: t.blockedByTaskIds ?? [],
         milestone: t.milestone ?? false,
@@ -6054,7 +6129,7 @@ export const getTaskNetwork = query({
 // slotted into them — same rollup numbers humans see. Restricted agents
 // only see projects on their allow-list; personal-scope agents have no
 // workspace to read roadmaps from.
-export const getRoadmaps = query({
+export const getRoadmaps = hostedMcpQuery("getRoadmaps")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -6132,7 +6207,7 @@ export const getRoadmaps = query({
 // Roadmaps sequence Projects. This used to take a listId, back when a list
 // WAS a project; keeping that signature after the split is how a roadmap and
 // its workstreams end up describing the same work without being connected.
-export const assignProjectToPhase = mutation({
+export const assignProjectToPhase = hostedMcpMutation("assignProjectToPhase")({
   args: {
     apiKey: v.string(),
     projectId: v.id("projects"),
@@ -6173,7 +6248,9 @@ export const assignProjectToPhase = mutation({
         : roadmap.phases[0];
     if (!phase) {
       throw new ConvexError(
-        args.phaseId !== undefined ? "Phase not found" : "Roadmap has no phases",
+        args.phaseId !== undefined
+          ? "Phase not found"
+          : "Roadmap has no phases",
       );
     }
     const siblings = await ctx.db
@@ -6213,7 +6290,7 @@ async function requireRoadmapForAgent(
   return roadmap;
 }
 
-export const createRoadmap = mutation({
+export const createRoadmap = hostedMcpMutation("createRoadmap")({
   args: {
     apiKey: v.string(),
     name: v.string(),
@@ -6247,7 +6324,7 @@ export const createRoadmap = mutation({
   },
 });
 
-export const addRoadmapPhase = mutation({
+export const addRoadmapPhase = hostedMcpMutation("addRoadmapPhase")({
   args: {
     apiKey: v.string(),
     roadmapId: v.id("roadmaps"),
@@ -6268,7 +6345,7 @@ export const addRoadmapPhase = mutation({
   },
 });
 
-export const updateRoadmapPhase = mutation({
+export const updateRoadmapPhase = hostedMcpMutation("updateRoadmapPhase")({
   args: {
     apiKey: v.string(),
     roadmapId: v.id("roadmaps"),
@@ -6290,7 +6367,7 @@ export const updateRoadmapPhase = mutation({
   },
 });
 
-export const removeRoadmapPhase = mutation({
+export const removeRoadmapPhase = hostedMcpMutation("removeRoadmapPhase")({
   args: {
     apiKey: v.string(),
     roadmapId: v.id("roadmaps"),
@@ -6309,7 +6386,7 @@ export const removeRoadmapPhase = mutation({
 // them — a typo at creation was permanent garbage. These give create's
 // missing other half. All structure-level: requireUnrestricted.
 
-export const renameList = mutation({
+export const renameList = hostedMcpMutation("renameList")({
   args: { apiKey: v.string(), listId: v.id("lists"), name: v.string() },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
@@ -6319,7 +6396,7 @@ export const renameList = mutation({
   },
 });
 
-export const updateListMeta = mutation({
+export const updateListMeta = hostedMcpMutation("updateListMeta")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -6340,7 +6417,7 @@ export const updateListMeta = mutation({
 // updateListMeta because a list is a board of tasks and a project is the
 // thing the board belongs to; an agent reporting "this project is at risk"
 // is making a claim about the project, not about one of its boards.
-export const updateProjectMeta = mutation({
+export const updateProjectMeta = hostedMcpMutation("updateProjectMeta")({
   args: {
     apiKey: v.string(),
     projectId: v.id("projects"),
@@ -6384,7 +6461,7 @@ export const updateProjectMeta = mutation({
   },
 });
 
-export const deleteList = mutation({
+export const deleteList = hostedMcpMutation("deleteList")({
   args: { apiKey: v.string(), listId: v.id("lists") },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
@@ -6394,7 +6471,7 @@ export const deleteList = mutation({
   },
 });
 
-export const reorderLists = mutation({
+export const reorderLists = hostedMcpMutation("reorderLists")({
   args: {
     apiKey: v.string(),
     parentType: v.union(v.literal("space"), v.literal("project")),
@@ -6415,7 +6492,12 @@ export const reorderLists = mutation({
       if (!project) throw new ConvexError("Project not found");
       await requireSpaceAccessForAgent(ctx, project.spaceId, agent);
     }
-    await reorderListsCore(ctx, args.parentType, args.parentId, args.orderedIds);
+    await reorderListsCore(
+      ctx,
+      args.parentType,
+      args.parentId,
+      args.orderedIds,
+    );
   },
 });
 
@@ -6424,7 +6506,7 @@ export const reorderLists = mutation({
 // moveListCore itself refuses any destination outside the list's current
 // space — a space is a visibility boundary, so "moving" across one would
 // silently change who can see the tasks.
-export const moveList = mutation({
+export const moveList = hostedMcpMutation("moveList")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -6462,7 +6544,7 @@ export const moveList = mutation({
 // human sidebar calls, so renames/deletes emit `project.renamed` /
 // `project.deleted` with the agent as the actor. Structure-level throughout.
 
-export const renameProject = mutation({
+export const renameProject = hostedMcpMutation("renameProject")({
   args: { apiKey: v.string(), projectId: v.id("projects"), name: v.string() },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
@@ -6478,7 +6560,7 @@ export const renameProject = mutation({
 
 // Deleting a project is a grouping change, not a content deletion: every list
 // inside it moves up to the parent space with its tasks intact.
-export const deleteProject = mutation({
+export const deleteProject = hostedMcpMutation("deleteProject")({
   args: { apiKey: v.string(), projectId: v.id("projects") },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
@@ -6492,7 +6574,7 @@ export const deleteProject = mutation({
   },
 });
 
-export const reorderProjects = mutation({
+export const reorderProjects = hostedMcpMutation("reorderProjects")({
   args: {
     apiKey: v.string(),
     spaceId: v.id("spaces"),
@@ -6509,7 +6591,7 @@ export const reorderProjects = mutation({
 // Task-level ordering: "do these in this order" without overloading
 // dependencies. Same global-renumber semantics as the human Board/List
 // drag (tasks.reorder); position round-trips through list_tasks/get_task.
-export const reorderTasks = mutation({
+export const reorderTasks = hostedMcpMutation("reorderTasks")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -6547,7 +6629,7 @@ async function requireMilestoneForAgent(
   return milestone;
 }
 
-export const listMilestones = query({
+export const listMilestones = hostedMcpQuery("listMilestones")({
   args: { apiKey: v.string(), listId: v.id("lists") },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey);
@@ -6568,7 +6650,7 @@ export const listMilestones = query({
   },
 });
 
-export const createMilestone = mutation({
+export const createMilestone = hostedMcpMutation("createMilestone")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -6594,7 +6676,7 @@ export const createMilestone = mutation({
   },
 });
 
-export const updateMilestone = mutation({
+export const updateMilestone = hostedMcpMutation("updateMilestone")({
   args: {
     apiKey: v.string(),
     milestoneId: v.id("milestones"),
@@ -6626,7 +6708,7 @@ export const updateMilestone = mutation({
   },
 });
 
-export const deleteMilestone = mutation({
+export const deleteMilestone = hostedMcpMutation("deleteMilestone")({
   args: { apiKey: v.string(), milestoneId: v.id("milestones") },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
@@ -6640,7 +6722,7 @@ export const deleteMilestone = mutation({
   },
 });
 
-export const setTaskMilestone = mutation({
+export const setTaskMilestone = hostedMcpMutation("setTaskMilestone")({
   args: {
     apiKey: v.string(),
     taskId: v.id("tasks"),
@@ -6687,7 +6769,7 @@ const bulkTaskSpecValidator = v.object({
   milestone: v.optional(v.boolean()),
 });
 
-export const createTasks = mutation({
+export const createTasks = hostedMcpMutation("createTasks")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -6715,8 +6797,11 @@ export const createTasks = mutation({
     const refs = new Map<string, Id<"tasks">>();
 
     const actor = agentActor(agent);
-    const created: { ref: string | null; taskId: Id<"tasks">; title: string }[] =
-      [];
+    const created: {
+      ref: string | null;
+      taskId: Id<"tasks">;
+      title: string;
+    }[] = [];
 
     // Pass 1: create in array order so parentRef can point at any EARLIER
     // spec (subtasks after their parent, the natural writing order).
@@ -6767,7 +6852,9 @@ export const createTasks = mutation({
         const byRef = refs.get(dep);
         if (byRef) {
           if (byRef === taskId) {
-            throw new ConvexError(`Task "${spec.title}" can't depend on itself`);
+            throw new ConvexError(
+              `Task "${spec.title}" can't depend on itself`,
+            );
           }
           blockerIds.push(byRef);
           continue;
@@ -6837,11 +6924,7 @@ function executionRef(value: string, label: string): string {
   return ref;
 }
 
-function executionText(
-  value: string,
-  label: string,
-  max: number,
-): string {
+function executionText(value: string, label: string, max: number): string {
   const text = value.trim();
   if (!text) throw new ConvexError(`${label} is required`);
   if (text.length > max) {
@@ -6909,7 +6992,7 @@ function executionContext(args: {
 // context packet rolls the whole mutation back, so an agent never leaves a
 // half-built roadmap behind. The immutable manifest is both provenance and
 // the idempotency receipt for safe retries.
-export const createExecutionPlan = mutation({
+export const createExecutionPlan = hostedMcpMutation("createExecutionPlan")({
   args: {
     apiKey: v.string(),
     idempotencyKey: v.string(),
@@ -6991,7 +7074,10 @@ export const createExecutionPlan = mutation({
     const successCriteria = executionTextList(
       args.successCriteria,
       "successCriteria",
-      { min: 1, max: 25 },
+      {
+        min: 1,
+        max: 25,
+      },
     );
     const assumptions = executionTextList(
       args.assumptions ?? [],
@@ -7037,10 +7123,7 @@ export const createExecutionPlan = mutation({
     const parentByRef = new Map<string, string | undefined>();
     let totalTasks = 0;
     const projects = args.projects.map((project, projectIndex) => {
-      const ref = executionRef(
-        project.ref,
-        `projects[${projectIndex}].ref`,
-      );
+      const ref = executionRef(project.ref, `projects[${projectIndex}].ref`);
       if (projectRefs.has(ref)) {
         throw new ConvexError(`Duplicate project ref "${ref}"`);
       }
@@ -7055,9 +7138,7 @@ export const createExecutionPlan = mutation({
         );
       }
       if (project.tasks.length === 0 || project.tasks.length > 50) {
-        throw new ConvexError(
-          `Project "${ref}" must contain 1-50 tasks`,
-        );
+        throw new ConvexError(`Project "${ref}" must contain 1-50 tasks`);
       }
       totalTasks += project.tasks.length;
       const localRefs = new Set<string>();
@@ -7394,9 +7475,7 @@ export const createExecutionPlan = mutation({
       assumptions,
       openQuestions,
       reviewStatus,
-      authorizationSource: policyAuthorized
-        ? "workspace_policy"
-        : undefined,
+      authorizationSource: policyAuthorized ? "workspace_policy" : undefined,
       authorizationPolicyVersion: policyAuthorized
         ? executionPolicy.version
         : undefined,
@@ -7420,9 +7499,7 @@ export const createExecutionPlan = mutation({
         taskCount: createdTasks.length,
         openQuestionCount: openQuestions.length,
         reviewStatus,
-        authorizationSource: policyAuthorized
-          ? "workspace_policy"
-          : "none",
+        authorizationSource: policyAuthorized ? "workspace_policy" : "none",
         authorizationPolicyVersion: policyAuthorized
           ? executionPolicy.version
           : undefined,
@@ -7437,7 +7514,9 @@ export const createExecutionPlan = mutation({
 // immutable original manifest. Every workstream packet advances together,
 // prior acknowledgements become stale by version, and dispatch returns to
 // human review until the revised context is explicitly authorized.
-export const reviseExecutionPlanContext = mutation({
+export const reviseExecutionPlanContext = hostedMcpMutation(
+  "reviseExecutionPlanContext",
+)({
   args: {
     apiKey: v.string(),
     planId: v.id("executionPlans"),
@@ -7561,8 +7640,7 @@ export const reviseExecutionPlanContext = mutation({
       reviewStatus: "pending",
       authorizationSource: undefined,
       authorizationPolicyVersion: undefined,
-      authorizationReason:
-        `Context revision ${revision} requires owner or admin review before further dispatch.`,
+      authorizationReason: `Context revision ${revision} requires owner or admin review before further dispatch.`,
     });
     await emitEvent(ctx, {
       scopeType: "workspace",
@@ -7590,7 +7668,7 @@ export const reviseExecutionPlanContext = mutation({
   },
 });
 
-export const getExecutionPlan = query({
+export const getExecutionPlan = hostedMcpQuery("getExecutionPlan")({
   args: { apiKey: v.string(), planId: v.id("executionPlans") },
   handler: async (ctx, { apiKey, planId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -7623,7 +7701,7 @@ export const getExecutionPlan = query({
   },
 });
 
-export const getExecutionPolicy = query({
+export const getExecutionPolicy = hostedMcpQuery("getExecutionPolicy")({
   args: { apiKey: v.string() },
   returns: executionPolicyValidator,
   handler: async (ctx, { apiKey }) => {
@@ -7633,22 +7711,18 @@ export const getExecutionPolicy = query({
         "Execution policy requires a workspace-scoped agent",
       );
     }
-    const workspace = await ctx.db.get(
-      agent.parentId as Id<"workspaces">,
-    );
+    const workspace = await ctx.db.get(agent.parentId as Id<"workspaces">);
     if (!workspace) throw new ConvexError("Workspace not found");
     return executionPolicyFor(workspace);
   },
 });
 
-export const listExecutionPlans = query({
+export const listExecutionPlans = hostedMcpQuery("listExecutionPlans")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
     if (agent.parentType !== "workspace") {
-      throw new ConvexError(
-        "Execution plans require a workspace-scoped agent",
-      );
+      throw new ConvexError("Execution plans require a workspace-scoped agent");
     }
     const plans = await ctx.db
       .query("executionPlans")
@@ -7661,7 +7735,7 @@ export const listExecutionPlans = query({
   },
 });
 
-export const getOutcomeAssurance = query({
+export const getOutcomeAssurance = hostedMcpQuery("getOutcomeAssurance")({
   args: { apiKey: v.string(), planId: v.id("executionPlans") },
   handler: async (ctx, { apiKey, planId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -7677,48 +7751,52 @@ export const getOutcomeAssurance = query({
   },
 });
 
-export const submitOutcomeEvidence = mutation({
-  args: {
-    apiKey: v.string(),
-    planId: v.id("executionPlans"),
-    criterionIndex: v.number(),
-    evidenceSummary: v.string(),
-    evidenceLinks: v.array(v.string()),
+export const submitOutcomeEvidence = hostedMcpMutation("submitOutcomeEvidence")(
+  {
+    args: {
+      apiKey: v.string(),
+      planId: v.id("executionPlans"),
+      criterionIndex: v.number(),
+      evidenceSummary: v.string(),
+      evidenceLinks: v.array(v.string()),
+    },
+    handler: async (ctx, args) => {
+      const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+      requireUnrestricted(agent);
+      const plan = await ctx.db.get(args.planId);
+      if (
+        !plan ||
+        agent.parentType !== "workspace" ||
+        plan.workspaceId !== agent.parentId
+      ) {
+        throw new ConvexError("Execution plan not found in your workspace");
+      }
+      const checkId = await submitOutcomeEvidenceCore(
+        ctx,
+        plan,
+        args.criterionIndex,
+        agent._id,
+        args.evidenceSummary,
+        args.evidenceLinks,
+      );
+      await emitEvent(ctx, {
+        scopeType: "workspace",
+        scopeId: plan.workspaceId,
+        type: "outcome.evidence_submitted",
+        actor: agentActor(agent),
+        entityType: "executionPlan",
+        entityId: plan._id,
+        entityTitle: plan.name,
+        payload: { criterionIndex: args.criterionIndex, checkId },
+      });
+      return await outcomeAssuranceView(ctx, plan);
+    },
   },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    const plan = await ctx.db.get(args.planId);
-    if (
-      !plan ||
-      agent.parentType !== "workspace" ||
-      plan.workspaceId !== agent.parentId
-    ) {
-      throw new ConvexError("Execution plan not found in your workspace");
-    }
-    const checkId = await submitOutcomeEvidenceCore(
-      ctx,
-      plan,
-      args.criterionIndex,
-      agent._id,
-      args.evidenceSummary,
-      args.evidenceLinks,
-    );
-    await emitEvent(ctx, {
-      scopeType: "workspace",
-      scopeId: plan.workspaceId,
-      type: "outcome.evidence_submitted",
-      actor: agentActor(agent),
-      entityType: "executionPlan",
-      entityId: plan._id,
-      entityTitle: plan.name,
-      payload: { criterionIndex: args.criterionIndex, checkId },
-    });
-    return await outcomeAssuranceView(ctx, plan);
-  },
-});
+);
 
-export const reviewOutcomeCriterion = mutation({
+export const reviewOutcomeCriterion = hostedMcpMutation(
+  "reviewOutcomeCriterion",
+)({
   args: {
     apiKey: v.string(),
     planId: v.id("executionPlans"),
@@ -7763,7 +7841,7 @@ function executionWaveView(wave: Doc<"executionWaves">) {
   };
 }
 
-export const getExecutionReadiness = query({
+export const getExecutionReadiness = hostedMcpQuery("getExecutionReadiness")({
   args: {
     apiKey: v.string(),
     planId: v.id("executionPlans"),
@@ -7787,7 +7865,7 @@ export const getExecutionReadiness = query({
   },
 });
 
-export const getExecutionControl = query({
+export const getExecutionControl = hostedMcpQuery("getExecutionControl")({
   args: {
     apiKey: v.string(),
     planId: v.id("executionPlans"),
@@ -7837,12 +7915,7 @@ async function reconcileExecutionPlanCore(
     ) {
       continue;
     }
-    await releaseTaskCore(
-      ctx,
-      normalizedTaskId,
-      agentActor(actorAgent),
-      true,
-    );
+    await releaseTaskCore(ctx, normalizedTaskId, agentActor(actorAgent), true);
     releasedClaimCount += 1;
   }
   if (result.recovered.length > 0) {
@@ -7871,7 +7944,9 @@ async function reconcileExecutionPlanCore(
   };
 }
 
-export const reconcileExecutionPlan = mutation({
+export const reconcileExecutionPlan = hostedMcpMutation(
+  "reconcileExecutionPlan",
+)({
   args: {
     apiKey: v.string(),
     planId: v.id("executionPlans"),
@@ -7891,286 +7966,285 @@ export const reconcileExecutionPlan = mutation({
   },
 });
 
-export const dispatchExecutionWave = mutation({
-  args: {
-    apiKey: v.string(),
-    idempotencyKey: v.string(),
-    planId: v.id("executionPlans"),
-    maxTasks: v.optional(v.number()),
-    agentIds: v.optional(v.array(v.id("agents"))),
-    openQuestionDisposition: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
-    requireUnrestricted(agent);
-    if (agent.parentType !== "workspace") {
-      throw new ConvexError(
-        "Execution waves require a workspace-scoped agent",
-      );
-    }
-    const plan = await ctx.db.get(args.planId);
-    if (!plan || plan.workspaceId !== agent.parentId) {
-      throw new ConvexError("Execution plan not found in your workspace");
-    }
-    const workspace = await ctx.db.get(plan.workspaceId);
-    if (!workspace) throw new ConvexError("Workspace not found");
-    const executionPolicy = executionPolicyFor(workspace);
-    const authorization = planAuthorization(plan, executionPolicy);
-    if (!authorization.authorized) {
-      throw new ConvexError(authorization.reason);
-    }
-    if (authorization.source === "none") {
-      throw new ConvexError("Execution authorization source is missing");
-    }
-    const idempotencyKey = executionText(
-      args.idempotencyKey,
-      "idempotencyKey",
-      120,
-    );
-    const maxTasks = args.maxTasks ?? executionPolicy.maxTasksPerWave;
-    if (!Number.isInteger(maxTasks) || maxTasks < 1 || maxTasks > 25) {
-      throw new ConvexError("maxTasks must be an integer from 1-25");
-    }
-    if (maxTasks > executionPolicy.maxTasksPerWave) {
-      throw new ConvexError(
-        `Workspace execution policy allows at most ${executionPolicy.maxTasksPerWave} tasks per wave`,
-      );
-    }
-    const requestedAgentIds = [...new Set(args.agentIds ?? [])];
-    for (const agentId of requestedAgentIds) {
-      const candidate = await ctx.db.get(agentId);
-      if (
-        !candidate ||
-        candidate.parentType !== "workspace" ||
-        candidate.parentId !== plan.workspaceId
-      ) {
+export const dispatchExecutionWave = hostedMcpMutation("dispatchExecutionWave")(
+  {
+    args: {
+      apiKey: v.string(),
+      idempotencyKey: v.string(),
+      planId: v.id("executionPlans"),
+      maxTasks: v.optional(v.number()),
+      agentIds: v.optional(v.array(v.id("agents"))),
+      openQuestionDisposition: v.optional(v.string()),
+    },
+    handler: async (ctx, args) => {
+      const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
+      requireUnrestricted(agent);
+      if (agent.parentType !== "workspace") {
         throw new ConvexError(
-          `agentIds includes an agent outside this workspace: ${agentId}`,
+          "Execution waves require a workspace-scoped agent",
         );
       }
-    }
-    let openQuestionDisposition = args.openQuestionDisposition?.trim();
-    if (openQuestionDisposition && openQuestionDisposition.length > 2_000) {
-      throw new ConvexError(
-        "openQuestionDisposition must be 2,000 characters or fewer",
+      const plan = await ctx.db.get(args.planId);
+      if (!plan || plan.workspaceId !== agent.parentId) {
+        throw new ConvexError("Execution plan not found in your workspace");
+      }
+      const workspace = await ctx.db.get(plan.workspaceId);
+      if (!workspace) throw new ConvexError("Workspace not found");
+      const executionPolicy = executionPolicyFor(workspace);
+      const authorization = planAuthorization(plan, executionPolicy);
+      if (!authorization.authorized) {
+        throw new ConvexError(authorization.reason);
+      }
+      if (authorization.source === "none") {
+        throw new ConvexError("Execution authorization source is missing");
+      }
+      const idempotencyKey = executionText(
+        args.idempotencyKey,
+        "idempotencyKey",
+        120,
       );
-    }
-    if (plan.openQuestions.length > 0) {
-      if (!openQuestionDisposition || openQuestionDisposition.length < 10) {
+      const maxTasks = args.maxTasks ?? executionPolicy.maxTasksPerWave;
+      if (!Number.isInteger(maxTasks) || maxTasks < 1 || maxTasks > 25) {
+        throw new ConvexError("maxTasks must be an integer from 1-25");
+      }
+      if (maxTasks > executionPolicy.maxTasksPerWave) {
         throw new ConvexError(
-          "This plan has open questions. Provide openQuestionDisposition explaining what was resolved, deferred, or intentionally bounded before dispatch.",
+          `Workspace execution policy allows at most ${executionPolicy.maxTasksPerWave} tasks per wave`,
         );
       }
-    } else {
-      openQuestionDisposition = undefined;
-    }
-    const fingerprint = sha256Hex(
-      canonicalJson({
-        planId: args.planId,
-        maxTasks,
-        agentIds: requestedAgentIds,
-        openQuestionDisposition,
-      }),
-    );
-    const previous = await ctx.db
-      .query("executionWaves")
-      .withIndex("by_agent_key", (q) =>
-        q
-          .eq("createdByAgentId", agent._id)
-          .eq("idempotencyKey", idempotencyKey),
-      )
-      .unique();
-    if (previous) {
-      if (previous.requestFingerprint !== fingerprint) {
+      const requestedAgentIds = [...new Set(args.agentIds ?? [])];
+      for (const agentId of requestedAgentIds) {
+        const candidate = await ctx.db.get(agentId);
+        if (
+          !candidate ||
+          candidate.parentType !== "workspace" ||
+          candidate.parentId !== plan.workspaceId
+        ) {
+          throw new ConvexError(
+            `agentIds includes an agent outside this workspace: ${agentId}`,
+          );
+        }
+      }
+      let openQuestionDisposition = args.openQuestionDisposition?.trim();
+      if (openQuestionDisposition && openQuestionDisposition.length > 2_000) {
         throw new ConvexError(
-          "This idempotencyKey already dispatched a different wave. Use a new key for changed routing.",
+          "openQuestionDisposition must be 2,000 characters or fewer",
         );
       }
-      return { ...executionWaveView(previous), replayed: true };
-    }
-
-    await reconcileExecutionPlanCore(ctx, plan, agent);
-    const readiness = await executionReadinessCore(
-      ctx,
-      plan,
-      requestedAgentIds.length > 0
-        ? new Set(requestedAgentIds)
-        : undefined,
-    );
-    const selected = readiness.recommendations.slice(0, maxTasks);
-    if (selected.length === 0) {
-      const reasons = [
-        ...new Set(readiness.skipped.map((row) => row.reason)),
-      ].join(", ");
-      throw new ConvexError(
-        `No tasks are dispatchable in this wave${reasons ? ` (${reasons})` : ""}`,
-      );
-    }
-    const assignments: Doc<"executionWaves">["assignments"] = [];
-    for (const recommendation of selected) {
-      const task = await ctx.db.get(recommendation.taskId);
-      const target = await ctx.db.get(recommendation.recommendedAgentId);
-      if (!task || !target) {
-        throw new ConvexError(
-          `Dispatch artifact disappeared for ${recommendation.taskRef}; retry with a new wave key`,
-        );
+      if (plan.openQuestions.length > 0) {
+        if (!openQuestionDisposition || openQuestionDisposition.length < 10) {
+          throw new ConvexError(
+            "This plan has open questions. Provide openQuestionDisposition explaining what was resolved, deferred, or intentionally bounded before dispatch.",
+          );
+        }
+      } else {
+        openQuestionDisposition = undefined;
       }
-      const humanAssignees = task.assigneeClerkIds.filter(
-        (assigneeId) => !ctx.db.normalizeId("agents", assigneeId),
+      const fingerprint = sha256Hex(
+        canonicalJson({
+          planId: args.planId,
+          maxTasks,
+          agentIds: requestedAgentIds,
+          openQuestionDisposition,
+        }),
       );
-      const assigneeIds = [
-        ...humanAssignees,
-        recommendation.recommendedAgentId,
-      ];
-      if (
-        assigneeIds.length !== task.assigneeClerkIds.length ||
-        assigneeIds.some(
-          (assigneeId, index) =>
-            assigneeId !== task.assigneeClerkIds[index],
+      const previous = await ctx.db
+        .query("executionWaves")
+        .withIndex("by_agent_key", (q) =>
+          q
+            .eq("createdByAgentId", agent._id)
+            .eq("idempotencyKey", idempotencyKey),
         )
-      ) {
-        await updateTaskCore(
-          ctx,
-          { taskId: task._id, assigneeIds },
-          agentActor(agent),
-          { suppressAgentPing: true },
-        );
+        .unique();
+      if (previous) {
+        if (previous.requestFingerprint !== fingerprint) {
+          throw new ConvexError(
+            "This idempotencyKey already dispatched a different wave. Use a new key for changed routing.",
+          );
+        }
+        return { ...executionWaveView(previous), replayed: true };
       }
-      const delivery = target.notifyUrl
-        ? ("notify_url" as const)
-        : ("poll_required" as const);
-      assignments.push({
-        taskId: task._id,
-        taskRef: recommendation.taskRef,
-        agentId: target._id,
-        delivery,
-        contextPacketCount: recommendation.contextPacketCount,
-        estimatedContextTokens: recommendation.estimatedContextTokens,
-        contextVersionFingerprint:
-          recommendation.contextVersionFingerprint,
-      });
-    }
-    const selectedRefs = new Set(
-      selected.map((recommendation) => recommendation.taskRef),
-    );
-    const skipped = readiness.skipped.filter(
-      (row) => !selectedRefs.has(row.taskRef),
-    );
-    for (const recommendation of readiness.recommendations.slice(maxTasks)) {
-      skipped.push({
-        taskRef: recommendation.taskRef,
-        reason: "wave_limit",
-      });
-    }
-    const dispatchedAt = Date.now();
-    const waveId = await ctx.db.insert("executionWaves", {
-      workspaceId: plan.workspaceId,
-      planId: plan._id,
-      createdByAgentId: agent._id,
-      idempotencyKey,
-      requestFingerprint: fingerprint,
-      openQuestionDisposition,
-      authorizationSource: authorization.source,
-      authorizationPolicyVersion:
-        authorization.source === "workspace_policy"
-          ? executionPolicy.version
-          : undefined,
-      assignments,
-      skipped,
-      createdAt: dispatchedAt,
-    });
-    const recommendationByTaskId = new Map(
-      selected.map((recommendation) => [
-        recommendation.taskId as string,
-        recommendation,
-      ]),
-    );
-    for (const assignment of assignments) {
-      const previousAttempts = await ctx.db
-        .query("executionAssignments")
-        .withIndex("by_task", (q) => q.eq("taskId", assignment.taskId))
-        .collect();
-      const executionAssignmentId = await ctx.db.insert(
-        "executionAssignments",
-        {
-        workspaceId: plan.workspaceId,
-        planId: plan._id,
-        waveId,
-        taskId: assignment.taskId,
-        taskRef: assignment.taskRef,
-        agentId: assignment.agentId,
-        delivery: assignment.delivery,
-        contextPacketCount: assignment.contextPacketCount,
-        estimatedContextTokens: assignment.estimatedContextTokens,
-        contextVersionFingerprint: assignment.contextVersionFingerprint,
-        status: "dispatched",
-        attempt: previousAttempts.length + 1,
-        dispatchedAt,
-        },
+
+      await reconcileExecutionPlanCore(ctx, plan, agent);
+      const readiness = await executionReadinessCore(
+        ctx,
+        plan,
+        requestedAgentIds.length > 0 ? new Set(requestedAgentIds) : undefined,
       );
-      const recommendation = recommendationByTaskId.get(
-        assignment.taskId as string,
-      );
-      if (!recommendation) {
+      const selected = readiness.recommendations.slice(0, maxTasks);
+      if (selected.length === 0) {
+        const reasons = [
+          ...new Set(readiness.skipped.map((row) => row.reason)),
+        ].join(", ");
         throw new ConvexError(
-          `Dispatch recommendation disappeared for ${assignment.taskRef}`,
+          `No tasks are dispatchable in this wave${reasons ? ` (${reasons})` : ""}`,
         );
       }
-      await enqueueAgentPingDelivery(ctx, {
-        scopeType: "workspace",
-        scopeId: plan.workspaceId,
-        workspaceId: plan.workspaceId,
-        sourceKind: "execution_assignment",
-        sourceId: executionAssignmentId,
-        executionAssignmentId,
-        agentId: assignment.agentId,
-        taskId: assignment.taskId,
-        push: assignment.delivery === "notify_url",
-        type: "task.ready",
-        payload: {
-          planId: plan._id,
-          taskId: assignment.taskId,
-          listId: recommendation.listId,
-          title: recommendation.title,
-          contextRequired: true,
+      const assignments: Doc<"executionWaves">["assignments"] = [];
+      for (const recommendation of selected) {
+        const task = await ctx.db.get(recommendation.taskId);
+        const target = await ctx.db.get(recommendation.recommendedAgentId);
+        if (!task || !target) {
+          throw new ConvexError(
+            `Dispatch artifact disappeared for ${recommendation.taskRef}; retry with a new wave key`,
+          );
+        }
+        const humanAssignees = task.assigneeClerkIds.filter(
+          (assigneeId) => !ctx.db.normalizeId("agents", assigneeId),
+        );
+        const assigneeIds = [
+          ...humanAssignees,
+          recommendation.recommendedAgentId,
+        ];
+        if (
+          assigneeIds.length !== task.assigneeClerkIds.length ||
+          assigneeIds.some(
+            (assigneeId, index) => assigneeId !== task.assigneeClerkIds[index],
+          )
+        ) {
+          await updateTaskCore(
+            ctx,
+            { taskId: task._id, assigneeIds },
+            agentActor(agent),
+            {
+              suppressAgentPing: true,
+            },
+          );
+        }
+        const delivery = target.notifyUrl
+          ? ("notify_url" as const)
+          : ("poll_required" as const);
+        assignments.push({
+          taskId: task._id,
+          taskRef: recommendation.taskRef,
+          agentId: target._id,
+          delivery,
           contextPacketCount: recommendation.contextPacketCount,
           estimatedContextTokens: recommendation.estimatedContextTokens,
-          contextVersionFingerprint:
-            recommendation.contextVersionFingerprint,
-          contextPackets: recommendation.contextPackets.map((packet) => ({
-            packetId: packet.packetId,
-            version: packet.version,
-          })),
+          contextVersionFingerprint: recommendation.contextVersionFingerprint,
+        });
+      }
+      const selectedRefs = new Set(
+        selected.map((recommendation) => recommendation.taskRef),
+      );
+      const skipped = readiness.skipped.filter(
+        (row) => !selectedRefs.has(row.taskRef),
+      );
+      for (const recommendation of readiness.recommendations.slice(maxTasks)) {
+        skipped.push({
+          taskRef: recommendation.taskRef,
+          reason: "wave_limit",
+        });
+      }
+      const dispatchedAt = Date.now();
+      const waveId = await ctx.db.insert("executionWaves", {
+        workspaceId: plan.workspaceId,
+        planId: plan._id,
+        createdByAgentId: agent._id,
+        idempotencyKey,
+        requestFingerprint: fingerprint,
+        openQuestionDisposition,
+        authorizationSource: authorization.source,
+        authorizationPolicyVersion:
+          authorization.source === "workspace_policy"
+            ? executionPolicy.version
+            : undefined,
+        assignments,
+        skipped,
+        createdAt: dispatchedAt,
+      });
+      const recommendationByTaskId = new Map(
+        selected.map((recommendation) => [
+          recommendation.taskId as string,
+          recommendation,
+        ]),
+      );
+      for (const assignment of assignments) {
+        const previousAttempts = await ctx.db
+          .query("executionAssignments")
+          .withIndex("by_task", (q) => q.eq("taskId", assignment.taskId))
+          .collect();
+        const executionAssignmentId = await ctx.db.insert(
+          "executionAssignments",
+          {
+            workspaceId: plan.workspaceId,
+            planId: plan._id,
+            waveId,
+            taskId: assignment.taskId,
+            taskRef: assignment.taskRef,
+            agentId: assignment.agentId,
+            delivery: assignment.delivery,
+            contextPacketCount: assignment.contextPacketCount,
+            estimatedContextTokens: assignment.estimatedContextTokens,
+            contextVersionFingerprint: assignment.contextVersionFingerprint,
+            status: "dispatched",
+            attempt: previousAttempts.length + 1,
+            dispatchedAt,
+          },
+        );
+        const recommendation = recommendationByTaskId.get(
+          assignment.taskId as string,
+        );
+        if (!recommendation) {
+          throw new ConvexError(
+            `Dispatch recommendation disappeared for ${assignment.taskRef}`,
+          );
+        }
+        await enqueueAgentPingDelivery(ctx, {
+          scopeType: "workspace",
+          scopeId: plan.workspaceId,
+          workspaceId: plan.workspaceId,
+          sourceKind: "execution_assignment",
+          sourceId: executionAssignmentId,
+          executionAssignmentId,
+          agentId: assignment.agentId,
+          taskId: assignment.taskId,
+          push: assignment.delivery === "notify_url",
+          type: "task.ready",
+          payload: {
+            planId: plan._id,
+            taskId: assignment.taskId,
+            listId: recommendation.listId,
+            title: recommendation.title,
+            contextRequired: true,
+            contextPacketCount: recommendation.contextPacketCount,
+            estimatedContextTokens: recommendation.estimatedContextTokens,
+            contextVersionFingerprint: recommendation.contextVersionFingerprint,
+            contextPackets: recommendation.contextPackets.map((packet) => ({
+              packetId: packet.packetId,
+              version: packet.version,
+            })),
+          },
+        });
+      }
+      await emitEvent(ctx, {
+        scopeType: "workspace",
+        scopeId: plan.workspaceId,
+        type: "plan.wave_dispatched",
+        actor: agentActor(agent),
+        entityType: "roadmap",
+        entityId: plan.roadmapId,
+        entityTitle: plan.name,
+        payload: {
+          planId: plan._id,
+          waveId,
+          assignmentCount: assignments.length,
+          pollRequiredCount: assignments.filter(
+            (assignment) => assignment.delivery === "poll_required",
+          ).length,
         },
       });
-    }
-    await emitEvent(ctx, {
-      scopeType: "workspace",
-      scopeId: plan.workspaceId,
-      type: "plan.wave_dispatched",
-      actor: agentActor(agent),
-      entityType: "roadmap",
-      entityId: plan.roadmapId,
-      entityTitle: plan.name,
-      payload: {
-        planId: plan._id,
-        waveId,
-        assignmentCount: assignments.length,
-        pollRequiredCount: assignments.filter(
-          (assignment) => assignment.delivery === "poll_required",
-        ).length,
-      },
-    });
-    const wave = (await ctx.db.get(waveId))!;
-    return { ...executionWaveView(wave), replayed: false };
+      const wave = (await ctx.db.get(waveId))!;
+      return { ...executionWaveView(wave), replayed: false };
+    },
   },
-});
+);
 
 // ── Creation gaps (Phase N) ────────────────────────────────────────────
 // Custom fields and statuses were read/use-only for agents; creation is
 // the missing half a PRD build needs ("Severity" dropdown, "QA" status).
 
-export const createCustomField = mutation({
+export const createCustomField = hostedMcpMutation("createCustomField")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -8221,7 +8295,7 @@ const STATUS_CATEGORY_COLORS: Record<string, string> = {
   closed: "#c2c2ca",
 };
 
-export const createStatus = mutation({
+export const createStatus = hostedMcpMutation("createStatus")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -8257,7 +8331,7 @@ export const createStatus = mutation({
 
 // ── Comment management (author-only) ───────────────────────────────────
 
-export const updateComment = mutation({
+export const updateComment = hostedMcpMutation("updateComment")({
   args: { apiKey: v.string(), messageId: v.id("messages"), body: v.string() },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey, "write");
@@ -8273,7 +8347,7 @@ export const updateComment = mutation({
   },
 });
 
-export const deleteComment = mutation({
+export const deleteComment = hostedMcpMutation("deleteComment")({
   args: { apiKey: v.string(), messageId: v.id("messages") },
   handler: async (ctx, { apiKey, messageId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey, "write");
@@ -8303,7 +8377,7 @@ export const deleteComment = mutation({
   },
 });
 
-export const resolveComment = mutation({
+export const resolveComment = hostedMcpMutation("resolveComment")({
   args: {
     apiKey: v.string(),
     messageId: v.id("messages"),
@@ -8330,7 +8404,7 @@ export const resolveComment = mutation({
 
 // Blueprints in my scope: reusable task definitions ops humans (or other
 // agents) have standardized.
-export const listBlueprints = query({
+export const listBlueprints = hostedMcpQuery("listBlueprints")({
   args: { apiKey: v.string() },
   handler: async (ctx, { apiKey }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -8357,7 +8431,7 @@ export const listBlueprints = query({
   },
 });
 
-export const createBlueprint = mutation({
+export const createBlueprint = hostedMcpMutation("createBlueprint")({
   args: {
     apiKey: v.string(),
     name: v.string(),
@@ -8387,7 +8461,7 @@ export const createBlueprint = mutation({
 
 // Instantiate a blueprint into a list. Runs through the shared task core,
 // so routing, automations, rollups, and events all apply.
-export const instantiateBlueprint = mutation({
+export const instantiateBlueprint = hostedMcpMutation("instantiateBlueprint")({
   args: {
     apiKey: v.string(),
     blueprintId: v.id("taskBlueprints"),
@@ -8425,7 +8499,7 @@ export const instantiateBlueprint = mutation({
  * Every revision still needing work in the agent's scope, task-level and
  * project-level, newest first. `listId` narrows to one project.
  */
-export const listOpenRevisions = query({
+export const listOpenRevisions = hostedMcpQuery("listOpenRevisions")({
   args: {
     apiKey: v.string(),
     listId: v.optional(v.id("lists")),
@@ -8505,7 +8579,7 @@ export const listOpenRevisions = query({
  * cannot accept its own revision — a person decides that, the same asymmetry
  * the approval gates use.
  */
-export const addressRevision = mutation({
+export const addressRevision = hostedMcpMutation("addressRevision")({
   args: {
     apiKey: v.string(),
     revisionId: v.id("revisions"),
@@ -8536,7 +8610,7 @@ export const addressRevision = mutation({
 });
 
 /** Ask a human (or another agent) for a change. Same object, other direction. */
-export const requestRevision = mutation({
+export const requestRevision = hostedMcpMutation("requestRevision")({
   args: {
     apiKey: v.string(),
     parentType: v.union(v.literal("task"), v.literal("list")),
@@ -8566,7 +8640,7 @@ export const requestRevision = mutation({
  * Keeps its old name — an agent's prompt shouldn't break because the product
  * consolidated — but it reads `pages` now. There is one writing primitive.
  */
-export const listProjectDocs = query({
+export const listProjectDocs = hostedMcpQuery("listProjectDocs")({
   args: { apiKey: v.string(), listId: v.id("lists") },
   handler: async (ctx, { apiKey, listId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -8606,7 +8680,7 @@ export const listProjectDocs = query({
  * Create or update a page attached to a project, optionally as its canonical
  * context — the successor to a pinned doc, on the one primitive.
  */
-export const writeProjectDoc = mutation({
+export const writeProjectDoc = hostedMcpMutation("writeProjectDoc")({
   args: {
     apiKey: v.string(),
     listId: v.id("lists"),
@@ -8662,7 +8736,7 @@ export const writeProjectDoc = mutation({
   },
 });
 
-export const getProjectUpdates = query({
+export const getProjectUpdates = hostedMcpQuery("getProjectUpdates")({
   args: {
     apiKey: v.string(),
     since: v.optional(v.number()),
@@ -8805,7 +8879,6 @@ export const getProjectUpdates = query({
   },
 });
 
-
 /**
  * The scope a page target lives in, resolved agent-side.
  *
@@ -8910,7 +8983,7 @@ async function scopeOfTarget(
  * is relevant here", pinning says "hand this to whoever works on it". Merging
  * them would make every reference mandatory reading.
  */
-export const pinPage = mutation({
+export const pinPage = hostedMcpMutation("pinPage")({
   args: {
     apiKey: v.string(),
     pageId: v.id("pages"),
@@ -8962,7 +9035,7 @@ export const pinPage = mutation({
   },
 });
 
-export const listPages = query({
+export const listPages = hostedMcpQuery("listPages")({
   args: {
     apiKey: v.string(),
     search: v.optional(v.string()),
@@ -8996,7 +9069,7 @@ export const listPages = query({
   },
 });
 
-export const readPage = query({
+export const readPage = hostedMcpQuery("readPage")({
   args: { apiKey: v.string(), pageId: v.id("pages") },
   handler: async (ctx, { apiKey, pageId }) => {
     const { agent } = await requireAgentByKey(ctx, apiKey);
@@ -9027,7 +9100,7 @@ export const readPage = query({
   },
 });
 
-export const writePage = mutation({
+export const writePage = hostedMcpMutation("writePage")({
   args: {
     apiKey: v.string(),
     // Omit to create; pass to update in place.

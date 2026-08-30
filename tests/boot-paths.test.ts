@@ -33,9 +33,12 @@ const read = (p: string) =>
  */
 function mcpInstruction(): string {
   const src = read("src/app/api/[transport]/route.ts");
-  const start = src.indexOf('"You are an agent teammate in operate.to.');
+  const doubleStart = src.indexOf('"You are an agent teammate in operate.to.');
+  const singleStart = src.indexOf("'You are an agent teammate in operate.to.");
+  const start = doubleStart >= 0 ? doubleStart : singleStart;
   expect(start).toBeGreaterThan(-1);
-  const end = src.indexOf('",\n', start);
+  const delimiter = src[start];
+  const end = src.indexOf(`${delimiter},\n`, start);
   expect(end).toBeGreaterThan(start);
   return src.slice(start, end);
 }

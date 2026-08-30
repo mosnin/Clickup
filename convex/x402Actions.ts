@@ -1,7 +1,8 @@
 "use node";
 
 import { ConvexError, v } from "convex/values";
-import { action } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import {
@@ -115,6 +116,95 @@ function decodeXPayment(xPayment: string): PaymentPayload {
   return parsed;
 }
 
+type AgentScope = {
+  scopeType: "user" | "workspace";
+  scopeId: string;
+  agentId: Id<"agents">;
+};
+
+async function settleTopupCore(
+  ctx: ActionCtx,
+  scope: AgentScope,
+  xPayment: string,
+  credits: number,
+): Promise<SettleResult> {
+  if (!Number.isInteger(credits) || credits <= 0) {
+    throw new ConvexError("credits must be a positive integer");
+  }
+  const cfg = x402Config();
+  // Fail closed: never settle (and never mint credits) unless a real
+  // facilitator is configured or the mock is explicitly opted into for dev.
+  const configurationIssue = billingConfigurationIssue(cfg);
+  if (configurationIssue) {
+    throw new ConvexError(
+      `Billing unavailable: ${configurationIssue}. Configure X402_FACILITATOR_URL and X402_PAY_TO (production), or explicitly opt into the mock with a non-zero test receiver for development only.`,
+    );
+  }
+  const requirements = buildPaymentRequired(
+    credits,
+    `x402://credits/${scope.scopeType}/${scope.scopeId}`,
+    cfg,
+  ).accepts[0];
+
+  let payment: PaymentPayload;
+  try {
+    payment = decodeXPayment(xPayment);
+  } catch {
+    throw new ConvexError("X-PAYMENT is not valid base64 JSON");
+  }
+
+  const nonce =
+    payment.payload?.authorization?.nonce ??
+    (payment.payload?.transaction as string | undefined) ??
+    "";
+  const facilitatorLabel = cfg.facilitatorUrl ?? "mock";
+  const result = cfg.facilitatorUrl
+    ? await facilitatorSettle(cfg.facilitatorUrl, payment, requirements)
+    : mockSettle(payment, requirements);
+
+  if (!result.ok) {
+    if (nonce) {
+      await ctx.runMutation(internal.x402.recordFailedPayment, {
+        scopeType: scope.scopeType,
+        scopeId: scope.scopeId,
+        agentId: scope.agentId,
+        nonce,
+        reason: result.reason ?? "settlement failed",
+        facilitator: facilitatorLabel,
+      });
+    }
+    throw new ConvexError(`Payment failed: ${result.reason ?? "unknown"}`);
+  }
+
+  const settlementNonce = nonce || result.txReference;
+  if (!settlementNonce) {
+    throw new ConvexError("Settlement produced no payment reference");
+  }
+  const applied: { balance: number; creditsGranted: number } =
+    await ctx.runMutation(internal.x402.applySettlement, {
+      scopeType: scope.scopeType,
+      scopeId: scope.scopeId,
+      agentId: scope.agentId,
+      asset: cfg.asset,
+      network: cfg.network,
+      amountAtomic: requirements.maxAmountRequired,
+      creditsGranted: credits,
+      payer: result.payer,
+      nonce: settlementNonce,
+      txReference: result.txReference,
+      facilitator: facilitatorLabel,
+    });
+
+  return {
+    settled: true,
+    balance: applied.balance,
+    creditsGranted: applied.creditsGranted,
+    txReference: result.txReference,
+    network: cfg.network,
+    asset: cfg.assetSymbol,
+  };
+}
+
 export const settleTopup = action({
   // xPayment is the base64-encoded X-PAYMENT header the agent built.
   args: {
@@ -134,89 +224,35 @@ export const settleTopup = action({
     ctx,
     { apiKey, xPayment, credits },
   ): Promise<SettleResult> => {
-    if (!Number.isInteger(credits) || credits <= 0) {
-      throw new ConvexError("credits must be a positive integer");
-    }
-    const cfg = x402Config();
-    // Fail closed: never settle (and never mint credits) unless a real
-    // facilitator is configured or the mock is explicitly opted into for dev.
-    const configurationIssue = billingConfigurationIssue(cfg);
-    if (configurationIssue) {
-      throw new ConvexError(
-        `Billing unavailable: ${configurationIssue}. Configure X402_FACILITATOR_URL and X402_PAY_TO (production), or explicitly opt into the mock with a non-zero test receiver for development only.`,
-      );
-    }
-    const scope: {
-      scopeType: "user" | "workspace";
-      scopeId: string;
-      agentId: Id<"agents">;
-    } = await ctx.runQuery(internal.x402.resolveScopeByKey, { apiKey });
-    const requirements = buildPaymentRequired(
-      credits,
-      `x402://credits/${scope.scopeType}/${scope.scopeId}`,
-      cfg,
-    ).accepts[0];
+    const scope: AgentScope = await ctx.runQuery(
+      internal.x402.resolveScopeByKey,
+      { apiKey },
+    );
+    return await settleTopupCore(ctx, scope, xPayment, credits);
+  },
+});
 
-    let payment: PaymentPayload;
-    try {
-      payment = decodeXPayment(xPayment);
-    } catch {
-      throw new ConvexError("X-PAYMENT is not valid base64 JSON");
-    }
-
-    // Determine the nonce up front so a failure can still be recorded.
-    const nonce =
-      payment.payload?.authorization?.nonce ??
-      (payment.payload?.transaction as string | undefined) ??
-      "";
-
-    const facilitatorLabel = cfg.facilitatorUrl ?? "mock";
-    const result = cfg.facilitatorUrl
-      ? await facilitatorSettle(cfg.facilitatorUrl, payment, requirements)
-      : mockSettle(payment, requirements);
-
-    if (!result.ok) {
-      if (nonce) {
-        await ctx.runMutation(internal.x402.recordFailedPayment, {
-          scopeType: scope.scopeType,
-          scopeId: scope.scopeId,
-          agentId: scope.agentId,
-          nonce,
-          reason: result.reason ?? "settlement failed",
-          facilitator: facilitatorLabel,
-        });
-      }
-      throw new ConvexError(`Payment failed: ${result.reason ?? "unknown"}`);
-    }
-
-    // A settlement must carry a stable, non-empty reference (the payment
-    // nonce, or the on-chain tx ref) — it's the replay key. Refuse if neither.
-    const settlementNonce = nonce || result.txReference;
-    if (!settlementNonce) {
-      throw new ConvexError("Settlement produced no payment reference");
-    }
-    const applied: { balance: number; creditsGranted: number } =
-      await ctx.runMutation(internal.x402.applySettlement, {
-        scopeType: scope.scopeType,
-        scopeId: scope.scopeId,
-        agentId: scope.agentId,
-        asset: cfg.asset,
-        network: cfg.network,
-        amountAtomic: requirements.maxAmountRequired,
-        creditsGranted: credits,
-        payer: result.payer,
-        nonce: settlementNonce,
-        txReference: result.txReference,
-        facilitator: facilitatorLabel,
-      });
-
-    return {
-      settled: true,
-      balance: applied.balance,
-      creditsGranted: applied.creditsGranted,
-      txReference: result.txReference,
-      network: cfg.network,
-      asset: cfg.assetSymbol,
-    };
+export const _hostedMcpSettleTopup = internalAction({
+  args: {
+    apiKeyHash: v.string(),
+    xPayment: v.string(),
+    credits: v.number(),
+  },
+  returns: v.object({
+    settled: v.boolean(),
+    balance: v.number(),
+    creditsGranted: v.number(),
+    txReference: v.optional(v.string()),
+    network: v.string(),
+    asset: v.string(),
+  }),
+  handler: async (ctx, { apiKeyHash, xPayment, credits }) => {
+    const scope: AgentScope = await ctx.runQuery(
+      internal.x402.resolveScopeByKeyHash,
+      {
+        apiKeyHash,
+      },
+    );
+    return await settleTopupCore(ctx, scope, xPayment, credits);
   },
 });

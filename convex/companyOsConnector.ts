@@ -1,9 +1,6 @@
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
-import {
-  internalMutation,
-  internalQuery,
-} from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { sha256Hex } from "./_agentAuth";
@@ -58,17 +55,21 @@ const installationValidator = v.object({
   disconnectedAt: v.optional(v.number()),
 });
 
-function installationResult(row: Doc<"companyOsInstallations"> | {
-  externalInstallationId: string;
-  workspaceId: Id<"workspaces">;
-  oauthSubject: string;
-  oauthClientId: string;
-  scopes: string[];
-  status: "active" | "disconnected";
-  installedAt: number;
-  updatedAt: number;
-  disconnectedAt?: number;
-}) {
+function installationResult(
+  row:
+    | Doc<"companyOsInstallations">
+    | {
+        externalInstallationId: string;
+        workspaceId: Id<"workspaces">;
+        oauthSubject: string;
+        oauthClientId: string;
+        scopes: string[];
+        status: "active" | "disconnected";
+        installedAt: number;
+        updatedAt: number;
+        disconnectedAt?: number;
+      },
+) {
   return {
     externalInstallationId: row.externalInstallationId,
     workspaceId: row.workspaceId,
@@ -85,9 +86,7 @@ function installationResult(row: Doc<"companyOsInstallations"> | {
 }
 
 type ConnectorCtx = QueryCtx | MutationCtx;
-type ConnectorScope =
-  | "companyos:account:read"
-  | "companyos:data:read";
+type ConnectorScope = "companyos:account:read" | "companyos:data:read";
 
 function requireCompanyOsResource(value: string) {
   return requireOAuthResource(value, "companyos").resource;
@@ -251,7 +250,9 @@ async function requireReadableList(
   } else {
     const folder = await ctx.db.get(list.parentId as Id<"folders">);
     if (!folder) {
-      throw new ConvexError("Parent object is outside the authorized workspace");
+      throw new ConvexError(
+        "Parent object is outside the authorized workspace",
+      );
     }
     await requireReadableSpace(ctx, folder.spaceId, workspace, subject);
   }
@@ -274,9 +275,7 @@ function snapshotObject(
   return {
     objectType,
     externalId: `operate:${objectType}:${id}`,
-    version: sha256Hex(
-      JSON.stringify({ objectType, id, sourcePath, data }),
-    ),
+    version: sha256Hex(JSON.stringify({ objectType, id, sourcePath, data })),
     sourcePath,
     data,
   };
@@ -306,9 +305,7 @@ async function stampSnapshotResult(
     const existing = await ctx.db
       .query("companyOsObjectVersions")
       .withIndex("by_workspace_and_external_id", (q) =>
-        q
-          .eq("workspaceId", workspaceId)
-          .eq("externalId", object.externalId),
+        q.eq("workspaceId", workspaceId).eq("externalId", object.externalId),
       )
       .unique();
     let updatedAt: number;
@@ -317,7 +314,10 @@ async function stampSnapshotResult(
     } else {
       updatedAt = Math.max(observedAt, (existing?.updatedAt ?? 0) + 1);
       if (existing) {
-        await ctx.db.patch(existing._id, { version: object.version, updatedAt });
+        await ctx.db.patch(existing._id, {
+          version: object.version,
+          updatedAt,
+        });
       } else {
         await ctx.db.insert("companyOsObjectVersions", {
           workspaceId,
@@ -454,9 +454,7 @@ export const snapshot = internalMutation({
       const page = await ctx.db
         .query("spaces")
         .withIndex("by_parent", (q) =>
-          q
-            .eq("parentType", "workspace")
-            .eq("parentId", auth.workspace._id),
+          q.eq("parentType", "workspace").eq("parentId", auth.workspace._id),
         )
         .paginate(args.paginationOpts);
       return await finish({
@@ -465,19 +463,14 @@ export const snapshot = internalMutation({
         page: page.page
           .filter((space) => mayReadSpace(space, auth.workspace, subject))
           .map((space) =>
-            snapshotObject(
-              "space",
-              space._id,
-              `/dashboard/s/${space._id}`,
-              {
-                name: space.name,
-                description: space.description ?? null,
-                color: space.color ?? null,
-                private: space.private ?? false,
-                archived_at: space.archivedAt ?? null,
-                created_at: space.createdAt,
-              },
-            ),
+            snapshotObject("space", space._id, `/dashboard/s/${space._id}`, {
+              name: space.name,
+              description: space.description ?? null,
+              color: space.color ?? null,
+              private: space.private ?? false,
+              archived_at: space.archivedAt ?? null,
+              created_at: space.createdAt,
+            }),
           ),
       });
     }
@@ -560,7 +553,12 @@ export const snapshot = internalMutation({
             "Parent object is outside the authorized workspace",
           );
         }
-        await requireReadableSpace(ctx, folder.spaceId, auth.workspace, subject);
+        await requireReadableSpace(
+          ctx,
+          folder.spaceId,
+          auth.workspace,
+          subject,
+        );
       }
       const page = await ctx.db
         .query("lists")
@@ -572,23 +570,18 @@ export const snapshot = internalMutation({
         isDone: page.isDone,
         continueCursor: page.continueCursor,
         page: page.page.map((list) =>
-          snapshotObject(
-            "list",
-            list._id,
-            `/dashboard/l/${list._id}`,
-            {
-              parent_external_id:
-                list.parentType === "folder"
-                  ? `operate:project:${list.parentId}`
-                  : `operate:${list.parentType}:${list.parentId}`,
-              name: list.name,
-              description: list.description ?? null,
-              project_status: list.projectStatus ?? null,
-              notes: list.notes ?? null,
-              target_date: list.targetDate ?? null,
-              created_at: list.createdAt,
-            },
-          ),
+          snapshotObject("list", list._id, `/dashboard/l/${list._id}`, {
+            parent_external_id:
+              list.parentType === "folder"
+                ? `operate:project:${list.parentId}`
+                : `operate:${list.parentType}:${list.parentId}`,
+            name: list.name,
+            description: list.description ?? null,
+            project_status: list.projectStatus ?? null,
+            notes: list.notes ?? null,
+            target_date: list.targetDate ?? null,
+            created_at: list.createdAt,
+          }),
         ),
       });
     }
@@ -635,32 +628,25 @@ export const snapshot = internalMutation({
       const page = await ctx.db
         .query("agents")
         .withIndex("by_parent", (q) =>
-          q
-            .eq("parentType", "workspace")
-            .eq("parentId", auth.workspace._id),
+          q.eq("parentType", "workspace").eq("parentId", auth.workspace._id),
         )
         .paginate(args.paginationOpts);
       return await finish({
         isDone: page.isDone,
         continueCursor: page.continueCursor,
         page: page.page.map((agent) =>
-          snapshotObject(
-            "agent",
-            agent._id,
-            `/dashboard/agents/${agent._id}`,
-            {
-              name: agent.name,
-              description: agent.description ?? null,
-              status: agent.status,
-              role: agent.role ?? "member",
-              capabilities: agent.capabilities ?? [],
-              current_task_external_id: agent.currentTaskId
-                ? `operate:task:${agent.currentTaskId}`
-                : null,
-              last_seen_at: agent.lastSeenAt ?? null,
-              created_at: agent.createdAt,
-            },
-          ),
+          snapshotObject("agent", agent._id, `/dashboard/agents/${agent._id}`, {
+            name: agent.name,
+            description: agent.description ?? null,
+            status: agent.status,
+            role: agent.role ?? "member",
+            capabilities: agent.capabilities ?? [],
+            current_task_external_id: agent.currentTaskId
+              ? `operate:task:${agent.currentTaskId}`
+              : null,
+            last_seen_at: agent.lastSeenAt ?? null,
+            created_at: agent.createdAt,
+          }),
         ),
       });
     }
@@ -672,7 +658,9 @@ export const snapshot = internalMutation({
       agent.parentType !== "workspace" ||
       agent.parentId !== auth.workspace._id
     ) {
-      throw new ConvexError("Parent object is outside the authorized workspace");
+      throw new ConvexError(
+        "Parent object is outside the authorized workspace",
+      );
     }
     const page = await ctx.db
       .query("agentRuns")
@@ -682,24 +670,19 @@ export const snapshot = internalMutation({
       isDone: page.isDone,
       continueCursor: page.continueCursor,
       page: page.page.map((run) =>
-        snapshotObject(
-          "run",
-          run._id,
-          `/dashboard/agents/${agent._id}`,
-          {
-            agent_external_id: `operate:agent:${run.agentId}`,
-            task_external_id: run.taskId ? `operate:task:${run.taskId}` : null,
-            title: run.title,
-            status: run.status,
-            summary: run.summary ?? null,
-            error: run.error ?? null,
-            links: run.links ?? [],
-            tokens_used: run.tokensUsed ?? null,
-            cost_usd: run.costUsd ?? null,
-            started_at: run.startedAt,
-            finished_at: run.finishedAt ?? null,
-          },
-        ),
+        snapshotObject("run", run._id, `/dashboard/agents/${agent._id}`, {
+          agent_external_id: `operate:agent:${run.agentId}`,
+          task_external_id: run.taskId ? `operate:task:${run.taskId}` : null,
+          title: run.title,
+          status: run.status,
+          summary: run.summary ?? null,
+          error: run.error ?? null,
+          links: run.links ?? [],
+          tokens_used: run.tokensUsed ?? null,
+          cost_usd: run.costUsd ?? null,
+          started_at: run.startedAt,
+          finished_at: run.finishedAt ?? null,
+        }),
       ),
     });
   },
@@ -774,8 +757,7 @@ export const upsertInstallation = internalMutation({
     if (
       workspaceBindings.length > 1 ||
       workspaceBindings.some(
-        (binding) =>
-          binding.externalInstallationId !== externalInstallationId,
+        (binding) => binding.externalInstallationId !== externalInstallationId,
       )
     ) {
       throw new ConvexError(
@@ -851,10 +833,43 @@ export const disconnectInstallation = internalMutation({
   args: {
     accessTokenHash: v.string(),
     resource: v.string(),
-    externalInstallationId: v.optional(v.string()),
+    externalInstallationId: v.string(),
   },
   returns: v.object({ disconnected: v.boolean(), tokenRevoked: v.boolean() }),
   handler: async (ctx, args) => {
+    const requestedInstallationId = args.externalInstallationId.trim();
+    if (!/^[A-Za-z0-9._:-]{1,160}$/.test(requestedInstallationId)) {
+      throw new ConvexError("external_installation_id has an invalid format");
+    }
+
+    // A response can disappear after the disconnect commits. The now-revoked
+    // bearer may retry only the exact cleanup receipt it created; it cannot be
+    // used for reads, a different installation id, or a newer binding.
+    const priorToken = await ctx.db
+      .query("oauthAccessTokens")
+      .withIndex("by_token_hash", (q) =>
+        q.eq("tokenHash", args.accessTokenHash),
+      )
+      .unique();
+    const priorBinding = await ctx.db
+      .query("companyOsInstallations")
+      .withIndex("by_external_installation_id", (q) =>
+        q.eq("externalInstallationId", requestedInstallationId),
+      )
+      .unique();
+    if (
+      priorToken &&
+      priorBinding?.status === "disconnected" &&
+      priorToken.resource === requireCompanyOsResource(args.resource) &&
+      priorToken.scopes.includes("companyos:account:read") &&
+      priorToken.workspaceId === priorBinding.workspaceId &&
+      priorToken.clientId === priorBinding.oauthClientId &&
+      priorToken.userClerkId === priorBinding.oauthSubject &&
+      priorToken.grantId === priorBinding.oauthGrantId
+    ) {
+      return { disconnected: true, tokenRevoked: true };
+    }
+
     const auth = await requireConnectorToken(
       ctx,
       args.accessTokenHash,
@@ -870,10 +885,7 @@ export const disconnectInstallation = internalMutation({
           .eq("status", "active"),
       )
       .first();
-    if (
-      args.externalInstallationId &&
-      active?.externalInstallationId !== args.externalInstallationId
-    ) {
+    if (active && active.externalInstallationId !== requestedInstallationId) {
       throw new ConvexError("Active installation was not found");
     }
     const now = Date.now();
@@ -891,13 +903,60 @@ export const disconnectInstallation = internalMutation({
         oauthRevokedBefore: now,
         updatedAt: now,
       });
+    } else {
+      const workspaceBindings = await ctx.db
+        .query("companyOsInstallations")
+        .withIndex("by_workspace_and_client", (q) =>
+          q
+            .eq("workspaceId", auth.workspace._id)
+            .eq("oauthClientId", auth.token.clientId),
+        )
+        .take(2);
+      if (
+        workspaceBindings.length > 1 ||
+        workspaceBindings.some(
+          (binding) =>
+            binding.externalInstallationId !== requestedInstallationId,
+        )
+      ) {
+        throw new ConvexError("Active installation was not found");
+      }
+      const existing = await ctx.db
+        .query("companyOsInstallations")
+        .withIndex("by_external_installation_id", (q) =>
+          q.eq("externalInstallationId", requestedInstallationId),
+        )
+        .unique();
+      if (
+        existing &&
+        (existing.workspaceId !== auth.workspace._id ||
+          existing.oauthClientId !== auth.token.clientId)
+      ) {
+        throw new ConvexError("Active installation was not found");
+      }
+      const cleanupReceipt = {
+        externalInstallationId: requestedInstallationId,
+        workspaceId: auth.workspace._id,
+        oauthSubject: auth.token.userClerkId,
+        oauthClientId: auth.token.clientId,
+        oauthGrantId: auth.token.grantId!,
+        scopes: auth.token.scopes,
+        status: "disconnected" as const,
+        installedAt: existing?.installedAt ?? now,
+        updatedAt: now,
+        disconnectedAt: now,
+        oauthRevokedBefore: now,
+      };
+      if (existing) {
+        await ctx.db.replace(existing._id, cleanupReceipt);
+      } else {
+        await ctx.db.insert("companyOsInstallations", cleanupReceipt);
+      }
     }
     if (auth.token.grantId) {
       const grant = await ctx.db
         .query("oauthTokenGrants")
-        .withIndex("by_grant_id", (q) =>
-          q.eq("grantId", auth.token.grantId!),
-        )
+        .withIndex("by_grant_id", (q) => q.eq("grantId", auth.token.grantId!))
         .unique();
       if (grant && grant.revokedAt === undefined) {
         await ctx.db.patch(grant._id, {
@@ -908,6 +967,9 @@ export const disconnectInstallation = internalMutation({
       }
     }
     await ctx.db.patch(auth.token._id, { revokedAt: now });
-    return { disconnected: active !== null, tokenRevoked: true };
+    return {
+      disconnected: true,
+      tokenRevoked: true,
+    };
   },
 });
