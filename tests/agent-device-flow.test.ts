@@ -46,15 +46,66 @@ async function setup() {
   return { t, workspaceId };
 }
 
+type DeviceTest = Awaited<ReturnType<typeof setup>>["t"];
+
+async function deviceBackend<T>(
+  t: DeviceTest,
+  operation: "create" | "claim",
+  deviceCode: string,
+  input: Record<string, unknown>,
+) {
+  const response = await t.fetch("/oauth/internal/device", {
+    method: "POST",
+    headers: {
+      ...(operation === "claim"
+        ? { Authorization: `Device ${deviceCode}` }
+        : {}),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      operation,
+      ...(operation === "create"
+        ? { deviceCodeHash: sha256Hex(deviceCode) }
+        : {}),
+      ...input,
+    }),
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error((result as { error_description?: string }).error_description);
+  }
+  return result as T;
+}
+
+function claimRequest(
+  t: DeviceTest,
+  deviceCode: string,
+  input: Record<string, unknown> = {},
+) {
+  return deviceBackend<{
+    state: string;
+    slowDown?: boolean;
+    interval?: number;
+    agentId?: string;
+    agentName?: string;
+    scopeName?: string;
+  }>(t, "claim", deviceCode, input);
+}
+
 async function startRequest(
-  t: Awaited<ReturnType<typeof setup>>["t"],
+  t: DeviceTest,
   overrides: Partial<{ deviceCode: string; userCode: string }> = {},
 ) {
-  return await t.mutation(api.agentAuth.createDeviceRequest, {
-    deviceCode: overrides.deviceCode ?? DEVICE_CODE,
+  const deviceCode = overrides.deviceCode ?? DEVICE_CODE;
+  return await deviceBackend<{ expiresIn: number; interval: number }>(
+    t,
+    "create",
+    deviceCode,
+    {
     userCode: overrides.userCode ?? USER_CODE,
     clientName: "claude-code",
-  });
+    },
+  );
 }
 
 describe("user codes", () => {
@@ -75,15 +126,36 @@ describe("user codes", () => {
 });
 
 describe("device authorization", () => {
+  it("accepts a device credential only from Authorization", async () => {
+    const { t } = await setup();
+    await startRequest(t);
+    const response = await t.fetch("/oauth/internal/device", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        operation: "claim",
+        deviceCode: DEVICE_CODE,
+        deviceCodeHash: sha256Hex(DEVICE_CODE),
+      }),
+    });
+    expect(response.status).toBe(401);
+    expect(
+      await t.run(async (ctx) => ctx.db.query("agentKeys").collect()),
+    ).toHaveLength(0);
+  });
+
   it("issues a key only after a human approves, and only once", async () => {
     const { t, workspaceId } = await setup();
     await startRequest(t);
 
+    const storedRequest = await t.run(async (ctx) =>
+      ctx.db.query("agentAuthRequests").first(),
+    );
+    expect(storedRequest?.deviceCodeHash).toBe(sha256Hex(DEVICE_CODE));
+    expect(JSON.stringify(storedRequest)).not.toContain(DEVICE_CODE);
+
     // Before approval the poller is told to wait, and gets no key.
-    const pending = await t.mutation(api.agentAuth.claimDeviceRequest, {
-      deviceCode: DEVICE_CODE,
-      ...KEY_MATERIAL,
-    });
+    const pending = await claimRequest(t, DEVICE_CODE, KEY_MATERIAL);
     expect(pending.state).toBe("pending");
     expect(pending.agentId).toBeUndefined();
     expect(await t.run(async (ctx) => ctx.db.query("agentKeys").collect()))
@@ -100,10 +172,7 @@ describe("device authorization", () => {
     });
     expect(approved.agentCreated).toBe(true);
 
-    const claimed = await t.mutation(api.agentAuth.claimDeviceRequest, {
-      deviceCode: DEVICE_CODE,
-      ...KEY_MATERIAL,
-    });
+    const claimed = await claimRequest(t, DEVICE_CODE, KEY_MATERIAL);
     expect(claimed.state).toBe("approved");
     expect(claimed.agentName).toBe("Scout");
     expect(claimed.scopeName).toBe("Device Flow");
@@ -115,10 +184,7 @@ describe("device authorization", () => {
     expect(JSON.stringify(keys[0])).not.toContain(KEY);
 
     // Replaying the device code is invalid_grant, not a second key.
-    const replay = await t.mutation(api.agentAuth.claimDeviceRequest, {
-      deviceCode: DEVICE_CODE,
-      ...KEY_MATERIAL,
-    });
+    const replay = await claimRequest(t, DEVICE_CODE, KEY_MATERIAL);
     expect(replay.state).toBe("claimed");
     expect(
       await t.run(async (ctx) => ctx.db.query("agentKeys").collect()),
@@ -235,10 +301,7 @@ describe("device authorization", () => {
       await ctx.db.patch(row!._id, { expiresAt: Date.now() - 1 });
     });
 
-    const claimed = await t.mutation(api.agentAuth.claimDeviceRequest, {
-      deviceCode: DEVICE_CODE,
-      ...KEY_MATERIAL,
-    });
+    const claimed = await claimRequest(t, DEVICE_CODE, KEY_MATERIAL);
     expect(claimed.state).toBe("expired");
     // Returned rather than thrown: this path counts against the caller's
     // guess budget, and a throw would roll that increment back.
@@ -260,10 +323,7 @@ describe("device authorization", () => {
   it("answers an unknown device code the same way as an expired one", async () => {
     const { t } = await setup();
     // Distinguishing the two would let somebody probe for live codes.
-    const unknown = await t.mutation(api.agentAuth.claimDeviceRequest, {
-      deviceCode: "opd_never_issued",
-      ...KEY_MATERIAL,
-    });
+    const unknown = await claimRequest(t, "opd_never_issued", KEY_MATERIAL);
     expect(unknown.state).toBe("not_found");
   });
 
@@ -273,10 +333,7 @@ describe("device authorization", () => {
     await t.withIdentity(OWNER).mutation(api.agentAuth.denyDeviceRequest, {
       userCode: USER_CODE,
     });
-    const claimed = await t.mutation(api.agentAuth.claimDeviceRequest, {
-      deviceCode: DEVICE_CODE,
-      ...KEY_MATERIAL,
-    });
+    const claimed = await claimRequest(t, DEVICE_CODE, KEY_MATERIAL);
     expect(claimed.state).toBe("denied");
     expect(
       await t.run(async (ctx) => ctx.db.query("agentKeys").collect()),
@@ -287,10 +344,8 @@ describe("device authorization", () => {
     const { t } = await setup();
     const { interval } = await startRequest(t);
     // First poll establishes the clock; the immediate second one is early.
-    await t.mutation(api.agentAuth.claimDeviceRequest, { deviceCode: DEVICE_CODE });
-    const hasty = await t.mutation(api.agentAuth.claimDeviceRequest, {
-      deviceCode: DEVICE_CODE,
-    });
+    await claimRequest(t, DEVICE_CODE);
+    const hasty = await claimRequest(t, DEVICE_CODE);
     expect(hasty.slowDown).toBe(true);
     // slow_down is not advice: the interval it must now respect has grown.
     expect(hasty.interval).toBeGreaterThan(interval);
@@ -325,10 +380,7 @@ describe("device authorization", () => {
       ctx.db.patch(outcome.agentId, { status: "paused" }),
     );
 
-    const claimed = await t.mutation(api.agentAuth.claimDeviceRequest, {
-      deviceCode: DEVICE_CODE,
-      ...KEY_MATERIAL,
-    });
+    const claimed = await claimRequest(t, DEVICE_CODE, KEY_MATERIAL);
     expect(claimed.state).toBe("denied");
     expect(
       await t.run(async (ctx) => ctx.db.query("agentKeys").collect()),

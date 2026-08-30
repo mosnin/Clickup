@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { RequireBackend } from "@/components/require-backend";
-import { validateMcpResource } from "@/lib/oauth-resource";
+import { validateOAuthResource } from "@/lib/oauth-resource";
 import { oauthIssuer } from "@/lib/oauth-server";
 import { OAuthAuthorize } from "./oauth-authorize";
 
@@ -28,7 +28,7 @@ export default async function OAuthAuthorizePage({
   try {
     const candidate =
       typeof params.resource === "string" ? params.resource : undefined;
-    resource = validateMcpResource(candidate, oauthIssuer());
+    resource = validateOAuthResource(candidate, oauthIssuer());
   } catch {
     // The client component renders the same non-leaky invalid-request state
     // used for malformed redirect and PKCE parameters.

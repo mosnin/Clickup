@@ -1,12 +1,47 @@
-import { randomInt } from "node:crypto";
-import { api } from "@convex/_generated/api";
+import { createHash, randomInt } from "node:crypto";
 import {
-  oauthConvexClient,
+  convexHttpActionOrigin,
   oauthError,
   oauthIssuer,
   oauthJson,
   randomCredential,
 } from "@/lib/oauth-server";
+
+async function createDeviceRequest(
+  input: Record<string, unknown>,
+  proxySecret: string | undefined,
+) {
+  const headers = new Headers({ "Content-Type": "application/json" });
+  if (proxySecret) headers.set("Authorization", `Bearer ${proxySecret}`);
+  const response = await fetch(
+    `${convexHttpActionOrigin()}/oauth/internal/device`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ operation: "create", ...input }),
+      cache: "no-store",
+    },
+  );
+  const value = (await response.json().catch(() => null)) as {
+    expiresIn?: unknown;
+    interval?: unknown;
+    error_description?: unknown;
+  } | null;
+  if (!response.ok) {
+    throw new Error(
+      typeof value?.error_description === "string"
+        ? value.error_description
+        : "Could not start device authorization",
+    );
+  }
+  if (
+    typeof value?.expiresIn !== "number" ||
+    typeof value.interval !== "number"
+  ) {
+    throw new Error("Device authorization returned an invalid response");
+  }
+  return { expiresIn: value.expiresIn, interval: value.interval };
+}
 
 // RFC 8628 §3.1 — the device authorization endpoint.
 //
@@ -71,9 +106,14 @@ export async function POST(request: Request) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const code = userCode();
     try {
-      const result = await oauthConvexClient().mutation(
-        api.agentAuth.createDeviceRequest,
-        { deviceCode, userCode: code, clientName, clientIp, proxySecret },
+      const result = await createDeviceRequest(
+        {
+          deviceCodeHash: createHash("sha256").update(deviceCode).digest("hex"),
+          userCode: code,
+          clientName,
+          clientIp,
+        },
+        proxySecret,
       );
       return oauthJson({
         device_code: deviceCode,

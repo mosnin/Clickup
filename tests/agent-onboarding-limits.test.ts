@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../convex/schema";
 import { api } from "../convex/_generated/api";
+import { sha256Hex } from "../convex/_agentAuth";
 import { CODE_LOOKUP_RULE, DEVICE_REQUEST_RULE } from "../convex/_rateLimit";
 
 const modules = import.meta.glob("../convex/**/*.*s");
@@ -39,6 +40,50 @@ async function setup() {
   return { t, workspaceId };
 }
 
+type DeviceTest = Awaited<ReturnType<typeof setup>>["t"];
+
+async function deviceRequest<T>(
+  t: DeviceTest,
+  operation: "create" | "claim",
+  deviceCode: string,
+  input: Record<string, unknown>,
+) {
+  const response = await t.fetch("/oauth/internal/device", {
+    method: "POST",
+    headers: {
+      ...(operation === "claim"
+        ? { Authorization: `Device ${deviceCode}` }
+        : {}),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      operation,
+      ...(operation === "create"
+        ? { deviceCodeHash: sha256Hex(deviceCode) }
+        : {}),
+      ...input,
+    }),
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error((result as { error_description?: string }).error_description);
+  }
+  return result as T;
+}
+
+function createRequest(
+  t: DeviceTest,
+  deviceCode: string,
+  input: { userCode: string; clientName: string; clientIp?: string },
+) {
+  return deviceRequest<{ expiresIn: number; interval: number }>(
+    t,
+    "create",
+    deviceCode,
+    input,
+  );
+}
+
 function code(index: number) {
   // Deterministic, well-formed, and distinct — enough distinct codes to walk
   // past any of the limits under test.
@@ -53,19 +98,88 @@ function code(index: number) {
 }
 
 describe("device request flooding", () => {
+  it("keeps the proxy secret in Authorization and trusts IPs only after verification", async () => {
+    const previous = process.env.DEVICE_PROXY_SECRET;
+    const proxySecret = "device_proxy_test_secret";
+    process.env.DEVICE_PROXY_SECRET = proxySecret;
+    try {
+      const { t } = await setup();
+      const send = async (
+        deviceCode: string,
+        userCode: string,
+        clientIp: string,
+        authorization?: string,
+      ) =>
+        await t.fetch("/oauth/internal/device", {
+          method: "POST",
+          headers: {
+            ...(authorization ? { Authorization: authorization } : {}),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            operation: "create",
+            deviceCodeHash: sha256Hex(deviceCode),
+            userCode,
+            clientName: "boundary-test",
+            clientIp,
+          }),
+        });
+
+      expect(
+        (await send(
+          "opd_proxy_verified",
+          code(700),
+          "203.0.113.70",
+          `Bearer ${proxySecret}`,
+        )).status,
+      ).toBe(200);
+      expect(
+        (await send(
+          "opd_proxy_wrong",
+          code(701),
+          "198.51.100.71",
+          "Bearer wrong-secret",
+        )).status,
+      ).toBe(200);
+      expect(
+        (await send(
+          "opd_proxy_missing",
+          code(702),
+          "198.51.100.72",
+        )).status,
+      ).toBe(200);
+
+      const [limits, requests] = await t.run(async (ctx) =>
+        Promise.all([
+          ctx.db.query("rateLimits").collect(),
+          ctx.db.query("agentAuthRequests").collect(),
+        ]),
+      );
+      expect(limits).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ key: "device_create:203.0.113.70", count: 1 }),
+          expect.objectContaining({ key: "device_create:unverified", count: 2 }),
+        ]),
+      );
+      expect(JSON.stringify(requests)).not.toContain(proxySecret);
+      expect(JSON.stringify(requests)).not.toContain("opd_proxy_verified");
+    } finally {
+      if (previous === undefined) delete process.env.DEVICE_PROXY_SECRET;
+      else process.env.DEVICE_PROXY_SECRET = previous;
+    }
+  });
+
   it("stops one host minting requests forever", async () => {
     const { t } = await setup();
     for (let i = 0; i < DEVICE_REQUEST_RULE.limit; i += 1) {
-      await t.mutation(api.agentAuth.createDeviceRequest, {
-        deviceCode: `opd_flood_${i}`,
+      await createRequest(t, `opd_flood_${i}`, {
         userCode: code(i),
         clientName: "flood",
         clientIp: "203.0.113.9",
       });
     }
     await expect(
-      t.mutation(api.agentAuth.createDeviceRequest, {
-        deviceCode: "opd_flood_over",
+      createRequest(t, "opd_flood_over", {
         userCode: code(999),
         clientName: "flood",
         clientIp: "203.0.113.9",
@@ -76,8 +190,7 @@ describe("device request flooding", () => {
   it("buckets per address, so one flooder cannot lock everybody out", async () => {
     const { t } = await setup();
     for (let i = 0; i < DEVICE_REQUEST_RULE.limit; i += 1) {
-      await t.mutation(api.agentAuth.createDeviceRequest, {
-        deviceCode: `opd_a_${i}`,
+      await createRequest(t, `opd_a_${i}`, {
         userCode: code(i),
         clientName: "flood",
         clientIp: "203.0.113.9",
@@ -86,8 +199,7 @@ describe("device request flooding", () => {
     // A different address is a different budget — otherwise the limit is a
     // denial-of-service tool rather than a defence against one.
     await expect(
-      t.mutation(api.agentAuth.createDeviceRequest, {
-        deviceCode: "opd_b_1",
+      createRequest(t, "opd_b_1", {
         userCode: code(500),
         clientName: "innocent",
         clientIp: "198.51.100.4",
@@ -159,8 +271,7 @@ describe("user-code enumeration", () => {
     // onboarding, which is the wrong half of the population to limit.
     for (let i = 0; i < CODE_LOOKUP_RULE.limit + 5; i += 1) {
       const userCode = code(i + 300);
-      await t.mutation(api.agentAuth.createDeviceRequest, {
-        deviceCode: `opd_ok_${i}`,
+      await createRequest(t, `opd_ok_${i}`, {
         userCode,
         clientName: "claude-code",
         clientIp: `198.51.100.${i % 200}`,
@@ -194,8 +305,7 @@ describe("credential grants are audited", () => {
   it("logs the authorization and the key, with the blast radius attached", async () => {
     const { t, workspaceId } = await setup();
     const userCode = code(4242);
-    await t.mutation(api.agentAuth.createDeviceRequest, {
-      deviceCode: "opd_audit",
+    await createRequest(t, "opd_audit", {
       userCode,
       clientName: "claude-code",
       clientIp: "203.0.113.1",
@@ -208,8 +318,7 @@ describe("credential grants are audited", () => {
       role: "readonly",
       dailyActionLimit: 200,
     });
-    await t.mutation(api.agentAuth.claimDeviceRequest, {
-      deviceCode: "opd_audit",
+    await deviceRequest(t, "claim", "opd_audit", {
       keyHash: "f".repeat(64),
       keyPrefix: "cua_audit12",
     });

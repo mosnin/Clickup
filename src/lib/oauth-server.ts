@@ -1,6 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { ConvexHttpClient } from "convex/browser";
-import { canonicalMcpResource } from "./oauth-resource";
+import {
+  canonicalCompanyOsResource,
+  canonicalMcpResource,
+} from "./oauth-resource";
 
 // RFC 8628 §3.4. Lives here rather than beside the handler that reads it,
 // because a Next route file may only export HTTP handlers and the documented
@@ -46,22 +49,61 @@ export function deviceErrorCode(
   }
 }
 
-export function oauthIssuer() {
-  return (
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ??
-    "https://operate.to"
-  );
+export function normalizeOAuthIssuer(raw?: string) {
+  const value = raw?.trim() || "https://www.operate.to";
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("NEXT_PUBLIC_APP_URL must be an absolute application origin");
+  }
+  const isLocal =
+    url.protocol === "http:" &&
+    (url.hostname === "localhost" || url.hostname === "127.0.0.1");
+  if (
+    (url.protocol !== "https:" && !isLocal) ||
+    url.username !== "" ||
+    url.password !== "" ||
+    (url.pathname !== "" && url.pathname !== "/") ||
+    url.search !== "" ||
+    url.hash !== ""
+  ) {
+    throw new Error("NEXT_PUBLIC_APP_URL must be an HTTPS application origin");
+  }
+  const host = url.hostname.toLowerCase();
+  if (host === "operate.to" || host === "www.operate.to") {
+    return "https://www.operate.to";
+  }
+  return url.origin;
 }
 
-export const OAUTH_SCOPES = [
+export function oauthIssuer() {
+  return normalizeOAuthIssuer(process.env.NEXT_PUBLIC_APP_URL);
+}
+
+export const MCP_OAUTH_SCOPES = [
   "openid",
   "email",
   "operate:read",
   "operate:write",
 ] as const;
 
+export const COMPANY_OS_OAUTH_SCOPES = [
+  "companyos:account:read",
+  "companyos:data:read",
+] as const;
+
+export const OAUTH_SCOPES = [
+  ...MCP_OAUTH_SCOPES,
+  ...COMPANY_OS_OAUTH_SCOPES,
+] as const;
+
 export function oauthResource() {
   return canonicalMcpResource(oauthIssuer());
+}
+
+export function companyOsOAuthResource() {
+  return canonicalCompanyOsResource(oauthIssuer());
 }
 
 export function oauthDiscoveryMetadata() {
@@ -94,6 +136,22 @@ export function oauthConvexClient() {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not configured");
   return new ConvexHttpClient(url);
+}
+
+export function convexHttpActionOrigin() {
+  const configured = process.env.CONVEX_SITE_URL?.trim();
+  if (configured) return new URL(configured).origin;
+  const cloud = process.env.NEXT_PUBLIC_CONVEX_URL?.trim();
+  if (!cloud) throw new Error("NEXT_PUBLIC_CONVEX_URL is not configured");
+  const url = new URL(cloud);
+  if (!url.hostname.endsWith(".convex.cloud")) {
+    throw new Error("CONVEX_SITE_URL is required for this Convex deployment");
+  }
+  url.hostname = url.hostname.replace(/\.convex\.cloud$/, ".convex.site");
+  url.pathname = "/";
+  url.search = "";
+  url.hash = "";
+  return url.origin;
 }
 
 export function randomCredential(prefix: string) {

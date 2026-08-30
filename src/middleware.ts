@@ -18,9 +18,14 @@ const isProtectedRoute = createRouteMatcher([
 // systems interpret one token: Clerk found a non-JWT where a session token
 // should be and emitted "invalid JWT" diagnostics on requests that were
 // authenticating perfectly well. That noise is what made a transport outage
-// look like a credential problem. Same reasoning for the x402 endpoint, which
-// authenticates with a signed payment authorization.
-const isSelfAuthenticated = createRouteMatcher(["/api/mcp", "/api/x402"]);
+// look like a credential problem. Company OS connector routes carry their own
+// audience-bound OAuth token, and x402 authenticates with a signed payment
+// authorization, so neither belongs in Clerk's session parser either.
+const isSelfAuthenticated = createRouteMatcher([
+  "/api/mcp",
+  "/api/companyos(.*)",
+  "/api/x402",
+]);
 
 const clerk = clerkMiddleware(async (auth, req) => {
   if (isProtectedRoute(req)) {

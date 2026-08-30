@@ -1,9 +1,8 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireIdentity } from "./_authz";
-import { sha256Hex } from "./_agentAuth";
 import { assertCanCreateAgent } from "./_adminEntitlements";
 import { normalizeCapabilities } from "./capabilities";
 import {
@@ -58,10 +57,10 @@ export function normalizeUserCode(input: string): string {
 
 // Which bucket a device-code request counts against.
 //
-// `createDeviceRequest` has to be public and unauthenticated — the caller is
-// a machine with no credential, which is the entire point of the grant — so
-// anyone can call it directly and pass whatever `clientIp` they like. A
-// per-IP limit that trusts an attacker-supplied IP is not a limit.
+// The public device endpoint is unauthenticated, but it enters Convex through
+// an HTTP action so the raw device code and proxy secret stay in headers and
+// out of query/mutation argument telemetry. The action supplies this trusted
+// boolean after checking the shared proxy secret.
 //
 // So the route proves it is the route with a shared secret:
 //
@@ -73,9 +72,8 @@ export function normalizeUserCode(input: string): string {
 //     into a single shared budget the moment they upgrade, and what is at
 //     stake here is storage growth, not an authorization boundary. Setting
 //     DEVICE_PROXY_SECRET on both Next and Convex is the hardened posture.
-function deviceRateSubject(clientIp?: string, proxySecret?: string): string {
-  const expected = process.env.DEVICE_PROXY_SECRET;
-  if (expected && proxySecret !== expected) return "unverified";
+function deviceRateSubject(clientIp: string | undefined, proxyAuthorized: boolean): string {
+  if (!proxyAuthorized) return "unverified";
   return clientIp && clientIp.length <= 64 ? clientIp : "unknown";
 }
 
@@ -87,39 +85,47 @@ export type DeviceRequestState =
   | "expired"
   | "not_found";
 
-async function byDeviceCode(ctx: QueryCtx | MutationCtx, deviceCode: string) {
+function requireDeviceCodeHash(value: string) {
+  if (!/^[a-f0-9]{64}$/.test(value)) {
+    throw new ConvexError("Malformed device code hash");
+  }
+  return value;
+}
+
+async function byDeviceCodeHash(
+  ctx: QueryCtx | MutationCtx,
+  deviceCodeHash: string,
+) {
   return await ctx.db
     .query("agentAuthRequests")
     .withIndex("by_device_hash", (q) =>
-      q.eq("deviceCodeHash", sha256Hex(deviceCode)),
+      q.eq("deviceCodeHash", requireDeviceCodeHash(deviceCodeHash)),
     )
     .unique();
 }
 
 // ── The agent's side ───────────────────────────────────────────────────
 
-// Called by POST /oauth/device. Public and unauthenticated by design: the
-// caller is a machine that has no credential yet, which is the entire point
-// of the grant. It cannot learn anything — the row it creates is inert until
-// a signed-in human approves it.
-export const createDeviceRequest = mutation({
+// Called only by the /oauth/internal/device HTTP action. The public caller is a
+// machine with no credential yet, but only the SHA-256 device-code hash crosses
+// this internal mutation boundary. The row remains inert until human approval.
+export const createDeviceRequest = internalMutation({
   args: {
-    deviceCode: v.string(),
+    deviceCodeHash: v.string(),
     userCode: v.string(),
     clientName: v.string(),
     // Read from request headers by /oauth/device — Convex cannot see the
     // caller's address itself.
     clientIp: v.optional(v.string()),
-    // Proves the caller really is our own route rather than someone driving
-    // this public mutation directly with a spoofed clientIp. See
-    // deviceRateSubject for what happens when it doesn't check out.
-    proxySecret: v.optional(v.string()),
+    // Computed by the HTTP action after checking DEVICE_PROXY_SECRET.
+    proxyAuthorized: v.boolean(),
   },
   handler: async (ctx, args) => {
+    const deviceCodeHash = requireDeviceCodeHash(args.deviceCodeHash);
     await consumeRateLimit(
       ctx,
       DEVICE_REQUEST_RULE,
-      deviceRateSubject(args.clientIp, args.proxySecret),
+      deviceRateSubject(args.clientIp, args.proxyAuthorized),
       "Too many connection attempts. Wait a few minutes and try again.",
     );
     if (!isWellFormedUserCode(args.userCode)) {
@@ -136,7 +142,7 @@ export const createDeviceRequest = mutation({
     }
     const clientName = args.clientName.trim().slice(0, 60) || "an agent";
     await ctx.db.insert("agentAuthRequests", {
-      deviceCodeHash: sha256Hex(args.deviceCode),
+      deviceCodeHash,
       userCode: args.userCode,
       clientName,
       status: "pending",
@@ -158,9 +164,9 @@ export const createDeviceRequest = mutation({
 // The key itself is minted by the caller: it arrives here as a hash, so the
 // plaintext never exists in the database at any point, not even for the ten
 // minutes between approval and collection.
-export const claimDeviceRequest = mutation({
+export const claimDeviceRequest = internalMutation({
   args: {
-    deviceCode: v.string(),
+    deviceCodeHash: v.string(),
     keyHash: v.optional(v.string()),
     keyPrefix: v.optional(v.string()),
   },
@@ -176,7 +182,7 @@ export const claimDeviceRequest = mutation({
     agentCreated?: boolean;
     scopeName?: string;
   }> => {
-    const row = await byDeviceCode(ctx, args.deviceCode);
+    const row = await byDeviceCodeHash(ctx, args.deviceCodeHash);
     // An unknown device code and an expired one are the same answer to the
     // caller; distinguishing them would let someone probe for live codes.
     if (!row) return { state: "not_found" };

@@ -16,6 +16,10 @@ const CHALLENGE = createHash("sha256")
   .update(VERIFIER)
   .digest("base64url");
 
+function credentialHash(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
 async function setup() {
   const t = convexTest(schema, modules);
   const ids = await t.run(async (ctx) => {
@@ -69,7 +73,104 @@ async function setup() {
   };
 }
 
+async function exchangeCode(
+  t: Awaited<ReturnType<typeof setup>>["t"],
+  args: {
+    code: string;
+    clientId: string;
+    redirectUri: string;
+    codeVerifier: string;
+    accessToken: string;
+    refreshToken: string;
+    resource: string;
+  },
+) {
+  const response = await t.fetch("/oauth/internal/token", {
+    method: "POST",
+    headers: {
+      Authorization: `PKCE ${args.codeVerifier}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      operation: "authorization_code",
+      codeHash: credentialHash(args.code),
+      clientId: args.clientId,
+      redirectUri: args.redirectUri,
+      accessTokenHash: credentialHash(args.accessToken),
+      refreshTokenHash: credentialHash(args.refreshToken),
+      resource: args.resource,
+    }),
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error((result as { error_description?: string }).error_description);
+  }
+  return result;
+}
+
+async function refreshGrant(
+  t: Awaited<ReturnType<typeof setup>>["t"],
+  args: {
+    refreshToken: string;
+    clientId: string;
+    accessToken: string;
+    nextRefreshToken: string;
+    resource: string;
+  },
+) {
+  const response = await t.fetch("/oauth/internal/token", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${args.refreshToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      operation: "refresh_token",
+      clientId: args.clientId,
+      accessTokenHash: credentialHash(args.accessToken),
+      nextRefreshTokenHash: credentialHash(args.nextRefreshToken),
+      resource: args.resource,
+    }),
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error((result as { error_description?: string }).error_description);
+  }
+  return result;
+}
+
 describe("OAuth 2.1 remote MCP authorization", () => {
+  it("uses an explicitly configured HTTPS preview as its isolated issuer", async () => {
+    const previous = process.env.NEXT_PUBLIC_APP_URL;
+    process.env.NEXT_PUBLIC_APP_URL = "https://operate-preview.vercel.app";
+    try {
+      const { owner } = await setup();
+      await expect(
+        owner.query(api.oauth.authorizationRequest, {
+          clientId: CLIENT_ID,
+          redirectUri: REDIRECT_URI,
+          scope: "operate:read",
+          resource: "https://operate-preview.vercel.app/api/mcp",
+          codeChallenge: CHALLENGE,
+          codeChallengeMethod: "S256",
+        }),
+      ).resolves.toMatchObject({ authorizationKind: "mcp" });
+      await expect(
+        owner.query(api.oauth.authorizationRequest, {
+          clientId: CLIENT_ID,
+          redirectUri: REDIRECT_URI,
+          scope: "operate:read",
+          resource: RESOURCE,
+          codeChallenge: CHALLENGE,
+          codeChallengeMethod: "S256",
+        }),
+      ).rejects.toThrow(/canonical operate url/i);
+    } finally {
+      if (previous === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+      else process.env.NEXT_PUBLIC_APP_URL = previous;
+    }
+  });
+
   it("registers a PKCE client and exposes only authorized agent choices", async () => {
     const { owner, agentId } = await setup();
     const request = await owner.query(api.oauth.authorizationRequest, {
@@ -95,6 +196,16 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         codeChallengeMethod: "S256",
       }),
     ).rejects.toThrow(/invalid oauth/i);
+    await expect(
+      owner.query(api.oauth.authorizationRequest, {
+        clientId: CLIENT_ID,
+        redirectUri: REDIRECT_URI,
+        scope: "operate:read",
+        resource: "https://attacker.example/api/mcp",
+        codeChallenge: CHALLENGE,
+        codeChallengeMethod: "S256",
+      }),
+    ).rejects.toThrow(/canonical operate url/i);
   });
 
   it("exchanges a one-time code, enforces PKCE, rotates refresh tokens, and revokes access", async () => {
@@ -106,11 +217,21 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       scope: "openid email operate:read operate:write",
       resource: RESOURCE,
       codeChallenge: CHALLENGE,
-      code,
+      codeHash: credentialHash(code),
       agentId,
     });
+    const storedCode = await t.run(async (ctx) =>
+      ctx.db
+        .query("oauthAuthorizationCodes")
+        .withIndex("by_code_hash", (q) =>
+          q.eq("codeHash", credentialHash(code)),
+        )
+        .unique(),
+    );
+    expect(storedCode?.codeHash).toBe(credentialHash(code));
+    expect(JSON.stringify(storedCode)).not.toContain(code);
     await expect(
-      t.mutation(api.oauth.exchangeAuthorizationCode, {
+      exchangeCode(t, {
         code,
         clientId: CLIENT_ID,
         redirectUri: REDIRECT_URI,
@@ -119,9 +240,9 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         refreshToken: "opr_wrong_audience",
         resource: "https://other.example/api/mcp",
       }),
-    ).rejects.toThrow(/invalid or expired/i);
+    ).rejects.toThrow(/token grant failed/i);
     await expect(
-      t.mutation(api.oauth.exchangeAuthorizationCode, {
+      exchangeCode(t, {
         code,
         clientId: CLIENT_ID,
         redirectUri: REDIRECT_URI,
@@ -130,11 +251,11 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         refreshToken: "opr_wrong",
         resource: RESOURCE,
       }),
-    ).rejects.toThrow(/invalid or expired/i);
+    ).rejects.toThrow(/token grant failed/i);
 
     const accessToken = "opa_first_access";
     const refreshToken = "opr_first_refresh";
-    await t.mutation(api.oauth.exchangeAuthorizationCode, {
+    await exchangeCode(t, {
       code,
       clientId: CLIENT_ID,
       redirectUri: REDIRECT_URI,
@@ -143,40 +264,57 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       refreshToken,
       resource: RESOURCE,
     });
-    await expect(
-      t.mutation(api.oauth.exchangeAuthorizationCode, {
-        code,
-        clientId: CLIENT_ID,
-        redirectUri: REDIRECT_URI,
-        codeVerifier: VERIFIER,
-        accessToken: "opa_replay",
-        refreshToken: "opr_replay",
-        resource: RESOURCE,
-      }),
-    ).rejects.toThrow(/invalid or expired/i);
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query("oauthAccessTokens")
+        .withIndex("by_token_hash", (q) =>
+          q.eq("tokenHash", credentialHash(accessToken)),
+        )
+        .unique();
+      // Simulate a production grant minted before www became canonical.
+      await ctx.db.patch(row!._id, { resource: RESOURCE });
+    });
     await expect(
       t.query(api.agentApi.whoami, { apiKey: accessToken }),
     ).resolves.toMatchObject({ agentId, name: "Plugin Agent" });
-    await expect(
-      t.query(api.oauth.userInfo, {
-        accessToken,
-        resource: RESOURCE,
-      }),
-    ).resolves.toMatchObject({
+    const userInfoResponse = await t.fetch("/oauth/internal/userinfo", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ resource: RESOURCE }),
+    });
+    expect(userInfoResponse.status).toBe(200);
+    await expect(userInfoResponse.json()).resolves.toMatchObject({
       subject: OWNER.subject,
       email: OWNER.email,
       emailVerified: true,
     });
+    const bodyOnlyUserInfo = await t.fetch("/oauth/internal/userinfo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken, resource: RESOURCE }),
+    });
+    expect(bodyOnlyUserInfo.status).toBe(401);
     await expect(
       t.mutation(api.agentApi.connect, {
         apiKey: accessToken,
         resource: "https://other.example/api/mcp",
       }),
     ).rejects.toThrow(/audience/i);
+    // Existing grants minted before the canonical www origin was introduced
+    // remain usable while every newly advertised endpoint uses www.
+    await expect(
+      t.mutation(api.agentApi.connect, {
+        apiKey: accessToken,
+        resource: "https://www.operate.to/api/mcp",
+      }),
+    ).resolves.toMatchObject({ agentId });
 
     const nextAccessToken = "opa_second_access";
     const nextRefreshToken = "opr_second_refresh";
-    await t.mutation(api.oauth.refreshAccessToken, {
+    await refreshGrant(t, {
       refreshToken,
       clientId: CLIENT_ID,
       accessToken: nextAccessToken,
@@ -189,20 +327,173 @@ describe("OAuth 2.1 remote MCP authorization", () => {
     await expect(
       t.query(api.agentApi.whoami, { apiKey: nextAccessToken }),
     ).resolves.toMatchObject({ agentId });
+    for (const mismatch of [
+      { clientId: "opc_wrong_client", resource: RESOURCE },
+      {
+        clientId: CLIENT_ID,
+        resource: "https://www.operate.to/api/companyos",
+      },
+    ]) {
+      await expect(
+        refreshGrant(t, {
+          refreshToken,
+          clientId: mismatch.clientId,
+          accessToken: `opa_mismatch_${mismatch.clientId}`,
+          nextRefreshToken: `opr_mismatch_${mismatch.clientId}`,
+          resource: mismatch.resource,
+        }),
+      ).rejects.toThrow(/token grant failed/i);
+      // Metadata mismatch is an ordinary invalid_grant. It cannot be used to
+      // revoke a grant family owned by another client or audience.
+      await expect(
+        t.query(api.agentApi.whoami, { apiKey: nextAccessToken }),
+      ).resolves.toMatchObject({ agentId });
+    }
     await expect(
-      t.mutation(api.oauth.refreshAccessToken, {
+      refreshGrant(t, {
         refreshToken,
         clientId: CLIENT_ID,
         accessToken: "opa_reused",
         nextRefreshToken: "opr_reused",
         resource: RESOURCE,
       }),
-    ).rejects.toThrow(/invalid or expired/i);
-
-    await t.mutation(api.oauth.revokeToken, { token: nextRefreshToken });
+    ).resolves.toMatchObject({
+      ok: false,
+      replayDetected: true,
+      grantRevoked: true,
+      recoveryStatus: "refresh_token_replay_revoked",
+      scope: "openid email operate:read operate:write",
+    });
     await expect(
       t.query(api.agentApi.whoami, { apiKey: nextAccessToken }),
     ).rejects.toThrow(/invalid api key/i);
+    await expect(
+      t.run(async (ctx) => ctx.db.query("oauthTokenGrants").first()),
+    ).resolves.toMatchObject({
+      revokedAt: expect.any(Number),
+      revocationReason: "refresh_token_replay_recovery",
+    });
+  });
+
+  it("fails closed across an already-rotated legacy refresh chain", async () => {
+    const { t, agentId } = await setup();
+    const now = Date.now();
+    const replayedRefresh = "opr_legacy_replayed";
+    const successorAccess = "opa_legacy_successor";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("oauthAccessTokens", {
+        tokenHash: credentialHash("opa_legacy_revoked"),
+        refreshTokenHash: credentialHash(replayedRefresh),
+        clientId: CLIENT_ID,
+        scopes: ["operate:read"],
+        resource: RESOURCE,
+        agentId,
+        userClerkId: OWNER.subject,
+        expiresAt: now + 60_000,
+        refreshExpiresAt: now + 60_000,
+        createdAt: now - 2_000,
+        revokedAt: now - 1_000,
+      });
+      // This is the shape of a successor minted before grantId and rotatedAt
+      // existed: there is no ancestry to follow from the replayed row.
+      await ctx.db.insert("oauthAccessTokens", {
+        tokenHash: credentialHash(successorAccess),
+        refreshTokenHash: credentialHash("opr_legacy_successor"),
+        clientId: CLIENT_ID,
+        scopes: ["operate:read"],
+        resource: RESOURCE,
+        agentId,
+        userClerkId: OWNER.subject,
+        expiresAt: now + 60_000,
+        refreshExpiresAt: now + 60_000,
+        createdAt: now - 500,
+      });
+    });
+
+    await expect(
+      refreshGrant(t, {
+        refreshToken: replayedRefresh,
+        clientId: CLIENT_ID,
+        accessToken: "opa_legacy_replay_result",
+        nextRefreshToken: "opr_legacy_replay_result",
+        resource: RESOURCE,
+      }),
+    ).resolves.toMatchObject({ ok: false, replayDetected: true });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: successorAccess }),
+    ).rejects.toThrow(/invalid api key/i);
+    await expect(
+      t.run(async (ctx) => ctx.db.query("oauthLegacyRevocations").collect()),
+    ).resolves.toHaveLength(1);
+  });
+
+  it("turns an exact consumed-code replay into idempotent grant-family cleanup", async () => {
+    const { t, owner, agentId } = await setup();
+    const code = "opc_recovery_code";
+    const accessToken = "opa_recovery_access";
+    await owner.mutation(api.oauth.approveAuthorization, {
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      scope: "operate:read",
+      resource: RESOURCE,
+      codeChallenge: CHALLENGE,
+      codeHash: credentialHash(code),
+      agentId,
+    });
+    await exchangeCode(t, {
+      code,
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      codeVerifier: VERIFIER,
+      accessToken,
+      refreshToken: "opr_recovery_refresh",
+      resource: RESOURCE,
+    });
+
+    // Knowing the consumed code without the original PKCE verifier is not
+    // enough to revoke somebody else's live authorization.
+    await expect(
+      exchangeCode(t, {
+        code,
+        clientId: CLIENT_ID,
+        redirectUri: REDIRECT_URI,
+        codeVerifier: "x".repeat(64),
+        accessToken: "opa_wrong_recovery",
+        refreshToken: "opr_wrong_recovery",
+        resource: RESOURCE,
+      }),
+    ).rejects.toThrow(/token grant failed/i);
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: accessToken }),
+    ).resolves.toMatchObject({ agentId });
+
+    for (const suffix of ["first", "idempotent"]) {
+      await expect(
+        exchangeCode(t, {
+          code,
+          clientId: CLIENT_ID,
+          redirectUri: REDIRECT_URI,
+          codeVerifier: VERIFIER,
+          accessToken: `opa_recovery_${suffix}`,
+          refreshToken: `opr_recovery_${suffix}`,
+          resource: RESOURCE,
+        }),
+      ).resolves.toMatchObject({
+        ok: false,
+        replayDetected: true,
+        grantRevoked: true,
+        recoveryStatus: "authorization_code_replay_revoked",
+      });
+    }
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: accessToken }),
+    ).rejects.toThrow(/invalid api key/i);
+    await expect(
+      t.run(async (ctx) => ctx.db.query("oauthTokenGrants").first()),
+    ).resolves.toMatchObject({
+      revokedAt: expect.any(Number),
+      revocationReason: "authorization_code_replay_recovery",
+    });
   });
 
   it("never lets a regular workspace member inherit a workspace-wide agent", async () => {
@@ -223,7 +514,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         scope: "operate:read",
         resource: RESOURCE,
         codeChallenge: CHALLENGE,
-        code: "opc_member_escalation",
+        codeHash: credentialHash("opc_member_escalation"),
         agentId,
       }),
     ).rejects.toThrow(/not allowed/i);
@@ -238,7 +529,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         scope: "operate:read",
         resource: RESOURCE,
         codeChallenge: CHALLENGE,
-        code: "opc_outsider",
+        codeHash: credentialHash("opc_outsider"),
         agentId,
       }),
     ).rejects.toThrow(/not allowed/i);
@@ -250,11 +541,11 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       scope: "operate:read",
       resource: RESOURCE,
       codeChallenge: CHALLENGE,
-      code,
+      codeHash: credentialHash(code),
       agentId,
     });
     const accessToken = "opa_membership";
-    await t.mutation(api.oauth.exchangeAuthorizationCode, {
+    await exchangeCode(t, {
       code,
       clientId: CLIENT_ID,
       redirectUri: REDIRECT_URI,

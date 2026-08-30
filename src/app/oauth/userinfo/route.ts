@@ -1,6 +1,5 @@
-import { api } from "@convex/_generated/api";
 import {
-  oauthConvexClient,
+  convexHttpActionOrigin,
   oauthJson,
   oauthResource,
 } from "@/lib/oauth-server";
@@ -25,15 +24,42 @@ export async function GET(request: Request) {
   if (!match) return unauthorized("A Bearer access token is required");
 
   try {
-    const result = await oauthConvexClient().query(api.oauth.userInfo, {
-      accessToken: match[1],
-      resource: oauthResource(),
-    });
+    const response = await fetch(
+      `${convexHttpActionOrigin()}/oauth/internal/userinfo`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: authorization,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ resource: oauthResource() }),
+        cache: "no-store",
+      },
+    );
+    const result = (await response.json().catch(() => null)) as {
+      subject?: unknown;
+      email?: unknown;
+      emailVerified?: unknown;
+      name?: unknown;
+      error_description?: unknown;
+    } | null;
+    if (
+      !response.ok ||
+      typeof result?.subject !== "string" ||
+      typeof result.email !== "string" ||
+      result.emailVerified !== true
+    ) {
+      throw new Error(
+        typeof result?.error_description === "string"
+          ? result.error_description
+          : "The access token is invalid",
+      );
+    }
     return oauthJson({
       sub: result.subject,
       email: result.email,
       email_verified: result.emailVerified,
-      ...(result.name ? { name: result.name } : {}),
+      ...(typeof result.name === "string" ? { name: result.name } : {}),
     });
   } catch (error) {
     return unauthorized(

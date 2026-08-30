@@ -2072,7 +2072,10 @@ export default defineSchema({
     // RFC 8707 audience binding. The token endpoint must receive the same
     // canonical protected-resource identifier that was authorized.
     resource: v.optional(v.string()),
-    agentId: v.id("agents"),
+    // MCP grants bind to an agent. Company OS read-only grants bind directly
+    // to a workspace and never receive an agent's tool authority.
+    agentId: v.optional(v.id("agents")),
+    workspaceId: v.optional(v.id("workspaces")),
     userClerkId: v.string(),
     expiresAt: v.number(),
     usedAt: v.optional(v.number()),
@@ -2082,20 +2085,93 @@ export default defineSchema({
   oauthAccessTokens: defineTable({
     tokenHash: v.string(),
     refreshTokenHash: v.string(),
+    // Grant-family state lives in oauthTokenGrants. Optional for tokens minted
+    // before rotation-family tracking was introduced.
+    grantId: v.optional(v.string()),
     clientId: v.string(),
     scopes: v.array(v.string()),
     resource: v.optional(v.string()),
-    agentId: v.id("agents"),
+    agentId: v.optional(v.id("agents")),
+    workspaceId: v.optional(v.id("workspaces")),
     userClerkId: v.string(),
     expiresAt: v.number(),
     refreshExpiresAt: v.number(),
     createdAt: v.number(),
     lastUsedAt: v.optional(v.number()),
     revokedAt: v.optional(v.number()),
+    rotatedAt: v.optional(v.number()),
   })
     .index("by_token_hash", ["tokenHash"])
     .index("by_refresh_hash", ["refreshTokenHash"])
     .index("by_agent", ["agentId"]),
+
+  // One durable revocation switch for an authorization-code grant and every
+  // access/refresh token produced by rotation. This makes refresh-token replay
+  // revoke the successor without scanning an unbounded token history.
+  oauthTokenGrants: defineTable({
+    grantId: v.string(),
+    clientId: v.string(),
+    resource: v.string(),
+    userClerkId: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    revokedAt: v.optional(v.number()),
+    revocationReason: v.optional(v.string()),
+  }).index("by_grant_id", ["grantId"]),
+
+  // Tokens minted before grant-family rotation did not carry a durable family
+  // identifier. If one of those historical refresh tokens is replayed we
+  // cannot identify only its successor, so we fail closed for the matching
+  // legacy authority envelope. Tokens minted by the current implementation
+  // always have grantId and are unaffected by this compatibility fence.
+  oauthLegacyRevocations: defineTable({
+    authorityKey: v.string(),
+    revokedBefore: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    reason: v.literal("legacy_refresh_replay"),
+  }).index("by_authority_key", ["authorityKey"]),
+
+  // Provider-side lifecycle binding for a Company OS installation. OAuth
+  // credentials remain hashed in oauthAccessTokens; this row holds only the
+  // external installation identity and the authority envelope it received.
+  companyOsInstallations: defineTable({
+    externalInstallationId: v.string(),
+    workspaceId: v.id("workspaces"),
+    oauthSubject: v.string(),
+    oauthClientId: v.string(),
+    oauthGrantId: v.string(),
+    scopes: v.array(v.string()),
+    status: v.union(v.literal("active"), v.literal("disconnected")),
+    installedAt: v.number(),
+    updatedAt: v.number(),
+    disconnectedAt: v.optional(v.number()),
+    // A disconnect invalidates every OAuth grant that already existed for
+    // this workspace/client, including parallel grants and unexchanged codes.
+    // Fresh consent is later than this cutoff and can reactivate the stable
+    // external installation identity.
+    oauthRevokedBefore: v.optional(v.number()),
+  })
+    .index("by_external_installation_id", ["externalInstallationId"])
+    .index("by_workspace_and_client", ["workspaceId", "oauthClientId"])
+    .index("by_workspace_and_client_and_status", [
+      "workspaceId",
+      "oauthClientId",
+      "status",
+    ]),
+
+  // Operate's older object tables do not all have modification timestamps.
+  // This ledger records when the provider first observed each content version,
+  // allowing every exported object to carry a truthful, monotonic updatedAt.
+  companyOsObjectVersions: defineTable({
+    workspaceId: v.id("workspaces"),
+    externalId: v.string(),
+    version: v.string(),
+    updatedAt: v.number(),
+  }).index("by_workspace_and_external_id", [
+    "workspaceId",
+    "externalId",
+  ]),
 
   // Fleet provisioning grants — one human approval, many agents.
   //

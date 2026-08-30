@@ -1,15 +1,15 @@
 import { createHash, randomBytes } from "node:crypto";
-import { api } from "@convex/_generated/api";
 import {
+  convexHttpActionOrigin,
   DEVICE_GRANT,
+  type DeviceClaimState,
   deviceErrorCode,
-  oauthConvexClient,
   oauthError,
   oauthIssuer,
   oauthJson,
   randomCredential,
 } from "@/lib/oauth-server";
-import { validateMcpResource } from "@/lib/oauth-resource";
+import { validateOAuthResource } from "@/lib/oauth-resource";
 
 // What to tell the agent alongside each RFC error code. The code is what a
 // runtime branches on; this is what a person reads in a log when their agent
@@ -23,6 +23,88 @@ const DEVICE_ERROR_HELP: Record<string, (interval?: number) => string> = {
   expired_token: () => "This code expired. Start again to get a new one.",
   invalid_grant: () => "Unknown or already-used device code",
 };
+
+function credentialHash(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function deviceClaimBackend(
+  deviceCode: string,
+  input: Record<string, unknown>,
+): Promise<{
+  state: DeviceClaimState;
+  slowDown?: boolean;
+  interval?: number;
+  agentId?: string;
+  agentName?: string;
+  agentCreated?: boolean;
+  scopeName?: string;
+}> {
+  const response = await fetch(
+    `${convexHttpActionOrigin()}/oauth/internal/device`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Device ${deviceCode}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ operation: "claim", ...input }),
+      cache: "no-store",
+    },
+  );
+  const value = (await response.json().catch(() => null)) as {
+    state?: DeviceClaimState;
+    slowDown?: boolean;
+    interval?: number;
+    agentId?: string;
+    agentName?: string;
+    agentCreated?: boolean;
+    scopeName?: string;
+    error_description?: unknown;
+  } | null;
+  if (!response.ok || !value?.state) {
+    throw new Error(
+      typeof value?.error_description === "string"
+        ? value.error_description
+        : "Device grant failed",
+    );
+  }
+  return value as {
+    state: DeviceClaimState;
+    slowDown?: boolean;
+    interval?: number;
+    agentId?: string;
+    agentName?: string;
+    agentCreated?: boolean;
+    scopeName?: string;
+  };
+}
+
+async function oauthTokenBackend<T>(
+  input: Record<string, unknown>,
+  authorization: string,
+): Promise<T> {
+  const response = await fetch(`${convexHttpActionOrigin()}/oauth/internal/token`, {
+    method: "POST",
+    headers: {
+      Authorization: authorization,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+  const value = (await response.json().catch(() => null)) as {
+    error_description?: unknown;
+  } | null;
+  if (!response.ok) {
+    throw new Error(
+      typeof value?.error_description === "string"
+        ? value.error_description
+        : "Token grant failed",
+    );
+  }
+  return value as T;
+}
 
 // RFC 8628 §3.5 — the device grant's half of the token endpoint.
 //
@@ -39,14 +121,10 @@ async function deviceGrant(deviceCode: string) {
   // Generated before the call because the mutation stores the hash and
   // returns nothing that could reconstruct it.
   const key = `cua_${randomBytes(24).toString("hex")}`;
-  const result = await oauthConvexClient().mutation(
-    api.agentAuth.claimDeviceRequest,
-    {
-      deviceCode,
+  const result = await deviceClaimBackend(deviceCode, {
       keyHash: createHash("sha256").update(key).digest("hex"),
       keyPrefix: key.slice(0, 12),
-    },
-  );
+  });
 
   // The mapping itself lives in oauth-server.ts so it can be tested without
   // a Convex deployment — see tests/agent-device-http.test.ts.
@@ -111,12 +189,12 @@ export async function POST(request: Request) {
   if (!rawResource) {
     return oauthError(
       "invalid_target",
-      "resource is required and must match the protected MCP resource",
+      "resource is required and must match an Operate protected resource",
     );
   }
   let resource: string;
   try {
-    resource = validateMcpResource(rawResource, oauthIssuer());
+    resource = validateOAuthResource(rawResource, oauthIssuer());
   } catch (error) {
     return oauthError(
       "invalid_target",
@@ -134,18 +212,44 @@ export async function POST(request: Request) {
           "code, redirect_uri, and code_verifier are required",
         );
       }
-      const result = await oauthConvexClient().mutation(
-        api.oauth.exchangeAuthorizationCode,
+      const result = await oauthTokenBackend<
+        | { ok: true; scope: string; expiresIn: number }
+        | {
+            ok: false;
+            replayDetected: true;
+            grantRevoked?: boolean;
+            recoveryStatus?: string;
+          }
+      >(
         {
-          code,
+          operation: "authorization_code",
+          codeHash: credentialHash(code),
           clientId,
           redirectUri,
-          codeVerifier,
-          accessToken,
-          refreshToken,
+          accessTokenHash: credentialHash(accessToken),
+          refreshTokenHash: credentialHash(refreshToken),
           resource,
         },
+        `PKCE ${codeVerifier}`,
       );
+      if (!result.ok) {
+        if (
+          result.grantRevoked !== true ||
+          result.recoveryStatus !== "authorization_code_replay_revoked"
+        ) {
+          return oauthError("invalid_grant", "Token grant failed");
+        }
+        return oauthJson(
+          {
+            error: "invalid_grant",
+            error_description:
+              "Authorization code was already consumed; the issued grant family was revoked",
+            grant_revoked: true,
+            recovery_status: result.recoveryStatus,
+          },
+          400,
+        );
+      }
       return oauthJson({
         access_token: accessToken,
         token_type: "Bearer",
@@ -159,16 +263,45 @@ export async function POST(request: Request) {
       if (!currentRefreshToken) {
         return oauthError("invalid_request", "refresh_token is required");
       }
-      const result = await oauthConvexClient().mutation(
-        api.oauth.refreshAccessToken,
+      const result = await oauthTokenBackend<
+        | { ok: true; scope: string; expiresIn: number }
+        | {
+            ok: false;
+            replayDetected: true;
+            grantRevoked?: boolean;
+            recoveryStatus?: string;
+            scope?: string;
+          }
+      >(
         {
-          refreshToken: currentRefreshToken,
+          operation: "refresh_token",
           clientId,
-          accessToken,
-          nextRefreshToken: refreshToken,
+          accessTokenHash: credentialHash(accessToken),
+          nextRefreshTokenHash: credentialHash(refreshToken),
           resource,
         },
+        `Bearer ${currentRefreshToken}`,
       );
+      if (!result.ok) {
+        if (
+          result.grantRevoked !== true ||
+          result.recoveryStatus !== "refresh_token_replay_revoked" ||
+          typeof result.scope !== "string"
+        ) {
+          return oauthError("invalid_grant", "Token grant failed");
+        }
+        return oauthJson(
+          {
+            error: "invalid_grant",
+            error_description:
+              "Refresh token replay detected; the authorization grant was revoked",
+            grant_revoked: true,
+            recovery_status: result.recoveryStatus,
+            scope: result.scope,
+          },
+          400,
+        );
+      }
       return oauthJson({
         access_token: accessToken,
         token_type: "Bearer",

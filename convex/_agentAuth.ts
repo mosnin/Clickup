@@ -8,6 +8,10 @@ import {
   ADMIN_DAILY_ACTION_LIMIT,
   isComplimentaryScope,
 } from "./_adminEntitlements";
+import {
+  oauthLegacyAuthorityKey,
+  oauthResourcesMatch,
+} from "./_oauthResource";
 
 // Agent-side counterpart of _authz.ts. Human calls authenticate via Clerk
 // (ctx.auth); agent calls authenticate via an API key passed as an argument
@@ -122,16 +126,18 @@ function utcMinute(): string {
 //   "presence" — heartbeat-style calls: bumps lastUsedAt but is neither
 //                role-gated nor budgeted, so a readonly or throttled agent
 //                can still report liveness and read its inbox.
-export async function requireAgentByKey(
+export async function requireAgentByKeyHash(
   ctx: QueryCtx | MutationCtx,
-  apiKey: string,
+  keyHash: string,
   mode: "read" | "write" | "presence" = "read",
   expectedOAuthResource?: string,
 ): Promise<{
   agent: Doc<"agents">;
   key: Doc<"agentKeys"> | Doc<"oauthAccessTokens">;
 }> {
-  const keyHash = sha256Hex(apiKey);
+  if (!/^[a-f0-9]{64}$/.test(keyHash)) {
+    throw new ConvexError("Invalid API key");
+  }
   const agentKey = await ctx.db
     .query("agentKeys")
     .withIndex("by_hash", (q) => q.eq("keyHash", keyHash))
@@ -150,6 +156,40 @@ export async function requireAgentByKey(
   ) {
     throw new ConvexError("Invalid API key");
   }
+  if (oauthToken?.grantId) {
+    const grant = await ctx.db
+      .query("oauthTokenGrants")
+      .withIndex("by_grant_id", (q) => q.eq("grantId", oauthToken.grantId!))
+      .unique();
+    if (!grant || grant.revokedAt !== undefined) {
+      throw new ConvexError("Invalid API key");
+    }
+  } else if (oauthToken?.resource) {
+    const authorityKey = oauthLegacyAuthorityKey({
+      clientId: oauthToken.clientId,
+      resource: oauthToken.resource,
+      userClerkId: oauthToken.userClerkId,
+      ...(oauthToken.agentId ? { agentId: oauthToken.agentId } : {}),
+      ...(oauthToken.workspaceId
+        ? { workspaceId: oauthToken.workspaceId }
+        : {}),
+    });
+    const legacyRevocation = await ctx.db
+      .query("oauthLegacyRevocations")
+      .withIndex("by_authority_key", (q) =>
+        q.eq("authorityKey", authorityKey),
+      )
+      .unique();
+    if (
+      legacyRevocation &&
+      oauthToken.createdAt <= legacyRevocation.revokedBefore
+    ) {
+      throw new ConvexError("Invalid API key");
+    }
+  }
+  // Company OS connector tokens are workspace-bound and deliberately have no
+  // agent principal. They are never valid on the MCP/agent API surface.
+  if (!key.agentId) throw new ConvexError("Invalid API key");
   const agent = await ctx.db.get(key.agentId);
   if (!agent) throw new ConvexError("Invalid API key");
   if (agent.status !== "active") throw new ConvexError("Agent is paused");
@@ -177,7 +217,7 @@ export async function requireAgentByKey(
     if (!stillAuthorized) throw new ConvexError("OAuth access was revoked");
     if (
       expectedOAuthResource !== undefined &&
-      oauthToken.resource !== expectedOAuthResource
+      !oauthResourcesMatch(oauthToken.resource, expectedOAuthResource)
     ) {
       throw new ConvexError("OAuth token audience does not match this resource");
     }
@@ -399,6 +439,20 @@ export async function requireAgentByKey(
     }
   }
   return { agent, key };
+}
+
+export async function requireAgentByKey(
+  ctx: QueryCtx | MutationCtx,
+  apiKey: string,
+  mode: "read" | "write" | "presence" = "read",
+  expectedOAuthResource?: string,
+) {
+  return await requireAgentByKeyHash(
+    ctx,
+    sha256Hex(apiKey),
+    mode,
+    expectedOAuthResource,
+  );
 }
 
 // Structure-level operations (creating spaces/projects/lists, sprints,

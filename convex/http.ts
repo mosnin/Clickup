@@ -4,6 +4,8 @@ import { Webhook } from "svix";
 import type { WebhookEvent } from "@clerk/backend";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { sha256Hex } from "./_agentAuth";
+import { pkceChallenge } from "./oauth";
 
 // Clerk -> Convex user sync.
 //
@@ -155,8 +157,565 @@ const fireWebhookRef = anyApi.buzz.workflows.fireWebhook as unknown as FunctionR
   { status: string; runId?: string; workflowId?: string }
 >;
 
+type OAuthExchangeArgs = {
+  codeHash: string;
+  clientId: string;
+  redirectUri: string;
+  codeChallenge: string;
+  accessTokenHash: string;
+  refreshTokenHash: string;
+  resource: string;
+};
+
+type OAuthRefreshArgs = {
+  refreshTokenHash: string;
+  clientId: string;
+  accessTokenHash: string;
+  nextRefreshTokenHash: string;
+  resource: string;
+};
+
+const oauthExchangeRef = anyApi.oauth.exchangeAuthorizationCode as unknown as FunctionReference<
+  "mutation",
+  "internal",
+  OAuthExchangeArgs,
+  unknown
+>;
+const oauthRefreshRef = anyApi.oauth.refreshAccessToken as unknown as FunctionReference<
+  "mutation",
+  "internal",
+  OAuthRefreshArgs,
+  unknown
+>;
+
+type DeviceCreateArgs = {
+  deviceCodeHash: string;
+  userCode: string;
+  clientName: string;
+  clientIp?: string;
+  proxyAuthorized: boolean;
+};
+
+type DeviceClaimArgs = {
+  deviceCodeHash: string;
+  keyHash?: string;
+  keyPrefix?: string;
+};
+
+const deviceCreateRef = anyApi.agentAuth.createDeviceRequest as unknown as FunctionReference<
+  "mutation",
+  "internal",
+  DeviceCreateArgs,
+  unknown
+>;
+const deviceClaimRef = anyApi.agentAuth.claimDeviceRequest as unknown as FunctionReference<
+  "mutation",
+  "internal",
+  DeviceClaimArgs,
+  unknown
+>;
+const oauthUserInfoRef = anyApi.oauth.userInfo as unknown as FunctionReference<
+  "query",
+  "internal",
+  { accessTokenHash: string; resource: string },
+  unknown
+>;
+
+type CompanyOsBackendArgs = {
+  accessTokenHash: string;
+  resource: string;
+  objectType?:
+    | "workspace"
+    | "space"
+    | "project"
+    | "list"
+    | "task"
+    | "agent"
+    | "run";
+  parentType?: "space" | "project" | "folder" | "list" | "agent";
+  parentId?: string;
+  paginationOpts?: { numItems: number; cursor: string | null };
+  legacy?: boolean;
+  externalInstallationId?: string;
+};
+
+const companyOsAccountRef = anyApi.companyOsConnector.account as unknown as FunctionReference<
+  "query",
+  "internal",
+  Pick<CompanyOsBackendArgs, "accessTokenHash" | "resource">,
+  unknown
+>;
+const companyOsSnapshotRef = anyApi.companyOsConnector.snapshot as unknown as FunctionReference<
+  "mutation",
+  "internal",
+  Required<
+    Pick<
+      CompanyOsBackendArgs,
+      "accessTokenHash" | "resource" | "objectType" | "paginationOpts"
+    >
+  > &
+    Pick<CompanyOsBackendArgs, "parentType" | "parentId" | "legacy">,
+  unknown
+>;
+const companyOsCurrentInstallationRef = anyApi.companyOsConnector
+  .currentInstallation as unknown as FunctionReference<
+  "query",
+  "internal",
+  Pick<CompanyOsBackendArgs, "accessTokenHash" | "resource">,
+  unknown
+>;
+const companyOsUpsertInstallationRef = anyApi.companyOsConnector
+  .upsertInstallation as unknown as FunctionReference<
+  "mutation",
+  "internal",
+  Required<
+    Pick<
+      CompanyOsBackendArgs,
+      "accessTokenHash" | "resource" | "externalInstallationId"
+    >
+  >,
+  unknown
+>;
+const companyOsDisconnectInstallationRef = anyApi.companyOsConnector
+  .disconnectInstallation as unknown as FunctionReference<
+  "mutation",
+  "internal",
+  Pick<
+    CompanyOsBackendArgs,
+    "accessTokenHash" | "resource" | "externalInstallationId"
+  >,
+  unknown
+>;
+
+function companyOsHttpJson(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "no-store",
+      pragma: "no-cache",
+    },
+  });
+}
+
+function requiredString(
+  input: Record<string, unknown>,
+  key: string,
+): string | null {
+  const value = input[key];
+  return typeof value === "string" && value !== "" ? value : null;
+}
+
+// Token exchange secrets stay in a redacted Authorization header. Only the
+// PKCE challenge and SHA-256 credential hashes cross into Convex mutation
+// arguments, preventing plaintext access/refresh tokens or code verifiers
+// from appearing in function telemetry.
+const handleOAuthTokenBackend = httpAction(async (ctx, request) => {
+  const raw = await request.text();
+  if (raw.length > 16 * 1024) {
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "Request body is too large" },
+      413,
+    );
+  }
+  let input: Record<string, unknown>;
+  try {
+    input = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "Body must be JSON" },
+      400,
+    );
+  }
+  const operation = requiredString(input, "operation");
+  const clientId = requiredString(input, "clientId");
+  const resource = requiredString(input, "resource");
+  const accessTokenHash = requiredString(input, "accessTokenHash");
+  if (!operation || !clientId || !resource || !accessTokenHash) {
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "Token request is incomplete" },
+      400,
+    );
+  }
+  const authorization = request.headers.get("authorization") ?? "";
+  try {
+    if (operation === "authorization_code") {
+      const verifier = /^PKCE ([A-Za-z0-9._~-]{43,128})$/.exec(
+        authorization,
+      )?.[1];
+      const codeHash = requiredString(input, "codeHash");
+      const redirectUri = requiredString(input, "redirectUri");
+      const refreshTokenHash = requiredString(input, "refreshTokenHash");
+      if (!verifier || !codeHash || !redirectUri || !refreshTokenHash) {
+        return companyOsHttpJson(
+          { error: "invalid_request", error_description: "Token request is incomplete" },
+          400,
+        );
+      }
+      return companyOsHttpJson(
+        await ctx.runMutation(oauthExchangeRef, {
+          codeHash,
+          clientId,
+          redirectUri,
+          codeChallenge: pkceChallenge(verifier),
+          accessTokenHash,
+          refreshTokenHash,
+          resource,
+        }),
+      );
+    }
+    if (operation === "refresh_token") {
+      const refreshToken = /^Bearer ([^\s]+)$/i.exec(authorization)?.[1];
+      const nextRefreshTokenHash = requiredString(
+        input,
+        "nextRefreshTokenHash",
+      );
+      if (!refreshToken || !nextRefreshTokenHash) {
+        return companyOsHttpJson(
+          { error: "invalid_request", error_description: "Token request is incomplete" },
+          400,
+        );
+      }
+      return companyOsHttpJson(
+        await ctx.runMutation(oauthRefreshRef, {
+          refreshTokenHash: sha256Hex(refreshToken),
+          clientId,
+          accessTokenHash,
+          nextRefreshTokenHash,
+          resource,
+        }),
+      );
+    }
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "Unknown token operation" },
+      400,
+    );
+  } catch {
+    return companyOsHttpJson(
+      { error: "invalid_grant", error_description: "Token grant failed" },
+      400,
+    );
+  }
+});
+
+// Device-flow credentials use the same boundary rule as OAuth tokens: raw
+// device codes and the proxy shared secret stay in Authorization headers.
+// Only SHA-256 hashes and an action-computed trust decision enter mutations.
+const handleOAuthDeviceBackend = httpAction(async (ctx, request) => {
+  const raw = await request.text();
+  if (raw.length > 16 * 1024) {
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "Request body is too large" },
+      413,
+    );
+  }
+  let input: Record<string, unknown>;
+  try {
+    input = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "Body must be JSON" },
+      400,
+    );
+  }
+  const operation = requiredString(input, "operation");
+  const authorization = request.headers.get("authorization") ?? "";
+  try {
+    if (operation === "create") {
+      const deviceCodeHash = requiredString(input, "deviceCodeHash");
+      const userCode = requiredString(input, "userCode");
+      const clientName =
+        typeof input.clientName === "string" ? input.clientName : "";
+      if (!deviceCodeHash || !userCode) {
+        return companyOsHttpJson(
+          { error: "invalid_request", error_description: "Device request is incomplete" },
+          400,
+        );
+      }
+      const suppliedProxySecret = /^Bearer (.+)$/i.exec(authorization)?.[1];
+      const expectedProxySecret = process.env.DEVICE_PROXY_SECRET;
+      const proxyAuthorized = expectedProxySecret
+        ? suppliedProxySecret === expectedProxySecret
+        : true;
+      return companyOsHttpJson(
+        await ctx.runMutation(deviceCreateRef, {
+          deviceCodeHash,
+          userCode,
+          clientName,
+          ...(typeof input.clientIp === "string"
+            ? { clientIp: input.clientIp }
+            : {}),
+          proxyAuthorized,
+        }),
+      );
+    }
+    if (operation === "claim") {
+      const deviceCode = /^Device ([^\s]+)$/i.exec(authorization)?.[1];
+      if (!deviceCode) {
+        return companyOsHttpJson(
+          { error: "invalid_request", error_description: "A device credential is required" },
+          401,
+        );
+      }
+      return companyOsHttpJson(
+        await ctx.runMutation(deviceClaimRef, {
+          deviceCodeHash: sha256Hex(deviceCode),
+          ...(typeof input.keyHash === "string"
+            ? { keyHash: input.keyHash }
+            : {}),
+          ...(typeof input.keyPrefix === "string"
+            ? { keyPrefix: input.keyPrefix }
+            : {}),
+        }),
+      );
+    }
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "Unknown device operation" },
+      400,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Device request failed";
+    return companyOsHttpJson(
+      {
+        error: /too many/i.test(message) ? "slow_down" : "invalid_request",
+        error_description: message,
+      },
+      /too many/i.test(message) ? 429 : 400,
+    );
+  }
+});
+
+const handleOAuthUserInfoBackend = httpAction(async (ctx, request) => {
+  const bearer = /^Bearer ([^\s]+)$/i.exec(
+    request.headers.get("authorization") ?? "",
+  )?.[1];
+  if (!bearer) {
+    return companyOsHttpJson(
+      { error: "invalid_token", error_description: "A Bearer token is required" },
+      401,
+    );
+  }
+  const raw = await request.text();
+  if (raw.length > 4 * 1024) {
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "Request body is too large" },
+      413,
+    );
+  }
+  let input: Record<string, unknown>;
+  try {
+    input = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "Body must be JSON" },
+      400,
+    );
+  }
+  const resource = requiredString(input, "resource");
+  if (!resource) {
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "resource is required" },
+      400,
+    );
+  }
+  try {
+    return companyOsHttpJson(
+      await ctx.runQuery(oauthUserInfoRef, {
+        accessTokenHash: sha256Hex(bearer),
+        resource,
+      }),
+    );
+  } catch {
+    return companyOsHttpJson(
+      { error: "invalid_token", error_description: "The access token is invalid" },
+      401,
+    );
+  }
+});
+
+function companyOsHttpFailure(error: unknown) {
+  const message = error instanceof Error ? error.message : "Connector request failed";
+  if (/missing required scope/i.test(message)) {
+    return companyOsHttpJson(
+      {
+        error: "insufficient_scope",
+        error_description: "The access token is missing the required scope",
+      },
+      403,
+    );
+  }
+  if (/access token|no longer authorized/i.test(message)) {
+    return companyOsHttpJson(
+      {
+        error: "invalid_token",
+        error_description: "The access token is invalid or no longer authorized",
+      },
+      401,
+    );
+  }
+  if (/outside the authorized workspace/i.test(message)) {
+    return companyOsHttpJson(
+      { error: "not_found", error_description: "The requested object was not found" },
+      404,
+    );
+  }
+  if (
+    /required|invalid|page size|do not accept|use the authorized|already bound|installation identity|active installation/i.test(
+      message,
+    )
+  ) {
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: message },
+      400,
+    );
+  }
+  return companyOsHttpJson(
+    { error: "server_error", error_description: "Connector request failed" },
+    500,
+  );
+}
+
+// Private backend adapter for the canonical www.operate.to connector routes.
+// The bearer remains in an HTTP Authorization header and is hashed here before
+// any Convex function invocation, so plaintext credentials never enter
+// query/mutation arguments or their telemetry.
+const handleCompanyOsBackend = httpAction(async (ctx, request) => {
+  const authorization = request.headers.get("authorization") ?? "";
+  const bearer = /^Bearer ([^\s]+)$/i.exec(authorization)?.[1];
+  if (!bearer) {
+    return companyOsHttpJson(
+      { error: "invalid_token", error_description: "A Bearer token is required" },
+      401,
+    );
+  }
+  const raw = await request.text();
+  if (raw.length > 32 * 1024) {
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "Request body is too large" },
+      413,
+    );
+  }
+  let input: Record<string, unknown>;
+  try {
+    input = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "Body must be JSON" },
+      400,
+    );
+  }
+  const operation = input.operation;
+  const resource = input.resource;
+  if (typeof operation !== "string" || typeof resource !== "string") {
+    return companyOsHttpJson(
+      {
+        error: "invalid_request",
+        error_description: "operation and resource are required",
+      },
+      400,
+    );
+  }
+  const accessTokenHash = sha256Hex(bearer);
+  try {
+    if (operation === "account") {
+      return companyOsHttpJson(
+        await ctx.runQuery(companyOsAccountRef, { accessTokenHash, resource }),
+      );
+    }
+    if (operation === "snapshot") {
+      const objectType = input.objectType as CompanyOsBackendArgs["objectType"];
+      const paginationOpts = input.paginationOpts as CompanyOsBackendArgs["paginationOpts"];
+      if (!objectType || !paginationOpts) {
+        return companyOsHttpJson(
+          {
+            error: "invalid_request",
+            error_description: "objectType and paginationOpts are required",
+          },
+          400,
+        );
+      }
+      return companyOsHttpJson(
+        await ctx.runMutation(companyOsSnapshotRef, {
+          accessTokenHash,
+          resource,
+          objectType,
+          paginationOpts,
+          ...(typeof input.parentType === "string"
+            ? { parentType: input.parentType as CompanyOsBackendArgs["parentType"] }
+            : {}),
+          ...(typeof input.parentId === "string" ? { parentId: input.parentId } : {}),
+          ...(typeof input.legacy === "boolean" ? { legacy: input.legacy } : {}),
+        }),
+      );
+    }
+    if (operation === "installation.get") {
+      return companyOsHttpJson(
+        await ctx.runQuery(companyOsCurrentInstallationRef, {
+          accessTokenHash,
+          resource,
+        }),
+      );
+    }
+    if (operation === "installation.upsert") {
+      if (typeof input.externalInstallationId !== "string") {
+        return companyOsHttpJson(
+          {
+            error: "invalid_request",
+            error_description: "externalInstallationId is required",
+          },
+          400,
+        );
+      }
+      return companyOsHttpJson(
+        await ctx.runMutation(companyOsUpsertInstallationRef, {
+          accessTokenHash,
+          resource,
+          externalInstallationId: input.externalInstallationId,
+        }),
+      );
+    }
+    if (operation === "installation.disconnect") {
+      return companyOsHttpJson(
+        await ctx.runMutation(companyOsDisconnectInstallationRef, {
+          accessTokenHash,
+          resource,
+          ...(typeof input.externalInstallationId === "string"
+            ? { externalInstallationId: input.externalInstallationId }
+            : {}),
+        }),
+      );
+    }
+    return companyOsHttpJson(
+      { error: "invalid_request", error_description: "Unknown operation" },
+      400,
+    );
+  } catch (error) {
+    return companyOsHttpFailure(error);
+  }
+});
+
 const http = httpRouter();
 http.route({ path: "/clerk", method: "POST", handler: handleClerkWebhook });
+http.route({
+  path: "/oauth/internal/token",
+  method: "POST",
+  handler: handleOAuthTokenBackend,
+});
+http.route({
+  path: "/oauth/internal/device",
+  method: "POST",
+  handler: handleOAuthDeviceBackend,
+});
+http.route({
+  path: "/oauth/internal/userinfo",
+  method: "POST",
+  handler: handleOAuthUserInfoBackend,
+});
+http.route({
+  path: "/companyos/internal",
+  method: "POST",
+  handler: handleCompanyOsBackend,
+});
 // pathPrefix, because the community and the workflow id are path segments.
 http.route({ pathPrefix: "/hooks/", method: "POST", handler: fireWorkflowWebhook });
 export default http;
