@@ -180,13 +180,20 @@ const DEFAULT_ROWS: Record<BuiltInId, [one: WidgetRows, two: WidgetRows, three: 
   //          1 col  2 cols  3 cols   (measured: 365/365/260 · 462/309/309 …)
   //          1 col  2 cols  3 cols — neighbours share heights so the grid's
   //          bottoms LINE UP: today==activity, live==agents at three columns.
-  stats: [4, 4, 3],
+  // One row taller at every width than the ladder used to say: the bento is
+  // 526px of content at a phone, 477 in a split window and 358 full-width,
+  // against boxes of 456/456/336 — the figure and Next up collided inside
+  // the scrollbox (scripts/measure-home.mjs flags all three widths). Full
+  // width it shares no row, so no bottom-alignment pair moves with it.
+  stats: [5, 5, 4],
   today: [5, 4, 4],
   activity: [4, 4, 4],
   // 6 at two columns since the outlined health chips added ~16px per card
   // (measured 592 in a 576 box); the cards stretch (auto-rows-fr), so the
   // extra row distributes into them rather than pooling as a dead band.
-  projects: [4, 6, 4],
+  // 5 at one column for the same reason as stats: 490px of cards in a 456
+  // box left the second card cut mid-figure.
+  projects: [5, 6, 4],
   live: [5, 4, 4],
   agents: [3, 3, 4],
 };

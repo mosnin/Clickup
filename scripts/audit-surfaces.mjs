@@ -28,8 +28,10 @@ async function chapterNames(page) {
   );
 }
 
-/** Select a panel, then open the style sheet over it. */
-async function openStudio(page, tile) {
+/** Select a panel, then open the style sheet over it. Exported so the
+ * audit's live-behind measurement opens the studio through the same door —
+ * a second copy of this flow is how the last driver drifted unreachable. */
+export async function openStudio(page, tile) {
   // Clicking the tile IS the scope selector — a delegated capture-phase
   // handler in the customise provider turns the press into a selection. Going
   // through it rather than calling the setter is the point: the question is
@@ -37,8 +39,14 @@ async function openStudio(page, tile) {
   // handed props.
   const target = page.locator(`[data-tile="${tile}"]`).first();
   await target.click({ position: { x: 40, y: 30 } });
-  await page.waitForTimeout(400);
-  await page.locator("#style-island button").first().click();
+  await page.waitForTimeout(700);
+  // Selecting a tile opens the sheet directly (the island's launcher button
+  // unmounts the moment a selection exists — clicking it here is what made
+  // every studio surface "unreachable" for a round). The island press is only
+  // the fallback for a build where selection does not auto-open.
+  if ((await page.locator("[data-studio-chapter]").count()) === 0) {
+    await page.locator("#style-island button").first().click({ timeout: 5000 });
+  }
   await page.waitForTimeout(1500);
 }
 
@@ -366,7 +374,17 @@ export async function measureLiveBehind(page) {
           return r.width * r.height > 150;
         },
       );
-      return marks.slice(0, 12).map((el) => getComputedStyle(el).fill);
+      // The mark's actual PAINT: a line chart's big paths are stroked with
+      // `fill: none`, so sampling fill alone reads "none" before and after
+      // and reports a working palette dead — which is exactly what happened
+      // on CI, where the size filter matched only stroked paths while the
+      // dev container happened to include one filled area deeper in the
+      // list. A "none" stays in the sample (position keeps before/after
+      // aligned) but can never register as a change.
+      return marks.slice(0, 12).map((el) => {
+        const cs = getComputedStyle(el);
+        return cs.fill && cs.fill !== "none" ? cs.fill : cs.stroke;
+      });
     });
 
   const before = await sample();
@@ -377,12 +395,26 @@ export async function measureLiveBehind(page) {
   if (options.length < 2) {
     return { measurable: false, why: "the colour chapter offered nothing to pick" };
   }
-  // The last option rather than the second: adjacent palettes can be close
-  // enough that a real change reads as no change, which would report a working
-  // control as dead — the false alarm that gets a gate switched off.
-  await options[options.length - 1].click();
-  await page.waitForTimeout(1400);
-  const after = await sample();
-  const changed = before.some((c, i) => after[i] !== undefined && after[i] !== c);
+  // Several options, farthest first, force-clicked — the same discipline
+  // scripts/verify-customize.mjs learned: the shelf is a snap carousel whose
+  // centred card is the applied one, and an unforced single click can land on
+  // a card the snap has already moved (Chromium's headless shell re-snaps
+  // between the scroll and the press), which reported a working control dead
+  // on CI while every local run saw it land. Farthest-first keeps the real
+  // change visible (adjacent palettes can be near-identical), and polling
+  // after each press gives the rAF token morph time to write. Only a shelf
+  // where NO option changes anything is dead.
+  let after = before;
+  let changed = false;
+  for (let i = options.length - 1; i >= 0 && !changed; i--) {
+    await options[i].click({ force: true }).catch(() => {});
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline) {
+      await page.waitForTimeout(400);
+      after = await sample();
+      changed = before.some((c, j) => after[j] !== undefined && after[j] !== c);
+      if (changed) break;
+    }
+  }
   return { measurable: true, changed, before, after };
 }

@@ -9,7 +9,7 @@ import { SPRING } from "@/components/motion";
 import { api } from "@convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/ui/sidebar";
-import { Monogram } from "@/components/dashboard/monogram";
+import { UserAvatar } from "@/components/identity/user-avatar";
 import { PageTitle } from "@/components/dashboard/page-title";
 
 // Shell fusion (Phase H): the sticky contextual header every dashboard
@@ -221,7 +221,12 @@ export function CapsuleCluster() {
       {/* A name can lag the row (webhook sync), and a cluster missing its
           avatar reads as broken chrome — fall back rather than vanish. */}
       {me ? (
-        <Monogram name={me.name || "You"} seed={me.clerkId} size="md" />
+        <UserAvatar
+          name={me.name || "You"}
+          seed={me.clerkId}
+          imageUrl={me.imageUrl}
+          size="md"
+        />
       ) : null}
     </div>
   );

@@ -26,6 +26,7 @@
 import { chromium } from "playwright-core";
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
+import { CHROME } from "./lib/browser.mjs";
 
 let failures = 0;
 const note = (ok, label, detail = "") => {
@@ -95,7 +96,7 @@ const server = createServer((_req, res) => {
 await new Promise((r) => server.listen(4601, r));
 
 const browser = await chromium.launch({
-  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  executablePath: CHROME,
 });
 
 // ── 1. Support, and the animations the browser actually runs ──────────────

@@ -237,16 +237,181 @@ export function collectFindings(opts) {
   // rather than guessing, and the refusal is counted. A number nobody can
   // check is worse than a hole somebody can see.
   function effectiveBackground(el) {
-    let acc = { r: 0, g: 0, b: 0, a: 0 };
-    let node = el;
+    // The ink's translucency comes from its ancestors' opacity, whatever
+    // turns out to paint behind it.
     let fgOpacity = 1;
-    let first = true;
-    while (node && node.nodeType === 1) {
-      const cs = getComputedStyle(node);
-      if (!first) {
-        const o = parseFloat(cs.opacity);
-        if (Number.isFinite(o) && o < 1) fgOpacity *= o;
+    for (let n = el.parentElement; n && n.nodeType === 1; n = n.parentElement) {
+      const o = parseFloat(getComputedStyle(n).opacity);
+      if (Number.isFinite(o) && o < 1) fgOpacity *= o;
+    }
+    let acc = { r: 0, g: 0, b: 0, a: 0 };
+
+    const finish = () => {
+      // Nothing opaque in the stack: the canvas colour shows through.
+      const canvasBg =
+        toRgba(getComputedStyle(document.documentElement).backgroundColor) ||
+        toRgba(getComputedStyle(document.body).backgroundColor);
+      if (canvasBg && canvasBg.a > 0) {
+        acc = composite(acc, canvasBg);
+        if (acc.a >= 0.999) return { colour: acc, why: null, fgOpacity };
       }
+      return { colour: null, why: "no opaque backdrop", fgOpacity };
+    };
+
+    // The element's own paint comes first, whatever else is under it — a
+    // monogram chip IS its own backdrop, and a walk that starts below the
+    // element reports the card behind the chip instead (538 white-on-white
+    // findings in one run, every crop a legible purple or black chip).
+    {
+      const cs = getComputedStyle(el);
+      if (cs.backgroundImage && cs.backgroundImage !== "none") {
+        return { colour: null, why: "background-image", fgOpacity };
+      }
+      const own = toRgba(cs.backgroundColor);
+      if (own && own.a > 0) {
+        acc = composite(acc, own);
+        if (acc.a >= 0.999) return { colour: acc, why: null, fgOpacity };
+      }
+    }
+
+    // Then what is actually PAINTED under the text, topmost first. Walking
+    // only the ancestor chain missed every backdrop drawn by a sibling — an
+    // SVG bar under its axis label, a positioned chip under a name — and
+    // composited the white card behind the chip instead, reporting
+    // white-on-white for text that was perfectly legible on its near-black
+    // pill (36 findings in one run, every crop fine). `elementsFromPoint`
+    // returns the true stacking order with ancestors at their real position,
+    // so both kinds of backdrop are one walk. SVG shapes paint with `fill`,
+    // not `background-color`.
+    const r = el.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    if (
+      r.width > 0 &&
+      r.height > 0 &&
+      cx >= 0 &&
+      cy >= 0 &&
+      cx <= window.innerWidth &&
+      cy <= window.innerHeight
+    ) {
+      const stack = document.elementsFromPoint(cx, cy);
+      const from = stack.indexOf(el);
+      // `el` absent (pointer-events: none, display quirks) means the stack
+      // cannot be trusted relative to it — fall through to the ancestor walk.
+      if (from !== -1) {
+        for (const under of stack.slice(from + 1)) {
+          const cs = getComputedStyle(under);
+          const svgShape =
+            under.namespaceURI === "http://www.w3.org/2000/svg" &&
+            under.tagName.toLowerCase() !== "svg";
+          if (svgShape) {
+            const fill = cs.fill;
+            if (fill && fill.startsWith("url(")) {
+              return { colour: null, why: "svg paint", fgOpacity };
+            }
+            const paint = toRgba(fill);
+            if (paint && paint.a > 0) {
+              const fo = parseFloat(cs.fillOpacity);
+              const eo = parseFloat(cs.opacity);
+              const a =
+                paint.a *
+                (Number.isFinite(fo) ? fo : 1) *
+                (Number.isFinite(eo) ? eo : 1);
+              if (a > 0) {
+                acc = composite(acc, { ...paint, a });
+                if (acc.a >= 0.999) return { colour: acc, why: null, fgOpacity };
+              }
+            }
+            continue;
+          }
+          if (cs.backgroundImage && cs.backgroundImage !== "none") {
+            return { colour: null, why: "background-image", fgOpacity };
+          }
+          const bg = toRgba(cs.backgroundColor);
+          if (bg && bg.a > 0) {
+            acc = composite(acc, bg);
+            if (acc.a >= 0.999) return { colour: acc, why: null, fgOpacity };
+          }
+        }
+        return finish();
+      }
+    }
+
+    // SVG text the hit-test cannot see (charts routinely set
+    // `pointer-events: none` on their internals, which removes them from
+    // `elementsFromPoint` entirely): its backdrop is a sibling shape in the
+    // same svg — the bar its label is written on, the chip under a name.
+    // The LAST shape in document order that actually PAINTS at the text's
+    // centre is the one beneath the text. Bounding-box containment is not
+    // that test: a line or area path's box spans the whole plot while its
+    // fill covers a sliver of it, and box-containment attributed a dark
+    // plot-path to a legible "41" on the white card (1.2:1 reported) —
+    // while any size heuristic that rejects big boxes also rejects the
+    // 76x92 bar a name really is painted on. `isPointInFill` answers with
+    // the actual geometry, so both cases resolve without a guess.
+    if (el.namespaceURI === "http://www.w3.org/2000/svg") {
+      const svgRoot = el.closest("svg");
+      if (svgRoot) {
+        let paint = null;
+        for (const s of svgRoot.querySelectorAll(
+          "rect, circle, ellipse, path",
+        )) {
+          if (s.contains(el) || el.contains(s)) continue;
+          const b = s.getBoundingClientRect();
+          if (cx < b.left || cx > b.right || cy < b.top || cy > b.bottom) {
+            continue;
+          }
+          if (typeof s.isPointInFill === "function") {
+            try {
+              const m = s.getScreenCTM();
+              if (m) {
+                const local = new DOMPoint(cx, cy).matrixTransform(
+                  m.inverse(),
+                );
+                if (!s.isPointInFill(local)) continue;
+              }
+            } catch {
+              // Geometry unavailable: fall back to the box test above.
+            }
+          }
+          const scs = getComputedStyle(s);
+          const fill = scs.fill;
+          if (fill && fill.startsWith("url(")) {
+            paint = "unmeasurable";
+            continue;
+          }
+          const rgba = toRgba(fill);
+          if (rgba && rgba.a > 0) {
+            const fo = parseFloat(scs.fillOpacity);
+            const eo = parseFloat(scs.opacity);
+            const a =
+              rgba.a *
+              (Number.isFinite(fo) ? fo : 1) *
+              (Number.isFinite(eo) ? eo : 1);
+            paint = a > 0 ? { ...rgba, a } : paint;
+          }
+        }
+        if (paint === "unmeasurable") {
+          return { colour: null, why: "svg paint", fgOpacity };
+        }
+        if (paint) {
+          acc = composite(acc, paint);
+          if (acc.a >= 0.999) return { colour: acc, why: null, fgOpacity };
+        }
+      }
+    }
+
+    // Fallback: the ancestor chain, for text the hit-test cannot see. It
+    // CONTINUES the composite — the element's own paint (and any svg shape
+    // found above) is already in `acc`, so this starts at the parent rather
+    // than resetting; a reset here silently discarded a translucent own
+    // background on every element the hit-test missed.
+    for (
+      let node = el.parentElement;
+      node && node.nodeType === 1;
+      node = node.parentElement
+    ) {
+      const cs = getComputedStyle(node);
       if (cs.backgroundImage && cs.backgroundImage !== "none") {
         return { colour: null, why: "background-image", fgOpacity };
       }
@@ -255,18 +420,8 @@ export function collectFindings(opts) {
         acc = composite(acc, bg);
         if (acc.a >= 0.999) return { colour: acc, why: null, fgOpacity };
       }
-      first = false;
-      node = node.parentElement;
     }
-    // Nothing opaque all the way up: the canvas colour is what shows through.
-    const canvasBg =
-      toRgba(getComputedStyle(document.documentElement).backgroundColor) ||
-      toRgba(getComputedStyle(document.body).backgroundColor);
-    if (canvasBg && canvasBg.a > 0) {
-      acc = composite(acc, canvasBg);
-      if (acc.a >= 0.999) return { colour: acc, why: null, fgOpacity };
-    }
-    return { colour: null, why: "no opaque backdrop", fgOpacity };
+    return finish();
   }
 
   // ── Bookkeeping ─────────────────────────────────────────────────────
@@ -673,6 +828,15 @@ export function collectFindings(opts) {
 
   // ── 5. Contrast, against the effective background, for real text ────
   {
+    // An open sheet makes the page behind it a BACKDROP: the canvas is faded
+    // on purpose while the sheet is the readable surface, so text out there
+    // is not presented for reading and AA has no claim on it. Without this,
+    // every studio surface reported its entire dimmed Home behind the sheet
+    // (~1,900 findings in one run, all of them the fade doing its job).
+    // Skipped and counted, never scored.
+    const overlayRoot = document.querySelector(
+      '[role="dialog"], [data-studio], #style-studio',
+    );
     const all = document.querySelectorAll("body *");
     for (const el of all) {
       if (ignored(el)) continue;
@@ -684,6 +848,18 @@ export function collectFindings(opts) {
       }
       if (!own.trim()) continue;
       if (el.closest("script, style, [hidden]")) continue;
+      // Inert content is a PICTURE. The style carousel draws the real
+      // renderer's output inside `inert` specimen cards, and the non-centred
+      // cards are additionally faded to ~0.3 as "not the current pick" —
+      // 1,600 findings in one run were axis labels inside those faded
+      // pictures. The centred, full-opacity component is audited where it
+      // actually ships; a swatch is judged by the pick it offers, not by AA.
+      if (el.closest('[inert], [aria-hidden="true"]')) {
+        skipped.contrast++;
+        skipped.reasons["inert content (a picture)"] =
+          (skipped.reasons["inert content (a picture)"] || 0) + 1;
+        continue;
+      }
       // WCAG 1.4.3 exempts inactive controls, and so does this: a disabled
       // button is meant to read as unavailable, and flagging every one of them
       // would bury the failures that matter under the ones that are correct.
@@ -707,6 +883,12 @@ export function collectFindings(opts) {
       if (!back.colour) {
         skipped.contrast++;
         skipped.reasons[back.why] = (skipped.reasons[back.why] || 0) + 1;
+        continue;
+      }
+      if (overlayRoot && !overlayRoot.contains(el) && back.fgOpacity < 0.95) {
+        skipped.contrast++;
+        skipped.reasons["dimmed behind an open sheet"] =
+          (skipped.reasons["dimmed behind an open sheet"] || 0) + 1;
         continue;
       }
       const fg = composite(
@@ -919,6 +1101,12 @@ export function collectFindings(opts) {
       'button, a[href], [role="button"], [role="tab"], input:not([type="hidden"]), select, summary, [role="switch"]',
     )) {
       if (ignored(el)) continue;
+      // A target a pointer cannot reach is not a target. Specimens draw real
+      // rows and buttons as PICTURES behind `pointer-events: none` (and
+      // `inert`); the press lands on the specimen card wrapping them, which
+      // is the target this gate should be measuring instead.
+      if (getComputedStyle(el).pointerEvents === "none") continue;
+      if (el.closest('[inert], [aria-hidden="true"]')) continue;
       const box = paintedBox(el);
       if (!box) continue;
       let w = box.width;

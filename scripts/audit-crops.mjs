@@ -27,6 +27,7 @@ import { chromium } from "playwright-core";
 import { createServer } from "node:http";
 import { readFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
+import { CHROME } from "./lib/browser.mjs";
 
 const GALLERY = "/tmp/design-gallery";
 const OUT = "/tmp/design-crops";
@@ -62,7 +63,7 @@ const server = createServer((req, res) => {
 await new Promise((resolve) => server.listen(4601, resolve));
 
 const browser = await chromium.launch({
-  executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+  executablePath: CHROME,
   args: ["--no-sandbox"],
 });
 const page = await browser.newPage({

@@ -231,7 +231,15 @@ export function StyleCarousel({
               title={item.hint}
               type="button"
             >
-              <span className="pointer-events-none block">{item.render()}</span>
+              {/* `inert`, not only pointer-events: a specimen is a PICTURE of
+                  the renderer's output, and the real rows and links inside it
+                  were still in the tab order and the accessibility tree — a
+                  keyboard user could focus a task link inside what reads as a
+                  swatch. inert removes both at once; the button wrapping this
+                  is the one thing a press or a Tab should reach. */}
+              <span className="pointer-events-none block" inert>
+                {item.render()}
+              </span>
               {/* The hero shelf names only the centred item, once, in the
                   caller's one place — a caption per card is the stacked-list
                   look this mode exists to not be. */}

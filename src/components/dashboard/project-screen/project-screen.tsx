@@ -8,7 +8,7 @@ import { EASE } from "@/components/motion";
 import { api } from "@convex/_generated/api";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
-import { morphLayout, wake } from "@/lib/anime";
+import { wake } from "@/lib/anime";
 import {
   addWidget,
   describeLayoutChange,
@@ -124,13 +124,10 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
 
   function resolve(accept: boolean) {
     if (!proposal) return;
+    // Dismissing from preview transitions back to your own arrangement via
+    // the tiles' own CSS transition; accepting keeps what the grid already
+    // shows, so neither case needs a second reflow.
     setPreviewingProposal(null);
-    // Accepting from preview: the grid is already showing the result, so the
-    // resolution lands without a second reflow. Dismissing from preview morphs
-    // back to your own arrangement.
-    if (!accept && previewing) {
-      morphLayout(`#${GRID_ID}`, () => {});
-    }
     void resolveProposal({
       proposalId: proposal.proposalId as Parameters<
         typeof resolveProposal
@@ -195,9 +192,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
     // layout is being previewed, which would otherwise save the agent's
     // arrangement as yours on the way past.
     replace: (widgetId, componentId) =>
-      morphLayout(`#${GRID_ID}`, () =>
-        persist(replaceWidget(layout, widgetId, panelWidgetId(componentId))),
-      ),
+      persist(replaceWidget(layout, widgetId, panelWidgetId(componentId))),
   });
 
   // Every tile this screen can draw, placed or not.
@@ -292,11 +287,9 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
         scopeType={scope.scopeType}
         scopeId={scope.scopeId}
         onAccept={(componentId) =>
-          morphLayout(`#${GRID_ID}`, () =>
-            persist(addWidget(layout, panelWidgetId(componentId), 1), {
+          persist(addWidget(layout, panelWidgetId(componentId), 1), {
               droppedAt: layout.widgets.length,
-            }),
-          )
+            })
         }
       />
 
@@ -331,9 +324,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
                 aria-pressed={previewing}
                 onClick={() => {
                   const next = previewing ? null : proposal.proposalId;
-                  morphLayout(`#${GRID_ID}`, () =>
-                    setPreviewingProposal(next),
-                  );
+                  setPreviewingProposal(next);
                 }}
                 className="rounded-full px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
               >
@@ -350,7 +341,7 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
                 type="button"
                 onClick={() => {
                   if (previewing) resolve(true);
-                  else morphLayout(`#${GRID_ID}`, () => resolve(true));
+                  else resolve(true);
                 }}
                 className="rounded-full bg-foreground px-3 py-1.5 text-xs text-background"
               >
@@ -412,18 +403,14 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
                       key={id}
                       gridId={GRID_ID}
                       onDrop={(slot) =>
-                        morphLayout(`#${GRID_ID}`, () =>
-                          persist(insertWidget(layout, id, 1, slot), {
+                        persist(insertWidget(layout, id, 1, slot), {
                             droppedAt: slot,
-                          }),
-                        )
+                          })
                       }
                       onClick={() =>
-                        morphLayout(`#${GRID_ID}`, () =>
-                          persist(addWidget(layout, id, 1), {
+                        persist(addWidget(layout, id, 1), {
                             droppedAt: layout.widgets.length,
-                          }),
-                        )
+                          })
                       }
                       className="bento-tile flex cursor-grab items-start gap-2 p-3 text-left transition-colors hover:bg-accent active:cursor-grabbing"
                     >
@@ -490,19 +477,15 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
                     key={id}
                     gridId={GRID_ID}
                     onDrop={(slot) =>
-                      morphLayout(`#${GRID_ID}`, () =>
-                        persist(
+                      persist(
                           insertWidget(layout, id, widget.defaultSpan, slot),
                           { droppedAt: slot },
-                        ),
-                      )
+                        )
                     }
                     onClick={() =>
-                      morphLayout(`#${GRID_ID}`, () =>
-                        persist(addWidget(layout, id, widget.defaultSpan), {
+                      persist(addWidget(layout, id, widget.defaultSpan), {
                           droppedAt: layout.widgets.length,
-                        }),
-                      )
+                        })
                     }
                     className="bento-tile flex cursor-grab items-start gap-2 p-3 text-left transition-colors hover:bg-accent active:cursor-grabbing"
                   >
@@ -535,12 +518,10 @@ export function ProjectScreen(ctx: ProjectWidgetContext) {
                 scopeType={scope.scopeType}
                 scopeId={scope.scopeId}
                 onCreated={(componentId: string) =>
-                  morphLayout(`#${GRID_ID}`, () =>
-                    persist(
+                  persist(
                       addWidget(layout, panelWidgetId(componentId), 1),
                       { droppedAt: layout.widgets.length },
-                    ),
-                  )
+                    )
                 }
               />
             </div>

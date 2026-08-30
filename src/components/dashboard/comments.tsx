@@ -9,7 +9,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
-import { Monogram } from "@/components/dashboard/monogram";
+import { UserAvatar } from "@/components/identity/user-avatar";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { useToast } from "@/components/toast";
@@ -443,8 +443,10 @@ function Avatar({
   small?: boolean;
 }) {
   return (
-    <Monogram
+    <UserAvatar
       name={user?.name ?? clerkId.slice(-2) ?? "?"}
+      seed={clerkId}
+      imageUrl={user?.imageUrl}
       size={small ? "sm" : "md"}
     />
   );
