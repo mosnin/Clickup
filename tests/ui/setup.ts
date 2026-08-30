@@ -83,3 +83,57 @@ Element.prototype.getBoundingClientRect = function measured(this: Element) {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = vi.fn();
 }
+
+// jsdom ships no canvas: `getContext("2d")` returns null and shouts "Not
+// implemented" through the virtual console once per avatar rendered. Two
+// reasons that is worth stubbing rather than tolerating. The noise is the
+// smaller one — a suite that prints hundreds of errors on a green run is a
+// suite nobody reads when a real error appears, which this project has
+// already paid for once. The larger one: with a null context every canvas
+// component early-returns, so its drawing code is never executed by any test
+// and a crash in there would ship green.
+//
+// So: a recording no-op context. Every 2D method is a function that does
+// nothing, every property is settable, and `getContext` hands back the same
+// object per canvas — enough for a component to run its full draw pass.
+if (!HTMLCanvasElement.prototype.getContext.toString().includes("stub")) {
+  const contexts = new WeakMap<HTMLCanvasElement, unknown>();
+  HTMLCanvasElement.prototype.getContext = function stub(this: HTMLCanvasElement) {
+    const existing = contexts.get(this);
+    if (existing) return existing as CanvasRenderingContext2D;
+    const canvas = this;
+    const store: Record<string | symbol, unknown> = {};
+    // The methods that RETURN something a caller then reads. A blanket
+    // no-op is wrong for these — `getImageData(...).data` on undefined
+    // throws, and the charts genuinely round-trip a colour through the
+    // canvas to resolve `var()`/`color-mix()`. Opaque black is the honest
+    // answer for a surface nothing was ever painted onto.
+    const returns: Record<string, () => unknown> = {
+      getImageData: () => ({ data: new Uint8ClampedArray([0, 0, 0, 255]) }),
+      measureText: () => ({ width: 0 }),
+      getLineDash: () => [],
+      createLinearGradient: () => ({ addColorStop: () => undefined }),
+      createRadialGradient: () => ({ addColorStop: () => undefined }),
+      createConicGradient: () => ({ addColorStop: () => undefined }),
+      createPattern: () => null,
+      isPointInPath: () => false,
+      isPointInStroke: () => false,
+    };
+    const ctx = new Proxy(store, {
+      get(target, prop) {
+        if (prop in target) return target[prop];
+        // The one real back-reference a component may legitimately read.
+        if (prop === "canvas") return canvas;
+        if (typeof prop === "string" && prop in returns) return returns[prop];
+        // Everything else is a drawing call: does nothing, returns nothing.
+        return () => undefined;
+      },
+      set(target, prop, value) {
+        target[prop] = value;
+        return true;
+      },
+    });
+    contexts.set(this, ctx);
+    return ctx as unknown as CanvasRenderingContext2D;
+  } as unknown as typeof HTMLCanvasElement.prototype.getContext;
+}

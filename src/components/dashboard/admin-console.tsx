@@ -42,7 +42,7 @@ import {
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Pagination } from "@/components/interior/pagination";
 import { cn } from "@/lib/utils";
-import { identityFill } from "@/lib/identity-color";
+import { UserAvatar } from "@/components/identity/user-avatar";
 import { timeAgo } from "@/lib/time";
 import { useToast } from "@/components/toast";
 import {
@@ -1544,14 +1544,7 @@ function Avatar({ name, img }: { name: string; img?: string }) {
       />
     );
   }
-  return (
-    <span
-      style={identityFill(name)}
-      className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-medium text-white"
-    >
-      {(Array.from(name.trim())[0] ?? "?").toUpperCase()}
-    </span>
-  );
+  return <UserAvatar name={name} size={36} />;
 }
 
 function Empty({ label }: { label: string }) {

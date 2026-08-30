@@ -18,6 +18,7 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@bklit": "https://bklit.com/r/{name}.json"
+    "@bklit": "https://bklit.com/r/{name}.json",
+    "@smoothui": "https://smoothui.dev/r/{name}.json"
   }
 }
