@@ -103,16 +103,17 @@ function InviteCard({
     // being readable: past that the buttons drop to their own line rather than
     // the words being crushed, and `break-words` keeps a very long address
     // inside the card even then.
-    <div className="flex flex-wrap items-center gap-4 rounded-2xl panel p-5">
-      <span className="icon-tile flex-shrink-0">
-        <Mail className="h-4 w-4" />
+    <div className="flex flex-wrap items-center gap-3 rounded-full panel px-3 py-2">
+      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-muted">
+        <Mail className="h-3.5 w-3.5" />
       </span>
-      <div className="min-w-0 flex-1 basis-56">
-        <p className="font-semibold">
+      <div className="min-w-0 flex-1 basis-40">
+        <p className="truncate text-sm font-medium">
           Join {workspaceName}
-        </p>
-        <p className="break-words text-sm text-muted-foreground">
-          {invitedBy} invited you as {role}.
+          <span className="font-normal text-muted-foreground">
+            {" "}
+            · {invitedBy} invited you as {role}
+          </span>
         </p>
       </div>
       <div className="flex flex-shrink-0 items-center gap-2">

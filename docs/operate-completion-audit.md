@@ -1,6 +1,6 @@
 # Operate completion audit
 
-Updated: 2026-07-25
+Updated: 2026-08-25
 
 This is the source of truth for the continuing product-build loop. A passing
 unit test is evidence, not proof of end-to-end completion. Mark an item proven
@@ -164,8 +164,11 @@ only after automated checks and relevant production behavior both pass.
    agent and integration secret-output boundaries, OAuth redirects, MCP
    authentication/CORS, webhook egress, the exact agent write-rate boundary,
    and the fixable dependency set are certified below.
-4. Run load/performance, backup/restore, data-retention, and disaster-recovery
-   exercises.
+4. Run the 10k-task load fixture against **staging** (`scripts/load-fixture.mjs
+   --scale=10k`) and the Convex dashboard backup/restore drill in
+   `docs/PRODUCTION-RUNBOOK.md`. The pagination contract is proven in CI
+   (`tests/pagination.test.ts`). DR is **not** proven until a staging export
+   is restored and `/api/health` + MCP `whoami` + one task read succeed.
 5. Upload the ChatGPT and Claude bundles for official review and address reviewer
    feedback. Platform approval itself is external and cannot be proven locally.
 

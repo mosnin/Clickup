@@ -78,21 +78,28 @@ export function ReportsPanel({
       </Stagger>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Widget title="Workload by assignee">
+        <Widget title="Open work by project">
           {summary.taskCountByAssignee.length === 0 ? (
-            <Empty>No tasks assigned yet.</Empty>
+            <Empty>No open tasks yet.</Empty>
           ) : (
             <ul className="space-y-2">
               {summary.taskCountByAssignee
                 .slice()
                 .sort((a, b) => b.count - a.count)
                 .slice(0, 8)
-                .map(({ clerkId, count }) => {
+                .map((row) => {
+                  const { clerkId, count } = row;
+                  const listLabel =
+                    "label" in row && typeof row.label === "string"
+                      ? row.label
+                      : undefined;
                   const user = memberByClerkId.get(clerkId);
                   return (
                     <Bar
                       key={clerkId}
-                      label={user?.name ?? user?.email ?? "Unknown"}
+                      label={
+                        listLabel ?? user?.name ?? user?.email ?? "Unknown"
+                      }
                       value={count}
                       max={Math.max(
                         ...summary.taskCountByAssignee.map((a) => a.count),

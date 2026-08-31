@@ -8,7 +8,9 @@
 // same transaction as the task write they're accounting for. `getRollup`
 // is the read-side counterpart for queries, which can't write: a missing
 // row means the caller should fall back to scanning that one list itself.
+import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 
@@ -145,5 +147,27 @@ export const backfillAll = internalMutation({
       await computeRollup(ctx, list._id);
     }
     return { listsRecomputed: lists.length };
+  },
+});
+
+// Nightly reconcile: recount one page of lists, then schedule the next
+// page. Drift from write paths outside the *Core functions cannot starve
+// the rest of the table — every list touched leaves the cursor range.
+export const reconcileBatch = internalMutation({
+  args: { cursor: v.optional(v.string()) },
+  handler: async (ctx, { cursor }) => {
+    const page = await ctx.db.query("lists").paginate({
+      numItems: 25,
+      cursor: cursor ?? null,
+    });
+    for (const list of page.page) {
+      await computeRollup(ctx, list._id);
+    }
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.rollups.reconcileBatch, {
+        cursor: page.continueCursor,
+      });
+    }
+    return { recomputed: page.page.length, isDone: page.isDone };
   },
 });

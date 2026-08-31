@@ -25,6 +25,8 @@ import {
   CHAT_AGENT_READ_TOOLS,
   CHAT_AGENT_TOOLS,
 } from "@/lib/buzz/agent-chat-tools";
+import { allowMcpRequest, mcpClientKey } from "@/lib/mcp-rate-limit";
+import { reportClientError } from "@/lib/sentry";
 
 // Hosted MCP server (Streamable HTTP) at POST /api/mcp.
 //
@@ -1018,7 +1020,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "list_tasks",
     description:
-      "List tasks. Filter by listId or sprintId, or omit both to sweep my whole scope. assignedToMe narrows to my assignments. Completed/closed tasks are hidden unless includeCompleted. Returns at most `limit` rows (default 100, max 500); long descriptions are truncated (descriptionTruncated: true) — get_task returns the full text.",
+      "List tasks. Filter by listId or sprintId, or omit both to page through my whole scope. assignedToMe narrows to my assignments. Completed/closed tasks are hidden unless includeCompleted. Returns { tasks, continueCursor, isDone }. Pass continueCursor as cursor to get the next page. At most `limit` rows (default 100, max 500); long descriptions are truncated (descriptionTruncated: true) — get_task returns the full text. Do not ask for everything.",
     shape: {
       listId: z.string().optional(),
       sprintId: z.string().optional(),
@@ -1028,6 +1030,10 @@ const TOOLS: ToolDef[] = [
         .number()
         .optional()
         .describe("max results, default 100, max 500"),
+      cursor: z
+        .string()
+        .optional()
+        .describe("opaque cursor from the previous page's continueCursor"),
     },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.listTasks), { apiKey: k, ...a }),
@@ -1436,8 +1442,12 @@ const TOOLS: ToolDef[] = [
   {
     name: "search_tasks",
     description:
-      "Keyword search over task titles/descriptions in my scope. For semantic search use semantic_search.",
-    shape: { query: z.string(), limit: z.number().optional() },
+      "Keyword search over task titles/descriptions in my scope. Returns { results, continueCursor, isDone }. Pass continueCursor as cursor for the next page. For semantic search use semantic_search.",
+    shape: {
+      query: z.string(),
+      limit: z.number().optional(),
+      cursor: z.string().optional(),
+    },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.searchTasks), { apiKey: k, ...a }),
   },
@@ -3062,6 +3072,7 @@ function createOperateMcpHandler(profile: AnnotationProfile) {
                     : JSON.stringify(err.data);
               } else {
                 message = err instanceof Error ? err.message : String(err);
+                reportClientError(err, { surface: "mcp", tool: tool.name });
               }
               return {
                 content: [{ type: "text" as const, text: `Error: ${message}` }],
@@ -3194,6 +3205,12 @@ async function guarded(req: Request): Promise<Response> {
   const { pathname, searchParams } = new URL(req.url);
   if (pathname !== "/api/mcp") {
     return new Response("Not found", { status: 404 });
+  }
+  if (!allowMcpRequest(mcpClientKey(req))) {
+    return new Response("Too many requests", {
+      status: 429,
+      headers: { "Retry-After": "60" },
+    });
   }
   // Streamable HTTP formally asks clients to advertise both response types.
   // A large share of first connections are hand-written curl commands,

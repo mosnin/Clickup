@@ -2,15 +2,16 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { canAccessSpace } from "./_authz";
+import { getRollup } from "./rollups";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const TIME_CAP_PER_ACTOR = 200;
 
-// One-shot aggregation behind the workspace Reports tab.
-//
-// Walks workspace -> spaces -> (projects ->) lists -> tasks. For each
-// task it folds the open/complete counts and joins time entries into
-// per-user totals for the last 7 days. This is O(tasks + entries) per
-// workspace; fine for the sizes we're targeting in phase 6.
+// Workspace Reports tab. Status totals come from maintained listRollups
+// (written in the task *Core paths). Time is ranged per member, not joined
+// per task. Completed-this-week is counted from the activity log. A grown
+// workspace must not time out this query.
+
 export const workspaceSummary = query({
   args: { workspaceId: v.id("workspaces") },
   handler: async (ctx, { workspaceId }) => {
@@ -34,11 +35,8 @@ export const workspaceSummary = query({
       )
       .collect();
 
-    const lists: { _id: Id<"lists"> }[] = [];
+    const lists: { _id: Id<"lists">; name: string }[] = [];
     for (const space of spaces) {
-      // Skip archived spaces and private spaces the caller can't access —
-      // same per-viewer gate as portfolio.ts/sprints.addableTasks — so the
-      // Reports tab never aggregates data from spaces the caller can't see.
       if (space.archivedAt !== undefined) continue;
       if (!(await canAccessSpace(ctx, space, identity))) continue;
 
@@ -67,60 +65,71 @@ export const workspaceSummary = query({
 
     let openTaskCount = 0;
     let inProgressTaskCount = 0;
-    let completedThisWeek = 0;
-    const taskCountByAssignee = new Map<string, number>();
-    const allTasks: { _id: Id<"tasks"> }[] = [];
+    let doneTaskCount = 0;
+    let totalTasks = 0;
+    const taskCountByList: { listId: Id<"lists">; name: string; count: number }[] =
+      [];
 
     for (const list of lists) {
-      const statuses = await ctx.db
-        .query("listStatuses")
-        .withIndex("by_list", (q) => q.eq("listId", list._id))
-        .collect();
-      const statusCategoryById = new Map<Id<"listStatuses">, string>(
-        statuses.map((s) => [s._id, s.category] as const),
-      );
-
-      const tasks = await ctx.db
-        .query("tasks")
-        .withIndex("by_list", (q) => q.eq("listId", list._id))
-        .collect();
-      for (const t of tasks) {
-        allTasks.push({ _id: t._id });
-        const cat = statusCategoryById.get(t.statusId);
-        if (cat === "open") openTaskCount++;
-        else if (cat === "in_progress") inProgressTaskCount++;
-        if (
-          (cat === "complete" || cat === "closed") &&
-          t.completedAt &&
-          t.completedAt >= since
-        ) {
-          completedThisWeek++;
-        }
-        for (const a of t.assigneeClerkIds) {
-          taskCountByAssignee.set(a, (taskCountByAssignee.get(a) ?? 0) + 1);
-        }
+      const rollup = await getRollup(ctx, list._id);
+      if (!rollup) continue;
+      const open = Math.max(0, rollup.total - rollup.done - rollup.inProgress);
+      openTaskCount += open;
+      inProgressTaskCount += rollup.inProgress;
+      doneTaskCount += rollup.done;
+      totalTasks += rollup.total;
+      const remaining = rollup.total - rollup.done;
+      if (remaining > 0) {
+        taskCountByList.push({
+          listId: list._id,
+          name: list.name,
+          count: remaining,
+        });
       }
     }
 
-    // Time tracked this week, joined to workspace tasks.
+    const recentEvents = await ctx.db
+      .query("events")
+      .withIndex("by_scope", (q) =>
+        q.eq("scopeType", "workspace").eq("scopeId", workspaceId),
+      )
+      .order("desc")
+      .take(200);
+    const completedThisWeek = recentEvents.filter(
+      (e) => e.type === "task.completed" && e.createdAt >= since,
+    ).length;
+
+    const members = await ctx.db
+      .query("memberships")
+      .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
+      .collect();
+    const agents = await ctx.db
+      .query("agents")
+      .withIndex("by_parent", (q) =>
+        q.eq("parentType", "workspace").eq("parentId", workspaceId),
+      )
+      .collect();
+    const actorIds = [
+      ...members.map((m) => m.userClerkId),
+      ...agents.map((a) => a._id as string),
+    ];
+
     let timeTrackedThisWeekMs = 0;
     const timeByUser = new Map<string, number>();
-    const taskIds = new Set(allTasks.map((t) => t._id));
-    for (const taskId of taskIds) {
+    for (const actorId of actorIds) {
       const entries = await ctx.db
         .query("timeEntries")
-        .withIndex("by_task", (q) => q.eq("taskId", taskId))
-        .collect();
+        .withIndex("by_user_started", (q) =>
+          q.eq("userClerkId", actorId).gte("startedAt", since),
+        )
+        .take(TIME_CAP_PER_ACTOR);
       for (const e of entries) {
         const ended = e.endedAt ?? Date.now();
-        if (ended < since) continue;
         const start = Math.max(e.startedAt, since);
         const duration = Math.max(0, ended - start);
+        if (duration === 0) continue;
         timeTrackedThisWeekMs += duration;
-        timeByUser.set(
-          e.userClerkId,
-          (timeByUser.get(e.userClerkId) ?? 0) + duration,
-        );
+        timeByUser.set(actorId, (timeByUser.get(actorId) ?? 0) + duration);
       }
     }
 
@@ -149,15 +158,21 @@ export const workspaceSummary = query({
         open: openTaskCount,
         inProgress: inProgressTaskCount,
         completedThisWeek,
-        total: allTasks.length,
+        total: totalTasks,
+        done: doneTaskCount,
       },
-      taskCountByAssignee: Array.from(taskCountByAssignee.entries()).map(
-        ([clerkId, count]) => ({ clerkId, count }),
-      ),
+      // Kept for the existing widget; counts are open work per list (from
+      // rollups) rather than a full-tree assignee walk.
+      taskCountByAssignee: taskCountByList.map((row) => ({
+        clerkId: row.listId,
+        count: row.count,
+        label: row.name,
+      })),
       timeTrackedThisWeekMs,
-      timeByUser: Array.from(timeByUser.entries()).map(
-        ([clerkId, ms]) => ({ clerkId, ms }),
-      ),
+      timeByUser: Array.from(timeByUser.entries()).map(([clerkId, ms]) => ({
+        clerkId,
+        ms,
+      })),
       goals: {
         open: openGoals,
         complete: completeGoals,

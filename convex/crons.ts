@@ -78,4 +78,14 @@ crons.interval(
   {},
 );
 
+// Recount list rollups so Home/Reports cannot drift from write paths
+// outside the task *Core functions. Batches of 25; each batch schedules
+// the next until the table is walked.
+crons.interval(
+  "reconcile list rollups",
+  { hours: 24 },
+  internal.rollups.reconcileBatch,
+  {},
+);
+
 export default crons;

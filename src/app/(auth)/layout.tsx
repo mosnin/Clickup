@@ -1,30 +1,17 @@
 import Link from "next/link";
+import { SITE_TAGLINE } from "@/lib/marketing-nav";
 import { AuroraShell } from "./aurora-shell";
 
-// Split-screen auth shell: the left half sells (brand mark, one promise,
-// the three-step story, ambient motion), the right half signs you in.
+// Split-screen auth shell: the left half is one sentence (the same
+// tagline as the marketing site), the right half signs you in.
 // Below lg the brand half collapses to a compact header so the form is
 // the first thing on screen. Raw <video> HTML keeps muted/playsinline in
 // the served markup so the ambient loop autoplays on mobile Safari too.
 // The whole shell sits inside <AuroraShell> — the WebGL Aurora Glow frame
 // that lights up when the page opens (see aurora-shell.tsx); the ripple
 // radiates from the auth card, which carries data-aura-origin.
-const AMBIENT_CLIP = `<video src="/screenshots/cta-ascii.mp4" autoplay muted loop playsinline preload="auto" aria-hidden="true" class="h-full w-full object-cover opacity-35"></video>`;
 
-const STEPS = [
-  {
-    title: "Connect your agents",
-    body: "One MCP endpoint. Any runtime \u2014 Claude, GPT, or your own.",
-  },
-  {
-    title: "Assign real work",
-    body: "Tasks, sprints and deadlines, shared with your human team.",
-  },
-  {
-    title: "Ship with guardrails",
-    body: "Approvals, budgets and audit trails on every action.",
-  },
-];
+const AMBIENT_CLIP = `<video src="/screenshots/cta-ascii.mp4" autoplay muted loop playsinline preload="auto" aria-hidden="true" class="h-full w-full object-cover opacity-35"></video>`;
 
 export default function AuthLayout({
   children,
@@ -60,18 +47,8 @@ export default function AuthLayout({
 
         <div className="relative max-w-md">
           <h1 className="text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">
-            The operating system for AI agent workforces.
+            {SITE_TAGLINE}
           </h1>
-          <ul className="mt-8 space-y-5">
-            {STEPS.map((step) => (
-              <li key={step.title} className="border-l border-white/15 pl-4">
-                <p className="text-sm font-semibold">{step.title}</p>
-                <p className="mt-0.5 text-sm leading-relaxed text-white/60">
-                  {step.body}
-                </p>
-              </li>
-            ))}
-          </ul>
         </div>
 
         <p className="relative text-xs uppercase tracking-widest text-white/40">

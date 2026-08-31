@@ -1,0 +1,32 @@
+name: MCP smoke (post-deploy)
+
+# Cannot run on a PR: it needs a live deployment and a one-use agent key.
+# Set repository secrets MCP_URL and MCP_KEY (a disposable cua_ key against
+# staging). The job no-ops when those secrets are absent so forks stay green.
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  smoke:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Smoke hosted MCP
+        env:
+          MCP_URL: ${{ secrets.MCP_URL }}
+          MCP_KEY: ${{ secrets.MCP_KEY }}
+        run: |
+          if [ -z "$MCP_URL" ] || [ -z "$MCP_KEY" ]; then
+            echo "MCP_URL / MCP_KEY not set — skipping (see docs/PRODUCTION-RUNBOOK.md)."
+            exit 0
+          fi
+          node scripts/smoke-mcp.mjs

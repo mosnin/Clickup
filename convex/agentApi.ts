@@ -27,6 +27,12 @@ import {
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
+  decodeCursor,
+  encodeCursor,
+  pageLimit,
+  LIST_SCAN_CAP,
+} from "./_pagination";
+import {
   agentActor,
   agentCanTouchList,
   recordAgentSpend,
@@ -1729,88 +1735,55 @@ export const listTasks = query({
     assignedToMe: v.optional(v.boolean()),
     includeCompleted: v.optional(v.boolean()),
     limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey);
-    let tasks: Doc<"tasks">[] = [];
+    const max = pageLimit(args.limit, 100, 500);
+    const start = decodeCursor(args.cursor);
+
+    type TaskRow = Doc<"tasks">;
+    type Source =
+      | { kind: "list"; listId: Id<"lists"> }
+      | { kind: "sprint"; sprintId: Id<"sprints"> };
+
+    const sources: Source[] = [];
     if (args.listId) {
       await requireListAccessForAgent(ctx, args.listId, agent);
-      tasks = await ctx.db
-        .query("tasks")
-        .withIndex("by_list", (q) => q.eq("listId", args.listId!))
-        .collect();
+      sources.push({ kind: "list", listId: args.listId });
     } else if (args.sprintId) {
       const sprint = await ctx.db.get(args.sprintId);
       if (!sprint) throw new ConvexError("Sprint not found");
       requireWorkspaceAccessForAgent(sprint.workspaceId, agent);
-      tasks = await ctx.db
-        .query("tasks")
-        .withIndex("by_sprint", (q) => q.eq("sprintId", args.sprintId))
-        .collect();
+      sources.push({ kind: "sprint", sprintId: args.sprintId });
     } else {
-      // Walk every list in the agent's scope.
-      const spaces = await ctx.db
-        .query("spaces")
-        .withIndex("by_parent", (q) =>
-          q.eq("parentType", agent.parentType).eq("parentId", agent.parentId),
-        )
-        .collect();
-      for (const space of spaces) {
-        const listParents: { type: "space" | "project"; id: string }[] = [
-          { type: "space", id: space._id },
-        ];
-        const projects = await ctx.db
-          .query("projects")
-          .withIndex("by_space", (q) => q.eq("spaceId", space._id))
-          .collect();
-        for (const f of projects) listParents.push({ type: "project", id: f._id });
-        for (const p of listParents) {
-          const lists = await ctx.db
-            .query("lists")
-            .withIndex("by_parent", (q) =>
-              q.eq("parentType", p.type).eq("parentId", p.id),
-            )
-            .collect();
-          for (const l of lists) {
-            if (!agentCanTouchList(agent, l._id)) continue;
-            const ts = await ctx.db
-              .query("tasks")
-              .withIndex("by_list", (q) => q.eq("listId", l._id))
-              .collect();
-            tasks.push(...ts);
-          }
+      const scoped = await listsInScope(ctx, agent);
+      for (const { list } of scoped) {
+        if (agentCanTouchList(agent, list._id)) {
+          sources.push({ kind: "list", listId: list._id });
         }
       }
     }
 
-    tasks = tasks.filter((t) => agentCanTouchList(agent, t.listId));
-    if (args.assignedToMe) {
-      tasks = tasks.filter((t) => t.assigneeClerkIds.includes(agent._id));
-    }
-    // Same order humans see: the list's manual ordering (position), stable
-    // across lists when the scope-wide walk mixes several.
-    tasks.sort(
-      (a, b) =>
-        a.listId.localeCompare(b.listId) ||
-        a.position - b.position ||
-        a.createdAt - b.createdAt,
-    );
-    const max = Math.min(args.limit ?? 100, 500);
     const views: (Awaited<ReturnType<typeof taskView>> & {
       descriptionTruncated?: boolean;
     })[] = [];
-    for (const t of tasks) {
-      if (views.length >= max) break;
+
+    let listOffset = start?.listOffset ?? 0;
+    let skip = start?.skip ?? 0;
+
+    const pushView = async (t: TaskRow): Promise<void> => {
+      if (args.assignedToMe && !t.assigneeClerkIds.includes(agent._id)) {
+        return;
+      }
       const view = await taskView(ctx, t);
       if (
         !args.includeCompleted &&
         (view.status?.category === "complete" ||
           view.status?.category === "closed")
       ) {
-        continue;
+        return;
       }
-      // Payload discipline: long descriptions are truncated in list reads;
-      // get_task returns the full text.
       if (view.description !== undefined && view.description.length > 300) {
         views.push({
           ...view,
@@ -1820,8 +1793,62 @@ export const listTasks = query({
       } else {
         views.push(view);
       }
+    };
+
+    // One `.paginate()` per query is a Convex hard limit, so a scope walk
+    // uses `.take()` per list (capped) and a cursor of (list, skip).
+    while (listOffset < sources.length && views.length < max) {
+      const source = sources[listOffset];
+      const rows =
+        source.kind === "list"
+          ? await ctx.db
+              .query("tasks")
+              .withIndex("by_list", (q) => q.eq("listId", source.listId))
+              .take(LIST_SCAN_CAP)
+          : await ctx.db
+              .query("tasks")
+              .withIndex("by_sprint", (q) => q.eq("sprintId", source.sprintId))
+              .take(LIST_SCAN_CAP);
+      rows.sort((a, b) => a.position - b.position);
+
+      const eligible: TaskRow[] = [];
+      for (const t of rows) {
+        if (args.assignedToMe && !t.assigneeClerkIds.includes(agent._id)) {
+          continue;
+        }
+        if (!args.includeCompleted) {
+          const status = await ctx.db.get(t.statusId);
+          if (
+            status?.category === "complete" ||
+            status?.category === "closed"
+          ) {
+            continue;
+          }
+        }
+        eligible.push(t);
+      }
+
+      let idx = skip;
+      skip = 0;
+      while (idx < eligible.length && views.length < max) {
+        await pushView(eligible[idx]);
+        idx += 1;
+      }
+      if (idx < eligible.length) {
+        return {
+          tasks: views,
+          continueCursor: encodeCursor({ listOffset, skip: idx }),
+          isDone: false,
+        };
+      }
+      listOffset += 1;
     }
-    return views;
+
+    return {
+      tasks: views,
+      continueCursor: null,
+      isDone: true,
+    };
   },
 });
 
@@ -3628,14 +3655,21 @@ export const updateDoc = mutation({
 // ── Keyword search (no AI required; semantic search is agentAi.search) ─
 
 export const searchTasks = query({
-  args: { apiKey: v.string(), query: v.string(), limit: v.optional(v.number()) },
+  args: {
+    apiKey: v.string(),
+    query: v.string(),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const { agent } = await requireAgentByKey(ctx, args.apiKey);
     const needle = args.query.trim().toLowerCase();
-    if (!needle) return [];
-    const limit = Math.min(args.limit ?? 20, 50);
-    // Reuse the scope walk from listTasks via the embeddings-free path:
-    // walk lists and substring-match. Fine at target scale.
+    if (!needle) return { results: [], continueCursor: null, isDone: true };
+    const limit = pageLimit(args.limit, 20, 50);
+    const start = decodeCursor(args.cursor);
+    const scoped = (await listsInScope(ctx, agent)).filter(({ list }) =>
+      agentCanTouchList(agent, list._id),
+    );
     const results: {
       taskId: Id<"tasks">;
       listId: Id<"lists">;
@@ -3646,55 +3680,53 @@ export const searchTasks = query({
       assigneeIds: string[];
       dueDate: number | undefined;
     }[] = [];
-    const spaces = await ctx.db
-      .query("spaces")
-      .withIndex("by_parent", (q) =>
-        q.eq("parentType", agent.parentType).eq("parentId", agent.parentId),
-      )
-      .collect();
-    outer: for (const space of spaces) {
-      const parents: { type: "space" | "project"; id: string }[] = [
-        { type: "space", id: space._id },
-      ];
-      const projects = await ctx.db
-        .query("projects")
-        .withIndex("by_space", (q) => q.eq("spaceId", space._id))
-        .collect();
-      for (const f of projects) parents.push({ type: "project", id: f._id });
-      for (const p of parents) {
-        const lists = await ctx.db
-          .query("lists")
-          .withIndex("by_parent", (q) =>
-            q.eq("parentType", p.type).eq("parentId", p.id),
-          )
-          .collect();
-        for (const l of lists) {
-          if (!agentCanTouchList(agent, l._id)) continue;
-          const tasks = await ctx.db
-            .query("tasks")
-            .withIndex("by_list", (q) => q.eq("listId", l._id))
-            .collect();
-          for (const t of tasks) {
-            const hay = `${t.title}\n${t.description ?? ""}`.toLowerCase();
-            if (hay.includes(needle)) {
-              const status = await ctx.db.get(t.statusId);
-              results.push({
-                taskId: t._id,
-                listId: l._id,
-                title: t.title,
-                statusId: t.statusId,
-                statusCategory: status?.category ?? "open",
-                priority: t.priority,
-                assigneeIds: t.assigneeClerkIds,
-                dueDate: t.dueDate,
-              });
-              if (results.length >= limit) break outer;
-            }
-          }
-        }
+
+    let listOffset = start?.listOffset ?? 0;
+    let skip = start?.skip ?? 0;
+
+    while (listOffset < scoped.length && results.length < limit) {
+      const list = scoped[listOffset].list;
+      const rows = await ctx.db
+        .query("tasks")
+        .withIndex("by_list", (q) => q.eq("listId", list._id))
+        .take(LIST_SCAN_CAP);
+      const matches: typeof results = [];
+      for (const t of rows) {
+        const hay = `${t.title}\n${t.description ?? ""}`.toLowerCase();
+        if (!hay.includes(needle)) continue;
+        const status = await ctx.db.get(t.statusId);
+        matches.push({
+          taskId: t._id,
+          listId: list._id,
+          title: t.title,
+          statusId: t.statusId,
+          statusCategory: status?.category ?? "open",
+          priority: t.priority,
+          assigneeIds: t.assigneeClerkIds,
+          dueDate: t.dueDate,
+        });
       }
+      let idx = skip;
+      skip = 0;
+      while (idx < matches.length && results.length < limit) {
+        results.push(matches[idx]);
+        idx += 1;
+      }
+      if (idx < matches.length) {
+        return {
+          results,
+          continueCursor: encodeCursor({ listOffset, skip: idx }),
+          isDone: false,
+        };
+      }
+      listOffset += 1;
     }
-    return results;
+
+    return {
+      results,
+      continueCursor: null,
+      isDone: true,
+    };
   },
 });
 
