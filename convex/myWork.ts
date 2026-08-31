@@ -1,6 +1,7 @@
 import { query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { canAccessSpace } from "./_authz";
 import { listUserSpaces } from "./_userSpaces";
 
 // "My Work": every open task assigned to the current user across their
@@ -59,7 +60,10 @@ export const listForCurrent = query({
         .collect();
       // Archived spaces disappear from "My Work" (they already leave the
       // sidebar — see sidebar.ts) but keep their underlying data.
-      spaces.push(...wsSpaces.filter((sp) => !sp.archivedAt));
+      for (const sp of wsSpaces) {
+        if (sp.archivedAt) continue;
+        if (await canAccessSpace(ctx, sp, { subject })) spaces.push(sp);
+      }
     }
 
     const out: {

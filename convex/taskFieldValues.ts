@@ -129,6 +129,9 @@ export const set = mutation({
       return null;
     }
     await assertValueReferences(ctx, field, patch);
+    for (const linkedId of patch.taskIds ?? []) {
+      await requireTaskAccess(ctx, linkedId);
+    }
 
     if (existing) {
       await ctx.db.patch(existing._id, patch);

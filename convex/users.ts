@@ -130,9 +130,28 @@ export const listByClerkIds = query({
   handler: async (ctx, { clerkIds }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
-    const results = await Promise.all(
-      clerkIds.map((id) => userByClerkId(ctx, id)),
+    const myMemberships = await ctx.db
+      .query("memberships")
+      .withIndex("by_user", (q) => q.eq("userClerkId", identity.subject))
+      .collect();
+    const myWorkspaces = new Set(
+      myMemberships.map((m) => m.workspaceId as string),
     );
-    return results.filter((u): u is NonNullable<typeof u> => u !== null);
+    const results = [];
+    for (const id of clerkIds) {
+      if (id !== identity.subject) {
+        const theirMemberships = await ctx.db
+          .query("memberships")
+          .withIndex("by_user", (q) => q.eq("userClerkId", id))
+          .collect();
+        const shared = theirMemberships.some((m) =>
+          myWorkspaces.has(m.workspaceId as string),
+        );
+        if (!shared) continue;
+      }
+      const user = await userByClerkId(ctx, id);
+      if (user) results.push(user);
+    }
+    return results;
   },
 });
