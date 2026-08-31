@@ -41,6 +41,8 @@ import {
   type ChannelSortMode,
 } from "@/lib/buzz/channel-search";
 import { ChannelRow } from "./channel-row";
+import { createChannelError, toCreateChannelArgs } from "@/lib/buzz/create-channel";
+import { useEnsureChatIdentity } from "@/components/chat/shell/ensure-chat-identity";
 import { CreateChannelView, type CreateChannelInput } from "./create-channel-view";
 
 const TABS: { tab: ChannelBrowseTab; label: string }[] = [
@@ -96,12 +98,9 @@ const buzzChannels = (
             name: string;
             description?: string;
             // The store speaks Buzz's `open`/`private` and NIP-29's
-            // `stream`/`forum`; the UI contract speaks `public`/`private` and
-            // `channel`/`forum`. `toSummary` translates one direction in
-            // exactly one place, and `wireVisibility`/`wireChannelType` below
-            // are the other — a second translation is how half a product ends
-            // up asking for the wrong word.
-            visibility?: "open" | "private";
+            // `stream`/`forum`. The form's `public`/`channel` are translated
+            // by `toCreateChannelArgs` — the only helper allowed to do that.
+            visibility?: "open" | "private" | "public";
             channelType?: "stream" | "forum";
             ttlSeconds?: number;
             templateId?: string;
@@ -118,16 +117,6 @@ const buzzChannels = (
     };
   }
 ).buzz.channels;
-
-/** `public` is the word people read; `open` is the word the log records. */
-function wireVisibility(visibility: "public" | "private"): "open" | "private" {
-  return visibility === "public" ? "open" : "private";
-}
-
-/** A browsable room is a NIP-29 `stream`; a forum is a forum. */
-function wireChannelType(kind: BrowsableChannelKind): "stream" | "forum" {
-  return kind === "forum" ? "forum" : "stream";
-}
 
 export function ChannelBrowserDialog({
   scope,
@@ -171,6 +160,7 @@ export function ChannelBrowserDialog({
 
   const createChannel = useMutation(buzzChannels.create);
   const joinChannel = useMutation(buzzChannels.join);
+  const ensureIdentity = useEnsureChatIdentity();
 
   // The filter runs on the deferred query so a long list does not make typing
   // feel heavy; the create row reads the LIVE query, because its label quotes
@@ -242,22 +232,19 @@ export function ChannelBrowserDialog({
   async function create(input: CreateChannelInput) {
     setCreating(true);
     try {
-      const created = await createChannel({
-        scopeType: scope.scopeType,
-        scopeId: scope.scopeId,
-        name: input.name,
-        description: input.description,
-        visibility: wireVisibility(input.visibility),
-        channelType: wireChannelType(input.kind),
-        ttlSeconds: input.ttlSeconds,
-        templateId: input.templateId,
-      });
+      // Mint before the write so a first-visit create cannot dead-end on
+      // "open Chat first" — they are already standing in Chat. Idempotent
+      // after the shell bootstrap has run.
+      await ensureIdentity();
+      const created = await createChannel(toCreateChannelArgs(scope, input));
       // The server's canonical name, not the one typed: `#Release Notes` is
       // stored as `release-notes`, and a toast quoting the input would name a
       // room that does not exist.
       toast(`#${created?.name ?? input.name} created`);
       if (created?.channelId) openChannel(created.channelId);
       else onOpenChange(false);
+    } catch (err) {
+      throw new Error(createChannelError(err, noun));
     } finally {
       setCreating(false);
     }

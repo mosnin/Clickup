@@ -44,11 +44,17 @@ export const mutationCalls: { name: string; args: unknown }[] = [];
 export const toastCalls: ToastCall[] = [];
 /** Answers for `useAction`, keyed by dotted path — same idea as queries. */
 export const actionResults: QueryMap = {};
+/** Optional throw/return for a mutation path, so a test can exercise failure. */
+export const mutationHandlers: Record<
+  string,
+  (args: unknown) => unknown | Promise<unknown>
+> = {};
 
 /** Reset between tests so one test's data can't leak into the next. */
 export function resetHarness() {
   for (const key of Object.keys(queryResults)) delete queryResults[key];
   for (const key of Object.keys(actionResults)) delete actionResults[key];
+  for (const key of Object.keys(mutationHandlers)) delete mutationHandlers[key];
   mutationCalls.length = 0;
   toastCalls.length = 0;
   navState.pathname = "/dashboard";
@@ -93,6 +99,7 @@ vi.mock("convex/react", () => ({
     const path = ref?.__path ?? "";
     return async (args: unknown) => {
       mutationCalls.push({ name: path, args });
+      if (mutationHandlers[path]) return mutationHandlers[path](args);
       return undefined;
     };
   },

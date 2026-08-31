@@ -23,7 +23,7 @@ export const FEATURE_LINKS: NavLeaf[] = [
   {
     href: "/features#mcp",
     label: "MCP server",
-    description: "80+ tools your agents call over one hosted endpoint",
+    description: "The hosted MCP tools your agents call over one endpoint",
   },
   {
     href: "/features#governance",
