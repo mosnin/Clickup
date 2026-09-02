@@ -79,7 +79,6 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       resource: RESOURCE,
       codeChallenge: CHALLENGE,
       codeChallengeMethod: "S256",
-      codeChallengeMethod: "S256",
     });
     expect(request).toMatchObject({
       clientName: "Claude",
@@ -93,7 +92,6 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         scope: "operate:read",
         resource: RESOURCE,
         codeChallenge: CHALLENGE,
-        codeChallengeMethod: "S256",
         codeChallengeMethod: "S256",
       }),
     ).rejects.toThrow(/invalid oauth/i);
@@ -256,7 +254,6 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       scope: "operate:read",
       resource: RESOURCE,
       codeChallenge: CHALLENGE,
-      codeChallengeMethod: "S256",
       codeChallengeMethod: "S256",
     });
     expect(request.agents).toEqual([]);
