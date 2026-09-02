@@ -2072,6 +2072,12 @@ export default defineSchema({
     // RFC 8707 audience binding. The token endpoint must receive the same
     // canonical protected-resource identifier that was authorized.
     resource: v.optional(v.string()),
+    // The grant family this code opens. Every token minted from the code
+    // carries the same value, so revoking a whole grant is one indexed read
+    // rather than a walk of whatever happens to still be live. Optional
+    // because rows written before the field existed have none; those fall
+    // back to revoking just the row that was presented.
+    grantId: v.optional(v.string()),
     agentId: v.id("agents"),
     userClerkId: v.string(),
     expiresAt: v.number(),
@@ -2085,6 +2091,10 @@ export default defineSchema({
     clientId: v.string(),
     scopes: v.array(v.string()),
     resource: v.optional(v.string()),
+    // Carried down from the authorization code. Rotation keeps it, so every
+    // access/refresh pair the grant ever minted shares one value and a
+    // replay can revoke all of them at once.
+    grantId: v.optional(v.string()),
     agentId: v.id("agents"),
     userClerkId: v.string(),
     expiresAt: v.number(),
@@ -2095,6 +2105,7 @@ export default defineSchema({
   })
     .index("by_token_hash", ["tokenHash"])
     .index("by_refresh_hash", ["refreshTokenHash"])
+    .index("by_grant", ["grantId"])
     .index("by_agent", ["agentId"]),
 
   // Fleet provisioning grants — one human approval, many agents.

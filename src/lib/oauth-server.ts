@@ -83,10 +83,28 @@ export function oauthDiscoveryMetadata() {
     ],
     code_challenge_methods_supported: ["S256"],
     token_endpoint_auth_methods_supported: ["none"],
+    // RFC 8414 lists this beside the endpoint it describes, and a client
+    // that reads the revocation endpoint out of this document has no other
+    // way to learn it takes no client authentication.
+    revocation_endpoint_auth_methods_supported: ["none"],
     scopes_supported: [...OAUTH_SCOPES],
     subject_types_supported: ["public"],
-    claims_supported: ["sub", "email", "email_verified", "name"],
+    // org_id and org_name are the tenant claims /oauth/userinfo returns for
+    // a token bound to a workspace agent. Advertised because a claim a
+    // client cannot discover is a claim it will not ask for.
+    claims_supported: [
+      "sub",
+      "email",
+      "email_verified",
+      "name",
+      "org_id",
+      "org_name",
+    ],
     resource_parameter_supported: true,
+    // RFC 9207. The authorize page echoes `iss` on both the success and the
+    // deny redirect, so a client holding several connections can tell which
+    // server answered before it spends its code at the wrong token endpoint.
+    authorization_response_iss_parameter_supported: true,
   };
 }
 

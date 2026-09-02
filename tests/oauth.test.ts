@@ -79,6 +79,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       resource: RESOURCE,
       codeChallenge: CHALLENGE,
       codeChallengeMethod: "S256",
+      codeChallengeMethod: "S256",
     });
     expect(request).toMatchObject({
       clientName: "Claude",
@@ -93,6 +94,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         resource: RESOURCE,
         codeChallenge: CHALLENGE,
         codeChallengeMethod: "S256",
+        codeChallengeMethod: "S256",
       }),
     ).rejects.toThrow(/invalid oauth/i);
   });
@@ -106,6 +108,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       scope: "openid email operate:read operate:write",
       resource: RESOURCE,
       codeChallenge: CHALLENGE,
+      codeChallengeMethod: "S256",
       code,
       agentId,
     });
@@ -144,17 +147,6 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       resource: RESOURCE,
     });
     await expect(
-      t.mutation(api.oauth.exchangeAuthorizationCode, {
-        code,
-        clientId: CLIENT_ID,
-        redirectUri: REDIRECT_URI,
-        codeVerifier: VERIFIER,
-        accessToken: "opa_replay",
-        refreshToken: "opr_replay",
-        resource: RESOURCE,
-      }),
-    ).rejects.toThrow(/invalid or expired/i);
-    await expect(
       t.query(api.agentApi.whoami, { apiKey: accessToken }),
     ).resolves.toMatchObject({ agentId, name: "Plugin Agent" });
     await expect(
@@ -173,31 +165,82 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         resource: "https://other.example/api/mcp",
       }),
     ).rejects.toThrow(/audience/i);
+    // A replayed code is refused with a verdict rather than an exception,
+    // because refusing it also revokes the grant, and a Convex mutation that
+    // throws rolls its own writes back. It runs after the assertions above
+    // for the same reason: from here on the token is dead on purpose. See
+    // tests/oauth-grant-family.test.ts for what the revocation reaches.
+    await expect(
+      t.mutation(api.oauth.exchangeAuthorizationCode, {
+        code,
+        clientId: CLIENT_ID,
+        redirectUri: REDIRECT_URI,
+        codeVerifier: VERIFIER,
+        accessToken: "opa_replay",
+        refreshToken: "opr_replay",
+        resource: RESOURCE,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: "invalid_grant",
+      reason: "authorization_code_replay",
+    });
+    await expect(
+      t.query(api.agentApi.whoami, { apiKey: accessToken }),
+    ).rejects.toThrow(/invalid api key/i);
+
+    // A fresh grant, because the one above was deliberately destroyed.
+    const rotationCode = "opc_rotation_code";
+    await owner.mutation(api.oauth.approveAuthorization, {
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      scope: "openid email operate:read operate:write",
+      resource: RESOURCE,
+      codeChallenge: CHALLENGE,
+      codeChallengeMethod: "S256",
+      code: rotationCode,
+      agentId,
+    });
+    const rotatingAccess = "opa_rotating_access";
+    const rotatingRefresh = "opr_rotating_refresh";
+    await t.mutation(api.oauth.exchangeAuthorizationCode, {
+      code: rotationCode,
+      clientId: CLIENT_ID,
+      redirectUri: REDIRECT_URI,
+      codeVerifier: VERIFIER,
+      accessToken: rotatingAccess,
+      refreshToken: rotatingRefresh,
+      resource: RESOURCE,
+    });
 
     const nextAccessToken = "opa_second_access";
     const nextRefreshToken = "opr_second_refresh";
     await t.mutation(api.oauth.refreshAccessToken, {
-      refreshToken,
+      refreshToken: rotatingRefresh,
       clientId: CLIENT_ID,
       accessToken: nextAccessToken,
       nextRefreshToken,
       resource: RESOURCE,
     });
     await expect(
-      t.query(api.agentApi.whoami, { apiKey: accessToken }),
+      t.query(api.agentApi.whoami, { apiKey: rotatingAccess }),
     ).rejects.toThrow(/invalid api key/i);
     await expect(
       t.query(api.agentApi.whoami, { apiKey: nextAccessToken }),
     ).resolves.toMatchObject({ agentId });
     await expect(
       t.mutation(api.oauth.refreshAccessToken, {
-        refreshToken,
+        refreshToken: rotatingRefresh,
         clientId: CLIENT_ID,
         accessToken: "opa_reused",
         nextRefreshToken: "opr_reused",
         resource: RESOURCE,
       }),
-    ).rejects.toThrow(/invalid or expired/i);
+    ).resolves.toMatchObject({
+      ok: false,
+      error: "invalid_grant",
+      reason: "refresh_token_replay",
+    });
 
     await t.mutation(api.oauth.revokeToken, { token: nextRefreshToken });
     await expect(
@@ -214,6 +257,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       resource: RESOURCE,
       codeChallenge: CHALLENGE,
       codeChallengeMethod: "S256",
+      codeChallengeMethod: "S256",
     });
     expect(request.agents).toEqual([]);
     await expect(
@@ -223,6 +267,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         scope: "operate:read",
         resource: RESOURCE,
         codeChallenge: CHALLENGE,
+        codeChallengeMethod: "S256",
         code: "opc_member_escalation",
         agentId,
       }),
@@ -238,6 +283,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
         scope: "operate:read",
         resource: RESOURCE,
         codeChallenge: CHALLENGE,
+        codeChallengeMethod: "S256",
         code: "opc_outsider",
         agentId,
       }),
@@ -250,6 +296,7 @@ describe("OAuth 2.1 remote MCP authorization", () => {
       scope: "operate:read",
       resource: RESOURCE,
       codeChallenge: CHALLENGE,
+      codeChallengeMethod: "S256",
       code,
       agentId,
     });

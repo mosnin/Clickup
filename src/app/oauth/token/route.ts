@@ -24,6 +24,25 @@ const DEVICE_ERROR_HELP: Record<string, (interval?: number) => string> = {
   invalid_grant: () => "Unknown or already-used device code",
 };
 
+// A replayed authorization code or a replayed refresh token.
+//
+// Both are answered as an ordinary 400 invalid_grant, because that is what
+// RFC 6749 §5.2 defines and a client has nothing useful to do with more
+// detail. The interesting half already happened inside the mutation: the
+// grant's whole token family is revoked before this runs, so the answer is
+// truthful about the credential AND about everything issued beside it.
+function replayRefused(
+  reason: "authorization_code_replay" | "refresh_token_replay",
+) {
+  return oauthError(
+    "invalid_grant",
+    reason === "authorization_code_replay"
+      ? "This authorization code was already used. The grant has been revoked; start the connection again."
+      : "This refresh token was already rotated. The grant has been revoked; start the connection again.",
+    400,
+  );
+}
+
 // RFC 8628 §3.5 — the device grant's half of the token endpoint.
 //
 // Unlike the authorization-code grant above, this one issues an agent API
@@ -146,6 +165,7 @@ export async function POST(request: Request) {
           resource,
         },
       );
+      if (!result.ok) return replayRefused(result.reason);
       return oauthJson({
         access_token: accessToken,
         token_type: "Bearer",
@@ -169,6 +189,7 @@ export async function POST(request: Request) {
           resource,
         },
       );
+      if (!result.ok) return replayRefused(result.reason);
       return oauthJson({
         access_token: accessToken,
         token_type: "Bearer",

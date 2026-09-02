@@ -34,6 +34,19 @@ export async function GET(request: Request) {
       email: result.email,
       email_verified: result.emailVerified,
       ...(result.name ? { name: result.name } : {}),
+      // Which tenant this token speaks for. Operate is multi tenant, so a
+      // client that only learns who the person is still cannot tell which
+      // workspace it is allowed to act in. Omitted, rather than sent empty,
+      // for a token bound to somebody's personal space: there is no
+      // organization behind it to name.
+      ...(result.organizationId
+        ? {
+            org_id: result.organizationId,
+            ...(result.organizationName
+              ? { org_name: result.organizationName }
+              : {}),
+          }
+        : {}),
     });
   } catch (error) {
     return unauthorized(
