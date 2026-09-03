@@ -36,6 +36,23 @@ describe("public MCP OAuth discovery", () => {
     );
   });
 
+  it("declares the endpoints it actually has, including the ones a client cannot guess", async () => {
+    const oauth = await getOAuthMetadata().json();
+    // A revocation endpoint whose auth method is undeclared leaves a client
+    // guessing whether to send credentials it does not have.
+    expect(oauth.revocation_endpoint).toBe("https://operate.to/oauth/revoke");
+    expect(oauth.revocation_endpoint_auth_methods_supported).toEqual(["none"]);
+    // RFC 9207. The authorize page echoes `iss`, so the document has to say
+    // so or no client will check it.
+    expect(oauth.authorization_response_iss_parameter_supported).toBe(true);
+    // The tenant claims /oauth/userinfo returns for a workspace-bound token.
+    expect(oauth.claims_supported).toEqual(
+      expect.arrayContaining(["sub", "email", "org_id", "org_name"]),
+    );
+    // Still exactly one PKCE method, and it is not plain.
+    expect(oauth.code_challenge_methods_supported).toEqual(["S256"]);
+  });
+
   it("publishes one canonical protected resource and rejects lookalikes", async () => {
     const metadata = await getProtectedResource().json();
     expect(metadata).toMatchObject({

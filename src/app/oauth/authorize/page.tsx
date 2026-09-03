@@ -35,7 +35,7 @@ export default async function OAuthAuthorizePage({
   }
   return (
     <RequireBackend>
-      <OAuthAuthorize resource={resource} />
+      <OAuthAuthorize resource={resource} issuer={oauthIssuer()} />
     </RequireBackend>
   );
 }

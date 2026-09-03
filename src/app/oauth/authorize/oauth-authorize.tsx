@@ -17,7 +17,13 @@ function randomCode() {
   ).join("")}`;
 }
 
-export function OAuthAuthorize({ resource }: { resource: string }) {
+export function OAuthAuthorize({
+  resource,
+  issuer,
+}: {
+  resource: string;
+  issuer: string;
+}) {
   const searchParams = useSearchParams();
   const clientId = searchParams.get("client_id") ?? "";
   const redirectUri = searchParams.get("redirect_uri") ?? "";
@@ -30,8 +36,14 @@ export function OAuthAuthorize({ resource }: { resource: string }) {
   const codeChallengeMethod =
     searchParams.get("code_challenge_method") ?? "";
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  // PKCE is required, and S256 is the only method. OAuth 2.1 §7.5.2 treats a
+  // missing code_challenge_method as `plain`, so an absent one has to fail
+  // here for the same reason an explicit `plain` does: downgrading to a
+  // challenge that is its own verifier gives an attacker who intercepts the
+  // authorization code everything needed to redeem it.
   const validShape =
     responseType === "code" &&
+    codeChallengeMethod === "S256" &&
     Boolean(clientId && redirectUri && codeChallenge && resource);
   const requestArgs = useMemo(
     () =>
@@ -73,7 +85,13 @@ export function OAuthAuthorize({ resource }: { resource: string }) {
         "The user declined the Operate connection",
       );
     }
+    // Echoed byte for byte, on both answers. `state` is the client's CSRF
+    // token and it can only do that job if it comes back unchanged.
     if (state) target.searchParams.set("state", state);
+    // RFC 9207: naming the issuer that answered is what stops a client with
+    // several connections from carrying this code to a different server's
+    // token endpoint.
+    if (issuer) target.searchParams.set("iss", issuer);
     return target;
   };
 
@@ -93,6 +111,7 @@ export function OAuthAuthorize({ resource }: { resource: string }) {
         scope,
         resource,
         codeChallenge,
+        codeChallengeMethod,
         code,
         agentId,
       });
