@@ -121,12 +121,19 @@ that lives on your machine — which is most of the reason Buzz's harness exists
 all. The silence is the honest state, and the connect flow should say so rather
 than look broken.
 
-## D10 — A desktop app, wrapping the hosted app
+## D10 — A locally bundled macOS application
 
-Buzz ships a Tauri desktop client. We ship one too, on the same remote-web-app
-pattern `capacitor.config.ts` already uses for iOS and Android: the shell renders
-the deployed URL, so Convex realtime and the Clerk session behave exactly as they
-do on the web and a change reaches users without an app-store round trip.
+Operate ships a Tauri macOS client as a native `.app` inside a `.dmg`. The
+application never navigates to, embeds, or frames the deployed website. Its
+local Vite build imports the product's shared React components, route surfaces,
+design tokens, fonts, Clerk client, and Convex client so it retains the web
+application's UI and data model without becoming a hosted-site wrapper.
+
+The native host owns the macOS lifecycle, hardened navigation policy, signed
+updates, and bundled `operate` CLI. The locally packaged UI owns presentation;
+Clerk, Convex, MCP, and the update feed remain allowlisted network services.
+This means product changes require a signed app update rather than appearing
+silently from a remote page.
 
 Not in scope, and each for the same reason — they solve offline sovereignty over
 your own copy, which a hosted product answers differently: the local SQLite

@@ -9,7 +9,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type RefObject,
 } from "react";
-import { ArrowRight, Bot, ChevronDown, LayoutGrid, Menu, X } from "lucide-react";
+import { ArrowRight, Bot, ChevronDown, Download, LayoutGrid, Menu, X } from "lucide-react";
 import gsap from "gsap";
 import { cn } from "@/lib/utils";
 import { Container, CtaButton } from "@/components/marketing/ui";
@@ -21,6 +21,7 @@ import {
 } from "@/components/marketing/gsap";
 import { SITE_NAME } from "@/lib/marketing-nav";
 import { PRODUCTS_MENU, ANNOUNCE_BAR } from "@/lib/marketing-content";
+import { MAC_APP_DOWNLOAD_PATH } from "@/lib/mac-app";
 
 // Same-page anchor links (e.g. the Products dropdown's "/features#mcp")
 // get a GSAP-driven scroll instead of a full Next navigation when we're
@@ -257,6 +258,14 @@ export function MarketingNav() {
 
             <div className="hidden items-center gap-3 md:flex">
               <Link
+                href={MAC_APP_DOWNLOAD_PATH}
+                prefetch={false}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium text-white ring-1 ring-white/15 transition-colors hover:bg-white/20"
+              >
+                <Download className="size-3.5" aria-hidden />
+                Download Mac app
+              </Link>
+              <Link
                 href="/sign-in"
                 className="rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium text-white ring-1 ring-white/15 transition-colors hover:bg-white/20"
               >
@@ -478,6 +487,16 @@ function MobileOverlay({
       </nav>
 
       <Container className="mb-10 flex flex-col gap-3">
+        <Link
+          href={MAC_APP_DOWNLOAD_PATH}
+          prefetch={false}
+          onClick={onClose}
+          data-gs-item
+          className="flex h-12 items-center justify-center gap-2 rounded-full bg-white/10 text-sm font-medium text-white ring-1 ring-inset ring-white/15"
+        >
+          <Download className="size-4" aria-hidden />
+          Download Mac app
+        </Link>
         <Link
           href="/sign-in"
           onClick={onClose}

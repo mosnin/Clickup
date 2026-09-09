@@ -1,0 +1,3 @@
+.{ .assets = .{
+  .{ .id = "icon.png", .bundle_path = "icon.png", .source_path = "assets/icon.png", .byte_len = 35710, .hash = "783449652ee782b99a7173462cb4a2af97882f6de90b42fa02aceaed38375ea7", .media_type = "image/png" },
+} }

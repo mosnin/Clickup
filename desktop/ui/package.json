@@ -1,0 +1,21 @@
+{
+  "name": "operate-macos-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clerk/clerk-react": "^5.61.3",
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^6.0.4",
+    "vite": "^8.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4",
+    "typescript": "^5.7.2"
+  }
+}

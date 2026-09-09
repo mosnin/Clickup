@@ -1,0 +1,2 @@
+signing=adhoc
+ad-hoc signed

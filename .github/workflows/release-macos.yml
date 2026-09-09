@@ -1,0 +1,63 @@
+name: Release macOS
+
+# LEGACY: retained during the Native SDK migration. Do not publish artifacts
+# from this workflow; desktop/native is the canonical client.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  signed-release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+        with:
+          toolchain: 1.88.0
+      - name: Require signing, notarization, and updater configuration
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          OPERATE_UPDATER_ENDPOINT: ${{ vars.OPERATE_UPDATER_ENDPOINT }}
+          OPERATE_UPDATER_PUBLIC_KEY: ${{ vars.OPERATE_UPDATER_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_CONVEX_URL: ${{ vars.VITE_CONVEX_URL }}
+        run: |
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID OPERATE_UPDATER_ENDPOINT OPERATE_UPDATER_PUBLIC_KEY TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD VITE_CLERK_PUBLISHABLE_KEY VITE_CONVEX_URL; do
+            test -n "${!name}" || { echo "Missing release configuration: ${name}" >&2; exit 1; }
+          done
+          case "${OPERATE_UPDATER_ENDPOINT}" in https://*) ;; *) echo "Updater endpoint must use HTTPS" >&2; exit 1;; esac
+      - run: desktop/scripts/build-native-ui.sh
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
+          VITE_CONVEX_URL: ${{ vars.VITE_CONVEX_URL }}
+      - run: desktop/scripts/stage-macos-cli.sh
+      - uses: tauri-apps/tauri-action@fce9c6108b31ea247710505d3aaaa893ee6768d4 # v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          OPERATE_UPDATER_ENDPOINT: ${{ vars.OPERATE_UPDATER_ENDPOINT }}
+          OPERATE_UPDATER_PUBLIC_KEY: ${{ vars.OPERATE_UPDATER_PUBLIC_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: desktop/src-tauri
+          args: --bundles app,dmg --config ../tauri.release.conf.json
+          tagName: operate-v__VERSION__
+          releaseName: Operate v__VERSION__
+          releaseDraft: true
+          prerelease: false

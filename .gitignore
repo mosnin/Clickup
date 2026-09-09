@@ -18,6 +18,12 @@ next-env.d.ts.bak
 
 # production
 /build
+/desktop/cli/target
+/desktop/src-tauri/target
+/desktop/src-tauri/binaries/operate-*
+/desktop/src-tauri/gen
+/desktop/ui/node_modules
+/desktop/dist/assets
 
 # misc
 .DS_Store

@@ -110,9 +110,12 @@ holds the arbitration.
 
 ### 3.2 The desktop app (C13)
 
-Not started. Tauri wrapping the deployed URL, the same remote-web-app pattern
-`capacitor.config.ts` already uses. Needs a release pipeline for three
-platforms.
+Implemented for macOS as a locally bundled Tauri application, not a deployed-URL
+wrapper. The bundle imports the shared Operate UI and includes a native `operate`
+CLI/MCP bridge. A development `.app` and `.dmg` have been produced and structurally
+verified. Production remains blocked on real public Clerk/Convex configuration,
+Developer ID signing, notarization, signed-update rehearsal, and signed-in visual
+parity testing on a clean Mac.
 
 ### 3.3 The verification sweep (C14)
 

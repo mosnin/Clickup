@@ -1,0 +1,18 @@
+.{
+  .artifact = "dist",
+  .target = "macos",
+  .version = "0.1.0",
+  .app_id = "to.operate.desktop",
+  .executable = "operate",
+  .optimize = "ReleaseFast",
+  .web_engine = "system",
+  .web_layer = "none (inferred: nothing in app.zon declares web use)",
+  .signing = "adhoc",
+  .asset_count = 1,
+
+  .capabilities = .{
+    "native_views",
+    "gpu_surfaces",
+
+  },
+}

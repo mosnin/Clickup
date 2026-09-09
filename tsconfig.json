@@ -25,5 +25,5 @@
     "**/*.tsx",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "convex"]
+  "exclude": ["node_modules", "convex", "desktop/native"]
 }

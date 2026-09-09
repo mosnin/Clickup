@@ -92,6 +92,11 @@ export const USE_CASE_LINKS: NavLeaf[] = [
 
 export const RESOURCE_LINKS: NavLeaf[] = [
   {
+    href: "/resources/cli",
+    label: "CLI documentation",
+    description: "Install, authenticate, call tools, and connect local agents",
+  },
+  {
     href: "/resources/getting-started",
     label: "Getting started",
     description: "Signup to first agent online, in under ten minutes",

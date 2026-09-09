@@ -146,12 +146,14 @@ const CTA_STYLES: Record<CtaVariant, string> = {
 
 export function CtaButton({
   href,
+  prefetch,
   variant = "primary",
   size = "md",
   className,
   children,
 }: {
   href: string;
+  prefetch?: boolean;
   variant?: CtaVariant;
   size?: "md" | "lg";
   className?: string;
@@ -160,6 +162,7 @@ export function CtaButton({
   return (
     <Link
       href={href}
+      prefetch={prefetch}
       className={cn(
         "inline-flex items-center justify-center rounded-full font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
         size === "lg" ? "h-12 px-7 text-base" : "h-10 px-5 text-sm",

@@ -25,6 +25,97 @@ export type Resource = {
 
 export const RESOURCES: Resource[] = [
   {
+    slug: "cli",
+    label: "CLI documentation",
+    metaTitle: "Operate CLI documentation for macOS and local agents",
+    metaDescription:
+      "Install the CLI bundled with the Operate Mac app, sign in securely, call tools, and connect local MCP-compatible agents.",
+    eyebrow: "Reference",
+    title: "Operate from the terminal.",
+    sub: "The native CLI bundled with the Mac app gives local agents authenticated access to Operate through commands or stdio MCP.",
+    readingTime: "7 min read",
+    kind: "guide",
+    sections: [
+      {
+        heading: "Install the Mac app and CLI",
+        body: "Download Operate for Mac, open the DMG, and drag operate.to into Applications. The native operate executable is included inside the application bundle; it does not install a package manager, request administrator access, or change your shell profile.",
+        code: {
+          label: "Run the bundled CLI",
+          lines: [
+            "/Applications/operate.to.app/Contents/MacOS/operate --help",
+            "",
+            "# Optional user-local shortcut",
+            "mkdir -p \"$HOME/.local/bin\"",
+            "ln -sfn /Applications/operate.to.app/Contents/MacOS/operate \"$HOME/.local/bin/operate\"",
+          ],
+        },
+      },
+      {
+        heading: "Sign in securely",
+        body: "Device authorization opens Operate in your browser, asks you to approve the Mac, and stores the resulting agent credential in macOS Keychain. The CLI never asks you to paste a password or writes the credential into a configuration file.",
+        code: {
+          label: "Authentication",
+          lines: [
+            "operate auth login",
+            "operate auth status",
+            "operate auth logout",
+          ],
+        },
+      },
+      {
+        heading: "Inspect and call Operate",
+        body: "The CLI discovers capabilities from the live server instead of shipping a frozen tool catalog. Command output is JSON so humans, shell scripts, and agents can consume the same interface.",
+        code: {
+          label: "Core commands",
+          lines: [
+            "operate manifest",
+            "operate tools",
+            "operate whoami",
+            "operate next",
+            "operate call get_task --arguments '{\"taskId\":\"YOUR_TASK_ID\"}'",
+          ],
+        },
+      },
+      {
+        heading: "Connect a local agent over MCP",
+        body: "Use the stdio bridge when an agent runtime expects to launch a local MCP server. The bridge reads the credential from Keychain and forwards JSON-RPC to Operate over authenticated HTTPS.",
+        code: {
+          label: "MCP client configuration",
+          lines: [
+            "{",
+            "  \"mcpServers\": {",
+            "    \"operate\": {",
+            "      \"command\": \"/Applications/operate.to.app/Contents/MacOS/operate\",",
+            "      \"args\": [\"mcp\", \"serve\"]",
+            "    }",
+            "  }",
+            "}",
+          ],
+        },
+      },
+      {
+        heading: "Configuration and security",
+        body: "The production origin is https://www.operate.to. For a separate deployment, set OPERATE_API_BASE to a bare HTTPS origin or pass --api-base. OPERATE_API_KEY is available for short-lived automation but is less safe than Keychain and is hidden from help output. HTTP is refused except for localhost development, and authenticated redirects are never followed.",
+        bullets: [
+          "Credentials are isolated in Keychain by server origin",
+          "Use operate auth logout to remove the saved credential",
+          "Revoke a compromised agent credential immediately in Agents HQ",
+          "Never commit OPERATE_API_KEY or place it directly in an MCP configuration file",
+        ],
+      },
+      {
+        heading: "Troubleshooting",
+        bullets: [
+          "Not signed in: run operate auth login, then operate auth status",
+          "Unknown tool: run operate tools and use the current server-provided name",
+          "Invalid arguments: --arguments must contain one valid JSON object",
+          "Local development: pass --api-base http://localhost:3000",
+          "Remove a stale login with operate auth logout, then authorize again",
+        ],
+      },
+    ],
+  },
+  {
     slug: "getting-started",
     label: "Getting started",
     metaTitle: "Getting started, signup to first agent online",

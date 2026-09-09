@@ -1,59 +1,99 @@
-# The desktop app
+# Operate for macOS
 
-A Tauri shell that opens a window onto the deployed URL. It is the same
-"remote web app" pattern `capacitor.config.ts` uses for iOS and Android, for the
-same reasons: Convex realtime and the Clerk session behave exactly as they do on
-the web, a fix reaches everyone the moment it deploys rather than after a store
-review, and the installer stays small.
+> The canonical native client now lives in `desktop/native`. It is compiled
+> ahead of time into an AppKit/Metal macOS application and does not declare a
+> web layer. The Tauri tree below is retained temporarily as migration history
+> and must not be used for new releases.
 
-Buzz ships a Tauri desktop client, and this is our equivalent (decision D10 in
-`docs/buzz-parity/00-decisions.md`). What we deliberately did **not** take from
-Buzz's desktop build is everything that only makes sense when the app owns its
-own storage — the local SQLite archive, the identity archive, mesh compute, and
-the on-device speech models. Those answer offline sovereignty over your own
-copy, which a hosted product answers differently.
+The macOS client is a locally bundled Tauri application distributed as a DMG.
+It does not navigate to, embed, or frame the operate.to website. Its Vite build
+imports the web product's actual React components, design tokens, fonts, and
+route surfaces so visual parity comes from shared source rather than a desktop
+lookalike. Clerk, Convex, MCP, and the update feed remain network services; the
+application UI itself ships inside the signed app bundle.
 
-## Status: scaffolded, not built here
+## Security boundary
 
-This has **never been compiled**. The container it was written in has Rust but
-none of the platform GUI libraries Tauri links against (`webkit2gtk` and friends
-on Linux, Xcode on macOS, the WebView2 SDK on Windows), and no display to run a
-window on. Treat the first `cargo tauri build` on a real machine as the actual
-first build, and expect to fix something.
+- The main window loads only Tauri's packaged `index.html` application URL.
+- Navigation to operate.to or any other remote page is denied.
+- The desktop UI has no Tauri command capability; native privileges stay in Rust.
+- The content policy allowlists only the Clerk, Convex, and Operate service
+  connections required by the local application.
+- Web Inspector is unavailable in release builds.
+- Native updates require HTTPS and a signature matching the public key compiled
+  into the release. A release with only half of that configuration refuses to
+  start.
+- The bundled CLI stores credentials in macOS Keychain, scoped by server origin.
 
-Being explicit about that rather than implying it works is the point: everything
-else in this branch has been run, and this has not.
+## Run and verify
 
-## Running it
-
-```bash
-cd desktop/src-tauri
-cargo tauri dev                       # points at https://operate.to/dashboard
-OPERATE_DESKTOP_URL=http://localhost:3000/dashboard cargo tauri dev
-```
-
-`OPERATE_DESKTOP_URL` is read at compile time (`option_env!`), so a different
-target needs a rebuild rather than a restart. That is deliberate: a shipped
-binary whose server address could be changed by an environment variable is a
-binary somebody else can repoint.
-
-## Building installers
+Build the local UI before running the native host. Rust 1.88 is pinned by
+`rust-toolchain.toml`.
 
 ```bash
+export VITE_CLERK_PUBLISHABLE_KEY=...
+export VITE_CONVEX_URL=...
+desktop/scripts/build-native-ui.sh
 cd desktop/src-tauri
-cargo tauri build          # dmg / nsis / appimage / deb, per tauri.conf.json
+cargo test
+cargo run
 ```
 
-Signing is not configured. An unsigned macOS build is quarantined by Gatekeeper
-and an unsigned Windows build triggers SmartScreen — Buzz's own release notes
-say the same about theirs, so this is the expected state for an alpha rather
-than a problem to solve before the first build runs.
+The values embedded in the UI are publishable client configuration. Clerk and
+Convex server credentials must never be placed in the desktop environment or
+bundle.
 
-## Still to do before shipping one
+## Native CLI
 
-- `icons/icon.png` and the platform icon set (`cargo tauri icon` generates them).
-- Code signing and notarization for macOS, a certificate for Windows.
-- A release pipeline. Three platforms, and the two that matter most cannot be
-  cross-compiled from Linux.
-- Decide whether the window should deep-link: `/chat/c/<id>` from a notification
-  is the obvious case, and it needs a URL scheme registered per platform.
+The app bundle includes `operate`, a native CLI and stdio MCP bridge:
+
+```bash
+cd desktop/cli
+cargo build
+./target/debug/operate manifest
+./target/debug/operate auth login
+./target/debug/operate tools
+./target/debug/operate call whoami
+./target/debug/operate mcp serve
+```
+
+`auth login` uses Operate's human-approved device authorization flow and saves
+the resulting agent credential in Keychain. `mcp serve` lets local agent
+runtimes use their ordinary stdio MCP configuration while the CLI speaks
+authenticated Streamable HTTP to Operate. Tool lists are discovered from the
+server; they are not frozen into the client.
+
+After installation, an agent can invoke the bundled binary directly at:
+
+```text
+/Applications/operate.to.app/Contents/MacOS/operate
+```
+
+A future in-app “Install CLI” action may add a convenience symlink, but the app
+does not request administrator access or mutate shell profiles today.
+
+## Signed release
+
+`scripts/build-macos-release.sh` is the local release gate. It refuses to build
+without Developer ID signing, Apple notarization, and Tauri updater-signing
+configuration. `scripts/stage-macos-cli.sh` builds and stages the target-suffixed
+sidecar that Tauri puts inside the application bundle.
+
+The `Release macOS` GitHub workflow performs the same flow on a pinned macOS
+runner and creates a draft release. Configure these repository values before
+running it:
+
+- Secrets: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`,
+  `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`,
+  `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+- Variables: `OPERATE_UPDATER_ENDPOINT`, `OPERATE_UPDATER_PUBLIC_KEY`,
+  `VITE_CLERK_PUBLISHABLE_KEY`, and `VITE_CONVEX_URL`.
+
+The endpoint must publish the Tauri `latest.json` contract and signed update
+artifacts. Drafts must not be published until `codesign --verify`, Gatekeeper
+assessment, notarization, update installation, and representative signed-out
+and signed-in UI checks pass on a clean Mac.
+
+For packaging-only local verification, `scripts/build-macos-development.sh`
+creates an unsigned DMG after building the local UI and staging the CLI. It is
+not distributable and must not be substituted for the signed release gate.

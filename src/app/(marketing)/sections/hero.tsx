@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Download } from "lucide-react";
 import Link from "next/link";
 import gsap from "gsap";
 import { HERO } from "@/lib/marketing-content";
@@ -9,6 +9,7 @@ import { HeroUnicorn } from "@/components/marketing/hero-unicorn";
 import { StartCommand } from "@/components/marketing/start-command";
 import { useGsap, GsapParallax, EASE_OUT } from "@/components/marketing/gsap";
 import GradientText from "@/components/gradient-text";
+import { MAC_APP_DOWNLOAD_PATH } from "@/lib/mac-app";
 
 // The headline lives in the copy module with everything else; it arrives as
 // one array entry per line. Two lines, never more — a third line pushed the
@@ -219,8 +220,14 @@ export function Hero() {
             {HERO.primaryCta.label}
             <ArrowRight className="ml-1.5 size-4" aria-hidden />
           </CtaButton>
-          <CtaButton href={HERO.secondaryCta.href} variant="ghostDark" size="lg">
-            {HERO.secondaryCta.label}
+          <CtaButton
+            href={MAC_APP_DOWNLOAD_PATH}
+            prefetch={false}
+            variant="ghostDark"
+            size="lg"
+          >
+            <Download className="mr-1.5 size-4" aria-hidden />
+            Download Mac app
           </CtaButton>
         </div>
 

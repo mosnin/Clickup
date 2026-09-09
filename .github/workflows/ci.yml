@@ -6,6 +6,28 @@ on:
   pull_request:
 
 jobs:
+  macos-client:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+        with:
+          toolchain: 1.88.0
+          components: rustfmt, clippy
+      - run: cargo fmt --manifest-path desktop/cli/Cargo.toml -- --check
+      - run: cargo clippy --manifest-path desktop/cli/Cargo.toml --locked -- -D warnings
+      - run: cargo test --manifest-path desktop/cli/Cargo.toml --locked
+      - run: npm ci --prefix desktop/ui
+      - run: npm run typecheck --prefix desktop/ui
+      - run: npm run build --prefix desktop/ui
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
+          VITE_CONVEX_URL: https://placeholder-000.convex.cloud
+      - run: cargo fmt --manifest-path desktop/src-tauri/Cargo.toml -- --check
+      - run: cargo clippy --manifest-path desktop/src-tauri/Cargo.toml --locked -- -D warnings
+      - run: cargo test --manifest-path desktop/src-tauri/Cargo.toml --locked
+      - run: desktop/scripts/verify-ui-parity.sh
+
   test:
     runs-on: ubuntu-latest
     steps:

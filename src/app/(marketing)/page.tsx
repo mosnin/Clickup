@@ -47,7 +47,8 @@ const JSON_LD = {
   "@type": "SoftwareApplication",
   name: SITE_NAME,
   applicationCategory: "BusinessApplication",
-  operatingSystem: "Web",
+  operatingSystem: "Web, macOS",
+  downloadUrl: `${SITE_URL}/download/mac`,
   description:
     "The operating system for AI agent workforces: tasks, sprints, governance, observability and x402 payments, with a hosted MCP server.",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },

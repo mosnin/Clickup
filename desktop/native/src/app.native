@@ -1,0 +1,164 @@
+<row background="background">
+  <if test="{sidebarOpen}">
+    <column width="252" padding="16" gap="10" background="background">
+      <row gap="8">
+        <button grow="1" variant="secondary" icon="folder">Work</button>
+        <button grow="1" variant="ghost" icon="send">Chat</button>
+      </row>
+      <spacer height="10" />
+      <row gap="10" cross="center" padding="8">
+        <avatar>O</avatar>
+        <text grow="1">operate.to</text>
+        <icon name="chevron-down" />
+      </row>
+      <button variant="ghost" icon="search">Search                                      Cmd K</button>
+      <button variant="ghost" icon="circle-dot" on-press="show_home">Home</button>
+      <button variant="ghost" icon="archive" on-press="show_inbox">Inbox                                      3</button>
+      <button variant="ghost" icon="check-circle" on-press="show_my_work">My work</button>
+      <button variant="ghost" icon="folder" on-press="show_spaces">Spaces</button>
+      <button variant="ghost" icon="panel-left" on-press="show_projects">Projects</button>
+      <button variant="ghost" icon="file-text" on-press="show_pages">Pages</button>
+      <button variant="ghost" icon="wrench" on-press="show_agents">Agents</button>
+      <spacer grow="1" />
+      <separator />
+      <button variant="ghost" icon="settings" on-press="show_appearance">Customise</button>
+      <row gap="10" cross="center" padding="8">
+        <avatar>A</avatar>
+        <column grow="1">
+          <text>Account</text>
+          <text foreground="text_muted">Local Mac app</text>
+        </column>
+      </row>
+    </column>
+  </if>
+  <column grow="1" padding="18" gap="14" background="background">
+    <row padding="14" gap="10" cross="center" background="surface" radius="xl" window-drag="true">
+      <button size="sm" variant="ghost" icon="panel-left" label="Toggle sidebar" on-press="toggle_sidebar"></button>
+      <icon name="folder" />
+      <text>{pageTitle}</text>
+      <text grow="1" foreground="text_muted">{pageSubtitle}</text>
+      <button size="sm" variant="ghost" icon="refresh-cw" label="Refresh" on-press="refresh"></button>
+      <button size="sm" variant="ghost" icon="alert" label="Notifications"></button>
+      <if test="{signedIn}">
+        <avatar>A</avatar>
+      </if>
+      <else>
+        <button size="sm" variant="primary" on-press="sign_in">Sign in</button>
+      </else>
+    </row>
+    <if test="{isProjects}">
+      <row gap="10" cross="center">
+        <text-field grow="1" placeholder="Search projects..." />
+        <button variant="outline" icon="arrow-down">Sort - Name</button>
+        <button variant="outline" icon="folder-open">Group - None</button>
+      </row>
+      <tabs>
+        <button selected="true">All</button>
+        <button>On track</button>
+        <button>At risk</button>
+        <button>Off track</button>
+        <button>Paused</button>
+      </tabs>
+      <column gap="5" padding="2">
+        <text foreground="text_muted">What you are running</text>
+        <text size="heading">Projects</text>
+        <text foreground="text_muted">Every board across every space, in one directory you can sort and group.</text>
+      </column>
+      <separator />
+      <scroll grow="1">
+        <grid columns="2" gap="14">
+          <card padding="18" radius="xl" background="surface">
+            <column gap="12">
+              <row>
+                <text grow="1">Agent governance rollout</text>
+                <button size="sm" variant="ghost" icon="circle-dot" label="Favourite"></button>
+              </row>
+              <text foreground="text_muted">operate.to - Platform</text>
+              <row gap="8">
+                <badge variant="outline">Status: On track</badge>
+                <badge variant="outline">Sep 17</badge>
+                <spacer grow="1" />
+                <text size="heading">12/31</text>
+              </row>
+              <separator />
+              <row cross="center">
+                <text grow="1" foreground="text_muted">active 26m ago</text>
+                <button size="sm">Open project</button>
+              </row>
+            </column>
+          </card>
+          <card padding="18" radius="xl" background="surface">
+            <column gap="12">
+              <row>
+                <text grow="1">Billing migration - Stripe to ledger</text>
+                <button size="sm" variant="ghost" icon="circle-dot" label="Favourite"></button>
+              </row>
+              <text foreground="text_muted">operate.to - HQ</text>
+              <row gap="8">
+                <badge variant="outline">Status: At risk</badge>
+                <badge variant="outline">Aug 27</badge>
+                <spacer grow="1" />
+                <text size="heading">31/48</text>
+              </row>
+              <separator />
+              <row cross="center">
+                <text grow="1" foreground="text_muted">active 4m ago</text>
+                <button size="sm">Open project</button>
+              </row>
+            </column>
+          </card>
+          <card padding="18" radius="xl" background="surface">
+            <column gap="12">
+              <row>
+                <text grow="1">Onboarding revamp</text>
+                <button size="sm" variant="ghost" icon="circle-dot" label="Favourite"></button>
+              </row>
+              <text foreground="text_muted">operate.to - HQ</text>
+              <row gap="8">
+                <badge variant="outline">Status: On track</badge>
+                <badge variant="outline">Aug 30</badge>
+                <spacer grow="1" />
+                <text size="heading">17/23</text>
+              </row>
+              <separator />
+              <row cross="center">
+                <text grow="1" foreground="text_muted">active 51m ago</text>
+                <button size="sm">Open project</button>
+              </row>
+            </column>
+          </card>
+          <card padding="18" radius="xl" background="accent" foreground="accent_text">
+            <column gap="12">
+              <row>
+                <text grow="1">Q3 pricing experiment</text>
+                <button size="sm" variant="ghost" icon="circle-dot" label="Favourite"></button>
+              </row>
+              <text>operate.to - Growth</text>
+              <row gap="8">
+                <badge variant="outline">Status: Off track</badge>
+                <badge variant="outline">Aug 20</badge>
+                <spacer grow="1" />
+                <text size="heading">2/14</text>
+              </row>
+              <separator />
+              <row cross="center">
+                <text grow="1">active 3h ago</text>
+                <button size="sm" variant="primary">Open project</button>
+              </row>
+            </column>
+          </card>
+        </grid>
+      </scroll>
+    </if>
+    <else>
+      <column grow="1" main="center" cross="center" gap="14">
+        <icon name="settings" />
+        <text size="heading">{pageTitle}</text>
+        <text foreground="text_muted">This native surface is ready for the signed-in Operate data adapter.</text>
+        <button variant="primary" on-press="sign_in">Sign in to operate.to</button>
+        <button variant="ghost" on-press="open_cli_docs">CLI documentation</button>
+      </column>
+    </else>
+    <status-bar>{status}</status-bar>
+  </column>
+</row>
