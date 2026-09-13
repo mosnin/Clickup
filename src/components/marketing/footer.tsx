@@ -96,11 +96,12 @@ export function MarketingFooter() {
             </CtaButton>
           </div>
 
-          <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-4 lg:justify-items-end">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 xl:grid-cols-5 lg:justify-items-end">
             <FooterColumn title="Product" links={PRODUCT_LINKS} />
             <FooterColumn title="Use cases" links={USE_CASE_LINKS} />
             <FooterColumn title="Resources" links={RESOURCE_LINKS} />
-            <FooterColumn title="Company" links={COMPANY_LINKS} />
+            <FooterColumn title="Company" links={[{href:"/about",label:"About"},{href:"/company",label:"Contact"},{href:"/demo",label:"Request a demo"}]} />
+            <FooterColumn title="Legal" links={[{href:"/legal",label:"Policies"}]} />
           </div>
         </div>
       </Container>

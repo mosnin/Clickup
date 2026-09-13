@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { WebsiteMenus } from "@/components/marketing/website-menus";
 import { usePathname } from "next/navigation";
 import {
   useEffect,
@@ -216,46 +217,10 @@ export function MarketingNav() {
             </Link>
 
             <nav aria-label="Primary" className="contents">
-              <div
-                ref={productsRef}
-                className="relative hidden items-center gap-0.5 rounded-full bg-white/5 px-2 py-1 ring-1 ring-white/10 md:flex"
-              >
-                <button
-                  type="button"
-                  aria-haspopup="true"
-                  aria-expanded={productsOpen}
-                  onClick={() => setProductsOpen((v) => !v)}
-                  className="flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-                >
-                  Products
-                  <ChevronDown
-                    aria-hidden
-                    className={cn(
-                      "size-3.5 transition-transform duration-200",
-                      productsOpen && "rotate-180",
-                    )}
-                  />
-                </button>
-                {NAV_LINKS.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className="rounded-full px-3 py-1.5 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-                  >
-                    {link.label}
-                  </Link>
-                ))}
-
-                {productsOpen && (
-                  <ProductsDropdown
-                    pathname={pathname}
-                    onClose={() => setProductsOpen(false)}
-                  />
-                )}
-              </div>
+              <div className="hidden rounded-full bg-white/5 px-2 py-1 text-white ring-1 ring-white/10 xl:block"><WebsiteMenus /></div>
             </nav>
 
-            <div className="hidden items-center gap-3 md:flex">
+            <div className="hidden items-center gap-3 xl:flex">
               <Link
                 href="/sign-in"
                 className="rounded-full bg-white/10 px-4 py-1.5 text-sm font-medium text-white ring-1 ring-white/15 transition-colors hover:bg-white/20"
@@ -272,7 +237,7 @@ export function MarketingNav() {
               ref={menuButtonRef}
               aria-label="Open menu"
               onClick={() => setOpen(true)}
-              className="tap-target -mr-1 flex items-center justify-center text-white md:hidden"
+              className="tap-target -mr-1 flex items-center justify-center text-white xl:hidden"
             >
               <Menu className="size-6" aria-hidden />
             </button>
@@ -425,7 +390,7 @@ function MobileOverlay({
       role="dialog"
       aria-modal="true"
       aria-label="Menu"
-      className="fixed inset-0 z-50 flex flex-col bg-navy-950 md:hidden"
+      className="fixed inset-0 z-50 flex flex-col bg-navy-950 xl:hidden"
     >
       <Container>
         <div className="flex h-16 items-center justify-between">
@@ -453,28 +418,7 @@ function MobileOverlay({
         aria-label="Primary, mobile"
         className="flex flex-1 flex-col justify-center gap-2 px-8"
       >
-        {PRODUCTS_MENU.items.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onClose}
-            data-gs-item
-            className="py-3 text-3xl font-semibold tracking-tight text-white"
-          >
-            {item.title}
-          </Link>
-        ))}
-        {NAV_LINKS.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            onClick={onClose}
-            data-gs-item
-            className="py-3 text-3xl font-semibold tracking-tight text-white"
-          >
-            {link.label}
-          </Link>
-        ))}
+        <WebsiteMenus mobile />
       </nav>
 
       <Container className="mb-10 flex flex-col gap-3">

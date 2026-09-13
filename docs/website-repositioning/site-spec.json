@@ -1,0 +1,1157 @@
+{
+  "version": 1,
+  "project": {
+    "company": "Operate",
+    "repository": "mosnin/Clickup",
+    "fictional": false,
+    "scope": "Public website repositioning and pricing proposal; existing authenticated product preserved."
+  },
+  "context_refs": [
+    "DESIGN.md",
+    "PRICING.md",
+    "VALUE.md",
+    "OFFER.md",
+    "INFLUENCE.md",
+    "INVENTORY.md"
+  ],
+  "theme": {
+    "mode": "supplied_premium_primitives",
+    "source_ref": "existing repository baseline, see DESIGN.md",
+    "preserve_user_assets": true,
+    "follow_user_requests": true,
+    "primitives": {
+      "typography": "Existing fonts and heading components",
+      "color": "Charcoal panels, azure accents, product captures and GSAP motion.",
+      "spacing": "Existing containers and responsive grids",
+      "components": "Existing hero, navigation shell, cards and footer",
+      "motion": "Existing animations with reduced-motion support",
+      "responsive": "390, 768, 1024 and 1440 CSS pixels"
+    }
+  },
+  "facts": [
+    {
+      "id": "workflow-0",
+      "kind": "use_case",
+      "statement": "List, Board, Calendar and Gantt show the same work from different angles.",
+      "status": "source_grounded",
+      "evidence_ref": "VALUE.md"
+    },
+    {
+      "id": "workflow-1",
+      "kind": "use_case",
+      "statement": "Connect your existing runtime and see who is working on which task.",
+      "status": "source_grounded",
+      "evidence_ref": "VALUE.md"
+    },
+    {
+      "id": "workflow-2",
+      "kind": "use_case",
+      "statement": "Use roles, scopes and approval requirements to define what a connected agent may do in Operate.",
+      "status": "source_grounded",
+      "evidence_ref": "VALUE.md"
+    },
+    {
+      "id": "workflow-3",
+      "kind": "use_case",
+      "statement": "Claims, dependencies and comments help people and agents coordinate on a shared task.",
+      "status": "source_grounded",
+      "evidence_ref": "VALUE.md"
+    },
+    {
+      "id": "workflow-4",
+      "kind": "use_case",
+      "statement": "Organize a sprint, apply a template and keep recurring tasks on the same board.",
+      "status": "source_grounded",
+      "evidence_ref": "VALUE.md"
+    },
+    {
+      "id": "workflow-5",
+      "kind": "use_case",
+      "statement": "Keep documents and whiteboards in the workspace where tasks are planned and reviewed.",
+      "status": "source_grounded",
+      "evidence_ref": "VALUE.md"
+    },
+    {
+      "id": "workflow-6",
+      "kind": "use_case",
+      "statement": "Use signed webhooks or event reads to connect Operate with your own runtime.",
+      "status": "source_grounded",
+      "evidence_ref": "VALUE.md"
+    },
+    {
+      "id": "workflow-7",
+      "kind": "use_case",
+      "statement": "MCP gives compatible tools access to supported Operate tasks, documents and coordination actions.",
+      "status": "source_grounded",
+      "evidence_ref": "VALUE.md"
+    },
+    {
+      "id": "workflow-8",
+      "kind": "resource",
+      "statement": "Define what a reviewer should inspect so a finished-looking artifact is not mistaken for an accepted result.",
+      "status": "source_grounded",
+      "evidence_ref": "VALUE.md"
+    },
+    {
+      "id": "workflow-9",
+      "kind": "resource",
+      "statement": "Operate records and limits actions in its own workspace. The runtime and model provider may have separate costs.",
+      "status": "source_grounded",
+      "evidence_ref": "VALUE.md"
+    }
+  ],
+  "assets": [],
+  "pages": [
+    {
+      "id": "features-tasks",
+      "path": "/features/tasks",
+      "role": "product",
+      "title": "Keep the task, owner and deadline together.",
+      "purpose": "List, Board, Calendar and Gantt show the same work from different angles.",
+      "hero": {
+        "headline": "Keep the task, owner and deadline together."
+      },
+      "fact_ids": [
+        "workflow-0"
+      ],
+      "sections": [
+        {
+          "kind": "problem",
+          "content": "A status update should not require reconstructing a conversation.",
+          "fact_ids": [
+            "workflow-0"
+          ]
+        },
+        {
+          "kind": "feature",
+          "content": [
+            {
+              "title": "Define the task",
+              "body": "Add the expected result, owner, deadline and dependencies."
+            },
+            {
+              "title": "Choose a view",
+              "body": "Use a board for flow, a list for detail, or a calendar for upcoming dates."
+            },
+            {
+              "title": "Review the result",
+              "body": "Follow the activity and attached evidence before marking work accepted."
+            }
+          ],
+          "fact_ids": [
+            "workflow-0"
+          ]
+        },
+        {
+          "kind": "benefit",
+          "content": [
+            {
+              "title": "One task record",
+              "body": "Changes remain attached to the work your team tracks."
+            },
+            {
+              "title": "Views for different decisions",
+              "body": "Inspect status, timing and dependencies without maintaining parallel lists."
+            }
+          ],
+          "fact_ids": [
+            "workflow-0"
+          ]
+        }
+      ],
+      "proof": {
+        "placement": "within_content",
+        "fact_ids": [
+          "workflow-0"
+        ],
+        "logo_asset_ids": []
+      },
+      "reduced_motion": "static_equivalent",
+      "bottom_cta": [
+        {
+          "label": "Get started",
+          "target": "/sign-up"
+        },
+        {
+          "label": "Request a demo",
+          "target": "/demo"
+        }
+      ],
+      "exceptions": [
+        {
+          "capability": "proof_under_hero",
+          "rationale": "No permissioned customer endorsements supplied. Show product mechanisms and clearly labeled examples."
+        },
+        {
+          "capability": "unique_illustrations",
+          "rationale": "Reuse existing purchased theme primitives as requested. New pages use editorial steps and cards."
+        },
+        {
+          "capability": "animated_illustration",
+          "rationale": "Preserve existing motion; explanatory text remains available without animation."
+        }
+      ]
+    },
+    {
+      "id": "features-agents",
+      "path": "/features/agents",
+      "role": "product",
+      "title": "Give each agent an identity and a bounded assignment.",
+      "purpose": "Connect your existing runtime and see who is working on which task.",
+      "hero": {
+        "headline": "Give each agent an identity and a bounded assignment."
+      },
+      "fact_ids": [
+        "workflow-1"
+      ],
+      "sections": [
+        {
+          "kind": "problem",
+          "content": "An unnamed script is hard to pause, review or distinguish from another worker.",
+          "fact_ids": [
+            "workflow-1"
+          ]
+        },
+        {
+          "kind": "feature",
+          "content": [
+            {
+              "title": "Create an agent",
+              "body": "Choose its organization boundary and create or authorize credentials."
+            },
+            {
+              "title": "Set the scope",
+              "body": "Choose allowed lists and access roles before assigning tasks."
+            },
+            {
+              "title": "Observe its activity",
+              "body": "Use heartbeats and task updates to follow progress, then pause access when needed."
+            }
+          ],
+          "fact_ids": [
+            "workflow-1"
+          ]
+        },
+        {
+          "kind": "benefit",
+          "content": [
+            {
+              "title": "Visible ownership",
+              "body": "A task can show which agent holds it."
+            },
+            {
+              "title": "Revocable access",
+              "body": "Pause or revoke credentials without rewriting every task."
+            }
+          ],
+          "fact_ids": [
+            "workflow-1"
+          ]
+        }
+      ],
+      "proof": {
+        "placement": "within_content",
+        "fact_ids": [
+          "workflow-1"
+        ],
+        "logo_asset_ids": []
+      },
+      "reduced_motion": "static_equivalent",
+      "bottom_cta": [
+        {
+          "label": "Get started",
+          "target": "/sign-up"
+        },
+        {
+          "label": "Request a demo",
+          "target": "/demo"
+        }
+      ],
+      "exceptions": [
+        {
+          "capability": "proof_under_hero",
+          "rationale": "No permissioned customer endorsements supplied. Show product mechanisms and clearly labeled examples."
+        },
+        {
+          "capability": "unique_illustrations",
+          "rationale": "Reuse existing purchased theme primitives as requested. New pages use editorial steps and cards."
+        },
+        {
+          "capability": "animated_illustration",
+          "rationale": "Preserve existing motion; explanatory text remains available without animation."
+        }
+      ]
+    },
+    {
+      "id": "features-governance",
+      "path": "/features/governance",
+      "role": "product",
+      "title": "Make review part of the task.",
+      "purpose": "Use roles, scopes and approval requirements to define what a connected agent may do in Operate.",
+      "hero": {
+        "headline": "Make review part of the task."
+      },
+      "fact_ids": [
+        "workflow-2"
+      ],
+      "sections": [
+        {
+          "kind": "problem",
+          "content": "A prompt asking for caution is not the same as a server-enforced rule.",
+          "fact_ids": [
+            "workflow-2"
+          ]
+        },
+        {
+          "kind": "feature",
+          "content": [
+            {
+              "title": "Set access",
+              "body": "Limit the workspace, lists and read/write role."
+            },
+            {
+              "title": "Require approval",
+              "body": "Mark work that needs human sign-off before completion."
+            },
+            {
+              "title": "Review evidence",
+              "body": "Inspect the proposed result and its record before approving."
+            }
+          ],
+          "fact_ids": [
+            "workflow-2"
+          ]
+        },
+        {
+          "kind": "benefit",
+          "content": [
+            {
+              "title": "Clear decision rights",
+              "body": "People choose when a task needs review."
+            },
+            {
+              "title": "Bounded changes",
+              "body": "Supported API operations enforce the configured access scope."
+            }
+          ],
+          "fact_ids": [
+            "workflow-2"
+          ]
+        }
+      ],
+      "proof": {
+        "placement": "within_content",
+        "fact_ids": [
+          "workflow-2"
+        ],
+        "logo_asset_ids": []
+      },
+      "reduced_motion": "static_equivalent",
+      "bottom_cta": [
+        {
+          "label": "Get started",
+          "target": "/sign-up"
+        },
+        {
+          "label": "Request a demo",
+          "target": "/demo"
+        }
+      ],
+      "exceptions": [
+        {
+          "capability": "proof_under_hero",
+          "rationale": "No permissioned customer endorsements supplied. Show product mechanisms and clearly labeled examples."
+        },
+        {
+          "capability": "unique_illustrations",
+          "rationale": "Reuse existing purchased theme primitives as requested. New pages use editorial steps and cards."
+        },
+        {
+          "capability": "animated_illustration",
+          "rationale": "Preserve existing motion; explanatory text remains available without animation."
+        }
+      ]
+    },
+    {
+      "id": "features-collaboration",
+      "path": "/features/collaboration",
+      "role": "product",
+      "title": "Hand off work without losing the next step.",
+      "purpose": "Claims, dependencies and comments help people and agents coordinate on a shared task.",
+      "hero": {
+        "headline": "Hand off work without losing the next step."
+      },
+      "fact_ids": [
+        "workflow-3"
+      ],
+      "sections": [
+        {
+          "kind": "problem",
+          "content": "Two workers can duplicate effort when ownership exists only in a chat message.",
+          "fact_ids": [
+            "workflow-3"
+          ]
+        },
+        {
+          "kind": "feature",
+          "content": [
+            {
+              "title": "Claim the task",
+              "body": "Check the current owner and blockers before starting."
+            },
+            {
+              "title": "Report progress",
+              "body": "Keep relevant updates and artifacts attached to the task."
+            },
+            {
+              "title": "Release or hand off",
+              "body": "Leave the result, remaining work and next owner explicit."
+            }
+          ],
+          "fact_ids": [
+            "workflow-3"
+          ]
+        },
+        {
+          "kind": "benefit",
+          "content": [
+            {
+              "title": "Less duplicated effort",
+              "body": "A claim makes the active worker visible."
+            },
+            {
+              "title": "Recoverable handoffs",
+              "body": "The next worker can inspect the state instead of guessing."
+            }
+          ],
+          "fact_ids": [
+            "workflow-3"
+          ]
+        }
+      ],
+      "proof": {
+        "placement": "within_content",
+        "fact_ids": [
+          "workflow-3"
+        ],
+        "logo_asset_ids": []
+      },
+      "reduced_motion": "static_equivalent",
+      "bottom_cta": [
+        {
+          "label": "Get started",
+          "target": "/sign-up"
+        },
+        {
+          "label": "Request a demo",
+          "target": "/demo"
+        }
+      ],
+      "exceptions": [
+        {
+          "capability": "proof_under_hero",
+          "rationale": "No permissioned customer endorsements supplied. Show product mechanisms and clearly labeled examples."
+        },
+        {
+          "capability": "unique_illustrations",
+          "rationale": "Reuse existing purchased theme primitives as requested. New pages use editorial steps and cards."
+        },
+        {
+          "capability": "animated_illustration",
+          "rationale": "Preserve existing motion; explanatory text remains available without animation."
+        }
+      ]
+    },
+    {
+      "id": "features-sprints",
+      "path": "/features/sprints",
+      "role": "product",
+      "title": "Turn recurring work into a visible plan.",
+      "purpose": "Organize a sprint, apply a template and keep recurring tasks on the same board.",
+      "hero": {
+        "headline": "Turn recurring work into a visible plan."
+      },
+      "fact_ids": [
+        "workflow-4"
+      ],
+      "sections": [
+        {
+          "kind": "problem",
+          "content": "Repeated work becomes inconsistent when each cycle starts from a blank brief.",
+          "fact_ids": [
+            "workflow-4"
+          ]
+        },
+        {
+          "kind": "feature",
+          "content": [
+            {
+              "title": "Set the cycle",
+              "body": "Choose the period and the work that belongs in it."
+            },
+            {
+              "title": "Apply the process",
+              "body": "Use list templates, statuses and recurring schedules."
+            },
+            {
+              "title": "Review what changed",
+              "body": "Compare completed work with the original requirements before the next cycle."
+            }
+          ],
+          "fact_ids": [
+            "workflow-4"
+          ]
+        },
+        {
+          "kind": "benefit",
+          "content": [
+            {
+              "title": "Repeatable structure",
+              "body": "Reuse a process without copying a whole chat."
+            },
+            {
+              "title": "A shared timebox",
+              "body": "People and agents can see what is due together."
+            }
+          ],
+          "fact_ids": [
+            "workflow-4"
+          ]
+        }
+      ],
+      "proof": {
+        "placement": "within_content",
+        "fact_ids": [
+          "workflow-4"
+        ],
+        "logo_asset_ids": []
+      },
+      "reduced_motion": "static_equivalent",
+      "bottom_cta": [
+        {
+          "label": "Get started",
+          "target": "/sign-up"
+        },
+        {
+          "label": "Request a demo",
+          "target": "/demo"
+        }
+      ],
+      "exceptions": [
+        {
+          "capability": "proof_under_hero",
+          "rationale": "No permissioned customer endorsements supplied. Show product mechanisms and clearly labeled examples."
+        },
+        {
+          "capability": "unique_illustrations",
+          "rationale": "Reuse existing purchased theme primitives as requested. New pages use editorial steps and cards."
+        },
+        {
+          "capability": "animated_illustration",
+          "rationale": "Preserve existing motion; explanatory text remains available without animation."
+        }
+      ]
+    },
+    {
+      "id": "features-docs",
+      "path": "/features/docs",
+      "role": "product",
+      "title": "Put project instructions beside the work they explain.",
+      "purpose": "Keep documents and whiteboards in the workspace where tasks are planned and reviewed.",
+      "hero": {
+        "headline": "Put project instructions beside the work they explain."
+      },
+      "fact_ids": [
+        "workflow-5"
+      ],
+      "sections": [
+        {
+          "kind": "problem",
+          "content": "An agent can miss a requirement when the brief lives in a separate tool or inaccessible file.",
+          "fact_ids": [
+            "workflow-5"
+          ]
+        },
+        {
+          "kind": "feature",
+          "content": [
+            {
+              "title": "Write the brief",
+              "body": "State the outcome, constraints and acceptance criteria."
+            },
+            {
+              "title": "Link it to work",
+              "body": "Make the relevant instructions easy to find from the task."
+            },
+            {
+              "title": "Keep it current",
+              "body": "Update the document when a decision changes and tell the assigned worker."
+            }
+          ],
+          "fact_ids": [
+            "workflow-5"
+          ]
+        },
+        {
+          "kind": "benefit",
+          "content": [
+            {
+              "title": "Less hunting for context",
+              "body": "The brief lives near the task."
+            },
+            {
+              "title": "Reviewable instructions",
+              "body": "People can inspect what the agent was asked to do."
+            }
+          ],
+          "fact_ids": [
+            "workflow-5"
+          ]
+        }
+      ],
+      "proof": {
+        "placement": "within_content",
+        "fact_ids": [
+          "workflow-5"
+        ],
+        "logo_asset_ids": []
+      },
+      "reduced_motion": "static_equivalent",
+      "bottom_cta": [
+        {
+          "label": "Get started",
+          "target": "/sign-up"
+        },
+        {
+          "label": "Request a demo",
+          "target": "/demo"
+        }
+      ],
+      "exceptions": [
+        {
+          "capability": "proof_under_hero",
+          "rationale": "No permissioned customer endorsements supplied. Show product mechanisms and clearly labeled examples."
+        },
+        {
+          "capability": "unique_illustrations",
+          "rationale": "Reuse existing purchased theme primitives as requested. New pages use editorial steps and cards."
+        },
+        {
+          "capability": "animated_illustration",
+          "rationale": "Preserve existing motion; explanatory text remains available without animation."
+        }
+      ]
+    },
+    {
+      "id": "features-webhooks",
+      "path": "/features/webhooks",
+      "role": "product",
+      "title": "Let a work event trigger the next step.",
+      "purpose": "Use signed webhooks or event reads to connect Operate with your own runtime.",
+      "hero": {
+        "headline": "Let a work event trigger the next step."
+      },
+      "fact_ids": [
+        "workflow-6"
+      ],
+      "sections": [
+        {
+          "kind": "problem",
+          "content": "Repeated polling adds work when the useful change is a single assignment or comment.",
+          "fact_ids": [
+            "workflow-6"
+          ]
+        },
+        {
+          "kind": "feature",
+          "content": [
+            {
+              "title": "Choose events",
+              "body": "Subscribe to the changes your integration needs."
+            },
+            {
+              "title": "Verify delivery",
+              "body": "Validate signatures and handle duplicate or retried delivery."
+            },
+            {
+              "title": "Process the change",
+              "body": "Fetch the current task and act within its permissions."
+            }
+          ],
+          "fact_ids": [
+            "workflow-6"
+          ]
+        },
+        {
+          "kind": "benefit",
+          "content": [
+            {
+              "title": "Timely handoffs",
+              "body": "Your integration can respond when work changes."
+            },
+            {
+              "title": "A record to inspect",
+              "body": "Events support troubleshooting and status reporting."
+            }
+          ],
+          "fact_ids": [
+            "workflow-6"
+          ]
+        }
+      ],
+      "proof": {
+        "placement": "within_content",
+        "fact_ids": [
+          "workflow-6"
+        ],
+        "logo_asset_ids": []
+      },
+      "reduced_motion": "static_equivalent",
+      "bottom_cta": [
+        {
+          "label": "Get started",
+          "target": "/sign-up"
+        },
+        {
+          "label": "Request a demo",
+          "target": "/demo"
+        }
+      ],
+      "exceptions": [
+        {
+          "capability": "proof_under_hero",
+          "rationale": "No permissioned customer endorsements supplied. Show product mechanisms and clearly labeled examples."
+        },
+        {
+          "capability": "unique_illustrations",
+          "rationale": "Reuse existing purchased theme primitives as requested. New pages use editorial steps and cards."
+        },
+        {
+          "capability": "animated_illustration",
+          "rationale": "Preserve existing motion; explanatory text remains available without animation."
+        }
+      ]
+    },
+    {
+      "id": "features-mcp",
+      "path": "/features/mcp",
+      "role": "product",
+      "title": "Connect your agent to a shared project workspace.",
+      "purpose": "MCP gives compatible tools access to supported Operate tasks, documents and coordination actions.",
+      "hero": {
+        "headline": "Connect your agent to a shared project workspace."
+      },
+      "fact_ids": [
+        "workflow-7"
+      ],
+      "sections": [
+        {
+          "kind": "problem",
+          "content": "An agent needs structured access to work, not a screenshot of a task board.",
+          "fact_ids": [
+            "workflow-7"
+          ]
+        },
+        {
+          "kind": "feature",
+          "content": [
+            {
+              "title": "Create scoped access",
+              "body": "Choose an agent identity and permission boundary."
+            },
+            {
+              "title": "Connect the client",
+              "body": "Use the documented endpoint and authorized credentials for your runtime."
+            },
+            {
+              "title": "Try a bounded task",
+              "body": "Read a task, report progress and hand back a result for review."
+            }
+          ],
+          "fact_ids": [
+            "workflow-7"
+          ]
+        },
+        {
+          "kind": "benefit",
+          "content": [
+            {
+              "title": "Structured access",
+              "body": "Tools retrieve and update the supported product objects."
+            },
+            {
+              "title": "The same work record",
+              "body": "Agent activity appears alongside human work."
+            }
+          ],
+          "fact_ids": [
+            "workflow-7"
+          ]
+        }
+      ],
+      "proof": {
+        "placement": "within_content",
+        "fact_ids": [
+          "workflow-7"
+        ],
+        "logo_asset_ids": []
+      },
+      "reduced_motion": "static_equivalent",
+      "bottom_cta": [
+        {
+          "label": "Get started",
+          "target": "/sign-up"
+        },
+        {
+          "label": "Request a demo",
+          "target": "/demo"
+        }
+      ],
+      "exceptions": [
+        {
+          "capability": "proof_under_hero",
+          "rationale": "No permissioned customer endorsements supplied. Show product mechanisms and clearly labeled examples."
+        },
+        {
+          "capability": "unique_illustrations",
+          "rationale": "Reuse existing purchased theme primitives as requested. New pages use editorial steps and cards."
+        },
+        {
+          "capability": "animated_illustration",
+          "rationale": "Preserve existing motion; explanatory text remains available without animation."
+        }
+      ]
+    },
+    {
+      "id": "resources-approval-checklist",
+      "path": "/resources/approval-checklist",
+      "role": "article",
+      "title": "Write an acceptance checklist before assigning the task.",
+      "purpose": "Define what a reviewer should inspect so a finished-looking artifact is not mistaken for an accepted result.",
+      "hero": {
+        "headline": "Write an acceptance checklist before assigning the task."
+      },
+      "fact_ids": [
+        "workflow-8"
+      ],
+      "sections": [
+        {
+          "kind": "problem",
+          "content": "A task marked done does not explain which requirement was verified.",
+          "fact_ids": [
+            "workflow-8"
+          ]
+        },
+        {
+          "kind": "feature",
+          "content": [
+            {
+              "title": "Name the result",
+              "body": "Specify the artifact or behavior and who will use it."
+            },
+            {
+              "title": "Choose evidence",
+              "body": "Ask for a relevant test, screenshot, document or working link for each requirement."
+            },
+            {
+              "title": "Review independently",
+              "body": "Check the result against the original criteria and return specific corrections."
+            }
+          ],
+          "fact_ids": [
+            "workflow-8"
+          ]
+        },
+        {
+          "kind": "benefit",
+          "content": [
+            {
+              "title": "Clearer assignments",
+              "body": "The worker knows what result matters."
+            },
+            {
+              "title": "More useful reviews",
+              "body": "The reviewer has concrete criteria rather than a general impression."
+            }
+          ],
+          "fact_ids": [
+            "workflow-8"
+          ]
+        }
+      ],
+      "proof": {
+        "placement": "within_content",
+        "fact_ids": [
+          "workflow-8"
+        ],
+        "logo_asset_ids": []
+      },
+      "reduced_motion": "static_equivalent",
+      "bottom_cta": [
+        {
+          "label": "Get started",
+          "target": "/sign-up"
+        },
+        {
+          "label": "Request a demo",
+          "target": "/demo"
+        }
+      ],
+      "exceptions": [
+        {
+          "capability": "proof_under_hero",
+          "rationale": "No permissioned customer endorsements supplied. Show product mechanisms and clearly labeled examples."
+        },
+        {
+          "capability": "unique_illustrations",
+          "rationale": "Reuse existing purchased theme primitives as requested. New pages use editorial steps and cards."
+        },
+        {
+          "capability": "animated_illustration",
+          "rationale": "Preserve existing motion; explanatory text remains available without animation."
+        }
+      ]
+    },
+    {
+      "id": "resources-action-budgets",
+      "path": "/resources/action-budgets",
+      "role": "article",
+      "title": "Separate coordination actions from model spend.",
+      "purpose": "Operate records and limits actions in its own workspace. The runtime and model provider may have separate costs.",
+      "hero": {
+        "headline": "Separate coordination actions from model spend."
+      },
+      "fact_ids": [
+        "workflow-9"
+      ],
+      "sections": [
+        {
+          "kind": "problem",
+          "content": "A daily write limit cannot guarantee a dollar ceiling for work happening in an external runtime.",
+          "fact_ids": [
+            "workflow-9"
+          ]
+        },
+        {
+          "kind": "feature",
+          "content": [
+            {
+              "title": "Set an action boundary",
+              "body": "Choose an agent role, scope and daily action limit."
+            },
+            {
+              "title": "Set provider controls",
+              "body": "Configure spend limits and stop conditions in the runtime that executes the work."
+            },
+            {
+              "title": "Review usage",
+              "body": "Compare the action record with provider invoices and task evidence."
+            }
+          ],
+          "fact_ids": [
+            "workflow-9"
+          ]
+        },
+        {
+          "kind": "benefit",
+          "content": [
+            {
+              "title": "Clearer budgeting",
+              "body": "You know which system controls each cost."
+            },
+            {
+              "title": "Safer expansion",
+              "body": "Increase limits after a bounded workload demonstrates useful results."
+            }
+          ],
+          "fact_ids": [
+            "workflow-9"
+          ]
+        }
+      ],
+      "proof": {
+        "placement": "within_content",
+        "fact_ids": [
+          "workflow-9"
+        ],
+        "logo_asset_ids": []
+      },
+      "reduced_motion": "static_equivalent",
+      "bottom_cta": [
+        {
+          "label": "Get started",
+          "target": "/sign-up"
+        },
+        {
+          "label": "Request a demo",
+          "target": "/demo"
+        }
+      ],
+      "exceptions": [
+        {
+          "capability": "proof_under_hero",
+          "rationale": "No permissioned customer endorsements supplied. Show product mechanisms and clearly labeled examples."
+        },
+        {
+          "capability": "unique_illustrations",
+          "rationale": "Reuse existing purchased theme primitives as requested. New pages use editorial steps and cards."
+        },
+        {
+          "capability": "animated_illustration",
+          "rationale": "Preserve existing motion; explanatory text remains available without animation."
+        }
+      ]
+    }
+  ],
+  "navigation": [
+    {
+      "id": "product",
+      "mode": "megamenu",
+      "items": [
+        {
+          "label": "Tasks",
+          "target": "/features/tasks"
+        },
+        {
+          "label": "Agents",
+          "target": "/features/agents"
+        },
+        {
+          "label": "Governance",
+          "target": "/features/governance"
+        },
+        {
+          "label": "Collaboration",
+          "target": "/features/collaboration"
+        },
+        {
+          "label": "Sprints",
+          "target": "/features/sprints"
+        },
+        {
+          "label": "Docs",
+          "target": "/features/docs"
+        },
+        {
+          "label": "Webhooks",
+          "target": "/features/webhooks"
+        },
+        {
+          "label": "Mcp",
+          "target": "/features/mcp"
+        }
+      ]
+    },
+    {
+      "id": "solutions",
+      "mode": "megamenu",
+      "items": [
+        {
+          "label": "Engineering",
+          "target": "/use-cases/engineering"
+        },
+        {
+          "label": "Agencies",
+          "target": "/use-cases/agencies"
+        },
+        {
+          "label": "Marketing",
+          "target": "/use-cases/marketing"
+        },
+        {
+          "label": "Operations",
+          "target": "/use-cases/operations"
+        },
+        {
+          "label": "Founders",
+          "target": "/use-cases/founders"
+        },
+        {
+          "label": "Solo operators",
+          "target": "/use-cases/solo"
+        }
+      ]
+    },
+    {
+      "id": "resources",
+      "mode": "megamenu",
+      "items": [
+        {
+          "label": "All resources",
+          "target": "/resources"
+        },
+        {
+          "label": "How it works",
+          "target": "/how-it-works"
+        },
+        {
+          "label": "Acceptance checklist",
+          "target": "/resources/approval-checklist"
+        },
+        {
+          "label": "Action budgets",
+          "target": "/resources/action-budgets"
+        }
+      ]
+    },
+    {
+      "id": "company",
+      "mode": "megamenu",
+      "items": [
+        {
+          "label": "About",
+          "target": "/about"
+        },
+        {
+          "label": "Contact",
+          "target": "/company"
+        },
+        {
+          "label": "Request a demo",
+          "target": "/demo"
+        },
+        {
+          "label": "Legal",
+          "target": "/legal"
+        }
+      ]
+    },
+    {
+      "id": "pricing",
+      "mode": "link",
+      "label": "Pricing",
+      "target": "/pricing"
+    }
+  ],
+  "footer": {
+    "source_ref": "Existing footer expanded with use cases and resources"
+  },
+  "auth": {
+    "status": "preserved_not_provider_tested",
+    "source_ref": "Existing application routes"
+  },
+  "onboarding": {
+    "status": "preserved_not_provider_tested"
+  },
+  "verification": [
+    {
+      "id": "routes",
+      "status": "see_evidence",
+      "evidence_ref": "evidence/routes.json"
+    },
+    {
+      "id": "responsive_keyboard",
+      "status": "see_evidence",
+      "evidence_ref": "evidence/controls.json"
+    },
+    {
+      "id": "provider_checkout_auth",
+      "status": "not_tested",
+      "rationale": "No live sign-in, charge, meter migration or message was performed."
+    }
+  ],
+  "inventory_dispositions": {
+    "resources": "Existing resources plus new practical guides; no invented events or community.",
+    "company": "Existing company, contact and legal surfaces retained; no invented jobs, press or customer logos."
+  }
+}

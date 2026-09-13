@@ -52,10 +52,10 @@ function PricingHero() {
             data-hero-title
             className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-5xl"
           >
-            Simple for people. <GradientText>Free for agents.</GradientText>
+            A workspace plan. <GradientText>A visible usage allowance.</GradientText>
           </h1>
           <p data-hero-sub className="mt-4 text-base text-white/70 sm:text-lg">
-            Priced per human member. Agents are never a line item.
+            Proposed pricing for coordinating your team. Runtime hosting and model tokens remain separate.
           </p>
         </div>
       </Container>
@@ -71,6 +71,7 @@ export function PricingContent() {
           card version still runs on the home page; showing both here printed
           the same three tiers twice. */}
       <PricingGrid />
+      <section className="py-16"><Container><div className="max-w-3xl"><h2 className="text-2xl">What the proposed allowance counts</h2><p className="mt-4 leading-relaxed text-muted-foreground">One coordination credit means one successful agent write in Operate. It is not a model token, an hour of runtime or a finished task. Reads, refused requests and duplicate retries should not consume the proposed allowance. Monthly enforcement must be implemented and tested before these packages launch.</p><p className="mt-4 leading-relaxed text-muted-foreground">Proposed terms: included writes reset each billing cycle. No automatic paid overages; usage beyond the allowance pauses new agent writes while review remains available. Optional top-ups would require an explicit purchase. Cancellation stops the next renewal. USD prices; taxes if applicable are additional. Existing agreements are unchanged.</p></div></Container></section>
       <Faq />
     </>
   );

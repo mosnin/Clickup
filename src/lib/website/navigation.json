@@ -1,0 +1,110 @@
+[
+  {
+    "label": "Product",
+    "links": [
+      {
+        "href": "/features/tasks",
+        "label": "Tasks"
+      },
+      {
+        "href": "/features/agents",
+        "label": "Agents"
+      },
+      {
+        "href": "/features/governance",
+        "label": "Governance"
+      },
+      {
+        "href": "/features/collaboration",
+        "label": "Collaboration"
+      },
+      {
+        "href": "/features/sprints",
+        "label": "Sprints"
+      },
+      {
+        "href": "/features/docs",
+        "label": "Docs"
+      },
+      {
+        "href": "/features/webhooks",
+        "label": "Webhooks"
+      },
+      {
+        "href": "/features/mcp",
+        "label": "Mcp"
+      }
+    ]
+  },
+  {
+    "label": "Solutions",
+    "links": [
+      {
+        "href": "/use-cases/engineering",
+        "label": "Engineering"
+      },
+      {
+        "href": "/use-cases/agencies",
+        "label": "Agencies"
+      },
+      {
+        "href": "/use-cases/marketing",
+        "label": "Marketing"
+      },
+      {
+        "href": "/use-cases/operations",
+        "label": "Operations"
+      },
+      {
+        "href": "/use-cases/founders",
+        "label": "Founders"
+      },
+      {
+        "href": "/use-cases/solo",
+        "label": "Solo operators"
+      }
+    ]
+  },
+  {
+    "label": "Resources",
+    "links": [
+      {
+        "href": "/resources",
+        "label": "All resources"
+      },
+      {
+        "href": "/how-it-works",
+        "label": "How it works"
+      },
+      {
+        "href": "/resources/approval-checklist",
+        "label": "Acceptance checklist"
+      },
+      {
+        "href": "/resources/action-budgets",
+        "label": "Action budgets"
+      }
+    ]
+  },
+  {
+    "label": "Company",
+    "links": [
+      {
+        "href": "/about",
+        "label": "About"
+      },
+      {
+        "href": "/company",
+        "label": "Contact"
+      },
+      {
+        "href": "/demo",
+        "label": "Request a demo"
+      },
+      {
+        "href": "/legal",
+        "label": "Legal"
+      }
+    ]
+  }
+]

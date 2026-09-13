@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import gsap from "gsap";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -9,39 +9,8 @@ import { Container, CtaButton, SectionHeading } from "@/components/marketing/ui"
 import { BorderBeam } from "@/components/ui/beam";
 import { DUR, EASE_OUT, GsapReveal, prefersReducedMotion, useGsap, isHoverCapable } from "@/components/marketing/gsap";
 
-type Billing = "monthly" | "annual";
-
-const teamTier = PRICING.tiers.find((t) => t.name === "Team");
-const teamAnnualNote =
-  teamTier && "annualNote" in teamTier ? teamTier.annualNote : undefined;
-
-/** Middle tier's price/period react to the billing toggle; the other two stay put. */
-function tierPrice(name: string, billing: Billing) {
-  const tier = PRICING.tiers.find((t) => t.name === name)!;
-  if (billing === "annual" && "annualPrice" in tier && tier.annualPrice) {
-    return { price: tier.annualPrice, period: tier.period };
-  }
-  return { price: tier.price, period: tier.period };
-}
-
 export function PricingSection() {
-  const [billing, setBilling] = useState<Billing>("monthly");
-  const monthlyBtnRef = useRef<HTMLButtonElement | null>(null);
-  const annualBtnRef = useRef<HTMLButtonElement | null>(null);
-  const isFirstBillingRender = useRef(true);
   const idleFloatRef = useRef<gsap.core.Tween | null>(null);
-
-  // Subtle fade/slide when the Team tier's price swaps between billing modes.
-  const priceRef = useGsap(
-    ({ root }) => {
-      gsap.fromTo(
-        root,
-        { autoAlpha: 0, y: 6 },
-        { autoAlpha: 1, y: 0, duration: DUR.fast, ease: EASE_OUT },
-      );
-    },
-    [billing],
-  );
 
   // Featured Team card: a very subtle idle float. Scoped in useGsap so
   // reduced-motion never starts it.
@@ -54,18 +23,6 @@ export function PricingSection() {
       repeat: -1,
     });
   }, []);
-
-  // Quick scale-press on the billing toggle's active pill when it switches.
-  useEffect(() => {
-    if (isFirstBillingRender.current) {
-      isFirstBillingRender.current = false;
-      return;
-    }
-    if (prefersReducedMotion()) return;
-    const el = billing === "monthly" ? monthlyBtnRef.current : annualBtnRef.current;
-    if (!el) return;
-    gsap.fromTo(el, { scale: 0.96 }, { scale: 1, duration: DUR.fast, ease: EASE_OUT });
-  }, [billing]);
 
   // Damped hover lift for pricing cards. Relative to whatever the card's
   // current y is (static offset and/or mid-idle-float) so it layers instead
@@ -100,53 +57,10 @@ export function PricingSection() {
           sub={PRICING.sub}
         />
 
-        {/* Billing toggle */}
-        <div className="mt-8 flex justify-center">
-          <div
-            role="group"
-            aria-label="Billing period"
-            className="inline-flex items-center rounded-full bg-muted p-1"
-          >
-            <button
-              ref={monthlyBtnRef}
-              type="button"
-              aria-pressed={billing === "monthly"}
-              onClick={() => setBilling("monthly")}
-              className={cn(
-                "inline-flex min-h-11 items-center justify-center rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-                billing === "monthly"
-                  ? "mk-panel-2 text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              Monthly
-            </button>
-            <button
-              ref={annualBtnRef}
-              type="button"
-              aria-pressed={billing === "annual"}
-              onClick={() => setBilling("annual")}
-              className={cn(
-                "inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
-                billing === "annual"
-                  ? "mk-panel-2 text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              Annual
-              {teamAnnualNote && (
-                <span className="mk-gradient-fill inline-flex items-center rounded-full px-2 py-0.5 text-micro font-semibold uppercase tracking-wide">
-                  {teamAnnualNote}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-
         {/* Cards */}
         <GsapReveal stagger className="mt-10 grid items-stretch gap-6 lg:grid-cols-3">
           {PRICING.tiers.map((tier) => {
-            const { price, period } = tierPrice(tier.name, billing);
+            const { price, period } = tier;
             const card = (
               <div
                 key={tier.name}
@@ -169,7 +83,7 @@ export function PricingSection() {
                   {tier.name}
                 </span>
 
-                <div ref={tier.name === "Team" ? priceRef : undefined} className="mt-4 flex items-baseline gap-2">
+                <div className="mt-4 flex items-baseline gap-2">
                   <span className="text-4xl font-semibold tracking-tight">
                     {price}
                   </span>

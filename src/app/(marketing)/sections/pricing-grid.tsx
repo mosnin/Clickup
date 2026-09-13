@@ -45,13 +45,12 @@ export function PricingGrid() {
         <div className="grid grid-cols-1 lg:grid-cols-2">
           <GsapReveal className="max-w-2xl px-6 py-16 sm:py-20">
             <h2 className="text-4xl font-medium leading-[1.04] tracking-[-0.03em] text-foreground sm:text-5xl">
-              Clear pricing
+              Proposed pricing
               <br />
-              for <GradientText>fast-moving teams</GradientText>
+              for <GradientText>shared agent work</GradientText>
             </h2>
             <p className="mt-5 max-w-md text-lg leading-relaxed text-muted-foreground">
-              {PRICING.sub} Pick the tier that matches your pace — every one of
-              them ships the full tool surface.
+              {PRICING.sub}
             </p>
           </GsapReveal>
 
@@ -86,7 +85,7 @@ export function PricingGrid() {
         {/* Included-everywhere bar */}
         <div className="flex flex-col items-start gap-3 border-y border-white/[0.06] bg-white/[0.02] px-6 py-4 sm:flex-row sm:items-center sm:gap-6">
           <span className="text-sm text-foreground">
-            Every tier includes
+            Core controls remain available
           </span>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
             {INCLUDED.map((item, i) => (

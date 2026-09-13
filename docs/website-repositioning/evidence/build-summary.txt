@@ -1,0 +1,16 @@
+    ├ /use-cases/engineering
+    ├ /use-cases/agencies
+    ├ /use-cases/marketing
+    └ [+3 more paths]
++ First Load JS shared by all                 105 kB
+  ├ chunks/2119-31c022b9f76359de.js          48.1 kB
+  ├ chunks/5c02e4a0-cbdcfb5ce6555b74.js      54.2 kB
+  └ other shared chunks (total)               2.8 kB
+
+
+ƒ Middleware                                 85.4 kB
+
+○  (Static)   prerendered as static content
+●  (SSG)      prerendered as static HTML (uses generateStaticParams)
+ƒ  (Dynamic)  server-rendered on demand
+

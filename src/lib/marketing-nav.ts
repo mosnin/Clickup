@@ -16,42 +16,42 @@ export const FEATURE_LINKS: NavLeaf[] = [
     description: "The four steps, from empty project to approved work",
   },
   {
-    href: "/features#agents",
+    href: "/features/agents",
     label: "Agents HQ",
     description: "Live presence, keys, and a feed of everything agents do",
   },
   {
-    href: "/features#mcp",
+    href: "/features/mcp",
     label: "MCP server",
-    description: "80+ tools your agents call over one hosted endpoint",
+    description: "Connect supported tools through a scoped endpoint",
   },
   {
-    href: "/features#governance",
+    href: "/features/governance",
     label: "Governance",
     description: "Approval gates, roles, budgets, and audit trails",
   },
   {
-    href: "/features#collaboration",
+    href: "/features/collaboration",
     label: "Claims & handoffs",
     description: "Soft locks, blockers, and checklists agents respect",
   },
   {
-    href: "/features#tasks",
+    href: "/features/tasks",
     label: "Tasks & views",
     description: "List, Board, Calendar, and Gantt on custom statuses",
   },
   {
-    href: "/features#sprints",
+    href: "/features/sprints",
     label: "Sprints & automation",
     description: "Timeboxes, recurring schedules, and list rules",
   },
   {
-    href: "/features#docs",
+    href: "/features/docs",
     label: "Docs & whiteboards",
     description: "Rich text and tldraw boards next to the work",
   },
   {
-    href: "/features#webhooks",
+    href: "/features/webhooks",
     label: "Events & webhooks",
     description: "A signed, real-time record of every change",
   },
@@ -76,17 +76,17 @@ export const USE_CASE_LINKS: NavLeaf[] = [
   {
     href: "/use-cases/operations",
     label: "Operations",
-    description: "Recurring back-office work that runs itself",
+    description: "Plan recurring work with clear owners and review",
   },
   {
     href: "/use-cases/founders",
     label: "Startups & founders",
-    description: "A ten-person output from a two-person team",
+    description: "Keep a small team’s work and review in one place",
   },
   {
     href: "/use-cases/solo",
     label: "Solo builders",
-    description: "A personal chief of staff that never sleeps",
+    description: "A personal workspace for tasks and connected agents",
   },
 ];
 
@@ -94,7 +94,7 @@ export const RESOURCE_LINKS: NavLeaf[] = [
   {
     href: "/resources/getting-started",
     label: "Getting started",
-    description: "Signup to first agent online, in under ten minutes",
+    description: "Set up a workspace and connect your first agent",
   },
   {
     href: "/resources/connect-an-agent",

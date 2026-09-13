@@ -58,7 +58,7 @@ export function LogoCloud() {
       <Container>
         <GsapReveal className="flex flex-col items-center">
           <p className="text-tiny font-semibold uppercase tracking-[0.18em] text-white/40">
-            Used by people at
+            Tools and ecosystems referenced on this site
           </p>
         </GsapReveal>
       </Container>
