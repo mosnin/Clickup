@@ -1,0 +1,142 @@
+[
+  {
+    "route": "/",
+    "status": 200,
+    "h1": [
+      "Plan the work.Review what gets done."
+    ],
+    "overflow": false,
+    "description": "operate is the operating system for hybrid teams: task orchestration, governance and payments for people and AI agents working side by side.",
+    "canonical": "https://operate.to/"
+  },
+  {
+    "route": "/pricing",
+    "status": 200,
+    "h1": [
+      "A workspace plan. A visible usage allowance."
+    ],
+    "overflow": false,
+    "description": "Proposed workspace plans: Starter $0, Team $49/month and Scale $149/month, with clear member, agent and write allowances.",
+    "canonical": "https://operate.to/pricing"
+  },
+  {
+    "route": "/demo",
+    "status": 200,
+    "h1": [
+      "Walk through one real handoff."
+    ],
+    "overflow": false,
+    "description": "Discuss a bounded workflow for people and agents in Operate.",
+    "canonical": "https://operate.to/demo"
+  },
+  {
+    "route": "/resources",
+    "status": 200,
+    "h1": [
+      "Guides for the agent era."
+    ],
+    "overflow": false,
+    "description": "Getting-started walkthroughs, the MCP connection guide, agent playbook patterns, and the full changelog.",
+    "canonical": "https://operate.to/resources"
+  },
+  {
+    "route": "/features/tasks",
+    "status": 200,
+    "h1": [
+      "Keep the task, owner and deadline together."
+    ],
+    "overflow": false,
+    "description": "List, Board, Calendar and Gantt show the same work from different angles.",
+    "canonical": "https://operate.to/features/tasks"
+  },
+  {
+    "route": "/features/agents",
+    "status": 200,
+    "h1": [
+      "Give each agent an identity and a bounded assignment."
+    ],
+    "overflow": false,
+    "description": "Connect your existing runtime and see who is working on which task.",
+    "canonical": "https://operate.to/features/agents"
+  },
+  {
+    "route": "/features/governance",
+    "status": 200,
+    "h1": [
+      "Make review part of the task."
+    ],
+    "overflow": false,
+    "description": "Use roles, scopes and approval requirements to define what a connected agent may do in Operate.",
+    "canonical": "https://operate.to/features/governance"
+  },
+  {
+    "route": "/features/collaboration",
+    "status": 200,
+    "h1": [
+      "Hand off work without losing the next step."
+    ],
+    "overflow": false,
+    "description": "Claims, dependencies and comments help people and agents coordinate on a shared task.",
+    "canonical": "https://operate.to/features/collaboration"
+  },
+  {
+    "route": "/features/sprints",
+    "status": 200,
+    "h1": [
+      "Turn recurring work into a visible plan."
+    ],
+    "overflow": false,
+    "description": "Organize a sprint, apply a template and keep recurring tasks on the same board.",
+    "canonical": "https://operate.to/features/sprints"
+  },
+  {
+    "route": "/features/docs",
+    "status": 200,
+    "h1": [
+      "Put project instructions beside the work they explain."
+    ],
+    "overflow": false,
+    "description": "Keep documents and whiteboards in the workspace where tasks are planned and reviewed.",
+    "canonical": "https://operate.to/features/docs"
+  },
+  {
+    "route": "/features/webhooks",
+    "status": 200,
+    "h1": [
+      "Let a work event trigger the next step."
+    ],
+    "overflow": false,
+    "description": "Use signed webhooks or event reads to connect Operate with your own runtime.",
+    "canonical": "https://operate.to/features/webhooks"
+  },
+  {
+    "route": "/features/mcp",
+    "status": 200,
+    "h1": [
+      "Connect your agent to a shared project workspace."
+    ],
+    "overflow": false,
+    "description": "MCP gives compatible tools access to supported Operate tasks, documents and coordination actions.",
+    "canonical": "https://operate.to/features/mcp"
+  },
+  {
+    "route": "/resources/approval-checklist",
+    "status": 200,
+    "h1": [
+      "Write an acceptance checklist before assigning the task."
+    ],
+    "overflow": false,
+    "description": "Define what a reviewer should inspect so a finished-looking artifact is not mistaken for an accepted result.",
+    "canonical": "https://operate.to/resources/approval-checklist"
+  },
+  {
+    "route": "/resources/action-budgets",
+    "status": 200,
+    "h1": [
+      "Separate coordination actions from model spend."
+    ],
+    "overflow": false,
+    "description": "Operate records and limits actions in its own workspace. The runtime and model provider may have separate costs.",
+    "canonical": "https://operate.to/resources/action-budgets"
+  }
+]

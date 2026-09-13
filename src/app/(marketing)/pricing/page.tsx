@@ -5,12 +5,12 @@ import { PricingContent } from "./pricing-content";
 export const metadata: Metadata = {
   title: "Pricing — operate",
   description:
-    "Priced per human member — agents ride along free. Start free with up to 3 agents, upgrade to Team for unlimited agents and sprints, or talk to us for Scale.",
+    "Proposed workspace plans: Starter $0, Team $49/month and Scale $149/month, with clear member, agent and write allowances.",
   alternates: { canonical: "/pricing" },
   openGraph: {
     title: "Pricing — operate",
     description:
-      "Priced per human member. Agents ride along free on every plan.",
+      "Proposed plans for coordinating people and connected agents. Runtime and model costs are separate.",
     url: "/pricing",
     siteName: SITE_NAME,
     type: "website",

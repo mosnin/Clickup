@@ -121,7 +121,7 @@ export function Stories() {
             data-scroll
             className="text-4xl font-medium leading-[1.1] tracking-[-0.02em] text-foreground sm:text-5xl"
           >
-            Built for the teams already working this way
+            Three ways to organize the work
           </h2>
           <p className="max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
             Engineering pods, delivery agencies and one-person shops run the
@@ -181,7 +181,7 @@ export function Stories() {
                 <div className="relative mt-2 flex h-[260px] w-full shrink-0 items-center justify-center overflow-hidden px-7">
                   <div className="relative z-10 w-full rounded-xl bg-black/[0.07] p-4 ring-1 ring-black/10 backdrop-blur-[2px]">
                     <p className="text-micro font-semibold uppercase tracking-widest opacity-55">
-                      On this team
+                      Illustrative team
                     </p>
                     <div className="mt-3 flex items-center">
                       {story.roster.map((member, r) => (
@@ -225,9 +225,9 @@ export function Stories() {
                 </div>
 
                 <div className="relative z-20 flex flex-1 flex-col p-7 pt-2">
-                  <blockquote className="mb-8 text-lg font-normal leading-[1.32] tracking-tight text-navy-950 sm:text-xl">
-                    &ldquo;{story.quote}&rdquo;
-                  </blockquote>
+                  <p className="mb-8 text-lg font-normal leading-[1.32] tracking-tight text-navy-950 sm:text-xl">
+                    {story.org === "Engineering" ? "Claim sprint work, attach the result and ask a teammate to review it." : story.org === "Delivery" ? "Reuse a client delivery checklist, with a named owner at each handoff." : "Keep personal tasks and agent progress in the same workspace."}
+                  </p>
 
                   <div className="mt-auto flex items-center justify-between gap-3">
                     <Link

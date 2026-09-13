@@ -1,0 +1,10 @@
+[
+  {
+    "route": "/pricing",
+    "violations": []
+  },
+  {
+    "route": "/features/tasks",
+    "violations": []
+  }
+]

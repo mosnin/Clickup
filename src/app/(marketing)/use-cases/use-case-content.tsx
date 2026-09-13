@@ -183,10 +183,10 @@ export function UseCaseContent({ uc }: { uc: UseCase }) {
         <Container className="max-w-2xl">
           <GsapReveal className="rounded-sheet mk-panel-2 px-8 py-12 text-center sm:px-14 sm:py-14">
             <p className="text-xl font-medium leading-relaxed tracking-[-0.01em] text-white sm:text-2xl">
-              &quot;{uc.quote.quote}&quot;
+              &quot;Illustrative workflow. Results depend on the connected runtime, task scope and human review.&quot;
             </p>
             <p className="mt-6 text-sm text-white/60">
-              {uc.quote.name} — {uc.quote.role}
+              Example, not a customer testimonial —
             </p>
           </GsapReveal>
         </Container>

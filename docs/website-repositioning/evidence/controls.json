@@ -1,0 +1,47 @@
+[
+  {
+    "width": 1440,
+    "overflow": false
+  },
+  {
+    "width": 1024,
+    "overflow": false
+  },
+  {
+    "width": 768,
+    "overflow": false
+  },
+  {
+    "width": 390,
+    "overflow": false
+  },
+  {
+    "menu": "Product",
+    "expanded": "true",
+    "closed": "false",
+    "focus": true
+  },
+  {
+    "menu": "Solutions",
+    "expanded": "true",
+    "closed": "false",
+    "focus": true
+  },
+  {
+    "menu": "Resources",
+    "expanded": "true",
+    "closed": "false",
+    "focus": true
+  },
+  {
+    "menu": "Company",
+    "expanded": "true",
+    "closed": "false",
+    "focus": true
+  },
+  {
+    "mobileMenu": true,
+    "solutionsVisible": true,
+    "focusReturned": true
+  }
+]

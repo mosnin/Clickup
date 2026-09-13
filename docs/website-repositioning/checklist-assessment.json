@@ -1,0 +1,930 @@
+{
+  "version": 1,
+  "scope": "Operate public website revision, local Chrome production preview. All unmeasured checklist items remain not_tested.",
+  "items": [
+    {
+      "id": "upstream-head-doctype",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-charset",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-viewport",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-title",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-description",
+      "status": "pass",
+      "scope": "Local Chrome; only routes and controls explicitly enumerated in the evidence file.",
+      "evidence_ref": "evidence/routes.json",
+      "rationale": "Bounded automated check, not a full-site or cross-browser certification."
+    },
+    {
+      "id": "upstream-head-favicons",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-apple-web-app-meta",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-windows-tiles",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-canonical",
+      "status": "pass",
+      "scope": "Local Chrome; only routes and controls explicitly enumerated in the evidence file.",
+      "evidence_ref": "evidence/routes.json",
+      "rationale": "Bounded automated check, not a full-site or cross-browser certification."
+    },
+    {
+      "id": "upstream-head-language-attribute",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-direction-attribute",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-alternate-language",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-x-default",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-conditional-comments",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-rss-feed",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-css-critical",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-css-order",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-facebook-open-graph",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-head-twitter-card",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-html-html5-semantic-elements",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-html-error-pages",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-html-noopener",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-html-clean-up-comments",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-html-w3c-compliant",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-html-html-lint",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-html-link-checker",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-html-adblockers-test",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-webfonts-webfont-format",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-webfonts-webfont-size",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-webfonts-webfont-loader",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-responsive-web-design",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-css-print",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-preprocessors",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-unique-id",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-reset-css",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-js-prefix",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-embedded-or-inline-css",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-vendor-prefixes",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-concatenation",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-minification",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-non-blocking",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-unused-css",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-stylelint",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-responsive-web-design-0547aec0",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-css-validator",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-desktop-browsers",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-mobile-browsers",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-os",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-design-fidelity",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-css-reading-direction",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-images-optimization",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-images-picture-srcset",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-images-retina",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-images-sprite",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-images-width-and-height",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-images-alternative-text",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-images-lazy-loading",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-javascript-javascript-inline",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-javascript-concatenation",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-javascript-minification",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-javascript-javascript-security",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-javascript-noscript-tag",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-javascript-non-blocking",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-javascript-optimized-and-updated-js-libraries",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-javascript-modernizr",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-javascript-eslint",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-security-https",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-security-http-strict-transport-security-hsts",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-security-cross-site-request-forgery-csrf",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-security-cross-site-scripting-xss",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-security-content-type-options",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-security-x-frame-options-xfo",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-security-content-security-policy",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-performance-goals-to-achieve",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-performance-minified-html",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-performance-lazy-loading",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-performance-cookie-size",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-performance-third-party-components",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-performance-dns-resolution",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-performance-preconnection",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-performance-prefetching",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-performance-preloading",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-performance-google-pagespeed",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-accessibility-progressive-enhancement",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-accessibility-color-contrast",
+      "status": "pass",
+      "scope": "Local Chrome; only routes and controls explicitly enumerated in the evidence file.",
+      "evidence_ref": "evidence/accessibility.json",
+      "rationale": "Bounded automated check, not a full-site or cross-browser certification."
+    },
+    {
+      "id": "upstream-accessibility-h1",
+      "status": "pass",
+      "scope": "Local Chrome; only routes and controls explicitly enumerated in the evidence file.",
+      "evidence_ref": "evidence/routes.json",
+      "rationale": "Bounded automated check, not a full-site or cross-browser certification."
+    },
+    {
+      "id": "upstream-accessibility-headings",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-accessibility-specific-html5-input-types-are-used",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-accessibility-label",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-accessibility-accessibility-standards-testing",
+      "status": "pass",
+      "scope": "Local Chrome; only routes and controls explicitly enumerated in the evidence file.",
+      "evidence_ref": "evidence/accessibility.json",
+      "rationale": "Bounded automated check, not a full-site or cross-browser certification."
+    },
+    {
+      "id": "upstream-accessibility-keyboard-navigation",
+      "status": "pass",
+      "scope": "Local Chrome; only routes and controls explicitly enumerated in the evidence file.",
+      "evidence_ref": "evidence/controls.json",
+      "rationale": "Bounded automated check, not a full-site or cross-browser certification."
+    },
+    {
+      "id": "upstream-accessibility-screen-reader",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-accessibility-focus-style",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-seo-google-analytics",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-seo-search-console",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-seo-headings-logic",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-seo-sitemap-xml",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-seo-robots-txt",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-seo-structured-data",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "upstream-seo-sitemap-html",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "routes",
+      "status": "pass",
+      "scope": "Local Chrome; only routes and controls explicitly enumerated in the evidence file.",
+      "evidence_ref": "evidence/routes.json",
+      "rationale": "Bounded automated check, not a full-site or cross-browser certification."
+    },
+    {
+      "id": "responsive",
+      "status": "pass",
+      "scope": "Local Chrome; only routes and controls explicitly enumerated in the evidence file.",
+      "evidence_ref": "evidence/controls.json",
+      "rationale": "Bounded automated check, not a full-site or cross-browser certification."
+    },
+    {
+      "id": "mobile_menu",
+      "status": "pass",
+      "scope": "Local Chrome; only routes and controls explicitly enumerated in the evidence file.",
+      "evidence_ref": "evidence/controls.json",
+      "rationale": "Bounded automated check, not a full-site or cross-browser certification."
+    },
+    {
+      "id": "semantics",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "keyboard",
+      "status": "pass",
+      "scope": "Local Chrome; only routes and controls explicitly enumerated in the evidence file.",
+      "evidence_ref": "evidence/controls.json",
+      "rationale": "Bounded automated check, not a full-site or cross-browser certification."
+    },
+    {
+      "id": "accessibility",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "motion",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "images",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "fonts",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "performance",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "html",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "css",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "javascript",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "seo",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "social_metadata",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "links",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "security",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "auth",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "onboarding",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "privacy",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "forms",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "compatibility",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "testing",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "deployment",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "content_truth",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "content_inventory",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "page_intent",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "legal_content",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "design_handoff",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "theme_fidelity",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "details",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    },
+    {
+      "id": "context",
+      "status": "not_tested",
+      "scope": "Public marketing routes",
+      "evidence_ref": "",
+      "rationale": "Not independently measured in this revision. See VERIFICATION.md for bounded checks."
+    }
+  ]
+}
