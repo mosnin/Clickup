@@ -1,6 +1,8 @@
 import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 
-export type AnnotationProfile = "openai" | "chatgpt" | "anthropic";
+import codexTools from "./codex-tool-catalog.json";
+const codexToolNames = new Set(codexTools);
+export type AnnotationProfile = "openai" | "chatgpt" | "anthropic" | "codex";
 
 const DIRECTORY_EXCLUDED_TOOLS = new Set([
   // Anthropic excludes financial-transaction software, while OpenAI's plugin
@@ -23,6 +25,7 @@ export function toolAvailableForProfile(
   name: string,
   profile: AnnotationProfile,
 ): boolean {
+  if (profile === "codex") return codexToolNames.has(name);
   return !(
     (profile === "anthropic" || profile === "chatgpt") &&
     DIRECTORY_EXCLUDED_TOOLS.has(name)

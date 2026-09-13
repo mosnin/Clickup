@@ -702,7 +702,9 @@ const TOOLS: ToolDef[] = [
         .number()
         .optional()
         .describe("required for at_most / at_least; ignored otherwise"),
-      dueAt: z.number().describe("epoch ms — when to check. Must be in the future."),
+      dueAt: z
+        .number()
+        .describe("epoch ms — when to check. Must be in the future."),
       note: z.string().max(200).optional(),
     },
     run: (c, k, a) =>
@@ -767,7 +769,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "create_project",
     description:
-      "Create a Project inside a Space. A Project is the unit of work people name (\"the billing migration\"); Lists are the boards of tasks inside it. Pass roadmapId (and optionally phaseId) to place it on the roadmap in the same call — do that rather than creating projects and a roadmap separately, or you get two descriptions of the same work that reference nothing.",
+      'Create a Project inside a Space. A Project is the unit of work people name ("the billing migration"); Lists are the boards of tasks inside it. Pass roadmapId (and optionally phaseId) to place it on the roadmap in the same call — do that rather than creating projects and a roadmap separately, or you get two descriptions of the same work that reference nothing.',
     shape: {
       spaceId: z.string(),
       name: z.string(),
@@ -1043,7 +1045,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "get_task",
     description:
-      "Full detail of one task: status, checklist, dependencies, claim, claimPolicy, subtasks, comments, attachments, SOP, full attached contextPackets, and versioned operating decisions. claimPolicy \"required\" means writes to this task are REFUSED unless you hold a fresh claim — call claim_task before update_task or complete_task. contextReadiness says which packet versions this agent acknowledged; decisions show pending/no-change/rework-required impact reviews. Clear both gates before claiming, starting a run, reporting currentTaskId, or completing.",
+      'Full detail of one task: status, checklist, dependencies, claim, claimPolicy, subtasks, comments, attachments, SOP, full attached contextPackets, and versioned operating decisions. claimPolicy "required" means writes to this task are REFUSED unless you hold a fresh claim — call claim_task before update_task or complete_task. contextReadiness says which packet versions this agent acknowledged; decisions show pending/no-change/rework-required impact reviews. Clear both gates before claiming, starting a run, reporting currentTaskId, or completing.',
     shape: { taskId: z.string() },
     run: (c, k, a) =>
       c.query(asQuery(api.agentApi.getTask), { apiKey: k, ...a }),
@@ -1444,7 +1446,7 @@ const TOOLS: ToolDef[] = [
   {
     name: "semantic_search",
     description:
-      "Semantic (embedding) search over tasks, docs, pages and DELIBERATION (channel messages and task comments) in my scope. Pass kinds to narrow — kinds:[\"message\"] answers \"has anyone argued about this before\", which is a different question from \"where is the spec\" and was previously unanswerable because messages were not indexed. Long messages only: short ones carry nothing a search can recover. Returns raw matching sources; requires the deployment to have AI configured, otherwise configured=false.",
+      'Semantic (embedding) search over tasks, docs, pages and DELIBERATION (channel messages and task comments) in my scope. Pass kinds to narrow — kinds:["message"] answers "has anyone argued about this before", which is a different question from "where is the spec" and was previously unanswerable because messages were not indexed. Long messages only: short ones carry nothing a search can recover. Returns raw matching sources; requires the deployment to have AI configured, otherwise configured=false.',
     shape: {
       query: z.string(),
       kinds: z
@@ -2029,7 +2031,6 @@ const TOOLS: ToolDef[] = [
         ...a,
       }),
   },
-
 
   // ── Scheduled recurring tasks ────────────────────────────────────
   {
@@ -3075,7 +3076,7 @@ function createOperateMcpHandler(profile: AnnotationProfile) {
     {
       serverInfo: { name: "operate-agents", version: "1.0.0" },
       instructions:
-        "You are an agent teammate in operate.to. The hierarchy is Workspace → Space → Project → List → Task → Subtask. A Project is the unit of work people name; a List is one board of tasks inside it. A List may also sit straight in a Space when it needs no project around it. A roadmap sequences existing Projects into phases; it is not another container. First: call brief — it returns the decisions this team has already made, the questions still open, and your governance limits in one call, and reading it is what stops you relitigating settled work in your first hour. Then whoami to confirm which workspace your key is bound to, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; then call get_task_context for that task — ONE call returning the readiness verdict, open revisions, decisions in force, every attached context packet at its current version and how previous runs ended, in relevance order, with an `acknowledge` argument already built for you. Pass that straight to acknowledge_task_context, assess every pending operating-decision impact, and claim_task. (get_task is still there for the full record of one task; get_task_context is the one to call before working.) If the task's claimPolicy is \"required\", claim_task before ANY write to it or the write is refused. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done — always with a note, because if the task is behind a human approval gate complete_task does NOT fail: it records your completion, returns {applied:false, pending:true}, and the note is what the approver reads. The task is not complete then; do not call it again, pick up other work, and you are only notified if a human sends it back. Deciding what to pick up: get_task_graph ranks the ready tasks in a list by how much downstream work finishing each would release, and reports how many sequential steps remain — a far better answer than the oldest ready task. Turning a whole confirmed conversation or brief into a multi-workstream roadmap? Prefer create_execution_plan: choose one Space, preserve the source, treat each projects input entry as a workstream that materializes as a Project with its lists, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. If confirmed source facts change without changing structure, use revise_execution_plan_context so every workstream advances together and stale acknowledgements are invalidated; use a new plan for structural changes. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. A stale receipt is not active work: call reconcile_execution_plan before manually retrying it; dispatch also reconciles transactionally and preserves the timed-out attempt. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Coming back after a break, or idle? Call get_project_updates (pass the previous cursor as since) to see what changed in your projects, which revisions are open on you, and what is waiting on a human — act on that before looking for new work. An open revision on a task you already finished means it is not finished. Writing something down that outlives a comment — an investigation, a design decision, a runbook? Use write_page and pin it to the project or task with attachTo; read_page and list_pages are how you pick up context somebody (human or agent) already wrote. Use create_tasks for smaller additions to an existing List. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.",
+        'You are an agent teammate in operate.to. The hierarchy is Workspace → Space → Project → List → Task → Subtask. A Project is the unit of work people name; a List is one board of tasks inside it. A List may also sit straight in a Space when it needs no project around it. A roadmap sequences existing Projects into phases; it is not another container. First: call brief — it returns the decisions this team has already made, the questions still open, and your governance limits in one call, and reading it is what stops you relitigating settled work in your first hour. Then whoami to confirm which workspace your key is bound to, then get_execution_policy, then fetch the collaboration-protocol skill with get_skill and follow it. Find work with next_task; then call get_task_context for that task — ONE call returning the readiness verdict, open revisions, decisions in force, every attached context packet at its current version and how previous runs ended, in relevance order, with an `acknowledge` argument already built for you. Pass that straight to acknowledge_task_context, assess every pending operating-decision impact, and claim_task. (get_task is still there for the full record of one task; get_task_context is the one to call before working.) If the task\'s claimPolicy is "required", claim_task before ANY write to it or the write is refused. Never bury a policy change in a comment: use create_decision or supersede_decision so affected tasks are revalidated. Start a run for claimed work, heartbeat while working, finish the run with evidence, and complete_task when done — always with a note, because if the task is behind a human approval gate complete_task does NOT fail: it records your completion, returns {applied:false, pending:true}, and the note is what the approver reads. The task is not complete then; do not call it again, pick up other work, and you are only notified if a human sends it back. Deciding what to pick up: get_task_graph ranks the ready tasks in a list by how much downstream work finishing each would release, and reports how many sequential steps remain — a far better answer than the oldest ready task. Turning a whole confirmed conversation or brief into a multi-workstream roadmap? Prefer create_execution_plan: choose one Space, preserve the source, treat each projects input entry as a workstream that materializes as a Project with its lists, label assumptions and open questions, use real ids and advertised capabilities from list_members, and commit the complete dependency graph atomically. If confirmed source facts change without changing structure, use revise_execution_plan_context so every workstream advances together and stale acknowledgements are invalidated; use a new plan for structural changes. Supervised plans require owner/admin approval. A bounded-autonomous policy may authorize only plans within its task ceiling with no open questions or approval-gated tasks; agents must never claim or change authorization. Before parallel execution, inspect get_execution_readiness and release only a currently authorized, capability-matched, capacity-safe, policy-bounded dispatch_execution_wave; use get_execution_control to monitor claims, runs, evidence, failures, and retryable attempts. A stale receipt is not active work: call reconcile_execution_plan before manually retrying it; dispatch also reconciles transactionally and preserves the timed-out attempt. Completed tasks do not prove the objective: submit artifacts against each original success criterion with submit_outcome_evidence, then have a different agent or human independently review every criterion; get_outcome_assurance is the source of truth and the plan is verified only when all criteria pass. Coming back after a break, or idle? Call get_project_updates (pass the previous cursor as since) to see what changed in your projects, which revisions are open on you, and what is waiting on a human — act on that before looking for new work. An open revision on a task you already finished means it is not finished. Writing something down that outlives a comment — an investigation, a design decision, a runbook? Use write_page and pin it to the project or task with attachTo; read_page and list_pages are how you pick up context somebody (human or agent) already wrote. Use create_tasks for smaller additions to an existing List. All ids are opaque strings returned by tools; dates accept ISO 8601 or epoch ms.',
     },
     {
       basePath: "/api",
@@ -3087,6 +3088,7 @@ function createOperateMcpHandler(profile: AnnotationProfile) {
 
 const handler = createOperateMcpHandler("openai");
 const chatgptHandler = createOperateMcpHandler("chatgpt");
+const codexHandler = createOperateMcpHandler("codex");
 const anthropicHandler = createOperateMcpHandler("anthropic");
 
 // Bearer-token auth: the token IS the agent API key. Verified upstream by
@@ -3139,7 +3141,10 @@ const anthropicAuthHandler = withMcpAuth(
   { required: true },
 );
 const chatgptAuthHandler = withMcpAuth(
-  chatgptHandler,
+  (req) =>
+    (new URL(req.url).searchParams.get("profile") === "codex"
+      ? codexHandler
+      : chatgptHandler)(req),
   async (_req, bearerToken) => {
     if (!bearerToken) return undefined;
     try {
@@ -3250,7 +3255,7 @@ async function guarded(req: Request): Promise<Response> {
   const selectedHandler =
     profile === "claude"
       ? anthropicAuthHandler
-      : profile === "chatgpt"
+      : profile === "chatgpt" || profile === "codex"
         ? chatgptAuthHandler
         : authHandler;
   const response = await selectedHandler(transportRequest);
