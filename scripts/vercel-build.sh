@@ -2,6 +2,14 @@
 
 set -o pipefail
 
+# Explicit frontend-only releases reuse the configured backend. Use only when
+# the release contains no Convex/schema changes; normal releases still deploy it.
+if [ "${OPERATE_WEB_ONLY_BUILD:-0}" = "1" ]; then
+  : "${NEXT_PUBLIC_CONVEX_URL:?A configured backend is required for a web-only release}"
+  npm run build
+  exit $?
+fi
+
 deploy_log="$(mktemp)"
 trap 'rm -f "$deploy_log"' EXIT
 

@@ -136,6 +136,21 @@ describe("POST /oauth/token", () => {
     expect(body.expires_in).toBeLessThanOrEqual(86400);
   });
 
+  it("exchanges a native Codex resource URL against the canonical grant", async () => {
+    await seed("opc_native_resource");
+    const response = await token(form({
+      grant_type: "authorization_code",
+      code: "opc_native_resource",
+      client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      code_verifier: VERIFIER,
+      resource: "https://www.operate.to/api/mcp?profile=codex",
+    }));
+    expect(response.status).toBe(200);
+    const issued = await response.json();
+    await expect(backend!.query(api.agentApi.whoami, { apiKey: issued.access_token })).resolves.toBeDefined();
+  });
+
   it("answers a replayed authorization code with 400 invalid_grant", async () => {
     await seed("opc_route_replay");
     const first = await exchange("opc_route_replay");

@@ -86,3 +86,17 @@ describe("MCP platform annotation profiles", () => {
     ).toContain("billing visibility only");
   });
 });
+
+describe("distributable Codex catalog", () => {
+  it("excludes unreviewed tools server-side", () => {
+    for (const name of [
+      "buy_credits",
+      "settle_payment",
+      "request_token",
+      "unreviewed_future_tool",
+    ])
+      expect(toolAvailableForProfile(name, "codex")).toBe(false);
+    expect(toolAvailableForProfile("get_tree", "codex")).toBe(true);
+    expect(toolAvailableForProfile("create_task", "codex")).toBe(true);
+  });
+});
