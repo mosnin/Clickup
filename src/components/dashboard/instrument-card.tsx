@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
  * the grid with these cards (headers, footers, timestamps) speak it too —
  * two cards side by side in two voices was the mismatch this fixes. */
 export const INSTRUMENT_META =
-  "font-mono text-[0.6875rem] uppercase leading-none tracking-[0.1em]";
+  "font-mono text-tiny uppercase leading-none tracking-[0.1em]";
 const MONO = INSTRUMENT_META;
 
 type Led = "orange" | "red" | "lime";
@@ -40,8 +40,8 @@ function LedDot({ led }: { led: Led }) {
     <span
       className={cn(
         "inst-led",
-        led === "orange" && "bg-[#f26522]",
-        led === "red" && "bg-[#d71921]",
+        led === "orange" && "bg-signal-yellow",
+        led === "red" && "bg-danger",
         led === "lime" && "bg-signal-lime",
       )}
     />

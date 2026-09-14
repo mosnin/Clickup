@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { EASE, motion, Stagger, StaggerItem } from "@/components/motion";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
+import { createChannelError } from "@/lib/buzz/create-channel";
 
 type Tab =
   | "overview"
@@ -433,7 +434,7 @@ function ChatWithChannels({
                 setAddingChannel(false);
                 router.push(`${base}&channel=${channelId}`);
               } catch (e) {
-                toast(errorMessage(e, "Couldn't create channel"), {
+                toast(createChannelError(e), {
                   kind: "error",
                 });
               }

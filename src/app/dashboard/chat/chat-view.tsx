@@ -14,6 +14,7 @@ import { ChatComposer, type ChatCommand } from "@/components/dashboard/chat/comp
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useToast } from "@/components/toast";
 import { errorMessage } from "@/lib/errors";
+import { createChannelError } from "@/lib/buzz/create-channel";
 import { timeAgo } from "@/lib/time";
 import {
   TYPING_THROTTLE_MS,
@@ -102,7 +103,7 @@ export function ChatView() {
             });
             router.replace(`/dashboard/chat?channel=${channelId}`);
           } catch (e) {
-            toast(errorMessage(e, "Couldn't create the channel"), {
+            toast(createChannelError(e), {
               kind: "error",
             });
           }

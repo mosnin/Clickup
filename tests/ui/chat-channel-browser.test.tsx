@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { calls, queryResults, resetHarness, toastCalls } from "./harness";
+import { calls, mutationHandlers, queryResults, resetHarness, toastCalls } from "./harness";
 import { ChannelBrowserDialog } from "@/components/chat/channel-browser";
 import type { ChatChannelSummary } from "@/lib/buzz/channel-types";
 
@@ -287,6 +287,7 @@ describe("the channel browser", () => {
   // have been refused the moment it was mounted — which is exactly the kind of
   // break a UI test asserting the caller's own shape cannot see.
   it("sends the canonical name and the form's choices to the backend", async () => {
+    queryResults["buzz.identity.myPubkey"] = { pubkey: "aa".repeat(32) };
     const { search } = open();
     type(search, "Release Notes");
     fireEvent.keyDown(search, { key: "Enter" });
@@ -295,21 +296,23 @@ describe("the channel browser", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Temporary" }));
     fireEvent.click(screen.getByRole("radio", { name: "12 hours" }));
     fireEvent.click(screen.getByRole("button", { name: "Create channel" }));
-    await Promise.resolve();
+    await waitFor(() => expect(calls("buzz.channels.create")).toHaveLength(1));
 
-    expect(calls("buzz.channels.create")).toEqual([
-      {
-        scopeType: "workspace",
-        scopeId: "ws1",
-        name: "release-notes",
-        description: undefined,
-        visibility: "private",
-        channelType: "stream",
-        ttlSeconds: 12 * 3600,
-        templateId: undefined,
-      },
-    ]);
-    expect(toastCalls.map((t) => t.message)).toContain("#release-notes created");
+    const sent = calls("buzz.channels.create")[0] as Record<string, unknown>;
+    expect(sent).toEqual({
+      scopeType: "workspace",
+      scopeId: "ws1",
+      name: "release-notes",
+      visibility: "private",
+      channelType: "stream",
+      ttlSeconds: 12 * 3600,
+    });
+    expect(sent).not.toHaveProperty("kind");
+    expect(JSON.stringify(sent)).not.toContain("public");
+    expect(calls("buzz.keys.mint")).toEqual([]);
+    await waitFor(() =>
+      expect(toastCalls.map((t) => t.message)).toContain("#release-notes created"),
+    );
   });
 
   it("translates the words a person reads into the words the log records", async () => {
@@ -317,24 +320,51 @@ describe("the channel browser", () => {
     // room somebody left alone is `public` in the form and `open` on the wire.
     // A forum is a forum in both, which is why only one of the two pairs is
     // easy to notice when it is wrong.
+    queryResults["buzz.identity.myPubkey"] = { pubkey: "aa".repeat(32) };
     const { search } = open({ kindFilter: "forum" });
     type(search, "rfcs");
     fireEvent.keyDown(search, { key: "Enter" });
     fireEvent.click(screen.getByRole("button", { name: "Create forum" }));
-    await Promise.resolve();
+    await waitFor(() => expect(calls("buzz.channels.create")).toHaveLength(1));
 
-    expect(calls("buzz.channels.create")).toEqual([
-      {
-        scopeType: "workspace",
-        scopeId: "ws1",
-        name: "rfcs",
-        description: undefined,
-        visibility: "open",
-        channelType: "forum",
-        ttlSeconds: undefined,
-        templateId: undefined,
-      },
-    ]);
+    const sent = calls("buzz.channels.create")[0] as Record<string, unknown>;
+    expect(sent).toEqual({
+      scopeType: "workspace",
+      scopeId: "ws1",
+      name: "rfcs",
+      visibility: "open",
+      channelType: "forum",
+    });
+    expect(JSON.stringify(sent)).not.toContain("public");
+    expect(sent).not.toHaveProperty("kind");
+  });
+
+  it("mints a Chat identity on first visit before creating, so the form is not a dead end", async () => {
+    queryResults["buzz.identity.myPubkey"] = { pubkey: null };
+    const { search } = open();
+    type(search, "design");
+    fireEvent.keyDown(search, { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "Create channel" }));
+    await waitFor(() => expect(calls("buzz.channels.create")).toHaveLength(1));
+
+    expect(calls("buzz.keys.mint")).toEqual([{ principal: { type: "user" } }]);
+    const sent = calls("buzz.channels.create")[0] as Record<string, unknown>;
+    expect(sent.visibility).toBe("open");
+    expect(sent).not.toHaveProperty("kind");
+  });
+
+  it("shows a human next action, never a Convex validator dump", async () => {
+    queryResults["buzz.identity.myPubkey"] = { pubkey: "aa".repeat(32) };
+    mutationHandlers["buzz.channels.create"] = () => {
+      throw new Error("ArgumentValidationError: Value does not match validator");
+    };
+    const { search } = open();
+    type(search, "design");
+    fireEvent.keyDown(search, { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "Create channel" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/refresh/i);
+    expect(alert.textContent).not.toMatch(/ArgumentValidation|validator/i);
   });
 
   it("lets a template fill the description but never overrule a chosen visibility", () => {

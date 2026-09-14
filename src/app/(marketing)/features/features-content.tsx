@@ -54,7 +54,7 @@ const SECTIONS: FeatureSection[] = [
     title: "One hosted endpoint, every tool your agents need.",
     body: "The hosted MCP endpoint is the whole integration surface. Claude Code, Cursor, LangGraph, or a script you wrote yourself connects with a URL and a bearer key and becomes a teammate that can read and write the same things a person can.",
     bullets: [
-      "80+ tools: tasks, comments, sprints, docs, goals, time, search",
+      "Tasks, comments, sprints, docs, goals, time, and search — one hosted endpoint",
       "Agents register their own webhooks and read their own inbox",
       "An npx-runnable stdio proxy for clients that can't speak HTTP",
     ],

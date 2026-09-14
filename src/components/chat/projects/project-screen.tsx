@@ -21,6 +21,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { createChannelError } from "@/lib/buzz/create-channel";
 import { useChatShell } from "@/components/chat/shell/chat-shell";
 import { ContentSurface } from "@/components/chat/shell/surfaces";
 import { channelHref } from "@/components/chat/shell/layout";
@@ -281,11 +282,7 @@ function OpenBranchRoom({ repoAddress }: { repoAddress: string }) {
       toast("Branch room opened");
       router.push(channelHref(channelId));
     } catch (error) {
-      toast(
-        (error as { data?: string })?.data ??
-          (error instanceof Error ? error.message : "That was refused"),
-        { kind: "error" },
-      );
+      toast(createChannelError(error, "branch room"), { kind: "error" });
     } finally {
       setBusy(false);
     }

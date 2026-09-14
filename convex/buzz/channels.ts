@@ -995,14 +995,59 @@ export const create = mutation({
     ...scopeArgs,
     name: v.string(),
     description: v.optional(v.string()),
-    visibility: v.optional(v.union(v.literal("open"), v.literal("private"))),
+    // `public` is accepted as an alias for `open` so a leftover client that
+    // still sends the word a person reads is not refused by the validator.
+    // Unknown values stay out of the union so they fail closed.
+    visibility: v.optional(
+      v.union(v.literal("open"), v.literal("private"), v.literal("public")),
+    ),
     // `dm` is absent on purpose: `CreateChannelInput` excludes it (§1.2),
     // because a DM is opened around people rather than created around a name.
     channelType: v.optional(v.union(v.literal("stream"), v.literal("forum"))),
+    // Leftover field from the first dialog. Mapped to `channelType` and
+    // otherwise ignored — sending it must not refuse the create.
+    kind: v.optional(
+      v.union(v.literal("channel"), v.literal("forum"), v.literal("stream")),
+    ),
     ttlSeconds: v.optional(v.number()),
     templateId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    try {
+      return await createChannelHandler(ctx, args);
+    } catch (error) {
+      if (error instanceof ConvexError) throw error;
+      throw new ConvexError(storeWriteError(error));
+    }
+  },
+});
+
+function storeWriteError(error: unknown): string {
+  const blob = `${error instanceof Error ? error.message : String(error)}`.toLowerCase();
+  if (
+    /table|index|does not exist|undefined table|schema|failed to insert|no such/.test(
+      blob,
+    )
+  ) {
+    return "Chat is still updating on the server. Refresh in a moment and try again.";
+  }
+  return "Couldn't create the channel. Try again.";
+}
+
+async function createChannelHandler(
+  ctx: MutationCtx,
+  args: {
+    scopeType: Scope["scopeType"];
+    scopeId: string;
+    name: string;
+    description?: string;
+    visibility?: "open" | "private" | "public";
+    channelType?: "stream" | "forum";
+    kind?: "channel" | "forum" | "stream";
+    ttlSeconds?: number;
+    templateId?: string;
+  },
+) {
     const scope: Scope = { scopeType: args.scopeType, scopeId: args.scopeId };
     const { subject } = await requireScopeAccess(ctx, scope);
     const actor = await userActor(ctx, subject);
@@ -1025,9 +1070,19 @@ export const create = mutation({
     // The template supplies defaults; an explicit argument always wins, because
     // a person who chose a visibility and then picked a template did not mean
     // to un-choose it (§1.2's `visibilityTouchedRef`, decided server-side so
-    // both dialogs cannot diverge).
-    const visibility = args.visibility ?? template?.visibility ?? "open";
-    const channelType = args.channelType ?? template?.channelType ?? "stream";
+    // both dialogs cannot diverge). `public` is accepted and stored as `open`
+    // — the same translation `toCreateChannelArgs` applies on the client.
+    const visibility =
+      args.visibility === "private"
+        ? "private"
+        : args.visibility === undefined
+          ? (template?.visibility ?? "open")
+          : "open";
+    const channelType =
+      args.channelType ??
+      (args.kind === "forum" ? "forum" : args.kind ? "stream" : undefined) ??
+      template?.channelType ??
+      "stream";
     const description = args.description ?? template?.description ?? "";
     const ttlSeconds =
       args.ttlSeconds !== undefined && args.ttlSeconds > 0 ? Math.floor(args.ttlSeconds) : undefined;
@@ -1142,8 +1197,7 @@ export const create = mutation({
     }
 
     return { channelId, name: slug };
-  },
-});
+}
 
 /**
  * Open a DM, or return the one that already exists.
