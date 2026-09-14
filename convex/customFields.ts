@@ -4,6 +4,7 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireListAccess } from "./_authz";
 import {
+  assertRelationListInScope,
   fieldConfigValidator,
   fieldOptionValidator,
   fieldTypeValidator,
@@ -73,6 +74,10 @@ export const create = mutation({
       siblings,
       selfName: name,
     });
+    if (config?.relationListId) {
+      await requireListAccess(ctx, config.relationListId);
+      await assertRelationListInScope(ctx, args.listId, config.relationListId);
+    }
 
     return await ctx.db.insert("customFields", {
       listId: args.listId,
@@ -167,6 +172,14 @@ export const updateConfig = mutation({
       selfId: fieldId,
       selfName: field.name,
     });
+    if (normalized.config?.relationListId) {
+      await requireListAccess(ctx, normalized.config.relationListId);
+      await assertRelationListInScope(
+        ctx,
+        field.listId,
+        normalized.config.relationListId,
+      );
+    }
     await ctx.db.patch(fieldId, { config: normalized.config });
   },
 });

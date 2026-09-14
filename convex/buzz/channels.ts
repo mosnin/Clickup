@@ -355,8 +355,6 @@ export async function mayGovernCommunity(
   if (scope.scopeType === "user") return scope.scopeId === subject;
   const workspaceId = ctx.db.normalizeId("workspaces", scope.scopeId);
   if (!workspaceId) return false;
-  const workspace = await ctx.db.get(workspaceId);
-  if (workspace?.ownerClerkId === subject) return true;
   const membership = await ctx.db
     .query("memberships")
     .withIndex("by_user_and_workspace", (q) =>

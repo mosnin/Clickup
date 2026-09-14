@@ -135,24 +135,23 @@ export const tree = query({
             )
             .collect();
           // Archived spaces leave the sidebar; private spaces only appear
-          // to the creator, listed members, and the workspace owner.
-          const ownerClerkId = workspace.ownerClerkId;
+          // to the creator, listed members, and a live workspace owner.
+          const membership = memberships.find(
+            (m) => m.workspaceId === workspace._id,
+          );
           const visible = spaces.filter((sp) => {
             if (sp.archivedAt) return false;
             if (!sp.private) return true;
             return (
               sp.createdByClerkId === subject ||
               (sp.memberClerkIds ?? []).includes(subject) ||
-              ownerClerkId === subject
+              membership?.role === "owner"
             );
           });
           const spaceNodes = await Promise.all(
             visible
               .sort((a, b) => a.position - b.position)
               .map(buildSpaceNode),
-          );
-          const membership = memberships.find(
-            (m) => m.workspaceId === workspace._id,
           );
           return {
             _id: workspace._id,

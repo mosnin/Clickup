@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import {
   canAccessSpace,
+  isWorkspaceOwner,
   mayGovernSpace,
   requireIdentity,
   requireSpaceAccess,
@@ -40,15 +41,20 @@ export const listForWorkspace = query({
       )
       .collect();
     // Private spaces are visible only to the creator, listed members, and
-    // the workspace owner — same rule the sidebar tree applies. Never hand
-    // back memberClerkIds/description of a space the caller can't enter.
-    const ws = await ctx.db.get(workspaceId);
+    // a live workspace owner — same rule canAccessSpace / the sidebar
+    // apply. Never hand back memberClerkIds/description of a space the
+    // caller can't enter.
+    const isOwner = await isWorkspaceOwner(
+      ctx,
+      workspaceId,
+      identity.subject,
+    );
     return spaces.filter((sp) => {
       if (!sp.private) return true;
       return (
         sp.createdByClerkId === identity.subject ||
         (sp.memberClerkIds ?? []).includes(identity.subject) ||
-        ws?.ownerClerkId === identity.subject
+        isOwner
       );
     });
   },
@@ -345,13 +351,7 @@ export const overview = query({
       })),
       projects: projects.map((f) => ({ projectId: f._id, name: f.name })),
       members: memberNames,
-      canGovern:
-        space.parentType === "user" ||
-        space.createdByClerkId === identity.subject ||
-        space.createdByClerkId === undefined ||
-        (space.parentType === "workspace" &&
-          (await ctx.db.get(space.parentId as Id<"workspaces">))
-            ?.ownerClerkId === identity.subject),
+      canGovern: await mayGovernSpace(ctx, space, identity.subject),
     };
   },
 });

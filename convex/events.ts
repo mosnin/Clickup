@@ -3,7 +3,7 @@ import { query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
-import { canAccessSpace, getSpaceForList } from "./_authz";
+import { canAccessList, canAccessSpace, getSpaceForList } from "./_authz";
 import type { Actor } from "./_agentAuth";
 
 // Append-only activity log. emitEvent() is called from inside mutations
@@ -239,9 +239,13 @@ export const feed = query({
           .take(limit),
       ),
     );
-    return chunks
-      .flat()
-      .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, limit);
+    const visible = [];
+    for (const e of chunks.flat()) {
+      if (e.listId && !(await canAccessList(ctx, e.listId, identity.subject))) {
+        continue;
+      }
+      visible.push(e);
+    }
+    return visible.sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
   },
 });

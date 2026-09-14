@@ -2,7 +2,14 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireIdentity } from "./_authz";
+import {
+  canAccessSpace,
+  requireIdentity,
+  requireListAccess,
+  requirePageAccess,
+  requireProjectAccess,
+  requireTaskAccess,
+} from "./_authz";
 import { markChannelReadCore } from "./messages";
 import { bodyToText } from "./_refs";
 
@@ -262,8 +269,9 @@ export const referenceTargets = query({
     scopeId: v.string(),
   },
   handler: async (ctx, { scopeType, scopeId }) => {
+    let subject: string;
     try {
-      await scopeAccess(ctx, scopeType, scopeId);
+      subject = await scopeAccess(ctx, scopeType, scopeId);
     } catch {
       return [];
     }
@@ -284,6 +292,7 @@ export const referenceTargets = query({
 
     for (const space of spaces) {
       if (space.archivedAt !== undefined) continue;
+      if (!(await canAccessSpace(ctx, space, { subject }))) continue;
       const projects = await ctx.db
         .query("projects")
         .withIndex("by_space", (q) => q.eq("spaceId", space._id))
@@ -382,19 +391,34 @@ export const resolveRefs = query({
       [];
     for (const ref of refs) {
       let href: string | null = null;
-      if (ref.kind === "page") {
-        const id = ctx.db.normalizeId("pages", ref.id);
-        if (id && (await ctx.db.get(id))) href = `/dashboard/pages/${ref.id}`;
-      } else if (ref.kind === "project") {
-        const id = ctx.db.normalizeId("projects", ref.id);
-        if (id && (await ctx.db.get(id))) href = `/dashboard/p/${ref.id}`;
-      } else if (ref.kind === "list") {
-        const id = ctx.db.normalizeId("lists", ref.id);
-        if (id && (await ctx.db.get(id))) href = `/dashboard/l/${ref.id}`;
-      } else if (ref.kind === "task") {
-        const id = ctx.db.normalizeId("tasks", ref.id);
-        const task = id ? await ctx.db.get(id) : null;
-        if (task) href = `/dashboard/l/${task.listId}/t/${task._id}`;
+      try {
+        if (ref.kind === "page") {
+          const id = ctx.db.normalizeId("pages", ref.id);
+          if (id) {
+            await requirePageAccess(ctx, id);
+            href = `/dashboard/pages/${ref.id}`;
+          }
+        } else if (ref.kind === "project") {
+          const id = ctx.db.normalizeId("projects", ref.id);
+          if (id) {
+            await requireProjectAccess(ctx, id);
+            href = `/dashboard/p/${ref.id}`;
+          }
+        } else if (ref.kind === "list") {
+          const id = ctx.db.normalizeId("lists", ref.id);
+          if (id) {
+            await requireListAccess(ctx, id);
+            href = `/dashboard/l/${ref.id}`;
+          }
+        } else if (ref.kind === "task") {
+          const id = ctx.db.normalizeId("tasks", ref.id);
+          if (id) {
+            const { task } = await requireTaskAccess(ctx, id);
+            href = `/dashboard/l/${task.listId}/t/${task._id}`;
+          }
+        }
+      } catch {
+        href = null;
       }
       out.push({ ...ref, href });
     }

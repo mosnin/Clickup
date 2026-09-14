@@ -3,7 +3,7 @@ import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { requireListAccess, requireTaskAccess } from "./_authz";
+import { canAccessSpace, requireListAccess, requireTaskAccess } from "./_authz";
 import { applyAutomations } from "./listAutomations";
 import type { Actor } from "./_agentAuth";
 import { emitEvent, scopeForList, userActor } from "./events";
@@ -1274,7 +1274,11 @@ export const quickSearch = query({
           q.eq("parentType", "workspace").eq("parentId", m.workspaceId),
         )
         .collect();
-      spaces.push(...wsSpaces);
+      for (const sp of wsSpaces) {
+        if (await canAccessSpace(ctx, sp, { subject: identity.subject })) {
+          spaces.push(sp);
+        }
+      }
     }
 
     const LIMIT = 12;

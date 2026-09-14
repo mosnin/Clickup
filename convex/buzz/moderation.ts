@@ -274,8 +274,6 @@ async function communityRoleOf(
   }
   const workspaceId = ctx.db.normalizeId("workspaces", scope.scopeId);
   if (!workspaceId) return "member";
-  const workspace = await ctx.db.get(workspaceId);
-  if (workspace?.ownerClerkId === principal.id) return "owner";
   const membership = await ctx.db
     .query("memberships")
     .withIndex("by_user_and_workspace", (q) =>
