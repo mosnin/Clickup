@@ -2,8 +2,21 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
+import { canAccessSpace, getSpaceForList } from "./_authz";
 import { getRollup } from "./rollups";
 import { listUserSpaces } from "./_userSpaces";
+
+async function canSeeList(
+  ctx: QueryCtx,
+  listId: Id<"lists">,
+  subject: string,
+): Promise<boolean> {
+  const list = await ctx.db.get(listId);
+  if (!list) return false;
+  const space = await getSpaceForList(ctx, list);
+  if (!space) return false;
+  return await canAccessSpace(ctx, space, { subject });
+}
 
 // The Home page's single live subscription: where every project stands
 // right now, plus the numbers that matter today. Convex queries are
@@ -109,7 +122,10 @@ export const get = query({
       for (const sp of wsSpaces) {
         // Archived spaces disappear from Home tiles (they already leave the
         // sidebar — see sidebar.ts) but keep their underlying data.
+        // Private spaces the caller can't enter must not contribute
+        // cards, counts, or ticker titles — same gate as reports/search.
         if (sp.archivedAt) continue;
+        if (!(await canAccessSpace(ctx, sp, { subject }))) continue;
         scopes.push({
           space: sp,
           place: ws.name,
@@ -148,6 +164,12 @@ export const get = query({
         .order("desc")
         .take(200);
       for (const e of events) {
+        // Workspace-scoped events include private-space work. Drop any
+        // row whose list the caller cannot open so Home never titles a
+        // secret task or counts its completion.
+        if (e.listId && !(await canSeeList(ctx, e.listId, subject))) {
+          continue;
+        }
         if (e.type === "task.completed" && e.createdAt >= todayStart - 6 * DAY_MS) {
           const bucket = Math.floor((e.createdAt - (todayStart - 6 * DAY_MS)) / DAY_MS);
           if (bucket >= 0 && bucket <= 6) completions7d[bucket] += 1;
