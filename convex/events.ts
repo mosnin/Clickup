@@ -110,10 +110,14 @@ export async function userActor(
   ctx: QueryCtx | MutationCtx,
   clerkId: string,
 ): Promise<Actor> {
+  // .first(), not .unique(): webhook + ensureCurrent can leave two users
+  // rows for the same clerkId. unique() throws, and every human write that
+  // goes through userActor (tasks.create first among them) rolls back —
+  // the task never lands. One of the rows is enough for a display name.
   const user = await ctx.db
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-    .unique();
+    .first();
   return {
     type: "user",
     id: clerkId,
