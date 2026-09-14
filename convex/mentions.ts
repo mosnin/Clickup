@@ -12,7 +12,8 @@ export const listForCurrent = query({
     const all = await ctx.db
       .query("mentions")
       .withIndex("by_user", (q) => q.eq("mentionedClerkId", identity.subject))
-      .collect();
+      .order("desc")
+      .take(200);
     const filtered = unreadOnly ? all.filter((m) => !m.readAt) : all;
     return filtered.sort((a, b) => b.createdAt - a.createdAt);
   },
@@ -25,15 +26,20 @@ export const listForCurrent = query({
 // parents with no dedicated page yet (space chat, personal-scoped channels)
 // fall back to the inbox itself rather than a dead link.
 export const feedForCurrent = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
-    const all = await ctx.db
+    const limit = Math.min(Math.max(args.limit ?? 100, 1), 100);
+    const page = await ctx.db
       .query("mentions")
       .withIndex("by_user", (q) => q.eq("mentionedClerkId", identity.subject))
-      .collect();
-    const sorted = all.sort((a, b) => b.createdAt - a.createdAt).slice(0, 100);
+      .order("desc")
+      .paginate({ numItems: limit, cursor: args.cursor ?? null });
+    const sorted = page.page.sort((a, b) => b.createdAt - a.createdAt);
 
     const nameCache = new Map<string, string>();
     const resolveAuthor = async (actorId: string): Promise<string> => {
@@ -135,7 +141,7 @@ export const unreadCountForCurrent = query({
     const all = await ctx.db
       .query("mentions")
       .withIndex("by_user", (q) => q.eq("mentionedClerkId", identity.subject))
-      .collect();
+      .take(1000);
     return all.filter((m) => !m.readAt).length;
   },
 });

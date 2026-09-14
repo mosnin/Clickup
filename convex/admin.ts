@@ -558,6 +558,18 @@ export const securityPosture = query({
         detail:
           "Agents can raise approval gates but never lower them; completion is refused until a human signs off.",
       },
+      {
+        key: "resend",
+        label: "Outbound email configured",
+        status:
+          process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL
+            ? "pass"
+            : "warn",
+        detail:
+          process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL
+            ? "RESEND_API_KEY and RESEND_FROM_EMAIL are set."
+            : "Resend is unset — mention, assignment, invite, and approval emails no-op.",
+      },
     ];
 
     return { checks, settings: settingsMap };

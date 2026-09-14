@@ -5,6 +5,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { requireIdentity } from "./_authz";
 import { notify } from "./notificationCenter";
+import { consumeRateLimit, INVITE_ACCEPT_RULE } from "./_rateLimit";
 
 // Workspace invitations. Two acceptance paths:
 //   1. In-app: the invited email matches a signed-in user → an invite card
@@ -12,14 +13,13 @@ import { notify } from "./notificationCenter";
 //   2. Link: /invite/[token] is a capability link — any signed-in user
 //      holding it may accept (Notion-style). Share deliberately.
 //
-// Convex mutations have no CSPRNG; like webhookSubscriptions' default
-// secret, the token is Math.random-derived. It gates workspace membership
-// (not money), is single-use, and is revocable — acceptable here.
+// Web Crypto is available in the Convex default runtime. 24 bytes → 48 hex
+// chars is enough that guessing a capability URL is not a practical attack.
 
 function randomToken(): string {
-  return Array.from({ length: 4 }, () =>
-    Math.random().toString(36).slice(2, 10),
-  ).join("");
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 async function requireManageAccess(
@@ -284,6 +284,12 @@ export const acceptByToken = mutation({
   args: { token: v.string() },
   handler: async (ctx, { token }) => {
     const { subject } = await requireIdentity(ctx);
+    await consumeRateLimit(
+      ctx,
+      INVITE_ACCEPT_RULE,
+      subject,
+      "Too many invite attempts. Try again later.",
+    );
     const invite = await ctx.db
       .query("invites")
       .withIndex("by_token", (q) => q.eq("token", token))

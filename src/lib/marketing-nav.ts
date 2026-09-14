@@ -128,6 +128,8 @@ export const PLAIN_LINKS: { href: string; label: string }[] = [
 ];
 
 export const SITE_NAME = "operate.to";
-export const SITE_TAGLINE = "The operating system for AI agent workforces";
+// One sentence, everywhere a stranger reads a promise: layout metadata,
+// OG, sign-in, footer. Do not invent a second positioning here.
+export const SITE_TAGLINE = "Agents that finish what they start.";
 export const SITE_URL =
   process.env.NEXT_PUBLIC_APP_URL ?? "https://operate.to";

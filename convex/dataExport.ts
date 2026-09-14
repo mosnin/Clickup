@@ -10,8 +10,13 @@ import { requireIdentity } from "./_authz";
 // spaces → projects → lists → tasks, plus sprints and agent metadata.
 
 export const exportWorkspace = query({
-  args: { workspaceId: v.id("workspaces") },
-  handler: async (ctx, { workspaceId }) => {
+  args: {
+    workspaceId: v.id("workspaces"),
+    /** 0-based space index. Each page returns one space so a large
+     *  workspace cannot blow the query budget. */
+    cursor: v.optional(v.number()),
+  },
+  handler: async (ctx, { workspaceId, cursor }) => {
     const identity = await requireIdentity(ctx);
     const workspace = await ctx.db.get(workspaceId);
     if (!workspace) throw new ConvexError("Workspace not found");
@@ -41,7 +46,7 @@ export const exportWorkspace = query({
       const tasks = await ctx.db
         .query("tasks")
         .withIndex("by_list", (q) => q.eq("listId", listId))
-        .collect();
+        .take(500);
       return tasks.map((t) => ({
         title: t.title,
         description: t.description,
@@ -232,9 +237,16 @@ export const exportWorkspace = query({
       ]),
     );
 
+    const spaceOffset = Math.max(0, Math.floor(cursor ?? 0));
+    const pageSpaces = spaceNodes.slice(spaceOffset, spaceOffset + 1);
+    const nextOffset = spaceOffset + 1;
+    const isDone = nextOffset >= spaceNodes.length;
+
     return {
       exportedAt: Date.now(),
       apiVersion: 1,
+      continueCursor: isDone ? null : nextOffset,
+      isDone,
       workspace: { name: workspace.name, slug: workspace.slug },
       executionPolicy: workspace.executionPolicy ?? {
         mode: "supervised",
@@ -243,7 +255,7 @@ export const exportWorkspace = query({
         maxTasksPerWave: 10,
         dailyTaskLimit: 100,
       },
-      spaces: spaceNodes,
+      spaces: pageSpaces,
       roadmaps: roadmaps.map((r) => ({
         name: r.name,
         description: r.description,

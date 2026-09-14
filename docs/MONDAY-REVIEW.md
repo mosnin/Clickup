@@ -20,24 +20,17 @@ later iteration (deploy lag ~minutes).
    real-looking project names, progress, an agent mid-run — rendered with real
    components, hardcoded content, renders instantly on cold arrival (no reveal
    gating; fails visible).
-2. [ ] **Chat widget + ticker (critical)** — support bubble auto-pops over the
-   curl block (390px) and pricing tiers; announcement ticker repeats 4×/viewport
-   on every page. Fix: bubble opens on intent only, never overlaps interactive
-   content; the announcement says it once, statically.
-3. [ ] **One tagline (critical)** — tab title "recruit, direct and scale…", hero
-   "Agents that finish what they start", sign-in "The operating system for AI
-   agent workforces" — three positionings. Fix: "Agents that finish what they
-   start." everywhere: layout metadata title/OG, sign-in panel, footer.
-4. [ ] **First-morning Home (serious)** — two system banners stack above the
-   user's own work; approvals (the heartbeat) buried in Inbox. Fix: banners
-   collapse to one slim line each (invite stays actionable but compact);
-   "Waiting on you" approval hero on Home when pendingApprovals > 0, with the
-   agent's own account of the work and one-click Approve.
-5. [ ] **Naming amnesty (serious)** — Space/Folder/List/Project/Board vocabulary;
-   "Open board" opens a List; sidebar says Spaces + Projects + "Your spaces";
-   Chat duplicates Home/Search/Projects nouns. Fix: "Project" = the thing with
-   tasks, everywhere a person reads; Board/List/Calendar are views; Space
-   appears once in the rail. No schema changes — words only.
+2. [x] **Chat widget + ticker (critical)** — Chatbase opens from the Help
+   control only; the announcement bar is a single static line (no repeating
+   marquee).
+3. [x] **One tagline (critical)** — `SITE_TAGLINE` is "Agents that finish what
+   they start." in layout metadata/OG, the marketing hero, the sign-in panel,
+   and the footer. Proven by `tests/tagline.test.ts`.
+4. [x] **First-morning Home (serious)** — invite + waiting banners are slim;
+   when `pendingApprovals > 0` Home opens on an approval hero.
+5. [x] **Naming amnesty (serious)** — a person reads Project for the thing
+   with tasks; the rail says Spaces once; "Open board" is "Open project".
+   Words only, no schema change.
 6. [ ] **Pricing page (serious)** — two heroes before any price; decorative
    nothing-chart; tiers below fold. Fix: one hero ("Simple for people. Free
    for agents."), tiers in the first viewport, decorative chart deleted.
@@ -79,3 +72,5 @@ later iteration (deploy lag ~minutes).
   (new projects-directory fixture; home ?hero=1 variant). Both PNGs now show
   the current design over a company mid-flight. Verify on production next
   iteration (Vercel deploy lag), then item 2.
+- 2026-08-25 (scale plan): items 2–5 landed with the production-scale track
+  (ticker/tagline/Home approvals/naming). Items 6–10 remain.

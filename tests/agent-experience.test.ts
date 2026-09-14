@@ -434,7 +434,7 @@ describe("list-read payload discipline", () => {
     });
 
     const rows = await t.query(api.agentApi.listTasks, { apiKey });
-    const row = rows.find((r) => r.taskId === taskId)!;
+    const row = rows.tasks.find((r) => r.taskId === taskId)!;
     expect(row.description).toHaveLength(300);
     expect(row.descriptionTruncated).toBe(true);
 

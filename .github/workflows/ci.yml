@@ -16,8 +16,12 @@ jobs:
           cache: npm
       - run: npm ci
       # Typecheck first: it is the fastest way to fail, and a type error makes
-      # everything after it noise.
+      # everything after it noise. Next and Convex are separate trees —
+      # tsconfig.json excludes convex/, so a backend type error would otherwise
+      # merge here and fail only at Vercel `convex deploy`.
       - run: npm run typecheck
+      - run: npm run typecheck:convex
+      - run: npm run lint
       # Build BEFORE test, which is the opposite of the obvious order and is
       # deliberate. Some gates measure what the app actually ships rather than
       # what a component returns in isolation — tests/ui/panel-fit.test.tsx

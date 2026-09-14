@@ -25,7 +25,7 @@ are simply not on screen.
 | `ReportMessageDialog` | the message action bar's report slot |
 | ~~`ChatSearchLauncher`~~ | **mounted** in the top chrome — see 3.1 |
 | ~~`ChannelBrowserDialog`~~ | **mounted** on the Channels section's `+`, which was a disabled control |
-| `NotificationSettingsPanel`, `NotifyExplainer` | a Chat settings route, which does not exist |
+| ~~`NotificationSettingsPanel`, `NotifyExplainer`~~ | **mounted** at `/chat/settings` |
 
 Two notes from mounting those last two, because both were the kind of thing
 only a call site can find:
@@ -51,11 +51,12 @@ cast. Every one carries a comment saying to delete it once the CLI regenerates.
 tests run against `convex-test`, which is a faithful harness and is not a
 deployment.
 
-### 1.3 The workflow webhook door has no HTTP route
+### 1.3 The workflow webhook door — **mounted**
 
-`fireWebhook` is an internal mutation waiting for `POST /hooks/{id}`;
-`convex/http.ts` was owned by nobody in the phase that needed it. Webhook-
-triggered workflows cannot fire until it exists.
+`POST /hooks/{scopeType}/{scopeId}/{workflowId}` in `convex/http.ts` calls
+`buzz.workflows.fireWebhook`. Pulse search, DMs, kick/timeout, and huddle
+audio stay honest "not yet" until Chat leaves beta. The Chat chrome shows a
+Beta chip.
 
 ### 1.4 Environment
 

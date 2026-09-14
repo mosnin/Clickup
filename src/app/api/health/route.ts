@@ -43,13 +43,17 @@ export async function GET() {
 
   try {
     const client = new ConvexHttpClient(convexUrl);
-    await withTimeout(client.query(healthPing, {}));
+    const ping = (await withTimeout(client.query(healthPing, {}))) as {
+      ok?: boolean;
+      config?: Record<string, boolean>;
+    };
     return Response.json(
       {
         status: "ok",
         checkedAt,
         commit,
         dependencies: { convex: "ok" },
+        config: ping.config ?? {},
       },
       { headers: { "Cache-Control": "no-store" } },
     );

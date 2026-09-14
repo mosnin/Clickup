@@ -115,3 +115,11 @@ export const CODE_LOOKUP_RULE: RateLimitRule = {
   limit: 20,
   windowMs: 10 * 60 * 1000,
 };
+
+// Invite tokens are capability URLs. A person accepting one they were sent
+// never needs more than a handful of tries; hundreds of accepts is guessing.
+export const INVITE_ACCEPT_RULE: RateLimitRule = {
+  name: "invite_accept",
+  limit: 20,
+  windowMs: 10 * 60 * 1000,
+};

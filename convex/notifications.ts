@@ -3,6 +3,7 @@
 import { v } from "convex/values";
 import { Resend } from "resend";
 import { internalAction } from "./_generated/server";
+import { reportActionError } from "./_sentry";
 
 // Outbound email notifications. Triggered by ctx.scheduler from messages.ts
 // (mentions) and tasks.ts (assignments). Each function is "best effort":
@@ -53,7 +54,7 @@ export const sendInviteEmail = internalAction({
         ].join("\n"),
       });
     } catch (err) {
-      console.error("[notifications] invite email failed", err);
+      reportActionError(err, { action: "sendInviteEmail" });
     }
   },
 });
@@ -84,7 +85,7 @@ export const sendDueSoonEmail = internalAction({
         ].join("\n"),
       });
     } catch (err) {
-      console.error("[notifications] due-soon email failed", err);
+      reportActionError(err, { action: "sendDueSoonEmail" });
     }
   },
 });
@@ -116,7 +117,7 @@ export const sendMentionEmail = internalAction({
         ].join("\n"),
       });
     } catch (err) {
-      console.warn("[notifications] sendMentionEmail failed:", err);
+      reportActionError(err, { action: "sendMentionEmail" });
     }
   },
 });
@@ -147,7 +148,7 @@ export const sendAssignmentEmail = internalAction({
         ].join("\n"),
       });
     } catch (err) {
-      console.warn("[notifications] sendAssignmentEmail failed:", err);
+      reportActionError(err, { action: "sendAssignmentEmail" });
     }
   },
 });
@@ -180,7 +181,7 @@ export const sendApprovalEmail = internalAction({
         ].join("\n"),
       });
     } catch (err) {
-      console.warn("[notifications] sendApprovalEmail failed:", err);
+      reportActionError(err, { action: "sendApprovalEmail" });
     }
   },
 });
@@ -208,7 +209,7 @@ export const postSlack = internalAction({
         );
       }
     } catch (err) {
-      console.warn("[notifications] postSlack error:", err);
+      reportActionError(err, { action: "postSlack" });
     }
   },
 });

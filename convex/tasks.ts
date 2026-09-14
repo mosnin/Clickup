@@ -1162,7 +1162,7 @@ export const listForList = query({
     return await ctx.db
       .query("tasks")
       .withIndex("by_list", (q) => q.eq("listId", listId))
-      .collect();
+      .take(2000);
   },
 });
 

@@ -244,6 +244,7 @@ export default function DashboardHome() {
   // expose lastSeenAt, and "never connected" is the one signal that query
   // doesn't carry.
   const agents = useQuery(api.agents.listForCurrentUser, {});
+  const pendingApprovals = useQuery(api.tasks.pendingApprovals, {});
   const settings = useQuery(api.userSettings.current, {});
   const setHomeWidgets = useMutation(api.userSettings.setHomeWidgets);
   const { user } = useUser();
@@ -580,10 +581,13 @@ export default function DashboardHome() {
         }
       />
 
+      {pendingApprovals && pendingApprovals.length > 0 && (
+        <ApprovalHero approvals={pendingApprovals} />
+      )}
+
       <InviteCards />
 
-      {/* AnimatePresence so the card resolves with a satisfying collapse
-          the moment the agent's first heartbeat lands (live via Convex). */}
+      {/* Slim line — stacked system banners used to bury the work. */}
       <AnimatePresence initial={false}>
         {waiting.length > 0 && (
           <motion.div
@@ -596,27 +600,22 @@ export default function DashboardHome() {
           >
             <Link
               href="/dashboard/agents"
-              className="lift relative flex items-center gap-4 rounded-2xl panel p-5"
+              className="flex items-center gap-3 rounded-full px-3 py-2 text-sm panel"
             >
-              <span className="relative inline-flex h-12 w-12 flex-shrink-0" aria-hidden>
-                <ActorGlyph seed={waiting[0]._id} name={waiting[0].name} size="lg" isAgent />
-                {/* Small pending dot — the "dot" the copy references, which
-                    turns green on first heartbeat. A gentle pulse signals
-                    waiting without the whole avatar strobing. */}
-                <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-card">
-                  <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-signal-yellow" />
+              <span className="relative inline-flex h-7 w-7 flex-shrink-0" aria-hidden>
+                <ActorGlyph seed={waiting[0]._id} name={waiting[0].name} size="sm" isAgent />
+                <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-card">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-signal-yellow" />
                 </span>
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block font-semibold">
-                  {waiting[0].name} is waiting to connect
-                </span>
-                <span className="block text-sm text-muted-foreground">
-                  Copy its ready-made setup from the Agents page. The dot turns
-                  green the moment it checks in.
+              <span className="min-w-0 flex-1 truncate">
+                <span className="font-medium">{waiting[0].name}</span>
+                <span className="text-muted-foreground">
+                  {" "}
+                  is waiting to connect
                 </span>
               </span>
-              <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+              <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
             </Link>
           </motion.div>
         )}
@@ -754,6 +753,57 @@ export default function DashboardHome() {
       </EditableGrid>
       </div>
     </div>
+  );
+}
+
+function ApprovalHero({
+  approvals,
+}: {
+  approvals: NonNullable<
+    ReturnType<typeof useQuery<typeof api.tasks.pendingApprovals>>
+  >;
+}) {
+  const approve = useMutation(api.tasks.approve);
+  const { toast } = useToast();
+  const first = approvals[0];
+  if (!first) return null;
+  const more = approvals.length - 1;
+
+  return (
+    <section
+      aria-label="Waiting on you"
+      className="flex flex-wrap items-center gap-3 rounded-2xl panel px-4 py-3"
+    >
+      <div className="min-w-0 flex-1 basis-56">
+        <p className="text-tiny font-semibold uppercase tracking-widest text-muted-foreground">
+          Waiting on you
+        </p>
+        <p className="truncate font-semibold">{first.title}</p>
+        {more > 0 && (
+          <p className="text-sm text-muted-foreground">
+            and {more} more {more === 1 ? "approval" : "approvals"}
+          </p>
+        )}
+      </div>
+      <div className="flex flex-shrink-0 items-center gap-2">
+        <Button
+          size="sm"
+          onClick={() => {
+            void approve({ taskId: first.taskId }).catch((e) =>
+              toast(errorMessage(e, "Couldn't approve"), { kind: "error" }),
+            );
+          }}
+        >
+          Approve
+        </Button>
+        <Link
+          href={`/dashboard/l/${first.listId}/t/${first.taskId}`}
+          className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          Open
+        </Link>
+      </div>
+    </section>
   );
 }
 
@@ -1431,7 +1481,7 @@ function ProjectCards({
                         : "bg-primary text-primary-foreground",
                     )}
                   >
-                    Open board
+                    Open project
                   </Link>
                 </div>
               </NotchCard>

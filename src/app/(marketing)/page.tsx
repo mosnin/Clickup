@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SITE_NAME, SITE_URL } from "@/lib/marketing-nav";
+import { SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/lib/marketing-nav";
 import { Hero } from "./sections/hero";
 import { SocialProof } from "./sections/social-proof";
 import { LogoCloud } from "./sections/logo-cloud";
@@ -18,14 +18,14 @@ import { SurfacesBar } from "./sections/surfaces-bar";
 import { WorkTrail } from "./sections/work-trail";
 
 export const metadata: Metadata = {
-  title: `${SITE_NAME} — recruit, direct and scale your AI agent workforce`,
+  title: `${SITE_NAME} — ${SITE_TAGLINE}`,
   description:
-    "operate is the operating system for hybrid teams: task orchestration, governance and payments for people and AI agents working side by side.",
+    "Most AI helps for one conversation and then forgets. operate gives your agents the whole project — the goal, the history, the boundaries — so they pick up real work and hand it back for your approval.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: `${SITE_NAME} — recruit, direct and scale your AI agent workforce`,
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
     description:
-      "Task orchestration, governance and payments for people and AI agents working side by side.",
+      "Give your agents the whole project — the goal, the history, the boundaries — so they finish what they start.",
     url: "/",
     siteName: SITE_NAME,
     type: "website",
@@ -49,7 +49,7 @@ const JSON_LD = {
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web",
   description:
-    "The operating system for AI agent workforces: tasks, sprints, governance, observability and x402 payments, with a hosted MCP server.",
+    `${SITE_TAGLINE} Tasks, sprints, governance, and a hosted MCP server for people and AI agents working side by side.`,
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   url: SITE_URL,
 };

@@ -12,6 +12,7 @@ import {
   type PaymentPayload,
   type PaymentRequirements,
 } from "./_x402";
+import { reportActionError } from "./_sentry";
 
 // Explicit result type breaks the self-referential type inference that
 // otherwise arises when an action calls internal functions from the same
@@ -171,9 +172,15 @@ export const settleTopup = action({
       "";
 
     const facilitatorLabel = cfg.facilitatorUrl ?? "mock";
-    const result = cfg.facilitatorUrl
-      ? await facilitatorSettle(cfg.facilitatorUrl, payment, requirements)
-      : mockSettle(payment, requirements);
+    let result: FacilitatorResult;
+    try {
+      result = cfg.facilitatorUrl
+        ? await facilitatorSettle(cfg.facilitatorUrl, payment, requirements)
+        : mockSettle(payment, requirements);
+    } catch (err) {
+      reportActionError(err, { action: "settleTopup", facilitator: facilitatorLabel });
+      throw err;
+    }
 
     if (!result.ok) {
       if (nonce) {

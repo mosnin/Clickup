@@ -272,7 +272,7 @@ export function ChannelSidebar() {
                         disabled
                         title={
                           section.id === "dms"
-                            ? `${section.action} — arrives with the direct-message picker`
+                            ? `${section.action} — not yet. A DM needs a people picker that is not built.`
                             : section.action
                         }
                         aria-label={section.action}

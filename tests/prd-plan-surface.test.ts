@@ -354,8 +354,8 @@ describe("bulk create_tasks", () => {
       listId,
       orderedIds: [ids[2], ids[0], ids[1]],
     });
-    const tasks = await t.query(api.agentApi.listTasks, { apiKey, listId });
-    expect(tasks.map((v: { title: string }) => v.title)).toEqual([
+    const page = await t.query(api.agentApi.listTasks, { apiKey, listId });
+    expect(page.tasks.map((v: { title: string }) => v.title)).toEqual([
       "Third",
       "First",
       "Second",

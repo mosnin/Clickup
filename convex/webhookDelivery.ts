@@ -6,6 +6,7 @@ import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { RETRY_DELAYS_MS } from "./webhooks";
 import { assertSafeWebhookDestination } from "./_webhookNetwork";
+import { reportActionError } from "./_sentry";
 
 // Webhook delivery worker. Scheduled from emitEvent() (convex/events.ts)
 // with a fresh delivery row; retries reschedule themselves with backoff.
@@ -77,6 +78,7 @@ export const deliver = internalAction({
       if (!res.ok) error = `HTTP ${res.status}`;
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
+      reportActionError(err, { action: "webhookDeliver", deliveryId });
     }
 
     const attemptIndex = delivery.attempts; // 0-based attempt just made
