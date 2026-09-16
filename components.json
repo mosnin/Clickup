@@ -21,9 +21,9 @@
     "@bklit": "https://bklit.com/r/{name}.json",
     "@smoothui": "https://smoothui.dev/r/{name}.json",
     "@forgeui": {
-      "url": "https://www.forgeui.com/r/{name}.json",
+      "url": "https://forgeui.in/r/{name}.json",
       "headers": {
-        "Authorization": "Bearer ${FORGEUI_API_KEY}"
+        "Authorization": "Bearer ${FORGEUI_API_TOKEN}"
       }
     }
   }

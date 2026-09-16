@@ -113,29 +113,44 @@ npx shadcn@latest add @forgeui/feature09
 
 ## 2. Registry access
 
-The `@forgeui` namespace is registered in `components.json` and resolves the
-API key from the environment, so **the key is never committed**:
+The registry is **`forgeui.in`** (not `.com` — that is a different site, and
+every path on it 404s). Registered in `components.json` exactly as ForgeUI's
+CLI docs specify, so the token is resolved from the environment and **never
+committed**:
 
 ```jsonc
 "registries": {
   "@forgeui": {
-    "url": "https://www.forgeui.com/r/{name}.json",
-    "headers": { "Authorization": "Bearer ${FORGEUI_API_KEY}" }
+    "url": "https://forgeui.in/r/{name}.json",
+    "headers": { "Authorization": "Bearer ${FORGEUI_API_TOKEN}" }
   }
 }
 ```
 
-Put the key in `.env.local` (already covered by `.gitignore`'s `.env*.local`):
+The env var is `FORGEUI_API_TOKEN` — that exact name, because the CLI reads it
+by name out of `.env.local` (already covered by `.gitignore`'s `.env*.local`):
 
 ```
-FORGEUI_API_KEY=forgeui_pro_…
+FORGEUI_API_TOKEN=forgeui_pro_…
 ```
 
 It is a **build-time CLI credential only**. It is not read by Next.js or
 Convex at runtime, which is why it is not in `.env.example` alongside the
-application's env vars — adding it there would imply deployments need it.
+application's env vars — putting it there would imply deployments need it.
 
----
+### Verified behaviour of the endpoint
+
+| Request | Response |
+| --- | --- |
+| No auth | `401 Unauthorized` — "This is a ForgeUI Pro block." |
+| `Authorization: Bearer <token>` | Authenticates — the token is **valid** |
+| Current quota state | `429 Too Many Requests` — "Rate limit reached (200 blocks / 24h)" |
+
+**The account's 200-blocks-per-24h quota is currently exhausted.** That is a
+server-side limit on the ForgeUI account, not a sandbox restriction and not
+something a retry fixes: installs resume when the window rolls over. Until
+then `npx shadcn@latest add @forgeui/<name>` will fail with 429 no matter how
+the project is configured.
 
 ## 3. Adaptation rules
 
