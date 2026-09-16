@@ -19,6 +19,12 @@
   },
   "registries": {
     "@bklit": "https://bklit.com/r/{name}.json",
-    "@smoothui": "https://smoothui.dev/r/{name}.json"
+    "@smoothui": "https://smoothui.dev/r/{name}.json",
+    "@forgeui": {
+      "url": "https://forgeui.in/r/{name}.json",
+      "headers": {
+        "Authorization": "Bearer ${FORGEUI_API_TOKEN}"
+      }
+    }
   }
 }
