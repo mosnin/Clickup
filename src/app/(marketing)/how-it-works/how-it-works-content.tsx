@@ -8,6 +8,7 @@ import {
   Eyebrow,
 } from "@/components/marketing/ui";
 import { DUR, EASE_OUT, GsapReveal, useGsap } from "@/components/marketing/gsap";
+import { ConnectOrbit } from "@/components/marketing/illustrations/connect-orbit";
 import { AgentCard } from "../sections/agent-card";
 import GradientText from "@/components/gradient-text";
 
@@ -62,6 +63,15 @@ export function HowItWorksContent() {
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-white/70 sm:text-lg">
             {HOW_IT_WORKS.sub}
           </p>
+
+          {/* The one technical step, answered before it is asked. The H1
+              promises that only one of the four steps is technical; the
+              question a reader has about that step is "does it work with the
+              tool I already use", which four headings cannot answer and a
+              screenshot of a key panel cannot either. */}
+          <div className="mx-auto mt-14 max-w-3xl">
+            <ConnectOrbit caption="Any MCP client — Claude Code, Codex, Goose, or a script you wrote yourself — reaches the same endpoint with one URL and a key." />
+          </div>
         </Container>
       </div>
 
