@@ -155,7 +155,8 @@
   --badge-danger-fg: #b42318;
   --badge-neutral-bg: #f2f4f7;
   --badge-neutral-fg: #344054;
-  --color-link: #0e9f6e;
+  /* Deel 2025 people-table names (Mobbin): medium blue, not brand green. */
+  --color-link: #4060e0;
 
   /* Semantic states. Danger is a muted brick, never alarm-red; unread is the
      single accent used by every unread indicator in the app. */
@@ -1226,6 +1227,54 @@ body {
   box-shadow: none;
 }
 
+/* Deel 2025 inner surfaces (Mobbin people / profile / empty / dialogs). */
+.deel-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.25rem 0.375rem;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 9999px;
+}
+.deel-kv-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--ui-radius-card);
+  overflow: hidden;
+}
+.deel-kv-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--color-border);
+}
+.deel-metric-tile {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--ui-radius-card);
+  padding: 1.25rem 1.25rem 1.125rem;
+}
+.deel-name-link {
+  color: var(--color-link);
+}
+.deel-empty-blob {
+  color: #dbe4ff;
+}
+:root[data-theme="dark"] .deel-empty-blob {
+  color: #2a3258;
+}
+.deel-dialog {
+  background: var(--color-card);
+  color: var(--color-card-foreground);
+  border-radius: 1.25rem;
+  box-shadow: 0 24px 64px rgb(16 24 40 / 0.18);
+}
+
 .app-slab {
   /* FULL BLEED — the inset "window on a backdrop" frame is gone by founder
      decree: a border around the entire application read as ornament, not
@@ -2017,7 +2066,7 @@ body {
   --badge-danger-fg: #fda29b;
   --badge-neutral-bg: #344054;
   --badge-neutral-fg: #d0d5dd;
-  --color-link: #32d583;
+  --color-link: #8b9cff;
 }
 
 /* Slow drift for gradient scene blobs. */

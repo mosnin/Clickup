@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { FolderKanban, Star } from "lucide-react";
+import { Star } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Stagger, StaggerItem } from "@/components/motion";
@@ -273,10 +273,8 @@ export function ProjectsView() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="What you are running"
-        description="Every board across every space, in one directory you can sort and group."
-        icon={FolderKanban}
         title="Projects"
+        description="Every board across every space, in one directory you can sort and group."
         context={
           data === undefined
             ? undefined

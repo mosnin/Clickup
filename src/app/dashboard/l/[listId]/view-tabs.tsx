@@ -2,17 +2,6 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import {
-  Calendar,
-  Columns3,
-  GanttChart,
-  LayoutDashboard,
-  List as ListIcon,
-  Network,
-  Rows3,
-  Table2,
-  Users,
-} from "lucide-react";
 import type { Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 
@@ -43,16 +32,16 @@ export function isViewKey(value: unknown): value is ViewKey {
   return typeof value === "string" && (VIEW_KEYS as string[]).includes(value);
 }
 
-const VIEWS: { key: ViewKey; label: string; Icon: typeof ListIcon }[] = [
-  { key: "overview", label: "Overview", Icon: LayoutDashboard },
-  { key: "list", label: "List", Icon: ListIcon },
-  { key: "board", label: "Board", Icon: Columns3 },
-  { key: "calendar", label: "Calendar", Icon: Calendar },
-  { key: "gantt", label: "Gantt", Icon: GanttChart },
-  { key: "timeline", label: "Timeline", Icon: Rows3 },
-  { key: "table", label: "Table", Icon: Table2 },
-  { key: "workload", label: "Workload", Icon: Users },
-  { key: "network", label: "Network", Icon: Network },
+const VIEWS: { key: ViewKey; label: string }[] = [
+  { key: "overview", label: "Overview" },
+  { key: "list", label: "List" },
+  { key: "board", label: "Board" },
+  { key: "calendar", label: "Calendar" },
+  { key: "gantt", label: "Gantt" },
+  { key: "timeline", label: "Timeline" },
+  { key: "table", label: "Table" },
+  { key: "workload", label: "Workload" },
+  { key: "network", label: "Network" },
 ];
 
 export function ViewTabs({
@@ -83,19 +72,20 @@ export function ViewTabs({
     // `aria-current`, ⌘-click and shareable addresses, which a tablist
     // built for in-page panes doesn't give you.
     <nav aria-label="Views" className="max-w-full overflow-x-auto overscroll-x-contain">
-      <div className="segmented">
-        {VIEWS.map(({ key, label, Icon }) => (
+      <div className="flex items-center gap-0.5">
+        {VIEWS.map(({ key, label }) => (
           <Link
             key={key}
             href={href(key)}
             aria-current={active === key ? "page" : undefined}
             className={cn(
-              "inline-flex flex-shrink-0 items-center gap-1.5",
-              active === key && "segmented-on",
+              "inline-flex flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-medium",
+              active === key
+                ? "bg-card text-foreground shadow-sm ring-1 ring-border"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
-            <Icon className="h-4 w-4" />
-            <span>{label}</span>
+            {label}
           </Link>
         ))}
       </div>

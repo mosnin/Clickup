@@ -1,12 +1,11 @@
 import type { Doc } from "@convex/_generated/dataModel";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { StatusDot } from "@/components/dashboard/deel-ui";
 
-// Pastel chip: the status color as a soft fill (hex + alpha) with dark
-// ink on top and a solid dot — matches the brand reference's series
-// labels. Works with any user-chosen hex color. Rendered on the vendored
-// Badge shell so shape/typography track the shared token grammar; the
-// per-status color is a runtime override on top, never a token.
+// Deel 2025 status (Mobbin people / compliance): a coloured DOT + the
+// word. A pastel fill chip is operate's old row language and reads as
+// a second status indicator next to the table.
+
 export function StatusPill({
   status,
   className,
@@ -15,24 +14,10 @@ export function StatusPill({
   className?: string;
 }) {
   return (
-    <Badge
-      variant="outline"
-      className={cn(
-        // `ui-chip` is what makes the panel's chip-shape choice reach a real
-        // element. Without a consumer this would be a control that changes
-        // nothing, which is worse than a control that is absent.
-        "ui-chip gap-1.5 border-transparent font-medium text-foreground/80",
-        className,
-      )}
-      style={{ backgroundColor: `${status.color}4d` }}
-      title={status.category.replace("_", " ")}
-    >
-      <span
-        aria-hidden
-        className="inline-block h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: status.color }}
-      />
-      {status.name}
-    </Badge>
+    <StatusDot
+      color={status.color}
+      label={status.name}
+      className={cn("text-xs", className)}
+    />
   );
 }

@@ -3,13 +3,17 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { Check, Sparkles, SquareCheck } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Picker } from "@/components/ui/picker";
-import { PageHeader } from "@/components/dashboard/page-header";
+import {
+  BackLink,
+  KvCard,
+  KvRow,
+  StatusDot,
+} from "@/components/dashboard/deel-ui";
 import {
   AgentEdge,
   PresenceNote,
@@ -93,7 +97,7 @@ export function TaskDetail({
         </p>
         <Link
           href="/dashboard"
-          className="mt-3 inline-block text-sm font-medium text-brand-600 hover:underline"
+          className="mt-3 inline-block text-sm font-medium text-[var(--color-link)] hover:underline"
         >
           Back to dashboard
         </Link>
@@ -227,36 +231,58 @@ function TaskEditor({
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow={"Task"}
-        icon={SquareCheck}
-        title={task.title || "Untitled task"}
-        context={
-          <>
-            <Link
-              href={`/dashboard/l/${listId}`}
-              className="truncate hover:text-foreground hover:underline"
-            >
-              {listName}
-            </Link>
-            <PresenceRail surfaceType="task" surfaceId={task._id} />
-            {currentStatus && (
-              <Badge
-                variant="secondary"
-                className="gap-1.5 border-transparent text-foreground/80"
-                style={{ backgroundColor: `${currentStatus.color}4d` }}
-              >
-                <span
-                  aria-hidden
-                  className="inline-block h-1.5 w-1.5 rounded-full"
-                  style={{ backgroundColor: currentStatus.color }}
-                />
-                {currentStatus.name}
-              </Badge>
+      <div>
+        <BackLink href={`/dashboard/l/${listId}`}>Back to {listName}</BackLink>
+        <div className="mt-3 flex items-start gap-3">
+          <motion.button
+            type="button"
+            aria-label={isDone ? "Reopen task" : "Complete task"}
+            onClick={onToggleComplete}
+            whileTap={{ scale: 0.85 }}
+            className={cn(
+              "tap-target mt-1 inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+              isDone ? "text-white" : "text-transparent",
             )}
-          </>
-        }
-      />
+            style={{
+              borderColor: currentStatus?.color ?? "var(--color-border)",
+              backgroundColor: isDone ? currentStatus?.color : "transparent",
+            }}
+          >
+            <motion.span
+              initial={false}
+              animate={{ scale: isDone ? 1 : 0.6, opacity: isDone ? 1 : undefined }}
+              transition={{ type: "spring", stiffness: 500, damping: 22 }}
+              className="inline-flex"
+            >
+              <Check className="h-4 w-4" strokeWidth={3} />
+            </motion.span>
+          </motion.button>
+          <div className="min-w-0 flex-1">
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.currentTarget.value)}
+              onBlur={() => {
+                if (title.trim() && title !== task.title) {
+                  update({ taskId: task._id, title: title.trim() });
+                } else if (!title.trim()) {
+                  setTitle(task.title);
+                }
+              }}
+              className={cn(
+                "w-full bg-transparent text-[1.75rem] font-semibold leading-tight tracking-tight transition-colors focus:outline-none",
+                isDone && "text-muted-foreground line-through",
+              )}
+            />
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+              {currentStatus ? (
+                <StatusDot color={currentStatus.color} label={currentStatus.name} />
+              ) : null}
+              <PresenceRail surfaceType="task" surfaceId={task._id} />
+            </div>
+          </div>
+        </div>
+      </div>
 
       <PresenceNote surfaceType="task" surfaceId={task._id} />
 
@@ -273,71 +299,18 @@ function TaskEditor({
         </Link>
       )}
 
-      <div className="flex items-start gap-3">
-        {/* The completion moment: a springy check that fills in and
-            strikes the title through. */}
-        <motion.button
-          type="button"
-          aria-label={isDone ? "Reopen task" : "Complete task"}
-          onClick={onToggleComplete}
-          whileTap={{ scale: 0.85 }}
-          className={cn(
-            "tap-target mt-1 inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border-2 transition-colors sm:mt-1.5",
-            isDone ? "text-white" : "text-transparent",
-          )}
-          style={{
-            borderColor: currentStatus?.color ?? "var(--color-border)",
-            backgroundColor: isDone ? currentStatus?.color : "transparent",
-          }}
-        >
-          <motion.span
-            initial={false}
-            animate={{ scale: isDone ? 1 : 0.6, opacity: isDone ? 1 : undefined }}
-            transition={{ type: "spring", stiffness: 500, damping: 22 }}
-            className="inline-flex"
-          >
-            <Check className="h-4 w-4" strokeWidth={3} />
-          </motion.span>
-        </motion.button>
-        {task.milestone && (
-          <span
-            aria-hidden
-            title="Milestone"
-            className="mt-3 inline-block h-2.5 w-2.5 flex-shrink-0 rotate-45 border-[1.5px] border-foreground/70 sm:mt-3.5"
-          />
-        )}
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.currentTarget.value)}
-          onBlur={() => {
-            if (title.trim() && title !== task.title) {
-              update({ taskId: task._id, title: title.trim() });
-            } else if (!title.trim()) {
-              setTitle(task.title);
-            }
-          }}
-          className={cn(
-            "w-full bg-transparent text-2xl font-bold tracking-tight transition-colors focus:outline-none sm:text-3xl",
-            isDone && "text-muted-foreground line-through",
-          )}
-        />
-      </div>
-
       <TaskBanners task={task} listId={listId} />
 
-      <div className="relative gap-10 rounded-2xl lg:grid lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+      <div className="relative gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
         {/* The machine's edge: a stroke travels this container's perimeter
             while an agent is writing to the task, so "something is changing
             this" is visible from across the room. */}
         <AgentEdge surfaceType="task" surfaceId={task._id} />
         {/* ── Content column ── */}
-        <div className="min-w-0 space-y-8">
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Description
-              </label>
+        <div className="min-w-0 space-y-6">
+          <KvCard
+            title="Description"
+            action={
               <Button
                 type="button"
                 size="sm"
@@ -377,7 +350,8 @@ function TaskEditor({
                 <Sparkles className="h-3.5 w-3.5" />
                 {aiPending ? "Drafting…" : "Draft with AI"}
               </Button>
-            </div>
+            }
+          >
             <textarea
               rows={8}
               value={description}
@@ -388,9 +362,9 @@ function TaskEditor({
                 }
               }}
               placeholder="Add more details…"
-              className="panel w-full rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full resize-y border-0 bg-transparent px-5 py-4 text-sm focus:outline-none"
             />
-          </div>
+          </KvCard>
 
           <TaskChecklist task={task} />
 
@@ -405,30 +379,28 @@ function TaskEditor({
 
           <Subtasks taskId={task._id} listId={listId} />
 
-          <section>
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Attachments
-            </h2>
-            <Attachments taskId={task._id} />
-          </section>
+          <KvCard title="Attachments">
+            <div className="px-5 py-4">
+              <Attachments taskId={task._id} />
+            </div>
+          </KvCard>
 
-          <section>
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Clips
-            </h2>
-            <Clips taskId={task._id} />
-          </section>
+          <KvCard title="Clips">
+            <div className="px-5 py-4">
+              <Clips taskId={task._id} />
+            </div>
+          </KvCard>
 
-          <section>
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Comments
-            </h2>
-            <Comments parentType="task" parentId={task._id} />
-          </section>
+          <KvCard title="Comments">
+            <div className="px-5 py-4">
+              <Comments parentType="task" parentId={task._id} />
+            </div>
+          </KvCard>
         </div>
 
-        {/* ── State rail ── */}
-        <aside className="panel mt-8 space-y-5 rounded-xl p-5 lg:mt-0">
+        {/* ── State rail — Deel worker/contract KV card ── */}
+        <aside className="mt-8 space-y-4 lg:mt-0">
+          <KvCard title="Details">
           <Field label="Status">
             <select
               value={task.statusId}
@@ -631,7 +603,7 @@ function TaskEditor({
           </Field>
 
           <section>
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <h2 className="mb-2 px-5 pt-4 text-sm font-semibold text-foreground">
               Assignees
             </h2>
             <TaskAssignees task={task} listId={listId} />
@@ -670,7 +642,7 @@ function TaskEditor({
           </Field>
 
           <section>
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <h2 className="mb-2 px-5 pt-4 text-sm font-semibold text-foreground">
               Custom fields
             </h2>
             {fields.length === 0 ? (
@@ -723,14 +695,15 @@ function TaskEditor({
             )}
           </section>
 
-          <section>
-            <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Time
-            </h2>
+          <div className="px-5 py-4">
+            <p className="mb-2 text-sm text-muted-foreground">Time</p>
             <TimeTracker taskId={task._id} />
-          </section>
+          </div>
 
-          <SaveAsBlueprint taskId={task._id} />
+          <div className="border-t border-border px-5 py-4">
+            <SaveAsBlueprint taskId={task._id} />
+          </div>
+          </KvCard>
         </aside>
       </div>
     </div>
@@ -805,7 +778,7 @@ function SaveAsBlueprint({ taskId }: { taskId: Id<"tasks"> }) {
 
   return (
     <section>
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="mb-2 text-sm font-semibold text-foreground">
         Blueprint
       </h2>
       {naming ? (
@@ -854,12 +827,9 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </span>
-      {children}
-    </label>
+    <KvRow label={label}>
+      <div className="text-left sm:text-right">{children}</div>
+    </KvRow>
   );
 }
 
@@ -868,12 +838,9 @@ function Field({
 function DetailSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="-mx-4 flex min-h-[52px] items-center gap-2.5 border-b border-border py-2 sm:-mx-6 sm:px-6">
-        <div className="h-4 w-4 animate-pulse rounded-full bg-muted" />
-        <div className="h-4 w-40 animate-pulse rounded-full bg-muted" />
-      </div>
+      <div className="h-4 w-28 animate-pulse rounded-full bg-muted" />
       <div className="flex items-center gap-3">
-        <div className="h-7 w-7 animate-pulse rounded-full bg-muted" />
+        <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
         <div className="h-9 w-2/3 animate-pulse rounded-full bg-muted" />
       </div>
       <div className="gap-10 lg:grid lg:grid-cols-[minmax(0,1fr)_300px]">

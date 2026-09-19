@@ -28,3 +28,13 @@ export const DEEL_BADGE = {
   neutral:
     "inline-flex items-center gap-1.5 rounded-full bg-[var(--badge-neutral-bg)] px-2 py-0.5 text-xs font-medium text-[var(--badge-neutral-fg)]",
 } as const;
+
+/** "Total 289 people" — the line Deel puts above an unboxed table. */
+export function totalLabel(
+  count: number,
+  singular: string,
+  plural?: string,
+): string {
+  const word = count === 1 ? singular : (plural ?? `${singular}s`);
+  return `Total ${count} ${word}`;
+}

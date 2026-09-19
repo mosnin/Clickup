@@ -8,25 +8,23 @@ import { api } from "@convex/_generated/api";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/ui/sidebar";
 import { UserAvatar } from "@/components/identity/user-avatar";
-import { PageTitle } from "@/components/dashboard/page-title";
 
-// Deel top bar: a thin white strip, hairline underneath, title on the left,
-// actions + search + bell + avatar on the right. No capsule, no spring
-// entrance, no light-island — those were the previous product's chrome and
-// they are the first thing that made every page look unlike Deel.
-//
-// The sticky wrapper is opaque. Chrome either owns its band or it is not
-// chrome. Headline (the 24px page title) sits UNDER the bar and scrolls away.
+/**
+ * Deel page lead (Mobbin people / documents / profile / funds).
+ *
+ * The lavender AppTopNav is the only sticky chrome. Inner pages open with
+ * a large name on the left and actions on the right — no second sticky
+ * strip, no icon tile, no "List" eyebrow repeating the route. Optional
+ * description and context sit under the title; tabs/filters are children.
+ */
 
 export function PageHeader({
-  icon: Icon,
   title,
   context,
   actions,
   className,
   children,
   headline = true,
-  eyebrow,
   description,
   headlineActions,
   hideTitle = false,
@@ -35,15 +33,15 @@ export function PageHeader({
   title: string;
   /** Quiet inline context after the title: counts, place, timestamps. */
   context?: ReactNode;
-  /** Right-aligned action cluster, before the global search/bell/avatar. */
+  /** Right-aligned action cluster. */
   actions?: ReactNode;
   className?: string;
-  /** Optional second row (tab strips, filter bars) inside the sticky area. */
+  /** Optional second row (tab strips, filter bars). */
   children?: ReactNode;
   /**
-   * The large title block under the sticky bar.
+   * The large title block.
    *
-   * `true` (the default) renders `title` at Deel's 24px page-title size.
+   * `true` (the default) renders `title` at Deel's page-title size.
    * A node replaces the text. `false` is for Home (greeting is the h1) and
    * full-bleed editors.
    */
@@ -51,73 +49,54 @@ export function PageHeader({
   eyebrow?: ReactNode;
   description?: ReactNode;
   headlineActions?: ReactNode;
-  /** Hide the bar title. Home's greeting is the page title; "Home" in the
-      strip would be Deel wearing a tab label. The string still names the
-      page for anyone reading the DOM. */
+  /** Hide the visible title. Home's greeting is the page title. */
   hideTitle?: boolean;
 }) {
   const { toggleSidebar } = useSidebar();
-  // The bar is always chrome. The real <h1> is either PageTitle (headline
-  // on) or the page itself (Home's greeting). Two h1s on one screen is
-  // worse than a small title.
+  const showHeadline = headline !== false && !hideTitle;
+  const heading = headline === true ? title : headline;
+  const right = headlineActions ?? actions;
 
   return (
-    <>
-    <div
-      className={cn(
-        "sticky top-0 z-20 -mx-4 -mt-6 border-b border-border bg-background px-4 pb-3 pt-3 sm:-mx-6 sm:px-6",
-        className,
-      )}
-    >
-      <div className="flex min-h-10 items-center justify-between gap-x-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+    <div className={cn("mb-6", className)}>
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+        <div className="flex min-w-0 items-start gap-2.5">
           <button
             type="button"
             aria-label="Open navigation"
             onClick={toggleSidebar}
-            className="tap-target -ml-1 flex size-9 flex-shrink-0 items-center justify-center rounded-[var(--ui-radius-control)] text-foreground hover:bg-muted md:hidden"
+            className="tap-target -ml-1 mt-0.5 flex size-9 flex-shrink-0 items-center justify-center rounded-full text-foreground hover:bg-muted md:hidden"
           >
             <Menu className="size-4" aria-hidden />
           </button>
-          {Icon && (
-            <Icon
-              aria-hidden
-              className="size-4 flex-shrink-0 text-muted-foreground"
-            />
-          )}
-          <p
-            className={cn(
-              "truncate text-compact font-semibold tracking-tight text-foreground",
-              // When the 24px page title is on the page, the bar repeating
-              // it is Deel wearing a tab label. Home also hides it (greeting
-              // is the title). Screen readers still get the name.
-              (hideTitle || headline !== false) && "sr-only",
+          <div className="min-w-0">
+            {showHeadline ? (
+              <h1 className="text-balance text-[1.75rem] font-semibold leading-tight tracking-tight text-foreground">
+                {heading}
+              </h1>
+            ) : (
+              <p className="sr-only">{title}</p>
             )}
-          >
-            {title}
-          </p>
-          {context && (
-            <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-              {context}
-            </div>
-          )}
+            {description ? (
+              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted-foreground">
+                {description}
+              </p>
+            ) : null}
+            {context ? (
+              <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                {context}
+              </div>
+            ) : null}
+          </div>
         </div>
-        <div className="flex min-w-0 flex-shrink-0 items-center gap-1.5">
-          {actions}
-        </div>
+        {right ? (
+          <div className="flex min-w-0 flex-shrink-0 items-center gap-2">
+            {right}
+          </div>
+        ) : null}
       </div>
-      {children && <div className="pt-2">{children}</div>}
+      {children ? <div className="mt-4 space-y-3">{children}</div> : null}
     </div>
-    {headline !== false && (
-      <PageTitle
-        className="mt-6"
-        eyebrow={eyebrow}
-        title={headline === true ? title : headline}
-        description={description}
-        actions={headlineActions}
-      />
-    )}
-    </>
   );
 }
 
@@ -140,14 +119,14 @@ export function CapsuleCluster() {
         type="button"
         aria-label="Search"
         onClick={() => window.dispatchEvent(new CustomEvent("open-command-palette"))}
-        className="tap-target relative flex size-9 items-center justify-center rounded-[var(--ui-radius-control)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="tap-target relative flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         <Search aria-hidden className="size-4" />
       </button>
       <Link
         href="/dashboard/inbox"
         aria-label={unread > 0 ? `Inbox, ${unread} unread` : "Inbox"}
-        className="tap-target relative flex size-9 items-center justify-center rounded-[var(--ui-radius-control)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        className="tap-target relative flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         <Bell aria-hidden className="size-4" />
         {unread > 0 && (

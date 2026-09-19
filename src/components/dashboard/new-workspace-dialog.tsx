@@ -102,14 +102,17 @@ export function NewWorkspaceDialog({
             exit={{ opacity: 0, y: 8, scale: 0.98 }}
             transition={{ duration: 0.25, ease: EASE }}
             onSubmit={submit}
-            className="panel w-full max-w-sm rounded-2xl p-6"
+            className="deel-dialog w-full max-w-sm p-6"
             role="dialog"
             aria-label="New workspace"
           >
-            <h2 className="text-lg font-semibold tracking-tight">
+            <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-[#e8e4f5]">
+              <span className="text-lg font-semibold text-foreground">o.</span>
+            </div>
+            <h2 className="text-center text-lg font-semibold tracking-tight">
               New workspace
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-center text-sm text-muted-foreground">
               A shared home for a team and its agents. You can invite people
               from its settings.
             </p>
@@ -119,14 +122,14 @@ export function NewWorkspaceDialog({
               onChange={(e) => setName(e.currentTarget.value)}
               placeholder="Workspace name"
               aria-label="Workspace name"
-              className="soft-field mt-4 w-full px-3.5 py-2.5 text-sm"
+              className="soft-field mt-4 w-full rounded-full px-3.5 py-2.5 text-sm"
             />
-            <div className="mt-4 flex justify-end gap-2">
-              <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={!name.trim() || pending}>
+            <div className="mt-4 flex flex-col gap-2">
+              <Button type="submit" disabled={!name.trim() || pending}>
                 {pending ? "Creating…" : "Create workspace"}
+              </Button>
+              <Button type="button" variant="ghost" onClick={onClose}>
+                Cancel
               </Button>
             </div>
           </motion.form>

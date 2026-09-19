@@ -8,8 +8,9 @@ import { ChevronRight, Plus, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { TotalCount } from "@/components/dashboard/deel-ui";
 import {
   Table,
   TableBody,
@@ -85,9 +86,10 @@ export function ListView({
       })),
     [visibleFields, fields],
   );
-  // Total column count: select + complete + index + title, the metadata
-  // columns, and the trailing action cell.
-  const columnCount = columns.length + 5;
+  // Total column count: select + complete + title, the metadata
+  // columns, and the trailing action cell. Deel's people table has no
+  // catalogue-number column.
+  const columnCount = columns.length + 4;
 
   // Assignee names (humans AND agents) are needed for the Assignees column
   // and for assignee grouping — fetched only when one of those is on.
@@ -183,48 +185,46 @@ export function ListView({
 
   return (
     <>
-      {/* @container so column visibility below answers "does THIS card have
-          room", never the viewport — a narrow group card on a wide screen
-          behaves the same as a phone, and vice versa. */}
-      <Card className="@container gap-0 overflow-hidden rounded-2xl py-0">
-        <CardContent className="px-0 py-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead scope="col" className="w-10">
-                  <Checkbox
-                    aria-label="Select all tasks"
-                    checked={
-                      shown.length > 0 && selectedVisible.length === shown.length
-                    }
-                    onCheckedChange={toggleAll}
-                  />
-                </TableHead>
-                <TableHead scope="col" className="w-10" />
-                {/* The row language's catalogue-number column — a header
-                    label would repeat what the numbers already say. */}
-                <TableHead scope="col" className="w-8" />
+      <div className="@container">
+        <TotalCount
+          count={shown.length}
+          singular="task"
+          className="mb-2"
+        />
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead scope="col" className="w-10">
+                <Checkbox
+                  aria-label="Select all tasks"
+                  checked={
+                    shown.length > 0 && selectedVisible.length === shown.length
+                  }
+                  onCheckedChange={toggleAll}
+                />
+              </TableHead>
+              <TableHead scope="col" className="w-10" />
+              <TableHead
+                scope="col"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Task
+              </TableHead>
+              {columns.map((c, i) => (
                 <TableHead
                   scope="col"
-                  className="text-tiny font-semibold uppercase tracking-wider text-muted-foreground"
+                  key={c.key}
+                  className={cn(
+                    "truncate text-xs font-medium text-muted-foreground",
+                    i < 2 ? "hidden @sm:table-cell" : "hidden @md:table-cell",
+                  )}
                 >
-                  Title
+                  {c.label}
                 </TableHead>
-                {columns.map((c, i) => (
-                  <TableHead
-                    scope="col"
-                    key={c.key}
-                    className={cn(
-                      "truncate text-tiny font-semibold uppercase tracking-wider text-muted-foreground",
-                      i < 2 ? "hidden @sm:table-cell" : "hidden @md:table-cell",
-                    )}
-                  >
-                    {c.label}
-                  </TableHead>
-                ))}
-                <TableHead scope="col" />
-              </TableRow>
-            </TableHeader>
+              ))}
+              <TableHead scope="col" />
+            </TableRow>
+          </TableHeader>
             <TableBody>
               {shown.length === 0 && (
                 <TableRow className="hover:bg-transparent">
@@ -269,8 +269,7 @@ export function ListView({
             </TableBody>
           </Table>
           <NewTaskRow listId={listId} />
-        </CardContent>
-      </Card>
+        </div>
 
       <BulkBar
         statuses={statuses}
@@ -434,7 +433,7 @@ function GroupHeaderRow({
     <TableRow className="hover:bg-transparent">
       <TableCell
         colSpan={columnCount}
-        className="whitespace-normal border-b border-border bg-muted/40 px-5 py-3.5"
+        className="whitespace-normal border-b border-border px-2 py-3"
       >
         <span className="flex min-w-0 items-center gap-2">
           {color && (
@@ -444,12 +443,10 @@ function GroupHeaderRow({
               style={{ backgroundColor: color }}
             />
           )}
-          <span className="truncate text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="truncate text-sm font-medium text-foreground">
             {label}
           </span>
-          <span className="ui-chip ui-figure flex-shrink-0 rounded-full px-2 py-0.5 text-tiny text-muted-foreground">
-            {count}
-          </span>
+          <span className="text-xs text-muted-foreground">{count}</span>
         </span>
       </TableCell>
     </TableRow>
@@ -745,34 +742,40 @@ function TaskRow({
   function renderCell(key: string) {
     if (key === "status") {
       return (
-        <select
-          aria-label="Status"
-          value={task.statusId}
-          onChange={async (e) => {
-            const nextStatusId = e.currentTarget.value as Id<"listStatuses">;
-            try {
-              await update({ taskId: task._id, statusId: nextStatusId });
-            } catch (err) {
-              const raw = err instanceof Error ? err.message : String(err);
-              const msg = raw
-                .split("Uncaught Error:")
-                .pop()
-                ?.split("\n")[0]
-                ?.trim();
-              toast(msg || "Couldn't update status", { kind: "error" });
-            }
-          }}
-          className="soft-field px-2 py-1 text-xs"
-          style={{
-            backgroundColor: status ? `${status.color}33` : undefined,
-          }}
-        >
-          {statuses.map((s) => (
-            <option key={s._id} value={s._id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+        <span className="inline-flex items-center gap-2">
+          {status ? (
+            <span
+              aria-hidden
+              className="inline-block size-2 shrink-0 rounded-full"
+              style={{ backgroundColor: status.color }}
+            />
+          ) : null}
+          <select
+            aria-label="Status"
+            value={task.statusId}
+            onChange={async (e) => {
+              const nextStatusId = e.currentTarget.value as Id<"listStatuses">;
+              try {
+                await update({ taskId: task._id, statusId: nextStatusId });
+              } catch (err) {
+                const raw = err instanceof Error ? err.message : String(err);
+                const msg = raw
+                  .split("Uncaught Error:")
+                  .pop()
+                  ?.split("\n")[0]
+                  ?.trim();
+                toast(msg || "Couldn't update status", { kind: "error" });
+              }
+            }}
+            className="bg-transparent text-sm focus:outline-none"
+          >
+            {statuses.map((s) => (
+              <option key={s._id} value={s._id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </span>
       );
     }
     if (key === "priority") {
@@ -953,14 +956,6 @@ function TaskRow({
           </motion.svg>
         </motion.button>
       </TableCell>
-      {/* The row language's catalogue number: zero-padded, tabular, in the
-          display face, muted and out of the tab order — decoration, not a
-          fourth way to select a row. */}
-      <TableCell aria-hidden className="text-right">
-        <span className="font-title text-xs tabular-nums text-muted-foreground">
-          {String(index + 1).padStart(2, "0")}
-        </span>
-      </TableCell>
       <TableCell className={cn("min-w-0", wrap && "whitespace-normal")}>
         <span
           className={cn(
@@ -995,7 +990,7 @@ function TaskRow({
             href={taskPeekHref(searchParams, task._id)}
             scroll={false}
             className={cn(
-              "min-w-0 font-semibold hover:underline",
+              "deel-name-link min-w-0 hover:underline",
               wrap ? "break-words" : "truncate",
               isDone && "text-muted-foreground line-through",
             )}
@@ -1055,7 +1050,7 @@ function TaskRow({
               task={child}
               listId={listId}
               statuses={statuses}
-              colSpan={columnCount - 3}
+              colSpan={columnCount - 2}
               settings={settings}
               parentTitle={settings.showSubtaskParents ? task.title : undefined}
               locationLabel={locationLabel}
@@ -1149,10 +1144,6 @@ function ChildTaskRow({
       className="border-b bg-muted/20 align-middle"
     >
       <TableCell />
-      {/* Placeholder matching the parent row's index column, so a subtask's
-          title lines up under its parent's rather than under the catalogue
-          number. */}
-      <TableCell />
       <TableCell>
         <motion.button
           type="button"
@@ -1211,7 +1202,7 @@ function ChildTaskRow({
               href={taskPeekHref(searchParams, task._id)}
               scroll={false}
               className={cn(
-                "min-w-0 text-xs font-medium hover:underline",
+                "deel-name-link min-w-0 text-sm hover:underline",
                 settings.wrapText ? "break-words" : "truncate",
                 isDone && "text-muted-foreground line-through",
               )}
