@@ -4,6 +4,7 @@ import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { requireListAccess } from "./_authz";
 import { computeRollup } from "./rollups";
+import { completionStatePatch, isDoneCategory } from "./_taskCompletion";
 
 const categoryValidator = v.union(
   v.literal("open"),
@@ -122,8 +123,24 @@ export const update = mutation({
     await ctx.db.patch(args.statusId, patch);
 
     // Re-categorizing a status flips every task in it between rollup
-    // buckets without touching the task cores — recount inline.
+    // buckets without touching the task cores — recount inline. The cores
+    // are skipped on purpose: this is a structural change, not a
+    // completion, so recurrence / automations / blocker gates must not
+    // fire. `completedAt` still has to move with the new category —
+    // routing, reports and ops overview treat that stamp as "is this
+    // open?", and leaving it stale (or a later genuine complete after a
+    // silent reopen) loses or duplicates the next recurring instance.
     if (args.category !== undefined && args.category !== status.category) {
+      const willBeComplete = isDoneCategory(args.category);
+      const tasksInStatus = await ctx.db
+        .query("tasks")
+        .withIndex("by_list_and_status", (q) =>
+          q.eq("listId", status.listId).eq("statusId", args.statusId),
+        )
+        .collect();
+      for (const t of tasksInStatus) {
+        await ctx.db.patch(t._id, completionStatePatch(t, willBeComplete));
+      }
       await computeRollup(ctx, status.listId);
     }
   },
@@ -155,8 +172,12 @@ export const remove = mutation({
         q.eq("listId", status.listId).eq("statusId", statusId),
       )
       .collect();
+    const willBeComplete = isDoneCategory(replacement.category);
     for (const t of tasksToReassign) {
-      await ctx.db.patch(t._id, { statusId: replaceWithId });
+      await ctx.db.patch(t._id, {
+        statusId: replaceWithId,
+        ...completionStatePatch(t, willBeComplete),
+      });
     }
 
     await ctx.db.delete(statusId);

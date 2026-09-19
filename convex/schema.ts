@@ -510,7 +510,8 @@ export default defineSchema({
     parentTaskId: v.optional(v.id("tasks")),
     // When set, completing this task spawns a fresh task on the same list
     // with its dates advanced by the chosen interval. The new task copies
-    // the same recurrence so the cycle continues.
+    // recurrence, assignees, checklist (ticks reset), estimate, approval
+    // gate, and stored custom-field values so the cycle keeps its shape.
     recurrence: v.optional(
       v.union(
         v.literal("daily"),

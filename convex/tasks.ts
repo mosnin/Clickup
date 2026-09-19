@@ -17,6 +17,7 @@ import {
 import { requireDecisionImpactsResolved } from "./decisions";
 import { enqueueAgentPingDelivery } from "./agentPingDeliveries";
 import { listUserSpaces } from "./_userSpaces";
+import { completionStatePatch, isDoneCategory } from "./_taskCompletion";
 
 // Task CRUD. Since Phase 12 the write paths are factored into *Core
 // functions that take an explicit Actor, so the Clerk-authenticated
@@ -166,7 +167,18 @@ async function spawnRecurringInstance(
     ? addRecurrence(completedTask.startDate, completedTask.recurrence)
     : undefined;
 
-  await createTaskCore(
+  // A dangling or cross-list parentTaskId must not fail the completion —
+  // the next instance just lands as a top-level task. createTaskCore
+  // itself refuses a bad parent on explicit creates.
+  let parentTaskId = completedTask.parentTaskId;
+  if (parentTaskId) {
+    const parent = await ctx.db.get(parentTaskId);
+    if (!parent || parent.listId !== completedTask.listId) {
+      parentTaskId = undefined;
+    }
+  }
+
+  const taskId = await createTaskCore(
     ctx,
     {
       listId: completedTask.listId,
@@ -177,11 +189,45 @@ async function spawnRecurringInstance(
       dueDate: newDue,
       assigneeIds: completedTask.assigneeClerkIds,
       requiredCapabilities: completedTask.requiredCapabilities,
-      parentTaskId: completedTask.parentTaskId,
+      parentTaskId,
       recurrence: completedTask.recurrence,
+      // Fresh instance, same acceptance criteria — ticks reset.
+      checklist: completedTask.checklist?.map((item) => ({
+        ...item,
+        done: false,
+      })),
+      requiresApproval: completedTask.requiresApproval,
+      estimatePoints: completedTask.estimatePoints,
+      milestone: completedTask.milestone,
     },
     { type: "system", id: "recurrence", name: "Recurrence" },
   );
+
+  // Copy stored custom-field values so the next instance keeps the
+  // structured fields the last one carried. Skip voting — that's a fresh
+  // ballot. Computed types have no rows.
+  const values = await ctx.db
+    .query("taskFieldValues")
+    .withIndex("by_task", (q) => q.eq("taskId", completedTask._id))
+    .collect();
+  for (const row of values) {
+    const field = await ctx.db.get(row.fieldId);
+    if (!field || field.type === "voting") continue;
+    await ctx.db.insert("taskFieldValues", {
+      taskId,
+      fieldId: row.fieldId,
+      textValue: row.textValue,
+      numberValue: row.numberValue,
+      booleanValue: row.booleanValue,
+      dateValue: row.dateValue,
+      currency: row.currency,
+      optionIds: row.optionIds,
+      actorIds: row.actorIds,
+      taskIds: row.taskIds,
+      location: row.location,
+      files: row.files,
+    });
+  }
 }
 
 const priorityValidator = v.union(
@@ -367,7 +413,7 @@ function categoryBuckets(
   category: string | undefined,
 ): { done: number; inProgress: number } {
   return {
-    done: category === "complete" || category === "closed" ? 1 : 0,
+    done: isDoneCategory(category) ? 1 : 0,
     inProgress: category === "in_progress" ? 1 : 0,
   };
 }
@@ -425,8 +471,17 @@ export async function createTaskCore(
   // A task created directly into a Done/Closed column (e.g. Board's
   // column-add) is born complete: stamp completedAt so every consumer of
   // "open" (least-loaded routing, ops overview, watchdog) agrees.
-  const bornComplete =
-    bornCategory === "complete" || bornCategory === "closed";
+  const bornComplete = isDoneCategory(bornCategory);
+
+  if (args.parentTaskId) {
+    const parent = await ctx.db.get(args.parentTaskId);
+    if (!parent) throw new ConvexError("Parent task not found");
+    if (parent.listId !== args.listId) {
+      throw new ConvexError(
+        "Subtask must live on the same list as its parent",
+      );
+    }
+  }
 
   if (args.sprintId) await validateSprintForList(ctx, args.sprintId, list);
 
@@ -661,8 +716,7 @@ export async function updateTaskCore(
   // Detect "transition into complete" before applying the patch so we
   // can run automations + spawn the recurring instance afterwards.
   const oldStatus = await ctx.db.get(task.statusId);
-  const wasComplete =
-    oldStatus?.category === "complete" || oldStatus?.category === "closed";
+  const wasComplete = isDoneCategory(oldStatus?.category);
 
   let willBeComplete = wasComplete;
   let newStatusName: string | undefined;
@@ -672,8 +726,7 @@ export async function updateTaskCore(
       throw new ConvexError("statusId must belong to the same list");
     }
     newStatusName = newStatus.name;
-    willBeComplete =
-      newStatus.category === "complete" || newStatus.category === "closed";
+    willBeComplete = isDoneCategory(newStatus.category);
     if (!wasComplete && willBeComplete) {
       await requireDecisionImpactsResolved(ctx, task._id);
       const blockers = await openBlockers(ctx, task);
@@ -710,23 +763,7 @@ export async function updateTaskCore(
   }
   if (args.statusId !== undefined) {
     patch.statusId = args.statusId;
-    patch.completedAt = willBeComplete ? Date.now() : undefined;
-    if (willBeComplete) {
-      // Completing a task releases any claim on it.
-      patch.claimedByActorId = undefined;
-      patch.claimedAt = undefined;
-      // ...and lifts a thrash hold. A loop that ended with the work done needs
-      // no ceremony, and leaving the flag set would make the task look stuck
-      // forever in the one queue built to show what is stuck.
-      patch.thrashHeldAt = undefined;
-      patch.thrashFailures = undefined;
-    }
-    // Reopening a gated task revokes the previous approval — otherwise an
-    // agent could re-complete it later on the stale sign-off.
-    if (wasComplete && !willBeComplete && task.requiresApproval) {
-      patch.approvedAt = undefined;
-      patch.approvedByClerkId = undefined;
-    }
+    Object.assign(patch, completionStatePatch(task, willBeComplete));
   }
   if (args.priority !== undefined) {
     // null = clear. The client can't send `undefined` (Convex drops the key

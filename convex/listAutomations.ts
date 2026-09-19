@@ -128,7 +128,9 @@ export async function applyAutomations(
               status.category === "complete" ||
               status.category === "closed"
             ) {
-              patch.completedAt = Date.now();
+              // Keep an existing stamp (Complete→Closed) so reports and
+              // sprint burndown don't relocate the completion to today.
+              patch.completedAt = working.completedAt ?? Date.now();
             } else {
               patch.completedAt = undefined;
             }
