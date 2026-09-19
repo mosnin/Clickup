@@ -3,6 +3,7 @@ import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { assertNotSuspended, requireIdentity } from "./_authz";
+import { userByClerkId } from "./_users";
 
 function slugify(input: string): string {
   return input
@@ -91,12 +92,7 @@ export const listMembers = query({
       .withIndex("by_workspace", (q) => q.eq("workspaceId", workspaceId))
       .collect();
     const users = await Promise.all(
-      memberships.map((m) =>
-        ctx.db
-          .query("users")
-          .withIndex("by_clerk_id", (q) => q.eq("clerkId", m.userClerkId))
-          .unique(),
-      ),
+      memberships.map((m) => userByClerkId(ctx, m.userClerkId)),
     );
     return users
       .map((u, i) => (u ? { ...u, role: memberships[i].role } : null))

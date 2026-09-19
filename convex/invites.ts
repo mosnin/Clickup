@@ -5,6 +5,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { requireIdentity } from "./_authz";
 import { notify } from "./notificationCenter";
+import { userByClerkId } from "./_users";
 
 // Workspace invitations. Two acceptance paths:
 //   1. In-app: the invited email matches a signed-in user → an invite card
@@ -86,10 +87,7 @@ export const create = mutation({
       throw new ConvexError("An invite to that email is already pending");
     }
 
-    const inviter = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", subject))
-      .unique();
+    const inviter = await userByClerkId(ctx, subject);
     const fromName = inviter?.name ?? inviter?.email ?? "A teammate";
 
     const token = randomToken();
@@ -165,10 +163,7 @@ export const listForCurrentUser = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
-    const me = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
-      .unique();
+    const me = await userByClerkId(ctx, identity.subject);
     const email = me?.email?.toLowerCase();
     if (!email) return [];
     const invites = await ctx.db
@@ -179,10 +174,7 @@ export const listForCurrentUser = query({
     return await Promise.all(
       pending.map(async (i) => {
         const ws = await ctx.db.get(i.workspaceId);
-        const inviter = await ctx.db
-          .query("users")
-          .withIndex("by_clerk_id", (q) => q.eq("clerkId", i.invitedByClerkId))
-          .unique();
+        const inviter = await userByClerkId(ctx, i.invitedByClerkId);
         return {
           _id: i._id,
           workspaceName: ws?.name ?? "a workspace",
@@ -228,10 +220,7 @@ export const accept = mutation({
     const { subject } = await requireIdentity(ctx);
     const invite = await ctx.db.get(inviteId);
     if (!invite || !isPending(invite)) throw new ConvexError("Invite no longer valid");
-    const me = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", subject))
-      .unique();
+    const me = await userByClerkId(ctx, subject);
     if (me?.email?.toLowerCase() !== invite.email) {
       throw new ConvexError("This invite was sent to a different email");
     }
@@ -245,10 +234,7 @@ export const decline = mutation({
     const { subject } = await requireIdentity(ctx);
     const invite = await ctx.db.get(inviteId);
     if (!invite || !isPending(invite)) return;
-    const me = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", subject))
-      .unique();
+    const me = await userByClerkId(ctx, subject);
     if (me?.email?.toLowerCase() !== invite.email) {
       throw new ConvexError("This invite was sent to a different email");
     }
@@ -267,10 +253,7 @@ export const getByToken = query({
       .unique();
     if (!invite) return null;
     const ws = await ctx.db.get(invite.workspaceId);
-    const inviter = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", invite.invitedByClerkId))
-      .unique();
+    const inviter = await userByClerkId(ctx, invite.invitedByClerkId);
     return {
       workspaceName: ws?.name ?? "a workspace",
       invitedBy: inviter?.name ?? inviter?.email ?? "A teammate",
