@@ -107,8 +107,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#e8e8ec" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b0b0c" },
+    { media: "(prefers-color-scheme: light)", color: "#F8F9FB" },
+    { media: "(prefers-color-scheme: dark)", color: "#0C111D" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -120,13 +120,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning className={`${instrumentSans.variable} ${spaceGrotesk.variable} ${darkerGrotesque.variable} ${doto.variable}`}>
       <head>
         {/* Resolve the theme before first paint so there's no flash. The
-            toggle writes localStorage "theme" = dark | light. DARK is the
-            default — the dark window on the lime backdrop is the product's
-            face, the one both design references wear — and light is the
-            explicit choice, not the OS's. */}
+            toggle writes localStorage "theme" = dark | light. LIGHT is the
+            default — Deel's product chrome is a white sidebar on a cool-gray
+            canvas, with dark as an explicit late-night option (they added it
+            in 2025). The OS is not consulted. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){var d='dark';try{if(localStorage.getItem('theme')==='light')d='light';}catch(e){}document.documentElement.dataset.theme=d;})();`,
+            __html: `(function(){var d='light';try{if(localStorage.getItem('theme')==='dark')d='dark';}catch(e){}document.documentElement.dataset.theme=d;})();`,
           }}
         />
       </head>

@@ -43,7 +43,7 @@ describe("defaults", () => {
       expect(tokens[`--ui-accent-${k}-dark`]).toBeUndefined();
     }
     // The shipped radii, density and type scale.
-    expect(tokens["--ui-radius-card"]).toBe("1.000rem");
+    expect(tokens["--ui-radius-card"]).toBe("0.750rem");
     expect(tokens["--ui-font-scale"]).toBe("1.000");
     expect(tokens["--ui-motion-scale"]).toBe("1.000");
     expect(tokens["--ui-pad"]).toBe("1.25rem");
@@ -51,12 +51,19 @@ describe("defaults", () => {
     // Shadows are written against tokens the stylesheet owns per theme, not
     // against literal rgb: a near-black shadow on a near-black surface is
     // invisible, and this function cannot know which theme is on.
-    expect(tokens["--ui-surface-shadow"]).toContain("var(--ui-shade)");
+    // Flat (the shipped Deel surface) has no shadow. Soft/raised still
+    // write against `--ui-shade` so dark mode can see them.
+    expect(tokens["--ui-surface-shadow"]).toBe("none");
+    expect(
+      resolveTokens({ ...DEFAULT_APPEARANCE, surface: "soft" })[
+        "--ui-surface-shadow"
+      ],
+    ).toContain("var(--ui-shade)");
     expect(tokens["--ui-surface-shadow"]).not.toMatch(/rgb\(/);
   });
 
-  it("is the Editorial preset", () => {
-    expect(matchingPresetId(DEFAULT_APPEARANCE)).toBe("editorial");
+  it("is the Deel preset", () => {
+    expect(matchingPresetId(DEFAULT_APPEARANCE)).toBe("deel");
   });
 });
 

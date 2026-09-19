@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "convex/react";
@@ -10,7 +9,7 @@ import { Stagger, StaggerItem } from "@/components/motion";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { EmptyState } from "@/components/dashboard/empty-state";
-import { cn } from "@/lib/utils";
+import { NameLink, StatusDot, TotalCount } from "@/components/dashboard/deel-ui";
 
 // Global search: one text box, four buckets (tasks/projects/docs/spaces),
 // all access-checked server-side by convex/search.ts. The query text lives
@@ -19,23 +18,14 @@ import { cn } from "@/lib/utils";
 
 type Results = NonNullable<ReturnType<typeof useQuery<typeof api.search.everything>>>;
 
-const STATUS_CHIP: Record<
+const STATUS_DOT: Record<
   NonNullable<Results["lists"][number]["projectStatus"]>,
-  { label: string; className: string }
+  { label: string; color: string }
 > = {
-  on_track: {
-    label: "On track",
-    className: "bg-pastel-green dark:text-neutral-900",
-  },
-  at_risk: {
-    label: "At risk",
-    className: "bg-pastel-yellow dark:text-neutral-900",
-  },
-  off_track: {
-    label: "Off track",
-    className: "bg-pastel-red dark:text-neutral-900",
-  },
-  paused: { label: "Paused", className: "bg-muted" },
+  on_track: { label: "On track", color: "var(--color-success, #16a34a)" },
+  at_risk: { label: "At risk", color: "#d97706" },
+  off_track: { label: "Off track", color: "var(--color-danger)" },
+  paused: { label: "Paused", color: "var(--color-muted-foreground)" },
 };
 
 export function SearchView({ initialQuery }: { initialQuery: string }) {
@@ -66,7 +56,6 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={"Everything, everywhere"}
         description={"Tasks, pages, boards and people across every space you can reach."}
         icon={Search}
         title="Search"
@@ -103,81 +92,62 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
         <EmptyState title="No matches" message={`Nothing matches "${debounced}".`} />
       ) : (
         <div className="space-y-8">
-          <ResultSection title="Tasks">
+          <ResultSection title="Tasks" count={results.tasks.length}>
             {results.tasks.map((t) => (
               <StaggerItem key={t.taskId}>
-                <Link
-                  href={`/dashboard/l/${t.listId}/t/${t.taskId}`}
-                  className="lift flex items-center justify-between gap-3 rounded-2xl panel px-4 py-3"
-                >
-                  <span className="min-w-0 truncate text-sm font-medium">{t.title}</span>
-                  <span className="flex-shrink-0 truncate text-xs text-muted-foreground">
-                    {t.listName}
-                  </span>
-                </Link>
+                <div className="deel-kv-row !grid-cols-[minmax(0,1fr)_auto]">
+                  <NameLink href={`/dashboard/l/${t.listId}/t/${t.taskId}`}>
+                    {t.title}
+                  </NameLink>
+                  <span className="text-sm text-muted-foreground">{t.listName}</span>
+                </div>
               </StaggerItem>
             ))}
           </ResultSection>
 
-          <ResultSection title="Projects">
+          <ResultSection title="Projects" count={results.lists.length}>
             {results.lists.map((l) => {
-              const chip = l.projectStatus ? STATUS_CHIP[l.projectStatus] : null;
+              const chip = l.projectStatus ? STATUS_DOT[l.projectStatus] : null;
               return (
                 <StaggerItem key={l.listId}>
-                  <Link
-                    href={`/dashboard/l/${l.listId}`}
-                    className="lift flex items-center justify-between gap-3 rounded-2xl panel px-4 py-3"
-                  >
-                    <span className="min-w-0 truncate text-sm font-medium">{l.name}</span>
-                    <span className="flex flex-shrink-0 items-center gap-2">
-                      {chip && (
-                        <span
-                          className={cn(
-                            "rounded-full px-2 py-0.5 text-micro font-medium text-foreground",
-                            chip.className,
-                          )}
-                        >
-                          {chip.label}
-                        </span>
-                      )}
-                      <span className="truncate text-xs text-muted-foreground">
-                        {l.spaceName}
-                      </span>
+                  <div className="deel-kv-row !grid-cols-[minmax(0,1fr)_auto]">
+                    <NameLink href={`/dashboard/l/${l.listId}`}>{l.name}</NameLink>
+                    <span className="flex items-center gap-2">
+                      {chip && <StatusDot color={chip.color} label={chip.label} />}
+                      <span className="text-sm text-muted-foreground">{l.spaceName}</span>
                     </span>
-                  </Link>
+                  </div>
                 </StaggerItem>
               );
             })}
           </ResultSection>
 
-          <ResultSection title="Pages">
+          <ResultSection title="Pages" count={results.pages.length}>
             {results.pages.map((d) => (
               <StaggerItem key={d.pageId}>
-                <Link
-                  href={`/dashboard/pages/${d.pageId}`}
-                  className="lift flex items-center justify-between gap-3 rounded-2xl panel px-4 py-3"
-                >
-                  <span className="min-w-0 truncate text-sm font-medium">{d.title}</span>
-                  <span className="flex-shrink-0 truncate text-xs text-muted-foreground">
-                    {d.spaceName}
-                  </span>
-                </Link>
+                <div className="deel-kv-row !grid-cols-[minmax(0,1fr)_auto]">
+                  <NameLink href={`/dashboard/pages/${d.pageId}`}>{d.title}</NameLink>
+                  <span className="text-sm text-muted-foreground">{d.spaceName}</span>
+                </div>
               </StaggerItem>
             ))}
           </ResultSection>
 
-          <ResultSection title="Spaces">
+          <ResultSection title="Spaces" count={results.spaces.length}>
             {results.spaces.map((s) => (
               <StaggerItem key={s.spaceId}>
-                <Link
-                  href={`/dashboard/s/${s.spaceId}`}
-                  className="lift flex items-center gap-2 rounded-2xl panel px-4 py-3"
-                >
-                  {s.private && (
-                    <Lock className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" aria-hidden />
-                  )}
-                  <span className="min-w-0 truncate text-sm font-medium">{s.name}</span>
-                </Link>
+                <div className="deel-kv-row !grid-cols-[minmax(0,1fr)_auto]">
+                  <NameLink href={`/dashboard/s/${s.spaceId}`}>
+                    {s.private ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Lock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                        {s.name}
+                      </span>
+                    ) : (
+                      s.name
+                    )}
+                  </NameLink>
+                </div>
               </StaggerItem>
             ))}
           </ResultSection>
@@ -187,16 +157,25 @@ export function SearchView({ initialQuery }: { initialQuery: string }) {
   );
 }
 
-function ResultSection({ title, children }: { title: string; children: React.ReactNode }) {
-  const items = children as React.ReactNode[];
-  const count = Array.isArray(items) ? items.length : 0;
+function ResultSection({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count: number;
+  children: React.ReactNode;
+}) {
   if (count === 0) return null;
   return (
     <section className="space-y-2">
-      <p className="text-micro font-semibold uppercase tracking-wider text-muted-foreground">
-        {title}
-      </p>
-      <Stagger className="space-y-2">{children}</Stagger>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        <TotalCount count={count} singular="result" />
+      </div>
+      <div className="deel-kv-card">
+        <Stagger>{children}</Stagger>
+      </div>
     </section>
   );
 }

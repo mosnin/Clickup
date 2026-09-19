@@ -112,10 +112,8 @@ export function AgentsView() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Mission control"
-        description="The AI agents working in your spaces. See what they're doing live, hand them work, and manage their access."
-        icon={Bot}
         title="Agents"
+        description="The AI agents working in your spaces. See what they're doing live, hand them work, and manage their access."
         context={
           totalCount > 0 && (
             <span className="inline-flex items-center gap-1.5">
@@ -416,71 +414,41 @@ function AgentsStatBento({
 
   return (
     <div className="space-y-3">
-      <Stagger className="grid grid-cols-2 grid-rows-2 gap-4 @3xl:grid-cols-3">
-        {/* ── The headline block: agents online right now ─────────────── */}
-        <StaggerItem lift className="col-span-2 row-span-2 min-h-0">
-          <div className="relative flex h-full min-h-[10rem] flex-col justify-between overflow-hidden rounded-2xl bg-signal-yellow p-5 text-signal-ink">
-            <span className="relative text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
-              Fleet
-            </span>
-            <span className="relative mt-3 min-w-0">
-              <span className="font-title block text-[3.5rem] font-bold leading-[0.85] tracking-tight">
-                <AnimatedNumber value={onlineCount} />
-              </span>
-              <span className="mt-1.5 block text-sm font-medium opacity-70">
-                {onlineCount === 1 ? "agent" : "agents"} online right now
-              </span>
-            </span>
-            <span className="relative mt-4 min-w-0 border-t border-current/20 pt-2.5">
-              <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-55">
-                Fleet size
-              </span>
-              <span className="mt-0.5 block text-sm font-semibold">
-                {totalCount} {totalCount === 1 ? "agent" : "agents"} total
-              </span>
-            </span>
-          </div>
-        </StaggerItem>
-
-        {/* ── The two that move, stacked in one column ─────────────────── */}
-        <StaggerItem lift className="min-h-0 @3xl:col-start-3 @3xl:row-start-1">
-          <div className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-teal p-4 text-signal-ink">
-            <span className="flex items-center gap-3">
-              <span className="font-title block truncate text-[2.25rem] font-bold leading-[0.85] tracking-tight">
-                ${(spend?.cost7 ?? 0).toFixed(2)}
-              </span>
-            </span>
-            <span className="mt-auto border-t border-current/20 pt-2">
-              <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
-                Spend · 7d
-              </span>
-              <span className="mt-0.5 block text-tiny font-medium opacity-70">
-                {spend ? `$${spend.cost30.toFixed(2)} over 30d` : "no spend yet"}
-              </span>
-            </span>
-          </div>
-        </StaggerItem>
-
-        <StaggerItem lift className="min-h-0 @3xl:col-start-3 @3xl:row-start-2">
-          <div className="flex h-full min-h-0 flex-col justify-between overflow-hidden rounded-2xl bg-signal-pink p-4 text-signal-ink">
-            <span className="flex items-center gap-3">
-              <span className="font-title block text-[2.25rem] font-bold leading-[0.85] tracking-tight">
-                <AnimatedNumber value={spend?.runs7 ?? 0} />
-              </span>
-            </span>
-            <span className="mt-auto border-t border-current/20 pt-2">
-              <span className="block text-tiny font-semibold uppercase tracking-[0.14em] opacity-60">
-                Runs · 7d
-              </span>
-              <span className="mt-0.5 block text-tiny font-medium opacity-70">
-                {spend && spend.tokens7 > 0
-                  ? `${compactNumber(spend.tokens7)} tokens`
-                  : "nothing run yet"}
-              </span>
-            </span>
-          </div>
-        </StaggerItem>
-      </Stagger>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="deel-metric-tile">
+          <p className="font-title text-2xl font-semibold tracking-tight">
+            <AnimatedNumber value={onlineCount} />
+          </p>
+          <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+            <span aria-hidden className="inline-block size-2 rounded-full bg-[#12b76a]" />
+            of {totalCount} {totalCount === 1 ? "agent" : "agents"} online
+          </p>
+        </div>
+        <div className="deel-metric-tile">
+          <p className="font-title text-2xl font-semibold tracking-tight">
+            <AnimatedNumber value={totalCount} />
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">total agents</p>
+        </div>
+        <div className="deel-metric-tile">
+          <p className="font-title text-2xl font-semibold tracking-tight">
+            ${(spend?.cost7 ?? 0).toFixed(2)}
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {spend ? `$${spend.cost30.toFixed(2)} over 30d` : "no spend yet"}
+          </p>
+        </div>
+        <div className="deel-metric-tile">
+          <p className="font-title text-2xl font-semibold tracking-tight">
+            <AnimatedNumber value={spend?.runs7 ?? 0} />
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {spend && spend.tokens7 > 0
+              ? `${compactNumber(spend.tokens7)} tokens`
+              : "nothing run yet"}
+          </p>
+        </div>
+      </div>
 
       {spend && spend.topSpenders.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -839,7 +807,7 @@ function AgentGroup({
 }) {
   if (agents.length === 0) return null;
   return (
-    <section className="@container overflow-hidden rounded-2xl panel">
+    <section className="@container overflow-hidden rounded-[var(--ui-radius-card)] border border-border bg-card">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3.5">
         <h3 className="text-base font-medium">{label}</h3>
         {!canManage && (
@@ -849,10 +817,9 @@ function AgentGroup({
         )}
       </div>
       <Stagger className="divide-y divide-border">
-        {agents.map((agent, index) => (
+        {agents.map((agent) => (
           <StaggerItem key={agent._id}>
             <AgentRow
-              index={index + 1}
               agent={agent}
               taskTitles={taskTitles}
               canManage={canManage}
@@ -870,12 +837,10 @@ function AgentGroup({
 // signal detail, current status) reads as prose rather than tags, the same
 // way Today's tasks on Home keeps its meta line under the title.
 function AgentRow({
-  index,
   agent,
   taskTitles,
   canManage,
 }: {
-  index: number;
   agent: Doc<"agents">;
   taskTitles: Record<string, string>;
   canManage: boolean;
@@ -910,12 +875,6 @@ function AgentRow({
   return (
     <div>
       <div className="flex items-start gap-3 px-5 py-3">
-        <span
-          aria-hidden
-          className="w-6 flex-shrink-0 pt-1.5 text-right font-title text-xs tabular-nums text-muted-foreground"
-        >
-          {String(index).padStart(2, "0")}
-        </span>
         <ActorGlyph
           seed={agent._id}
           name={agent.name}
@@ -927,7 +886,7 @@ function AgentRow({
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <Link
               href={`/dashboard/agents/${agent._id}`}
-              className="min-w-0 flex-1 basis-40 truncate text-sm font-semibold hover:underline"
+              className="deel-name-link min-w-0 flex-1 basis-40 truncate text-sm hover:underline"
             >
               {agent.name}
             </Link>

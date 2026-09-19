@@ -14,7 +14,7 @@ import {
   PRIORITY_ORDER,
   type TaskPriority,
 } from "@/components/dashboard/priority";
-import { Card, CardContent } from "@/components/ui/card";
+import { TotalCount } from "@/components/dashboard/deel-ui";
 import {
   Table,
   TableBody,
@@ -170,9 +170,9 @@ export function TableView({
   }, [tasks, sortKey, sortDir, statusPosition]);
 
   return (
-    <Card className="gap-0 overflow-hidden rounded-2xl py-0">
-      <CardContent className="px-0 py-0">
-        <div className="overflow-x-auto overscroll-x-contain">
+    <div>
+      <TotalCount count={tasks.length} singular="task" className="mb-2" />
+      <div className="overflow-x-auto overscroll-x-contain">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow className="hover:bg-transparent">
@@ -205,7 +205,7 @@ export function TableView({
                       key={c.key}
                       className={cn(
                         columnWidth(c.key),
-                        "text-xs uppercase tracking-wider text-muted-foreground",
+                        "text-xs font-medium text-muted-foreground",
                       )}
                     >
                       {c.label}
@@ -241,11 +241,7 @@ export function TableView({
           </Table>
         </div>
         <AddTaskRow listId={listId} />
-        <div className="border-t border-border px-4 py-2 text-xs text-muted-foreground">
-          {tasks.length} task{tasks.length === 1 ? "" : "s"}
-        </div>
-      </CardContent>
-    </Card>
+    </div>
   );
 }
 
@@ -331,7 +327,7 @@ function SortHeader({
         size="sm"
         onClick={() => onClick(sortKey)}
         className={cn(
-          "h-auto gap-1 px-2 py-1 text-xs uppercase tracking-wider hover:bg-accent/60",
+          "h-auto gap-1 px-2 py-1 text-xs font-medium hover:bg-accent/60",
           isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",
         )}
       >
@@ -712,7 +708,7 @@ function TitleCell({
           setEditing(true);
         }}
         className={cn(
-          "min-w-0 cursor-pointer hover:underline",
+          "deel-name-link min-w-0 cursor-pointer hover:underline",
           wrap ? "break-words" : "truncate",
           isDone && "text-muted-foreground line-through",
         )}

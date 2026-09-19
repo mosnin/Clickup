@@ -32,7 +32,15 @@ export const SHELL_INSET =
  * what makes the inset — not the document — the real scroll container and
  * therefore what lets a page's sticky header actually stick.
  */
-export const SHELL_PROVIDER = "app-slab flex";
+/**
+ * Column: Deel's 2025 top bar sits above the work row. The inner
+ * `SHELL_BODY` is the positioned ancestor the absolute sidebar rail
+ * scopes to, so the rail starts under the bar instead of painting over it.
+ */
+export const SHELL_PROVIDER = "app-slab flex flex-col";
+
+/** The row that holds the spaces rail + the page. */
+export const SHELL_BODY = "relative flex min-h-0 min-w-0 flex-1";
 
 /** The gutter every dashboard page is drawn inside. */
 // More air than it had: Apple's surfaces breathe, and the old 16px phone

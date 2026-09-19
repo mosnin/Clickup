@@ -481,7 +481,7 @@ export function MessageComposer({
 
       <div
         className={cn(
-          "soft-field flex items-end gap-1 p-1.5",
+          "deel-chat-composer",
           dragging && "ring-2 ring-[var(--chat-accent)]",
         )}
         onPaste={

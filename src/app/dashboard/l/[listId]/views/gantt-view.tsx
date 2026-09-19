@@ -20,6 +20,12 @@ import { cn } from "@/lib/utils";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { Button } from "@/components/ui/button";
+import {
+  DeelFilterBar,
+  FilterPill,
+  NameLink,
+  TotalCount,
+} from "@/components/dashboard/deel-ui";
 
 // A Gantt you can actually plan on: drag a bar to move the whole task in
 // time, drag either edge to change its start or due date. Changes commit on
@@ -564,6 +570,7 @@ export function GanttView({
         msOnly={msOnly}
         setParam={setParam}
       />
+      <TotalCount count={datedTasks.length} singular="task" />
 
       {loadingAssigneeLanes ? (
         <div className="space-y-2 rounded-2xl panel p-4">
@@ -580,14 +587,14 @@ export function GanttView({
           />
         </div>
       ) : (
-        <div className="overflow-x-auto overscroll-x-contain rounded-2xl panel">
+        <div className="deel-cal overflow-x-auto overscroll-x-contain">
           <div
             className="relative"
             style={{ minWidth: HEADER_COL_PX + totalWidth }}
           >
             <div className="flex">
               <div
-                className="flex flex-shrink-0 items-center px-4 text-tiny font-semibold uppercase tracking-wider text-muted-foreground"
+                className="flex flex-shrink-0 items-center px-4 text-xs text-muted-foreground"
                 style={{ width: HEADER_COL_PX, height: headerHeight }}
               >
                 Task
@@ -749,7 +756,7 @@ export function GanttView({
                   className="group flex"
                   style={{ height: ROW_PX }}
                 >
-                  <Link
+                  <NameLink
                     href={taskPeekHref(searchParams, task._id)}
                     scroll={false}
                     className="flex-shrink-0 truncate px-4 py-2.5 text-sm transition-colors hover:bg-muted"
@@ -757,7 +764,7 @@ export function GanttView({
                     title={task.title}
                   >
                     {task.title}
-                  </Link>
+                  </NameLink>
                   <div
                     className="relative flex-1"
                     style={{ background: gridBackground(DAY_PX) }}
@@ -786,14 +793,14 @@ export function GanttView({
                     ) : (
                       <div
                         className={cn(
-                          "absolute top-1/2 flex -translate-y-1/2 cursor-grab items-center rounded-full px-2 text-xs font-medium text-foreground/80 shadow-sm transition-shadow",
+                          "deel-gantt-bar absolute top-1/2 flex -translate-y-1/2 cursor-grab items-center px-2 text-xs font-medium shadow-sm transition-shadow",
                           isDragging ? "cursor-grabbing shadow-md" : "hover:shadow-md",
                         )}
                         style={{
                           left: offset * DAY_PX + 2,
                           width: Math.max((endOffset - offset + 1) * DAY_PX - 4, 24),
-                          height: 26,
-                          backgroundColor: status?.color ?? "#a9c6f2",
+                          height: 10,
+                          backgroundColor: status?.color ?? undefined,
                         }}
                         title={`${format(addDays(start, offset), "MMM d")} to ${format(addDays(start, endOffset), "MMM d")} · drag to move, edges to resize`}
                         onPointerDown={(e) =>
@@ -807,9 +814,7 @@ export function GanttView({
                             beginDrag(e, task, "start", row.offset, row.endOffset)
                           }
                         />
-                        <span className="pointer-events-none block truncate">
-                          {task.title}
-                        </span>
+                        <span className="sr-only">{task.title}</span>
                         <span
                           role="presentation"
                           className="absolute inset-y-0 right-0 w-2 cursor-ew-resize rounded-r-full"
@@ -840,16 +845,17 @@ export function GanttView({
                 <>
                   <div
                     aria-hidden
-                    className="absolute inset-y-0 w-px bg-foreground/20"
-                    style={{ left: todayOffset * DAY_PX }}
+                    className="deel-gantt-today-line absolute inset-y-0"
+                    style={{ left: todayOffset * DAY_PX + DAY_PX / 2 }}
                   />
                   <span
                     aria-hidden
-                    className="absolute -translate-y-1/2 whitespace-nowrap rounded-full bg-foreground px-1.5 py-0.5 text-micro font-medium uppercase tracking-wider text-background"
-                    style={{ left: todayOffset * DAY_PX + 4, top: headerHeight }}
-                  >
-                    Today
-                  </span>
+                    className="deel-gantt-today-dot absolute -translate-x-1/2 -translate-y-1/2"
+                    style={{
+                      left: todayOffset * DAY_PX + DAY_PX / 2,
+                      top: headerHeight,
+                    }}
+                  />
                 </>
               )}
               {depsOn && arrows.length > 0 && (
@@ -909,67 +915,43 @@ function GanttToolbar({
   setParam: (key: string, value: string | null) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1 text-xs">
+    <DeelFilterBar>
       {ZOOMS.map((z) => (
-        <button
+        <FilterPill
           key={z.key}
-          type="button"
           onClick={() => setParam("zoom", z.key === "day" ? null : z.key)}
           aria-pressed={zoom === z.key}
-          className={cn(
-            "rounded-md px-3 py-1.5 font-medium transition-colors",
-            zoom === z.key
-              ? "bg-accent text-accent-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-          )}
+          active={zoom === z.key}
         >
           {z.label}
-        </button>
+        </FilterPill>
       ))}
       <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />
       {GROUPS.map((g) => (
-        <button
+        <FilterPill
           key={g.label}
-          type="button"
           onClick={() => setParam("group", g.key)}
           aria-pressed={group === g.key}
-          className={cn(
-            "rounded-md px-3 py-1.5 font-medium transition-colors",
-            group === g.key
-              ? "bg-accent text-accent-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-          )}
+          active={group === g.key}
         >
           {g.label}
-        </button>
+        </FilterPill>
       ))}
       <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />
-      <button
-        type="button"
+      <FilterPill
         onClick={() => setParam("deps", depsOn ? "0" : null)}
         aria-pressed={depsOn}
-        className={cn(
-          "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-          depsOn
-            ? "border-transparent bg-foreground text-background"
-            : "border-border bg-background text-muted-foreground hover:text-foreground",
-        )}
+        active={depsOn}
       >
         Dependencies
-      </button>
-      <button
-        type="button"
+      </FilterPill>
+      <FilterPill
         onClick={() => setParam("ms", msOnly ? null : "1")}
         aria-pressed={msOnly}
-        className={cn(
-          "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-          msOnly
-            ? "border-transparent bg-foreground text-background"
-            : "border-border bg-background text-muted-foreground hover:text-foreground",
-        )}
+        active={msOnly}
       >
         Milestones
-      </button>
-    </div>
+      </FilterPill>
+    </DeelFilterBar>
   );
 }

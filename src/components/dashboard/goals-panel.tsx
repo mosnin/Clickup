@@ -7,10 +7,15 @@ import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Picker } from "@/components/ui/picker";
 import { useToast } from "@/components/toast";
+import {
+  DeelBar,
+  EmptyBlob,
+  KvCard,
+  StatusDot,
+  TotalCount,
+} from "@/components/dashboard/deel-ui";
 import { cn } from "@/lib/utils";
 import { errorMessage } from "@/lib/errors";
 import { userSpacesFromTree } from "@/lib/user-spaces";
@@ -84,7 +89,7 @@ export function GoalsPanel({
     return (
       <div className="space-y-3">
         {[0, 1].map((i) => (
-          <Card key={i} className="h-20 animate-pulse bg-muted/40" />
+          <div key={i} className="h-20 animate-pulse rounded-[var(--ui-radius-card)] bg-muted/40" />
         ))}
       </div>
     );
@@ -92,17 +97,18 @@ export function GoalsPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {goals.length === 0
-            ? "Track an outcome: set a target and watch progress roll up as the team works."
-            : `${goals.filter((g) => g.status === "open").length} open · ${goals.filter((g) => g.status === "complete").length} complete`}
-        </p>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setShowForm((v) => !v)}
-        >
+      <div className="flex items-center justify-between gap-3">
+        {goals.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Track an outcome: set a target and watch progress roll up as the team works.
+          </p>
+        ) : (
+          <TotalCount
+            count={goals.filter((g) => g.status === "open").length}
+            singular="open goal"
+          />
+        )}
+        <Button size="sm" onClick={() => setShowForm((v) => !v)}>
           <Plus className="h-3.5 w-3.5" /> New goal
         </Button>
       </div>
@@ -113,6 +119,13 @@ export function GoalsPanel({
           parentId={parentId}
           projects={projects}
           onDone={() => setShowForm(false)}
+        />
+      )}
+
+      {goals.length === 0 && !showForm && (
+        <EmptyBlob
+          title="No goals yet"
+          message="Set a target and watch progress roll up as the team works."
         />
       )}
 
@@ -161,8 +174,9 @@ function CreateGoalForm({
     : null;
 
   return (
-    <Card className="p-4">
+    <KvCard title="New goal">
       <form
+        className="space-y-2 px-5 py-4"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!title.trim() || pending) return;
@@ -185,7 +199,6 @@ function CreateGoalForm({
             setPending(false);
           }
         }}
-        className="space-y-2"
       >
         <Input
           type="text"
@@ -267,7 +280,7 @@ function CreateGoalForm({
           </span>
         </div>
       </form>
-    </Card>
+    </KvCard>
   );
 }
 
@@ -335,16 +348,25 @@ function GoalRow({
   }
 
   return (
-    <Card
-      className={cn(
-        "p-4",
-        goal.status === "complete" && "border-green-500/40",
-        goal.status === "abandoned" && "opacity-60",
-      )}
+    <KvCard
+      className={cn(goal.status === "abandoned" && "opacity-60")}
+      title={goal.title}
+      action={
+        <StatusDot
+          color={
+            goal.status === "complete"
+              ? "var(--color-success, #16a34a)"
+              : goal.status === "abandoned"
+                ? "var(--color-muted-foreground)"
+                : "var(--color-link)"
+          }
+          label={STATUS_LABEL[goal.status]}
+        />
+      }
     >
+      <div className="space-y-3 px-5 pb-4">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <h3 className="text-sm font-medium">{goal.title}</h3>
           {goal.description && (
             <p className="text-xs text-muted-foreground">{goal.description}</p>
           )}
@@ -446,7 +468,8 @@ function GoalRow({
           <ProgressEditor goal={goal} progress={progress} />
         )}
       </div>
-    </Card>
+      </div>
+    </KvCard>
   );
 }
 
@@ -466,18 +489,12 @@ function ProgressEditor({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>
-          {moneyPrefix}
-          {goal.currentValue}
-          <span className="mx-1">/</span>
-          {moneyPrefix}
-          {goal.targetValue}
-          {goal.unit && goal.targetType !== "money" && ` ${goal.unit}`}
-        </span>
-        <span>{Math.round(progress * 100)}%</span>
-      </div>
-      <Progress value={progress * 100} className="h-2" />
+      <DeelBar
+        label={`${moneyPrefix}${goal.currentValue} / ${moneyPrefix}${goal.targetValue}${goal.unit && goal.targetType !== "money" ? ` ${goal.unit}` : ""}`}
+        value={progress * 100}
+        valueLabel={`${Math.round(progress * 100)}%`}
+        max={100}
+      />
       {/* Linked goals derive the number from the project's rollup — the
           server refuses manual setProgress, so no input to offer. */}
       {!goal.linked && (

@@ -136,7 +136,6 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={"Space"}
         description={space.description || "The projects, lists and pages inside this space."}
         icon={Boxes}
         title={space.name}
@@ -149,9 +148,7 @@ export function SpaceView({ spaceId }: { spaceId: string }) {
                 </Badge>
               )}
               {space.archivedAt && (
-                <Badge variant="outline" className="uppercase tracking-wider">
-                  Archived
-                </Badge>
+                <Badge variant="outline">Archived</Badge>
               )}
             </>
           )
@@ -291,7 +288,7 @@ function OverviewTab({
       />
 
       <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        <h2 className="text-sm font-semibold text-foreground">
           {showWhiteboards ? "Pages & boards" : "Pages"}
         </h2>
         {pages.length === 0 && (!showWhiteboards || whiteboards.length === 0) ? (
@@ -423,7 +420,7 @@ function ListSection({
   return (
     <section>
       {title && (
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+        <h2 className="text-sm font-semibold text-foreground">
           <span className="truncate">{title}</span>
         </h2>
       )}
@@ -565,7 +562,7 @@ function ProjectSection({
           />
         ) : (
           <>
-            <h2 className="min-w-0 truncate text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            <h2 className="min-w-0 truncate text-sm font-semibold text-foreground">
               <Link
                 href={`/dashboard/p/${project.projectId}`}
                 className="hover:text-foreground"
@@ -573,7 +570,7 @@ function ProjectSection({
                 {project.name}
               </Link>
             </h2>
-            <span className="flex-shrink-0 text-micro font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="flex-shrink-0 text-micro font-medium  text-muted-foreground">
               Project
             </span>
             <DropdownMenu>
@@ -923,7 +920,7 @@ function NewListCard({
     <button
       type="button"
       onClick={() => setAdding(true)}
-      className="lift flex h-full min-h-[152px] w-full flex-col items-center justify-center gap-2 rounded-2xl bento-tile p-5 text-sm font-medium text-muted-foreground hover:text-foreground"
+      className="flex h-full min-h-[152px] w-full flex-col items-center justify-center gap-2 deel-kv-card p-5 text-sm font-medium text-muted-foreground hover:text-foreground"
     >
       <Plus className="h-4 w-4" />
       New list
@@ -949,7 +946,7 @@ function PageList({
 
   return (
     <div className="rounded-2xl panel p-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <h3 className="text-sm font-semibold text-foreground">
         Pages
       </h3>
       <ul className="mt-2 space-y-0.5">
@@ -965,7 +962,7 @@ function PageList({
               />
               <span className="truncate">{d.title}</span>
               {d.pinned && (
-                <span className="ml-auto flex-shrink-0 text-micro uppercase tracking-wider text-muted-foreground">
+                <span className="ml-auto flex-shrink-0 text-micro  text-muted-foreground">
                   context
                 </span>
               )}
@@ -1030,7 +1027,7 @@ function WhiteboardList({
 
   return (
     <div className="rounded-2xl panel p-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <h3 className="text-sm font-semibold text-foreground">
         Whiteboards
       </h3>
       <ul className="mt-2 space-y-0.5">
@@ -1144,7 +1141,7 @@ function IdentityCard({
 
   return (
     <section className="rounded-2xl panel p-5">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="text-sm font-semibold text-foreground">
         Identity
       </h2>
 
@@ -1245,7 +1242,7 @@ function DefaultStatusesCard({
 
   return (
     <section className="rounded-2xl panel p-5">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="text-sm font-semibold text-foreground">
         Default statuses
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
@@ -1270,7 +1267,7 @@ function DefaultStatusesCard({
                 style={{ backgroundColor: s.color }}
               />
               <span className="flex-1 truncate">{s.name}</span>
-              <span className="flex-shrink-0 text-micro uppercase tracking-wider text-muted-foreground">
+              <span className="flex-shrink-0 text-micro  text-muted-foreground">
                 {CATEGORY_LABEL[s.category]}
               </span>
               <button
@@ -1370,7 +1367,7 @@ function FeaturesCard({
 
   return (
     <section className="rounded-2xl panel p-5">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="text-sm font-semibold text-foreground">
         Features
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
@@ -1442,7 +1439,7 @@ function PrivacyCard({
 
   return (
     <section className="rounded-2xl panel p-5">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="text-sm font-semibold text-foreground">
         Privacy
       </h2>
 
@@ -1465,7 +1462,7 @@ function PrivacyCard({
 
       {space.private && (
         <div className="mt-4 space-y-1.5">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-medium  text-muted-foreground">
             Members
           </p>
           <ul className="space-y-1">
@@ -1544,7 +1541,7 @@ function DangerCard({
 
   return (
     <section className="rounded-2xl panel p-5">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="text-sm font-semibold text-foreground">
         Danger zone
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">

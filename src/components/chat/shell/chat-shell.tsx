@@ -38,6 +38,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { MotionConfig } from "@/components/motion";
 import { CommandPalette } from "@/components/command-palette";
+import { AppTopNav } from "@/components/dashboard/app-top-nav";
 import type { ChatScope } from "@/lib/buzz/channel-types";
 import {
   PresenceProvider,
@@ -283,8 +284,10 @@ export function ChatShell({ children }: { children: ReactNode }) {
           <PresenceProvider scope={scope}>
             <div
               data-chat-shell=""
-              className="flex h-svh w-full overflow-hidden bg-page text-foreground"
+              className="flex h-svh w-full flex-col overflow-hidden bg-page text-foreground"
             >
+              <AppTopNav />
+              <div className="flex min-h-0 min-w-0 flex-1">
               {/* The nav: rail + sidebar. One element, two shapes.
 
                   data-mode-surface="nav" pairs this with the Work shell's
@@ -331,6 +334,7 @@ export function ChatShell({ children }: { children: ReactNode }) {
               >
                 <ChatTopChrome onOpenNav={() => setNavOpen(true)} />
                 <div className="flex min-h-0 min-w-0 flex-1">{children}</div>
+              </div>
               </div>
             </div>
           </PresenceProvider>

@@ -53,7 +53,7 @@ export function PageTitle({
               wrapping to two lines is better than one silently cut, because
               the name is the one thing on the screen you cannot recover from
               elsewhere. */}
-          <h1 className="text-balance text-2xl font-bold tracking-tight sm:text-3xl">
+          <h1 className="text-balance text-2xl font-semibold tracking-tight text-foreground">
             {title}
           </h1>
           {description ? (
@@ -66,8 +66,6 @@ export function PageTitle({
           <div className="flex flex-shrink-0 items-center gap-2">{actions}</div>
         ) : null}
       </div>
-      {/* The hairline the brand system already uses under page titles. */}
-      <div className="title-rule mt-4" />
       {children ? <div className="mt-4">{children}</div> : null}
     </div>
   );

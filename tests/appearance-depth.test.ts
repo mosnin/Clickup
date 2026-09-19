@@ -83,12 +83,11 @@ describe("typography", () => {
   it("emits the shipped pairing by default", () => {
     const tokens = resolveTokens(DEFAULT_APPEARANCE);
     expect(tokens["--ui-font-body"]).toContain("var(--font-instrument)");
-    // Space Grotesk, not Darker Grotesque. And `none`, not 0.5: the optical
-    // correction belongs to the condensed face that needed it, and a default
-    // display face that needs no correction is half the reason it is the
-    // default. Darker Grotesque is still offered, and still carries its 0.5 —
-    // asserted below.
-    expect(tokens["--ui-font-display"]).toContain("var(--font-space-grotesk)");
+    // Deel ships one face: Instrument Sans for body and headings. Space
+    // Grotesk is still offered as a display option; it is no longer the
+    // default, because a pairing is a decision Deel does not make.
+    expect(tokens["--ui-font-display"]).toContain("var(--font-instrument)");
+    expect(tokens["--ui-font-display"]).not.toContain("var(--font-space-grotesk)");
     expect(tokens["--ui-display-size-adjust"]).toBe("none");
   });
 
@@ -137,7 +136,7 @@ describe("secondary-text contrast", () => {
 
 describe("icon weight", () => {
   it("is the shipped stroke by default and clamps to something drawable", () => {
-    expect(resolveTokens(DEFAULT_APPEARANCE)["--ui-icon-stroke"]).toBe("2.00");
+    expect(resolveTokens(DEFAULT_APPEARANCE)["--ui-icon-stroke"]).toBe("1.75");
     expect(normalizeAppearance({ iconStroke: 0 }).iconStroke).toBeGreaterThan(0);
     expect(normalizeAppearance({ iconStroke: 40 }).iconStroke).toBeLessThan(4);
   });

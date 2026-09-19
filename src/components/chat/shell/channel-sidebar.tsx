@@ -32,7 +32,6 @@ import {
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { ModeSwitcher } from "@/components/chat/mode-switcher";
 import { ChannelBrowserDialog } from "@/components/chat/channel-browser";
 import { cn } from "@/lib/utils";
 import { useChatShell } from "./chat-shell";
@@ -97,17 +96,10 @@ export function ChannelSidebar() {
       <div className="flex min-h-0 w-full flex-1 flex-col">
         {/* Pinned header */}
         <div className="px-2 pb-1 pt-1.5">
-          {/* Work or Chat, at the top of the sidebar — the same place, and the
-              same control, as the Work dashboard puts it. Mode is the coarsest
-              question the navigation answers, so it sits above the search that
-              only reaches into this one. It lived in the top chrome first,
-              which put the way out of the application in a different corner
-              from the way around it. */}
-          <ModeSwitcher className="mb-1.5" />
           {/* Which community, in the same slot and the same shape as the Work
-              sidebar's workspace control. This replaced a 56px icon rail —
-              see community-switcher.tsx for why a second navigation for the
-              same question had to go rather than be restyled. */}
+              top bar's workspace control. Work ⇄ Chat now lives on AppTopNav
+              — Deel's module pills — so this rail does not ask the same
+              question twice. */}
           <CommunitySwitcher />
           <button
             type="button"
@@ -121,7 +113,7 @@ export function ChannelSidebar() {
           >
             <Search aria-hidden className="chat-quiet size-3.5 shrink-0" />
             <span className="chat-quiet flex-1 truncate text-left">
-              Search everything
+              Find a chat
             </span>
             <kbd className="chat-quiet shrink-0 text-tiny font-medium">
               ⌘K
@@ -327,6 +319,16 @@ export function ChannelSidebar() {
             `w-full` by design, and sharing a row with the profile card is what
             forced the one-button form in the first place. */}
         <div className="flex flex-col gap-1 px-2 pb-2 pt-1">
+          {scope ? (
+            <button
+              type="button"
+              onClick={() => setBrowsing(true)}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full bg-foreground px-4 text-sm font-medium text-background"
+            >
+              <Plus aria-hidden className="size-3.5" />
+              New chat
+            </button>
+          ) : null}
           <ChatCustomiseRow />
           <ThemeToggle />
           <ChatProfileCard />

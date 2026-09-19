@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
@@ -36,9 +35,13 @@ import { cn } from "@/lib/utils";
 import { parseQuickAdd } from "@/lib/quick-add";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
 import { EASE, motion } from "@/components/motion";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DeelFilterBar,
+  FilterPill,
+  NameLink,
+} from "@/components/dashboard/deel-ui";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -383,7 +386,7 @@ export function BoardView({
   return (
     <>
       {moveError && (
-        <Card className="mb-3 flex-row items-start gap-2 rounded-lg border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+        <div className="mb-3 flex items-start gap-2 rounded-[var(--ui-radius-card)] bg-destructive/10 p-3 text-sm text-destructive">
           <span className="min-w-0 flex-1">{moveError}</span>
           <Button
             type="button"
@@ -395,7 +398,7 @@ export function BoardView({
           >
             Dismiss
           </Button>
-        </Card>
+        </div>
       )}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <LaneToggle mode={laneMode} />
@@ -440,7 +443,7 @@ export function BoardView({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, ease: EASE, delay: li * 0.05 }}
                 aria-label={lane.label}
-                className="bento-tile p-3"
+                className="deel-kv-card p-3"
               >
                 <LaneHeader lane={lane} laneMode={laneMode} />
                 <div className="flex gap-3 overflow-x-auto overscroll-x-contain pb-1 pt-2">
@@ -504,29 +507,23 @@ function LaneToggle({ mode }: { mode: LaneMode }) {
   ];
 
   return (
-    <div
+    <DeelFilterBar
       role="tablist"
       aria-label="Swimlanes"
-      className="flex items-center gap-1 text-sm"
+      className="w-auto"
     >
       {options.map((o) => (
-        <button
+        <FilterPill
           key={o.key}
-          type="button"
           role="tab"
           aria-selected={mode === o.key}
+          active={mode === o.key}
           onClick={() => setLane(o.key)}
-          className={cn(
-            "rounded-md px-3 py-1.5 transition-colors",
-            mode === o.key
-              ? "bg-accent font-medium text-foreground"
-              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-          )}
         >
           {o.label}
-        </button>
+        </FilterPill>
       ))}
-    </div>
+    </DeelFilterBar>
   );
 }
 
@@ -627,12 +624,12 @@ function Column({
       ref={setNodeRef}
       aria-label={status.name}
       className={cn(
-        "flex w-72 flex-shrink-0 flex-col rounded-lg bg-muted/50 transition-shadow",
+        "deel-board-col flex w-72 flex-shrink-0 flex-col transition-shadow",
         isOver && "ring-2 ring-foreground/20",
       )}
     >
       <header className="flex items-center justify-between gap-2 px-3 py-2">
-        <span className="inline-flex min-w-0 items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="inline-flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
           <span
             aria-hidden
             className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
@@ -887,9 +884,9 @@ function TaskCard({
         transition,
       }}
     >
-      <Card
+      <div
         className={cn(
-          "gap-2 rounded-xl p-3 shadow-sm",
+          "deel-board-card flex flex-col gap-2",
           isDragging && "opacity-30",
         )}
       >
@@ -903,10 +900,10 @@ function TaskCard({
           >
             <GripVertical className="h-4 w-4" />
           </button>
-          <Link
+          <NameLink
             href={taskPeekHref(searchParams, task._id)}
             scroll={false}
-            className="flex min-w-0 flex-1 items-start gap-1.5 text-sm font-medium hover:underline"
+            className="flex min-w-0 flex-1 items-start gap-1.5 text-sm"
           >
             {task.milestone && (
               <span
@@ -921,11 +918,11 @@ function TaskCard({
               {task.title}
               <TaskBadges task={task} />
             </span>
-          </Link>
+          </NameLink>
         </div>
         <CardContext parentTitle={parentTitle} location={locationLabel} />
         <CardMeta task={task} />
-      </Card>
+      </div>
     </li>
   );
 }
@@ -938,13 +935,13 @@ function CardChrome({
   dragging?: boolean;
 }) {
   return (
-    <Card
+    <div
       className={cn(
-        "gap-2 rounded-xl p-3 shadow-md",
+        "deel-board-card flex flex-col gap-2 shadow-md",
         dragging && "rotate-2",
       )}
     >
-      <p className="flex items-start gap-1.5 text-sm font-medium">
+      <p className="flex items-start gap-1.5 text-sm font-medium text-[var(--color-link)]">
         {task.milestone && (
           <span
             aria-hidden
@@ -958,7 +955,7 @@ function CardChrome({
         </span>
       </p>
       <CardMeta task={task} />
-    </Card>
+    </div>
   );
 }
 

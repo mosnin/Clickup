@@ -6,13 +6,11 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/toast";
 import { useMutation, useQuery } from "convex/react";
 import {
-  ArrowLeft,
   Check,
   ChevronDown,
   ChevronUp,
   Copy,
   Plus,
-  Settings,
   Trash2,
   X,
 } from "lucide-react";
@@ -39,6 +37,12 @@ import {
 } from "@/components/ui/card";
 import { Picker } from "@/components/ui/picker";
 import { PageHeader } from "@/components/dashboard/page-header";
+import {
+  BackLink,
+  KvCard,
+  KvRow,
+  SettingsGrid,
+} from "@/components/dashboard/deel-ui";
 import { ScheduledTasksSection } from "@/components/dashboard/scheduled-tasks-section";
 import { FieldTypePicker } from "@/components/dashboard/field-type-picker";
 import { useListScope } from "../use-list-scope";
@@ -114,27 +118,17 @@ export function ListSettings({ listId }: { listId: string }) {
 
   return (
     <div className="space-y-6">
-      <Link
-        href={`/dashboard/l/${list._id}`}
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> {list.name}
-      </Link>
+      <BackLink href={`/dashboard/l/${list._id}`}>{list.name}</BackLink>
 
       <PageHeader
-        eyebrow={"List settings"}
-        description={"Statuses, custom fields, automations and schedules for this list."}
-        icon={Settings}
-        title={`${list.name} settings`}
-        context={
-          <span className="truncate">
-            Operations, statuses, custom fields, automations, and schedules
-          </span>
-        }
+        title="Settings"
+        description="Statuses, fields, automations, and schedules for this list."
       />
 
-      <IdentityCard listId={list._id} list={list} />
-      <OperationsSection listId={list._id} list={list} />
+      <SettingsGrid>
+        <IdentityCard listId={list._id} list={list} />
+        <OperationsSection listId={list._id} list={list} />
+      </SettingsGrid>
       <StatusesSection listId={list._id} statuses={statuses} />
       <FieldsSection listId={list._id} fields={fields} />
       <AutomationsSection
@@ -142,11 +136,11 @@ export function ListSettings({ listId }: { listId: string }) {
         automations={automations}
         statuses={statuses}
       />
-      <Card className="rounded-2xl">
-        <CardContent>
+      <KvCard title="Schedules">
+        <div className="px-5 pb-5">
           <ScheduledTasksSection listId={list._id} />
-        </CardContent>
-      </Card>
+        </div>
+      </KvCard>
       <FormsSection listId={list._id} />
       <DangerCard list={list} />
     </div>
@@ -185,30 +179,23 @@ function IdentityCard({
   }
 
   return (
-    <Card className="rounded-2xl">
-      <CardHeader>
-        <CardTitle>Identity</CardTitle>
-        <CardDescription>Rename this list.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <label className="block text-xs font-medium text-muted-foreground">
-          Name
-          <Input
-            value={name}
-            onChange={(e) => setName(e.currentTarget.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                (e.currentTarget as HTMLInputElement).blur();
-              } else if (e.key === "Escape") {
-                setName(list.name);
-              }
-            }}
-            className="mt-1.5"
-          />
-        </label>
-      </CardContent>
-    </Card>
+    <KvCard title="Identity">
+      <KvRow label="Name">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              (e.currentTarget as HTMLInputElement).blur();
+            } else if (e.key === "Escape") {
+              setName(list.name);
+            }
+          }}
+          className="text-right"
+        />
+      </KvRow>
+    </KvCard>
   );
 }
 
@@ -329,7 +316,7 @@ function OperationsSection({
     : undefined;
 
   return (
-    <Card className="rounded-2xl">
+    <Card className="deel-kv-card py-0 shadow-none">
       <CardHeader>
         <CardTitle>Operations</CardTitle>
         <CardDescription>
@@ -582,7 +569,7 @@ function DangerCard({ list }: { list: Doc<"lists"> }) {
   }
 
   return (
-    <Card className="rounded-2xl">
+    <Card className="deel-kv-card py-0 shadow-none">
       <CardHeader>
         <CardTitle>Danger zone</CardTitle>
         <CardDescription>
@@ -644,7 +631,7 @@ function StatusesSection({
   const remove = useMutation(api.listStatuses.remove);
 
   return (
-    <Card className="rounded-2xl">
+    <Card className="deel-kv-card py-0 shadow-none">
       <CardHeader>
         <CardTitle>Statuses</CardTitle>
         <CardDescription>
@@ -913,7 +900,7 @@ function FieldsSection({
   }
 
   return (
-    <Card className="rounded-2xl">
+    <Card className="deel-kv-card py-0 shadow-none">
       <CardHeader>
         <CardTitle>Custom fields</CardTitle>
         <CardDescription>
@@ -1619,7 +1606,7 @@ function AutomationsSection({
   const remove = useMutation(api.listAutomations.remove);
 
   return (
-    <Card className="rounded-2xl">
+    <Card className="deel-kv-card py-0 shadow-none">
       <CardHeader>
         <CardTitle>Automations</CardTitle>
         <CardDescription>
@@ -1900,7 +1887,7 @@ function FormsSection({ listId }: { listId: Id<"lists"> }) {
   const [pending, setPending] = useState(false);
 
   return (
-    <Card className="rounded-2xl">
+    <Card className="deel-kv-card py-0 shadow-none">
       <CardHeader>
         <CardTitle>Form</CardTitle>
         <CardDescription>

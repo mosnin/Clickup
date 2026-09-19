@@ -148,8 +148,9 @@ export function MessageRow({
       // namespaced because a message can contain groups of its own.
       className={cn(
         "group/message relative px-5 outline-none transition-colors",
-        grouped ? "py-0.5" : "pt-3",
-        "hover:bg-[var(--chat-hover)] focus-within:bg-[var(--chat-hover)]",
+        message.mine ? "py-1.5" : grouped ? "py-0.5" : "pt-3",
+        !message.mine &&
+          "hover:bg-[var(--chat-hover)] focus-within:bg-[var(--chat-hover)]",
         // A ring only for the keyboard: a visible outline on every tap would
         // leave the phone permanently drawing a box around the last thing
         // touched.
@@ -176,27 +177,29 @@ export function MessageRow({
         />
       ) : null}
 
-      <div className="flex gap-3">
-        <div className="w-9 shrink-0">
-          {grouped ? (
-            // The gutter is not empty — it holds the time, revealed on hover.
-            // Reserving the width is what keeps a continuation's text aligned
-            // with the header row's above it.
-            <span className="mt-1 block text-right text-micro tabular-nums text-[var(--chat-quiet)] opacity-0 transition-opacity group-hover/message:opacity-100">
-              {formatTime(message.createdAt)}
-            </span>
-          ) : (
-            <ActorAvatar
-              label={message.author}
-              pubkey={message.pubkey}
-              avatarUrl={message.authorAvatarUrl}
-              isAgent={message.isAgent}
-            />
-          )}
-        </div>
+      <div className={cn("flex gap-3", message.mine && "justify-end")}>
+        {message.mine ? null : (
+          <div className="w-9 shrink-0">
+            {grouped ? (
+              // The gutter is not empty — it holds the time, revealed on hover.
+              // Reserving the width is what keeps a continuation's text aligned
+              // with the header row's above it.
+              <span className="mt-1 block text-right text-micro tabular-nums text-[var(--chat-quiet)] opacity-0 transition-opacity group-hover/message:opacity-100">
+                {formatTime(message.createdAt)}
+              </span>
+            ) : (
+              <ActorAvatar
+                label={message.author}
+                pubkey={message.pubkey}
+                avatarUrl={message.authorAvatarUrl}
+                isAgent={message.isAgent}
+              />
+            )}
+          </div>
+        )}
 
-        <div className="min-w-0 flex-1">
-          {!grouped ? (
+        <div className={cn("min-w-0", message.mine ? "" : "flex-1")}>
+          {message.mine ? null : !grouped ? (
             <header className="flex flex-wrap items-baseline gap-x-2">
               <span className="text-sm font-semibold">{message.author}</span>
               {message.isAgent ? (
@@ -241,6 +244,23 @@ export function MessageRow({
             />
           ) : asHuddle ? (
             <HuddleCard eventId={message.id} className="mt-0.5 max-w-md" />
+          ) : message.mine ? (
+            <div className="deel-chat-bubble-mine">
+              {visibleBody || media.length === 0 ? (
+                <p className="whitespace-pre-wrap break-words">
+                  <MessageBody body={visibleBody} />
+                  {message.edited ? (
+                    <span
+                      title="This message has been edited"
+                      className="ml-1 align-baseline text-tiny text-[var(--chat-quiet)]"
+                    >
+                      (edited)
+                    </span>
+                  ) : null}
+                </p>
+              ) : null}
+              <MessageMedia tags={message.tags} review={review} />
+            </div>
           ) : (
             <>
               {visibleBody || media.length === 0 ? (

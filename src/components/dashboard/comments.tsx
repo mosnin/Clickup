@@ -6,10 +6,10 @@ import { useMutation, useQuery } from "convex/react";
 import { CheckCircle2, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Picker } from "@/components/ui/picker";
 import { UserAvatar } from "@/components/identity/user-avatar";
+import { EmptyBlob, StatusDot } from "@/components/dashboard/deel-ui";
 import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { useToast } from "@/components/toast";
@@ -82,11 +82,9 @@ export function Comments({
   return (
     <div className="space-y-4">
       {topLevel.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {emptyHint ?? "No comments yet."}
-        </p>
+        <EmptyBlob title={emptyHint ?? "No comments yet."} />
       ) : (
-        <div className="bento overflow-hidden rounded-2xl bg-card">
+        <div className="deel-kv-card">
           <ul className="divide-y divide-border">
             {topLevel.map((m) => (
               <motion.li
@@ -182,9 +180,10 @@ function MessageItem({
               {message.editedAt && " · edited"}
             </span>
             {assignee && (
-              <Badge className="bg-brand-50 text-micro uppercase tracking-wider text-brand-700">
-                Assigned to {assignee.name ?? "user"}
-              </Badge>
+              <StatusDot
+                color="var(--color-link)"
+                label={`Assigned to ${assignee.name ?? "user"}`}
+              />
             )}
             <span className="ml-auto flex items-center gap-1">
               {message.assigneeClerkId && (
@@ -426,7 +425,7 @@ function renderPart(
   return (
     <span
       key={i}
-      className="mx-0.5 inline-flex items-baseline rounded-full bg-brand-100 px-1.5 text-brand-700"
+      className="deel-name-link mx-0.5 inline-flex items-baseline"
     >
       @{user?.name ?? part.name}
     </span>
@@ -567,9 +566,10 @@ function Composer({
 
   return (
     <form onSubmit={submit} className="relative mt-2 space-y-2">
+      <div className="deel-chat-composer !rounded-[var(--ui-radius-control)]">
       <textarea
         ref={taRef}
-        rows={3}
+        rows={2}
         value={body}
         onChange={onChange}
         onKeyDown={(e) => {
@@ -579,8 +579,9 @@ function Composer({
           }
         }}
         placeholder={placeholder ?? "Write a message…"}
-        className="soft-field w-full resize-none p-3 text-sm focus:outline-none"
+        className="min-h-10 flex-1 resize-none bg-transparent py-2 text-sm focus:outline-none"
       />
+      </div>
 
       {popover && filtered.length > 0 && (
         <ul className="absolute z-20 mt-0 w-64 overflow-hidden rounded-2xl border border-border bg-popover text-popover-foreground shadow-lg">

@@ -12,21 +12,19 @@ import {
   startOfDay,
 } from "date-fns";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { Plus } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Monogram } from "@/components/dashboard/monogram";
 import { taskPeekHref } from "@/components/dashboard/task-peek";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { useToast } from "@/components/toast";
 import {
-  PriorityDot,
-  type TaskPriority,
-} from "@/components/dashboard/priority";
+  KvCard,
+  NameLink,
+  TotalCount,
+} from "@/components/dashboard/deel-ui";
 
 // One horizontal lane per assignee, task bars laid on a shared date axis —
 // complements Gantt (one row per task) by answering "who's doing what,
@@ -303,14 +301,15 @@ export function TimelineView({
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <TotalCount count={datedTasks.length} singular="dated task" plural="dated tasks" />
         <AddTaskButton listId={listId} />
       </div>
-      <div className="overflow-x-auto overscroll-x-contain rounded-2xl panel">
+      <div className="overflow-x-auto overscroll-x-contain deel-cal">
         <div style={{ minWidth: HEADER_PX + totalWidth }}>
           <div className="flex">
             <div
-              className="sticky left-0 z-10 flex-shrink-0 bg-background px-4 py-2.5 text-tiny font-semibold uppercase tracking-wider text-muted-foreground"
+              className="sticky left-0 z-10 flex-shrink-0 bg-card px-4 py-2.5 text-sm font-medium text-muted-foreground"
               style={{ width: HEADER_PX }}
             >
               Assignee
@@ -341,26 +340,16 @@ export function TimelineView({
             return (
               <div key={lane.id} className="flex">
                 <div
-                  className="sticky left-0 z-10 flex flex-shrink-0 items-center gap-2 bg-background px-4"
+                  className="sticky left-0 z-10 flex flex-shrink-0 items-center gap-2 bg-card px-4"
                   style={{ width: HEADER_PX, height: laneHeight }}
                 >
-                  <Monogram name={lane.name} size="sm" />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className="truncate text-sm font-medium">
-                        {lane.name}
-                      </p>
-                      {lane.kind === "agent" && (
-                        <Badge
-                          variant="secondary"
-                          className="flex-shrink-0 gap-0 border-transparent bg-muted px-1.5 py-0.5 text-micro tracking-wider text-muted-foreground uppercase"
-                        >
-                          Agent
-                        </Badge>
-                      )}
-                    </div>
+                    <p className="truncate text-sm font-medium">
+                      {lane.name}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {lane.openCount} open
+                      {lane.kind === "agent" ? " · agent" : ""}
                     </p>
                   </div>
                 </div>
@@ -374,7 +363,6 @@ export function TimelineView({
                   }}
                 >
                   {lane.items.map(({ task, subRow, ...base }) => {
-                    const status = statuses.find((s) => s._id === task.statusId);
                     let offset = base.offset;
                     let endOffset = base.endOffset;
                     if (drag?.taskId === task._id) {
@@ -395,17 +383,16 @@ export function TimelineView({
                       <div
                         key={`${lane.id}-${task._id}`}
                         className={cn(
-                          "group absolute flex cursor-grab items-center rounded-full px-2 text-xs font-medium text-foreground/80 shadow-sm transition-shadow",
+                          "deel-gantt-bar group absolute flex cursor-grab items-center px-2 text-xs font-medium shadow-sm transition-shadow",
                           drag?.taskId === task._id
                             ? "cursor-grabbing shadow-md"
                             : "hover:shadow-md",
                         )}
                         style={{
                           left: offset * DAY_PX + 2,
-                          top: subRow * ROW_PX + (ROW_PX - 26) / 2,
+                          top: subRow * ROW_PX + (ROW_PX - 22) / 2,
                           width: Math.max(span * DAY_PX - 4, 24),
-                          height: 26,
-                          backgroundColor: status?.color ?? "#a9c6f2",
+                          height: 22,
                         }}
                         title={`${task.title} · ${format(addDays(start, base.offset), "MMM d")} to ${format(addDays(start, base.endOffset), "MMM d")} · drag to move, edges to resize`}
                         onPointerDown={(e) =>
@@ -440,18 +427,15 @@ export function TimelineView({
       </div>
 
       {undated.length > 0 && (
-        <div className="rounded-2xl panel p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            No dates · give a task a start or due date to place it here
-          </p>
-          <ul className="mt-2.5 flex flex-wrap gap-2">
+        <KvCard title="No dates">
+          <ul className="flex flex-wrap gap-x-4 gap-y-2 px-5 py-4">
             {undated.map((t) => (
               <li key={t._id}>
                 <UndatedChip task={t} />
               </li>
             ))}
           </ul>
-        </div>
+        </KvCard>
       )}
     </div>
   );
@@ -534,18 +518,12 @@ function AddTaskButton({ listId }: { listId: Id<"lists"> }) {
 function UndatedChip({ task }: { task: Doc<"tasks"> }) {
   const searchParams = useSearchParams();
   return (
-    <Link
+    <NameLink
       href={taskPeekHref(searchParams, task._id)}
       scroll={false}
-      className="flex items-center gap-1 truncate rounded-full bg-muted px-2 py-1 text-xs text-foreground/80 transition-colors hover:bg-brand-100 hover:text-brand-700"
+      className="truncate text-sm"
     >
-      {task.priority && (
-        <PriorityDot
-          priority={task.priority as TaskPriority}
-          className="h-1.5 w-1.5"
-        />
-      )}
-      <span className="truncate">{task.title}</span>
-    </Link>
+      {task.title}
+    </NameLink>
   );
 }

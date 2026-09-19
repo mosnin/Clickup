@@ -98,9 +98,7 @@ export function PagesIndex() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Everything written down"
         description="Investigations, decisions and runbooks — the things that outlive a comment, written by people and agents alike."
-        icon={FileText}
         title="Pages"
         context={
           pages === undefined

@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useQuery } from "convex/react";
-import { User } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { Stagger, StaggerItem } from "@/components/motion";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { EmptyState } from "@/components/dashboard/empty-state";
 
 export default function PersonalPage() {
   const tree = useQuery(api.sidebar.tree, {});
@@ -27,20 +27,15 @@ export default function PersonalPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        icon={User}
         title="Personal"
-        eyebrow="Yours alone"
         description="Just for you. Nothing in here is shared."
       />
 
       {personal.projects.length === 0 && directLists.length === 0 ? (
-        <div className="rounded-2xl panel p-10 text-center">
-          <p className="text-sm text-muted-foreground">
-            No lists yet. Use the <span className="font-medium">+</span> next to{" "}
-            <span className="font-medium">{personal.name}</span> in the sidebar
-            to add a list or project.
-          </p>
-        </div>
+        <EmptyState
+          title="Nothing here yet"
+          message={`Add a list or project next to ${personal.name} in the sidebar.`}
+        />
       ) : (
         <>
           {personal.projects.map((project) => (

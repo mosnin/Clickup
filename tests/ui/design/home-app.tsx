@@ -11,7 +11,8 @@ import { StyleStudio } from "@/components/appearance/style-studio";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 // The shell's classes come from the shell, never retyped — see lib/shell.ts
 // for what the drift cost the last time they were written out twice.
-import { SHELL_INSET, SHELL_PAGE, SHELL_PROVIDER } from "@/lib/shell";
+import { SHELL_BODY, SHELL_INSET, SHELL_PAGE, SHELL_PROVIDER } from "@/lib/shell";
+import { AppTopNav } from "@/components/dashboard/app-top-nav";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import DashboardHome from "@/app/dashboard/page";
 import { galleryData, galleryMutations } from "./stubs/convex-react";
@@ -711,6 +712,8 @@ function Page() {
               rendered by the page could never reach it. */}
           <MintablePanelsProvider>
             <SidebarProvider className={SHELL_PROVIDER}>
+              <AppTopNav />
+              <div className={SHELL_BODY}>
               <DashboardSidebar />
               <SidebarInset className={SHELL_INSET}>
                 <div className={SHELL_PAGE}>
@@ -733,6 +736,7 @@ function Page() {
                   )}
                 </div>
               </SidebarInset>
+              </div>
             </SidebarProvider>
             {STUDIO && <StudioOpen />}
             <StyleStudio />

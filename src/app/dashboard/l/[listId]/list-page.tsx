@@ -5,13 +5,13 @@ import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
-import { Folder, Plus, Settings, Star, X } from "lucide-react";
+import { Plus, Settings, Star, X } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { DeelFilterBar } from "@/components/dashboard/deel-ui";
 import {
   PresenceRail,
   usePresence,
@@ -211,31 +211,24 @@ export function ListPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={"List"}
-        icon={Folder}
         title={list.name}
+        description={list.description}
         context={
           <>
             <PresenceRail surfaceType="list" surfaceId={listId} />
             {list.projectStatus && (
-              <Badge
-                variant="outline"
-                className={cn(
-                  "flex-shrink-0 border-transparent text-foreground",
-                  PROJECT_STATUS_CHIP[list.projectStatus].className,
-                )}
-              >
+              <span className="inline-flex items-center gap-1.5 text-sm">
+                <span
+                  aria-hidden
+                  className={cn(
+                    "inline-block size-2 rounded-full",
+                    list.projectStatus === "on_track" && "bg-[#12b76a]",
+                    list.projectStatus === "at_risk" && "bg-[#f79009]",
+                    list.projectStatus === "off_track" && "bg-[#f04438]",
+                    list.projectStatus === "paused" && "bg-muted-foreground",
+                  )}
+                />
                 {PROJECT_STATUS_CHIP[list.projectStatus].label}
-              </Badge>
-            )}
-            <span className="flex-shrink-0">
-              {filtered
-                ? `${topLevelTasks.length} of ${total} task${total === 1 ? "" : "s"}`
-                : `${total} task${total === 1 ? "" : "s"}`}
-            </span>
-            {list.description && (
-              <span className="truncate" title={list.description}>
-                {list.description}
               </span>
             )}
           </>
@@ -284,31 +277,29 @@ export function ListPage({
           </>
         }
       >
-        <div className="flex flex-col gap-2 pt-1 pb-3">
-          <ViewTabs listId={list._id} active={view} defaultView={defaultView} />
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <ViewCustomizePanel
-              listId={list._id}
-              view={view}
-              defaultView={list.defaultView}
-              settings={settings}
-              update={update}
-              reset={reset}
-              customized={customized}
-              customFields={fields}
-            />
-            <SavedViewsBar
-              listId={list._id}
-              view={view}
-              flags={[...activeFlags].sort().join(",")}
-              priority={priorityFilter}
-            />
-            {filtersApply && (
-              <FilterBar activeFlags={activeFlags} priority={priorityFilter} />
-            )}
-            <BlueprintQuickCreate listId={list._id} />
-          </div>
+        <ViewTabs listId={list._id} active={view} defaultView={defaultView} />
+        <div className="flex flex-wrap items-center gap-2">
+          <ViewCustomizePanel
+            listId={list._id}
+            view={view}
+            defaultView={list.defaultView}
+            settings={settings}
+            update={update}
+            reset={reset}
+            customized={customized}
+            customFields={fields}
+          />
+          <SavedViewsBar
+            listId={list._id}
+            view={view}
+            flags={[...activeFlags].sort().join(",")}
+            priority={priorityFilter}
+          />
+          <BlueprintQuickCreate listId={list._id} />
         </div>
+        {filtersApply && (
+          <FilterBar activeFlags={activeFlags} priority={priorityFilter} />
+        )}
       </PageHeader>
 
       {view === "overview" && (
@@ -629,7 +620,7 @@ function FilterBar({
   const any = activeFlags.size > 0 || !!priority;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <DeelFilterBar>
       {FLAGS.map((f) => {
         const on = activeFlags.has(f.key);
         return (
@@ -639,10 +630,10 @@ function FilterBar({
             onClick={() => toggleFlag(f.key)}
             aria-pressed={on}
             className={cn(
-              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
               on
-                ? "border-transparent bg-foreground text-background"
-                : "border-border bg-background text-muted-foreground hover:text-foreground",
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
             {f.label}
@@ -659,10 +650,10 @@ function FilterBar({
             onClick={() => setPriority(on ? "" : p)}
             aria-pressed={on}
             className={cn(
-              "rounded-full border px-3 py-1 text-xs font-medium capitalize transition-colors",
+              "rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-colors",
               on
-                ? "border-transparent bg-foreground text-background"
-                : "border-border bg-background text-muted-foreground hover:text-foreground",
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
             {p}
@@ -673,12 +664,12 @@ function FilterBar({
         <button
           type="button"
           onClick={clearAll}
-          className="tap-target inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+          className="tap-target ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
         >
           <X className="h-3 w-3" /> Clear
         </button>
       )}
-    </div>
+    </DeelFilterBar>
   );
 }
 
@@ -688,20 +679,21 @@ function PageSkeleton() {
   return (
     <div className="space-y-6">
       <div className="h-8 w-1/3 animate-pulse rounded-full bg-muted" />
-      <div className="flex gap-1 rounded-full bg-muted p-1">
+      <div className="flex gap-2">
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
-            className="h-7 w-20 animate-pulse rounded-full bg-muted/60"
+            className="h-7 w-16 animate-pulse rounded-full bg-muted/60"
           />
         ))}
       </div>
-      <div className="overflow-hidden rounded-2xl bg-card">
-        <div className="h-9 animate-pulse bg-muted/50" />
+      <div className="h-10 animate-pulse rounded-full bg-muted/40" />
+      <div>
+        <div className="h-9 border-b border-border bg-muted/30" />
         {[0, 1, 2, 3, 4].map((i) => (
           <div
             key={i}
-            className="flex items-center gap-3 border-t border-border px-3 py-2.5"
+            className="flex items-center gap-3 border-b border-border px-3 py-2.5"
           >
             <div className="h-5 w-5 animate-pulse rounded-full bg-muted" />
             <div

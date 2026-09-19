@@ -1,14 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useQuery } from "convex/react";
-import { Timer } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { formatDurationCoarse } from "@/lib/duration";
-import { Card, CardContent } from "@/components/ui/card";
-import { Monogram } from "@/components/dashboard/monogram";
-import { AnimatedNumber, Stagger, StaggerItem } from "@/components/motion";
+import { Stagger, StaggerItem } from "@/components/motion";
+import {
+  EmptyBlob,
+  KvCard,
+  KvRow,
+  NameLink,
+  StatusDot,
+  TotalCount,
+} from "@/components/dashboard/deel-ui";
 
 export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const members = useQuery(api.team.hub, { workspaceId });
@@ -17,66 +21,58 @@ export function TeamHub({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {[0, 1, 2].map((i) => (
-          <Card key={i} className="h-28 animate-pulse bg-muted/40" />
+          <div
+            key={i}
+            className="h-28 animate-pulse rounded-[var(--ui-radius-card)] bg-muted/40"
+          />
         ))}
       </div>
     );
   }
   if (members === null) {
     return (
-      <Card className="items-center py-10 text-center">
-        <CardContent className="text-sm text-muted-foreground">
-          You don&apos;t have access to this workspace&apos;s team.
-        </CardContent>
-      </Card>
+      <EmptyBlob
+        title="Team is out of reach"
+        message="You don't have access to this workspace's team."
+      />
     );
   }
 
+  const tracking = members.filter((m) => m.running).length;
+
   return (
     <div className="space-y-3">
+      <TotalCount
+        count={members.length}
+        singular="member"
+      />
       <p className="text-sm text-muted-foreground">
-        {members.length} member{members.length === 1 ? "" : "s"} ·{" "}
-        {members.filter((m) => m.running).length} currently tracking time
+        {tracking} currently tracking time
       </p>
       <Stagger className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {members.map((m) => (
           <StaggerItem key={m.clerkId}>
-            <Card className="lift gap-0 p-4">
-              <div className="flex items-start gap-3">
-                <Monogram name={m.name} size="lg" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2">
-                    <span className="truncate font-medium">{m.name}</span>
-                    <span className="text-micro uppercase tracking-wider text-muted-foreground">
-                      {m.role}
-                    </span>
-                  </div>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {m.email}
-                  </p>
-                </div>
-              </div>
-
-              <dl className="mt-4 grid grid-cols-3 gap-2 text-center">
-                <Stat label="Open" value={m.openTasks} />
-                <Stat label="Done · 7d" value={m.completedThisWeek} />
-                <Stat
-                  label="Tracked · 7d"
-                  value={formatDurationCoarse(m.trackedThisWeekMs)}
-                />
-              </dl>
-
+            <KvCard
+              title={m.name}
+              action={
+                <span className="text-xs text-muted-foreground">{m.role}</span>
+              }
+            >
+              <KvRow label="Open">{m.openTasks}</KvRow>
+              <KvRow label="Done · 7d">{m.completedThisWeek}</KvRow>
+              <KvRow label="Tracked · 7d">
+                {formatDurationCoarse(m.trackedThisWeekMs)}
+              </KvRow>
               {m.running && (
-                <div className="mt-3 flex items-center gap-2 rounded-2xl border border-red-300/40 bg-red-50/40 p-2 text-xs dark:border-red-800/40 dark:bg-red-950/40">
-                  <Timer className="h-3.5 w-3.5 text-red-600 dark:text-red-400" aria-hidden />
-                  <span className="font-medium text-red-700 dark:text-red-400">Now</span>
+                <div className="flex items-center gap-2 px-5 py-3">
+                  <StatusDot color="var(--color-danger)" label="Now" />
                   <RunningTaskLink
                     taskId={m.running.taskId}
                     title={m.running.taskTitle}
                   />
                 </div>
               )}
-            </Card>
+            </KvCard>
           </StaggerItem>
         ))}
       </Stagger>
@@ -95,29 +91,18 @@ function RunningTaskLink({
   const listId = useQuery(api.tasks.resolveListId, { taskId });
   if (!listId) {
     return (
-      <span className="ml-1 truncate text-muted-foreground" title={title}>
+      <span className="truncate text-sm text-muted-foreground" title={title}>
         {title}
       </span>
     );
   }
   return (
-    <Link
+    <NameLink
       href={`/dashboard/l/${listId}/t/${taskId}`}
-      className="ml-1 truncate text-muted-foreground hover:text-foreground"
+      className="truncate text-sm"
       title={title}
     >
       {title}
-    </Link>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div>
-      <dt className="text-micro uppercase tracking-wider text-muted-foreground">
-        {label}
-      </dt>
-      <dd className="text-lg font-bold tracking-tight"><AnimatedNumber value={value} /></dd>
-    </div>
+    </NameLink>
   );
 }

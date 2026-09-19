@@ -40,6 +40,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { DeelTabs, deelTabClass } from "@/components/dashboard/deel-ui";
 import { Pagination } from "@/components/interior/pagination";
 import { cn } from "@/lib/utils";
 import { UserAvatar } from "@/components/identity/user-avatar";
@@ -99,30 +100,19 @@ export function AdminConsole() {
           )
         }
       >
-        {/* Scrollable tab row, template grammar: rounded-md active fill
-            instead of a pill-style toggle. */}
-        <nav
-          aria-label="Admin sections"
-          className="flex items-center gap-1 overflow-x-auto overscroll-x-contain pb-3 text-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {TABS.map(({ key, label, icon: Icon }) => (
+        <DeelTabs label="Admin">
+          {TABS.map(({ key, label }) => (
             <button
               key={key}
               type="button"
               onClick={() => setTab(key)}
               aria-current={tab === key ? "page" : undefined}
-              className={cn(
-                "inline-flex flex-shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 transition-colors",
-                tab === key
-                  ? "bg-accent font-medium text-accent-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-              )}
+              className={deelTabClass(tab === key)}
             >
-              <Icon className="h-3.5 w-3.5" />
               {label}
             </button>
           ))}
-        </nav>
+        </DeelTabs>
       </PageHeader>
 
       <motion.div

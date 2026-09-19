@@ -5,16 +5,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { InlineCreate } from "@/components/dashboard/inline-create";
 import {
-  AnimatedBar,
-  Stagger,
-  StaggerItem,
-} from "@/components/motion";
-import Counter, { placesFor } from "@/components/counter";
+  DeelBar,
+  KvCard,
+  KvRow,
+  MetricStrip,
+  StatusDot,
+} from "@/components/dashboard/deel-ui";
+import { Stagger, StaggerItem } from "@/components/motion";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
@@ -81,70 +82,36 @@ function AboutCard({
   }
 
   return (
-    <Card className="rounded-2xl p-5">
-      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
-        About
-      </span>
-      <input
-        type="text"
-        value={description}
-        onChange={(e) => setDescription(e.currentTarget.value)}
-        onBlur={() => {
-          if (description !== (list.description ?? "")) {
-            void save({ description });
-          }
-        }}
-        placeholder="What is this project about?"
-        className="mt-2 w-full bg-transparent text-sm focus:outline-none"
-      />
-
-      <span className="mt-6 block text-tiny font-medium uppercase tracking-wider text-muted-foreground">
-        Notes
-      </span>
-      <textarea
-        value={notes}
-        onChange={(e) => setNotes(e.currentTarget.value)}
-        onBlur={() => {
-          if (notes !== (list.notes ?? "")) {
-            void save({ notes });
-          }
-        }}
-        placeholder="Notes, decisions, links. Everything the team should know."
-        className="soft-field mt-2 min-h-40 w-full p-3 text-sm focus:outline-none"
-      />
-    </Card>
-  );
-}
-
-function StatTile({
-  label,
-  value,
-  danger,
-}: {
-  label: string;
-  value: number;
-  danger?: boolean;
-}) {
-  return (
-    <StaggerItem className="bento-tile p-3">
-      <p className="text-micro font-medium uppercase tracking-wider text-muted-foreground">
-        {label}
-      </p>
-      <p
-        className={cn(
-          "mt-1 text-xl font-bold tabular-nums",
-          danger && "text-danger",
-        )}
-      >
-        <Counter
-          value={value}
-          places={placesFor(value)}
-          fontSize={20}
-          padding={3}
-          fontWeight={700}
+    <KvCard title="About">
+      <div className="space-y-4 px-5 pb-5">
+        <input
+          type="text"
+          value={description}
+          onChange={(e) => setDescription(e.currentTarget.value)}
+          onBlur={() => {
+            if (description !== (list.description ?? "")) {
+              void save({ description });
+            }
+          }}
+          placeholder="What is this project about?"
+          className="w-full bg-transparent text-sm focus:outline-none"
         />
-      </p>
-    </StaggerItem>
+        <div>
+          <p className="mb-2 text-sm font-semibold text-foreground">Notes</p>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.currentTarget.value)}
+            onBlur={() => {
+              if (notes !== (list.notes ?? "")) {
+                void save({ notes });
+              }
+            }}
+            placeholder="Notes, decisions, links. Everything the team should know."
+            className="soft-field min-h-40 w-full p-3 text-sm focus:outline-none"
+          />
+        </div>
+      </div>
+    </KvCard>
   );
 }
 
@@ -194,11 +161,7 @@ function ProgressCard({
   const pct = stats.total > 0 ? (stats.done / stats.total) * 100 : 0;
 
   return (
-    <Card className="rounded-2xl p-5">
-      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
-        Progress
-      </span>
-
+    <KvCard title="Progress">
       {stats.total === 0 ? (
         <EmptyState
           compact
@@ -211,62 +174,41 @@ function ProgressCard({
           }
         />
       ) : (
-        <>
-          <Stagger className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatTile label="Total" value={stats.total} />
-            <StatTile label="In progress" value={stats.inProgress} />
-            <StatTile label="Done" value={stats.done} />
-            <StatTile
-              label="Overdue"
-              value={stats.overdue}
-              danger={stats.overdue > 0}
-            />
-          </Stagger>
-
-          <div className="mt-5">
-            <AnimatedBar
-              pct={pct}
-              className="h-2 overflow-hidden rounded-full bg-muted"
-              barClassName="h-full rounded-full bg-brand-600"
-            />
-            <p className="mt-2 text-xs text-muted-foreground">
-              {stats.done} of {stats.total} task
-              {stats.total === 1 ? "" : "s"} done
-            </p>
+        <div className="space-y-5 px-5 pb-5">
+          <MetricStrip
+            className="sm:grid-cols-2 lg:grid-cols-4"
+            items={[
+              { value: stats.total, label: "Total" },
+              { value: stats.inProgress, label: "In progress" },
+              { value: stats.done, label: "Done" },
+              {
+                value: stats.overdue,
+                label: "Overdue",
+                tone: stats.overdue > 0 ? "var(--color-danger)" : undefined,
+              },
+            ]}
+          />
+          <DeelBar
+            label={`${stats.done} of ${stats.total} task${stats.total === 1 ? "" : "s"} done`}
+            value={pct}
+            valueLabel={`${Math.round(pct)}%`}
+            max={100}
+          />
+          <div className="space-y-3">
+            {byStatus.map(({ status, count }) => (
+              <DeelBar
+                key={status._id}
+                label={
+                  <StatusDot color={status.color} label={status.name} />
+                }
+                value={count}
+                max={stats.total}
+              />
+            ))}
           </div>
-
-          <div className="mt-6 space-y-2.5">
-            {byStatus.map(({ status, count }) => {
-              const rowPct = stats.total > 0 ? (count / stats.total) * 100 : 0;
-              return (
-                <div key={status._id} className="flex items-center gap-3">
-                  <span
-                    aria-hidden
-                    className="h-1.5 w-1.5 flex-shrink-0 rounded-full"
-                    style={{ backgroundColor: status.color }}
-                  />
-                  <span className="w-28 flex-shrink-0 truncate text-xs text-foreground/80">
-                    {status.name}
-                  </span>
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${rowPct}%`,
-                        backgroundColor: `${status.color}55`,
-                      }}
-                    />
-                  </div>
-                  <span className="w-6 flex-shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-                    {count}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </>
+        </div>
       )}
-    </Card>
+    </KvCard>
   );
 }
 
@@ -295,14 +237,13 @@ function MilestonesCard({ listId }: { listId: Id<"lists"> }) {
 
   if (milestones === undefined) {
     return (
-      <Card className="rounded-2xl p-5">
-        <div className="h-3 w-24 animate-pulse rounded-full bg-muted" />
-        <div className="mt-4 space-y-2">
+      <KvCard title="Milestones">
+        <div className="space-y-2 px-5 pb-5">
           {[0, 1].map((i) => (
             <div key={i} className="h-16 animate-pulse rounded-xl bg-muted/40" />
           ))}
         </div>
-      </Card>
+      </KvCard>
     );
   }
 
@@ -346,22 +287,20 @@ function MilestonesCard({ listId }: { listId: Id<"lists"> }) {
   }
 
   return (
-    <Card className="rounded-2xl p-5">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
-          Milestones
-        </span>
-        {!creating && (
+    <KvCard
+      title="Milestones"
+      action={
+        !creating ? (
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="tap-target text-xs text-muted-foreground hover:text-foreground"
+            className="tap-target text-sm text-muted-foreground hover:text-foreground"
           >
             Add milestone
           </button>
-        )}
-      </div>
-
+        ) : undefined
+      }
+    >
       {visible.length === 0 && !creating ? (
         <EmptyState
           compact
@@ -374,7 +313,7 @@ function MilestonesCard({ listId }: { listId: Id<"lists"> }) {
           }
         />
       ) : (
-        <Stagger className="mt-4 space-y-2">
+        <Stagger className="divide-y divide-border">
           {visible.map((m) => (
             <StaggerItem key={m._id}>
               <MilestoneRowCard milestone={m} onDelete={() => deleteMilestone(m)} />
@@ -385,13 +324,13 @@ function MilestonesCard({ listId }: { listId: Id<"lists"> }) {
 
       {creating && (
         <InlineCreate
-          className="mt-3"
+          className="px-5 pb-4"
           placeholder="Milestone name…"
           onCancel={() => setCreating(false)}
           onSubmit={submitCreate}
         />
       )}
-    </Card>
+    </KvCard>
   );
 }
 
@@ -431,7 +370,7 @@ function MilestoneRowCard({
   }
 
   return (
-    <div className="bento-tile p-3">
+    <div className="space-y-3 px-5 py-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           {renaming ? (
@@ -450,7 +389,7 @@ function MilestoneRowCard({
               onClick={() => setRenaming(true)}
               title="Rename"
               className={cn(
-                "block max-w-full truncate text-left text-sm font-medium hover:underline",
+                "deel-name-link block max-w-full truncate text-left text-sm font-medium hover:underline",
                 done && "text-muted-foreground line-through",
               )}
             >
@@ -469,7 +408,7 @@ function MilestoneRowCard({
           </p>
         </div>
 
-        <div className="flex flex-shrink-0 items-center gap-1.5">
+        <div className="flex flex-shrink-0 items-center gap-2">
           <button
             type="button"
             aria-pressed={done}
@@ -479,16 +418,17 @@ function MilestoneRowCard({
                 "Couldn't update the milestone",
               )
             }
-            className={cn(
-              "rounded-full px-2.5 py-1 text-xs font-medium text-foreground transition-opacity",
-              done
-                ? "bg-pastel-green dark:text-neutral-900"
-                : overdue
-                  ? "bg-pastel-red dark:text-neutral-900"
-                  : "bg-muted",
-            )}
           >
-            {done ? "Complete" : overdue ? "Overdue" : "Open"}
+            <StatusDot
+              color={
+                done
+                  ? "var(--color-success, #16a34a)"
+                  : overdue
+                    ? "var(--color-danger)"
+                    : "var(--color-muted-foreground)"
+              }
+              label={done ? "Complete" : overdue ? "Overdue" : "Open"}
+            />
           </button>
           <button
             type="button"
@@ -500,16 +440,14 @@ function MilestoneRowCard({
         </div>
       </div>
 
-      <AnimatedBar
-        pct={pct}
-        className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted"
-        barClassName={cn(
-          "h-full rounded-full",
-          done ? "bg-pastel-green" : "bg-brand-600",
-        )}
+      <DeelBar
+        label={`${milestone.done}/${milestone.total}`}
+        value={pct}
+        valueLabel={`${Math.round(pct)}%`}
+        max={100}
       />
 
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <input
           type="date"
           aria-label={`Target date for ${milestone.name}`}
@@ -559,24 +497,10 @@ function DetailsCard({
   });
 
   return (
-    <div className="rounded-2xl bento-tile p-5">
-      <span className="text-tiny font-medium uppercase tracking-wider text-muted-foreground">
-        Details
-      </span>
-      <dl className="mt-3 space-y-2 text-sm">
-        <DetailRow label="Created" value={created} />
-        <DetailRow label="Tasks" value={String(tasks.length)} />
-        <DetailRow label="Statuses" value={String(statuses.length)} />
-      </dl>
-    </div>
-  );
-}
-
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium">{value}</dd>
-    </div>
+    <KvCard title="Details">
+      <KvRow label="Created">{created}</KvRow>
+      <KvRow label="Tasks">{String(tasks.length)}</KvRow>
+      <KvRow label="Statuses">{String(statuses.length)}</KvRow>
+    </KvCard>
   );
 }

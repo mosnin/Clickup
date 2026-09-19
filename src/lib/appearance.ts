@@ -118,19 +118,23 @@ export const DEFAULT_APPEARANCE: Appearance = {
   accentMode: "ink",
   accentHue: 258,
   accentSaturation: 70,
-  radiusScale: 1,
+  // Deel cards are 12px, controls 8–9px. Scale 0.75 → card 0.750rem / control
+  // 0.563rem, which is the product chrome we ship (see globals.css fallbacks).
+  radiusScale: 0.75,
   density: "comfortable",
-  surface: "soft",
+  // Hairline on --color-border, no drop shadow: Deel's card language.
+  surface: "flat",
   fontScale: 1,
   motionScale: 1,
-  headingWeight: 700,
+  headingWeight: 600,
   fontFamily: "instrument",
-  displayFont: "space",
+  // Deel has no display face. Headings are the body grotesque, semibold.
+  displayFont: "match",
   contrast: 1,
-  listStyle: "rows",
+  listStyle: "lines",
   chartStyle: "bar",
-  agentIcon: "orb",
-  iconStroke: 2,
+  agentIcon: "monogram",
+  iconStroke: 1.75,
 };
 
 const RANGES = {
@@ -730,7 +734,21 @@ const preset = (
 });
 
 export const APPEARANCE_PRESETS: AppearancePreset[] = [
-  preset("editorial", "Editorial", "The shipped look: monochrome, soft surfaces.", {}),
+  preset(
+    "deel",
+    "Deel",
+    "The shipped look: light, 12px cards, hairline borders, one typeface.",
+    {},
+  ),
+  preset("editorial", "Editorial", "The previous look: monochrome, soft surfaces, display face.", {
+    radiusScale: 1,
+    surface: "soft",
+    headingWeight: 700,
+    displayFont: "space",
+    listStyle: "rows",
+    agentIcon: "orb",
+    iconStroke: 2,
+  }),
   preset("compact", "Compact", "More on screen. Tighter rows, smaller type.", {
     density: "compact",
     fontScale: 0.92,

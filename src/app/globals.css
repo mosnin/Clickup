@@ -61,19 +61,16 @@
      shadow rather than by the absence of tint — which means the shadow has to
      be able to carry that alone, and `--ui-surface-shadow` below is stronger
      than it was for exactly this reason. */
-  /* The backdrop the app FLOATS ON, not the app. See `.app-slab`. */
-  --color-page: #e8e8ec;
-  /* One step below the cards. White-on-white was the doctrine, and it is
-     what forced a hairline around every card — a rim is the only way two
-     identical whites can meet. The references separate surfaces by VALUE,
-     not by outline: give the canvas a 3% step and the cards stop needing
-     to be drawn. */
-  --color-background: #f7f7f8;
-  --color-foreground: #101010;
-  --color-muted: #f5f5f6;
-  /* Kept in step with `--ui-muted-base` below, which is what actually wins. */
-  --color-muted-foreground: #63636d;
-  --color-border: #ececee;
+  /* Deel 2025 canvas (Mobbin home): a cool sheet with a lavender wash
+     in the top bar, white cards, #EAECF0 hairline — no drop-shadow edge. */
+  --color-page: #f7f6fa;
+  --color-background: #f7f6fa;
+  --color-top-nav: #f0ecf8;
+  --color-foreground: #101828;
+  --color-muted: #f2f4f7;
+  /* Deel gray-500. Kept in step with `--ui-muted-base` below. */
+  --color-muted-foreground: #667085;
+  --color-border: #eaecf0;
 
   /* "Brand" is ink now: black CTAs, gray chips. Kept as a scale so the
      existing bg-brand-* / text-brand-* call sites shift in place. */
@@ -146,12 +143,25 @@
   --color-signal-ink: #101010;
 
   /* Positive delta green (the only saturated color in the system) */
-  --color-positive: #16a34a;
+  --color-positive: #12b76a;
+
+  /* Deel status badges — soft fill, saturated ink. Status IS a pill;
+     buttons and cards are not. */
+  --badge-success-bg: #ecfdf3;
+  --badge-success-fg: #027a48;
+  --badge-warning-bg: #fffaeb;
+  --badge-warning-fg: #b54708;
+  --badge-danger-bg: #fef3f2;
+  --badge-danger-fg: #b42318;
+  --badge-neutral-bg: #f2f4f7;
+  --badge-neutral-fg: #344054;
+  /* Deel 2025 people-table names (Mobbin): medium blue, not brand green. */
+  --color-link: #4060e0;
 
   /* Semantic states. Danger is a muted brick, never alarm-red; unread is the
      single accent used by every unread indicator in the app. */
   --color-danger: #b84136;
-  --color-unread: #5f7d00;
+  --color-unread: #12b76a;
 
   /* Marketing v2 palette — electric azure over deep navy for the hero
      band, white content sections on the shared neutral tokens. Never use
@@ -180,18 +190,18 @@
      valued from our brand — monochrome ink primary, neutral accents,
      pastel chart ramp. The vendored components/ui primitives read these. */
   --color-card: #ffffff;
-  --color-card-foreground: #101010;
+  --color-card-foreground: #101828;
   --color-popover: #ffffff;
-  --color-popover-foreground: #101010;
-  --color-primary: #131316;
+  --color-popover-foreground: #101828;
+  --color-primary: #0c111d;
   --color-primary-foreground: #ffffff;
-  --color-secondary: #f5f5f6;
-  --color-secondary-foreground: #101010;
-  --color-accent: #f0f0f2;
-  --color-accent-foreground: #101010;
-  --color-destructive: #b84136;
-  --color-input: #ececee;
-  --color-ring: #8b8b94;
+  --color-secondary: #f2f4f7;
+  --color-secondary-foreground: #101828;
+  --color-accent: #f2f4f7;
+  --color-accent-foreground: #101828;
+  --color-destructive: #b42318;
+  --color-input: #d0d5dd;
+  --color-ring: #98a2b3;
   --color-chart-1: #d9e8fa;
   --color-chart-2: #d5efde;
   --color-chart-3: #faeec7;
@@ -206,13 +216,13 @@
      the row is active. So the surface goes quiet and the chip does the work
      (`[data-slot="sidebar-menu-button"] > svg` further down). */
   --color-sidebar: #ffffff;
-  --color-sidebar-foreground: #101010;
-  --color-sidebar-primary: #131316;
+  --color-sidebar-foreground: #101828;
+  --color-sidebar-primary: #0c111d;
   --color-sidebar-primary-foreground: #ffffff;
-  --color-sidebar-accent: #f2f2f4;
-  --color-sidebar-accent-foreground: #101010;
-  --color-sidebar-border: #ececed;
-  --color-sidebar-ring: #8b8b94;
+  --color-sidebar-accent: #f2f4f7;
+  --color-sidebar-accent-foreground: #101828;
+  --color-sidebar-border: #eaecf0;
+  --color-sidebar-ring: #98a2b3;
 
   --radius-pill: 9999px;
 }
@@ -224,15 +234,12 @@
    run yet, and on the logged-out site — which is why personalising is
    additive rather than a second theme to maintain. */
 :root {
-  --ui-radius-card: 1.25rem;
-  /* The app window's own corner. See `.app-slab`. */
-  --ui-radius-app: 1.75rem;
-  /* Fields and small surfaces. Deliberately NOT a pill: buttons and chips are
-     round (see ui/button.tsx), but a pill is wrong for anything you type more
-     than a word into — a multi-line box with 9999px corners is a lozenge with
-     text falling out of both ends. 0.75rem is the same family, one step down. */
-  --ui-radius-control: 0.75rem;
-  --ui-radius-tile: 0.75rem;
+  /* Deel: 12px cards, 9px controls. These fallbacks MUST equal
+     resolveTokens(DEFAULT_APPEARANCE) so the first paint matches. */
+  --ui-radius-card: 0.750rem;
+  --ui-radius-app: 0.750rem;
+  --ui-radius-control: 0.563rem;
+  --ui-radius-tile: 0.563rem;
   --ui-radius-pill: 9999px;
   --ui-gap: 0.75rem;
   --ui-pad: 1.25rem;
@@ -245,9 +252,10 @@
      boundary, and a shadow soft enough to look good is not strong enough to do
      that: the first pass came out as text floating in a void. The hairline
      draws the edge, the shadow says which side of it is on top. */
-  --ui-surface-shadow: 0 1px 2px rgb(16 16 18 / 0.04),
-    0 8px 24px -14px rgb(16 16 18 / 0.16);
-  --ui-surface-border: 1px solid transparent;
+  /* Flat / Deel: the hairline is the card. A shadow here would be a second
+     edge and read as the old soft-surface language. */
+  --ui-surface-shadow: none;
+  --ui-surface-border: 1px solid var(--color-border);
   /* What the provider's "soft" surface resolves its border to, per theme —
      see SURFACES in src/lib/appearance.ts. */
   --ui-surface-edge: 1px solid transparent;
@@ -261,7 +269,7 @@
   --ui-surface-tile-shadow: inset 0 1px 0 rgb(255 255 255 / 0.6);
   --ui-font-scale: 1;
   --ui-motion-scale: 1;
-  --ui-heading-weight: 700;
+  --ui-heading-weight: 600;
   --ui-sidebar-width: 16rem;
   /* Typefaces. The fallbacks below reproduce the shipped pairing exactly, so
      the logged-out site and the pre-hydration paint render the design we ship
@@ -270,8 +278,9 @@
     var(--font-instrument), "Inter", -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --ui-font-display:
-    var(--font-space-grotesk), var(--font-instrument), "Inter", sans-serif;
-  --ui-icon-stroke: 2;
+    var(--font-instrument), "Inter", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ui-icon-stroke: 1.75;
   /* How far secondary text is pushed toward the foreground or the background.
      Exactly one is ever non-zero, and both are zero by default — a mix of 0%
      in sRGB returns the base colour byte for byte. */
@@ -1163,6 +1172,253 @@ body {
   }
 }
 
+.app-top-nav {
+  --app-top-nav-height: 3.5rem;
+  flex-shrink: 0;
+  background: var(--color-top-nav);
+  color: var(--color-foreground);
+}
+.app-mark {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: #0c111d;
+  color: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+:root[data-theme="dark"] .app-mark {
+  background: #f9fafb;
+  color: #0c111d;
+}
+.app-top-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 2rem;
+  padding: 0 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-muted-foreground);
+  white-space: nowrap;
+}
+.app-top-pill:hover {
+  color: var(--color-foreground);
+  background: rgb(0 0 0 / 0.04);
+}
+:root[data-theme="dark"] .app-top-pill:hover {
+  background: rgb(255 255 255 / 0.06);
+}
+.app-top-pill-on,
+.app-top-pill[aria-current="page"] {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.06);
+}
+:root[data-theme="dark"] .app-top-pill-on,
+:root[data-theme="dark"] .app-top-pill[aria-current="page"] {
+  background: #2a2438;
+  box-shadow: none;
+}
+
+/* Deel 2025 inner surfaces (Mobbin people / profile / empty / dialogs). */
+.deel-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.25rem 0.375rem;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 9999px;
+}
+.deel-kv-card {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--ui-radius-card);
+  overflow: hidden;
+}
+.deel-kv-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--color-border);
+}
+.deel-metric-tile {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--ui-radius-card);
+  padding: 1.25rem 1.25rem 1.125rem;
+}
+.deel-name-link {
+  color: var(--color-link);
+}
+.deel-empty-blob {
+  color: #dbe4ff;
+}
+:root[data-theme="dark"] .deel-empty-blob {
+  color: #2a3258;
+}
+
+/* Settings / org details (Mobbin profile + organization cards). */
+.deel-settings-grid {
+  display: grid;
+  gap: 1rem;
+}
+@media (min-width: 768px) {
+  .deel-settings-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+.deel-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 1.25rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border-bottom: 1px solid var(--color-border);
+  scrollbar-width: none;
+}
+.deel-tabs::-webkit-scrollbar {
+  display: none;
+}
+.deel-tab {
+  flex-shrink: 0;
+  padding: 0.7rem 0;
+  margin-bottom: -1px;
+  font-size: 0.875rem;
+  color: var(--color-muted-foreground);
+  border-bottom: 2px solid transparent;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.deel-tab:hover {
+  color: var(--color-foreground);
+}
+.deel-tab-on,
+.deel-tab[aria-current="page"] {
+  color: var(--color-foreground);
+  font-weight: 500;
+  border-bottom-color: var(--color-foreground);
+}
+.deel-filter-pill {
+  border-radius: 9999px;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--color-muted-foreground);
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+.deel-filter-pill:hover {
+  color: var(--color-foreground);
+}
+.deel-filter-pill-on {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.06);
+}
+:root[data-theme="dark"] .deel-filter-pill-on {
+  background: #2a2438;
+  box-shadow: none;
+}
+
+/* Board columns (Deel org cards: white slab, title + count, no pastel well). */
+.deel-board-col {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--ui-radius-card);
+}
+.deel-board-card {
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  padding: 0.75rem 0.875rem;
+}
+
+/* Time-off month grid (Mobbin calendar). */
+.deel-cal {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--ui-radius-card);
+  overflow: hidden;
+}
+.deel-cal-today {
+  box-shadow: inset 0 0 0 1.5px var(--color-foreground);
+}
+
+/* Headcount / insights bars (Mobbin workforce + country widgets). */
+.deel-bar {
+  min-width: 0;
+}
+.deel-bar-track {
+  margin-top: 0.375rem;
+  height: 4px;
+  background: color-mix(in srgb, var(--color-link) 14%, var(--color-muted));
+  border-radius: 9999px;
+  overflow: hidden;
+}
+.deel-bar-fill {
+  height: 100%;
+  background: var(--color-link);
+  border-radius: 9999px;
+}
+
+/* Payroll-style timeline bars (Mobbin global payroll). */
+.deel-gantt-bar {
+  background: var(--color-link);
+  color: #fff;
+  border-radius: 9999px;
+}
+.deel-gantt-today-line {
+  width: 2px;
+  background: var(--color-foreground);
+}
+.deel-gantt-today-dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 9999px;
+  background: var(--color-foreground);
+}
+
+/* Deel AI chat: pill composer + own-message grey bubble. */
+.deel-chat-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.25rem;
+  padding: 0.35rem 0.4rem 0.35rem 1rem;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 9999px;
+}
+.deel-chat-bubble-mine {
+  margin-left: auto;
+  max-width: min(36rem, 80%);
+  padding: 0.7rem 0.95rem;
+  background: #f3f4f6;
+  color: var(--color-foreground);
+  border-radius: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+:root[data-theme="dark"] .deel-chat-bubble-mine {
+  background: #2a2438;
+}
+.deel-dialog {
+  background: var(--color-card);
+  color: var(--color-card-foreground);
+  border-radius: 1.25rem;
+  box-shadow: 0 24px 64px rgb(16 24 40 / 0.18);
+}
+
 .app-slab {
   /* FULL BLEED — the inset "window on a backdrop" frame is gone by founder
      decree: a border around the entire application read as ornament, not
@@ -1183,56 +1439,42 @@ body {
   overflow: hidden;
 }
 
-/* Nav rows are pills, like every other interactive thing in the product.
-   Declared here rather than in the vendored sidebar so one edit reaches the
-   button, the sub-button and anything either of them is composed into. */
+/* Deel nav rows: 8px corners, gray selected band, bare outline icons.
+   The lime circle on the glyph was the previous identity and it is the
+   first thing that made this rail look like a different product. */
 [data-slot="sidebar-menu-button"],
 [data-slot="sidebar-menu-sub-button"] {
   min-height: var(--ui-row-height);
-  border-radius: var(--ui-radius-pill);
+  border-radius: var(--ui-radius-control);
+  color: #475467;
 }
-
-/* ── The nav row's circular icon chip ────────────────────────────────────
-   Cyberlock's signature and the thing that makes its rail readable without a
-   background colour of its own: every row's glyph sits in its own circle, and
-   the ACTIVE row's circle fills with the accent. It is a much better active
-   indicator than a tinted row — a filled circle is unmissable at a glance and
-   survives the rail collapsing to icons, which a row tint does not.
-
-   Done here rather than at the ~30 call sites that render a nav glyph, so it
-   reaches Inbox, Chat, favourites, spaces and anything added later without
-   any of them having to know. */
-[data-slot="sidebar-menu-button"] > svg:first-child {
+:root[data-theme="dark"] [data-slot="sidebar-menu-button"],
+:root[data-theme="dark"] [data-slot="sidebar-menu-sub-button"] {
+  color: #98a2b3;
+}
+[data-slot="sidebar-menu-button"] > svg:first-child,
+[data-slot="sidebar-menu-sub-button"] > svg:first-child {
   box-sizing: content-box;
-  padding: 0.4375rem;
-  border-radius: 9999px;
-  /* Resting glyphs are BARE. A grey coin behind every icon made the rail a
-     column of buttons before anything was chosen — the chip fill is reserved
-     for the one row that earned it (active = lime), which is also what makes
-     that fill legible as state rather than decoration. The padding stays so
-     the active circle lands without the row shifting. */
+  padding: 0;
+  border-radius: 0;
   background: transparent;
+  color: inherit;
+}
+[data-slot="sidebar-menu-button"]:hover,
+[data-slot="sidebar-menu-sub-button"]:hover {
+  background: var(--color-sidebar-accent);
   color: var(--color-sidebar-foreground);
-  transition:
-    background-color 0.18s ease,
-    color 0.18s ease;
 }
-[data-slot="sidebar-menu-button"]:hover > svg:first-child {
-  background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
-}
-[data-slot="sidebar-menu-button"][data-active="true"] > svg:first-child {
-  background: var(--color-signal-lime);
-  color: var(--color-signal-ink);
-}
-/* The row itself stops shouting once the chip is doing it: an active row is a
-   filled circle and a heavier label, not a grey band. Two active indicators
-   on one row is one too many. */
-[data-slot="sidebar-menu-button"][data-active="true"] {
-  background: transparent;
+[data-slot="sidebar-menu-button"][data-active="true"],
+[data-slot="sidebar-menu-sub-button"][data-active="true"] {
+  background: var(--color-sidebar-accent);
+  color: var(--color-sidebar-foreground);
   font-weight: 600;
 }
-[data-slot="sidebar-menu-button"][data-active="true"]:hover {
-  background: var(--color-sidebar-accent);
+[data-slot="sidebar-menu-button"][data-active="true"] > svg:first-child,
+[data-slot="sidebar-menu-sub-button"][data-active="true"] > svg:first-child {
+  background: transparent;
+  color: inherit;
 }
 
 /* The unread counter as an ink coin — a filled circle with the count knocked
@@ -1672,11 +1914,11 @@ body {
   align-items: center;
   gap: 0.125rem;
   padding: 0.2rem;
-  border-radius: 9999px;
+  border-radius: var(--ui-radius-control);
   background: var(--color-muted);
 }
 .segmented > * {
-  border-radius: 9999px;
+  border-radius: calc(var(--ui-radius-control) - 0.1rem);
   padding: 0.3rem 0.85rem;
   font-size: 0.8125rem;
   line-height: 1.25rem;
@@ -1756,16 +1998,16 @@ body {
   box-shadow: none;
 }
 
-/* Interactive-card hover: a quiet lift with a soft, wide shadow. */
+/* Deel cards don't lift. Hover is a hairline + muted fill, never a jump. */
 .lift {
   transition:
-    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 0.2s ease;
+    background-color 0.15s ease,
+    border-color 0.15s ease;
 }
 .lift:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 32px -16px rgb(16 16 18 / 0.22);
+  transform: none;
+  box-shadow: none;
+  border-color: color-mix(in srgb, var(--color-foreground) 12%, var(--color-border));
 }
 @media (prefers-reduced-motion: reduce) {
   .lift,
@@ -1908,15 +2150,15 @@ body {
      into it, and the whole app reads as a hole. Charcoal has a temperature and
      lets a surface sit ON something. The canvas and the surfaces stay one step
      apart the way they do in light, just with the values pulled down. */
-  --color-page: #0b0b0c;
-  /* The slab register both references sit in: a near-black window with panels
-     one step up. #1a1a1d was a mid-charcoal that read as "dark mode"; this
-     reads as the object the backdrop's lime is framing. */
-  --color-background: #131316;
-  --color-foreground: #f4f4f5;
-  --color-muted: #222226;
-  --color-muted-foreground: #a1a1aa;
-  --color-border: #2e2e34;
+  /* Deel's 2025 dark home (Mobbin): purple-black window, not charcoal
+     with a lime mark and not a flat navy admin theme. */
+  --color-page: #12101a;
+  --color-background: #12101a;
+  --color-top-nav: #1a1430;
+  --color-foreground: #f9fafb;
+  --color-muted: #1d2939;
+  --color-muted-foreground: #98a2b3;
+  --color-border: #344054;
   /* Dark's surface edge: 4% white. Not a rim — an antialiasing stabilizer
      for a card one value-step above the canvas. Anything brighter is the
      "white border around everything" the founder killed. */
@@ -1934,32 +2176,41 @@ body {
   --color-brand-700: var(--ui-accent-700-dark, #ededf0);
 
   --color-danger: #e0685c;
-  --color-unread: #d9f24e;
+  --color-unread: #32d583;
 
   /* Shell fusion tones flip with the theme (ink inverts, like the
      template's dark scheme, kept in our hex language). */
-  --color-card: #1e1e22;
-  --color-card-foreground: #f4f4f5;
-  --color-popover: #26262b;
-  --color-popover-foreground: #f4f4f5;
-  --color-primary: #ededf0;
-  --color-primary-foreground: #101010;
-  --color-secondary: #26262a;
-  --color-secondary-foreground: #f4f4f5;
-  --color-accent: #2c2c32;
-  --color-accent-foreground: #f4f4f5;
-  --color-destructive: #e0685c;
-  --color-input: #33333a;
-  --color-ring: #7a7a86;
-  /* Part of the slab in dark too — same surface as the content beside it. */
-  --color-sidebar: #131316;
-  --color-sidebar-foreground: #f4f4f5;
-  --color-sidebar-primary: #ffffff;
-  --color-sidebar-primary-foreground: #131316;
-  --color-sidebar-accent: #26262c;
-  --color-sidebar-accent-foreground: #ffffff;
-  --color-sidebar-border: #2b2b31;
-  --color-sidebar-ring: #7a7a86;
+  --color-card: #1d2939;
+  --color-card-foreground: #f9fafb;
+  --color-popover: #1d2939;
+  --color-popover-foreground: #f9fafb;
+  --color-primary: #f9fafb;
+  --color-primary-foreground: #0c111d;
+  --color-secondary: #1d2939;
+  --color-secondary-foreground: #f9fafb;
+  --color-accent: #344054;
+  --color-accent-foreground: #f9fafb;
+  --color-destructive: #f97066;
+  --color-input: #344054;
+  --color-ring: #667085;
+  --color-sidebar: #0c111d;
+  --color-sidebar-foreground: #f9fafb;
+  --color-sidebar-primary: #f9fafb;
+  --color-sidebar-primary-foreground: #0c111d;
+  --color-sidebar-accent: #1d2939;
+  --color-sidebar-accent-foreground: #f9fafb;
+  --color-sidebar-border: #344054;
+  --color-sidebar-ring: #667085;
+
+  --badge-success-bg: #054f31;
+  --badge-success-fg: #6ce9a6;
+  --badge-warning-bg: #542c0d;
+  --badge-warning-fg: #fec84b;
+  --badge-danger-bg: #7a271a;
+  --badge-danger-fg: #fda29b;
+  --badge-neutral-bg: #344054;
+  --badge-neutral-fg: #d0d5dd;
+  --color-link: #8b9cff;
 }
 
 /* Slow drift for gradient scene blobs. */
@@ -3128,14 +3379,11 @@ a:hover > .message-ref {
   background: var(--chat-hover);
 }
 .chat-row[data-active="true"] {
-  /* The row itself no longer carries "you are here" — the leading glyph
-     does, below. Work marks its active nav row with a lime-filled icon chip
-     on a transparent row rather than a grey band, and a chat row that tinted
-     the whole line while Work filled a circle is the two halves of the
-     product disagreeing about what "selected" looks like. Two active
-     indicators on one row is one too many either way this is drawn. */
-  background: transparent;
-  font-weight: 600;
+  /* Deel 2025 chat list (Mobbin): the selected room is a light grey band,
+     not a lime glyph. Work's lime circle is gone from this rail for the
+     same reason — Chat is a Deel conversation list, not a second product. */
+  background: var(--chat-hover);
+  font-weight: 500;
   box-shadow: none;
 }
 .chat-row[data-active="true"]:hover {
@@ -3167,11 +3415,11 @@ a:hover > .message-ref {
     color 0.18s ease;
 }
 .chat-row[data-active="true"] > svg:first-child {
-  background: var(--color-signal-lime);
-  color: var(--color-signal-ink);
+  background: transparent;
+  color: inherit;
 }
 .chat-row[data-active="true"] > span:first-child {
-  box-shadow: 0 0 0 2px var(--color-signal-lime);
+  box-shadow: none;
 }
 
 /* Section label: sentence case, quiet, and a button because it collapses. */

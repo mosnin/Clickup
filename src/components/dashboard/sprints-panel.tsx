@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
@@ -8,8 +7,17 @@ import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Picker } from "@/components/ui/picker";
+import {
+  DeelBar,
+  DeelTabs,
+  EmptyBlob,
+  KvCard,
+  MetricStrip,
+  NameLink,
+  StatusDot,
+  deelTabClass,
+} from "@/components/dashboard/deel-ui";
 import { cn } from "@/lib/utils";
 import { fromDateInputValue, toDateInputValue } from "@/lib/dates";
 import { useToast } from "@/components/toast";
@@ -17,8 +25,6 @@ import { ScrumBoard } from "@/components/dashboard/scrum-board";
 import { SprintPlanning } from "@/components/dashboard/sprint-planning";
 import { SprintTemplateGallery } from "@/components/dashboard/sprint-template-gallery";
 import {
-  AnimatedBar,
-  AnimatedNumber,
   AnimatePresence,
   EASE,
   motion,
@@ -35,10 +41,10 @@ import { errorMessage } from "@/lib/errors";
 // board workstream's per-status swimlanes, Planning is the backlog vs.
 // committed capacity view (convex/sprintPlanning.ts).
 
-const STATUS_STYLE: Record<string, string> = {
-  planned: "bg-muted text-muted-foreground",
-  active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
-  complete: "bg-brand-50 text-brand-700",
+const STATUS_DOT: Record<string, string> = {
+  planned: "var(--color-muted-foreground)",
+  active: "var(--color-link)",
+  complete: "var(--color-success, #16a34a)",
 };
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -59,7 +65,7 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
   const [templating, setTemplating] = useState(false);
 
   if (sprints === undefined) {
-    return <Card className="h-40 animate-pulse bg-muted/30" />;
+    return <div className="h-40 animate-pulse rounded-[var(--ui-radius-card)] bg-muted/30" />;
   }
 
   const active = sprints.find((s) => s.status === "active");
@@ -124,22 +130,20 @@ export function SprintsPanel({ workspaceId }: { workspaceId: Id<"workspaces"> })
       <VelocityStrip workspaceId={workspaceId} />
 
       {sprints.length === 0 && !creating && !templating && (
-        <div className="rounded-2xl panel px-6 py-14 text-center">
-          <p className="text-sm font-semibold">Plan work in timeboxes</p>
-          <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
-            A sprint collects tasks into a start-to-finish window, so humans
-            and agents burn down the same list together. Start from a
-            template and the ceremonies and first tasks come with it.
-          </p>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            <Button size="sm" onClick={() => setTemplating(true)}>
-              <Plus className="h-4 w-4" /> Browse templates
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
-              Blank sprint
-            </Button>
-          </div>
-        </div>
+        <EmptyBlob
+          title="Plan work in timeboxes"
+          message="A sprint collects tasks into a start-to-finish window, so humans and agents burn down the same list together."
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button size="sm" onClick={() => setTemplating(true)}>
+                <Plus className="h-4 w-4" /> Browse templates
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+                Blank sprint
+              </Button>
+            </div>
+          }
+        />
       )}
 
       <Stagger className="space-y-3">
@@ -200,69 +204,51 @@ function ActiveSprintHero({
   ];
 
   return (
-    <div className="flex min-w-0 rounded-2xl ring-2 ring-signal-lime">
-      <div className="panel min-w-0 flex-1 rounded-2xl p-5">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="rounded-full bg-signal-lime px-2 py-0.5 text-micro font-semibold uppercase tracking-wider text-signal-ink">
-            Active
-          </span>
-          <p className="min-w-0 truncate font-semibold tracking-tight">
-            {sprint.name}
-          </p>
-          <span className="ml-auto text-xs text-muted-foreground">
-            {new Date(sprint.startDate).toLocaleDateString(undefined, {
-              month: "short",
-              day: "numeric",
-            })}{" "}
-            –{" "}
-            {new Date(sprint.endDate).toLocaleDateString(undefined, {
-              month: "short",
-              day: "numeric",
-            })}
-          </span>
-        </div>
-
+    <KvCard
+      title={
+        <span className="flex min-w-0 items-center gap-2">
+          <StatusDot color={STATUS_DOT.active} label="Active" />
+          <span className="truncate">{sprint.name}</span>
+        </span>
+      }
+      action={
+        <span className="text-xs text-muted-foreground">
+          {new Date(sprint.startDate).toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+          })}{" "}
+          –{" "}
+          {new Date(sprint.endDate).toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+          })}
+        </span>
+      }
+    >
+      <div className="space-y-4 px-5 pb-5">
         {sprint.goal && (
-          <p className="mt-2 max-w-prose text-sm leading-relaxed text-muted-foreground">
+          <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
             {sprint.goal}
           </p>
         )}
 
-        <div className="mt-4 flex min-w-0 items-baseline gap-2">
-          <AnimatedNumber
-            value={pct}
-            className="text-3xl font-semibold tabular-nums"
-          />
-          <span className="text-3xl font-semibold">%</span>
-          <span
-            className={cn(
-              "ml-auto text-xs font-medium",
-              behind ? "text-danger" : "text-muted-foreground",
-            )}
-          >
-            {behind
+        <DeelBar
+          label={`${pct}% done`}
+          value={pct}
+          valueLabel={
+            behind
               ? `Behind pace — ${elapsedPct}% of the timebox spent`
-              : `${elapsedPct}% of the timebox spent`}
-          </span>
-        </div>
-        <AnimatedBar
-          pct={pct}
-          className="mt-2 h-2 overflow-hidden rounded-full bg-muted"
-          barClassName="h-full rounded-full bg-brand-600"
+              : `${elapsedPct}% of the timebox spent`
+          }
+          max={100}
         />
 
-        <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {stats.map((s) => (
-            <div key={s.label} className="bento-tile min-w-0 px-3 py-2">
-              <dt className="text-micro uppercase tracking-wider text-muted-foreground">
-                {s.label}
-              </dt>
-              <dd className="text-lg font-semibold tabular-nums">{s.value}</dd>
-            </div>
-          ))}
-        </dl>
+        <MetricStrip
+          className="sm:grid-cols-2 lg:grid-cols-4"
+          items={stats.map((s) => ({ value: s.value, label: s.label }))}
+        />
       </div>
-    </div>
+    </KvCard>
   );
 }
 
@@ -305,7 +291,7 @@ function CreateSprintForm({
       }}
     >
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="mb-1 block text-sm text-muted-foreground">
           Name
         </span>
         <input
@@ -317,7 +303,7 @@ function CreateSprintForm({
         />
       </label>
       <label className="block min-w-40 flex-1">
-        <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="mb-1 block text-sm text-muted-foreground">
           Goal (optional)
         </span>
         <input
@@ -328,7 +314,7 @@ function CreateSprintForm({
         />
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="mb-1 block text-sm text-muted-foreground">
           Start
         </span>
         <input
@@ -339,7 +325,7 @@ function CreateSprintForm({
         />
       </label>
       <label className="block">
-        <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="mb-1 block text-sm text-muted-foreground">
           End
         </span>
         <input
@@ -422,8 +408,8 @@ function SprintCard({
     });
 
   return (
-    <Card className="gap-0 p-4">
-      <div className="flex flex-wrap items-center gap-2">
+    <KvCard>
+      <div className="flex flex-wrap items-center gap-2 px-5 pt-4">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
@@ -439,14 +425,10 @@ function SprintCard({
           </motion.span>
         </button>
         <span className="font-medium">{sprint.name}</span>
-        <span
-          className={cn(
-            "rounded-full px-2 py-0.5 text-micro uppercase tracking-wider",
-            STATUS_STYLE[sprint.status],
-          )}
-        >
-          {sprint.status}
-        </span>
+        <StatusDot
+          color={STATUS_DOT[sprint.status] ?? STATUS_DOT.planned}
+          label={sprint.status}
+        />
         <span className="text-xs text-muted-foreground">
           {fmt(sprint.startDate)} – {fmt(sprint.endDate)}
         </span>
@@ -510,11 +492,13 @@ function SprintCard({
         <p className="mt-1 pl-7 text-xs text-muted-foreground">{sprint.goal}</p>
       )}
 
-      <AnimatedBar
-        pct={pct}
-        className="mt-3 h-2 overflow-hidden rounded-full bg-muted"
-        barClassName="h-full rounded-full bg-brand-600"
-      />
+      <div className="px-5 pb-2">
+        <DeelBar
+          label={`${sprint.doneCount}/${sprint.taskCount} done`}
+          value={pct}
+          max={100}
+        />
+      </div>
 
       <AnimatePresence initial={false}>
       {open && (
@@ -524,28 +508,20 @@ function SprintCard({
           animate={{ opacity: 1, height: "auto" }}
           exit={{ opacity: 0, height: 0 }}
           transition={{ duration: 0.4, ease: EASE }}
-          className="mt-3 space-y-3 overflow-hidden pl-7">
-          <nav
-            aria-label="Sprint detail sections"
-            className="flex w-fit items-center gap-1 text-xs"
-          >
+          className="space-y-3 overflow-hidden px-5 pb-4">
+          <DeelTabs label="Sprint detail sections">
             {DETAIL_TABS.map(({ key, label }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setTab(key)}
                 aria-current={tab === key ? "page" : undefined}
-                className={cn(
-                  "rounded-md px-3 py-1.5 transition-colors",
-                  tab === key
-                    ? "bg-accent font-medium text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                )}
+                className={deelTabClass(tab === key)}
               >
                 {label}
               </button>
             ))}
-          </nav>
+          </DeelTabs>
 
           {tab === "overview" &&
             (summary ? (
@@ -596,12 +572,12 @@ function SprintCard({
                               : "bg-muted-foreground",
                         )}
                       />
-                      <Link
+                      <NameLink
                         href={`/dashboard/l/${t.listId}/t/${t._id}`}
-                        className="min-w-0 flex-1 truncate hover:underline"
+                        className="min-w-0 flex-1 truncate"
                       >
                         {t.title}
-                      </Link>
+                      </NameLink>
                       <span className="text-xs text-muted-foreground">
                         {t.statusName}
                       </span>
@@ -613,7 +589,7 @@ function SprintCard({
                 )}
               </div>
             ) : (
-              <Card className="h-24 animate-pulse bg-muted/30" />
+              <div className="h-24 animate-pulse rounded-[var(--ui-radius-card)] bg-muted/30" />
             ))}
 
           {tab === "board" && (
@@ -626,7 +602,7 @@ function SprintCard({
         </motion.div>
       )}
       </AnimatePresence>
-    </Card>
+    </KvCard>
   );
 }
 
@@ -642,7 +618,7 @@ function RetrospectiveField({
 
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <p className="text-sm font-semibold text-foreground">
         Retrospective
       </p>
       <textarea
@@ -779,16 +755,11 @@ function BurndownCard({
   const burndown = useQuery(api.sprints.burndown, { sprintId });
 
   if (burndown === undefined) {
-    return <Card className="h-28 animate-pulse bg-muted/30" />;
+    return <div className="h-28 animate-pulse rounded-[var(--ui-radius-card)] bg-muted/30" />;
   }
   if (!burndown || burndown.totalTasks === 0) {
     return (
-      <Card className="gap-0 px-4 py-6 text-center">
-        <p className="text-xs text-muted-foreground">
-          No tasks in this sprint yet — the burndown fills in once work
-          joins.
-        </p>
-      </Card>
+      <EmptyBlob title="No tasks in this sprint yet" message="The burndown fills in once work joins." />
     );
   }
 
@@ -806,7 +777,8 @@ function BurndownCard({
   const daysLeft = Math.max(0, Math.ceil((endDate - Date.now()) / ONE_DAY_MS));
 
   return (
-    <Card className="gap-0 p-4">
+    <KvCard title="Burndown">
+      <div className="px-5 pb-4">
       <BurndownSvg burndown={burndown} />
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
         <span className="flex items-center gap-3 text-muted-foreground">
@@ -834,7 +806,8 @@ function BurndownCard({
             : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`}
         </span>
       </div>
-    </Card>
+      </div>
+    </KvCard>
   );
 }
 
@@ -852,41 +825,22 @@ function VelocityStrip({ workspaceId }: { workspaceId: Id<"workspaces"> }) {
   const avgPoints = Math.round(totalPoints / velocity.length);
 
   return (
-    <Card className="gap-0 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Velocity
-      </p>
-      <div className="mt-3 space-y-2">
+    <KvCard title="Velocity">
+      <div className="space-y-3 px-5 pb-4">
         {velocity.map((v) => (
-          <div key={v.sprintId} className="flex items-center gap-3">
-            <span
-              title={v.name}
-              className="w-24 flex-shrink-0 truncate text-xs text-muted-foreground"
-            >
-              {v.name}
-            </span>
-            <AnimatedBar
-              pct={(v.completedPoints / max) * 100}
-              className="h-2 flex-1 overflow-hidden rounded-full bg-muted"
-              // brand-600, like the nine other bars in the app. This one was
-              // brand-200 — a surface shade used as a graphic — which measures
-              // 1.29:1 against its own `bg-muted` track in light, so the
-              // velocity chart has been a row of empty capsules since it
-              // shipped. It looked fine in dark only because the accent ramp
-              // was pinned to its light values (iteration 17), which painted a
-              // near-white bar on a near-black track by accident.
-              barClassName="h-full rounded-full bg-brand-600"
-            />
-            <span className="w-14 flex-shrink-0 text-right text-xs text-muted-foreground">
-              {v.completedPoints} pt{v.completedPoints === 1 ? "" : "s"}
-            </span>
-          </div>
+          <DeelBar
+            key={v.sprintId}
+            label={v.name}
+            value={v.completedPoints}
+            valueLabel={`${v.completedPoints} pt${v.completedPoints === 1 ? "" : "s"}`}
+            max={max}
+          />
         ))}
+        <p className="text-xs text-muted-foreground">
+          avg {avgPoints} pt{avgPoints === 1 ? "" : "s"} per sprint · {totalTasks}{" "}
+          task{totalTasks === 1 ? "" : "s"} completed
+        </p>
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        avg {avgPoints} pt{avgPoints === 1 ? "" : "s"} per sprint · {totalTasks}{" "}
-        task{totalTasks === 1 ? "" : "s"} completed
-      </p>
-    </Card>
+    </KvCard>
   );
 }

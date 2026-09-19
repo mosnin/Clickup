@@ -7,7 +7,6 @@ import {
   Bell,
   CircleHelp,
   ClipboardCheck,
-  Inbox as InboxIcon,
   PackageCheck,
   Pencil,
   ShieldCheck,
@@ -63,10 +62,6 @@ const CONTEXT_KIND: Record<string, string> = {
   room: "Room",
 };
 
-function pad(n: number): string {
-  return String(n).padStart(2, "0");
-}
-
 export function Inbox() {
   const mentions = useQuery(api.mentions.feedForCurrent, {});
   const obligations = useQuery(api.obligations.forCurrentUser, {});
@@ -77,7 +72,7 @@ export function Inbox() {
   if (mentions === undefined || updates === undefined) {
     return (
       <div className="space-y-6">
-        <PageHeader icon={InboxIcon} title="Inbox" />
+        <PageHeader title="Inbox" />
 
 
         <div className="space-y-2">
@@ -100,10 +95,8 @@ export function Inbox() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Waiting on you"
-        description="Mentions, approvals and handoffs — the things that do not move until you touch them."
-        icon={InboxIcon}
         title="Inbox"
+        description="Mentions, approvals and handoffs — the things that do not move until you touch them."
         context={
           totalUnread === 0
             ? "All caught up"
@@ -142,11 +135,11 @@ export function Inbox() {
                 label="Mentions"
                 unread={unreadMentions}
               />
-              <div className="panel mt-3 overflow-hidden rounded-2xl">
+              <div className="mt-3 overflow-hidden rounded-[var(--ui-radius-card)] border border-border bg-card">
                 <Stagger className="divide-y divide-border">
-                  {mentions.map((mention, index) => (
+                  {mentions.map((mention) => (
                     <StaggerItem key={mention._id}>
-                      <MentionItem mention={mention} index={index} />
+                      <MentionItem mention={mention} />
                     </StaggerItem>
                   ))}
                 </Stagger>
@@ -157,11 +150,11 @@ export function Inbox() {
           {updates.length > 0 && (
             <section>
               <SectionHeading label="Updates" unread={unreadUpdates} />
-              <div className="panel mt-3 overflow-hidden rounded-2xl">
+              <div className="mt-3 overflow-hidden rounded-[var(--ui-radius-card)] border border-border bg-card">
                 <Stagger className="divide-y divide-border">
-                  {updates.map((n, index) => (
+                  {updates.map((n) => (
                     <StaggerItem key={n._id}>
-                      <UpdateItem n={n} index={index} />
+                      <UpdateItem n={n} />
                     </StaggerItem>
                   ))}
                 </Stagger>
@@ -173,7 +166,7 @@ export function Inbox() {
 
       {/* Collapsed by default: the controls belong next to the thing they
           govern, but nobody comes to the Inbox to change settings. */}
-      <details className="panel rounded-2xl p-5">
+      <details className="rounded-[var(--ui-radius-card)] border border-border bg-card p-5">
         <summary className="tap-target cursor-pointer text-sm font-semibold text-foreground">
           Notification settings
         </summary>
@@ -188,7 +181,7 @@ export function Inbox() {
 function SectionHeading({ label, unread }: { label: string; unread: number }) {
   return (
     <div className="flex items-center gap-2">
-      <h2 className="text-tiny font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="text-sm font-semibold text-foreground">
         {label}
       </h2>
       {unread > 0 && (
@@ -306,8 +299,7 @@ function YourTurnQueue({
   return (
     <section>
       <SectionHeading label="Your turn" unread={rows.length} />
-      <div className="mt-3 rounded-[1.625rem] bg-muted/30 p-1.5">
-        <div className="overflow-hidden rounded-2xl panel">
+      <div className="mt-3 overflow-hidden rounded-[var(--ui-radius-card)] border border-border bg-card">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3.5">
             <h3 className="text-base font-medium">
               Nothing moves until you touch these
@@ -337,7 +329,7 @@ function YourTurnQueue({
           </div>
           <ul className="divide-y divide-border">
             <AnimatePresence initial={false}>
-              {rows.map((row, index) => (
+              {rows.map((row) => (
                 <motion.li
                   key={`${row.kind}:${row.id}`}
                   layout
@@ -348,9 +340,6 @@ function YourTurnQueue({
                   className="overflow-hidden"
                 >
                   <div className="flex flex-wrap items-center gap-3 px-5 py-3">
-                    <span className="w-6 shrink-0 font-title text-xs tabular-nums text-muted-foreground">
-                      {pad(index + 1)}
-                    </span>
                     <span
                       className={cn(
                         "icon-tile flex-shrink-0",
@@ -366,7 +355,7 @@ function YourTurnQueue({
                     <span className="flex min-w-0 flex-1 basis-48 flex-col">
                       <Link
                         href={row.href}
-                        className="truncate text-sm font-semibold hover:underline"
+                        className="deel-name-link truncate text-sm hover:underline"
                       >
                         {row.title}
                       </Link>
@@ -462,7 +451,6 @@ function YourTurnQueue({
               ))}
             </AnimatePresence>
           </ul>
-        </div>
       </div>
     </section>
   );
@@ -481,26 +469,16 @@ type MentionRow = {
 
 function MentionItem({
   mention,
-  index,
 }: {
   mention: MentionRow;
-  index: number;
 }) {
   const markRead = useMutation(api.mentions.markRead);
   const preview = renderInlineBody(mention.body);
   const kind = CONTEXT_KIND[mention.parentType] ?? "Comment";
   const unread = !mention.readAt;
 
-  // 01 · glyph · title · [tag][tag] — the row is the whole tap target: the
-  // meta line and chips share the same destination as the title.
   const row = (
     <div className="flex items-center gap-3 px-4 py-3">
-      <span
-        aria-hidden
-        className="w-5 shrink-0 font-title text-tiny tabular-nums text-muted-foreground"
-      >
-        {pad(index + 1)}
-      </span>
       <ActorGlyph
         name={mention.authorName || "Someone"}
         seed={mention._id}
@@ -555,7 +533,7 @@ function MentionItem({
   );
 }
 
-function UpdateItem({ n, index }: { n: Doc<"notifications">; index: number }) {
+function UpdateItem({ n }: { n: Doc<"notifications"> }) {
   const markRead = useMutation(api.notificationCenter.markRead);
   const router = useRouter();
   const unread = n.readAt === undefined;
@@ -573,12 +551,6 @@ function UpdateItem({ n, index }: { n: Doc<"notifications">; index: number }) {
         !n.href && "cursor-default",
       )}
     >
-      <span
-        aria-hidden
-        className="w-5 shrink-0 font-title text-tiny tabular-nums text-muted-foreground"
-      >
-        {pad(index + 1)}
-      </span>
       <span className="icon-tile flex-shrink-0" aria-hidden>
         <Bell className="size-4" />
       </span>
